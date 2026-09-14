@@ -517,7 +517,9 @@ the comparison anchor and the layout's node pin, not "pin" and "pin as A".
 
 The active state does not rename the control. MultiSelection draws its pin
 already engaged, with card A pinned above the live content, and the title stays
-`Pin as A` -- the same rule that keeps `Show on canvas` from becoming `Hide`.
+`Pin as A` -- the same rule that keeps `Show on canvas` from becoming `Hide`. What
+the active state DOES draw is section 19, added 2026-09-13: this section fixed
+that the word never changes and left what changes instead unspecified.
 
 Applied: `title="Pin as A"` on AiPanel, AnalyzeSweep, CategoryTable,
 ExplorePanel, FilterBuilderExpert, HistoryPopover, IpadInspector and
@@ -1377,4 +1379,140 @@ with `Pin as A` in the inspector's own title row, which is exactly what section
 one new drawing instead of one more reuse: a padlock at the register's 16px box
 and 1.5 stroke, a body and a shackle, drawn at 14px in both title rows. One
 verb, one word, one drawing, in two regions. The pushpin's three verbs and its
-`never share a row` rule are unchanged.
+`never share a row` rule are unchanged. What the latch draws when it is HELD is
+section 19.
+
+## 19. The pressed treatment of a toggle, and of any held state (2026-09-13)
+
+Sections 10.2 and 18 between them fix that a toggle keeps one word, one glyph and
+one title in BOTH of its states, and section 5 fixes that production adds
+`aria-pressed` to it. Neither says what the pressed state is DRAWN with. A
+diagnosis of the latch put the gap in terms -- "the pressed TREATMENT is
+unspecified and free" -- and free is what it was: measured with the pointer parked
+off the control, the inspector's `Keep open` rendered byte for byte identically in
+both states (`compare -metric AE` gave 0 differing pixels; both header PNGs shared
+the md5 `07a655051899103eb1e0f0f85568bf69`), and the panel's differed only in ink,
+`#a3a8b1` against `#d5d7da`, which is 1.66:1 between the two greys. The product
+owner could not tell a locked column from an unlocked one, which is the whole of
+what a register is for. It is not free from here. Design 6.14 carries the rule;
+this section carries the drawing.
+
+**The treatment, one form for every held toggle.** The set already draws most of
+it, on 69 controls across the artboards, and the inventory is worth stating before
+the addition: an engaged toggle is `background: #28364e; color: #4a7ee8` on the
+same 24px box, `#7a828e` and no ground when it is not engaged -- `Toggle inspector
+(D)` on every board that draws the inspector open, `Pin as A` engaged on
+MultiSelection (`MultiSelection.dc.html:1410`), `Compare two views` on
+CompareSplit, `Stop listening` on both AI boards. So this section adds ONE property
+and changes no ink: the 1px border, in the same accent the glyph is already drawn
+in, inside the control's own box.
+
+| State | Ground | Glyph ink | Border |
+|---|---|---|---|
+| not pressed | none | `#7a828e` | none |
+| pressed | `#28364e` | `#4a7ee8` | `1px solid #4a7ee8`, inside the 24px box, on the control's own 4px radius |
+
+Nothing else changes between the two states -- not the word, not the `title`, not
+the glyph, not the box -- so the row's cluster arithmetic is identical in both, and
+the 69 drawings take a one-property edit rather than a re-drawing.
+
+**Why the border and not the tint alone.** The tint is not a boundary: `#28364e`
+on the `#1f2428` panel measures **1.29:1**, where WCAG 2.2 1.4.11 asks 3:1 of the
+visual boundary that distinguishes a control's state. That is the whole of what
+the 69 drawings were missing, and it is why the shipped latch could be reported as
+showing nothing: the ground the boards paint is a hue change, not a boundary. The
+border is one, and it is measured on BOTH of its adjacent colours rather than one:
+`#4a7ee8` on `#1f2428` = **4.06:1** and `#4a7ee8` on `#28364e` = **3.15:1**. The
+hover ink `#5b8ff9` was the other candidate and clears both more widely, 5.03:1 and
+3.90:1; the accent is drawn anyway, because it is the ink the glyph inside the
+border already uses, one ink is what makes the two read as one treatment, and a
+second blue in a closed register would be a new value bought for margin the clause
+does not ask for.
+
+The library reaches the same treatment through its own two-scheme tokens and does
+NOT use its accent, and the difference is arithmetic rather than taste: Mantine's
+accent resolves to `#1971c2` in dark, which fails the inner side at 2.59:1, so the
+library draws the border in the light variant's own ink (`variant="light"` plus
+`--ai-bd: 1px solid var(--ai-color)`), measuring 7.97:1 and 6.57:1 in dark and
+3.56:1 and 3.17:1 in light. `CONTRAST-DIVERGENCE.md` section 4.1 is the licence for
+two spellings of one role; each artefact uses its own accent where its own accent
+passes, and neither is correcting the other.
+
+**What is withdrawn.** graphty's shell drew this boundary itself, as an inset
+box-shadow (`activeRingStyle` in `graphty/src/components/shell/panel/PanelHeader.tsx`,
+imported by `inspector/InspectorHeader.tsx`), which left exactly two toggles in the
+product drawing a state the rest did not. The product owner ruled the bespoke
+control out on 2026-09-13: "the custom lock button was not necessary, it was a
+mistake. use the default button and update CLAUDE.md to only use default
+components. if the components are wrong, they should be fixed." So the treatment
+lives in the shared component -- `compactActionIconVariantVars` in
+`compact-mantine/src/theme/styles/buttons.ts` -- and a register audit that finds a
+pressed treatment written at a call site should read it as drift. The contributing
+cause is recorded with it, because it is the reason the boundary was absent rather
+than wrong: that theme's ActionIcon `defaultProps` are `{size: "sm", variant:
+"subtle"}`, and `subtle` has no ground, so every dense toggle in the product starts
+from a variant that cannot express a pressed state at all.
+
+One thing about that shared component is not yet true and is recorded so a register
+audit knows what it is reading. The treatment is keyed off the VARIANT
+(`return variant === "light" ? { "--ai-bd": "1px solid var(--ai-color)" } : {}`), not
+off a state, so a call site still obtains it by choosing `variant={pressed ? "light" :
+"subtle"}` and the state-to-variant mapping stays duplicated at every call site -- which
+means the next author of a toggle can write `variant="subtle"` and draw nothing, the
+defect this section exists for. Design 6.17 carries the requirement: the component takes
+`pressed` and maps it to ground, border and ink itself, and the call site passes state
+and no variant, no colour, no ink. Until that lands, a board drawn to the table above is
+correct and the code reaching it through a variant is the interim rather than the
+rule.
+
+**Which controls this covers.** Every icon-only control whose state is HELD, which
+in the current set is `Keep open` (section 18), `Pin as A` (section 10.2), the two
+region switches `Toggle panel` and `Toggle inspector` (sections 1.1 and 18),
+`Show on canvas` (section 1.2), `Link views` (section 1.2) and `Lock` (section
+1.2). Three neighbours are deliberately outside it and keep their own drawings: a
+switch row draws its state by construction and the accent fill is its ON state; a
+checked menu row takes the check glyph in its leading slot (section 1.2); and a
+field glyph's three state rules stay exactly as section 1.7 sets them -- the
+filled binding glyph, the 4px `#4a7ee8` set-but-not-in-effect square, and the
+placeholder ink -- because a field is not a toggle and its slot is a scrub handle.
+
+**One control joins the set on 2026-09-13: the gear or door stub whose contents
+deviate.** Design 6.14's catalogue used to draw that state as an ink swap alone --
+dimmed at default, primary once anything behind the door differs -- and the arithmetic
+refuses it for the same reason this section refuses the tint alone: the two inks are
+`PANEL_INK.CHROME` against `PANEL_INK.VALUE`, which is **1.45:1** in the dark scheme
+(`#A6A7AB` on `#C9C9C9`) and **1.89:1** in the light one, both WORSE than the 1.66:1
+ink swap this section opens by condemning. So a deviating stub is a HELD state and
+takes the table above unchanged -- `#28364e` ground, `#4a7ee8` glyph, 1px `#4a7ee8`
+border -- at the same 4.06:1 and 3.15:1. The ink may still change with it; it is no
+longer the thing doing the work. Nothing in this register draws a state in ink alone,
+and a row that asked for that was a drafting error rather than a licence.
+
+The accessibility half of the stub is not an ARIA state, because there is none for
+"differs from its default": the deviation goes in the accessible name, as the title's
+second sentence ("Parsing. 2 changed"), which is the form floor item 4 already uses for
+a disabled reason. Design 6.14's catalogue names the attribute for every other row.
+
+**The check, in two halves that answer two different questions.** The first wording
+was one paragraph and it read as contradicting the acceptance suite, which recommends
+the opposite probe for its own good reason, so the two are separated here and each is
+given its question. Design 6.14 carries the same split.
+
+(a) IS THE TREATMENT VISIBLE. Two screenshots of one control in its two states with
+the pointer parked OFF it, plus the two ratios above recomputed from the hexes beside
+them. The pixel threshold is derived rather than chosen: `compare -metric AE` over the
+control's own 24px box must return at least the border's own perimeter in pixels,
+`4 * 24 - 4 = 92`, so the floor is **88** after antialiasing. An AE of 0 is the failure
+this section was written for, and an AE of 1 -- which "differing by a measured pixel
+count" would have passed -- is that same failure plus one antialiased edge.
+
+(b) IS THE STATE SET. Where a scenario asserts that a particular control is currently
+pressed, probe `data-variant` plus `aria-pressed` and never the computed colour:
+Playwright leaves the pointer on whatever it last clicked, and an unpressed but hovered
+icon button computes `rgba(34,139,230,0.2)` against the pressed
+`rgba(34,139,230,0.15)`, close enough to read as pressed and to cause a false FAIL
+(`design/ui/UAT.md`, section 1.5, gotcha 9).
+
+The two do not disagree once each has its question. An `aria-pressed` attribute is not
+evidence of anything a reader can SEE, which is (a); a computed background is not
+evidence that a state is SET, which is (b). A pass needs both.

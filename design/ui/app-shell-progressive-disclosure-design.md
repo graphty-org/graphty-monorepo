@@ -1,6 +1,8 @@
 # Graphty App Shell and Progressive Disclosure Design
 
-Status: draft 1.12, validated, four clauses amended at the product owner's direction
+Status: draft 1.14, validated; four clauses amended at the product owner's
+direction (1.12), the five behaviour rules written (1.13) and those rules
+adversarially reviewed, corrected and closed (1.14)
 Date: 2026-09-13
 Scope: the graphty React application (`graphty/`), not graphty-element
 
@@ -488,7 +490,11 @@ Breakpoint: below 1280 px.
   land 149 px clear of a 280 px panel overlay on the left and 149 px clear of
   a 280 px inspector overlay on the right, with either overlay open or both
   closed. Its lower edge sits 36 px above the window bottom, above the status
-  bar and clear of the iPadOS home indicator.
+  bar and clear of the iPadOS home indicator. The 149 px is this width's
+  measurement and not a general clearance, which a later section read it as: the
+  clearance is `(window - 322) / 2 - 280`, so it reaches zero at 882 px and is
+  negative below that, and 6.13 orders the canvas transient against the region
+  overlay rather than relying on geometry that holds only here.
 - Below 1280 px a pinned inspector card (section 5.4) is a second tab of the
   inspector overlay.
 - Below 1280 px, activating a row whose defined behaviour is "selects and
@@ -2345,7 +2351,7 @@ Style
   "Export style (JSON)" and "Reset styles to defaults". Styles never change
   the label visibility rule, the 7.2 label cap applies inside every one, so
   Presentation changes label size and node scale only; above the threshold a
-  row applies on click, not on hover preview. Then the Show legend switch. The view mode
+  row applies on click, not on hover preview. Shell-authored layers appear in this list like any other, carrying their source: 7.2's `Top degree labels` is the one a load adds, and the reader may hide, reorder or delete it, which changes this session and not the setting that adds it (7.2, The top-degree label layer). Then the Show legend switch. The view mode
   control is not here; it lives in the canvas toolbar (section 5.6). Style keeps the layout-driven rules: selecting a 2D-only layout while
   in 3D switches the view to 2D with the status bar note "Switched to 2D for
   Hierarchical"; switching back to 3D while a 2D-only layout is active falls
@@ -3288,6 +3294,7 @@ Settings (rail, bottom)
 | Exact-computation cap | 2,000 nodes | Above it cubic cards and cubic layouts warn and confirm (5.3 Analyze, Layouts) |
 | Layout size ratings | any size, 10k, 2k, 500 per engine | Drive the warnings in the All layouts list; benchmarked before release |
 | Performance mode | Auto, Always on, Off | Checklist of what it changes: labels capped at 20, uniform node size, edges as 1 px lines, edges hidden above the edge cap until zoomed, hover and tooltips off, animation off, force layout not started, note markers clustered (5.7); and it is always on in a headset regardless of this setting (5.9) |
+| Label the most connected nodes | on | Whether a load adds 7.2's top-degree label layer at all. Off means no label layer and no labels from the shell, and it disables the `Labels on canvas` row above, which is the same number and not a second one (6.4a(d)); the reader's own layers are untouched. Remembered under `graphty.shell.labels.v1` (6.5). The product owner's 2026-09-13 requirement that the feature carry a setting that can disable it |
 | Labels on canvas | 50 below the threshold, 20 in Performance mode, max 500 | Label cap; the readout, the Performance mode chip and the status bar show the value in force (7.2) |
 | Edges drawn | 500,000 | Beyond it edges are hidden until the view narrows |
 | Subset load default | Busiest nodes, 50,000 | Pre-selected Load control choice |
@@ -3454,7 +3461,10 @@ menu is a shortcut, never a home.
 ### 5.5 Command palette
 
 Opened by cmd-K or ctrl-K, or the top bar button (its pill reads "Search
-commands, nodes and edges" on every screen). Fuzzy search over every
+commands, nodes and edges" on every screen). The query field takes focus as the
+palette opens, by the mechanism 6.15 names: this section specified in detail
+where focus goes after Enter and never said where it starts, and the palette
+shipped opening with focus on its own close button. Fuzzy search over every
 capability by both plain-language and technical names (including every
 Method name, every Advanced-group card, and "Modules" as a synonym for
 Groups), plus sample datasets, recent files, bookmarks, view actions (Zoom
@@ -3720,7 +3730,9 @@ nodes and one for edges, shared by the canvas, the Data table drawer, the
 inspector, Explore and Analyze. The status bar shows "N selected".
 
 Keyboard. Bindings fire only when focus is outside a text field or
-contenteditable and no modal is open. Cmd and Ctrl are interchangeable.
+contenteditable and no modal is open. Escape is the one exception to that first
+clause, and 6.15 owns what it does inside a field before the ladder below gets
+it. Cmd and Ctrl are interchangeable.
 Browser shortcuts are never overridden.
 
 | Group | Binding | Action |
@@ -3787,10 +3799,22 @@ by keyboard alone through this model (6.4).
 Escape ladder. One rung per press, first match wins: 1 cancel an
 in-progress node drag (restore position, do not pin) or marquee; 2 close
 the topmost transient: context menu, popover, pinned or unpinned pop-out,
-palette, dialog, returning focus to the opener that produced it; 3 on narrow screens close the overlay panel or inspector;
+palette, dialog, and -- named here 2026-09-13, because 6.12 had already ruled
+them transients a reader opens and returns from while this rung's list did not
+carry them -- the Help menu, the keyboard shortcuts reference and Settings,
+returning focus to the opener that produced it; 3 on narrow screens close the overlay panel or inspector;
 4 pause time slider playback; 5 clear the selection and the selected style
 layer; 6 nothing. Escape never closes the desktop activity panel and never
 leaves XR.
+
+Two things about this ladder that 1.14 states so a dispatcher author cannot pick one
+of them and drop the other. Its six rungs are selected by what is OPEN and never by
+where focus sits, which is 6.12's dismissal guarantee. And where focus IS inside a
+field, two stages of 6.15(4) run BEFORE rung 1 -- abandon that field's uncommitted
+edit, then clear its incremental query where the field's surface merely contains it --
+and a press the stages do not consume falls through to rung 1 and down. They are
+stages of the field, not rungs of this ladder. 6.12, under the dismissal guarantee,
+is the paragraph that governs where the two appear to disagree.
 
 Context menu. Opened by right-click, two-finger tap, long-press or
 Shift+F10. On a node: Frame this node, Expand neighbors, Select neighbors,
@@ -4082,7 +4106,7 @@ is within a panel.
 | Loading | A large file is being loaded progressively | Rail as Loaded, except that Analyze cards in the heavy, sampled, cubic and unbounded cost classes are disabled with "Available when loading finishes"; instant cards carry a "Partial data (24% loaded)" note. Status bar shows the three loading phases with Cancel. The canvas shows loaded nodes at their file positions or on the quick grid; no force layout runs. The Data table drawer appends rows as chunks arrive. The Insights strip appears on load complete, on "Cancelled at 24%" and on subset loaded alike, with the subset caveat on its readings. |
 | Loaded | Data loaded | Full rail enabled. Canvas renders the graph with default styling (7.2). Inspector shows graph summary. Insights strip appears (7.3). If validation produced warnings, the Data rail icon carries the issue-type badge and the status bar shows the "N data issues" chip, which opens Data with the validation report expanded. If the dataset has open notes, the status bar shows the "N notes" chip, which opens Explore with the Notes section expanded. The Loaded data section lists the applied import policies. The completion toast names any role that was guessed or changed and its Details link opens Data with the mapping line highlighted for two seconds; on the session's first load the panel switches to Explore, the one exception to 6.5's last-active-activity memory (5.1). The Data table drawer is available from this state on. |
 | Loaded, subset | Loaded with a subset drawn | The filter strip reads "Showing a sample: 50,000 of 1,000,000 nodes. Change", the status bar carries "Sample: 50,000 of 1,000,000", every scope line names the sample, and the graph summary reading opens with "Showing a sample." |
-| Selected | Selection says something on the canvas, not only in the inspector: a single-node selection draws its incident edges in the selection colour at full opacity and outlines its immediate neighbours, and nothing is dimmed. Below the large-graph threshold every incident edge is drawn and the top ten neighbours by weight are labelled regardless of the label cap, capped further where one node's degree alone would exceed the hover-highlight cap of 500; above the threshold the rule matches hover-highlight exactly. A multi-node selection highlights edges between selected nodes only. One or more nodes or edges selected. Click selects one, Shift+click adds, Cmd/Ctrl+click toggles, Alt+click removes, Shift+drag on empty canvas draws a marquee, click on empty canvas or Escape clears; the Data table drawer and result tables select the same way (5.6). | Inspector switches to the selection and shows the Notes section for it with an "Add a note" input; N focuses it. Status bar shows "3 nodes, 2 edges selected". Explore and Analyze panels add selection-scoped actions (ego network, paths from here, filter to selection, select neighbors of selection, save as set, merge selected). Exactly two selected nodes add Find path between. Selection is one store for nodes and one for edges, shared by the canvas, the Data table drawer, the inspector, Explore's Select all visible and Analyze's Select top N; the table keeps no selection of its own. Rules: a row click selects that node or edge and the inspector shows it; Shift+click extends a range; Cmd/Ctrl+click toggles; Cmd/Ctrl+A in the table equals Select all visible; canvas selection highlights the matching rows and, in Show: All, scrolls the first one into view; Show: Selected filters the table to the selection and is the mode the drawer opens in when the selection count is non-zero; Escape clears the selection everywhere; the Nodes tab and the Edges tab selections are independent. Multi-select in graphty-element's SelectionManager is an implementation dependency (5.8). |
+| Selected | Selection says something on the canvas, not only in the inspector: a single-node selection draws its incident edges in the selection colour at full opacity and outlines its immediate neighbours, and nothing is dimmed. Below the large-graph threshold every incident edge is drawn and the top ten neighbours by weight are labelled regardless of the label cap, capped further where one node's degree alone would exceed the hover-highlight cap of 500; above the threshold the rule matches hover-highlight exactly. A multi-node selection highlights edges between selected nodes only. One or more nodes or edges selected. Click selects one, Shift+click adds, Cmd/Ctrl+click toggles, Alt+click removes, Shift+drag on empty canvas draws a marquee, click on empty canvas or Escape clears; the Data table drawer and result tables select the same way (5.6). | Inspector switches to the selection (the Enter route is unshipped: inspectSelection; 5.8, 6.4a(c) -- a pointer selection switches it today) and shows the Notes section for it with an "Add a note" input; N focuses it. Status bar shows "3 nodes, 2 edges selected". Explore and Analyze panels add selection-scoped actions (ego network, paths from here, filter to selection, select neighbors of selection, save as set, merge selected). Exactly two selected nodes add Find path between. Selection is one store for nodes and one for edges, shared by the canvas, the Data table drawer, the inspector, Explore's Select all visible and Analyze's Select top N; the table keeps no selection of its own. Rules: a row click selects that node or edge and the inspector shows it; Shift+click extends a range; Cmd/Ctrl+click toggles; Cmd/Ctrl+A in the table equals Select all visible; canvas selection highlights the matching rows and, in Show: All, scrolls the first one into view; Show: Selected filters the table to the selection and is the mode the drawer opens in when the selection count is non-zero; Escape clears the selection everywhere; the Nodes tab and the Edges tab selections are independent. Multi-select in graphty-element's SelectionManager is an implementation dependency (5.8). |
 | Result | An algorithm has completed | Analyze panel shows a result card in the Results tab. Inspector offers the result when clicked. On first completion the result applies its shape's primary action as a style layer automatically, identically from every route (5.3 Analyze, Result shapes), unless a user-authored style layer already drives that channel; the legend updates and the application is one undoable step separate from the result. While an algorithm is still running, its card shows the progress row and the status bar mirrors it. |
 
 States are cumulative. Selected implies Loaded. Result implies Loaded.
@@ -4387,6 +4411,132 @@ that hiding never hides a deviation; and the second escape hatch of 6.9's Rule
 11, Settings > Appearance > "Keep advanced sections open", which renders every
 280 gear pop-out's contents inline.
 
+6.4a. The reverse audit: a built surface must be constructible, and reachable
+by both hands.
+
+6.4 above audits the DESIGN's catalogue against three named routes: it walks
+from a capability to the surfaces that reach it. Nothing walked the other way,
+and eight incidents came in through that gap, because a surface can exist in
+the build and be reached by nothing at all. The forward audit cannot see it:
+the catalogue entry is satisfied by a route the design NAMES, whether or not
+the build constructs it. So the audit runs in both directions from this
+revision, and the reverse direction has five clauses.
+
+(a) Constructible. Every surface the build contains is constructed by a named
+code path out of application state, and that route is named in the construction table
+below. A
+surface whose kind is HANDLED and never CONSTRUCTED is unreachable, and it is
+the same class of defect as a capability with no home rather than a lesser one.
+The incident is the style-layer inspector: `InspectorBody` handled
+`kind: "style-layer"` for weeks and no code in the shell ever built that kind,
+so a whole editor shipped with no route, and the reader found the hole by
+asking "how is the user supposed to view / change styles?" (2026-09-13). Its
+repair then produced the second defect of the same family: the panel read
+element-shaped layers and CAST them to the editor's nested type, so the editor
+drew its own defaults and said nothing about it (commit `3599a61c`). A route
+that lands on a surface showing something other than the state it claims to
+edit is not a route. UAT-10 of `design/ui/UAT.md` is the acceptance test.
+
+The construction table, added 2026-09-13 because the reverse audit had no artefact to
+read. (a) first said the route was "named in 5.8 beside it", and 5.8 is an
+implementation-status list with no per-surface construction column, so the audit it
+asks for could not be run against anything. One row per surface KIND, the state that
+produces it, and the call site that builds it. A kind with no call site is the defect
+this clause names, and four of the inspector's eight kinds are that defect today.
+
+| Surface kind | Constructed from | Call site | Status |
+|---|---|---|---|
+| Inspector, graph summary (`none`) | a graph loaded and nothing selected | `AppShell.tsx`, the `inspectorSelection` memo | built |
+| Inspector, node | a single-node selection | the same memo | built |
+| Inspector, algorithm result | a completed run picked in Analyze | the same memo | built |
+| Inspector, style layer | a layer row picked in Style's Layers list | the same memo | built, and UAT-10 is its test |
+| Inspector, edge | an edge selection | none | HANDLED, NEVER CONSTRUCTED. It waits on edge selection in graphty-element (5.8), so the kind is a promise the shell cannot keep yet and the row asserting it says Coming |
+| Inspector, multiple | a multi-node selection | none | HANDLED, NEVER CONSTRUCTED. It waits on multi-select in `SelectionManager` (5.8) |
+| Inspector, cleaning step | a cleaning step picked in Data | none | HANDLED, NEVER CONSTRUCTED, and no dependency blocks it: this is the style-layer defect not yet repaired |
+| Inspector, pattern match | a pattern-match result picked | none | HANDLED, NEVER CONSTRUCTED, and no dependency blocks it |
+| Activity panel, per activity | the rail, the switch, the binding or a palette row (6.12) | `AppShell.tsx`, the panel body switch | built, eight activities |
+| Settings overlay | the rail's Settings icon, a palette row or a panel deep link | `panel/SettingsOverlay.tsx` | built |
+| The Data table drawer | the Data panel toggle, Shift+T or a status bar count | `canvas/DataTableDrawer.tsx` | built |
+| The report editor drawer | Present's Report editor row | none | HANDLED IN THE DESIGN, NOT BUILT (5.8) |
+| Welcome | the Empty state | `canvas/WelcomeState.tsx` | built |
+| A pop-out, per door | its opener, its palette row (6.11) | `compact-mantine`'s pop-out layer, per `PopoutRegion` | built for the doors 6.4 lists; a door with no opener in the tab order fails (b) |
+
+The table is the audit's worklist as well as its reference: four inspector kinds and one
+drawer are handled and never constructed, which is five surfaces the forward audit of 6.4
+calls reachable because the design names a route for each.
+
+(b) Both hands. Every built capability is reachable by pointer AND by key, and
+the check is run against the build: tab to it, then click it. Two shapes have
+failed it. A run of prose is not a control -- six capabilities were drawn as a
+dimmed wrapping comma-run, which "is not focusable, so six capabilities lose
+their keyboard route and their per-row disabled reason" (2026-09-06) -- and the
+warning sign is that the shape was not one of 6.9's ten, every one of which is
+focusable by construction. And a value that lives only in a `title` attribute
+is reachable by neither hand: the Parsing gear's five values are already named
+in 6.11's sweep of stub-silent doors, and the keyboard route that sweep says it
+owes is this clause.
+
+(c) The assertion and the tag agree. 5.8 may record that a capability has not
+shipped. It may not contradict a behaviour another section ASSERTS.
+`bindings.ts:516-525` marks `inspectSelection` (Enter) `shipped: false` with the
+note "NOT SHIPPED: Scoped to canvas focus, which the shell cannot yet tell from
+focus on a control", while 6.1's state axis says in its own table that the
+inspector switches to the selection -- so a selection opens the inspector by no
+route at all, and both sentences are in this document at once. Where a binding
+or a surface is tagged unshipped, the section that asserts the behaviour carries
+the same tag in the same revision, and a disagreement resolves in 5.8's favour:
+the tag is the truth about the build, and the assertion is the thing that has to
+say Coming.
+
+"One grep across both is the check" was the first wording and the check could not be
+run, because the two artefacts shared no token: 5.8 and `bindings.ts` mark
+`shipped: false` plus a prose note, the asserting sections say "Coming" in prose, and
+nothing linked a binding id to the section that asserts its behaviour. So the marker
+is defined here, and it is the thing the grep matches. An asserting section that
+describes an unshipped behaviour prints the binding or surface id in parentheses
+immediately after the assertion, in the form `(unshipped: inspectSelection)`. The check
+is then two greps and a set difference: every id marked `shipped: false` in
+`bindings.ts` appears in at least one `(unshipped: <id>)` in this document, and every
+`(unshipped: <id>)` in this document names an id that is still marked `shipped: false`.
+The second half is what removes the marker when the binding ships.
+
+The rule applies to this revision's own text. 6.12's table row for the inspector says
+"Enter on a selection (6.1, which 5.8 tags unshipped -- the disagreement 6.4a(c)
+resolves)", which was a parenthesis about the disagreement rather than the tag (c)
+requires; it now carries `(unshipped: inspectSelection)` as well, and 6.1's state axis
+row carries it where it asserts that a selection switches the inspector.
+
+(d) One capability, one implementation. 6.4 gives a capability one home and
+three routes; it never said the capability is BUILT once. Settings > AI
+providers was a stub pane while the real key form was a 450-line body inside
+`AiSettingsModal` -- two key-entry surfaces for one capability, and the one the
+reader reaches was the stub, with the AI panel's own setup prompt dropping them
+on Appearance (2026-09-13). A second implementation is a reachability defect and
+not a convenience, because only one of the two can be the one 6.4's three routes
+point at. The repair is the shape to copy: the key store became a REQUIRED prop,
+"so no surface can exist that silently swallows a typed key" (and see 6.15,
+which generalises that).
+
+(e) Reachable includes scrollable. Content that cannot be brought into view is
+unreachable however correctly it is drawn. A scroll region aligns its content to
+the START of the scroll axis and never centres it on that axis -- the CROSS axis
+may still centre, and 7.1's sheet does -- a centred flex item in an
+`overflow: auto` column overflows equally at both ends, and the top end can
+never be reached, because `scrollTop` cannot go negative. Measured on Welcome at
+1280 x 400: scrollHeight 398 against clientHeight 336, the sheet's top at
+-61.56 px with `scrollTop` 0, and `scrollTop = 9999` pushing it further out to
+-123.56 px. The floor makes this load-bearing rather than cosmetic -- the
+reading, the departure line and the legend are items on it, and an item scrolled
+out of its own container is as absent as one never drawn (6.10).
+
+The audit's method, because the recurring process failure behind this whole
+class is a check that cannot see the failure it was written for. The reverse
+audit runs against the running application, constructing each surface kind from
+the state that produces it and tabbing through what appears. A structural test
+that renders a component with props the test supplies cannot see (a) or (d) at
+all: it constructs the kind the application never constructs, which is the same
+defect as a test that stubs its own subject.
+
 ### 6.5 Memory rule
 
 Remembered per user in local storage: tier 2 section open states, Analyze
@@ -4406,10 +4556,92 @@ card view (Cards or List), Analyze Run or Results tab, per-card Advanced
 pins, per-header-signature import mappings, the Parsing group open state in
 the Import options dialog, minimap and legend visibility, view bookmarks per
 dataset, notes layer visibility, Notes section filter chips, the author
-name. Nothing else adapts to the user. There is no inferred skill level and
+name. Nothing else PERSISTS about the user. There is no inferred skill level and
 no usage-based retirement of helper text; the only sanctioned usage-based
 rule is insight card retirement. Notes themselves are project data, not
-memory; they are stored with the dataset, not with the user.
+memory; they are stored with the dataset, not with the user. Two items join the
+list in revision 1.14, both from 7.2's label layer: the "Label the most connected
+nodes" switch and the label budget beside it (Settings > Performance), stored under
+their own key per 6.5a.
+
+The list above is the PERSISTED set, and 6.15(3) names a second, smaller set beside
+it: session state that outlives a surface's remount and never reaches storage. That
+set is not memory and does not adapt to the user across visits, which is why the
+sentence above says persists rather than adapts. It holds Explore's search query and
+its scope, a table's filter string, a picker's search string, and any other field
+whose surface is unmounted by ordinary navigation while the value is still worth
+having. Anything in that set is gone on a reload by design; anything that must
+survive a reload belongs on the list above and nowhere else.
+
+6.5a. When a record is written, and why a default is not a choice.
+
+The list above is what is remembered. It says nothing about WHEN a record is
+written, and four incidents came through that silence inside one day. The
+reading side was careful about it -- `readPersistedShellLayout` reports a
+missing field as ABSENT rather than as false, precisely so that an explicit
+unlatch survives a later change of default -- and the writing side defeated that
+care by running on mount. Four clauses, one per incident.
+
+(1) A record is written by a reader's own gesture, never by a first paint.
+Measured on a cleared profile: the persistence effect ran on MOUNT, so
+`graphty.shell.layout.v1` held
+`{"activeActivity":null,...,"panelKeptOpen":false,"inspectorKeptOpen":false}`
+"with no interaction whatsoever". Every later visit then read a record saying
+the reader had chosen those values, and they had not. A default is what the
+shell does while memory is silent; the moment it is written down it becomes
+indistinguishable from a choice, and the reader can never be given a better
+default again.
+
+(2) A default is recomputed per width; a remembered value is never discarded for the
+width it is read at. This clause is REVERSED from how it was first written on
+2026-09-13, and the reversal is recorded rather than quietly applied, because the first
+wording contradicted three things at once: `ShellContext.tsx`'s own stated rule ("A
+stored value must keep winning, because a reader who unlatched a panel last week...",
+line 33, with `firstVisitLayout` spread UNDER the persisted record at :296-304 so that
+"only an ABSENT field takes a default"); 6.12's 2026-09-13 amendment, which makes both
+latches a "user-controlled veto" available "at every width"; and (1)'s own rationale,
+since a default that overwrites a choice at render time is the same defect as a default
+written at first paint, pointed the other way. Implemented as first written, a reader who
+latched both surfaces at 1440 and then opened at 600 would have both latches discarded,
+because `firstVisitLayout(600)` latches neither.
+
+So: `firstVisitLayout(shellWidth)` is a FALLBACK and nothing else. It is consulted for a
+field the record does not contain, at the width in front of the reader, and it never
+overrides a field the record does contain. The incident that produced the first wording
+-- a narrow first visit storing `panelKeptOpen: false` and that value winning at 1440 --
+is answered by (1) and not by this clause: the narrow first visit had no business
+WRITING anything. Width-dependent MEMORY does not exist in this shell. A stored value is
+a choice, and a choice is not a function of the window it was made in.
+
+(3) When a default moves, the storage key is versioned, and the new key is named
+in the section 13 entry that moves it. Flipping the latch defaults reached nobody
+who had ever opened the app, because their record already answered the question;
+the key had to go to v2 to reach them.
+
+(4) No write reaches storage before the reader's first gesture. The clause was first
+written as "one key is written on the gesture that changes it and read when the surface
+it governs first draws, and never both on mount", and "never both on mount" is a
+property of code shape rather than of behaviour, so it could be argued rather than
+measured -- and the shipped repair does not satisfy it as written: the store is read
+three times on mount (`ShellContext.tsx:302`, `:326`, `:336`) and the write effect still
+runs on mount and returns early. Stated as the observable, which is what (1) already
+does well: after a first paint on a cleared profile, the key is ABSENT. That is one read
+of `localStorage` and it cannot be argued with. The code shape that achieves it is the
+implementer's business; an effect that runs and returns early passes, and an effect that
+writes a default does not.
+
+This is the memory rule's other half and not a rewrite of it: the list above is
+unchanged, and every item on it is still remembered.
+
+The keys, named here because (3) requires a key to be named where the default that
+moved is recorded and the document did not name one: `graphty.shell.layout.v2` holds
+the layout record -- the activity, the widths, the collapsed state and the two
+latches -- and is at v2 because revision 1.12 moved the latch defaults
+(`ShellContext.tsx`, `SHELL_LAYOUT_STORAGE_KEY`); `graphty.shell.labels.v1` holds the
+label switch and the label budget of 7.2 (`defaults/loadDefaults.ts`,
+`LABEL_SETTINGS_STORAGE_KEY`), kept separate from the layout record so that a shape
+change in one cannot corrupt the other. Section 13's 1.12 and 1.14 entries name them
+too, which is where (3) says to look.
 
 ### 6.6 Expression rule
 
@@ -4541,7 +4773,8 @@ Four things every icon-only control carries:
 
 1. An aria-label equal to the tooltip text with the key chip removed; the
    glyph is aria-hidden; a toggle keeps one name and expresses state with
-   aria-pressed.
+   aria-pressed, which is the accessibility half of a treatment whose visual half
+   6.14 owns: a state expressed only in aria is a state nobody can see.
 2. A tooltip: the verb, then the object when the icon does not sit on its
    object, then the key chip; 150 ms delay; never suppressed in Performance
    mode, which governs canvas elements only.
@@ -5480,6 +5713,14 @@ has to start:
 | What survives a reload, per user | 6.5 |
 | One pop-out per region; a pop-out closes when its opener's section collapses or its region changes activity | 6.11 |
 | Which closes a reader may refuse, and how that is remembered | 6.12, The latch |
+| What OPENS each surface, what may close it, what may never | 6.12, What opens a surface |
+| That a reader can always dismiss what covers the canvas | 6.12, The dismissal guarantee |
+| Which surface is above which, and what a fixed row does with content that overflows | 6.13 |
+| Whether a control shows the state it is in | 6.14 |
+| Which field takes focus, what Escape does while typing, and where an edit commits | 6.15 |
+| Which library elevations the ladder governs, which it delegates, and what a guest is | 6.13, What the ladder delegates |
+| Whether two surfaces may share a rung, and which ancestors clip or create a context | 6.13, One surface per rung; Stacking contexts |
+| Where a field's state lives, and whether it survives its surface's remount | 6.15(3) |
 
 #### The latch
 
@@ -5634,6 +5875,23 @@ inspector toggle in the top bar, which is the control that will bring it back.
 And at a dataset boundary, where the openers are going too, focus lands on the
 canvas.
 
+Added 2026-09-13, and it is the clause the ladder was missing on the day it was
+written: the element focus lands on must be FOCUSABLE at the moment focus is
+handed to it, and must SURVIVE the state change that closed the surface. Both
+halves failed once each, 2026-09-12. Driving Close dataset in the browser put
+`document.activeElement` on BODY, which is the one landing place this subsection
+already names as always wrong. The first repair focused a canvas DESCENDANT that
+the same state change unmounts, so focus went back to the body one commit later;
+the second landed focus on the region container after React commits, which is
+this ladder's second rung correctly applied. A landing element that the shell
+gives `tabIndex = -1` is only focusable while that attribute is on the element
+that is still mounted, so the ladder is checked by reading
+`document.activeElement` after the commit, not by calling `focus()` and
+believing it. The test written for it was deleted because it called
+`canvas.focus()` without the `tabIndex = -1` the real code sets -- it stubbed
+its own subject -- so this ladder has no acceptance test today, and that is a
+gap to close rather than a cost to accept.
+
 #### Settings, Help, and the surfaces that are not activities
 
 Settings is a full-panel overlay and Help is a rail-anchored menu (5.3). Neither
@@ -5653,6 +5911,1146 @@ canvas overlay, a dialog, a dock, and Settings.
 Help takes no region, because a menu hosts no pop-outs. It is a transient on
 rung 2 of the Escape ladder, as the command palette and the keyboard shortcuts
 overlay are, and it closes on everything that closes a menu.
+
+#### What opens a surface, what may close it, and what may never
+
+Added 2026-09-13. The latch above rules on which closes a reader may REFUSE. It
+presupposes a settled answer to the prior question -- what opens each surface,
+and what is allowed to close it -- and that answer was spread across 5.1, 5.2,
+5.6 and the rail's own behaviour, which is the condition this section exists to
+end. Nearly everything in the table is already true somewhere above -- the two
+rows that ADD to a settled list are called out under it, so nothing new arrives
+here unannounced -- and the table is where a drafter checks one surface against all
+three columns at once, which is what nobody could do while the rule had five
+homes.
+
+| Surface | Opened by | Closed by | Never closed by |
+|---|---|---|---|
+| Activity panel | a rail icon; the top bar's panel switch; Cmd/Ctrl+B; a palette row that names a panel; the session's first load, which switches it to Explore (5.1) | its header X; the same switch or binding; a click on the already-active rail icon; below 1280 px a canvas tap or Escape's third rung, while unkept (5.2) | Escape on desktop (5.6); a selection change; a dataset boundary; the opening of a dialog, a menu, a pop-out, Settings or Help |
+| Inspector | the top bar's inspector switch; D; Enter on a selection (unshipped: inspectSelection; 6.1 asserts it, 5.8 tags it, 6.4a(c) resolves the disagreement); below 1280 px, a row whose behaviour is "selects, centers and shows in the inspector" (5.2) | its collapse control; the same switch or binding; below 1280 px a canvas tap on EMPTY space or Escape's third rung, while unkept | a tap that SELECTS (5.2, amended 2026-09-12); a selection change; Escape on desktop |
+| A pop-out | its focusable opener, on Enter or Space; its palette row (6.11) | Escape's second rung; its close X; a click outside, unless pinned; its opener's section collapsing; its region changing activity; a dialog opening in its region; a shell overlay opening, unless its own region is that overlay's (6.13, What the ladder delegates) | a selection change, while pinned (6.11); its opener scrolling out of the region, which docks it instead |
+| A menu | its trigger; Shift+F10; right-click, long-press or two-finger tap (5.6) | Escape's second rung; a choice; a click outside; a dialog opening in the same region | a selection change |
+| The command palette | Cmd/Ctrl+K; the top bar pill; Cmd/Ctrl+S, scoped to Save | Escape's second rung; Enter on a row; a click outside | anything else, and it is never on screen with a dialog (6.13) |
+| Settings | the rail's Settings icon; a palette row naming a Settings section; a deep link from a panel (5.3) | its close X; Escape's second rung | the rail's active marker, which it never moves, and the panel behind it, which it returns to (above) |
+| Help | the rail's Help icon; `?` for the shortcuts reference | Escape's second rung; a choice; a click outside | anything else |
+| The Data table drawer | the Data panel's tier 1 toggle; Shift+T; a click on the status bar counts | the same toggle or binding; below 1280 px, the activity panel opening (5.2); a dataset boundary, because a drawer with no rows is the empty surface 6.2 forbids | Escape, at any width; the inspector, which it coexists with (5.2) |
+| A tier 3b dialog | the commit it gates (6.11, question 1) | its own commit or Cancel; Escape's second rung | a click outside; a canvas tap; anything the shell does on its own behalf |
+| Welcome | the Empty state of the state axis (6.1) | a dataset arriving | anything the reader can press: it is the canvas's content in that state and not a surface over it (7.1), so it has nothing to dismiss and needs none of the guarantee below |
+| A toast | the action it reports (5.1) | its own timer, or the host ceasing to report the completion | a click anywhere else, and never its own Undo before that Undo is pressed |
+| A governed card (a preview, a cost estimate, a cap warning, a destructive confirm) | the control whose cost or consequence it reports (6.11) | its own verb or Cancel; Escape's second rung; the control it reports on changing its value | a click outside, where the card carries a destructive verb; a selection change |
+| The report editor drawer | Present's tier 1 Report editor row | the same row; the Data table drawer opening, since the bottom band holds one dock (6.13); a dataset boundary | Escape, at any width, as for the other dock |
+
+Two rows add to a settled list rather than restating one, so both are called out
+instead of being smuggled in by a table. 5.6's second rung names a context menu, a
+popover, a pop-out, the palette and a dialog, and does not name Settings: Settings
+JOINS them, on the ground 6.12 already gives Help and the shortcuts reference,
+that it is a transient the reader opened and returns from rather than a
+destination they navigated to, and 5.6's rung 2 is amended to include it. And the
+Data table drawer is deliberately NOT on the ladder at any width: it is a dock and
+not one of 5.2's two overlays, so 5.2's Escape clause does not reach it and rung 3
+has nothing to do with it. A dock is left to its own toggle because the rows in it
+ARE the selection (5.1), and an Escape that closed the dock would take the rows out
+from under a reader one rung before the same key clears what they had selected in
+them.
+
+Four rules ride with the table.
+
+A close and its reopen are a PAIR, and the reopen is a SWITCH that reports the
+region's state rather than a chooser that happens to reach it. The panel had a
+one-way X for one revision and the only route back was the rail, whose icons
+choose an activity rather than show or hide a column, which is how "the left
+panel has no way of keeping it open after I click" came to be a true report of
+two defects at once (2026-09-13). 5.1 carries the pair for the panel and the
+inspector; this is the general clause, and it applies to any surface added later:
+no surface may have a closing gesture without a reopening control drawn on screen
+at the same time, and that control draws its own state per 6.14.
+
+The pair rule has one carve-out, added 2026-09-13 because the rule as written
+collided with a lifecycle the same table endorses. A pop-out is closed by "its
+opener's section collapsing" and by "its region changing activity" (6.11), and in
+both cases the opener goes off screen with the cause, so at the moment of the close
+there is no reopening control drawn -- the pair rule's own failing case, produced by
+a rule two rows above it. The carve-out, and it is narrow: where a surface is closed
+by an event that also removes its opener from the screen, the pair is satisfied by
+the control that performed that event, because that control is on screen and
+reversing it brings the opener back. Collapsing a section leaves its chevron; changing
+a region's activity leaves the rail icon. What is NOT excused is a close whose cause
+leaves nothing behind, and a close the READER performed with a dismissing gesture is
+never excused: that is the panel's one-way X, which had no such cause. Docking rather
+than closing stays 6.11's answer for the one neighbouring case it already names, the
+opener scrolling out of the region, and this carve-out does not extend it.
+
+A surface's closers are declared, not defaulted. A rule that says what may never
+close a surface needs a mechanism, or the rule is unenforceable at every call site
+that forgets it. Mantine's `Modal` defaults `closeOnClickOutside` to true, and not one
+of the six modals in the app overrides it (`RunLayoutsModal`, `LoadDataModal`,
+`FeedbackModal`, `RunAlgorithmModal`, `ai/AiSettingsModal`, `shell/CommandPalette`;
+`grep -rn "closeOnClickOutside\|closeOnEscape" graphty/src` returns nothing), so
+every dialog in the build dismisses on a scrim click, against the row above that says
+a tier 3b dialog is NEVER closed by a click outside -- and the palette, which SHOULD
+close on a click outside, is indistinguishable from a dialog in code. So every `Modal`
+passes `closeOnClickOutside` explicitly: false for a dialog, true for the palette. The
+check is one grep and it is red today: the count of `closeOnClickOutside` occurrences
+equals the count of `<Modal` occurrences.
+
+And nothing the shell does on its own behalf closes a surface the reader is
+typing into. That is 6.15's clause and it is named here so the table is
+complete: the fourth column above would otherwise have to repeat it thirteen
+times.
+
+#### The dismissal guarantee
+
+Added 2026-09-13, and it is the rule that would have forbidden the regression of
+the same day. At every width, in every state, and after every default the SHELL
+applies on the reader's behalf, every surface drawn over the canvas has at least one
+dismissing control on screen and at least one binding that reaches it. The set is
+named by KIND rather than by a span of 6.13's rungs, because "rungs 4 through 8" had
+two readings and the ordinals are gone: a region overlay, a canvas transient, a
+canvas menu, a guest (a menu, a popover, a picker or a pop-out), a shell overlay, a
+dialog, and a toast. A default may never produce a screen the reader cannot
+leave. Canvas chrome is deliberately outside the guarantee and stays that way:
+the legend is floor item 5 and is not dismissible at all (6.10, 6.11), and it
+occludes nothing, because 5.6's two-line reflow moves it rather than letting it
+cover the graph. The dock is outside it too, on the ground the table above already
+gives: it resizes the canvas rather than covering it, and its own toggle is resident.
+
+The guarantee's set and the table's rows are the same set, which is the clause that
+keeps the guarantee from being stated over surfaces nothing assigns closers to. Every
+surface in the product maps to exactly one row of the table above BY ITS KIND, and
+where a surface's kind is not a row, the row is owed here before the surface ships.
+Six surfaces had no row on the day the guarantee was written and are mapped now: the
+preview, the cost estimate, the cap warning and the destructive confirm take the new
+governed-card row; the Undo history popover takes the menu row, being a popover with a
+trigger; and the report editor drawer takes a row of its own beside the Data table
+drawer.
+
+Stated so it is checked rather than asserted: on a first paint at each of 375,
+600, 1024, 1280 and 1440 px, enumerate every surface drawn over the canvas, find
+and hit-test each one's close control, and press Escape with focus where the
+shell left it. The regression this replaces passed every structural test in the
+suite. `FIRST_VISIT_LAYOUT` latched both sidebars at every width and was consumed
+in a `useState` initialiser before any measurement landed; below 1280 px both
+surfaces are 280 px overlays over a canvas that is never resized under them
+(5.2); a latch vetoes the canvas tap AND Escape's third rung, so
+`closeNarrowOverlay` could only ever refuse. Measured at 375 x 812 the two
+overlays covered the canvas end to end and nothing of the Welcome sheet showed
+between them. The cause is the process one: no test anywhere mounted the shell
+with persistence on and an empty store, which is why the defect shipped with the
+suite green. UAT-14 is that test at 1024, 600 and 375 px; the two widths where the
+shell's own default LATCHES both sidebars, 1280 and 1440, are owed, and they are the
+two the guarantee most needs (section 10, check 2).
+
+One clause makes the guarantee reachable, and it is a defect standing right now:
+the Escape ladder is dispatched from the SHELL's state, and which of 5.6's six rungs
+fires is decided by what is open, never by where focus happens to sit. Measured at
+1024 x 900, Escape does not reach the narrow-overlay rung while focus is still on
+the rail icon that opened the overlay -- which is exactly where focus is one
+gesture after opening it -- so "a scenario that presses Escape straight after a
+rail click is testing the rail, not the ladder" (`design/ui/UAT.md`, section 1.5,
+gotcha 10). A rung that fires only when focus is already inside the surface it
+closes cannot be reached from the control that opened that surface, and the
+guarantee above is then satisfied on paper and not on screen. 5.6 already puts
+every binding through one dispatcher in the shell; this says the ladder's rung
+selection is part of what that dispatcher owns.
+
+That clause and 6.15(4) were written on the same day and read as contradicting each
+other, since 6.15 gives Escape two stages that fire only with focus inside a field.
+They are reconciled here, and this paragraph is the one that wins where a dispatcher
+author has to choose. The two are in SERIES, not in competition, and they are not
+the same ladder:
+
+1. The FIELD's two stages run first, and only these two consult focus. They apply
+   only while focus is inside a text field or contenteditable: abandon that field's
+   own uncommitted edit; then, with nothing uncommitted, clear that field's non-empty
+   incremental query where the field merely LIVES IN its surface rather than being
+   what the surface is for (6.15(1) draws that line). They are stages of the field,
+   not rungs of the ladder, and they are named that way from here so the word rung
+   keeps one meaning.
+2. 5.6's SIX RUNGS run second, and none of them consults focus at all. Each is
+   selected by what is open, per the clause above. A press that the field's two
+   stages did not consume falls through to rung 1 and down.
+
+The case this leaves assigned, which neither clause assigned on the day: at 1024 px,
+with text in Explore's search field inside the panel OVERLAY, the first Escape clears
+the query (stage 2, because the panel merely contains the field) and the second
+closes the overlay (rung 3, because the panel is unlatched). The narrow activity
+panel is not one of 6.15's three named "the field IS the surface" exceptions and does
+not become one.
+
+The guarantee is a floor under the latch, not a limit on it. A reader may still
+latch both surfaces at 1200 px and leave themselves 592 px of canvas, per the
+amendment above, because they did it themselves and both close controls are on
+screen in front of them. What is forbidden is the SHELL arriving at that state
+on its own.
+
+What the reader may latch THEMSELVES into below 1280 px is a narrower question and
+this clause does not settle it. At 375 px two latched overlays cover the canvas end
+to end, and both close controls sit in those overlays' own headers rather than over
+the canvas; whether a control inside the covering surface satisfies "a dismissing
+control on screen" is the one reading this rule leaves open, at the width where it
+matters most. The guarantee holds as stated, and the routes are named so the reading
+can be checked rather than argued: each overlay's own header X, each region's switch
+in the top bar, which is above the body row and is never covered by either overlay,
+and the bindings behind those switches (Cmd/Ctrl+B, D). All four are reader gestures,
+which is exactly the set a latch does not refuse (The latch, above). What Escape does
+NOT do at that width is reach the overlays at all: a latch vetoes its third rung, so
+Escape is not one of the routes and must not be counted as one. The question of whether the second latch should be
+refused, warned or left alone below some width is the product owner's, and it is
+recorded in section 12 with its options rather than decided here, because the
+2026-09-13 amendment that permitted the second latch was theirs.
+
+### 6.13 The stacking order
+
+This section owns which surface is above which. It exists because nothing did.
+Before this revision the phrase z-index appeared in this document zero times;
+the only ordering statements anywhere were about CANVAS overlays -- 5.1's "docks
+resize the canvas; overlays do not", "overlays never block the inspector or the
+panel" and "the drawer never covers the panel or the inspector", and 5.6's
+four-item bottom stack -- and every shell-level surface was governed by nothing
+at all. Settings then shipped with `z-index: auto`, stacked by DOM order, beat
+the activity panel and LOST to the canvas overlay layer, so the toolbar and the
+minimap painted straight through a surface whose whole job is to replace the
+panel, and the reader asked "when I have the left bar open and I click settings,
+the settings panel opens underneath it. this is a bad and confusing user
+experience. why didn't you catch this?" (2026-09-12). The answer is recorded
+because the mechanism recurs across this whole class: "In 6.12 I wrote that
+Settings covers the activity panel while it is open -- and used that claim as
+the ARGUMENT for giving Settings its own pop-out region. Then I wired the region,
+ran the tests, and never looked... the design doc now documented a behaviour the
+code didn't have, so the doc actively concealed the bug."
+
+#### The ladder
+
+Nine NAMED rungs. A rung is named by what a surface IS, and this document refers to
+a stacking rung by its NAME and never by an ordinal. Three ladders in this document
+use the word rung -- these nine, 5.6's six Escape rungs and 5.6's four toolbar
+offset steps -- and the previous revision numbered these 1 to 9 while giving them
+values 0 to 400, so "rungs 4 through 8" read equally as four ordinals and as four
+values, which would have pulled the dock and the canvas chrome inside a guarantee
+the next sentence excluded them from. From here: Escape's are "Escape's rung N",
+the toolbar's are "offset steps", and these are "the canvas rung", "the
+shell-overlay rung", "the dialog rung".
+
+A surface takes the rung of its kind and never picks a number. Every rung is a
+named constant; a surface that writes a literal is drift; and a surface that passes
+NO number is drift too, because it then inherits whatever elevation its library
+defaults to and that default is off this ladder. The second half is the common
+failure and it was unnamed until 2026-09-13, while the rarer one had a clause: of
+the 50 `Menu`, `Popover`, `Modal` and `HoverCard` elements across nine files in
+`graphty/src/components/shell`, exactly two pass a rung constant
+(`toolbar/ViewsMenu.tsx:327`, `rail/HelpMenu.tsx:304`). `panel/PanelHeader.tsx:275`
+is `<Menu position="bottom-end" withinPortal shadow="md">` with no `zIndex`, so it
+lands on Mantine's popover default of 300 and paints over Settings at 20 and over a
+dialog at 200. The check is one grep, and it is the one a lint could run: every
+`Menu`, `Popover`, `Modal` and `HoverCard` either passes a rung constant or carries
+a one-line comment declaring it a guest and naming its host.
+
+| Rung | Value | Constant | What sits on it |
+|---|---|---|---|
+| Canvas | 0 | none; the canvas rung is the absence of one | the canvas rect and graphty-element's scene; the Welcome sheet, which is the canvas's own content in the Empty state (7.1) |
+| Dock | 5 | `CANVAS_DOCK_Z_INDEX` (`canvas/canvasLayout.ts:183`) | the Data table drawer, the report editor drawer. A dock resizes the canvas (5.1), so it overlaps nothing, and its rung only orders it against the rect it shortened |
+| Canvas chrome | 6 | `CANVAS_TOOLBAR_Z_INDEX` | the Insights strip, the filter strip, the minimap, the legend, the time slider, the canvas toolbar, note markers, the note hover card |
+| Canvas transient | 8 | `CANVAS_POPOUT_Z_INDEX` | a transient anchored to canvas chrome and hosted by the canvas region: a preview, a scrub readout's card, and any of 6.11's three governed cards -- a cost estimate, a cap warning, a destructive confirm -- drawn on the canvas rather than in a panel |
+| Canvas menu | 15 | `CANVAS_MENU_Z_INDEX` | a menu whose trigger is in the canvas region: the Views menu, the layout menu, the canvas context menu |
+| Region overlay | 16 | owed one name, `REGION_OVERLAY_Z_INDEX`, taken by both halves | below 1280 px, the activity panel and the inspector as overlays, with the sheets that open over them (5.2) |
+| Shell overlay | 20 | `SHELL_OVERLAY_Z_INDEX` | Settings and the keyboard shortcuts reference: a surface that covers the panel, the canvas and the inspector together |
+| Dialog | 200 | Mantine's `modal` elevation, ADOPTED as this rung (see What the ladder delegates) | a tier 3b dialog and the command palette, each with its own scrim |
+| Report | 400 | Mantine's `overlay` elevation, ADOPTED as this rung, and PASSED rather than inherited | a toast |
+
+Read as pairs, which is how a defect arrives: a canvas menu opens above the chrome
+it was opened from and below a region overlay; a canvas transient opens above the
+canvas chrome it may cover; Settings covers the panel, the canvas and the inspector
+and is covered by a dialog; the palette is above Settings; a toast is above
+everything, because its Undo expires while the reader is reading it. A tooltip and a
+scrub readout are NOT surfaces on this ladder -- they are a label on a control, they
+are guests at the library's popover elevation, and they paint above whatever they
+describe, a dialog included.
+
+Two of the nine rows are RULINGS against the build rather than records of it -- one a
+new number, one a new order -- and both follow from 5.1's "overlays never block the inspector or the panel", which this
+ladder does not amend.
+
+(1) The region overlay moves ABOVE the canvas menu, to 16, and is owed one constant
+that both halves take. The build draws the panel's narrow overlay at 8
+(`panel/ActivityPanel.tsx:155`) and the inspector's at 15
+(`inspector/Inspector.tsx:242`), so the two halves of a pair 5.1 requires to be
+drawn and lit alike sit on two different rungs, and a canvas menu at 15 ties with
+one of them. Both take the region-overlay rung, and it sits above the canvas chrome,
+above a canvas transient and above a canvas menu, because each of those is canvas
+content and 5.1 says canvas content does not cover the overlays. A menu opened
+INSIDE the panel or the inspector is not a canvas menu and is not on this ladder at
+all: it is a guest, below.
+
+(2) The canvas transient sits BELOW the region overlay, and the geometric argument
+that excused this pair from being ordered is WITHDRAWN. It read that "the geometry
+already keeps them clear, the narrow toolbar's edges landing 149 px clear of either
+280 px overlay (5.2), so the rung order never has to decide that pair". 149 px is
+5.2's iPad measurement, taken on a 1132 px rect inside a 1180 px window. The
+clearance is `(width - 322) / 2 - 280`, which is 71 px at 1024, 9 px at 900, zero at
+882 and negative below it: -141 px at 600 and -253.5 px at 375 -- the same
+arithmetic 6.12 quotes when it reports the two overlays covering the canvas end to
+end at 375 x 812. So the pair overlaps at three of the five widths this document
+tests, the rung order does have to decide it, and it decides it the way 5.1 already
+implied. Leaving the transient at 8 above a region overlay at 7, as the previous
+table did, positively required the canvas transient to paint over the panel.
+
+#### Welcome on the canvas rung
+
+Welcome is the one surface on the canvas rung, and it is there because 7.1 puts it
+inside the canvas region with no full-bleed layer, not because its stacking was
+never decided. The sheet's band is the canvas rect inset by 12 px on every side, and
+the sheet scrolls inside that band, aligned to the TOP of the scroll axis per
+6.4a(e): raising the sheet above the canvas chrome instead would make it the
+full-bleed layer 7.1 forbids.
+
+The band is stated against the canvas rect and not against the toolbar, which is an
+amendment of 2026-09-13 to a clause that could not be built. It read that "the only
+chrome above it is the canvas toolbar" and that "the sheet's band therefore ends
+12 px above the toolbar's top edge" -- but the Empty state draws NO canvas toolbar
+(`artboards/Welcome.dc.html:48`, "No canvas toolbar, minimap or legend in Empty
+(6.1); the toolbar arrives with the first graph"; enforced at
+`canvas/CanvasRegion.tsx:297` and `:429`), so there was no toolbar edge to sit above.
+The clause was also ambiguous where it was not impossible: the bar is 36 px tall at
+desktop and 40 px narrow, so "12 px above the toolbar's top edge" named two numbers,
+and 5.6 lets the reader switch the bar off with its visibility remembered (6.5),
+which the clause did not cover. Anchored to the canvas rect it is one number in
+every state, and the toolbar's presence, height and visibility stop mattering:
+Welcome exists only in the Empty state, where no chrome is drawn at all.
+
+#### What the ladder delegates, and what a guest is
+
+The nine rungs order SIBLINGS on the shell. They do not order a transient against
+the surface that hosts it -- and the previous revision said so in a paragraph that
+also gave every menu a second, contradictory number in the rung table ("Menu | 15"),
+with no test for which of the two a given menu took. In the build the answer was
+already "whichever the author remembered". The discriminator, stated once:
+
+> The surface a transient's TRIGGER lives in is its HOST. A transient whose host is
+> the canvas region is a SIBLING and takes the canvas-menu or canvas-transient rung.
+> Every other transient is a GUEST: it is not on this ladder, and it paints above its
+> host by construction rather than by number.
+
+Escape unwinds host and guest in the order they opened, guest first, which 6.11
+already states for the dialog case. The menu, the info circle, the colour picker and
+the one pop-out a 3b dialog may open are each above that dialog; a menu opened inside
+Settings is above Settings.
+
+Two bands are DELEGATED, and each delegation carries an obligation, because a
+delegated elevation is still a number on the screen. This is the clause the section
+was missing entirely: a reader could not place a new surface without being told which
+elevations the ladder governs and which it hands to a library.
+
+| Band | Values | Owner | The obligation |
+|---|---|---|---|
+| The library's own elevations | app 100, modal 200, popover 300, overlay 400 (`@mantine/core`, `core/utils/get-default-z-index`) | Mantine | 200 and 400 are ADOPTED as the dialog and report rungs and are passed explicitly rather than inherited. 300 is the GUEST elevation and is the correct value for a menu, popover, picker or tooltip whose host is not the canvas. 100 is unused and no shell surface may take it |
+| The pop-out layer | 1000 plus the region's own stack index, and 1100 for floating UI inside a pop-out (`compact-mantine/src/constants/popout.ts:5,12`; `PopoutContext.tsx:376-380`) | compact-mantine | Every pop-out is a GUEST of the region named in its `PopoutRegion`, and is never given a shell rung |
+
+That second row corrects a claim this section made and got backwards. It read "five
+of the nine are named today ... the anchored transient at 8" and pointed at
+`CANVAS_POPOUT_Z_INDEX`, which is used at exactly one site and not for a pop-out
+(`panel/ActivityPanel.tsx:155`, the panel's own narrow overlay). No pop-out in the
+product is anywhere near 8; every one draws at 1000 or above. Applied literally the
+old text was a regression rather than a rule: a pop-out dropped from 1000 to 8 would
+paint UNDER Settings at 20, and Settings is one of the six pop-out regions, so a
+pop-out opened from a Settings row would be invisible -- the Settings-under-the-panel
+defect with the numbers reversed, inside the section written to prevent it.
+
+A guest above every rung is only correct while its host is the surface in front, and
+the reverse case is live in the build today: a pop-out opened in the activity panel
+draws at 1000, Settings then opens at 20, and the pop-out floats over Settings' own
+scrim. No number can decide that pair, because the guest is MEANT to be above its
+host. The CLOSER decides it, and 6.12's table is amended: a pop-out is also closed by
+a shell overlay opening, in any region but its own. The general clause, which is what
+a new surface needs: a guest is bounded by its host's VISIBILITY, so any event that
+covers or unmounts the host closes or docks the guest, and a guest that outlives its
+host's visibility is a stacking defect however correct its elevation is.
+
+#### One surface per rung, because a rung cannot order within itself
+
+A value orders two surfaces only where they differ. Two surfaces sharing a rung are
+ordered by DOM order, which is the mechanism this section condemns for the
+panel/inspector pair, so the rule is that they do not share one: at most one surface
+per rung is open at a time, and opening a second closes the first, unless the rung
+names a STACK.
+
+Exactly one band names a stack, and it is a delegated one rather than a rung: the
+pop-out layer keeps a per-region `zIndexStack` with a bring-to-front
+(`PopoutContext.tsx`), and 6.11's one-per-region rule already bounds what can be in
+it. Everywhere else coexistence on a rung is forbidden, which is what turns the Two
+of a kind list below from a set of special cases into one rule with one named
+exception.
+
+The clause settles a pair the previous revision left to DOM order while claiming to
+have ordered it. It said two shell overlays "cannot coexist today, because Settings
+sets `modalOpen`, which suppresses every binding but Escape, so `?` cannot be pressed
+over it", and then that "should one ever open the other, the later one is above".
+Both halves fail. The argument rules out one order and one hand: the shortcuts
+reference does not set `modalOpen` (`AppShell.tsx:1971` is
+`paletteOpen || feedbackOpen || settingsOpen`) and carries no scrim
+(`KeyboardShortcutsOverlay.tsx:104-113` is a right-anchored Box at
+`SHELL_OVERLAY_Z_INDEX`, where `SettingsOverlay.tsx:300-306` is `inset: 0` at the
+same constant with an `<Overlay>`), so while the shortcuts reference is open every
+binding still fires and the rail is live -- and 6.12's own table gives Settings a
+pointer opener on the rail, which is outside the body row Settings covers. Two shell
+overlays coexist today by one click. And "the later one is above" is unexpressible on
+this ladder, because both take the one value 20 and the ladder has no per-rung stack
+and no bring-to-front. Under this clause the question does not arise: opening either
+shell overlay closes the other.
+
+#### Two of a kind
+
+Two surfaces of the same kind, rung by rung, because "what happens when two of
+these are open" is the half of a stacking rule that gets discovered by
+frustration.
+
+- Two docks: the bottom band holds ONE. The Data table drawer and the report
+  editor drawer both claim it, and 5.6's toolbar offset ladder has exactly four
+  rungs (12, 82, 272, 342) with no rung for two docks, so opening one closes the
+  other. That is a RULING and not a restatement: 6.11 names both drawers and never
+  said whether both may be open, and this revision says they may not. 6.11's clause
+  that each dock is its own pop-out region is untouched and governs whichever dock
+  is open.
+- Two canvas chrome items: they never overlap by rule. Where they would, 5.6's
+  two-line reflow fires at 622 px of canvas, or 650 for the narrow toolbar, and
+  nothing is hidden, because the legend is floor item 5.
+- Two pop-outs, which are guests rather than rungs: 6.11's multiplicity rule, at
+  most one per region, the regions being the activity panel, the inspector, the
+  canvas overlay, a dialog, a dock and Settings -- the closed set of A region is an
+  object, below. The region is the OPENER's region, not the surface's screen
+  position, and the pop-out layer's per-region stack is the one place in this
+  section where two surfaces may coexist in one band.
+- Two canvas transients: at most one, by One surface per rung. A second preview or
+  governed card replaces the first, because both are anchored to canvas chrome and
+  the ladder cannot order them against each other.
+- Two menus: opening one closes any other, at any rung, because a menu is one
+  choice from a closed list and two open menus draw two focus rings. Escape
+  closes the topmost.
+- Two shell overlays: forbidden, by One surface per rung above, which is where
+  the case is worked through. Opening either closes the other.
+- Two on the dialog rung: never. The palette and a dialog are never open together
+  -- 5.6's bindings do not fire while a modal is open, and Enter on a palette row
+  closes the palette before its action runs -- and a dialog over a dialog is
+  already forbidden by 6.11's nesting limit.
+- Two toasts: one at a time. A second arriving while an Undo toast is live queues
+  behind it, because the Undo window is the reason that surface exists (5.1).
+
+#### The scrim
+
+The scrim. Only the dialog rung dims what is beneath it, and what a surface does
+NOT cover stays live and undimmed. Settings' scrim covers the body row to the
+right of the rail and below the top bar (`VOCAB.md:152`), which is exactly what
+makes closing it a return to the panel rather than a navigation (6.12). Welcome
+carries no scrim and an opaque sheet instead, and every property that would make
+it a modal is forbidden and absent (7.1, amended 2026-09-13). A dialog's scrim
+covers the whole frame. The two artboards that recorded a stacking COLLISION as a
+per-board drawing note rather than as a rule are the design-space ancestor of the
+Settings defect and are now consequences of this ladder instead: "The collision
+on this board: the modal scrim (z-index 20) covers the whole frame, so the
+toolbar renders dimmed under the scrim" (`ARTBOARD-CHANGES-1.7.md:308`) and "This
+board's collision: the palette's scrim... covers the bar, which is z-index 6 --
+draw the bar dimmed under the scrim" (`:2393`). The one board that invented a
+z-index of 25 "so it clears the grid" (`ARTBOARD-CHANGES-1.5.md:34`) is drift,
+and the board is the thing to correct.
+
+#### Stacking contexts and clipping ancestors, the two ways a correct rung loses
+
+A global number decides nothing on its own. A `z-index` is compared only inside its
+own stacking context, and a surface is painted only inside its nearest clipping
+ancestor, so a ladder of numbers cannot be verified without saying which ancestors
+in this shell create a context and which clip. Both were unmentioned until
+2026-09-13, and each has already produced a defect.
+
+| Ancestor | What it does | What the ladder cannot express about it |
+|---|---|---|
+| The body row (`AppShell.tsx:3095-3108`) | `position: relative`, `overflow: hidden` | it is the positioned ancestor of the narrow region overlays, of Settings and of the shortcuts surface, so those three are ordered against each other INSIDE it, and no number given to one of them can lift it above a sibling of the body row |
+| The status bar (`statusbar/StatusBar.tsx:47-63`) | `position: relative`, `overflow: hidden`, height 24 | it is the completion toast's containing block, and the toast is `position: absolute; bottom: 100%` (`LoadCompleteToast.tsx:69-75`), so the whole toast is clipped out of existence, taking its Details and its Undo with it, and no z-index would bring it back |
+| A panel or inspector scroll region | `overflow: auto` | a guest anchored to a row inside it is clipped at the region's edge unless it is portalled, which is why `withinPortal` is the right default for a menu on a panel row and why the portal then has to be given a rung or declared a guest |
+
+Two rules follow, and both are read off the code rather than argued.
+
+A surface on a rung is not a descendant of a clipping ancestor smaller than itself.
+The completion toast is the standing violation: it is a child of a 24 px
+`overflow: hidden` bar and is drawn above that bar, so it is portalled to the frame
+and given the report rung explicitly. The report rung's earlier claim that a toast
+"already takes 400 by default" was false in both halves -- the toast sets no
+`zIndex` at all, and Mantine's 400 belongs to `Overlay` rather than to the `Paper`
+the toast is -- and the only test on it asserts `toBeInTheDocument()` and a click on
+Details (`StatusBar.test.tsx:516-528`), which is precisely the class of check this
+section names as one that cannot see the failure it was written for.
+
+And where a surface has to escape its stacking context it is portalled, so that the
+frame is the context in which the comparison happens. Numbers on this ladder mean
+something only when they are all compared in one place.
+
+#### Content, guests, and the row that holds it
+
+Two clauses, and the previous revision wrote one sentence that read as both: "a
+surface's content never paints outside the surface". Taken literally that forbids
+every menu in the product, each of which paints outside its host by design -- the
+Views menu opens upward out of the toolbar, the Help menu "may stand outside the
+rail's 48 px column" (`AppShell.tsx:3073-3075`), the toast is drawn above the
+status bar. So the two are separated, and the guest carve-out this section grants
+for stacking is granted for clipping as well.
+
+(a) A GUEST may paint outside its host, and it is the host's obligation not to clip
+it: a host that clips portals its guests. This is the clause the Views menu, the
+Help menu, every panel-row menu and the toast all depend on.
+
+(b) A ROW of fixed height never paints outside the row. It clips, and the
+overflowing cell carries its own ellipsis; or it wraps into the multi-line form its
+row type licenses; and where the content fits neither, the row TYPE is wrong for
+that content and the content changes shape -- a chord too long for its column takes
+the register's chip form rather than wrapping as a sentence. There is no third
+option: "where neither is acceptable the row is not fixed" was the previous
+wording, and "acceptable" named no judge, so the clause could not be failed. The
+incident is a single element. The `panOrOrbit` chord span, `white-space: normal` on
+a 120 px flex basis, wrapped to 7 lines and 119.33 px inside a 28 px row with
+`align-items: center` and `overflow: visible`; it bled 46 px above and 46 px below
+and painted over four measured neighbours -- the Redo row at 737..765, the "Canvas"
+heading at 765..797, the "Panel" heading at 825..857 and the next row at 857..885
+-- and the reader reported it as "the keyboard help screen has overlapping text"
+(2026-09-13). `PANEL_GRID.DATA_PITCH` fixes the height and nothing anywhere said
+what a row does when its content will not fit.
+
+(c) A clip may never swallow a whole surface, a whole row, or a control's only
+route. That is the half the previous wording missed entirely, because it treated
+clipping only as the REMEDY: the toast above is clipped to zero extent by its own
+parent, and "it clips with an ellipsis" is not available to a surface whose clipped
+extent is nothing. A clip is legitimate where the reader can still reach what was
+clipped -- by scrolling, by a title, by a pop-out -- and is a defect where they
+cannot, which is 6.4a(e) reached from the other direction.
+
+#### Overlap, clipping, and a list past its own cap
+
+The three failures a reader cannot tell apart, checked together and in this
+order. "When I select a node, there is a long list of actions that overlaps the
+node information in the right panel. why?" (2026-09-12) was not an overlap at
+all. Measured: the inspector body 900 px, the scroll region 482 px holding 602 px
+of content with 120 px hidden, the actions footer 418 px -- 46 per cent of the
+column -- because `buildNodeActions` returned 16 resident verbs against
+`DECISIONS-1.8.md` D4's "caps at four rows in every selection state". What read
+as overlap was the last neighbours row clipped flush against a footer with no
+divider. So a report of overlap is answered by checking three things: the rungs
+of both surfaces (this section), the clipping of the row (above), and the CAP on
+the list (the section that wrote the cap). The third is the one that was missed
+here, and the reason is worth keeping: the implementation followed the spec's
+LIST of verbs and missed the cap on it. A list with a written cap renders the cap
+and puts the remainder behind the route its own section names.
+
+#### A region is an object, not a word
+
+A region is an object, not a word. 6.11's multiplicity rule is the most carefully
+specified lifecycle in this document and for a while it had nothing to attach to:
+"we mount one PopoutManager for the whole page... the spec's five regions have no
+representation in the implementation at all. So neither half of the rule works: a
+second pop-out in the same region doesn't close the first, and the legal case --
+one in the panel and one in the inspector at once -- isn't modelled either"
+(2026-09-12). A rule that names regions requires the regions to exist as named
+objects in the build, with ONE predicate deciding sibling-hood for both halves of
+the rule -- `register` and `closeSiblings` now share one `isSibling` -- and the
+same clause covers this ladder's rungs.
+
+Two further requirements, added 2026-09-13, because the clause as first written
+passed on the predicate and left the failing case uncaught. Region identity is an
+unconstrained `string | null` in the pop-out layer, so a misspelled or forgotten id
+silently makes two pop-outs non-siblings, 6.11's rule stops applying, and nothing
+anywhere reports it.
+
+(1) The region ids are a CLOSED set, declared as a union type with one entry per
+region this document names, and each id is spelled as this document spells it. The
+set is `panel`, `inspector`, `canvas`, `dock`, `dialog` and `settings`.
+
+(2) A region this document names is CONSTRUCTED or the rules that reference it are
+withdrawn. Two entries are owed today and each is a different defect. The build
+spells the dock region `drawer` (`canvas/CanvasRegion.tsx:500`), so a vocabulary
+audit by grep returns a false miss and 6.3's one-word rule is broken in code rather
+than in copy; the id is renamed to `dock`. And `dialog` is named by 6.11 and by two
+rows of 6.12's table and is constructed nowhere, so the closer "a dialog opening in
+its region" cannot fire -- which is 6.4a(a)'s own defect class applied to a region
+instead of to a surface. A region named here and not constructed is exactly as
+unreachable as a surface kind handled and never constructed.
+
+#### The composition set, derived, and the question asked of the screenshot
+
+Composition is the method clause, and this section is where it is stated because
+this is the class that cannot be seen any other way: "Every check I ran on
+Settings was structural... None of them can see a z-index. My screenshots were
+all single states. This bug only exists in a combination, and I never composed
+one."
+
+The set is DERIVED rather than listed. The previous revision listed eight pairs and
+called the set finite, over nine rungs and about thirty surfaces, and all three
+pairs that are actually broken in the build today fell outside it. A pair is in the
+set when all three of these hold, which is a rule a drafter can run against a new
+surface rather than a list they have to be told:
+
+1. the two surfaces can be open at the same time -- the table of 6.12 permits it,
+   and One surface per rung, above, does not forbid it;
+2. their rects overlap at one of the five widths of the dismissal guarantee (375,
+   600, 1024, 1280, 1440 px), computed from the geometry 5.1 and 5.2 give rather
+   than assumed; and
+3. they are not host and guest, which the ladder orders by construction -- EXCEPT
+   where the guest can outlive the visibility of its host, which is a pair below
+   and the reason that exception is written down.
+
+Applied to the build today the set is eleven pairs, and the last three are the ones
+the list of eight did not contain: panel plus Settings; panel plus a menu opened
+inside it; inspector plus a pop-out; a dock plus the time slider plus the toolbar;
+a dialog over each of those; the palette over a panel; a toast over a dialog;
+below 882 px, either region overlay plus a canvas transient; a panel pop-out plus
+Settings; the shortcuts reference plus Settings; and a toast inside the status bar,
+which is the composition of a surface with its own clipping ancestor.
+
+The question asked of the screenshot, with the numbers the previous wording
+lacked. "Which surface is READABLE" named no metric, no judge and no pass
+condition, in a section that gives 3:1, 1.29:1, 5.59:1, pixel counts and
+ImageMagick AE everywhere else, and it was the one clause the whole section rested
+on, since it is the method by which every rung is verified. It is replaced by three
+measurements, and a pair passes only when all three pass.
+
+- OCCLUSION, in pixels. Inside the upper surface's own rect no pixel of the lower
+  surface's content shows. Checked by differencing the composed screenshot against
+  a screenshot of the upper surface over a plain ground, cropped to that rect:
+  `compare -metric AE` returns 0. This is the measurement that would have caught
+  Settings under the toolbar, where the tree was correct and the paint was not.
+- CONTRAST, in ratios. Every string the composition leaves visible measures its own
+  floor against what is ACTUALLY behind it in the composed shot -- 4.5:1 for body
+  text, 3:1 for a state boundary (6.14) -- measured with `tools/uat-contrast.py` on
+  the COMPOSED screenshot and never on either surface alone. This is what catches a
+  surface dimmed under a scrim it was not meant to be under, and a hairline that
+  disappeared into a neighbour.
+- REACHABILITY, by hit test. Every dismissing control of both surfaces is
+  hit-tested at its centre point and the element at that point belongs to that
+  control (the dismissal guarantee of 6.12), so a surface that is visible and
+  unclickable fails here instead of passing on appearance.
+
+A pair that fails any of the three names which of this section's three mechanisms
+produced the failure -- the rung, the stacking or clipping ancestor, or the closer
+-- and is fixed there rather than at the call site. Section 10 carries the pass
+list; a pair with no recorded result is an unrun check, not a pass.
+
+### 6.14 The state rule
+
+Every control that has a state draws it. 6.8 governs the glyph and the hit area,
+6.9's Rule 11 governs the label, and between them nothing said that a control
+must SHOW the state it is in, which is how one defect shipped three times in one
+day on three different controls and then shipped a second wrong fix.
+
+The rule in one sentence: a control with more than one state renders each state
+distinctly to the EYE and to the accessibility tree, and the two never disagree.
+
+`aria-pressed` alone is not a state. Measured with the pointer parked off the
+control: the inspector's latch went through a `HeaderIcon` that hardcoded
+`variant="subtle" color="gray"` and routed `pressed` only to `aria-pressed`, so
+its two states were BYTE-IDENTICAL -- ImageMagick `compare -metric AE` gave 0
+differing pixels and the two header PNGs shared one md5,
+`07a655051899103eb1e0f0f85568bf69` -- while the panel's latch varied only its ink,
+`#a3a8b1` against `#d5d7da`, which is 1.66:1 between the two greys. The reader's
+report was exact: "the sidebar locks don't indicate if they are currently locked
+or not" (2026-09-13).
+
+The boundary floor. The visual boundary that distinguishes a control's state is
+held to WCAG 2.2 1.4.11, 3:1, and the ratio is measured on BOTH of the boundary's
+adjacent colours, in both schemes. That second half is what the first two passes
+missed. A tint alone is not a boundary: Mantine's `light` ground measures 1.21:1
+against the panel ground it sits on in the dark scheme
+(`rgba(34,139,230,0.15)` over `#1f2428`) and 1.12:1 in the light one. A 1 px
+border in the variant's OWN ink is one: it measures 7.97:1 against the header
+ground and 6.57:1 against the tint it encloses in dark, 3.56:1 and 3.17:1 in
+light -- past 3:1 on both of its sides, in both schemes. The filled accent was
+the other candidate and fails the inner side at 2.59:1. In the mockups' one dark
+scheme the same treatment is the accent tint `#28364e` with a 1 px `#4a7ee8`
+border, which measures 4.06:1 against the `#1f2428` panel and 3.15:1 against the
+tint, with the tint itself at 1.29:1. The boards already draw that tint and that
+glyph on 69 controls and draw no boundary on any of them, which is the same defect
+as the shipped latch's, one artefact earlier; `REGISTER-1.5.md` section 19 adds the
+border and changes no ink, and the divergence licence of
+`CONTRAST-DIVERGENCE.md` 4.1 covers why the library's spelling of the same role
+uses a different blue -- its accent fails the inner side at 2.59:1 and the
+mockups' does not.
+
+WHERE the treatment lives, and this is a departure recorded at the product
+owner's direction on 2026-09-13, because it overrules what the previous day's fix
+did: "the custom lock button was not necessary, it was a mistake. use the default
+button and update CLAUDE.md to only use default components. if the components are
+wrong, they should be fixed." A state treatment is a property of the control
+KIND, so it is written once in the shared component library and every call site
+obtains it by passing the STATE. Two consequences, both in force. The shell's own
+`activeRingStyle` -- an inset box-shadow in `PanelHeader.tsx`, imported by
+`InspectorHeader.tsx` -- is WITHDRAWN. And the reason the boundary was
+missing in the first place is itself a shared-component fact: that theme's
+ActionIcon `defaultProps` are `{size: "sm", variant: "subtle"}`, and `subtle` has
+no ground, so every dense toggle in the product starts from a variant that cannot
+express a pressed state. That is what item 4 means by fixing the component: a
+bespoke control at one call site leaves every other call site drawing the defect,
+which is precisely what happened -- two toggles drew a state the product's other
+toggles did not.
+
+"By passing the state" is a requirement on the component's INPUTS, and the mechanism
+it names does not exist yet, which is recorded here because a clause whose mechanism
+is missing cannot be obeyed and its failure cannot be caught. The shared ActionIcon
+has no `pressed` input. The library keys the boundary off the VARIANT instead
+(`compact-mantine/src/theme/styles/buttons.ts:95-97`,
+`return variant === "light" ? { "--ai-bd": "1px solid var(--ai-color)" } : {}`), so a
+call site obtains the treatment by choosing a variant and the state-to-variant mapping
+stays duplicated at every call site: `panel/PanelHeader.tsx:257-261` is still
+`variant={latched ? "light" : "subtle"}` with `c={latched ? undefined : PANEL_INK.CHROME}`,
+choosing ground AND ink, and the next author of a toggle can still write
+`variant="subtle"` and draw nothing. Two things follow.
+
+- The component takes `pressed` and maps it to ground, border and ink itself. A call
+  site passes `pressed={latched}` and no variant, no colour and no ink. THE TEST, and
+  it is one grep: `grep -rn 'variant={.*"light"' --include=*.tsx graphty/src` returns
+  zero. It returns three today -- `panel/PanelHeader.tsx:258`,
+  `inspector/InspectorHeader.tsx:127` and `topbar/topBarControls.tsx:103` -- which are
+  the three rows this section says it repaired, repaired through the variant.
+- Keying the boundary off `variant="light"` is the interim and not the rule, and its
+  side effect is named so it is not mistaken for a decision: every non-toggle
+  `variant="light"` ActionIcon in the product gains a border it never asked for. The
+  border belongs to the pressed STATE, not to the light variant, and it moves when
+  `pressed` lands.
+
+A component renders the state it is GIVEN. A resolver that ignores its arguments
+is the same defect one level down: all 33 `vars: () =>` resolvers in
+`compact-mantine/src/theme/components/` returned one literal object for every
+size, measured in Chromium as `--slider-size: 4px` and
+`--slider-thumb-size: 12px` at xs, compact, sm, md, lg and xl alike, and
+`--ai-size: 24px` at all six, where bare Mantine printed 4, -, 6, 8, 10, 12. The
+reader saw it as "filled icons aren't filled anymore" and "sizes aren't varying
+anymore" (2026-09-13; a regression from commit `5bed146f`, whose predecessor was
+size-aware). A control that does not render the state it is handed and a control
+that does not report the state it is in are one failure with two faces.
+
+The catalogue. Every kind of stateful control in the product, its states, its
+treatment, the accessibility half of that treatment, and the fact the treatment
+reports. Nothing outside this table invents a treatment; a control whose state is not
+one of these rows argues for a row here. The accessibility column is named per row
+rather than once for the table, because "the two never disagree" was unfailable for
+eight of the ten rows while only two of them named an attribute at all.
+
+| Control | States | Treatment | Accessibility | The fact it reports |
+|---|---|---|---|---|
+| An icon toggle in a title row or a toolbar (`Keep open`, `Pin as A`, the two region switches, `Show on canvas`, `Link views`) | pressed, not pressed | the `light` variant -- tinted ground, accent glyph -- plus the 1 px border in its own ink; the word, the title and the glyph unchanged between states (6.8; `REGISTER-1.5.md` 10.2 and 19) | `aria-pressed` | whether the state is currently held |
+| A switch row (RT-5) | on, off | the switch atom, which draws its own state by construction; the accent fill is the ON state and is reserved for it | the atom's own `role="switch"` with `aria-checked`, by construction | the setting itself |
+| A section chevron | open, closed | rotation, plus RT-8's trailing slot switching from the state mark to the section's verbs and its gear (6.11) | `aria-expanded` on the control, `aria-controls` naming the section body | what is inside, without opening it |
+| A gear or door stub | everything behind it at default, something not | the held treatment -- tint plus the 1 px border -- when anything behind it deviates (6.11's stub obligation; amended 2026-09-13, see A state is never drawn in ink alone) | the accessible name carries the deviation, as the title's second sentence ("Parsing. 2 changed"), there being no ARIA state for "differs from default" | that a closed surface hides a non-default |
+| A filter chip | active | the chip's own ground plus a border in the same ink, the filter strip existing at all, and the status bar's N-of-M counts (5.1) | `aria-pressed` on the chip | which filter is on, and what it removed |
+| A running job | queued, running, cancellable or not, done | the progress row with Cancel and the status bar's mirror of it; an indeterminate spinner with elapsed time where the algorithm cannot report progress, never a percentage; Cancel disabled with the title "Cannot cancel this run" (5.1) | `role="progressbar"` with `aria-valuenow` where progress is known and `aria-busy` where it is not; the status bar's mirror is an `aria-live="polite"` region | what is running, and whether it can be stopped |
+| A selected row, segment or rail item | selected | the library's `SELECTED` ground with `ON_SELECTED` ink, 5.59:1 against its track in dark and 7.35:1 in light (`CONTRAST-DIVERGENCE.md` 4.1) | `aria-selected` in a list or grid, `aria-current="page"` for a rail item, `aria-pressed` for a segment | which member the surface is showing |
+| A checked menu row | checked | the register's check glyph in the row's leading slot (`REGISTER-1.5.md` 1.2) | `role="menuitemcheckbox"` with `aria-checked` | a mode the reader turned on elsewhere |
+| A disabled control | disabled | `DISABLED` ink, with the one reason appended to its own title after a full stop (floor item 4); WCAG 2.2 exempts an inoperable component from both contrast clauses | the native `disabled` attribute where the element supports it, `aria-disabled` where it must stay focusable to carry its reason | why it cannot be pressed right now |
+| An unshipped row | not shipped | the Coming tag, no key chip anywhere, and no live state at all (5.6, 5.8) | `aria-disabled`, with the Coming tag inside the accessible name, and NO state attribute of any kind -- an unshipped row that carries `aria-pressed` or `aria-checked` reports a state it does not have | that pressing it is not yet possible |
+
+Six clauses ride with the table.
+
+Every control KIND spells the same boundary in its own atoms, and the catalogue's
+rows are kinds rather than components. An icon toggle takes the tint plus the 1 px
+border; a `Chip` toggle takes its own ground plus a border in the same ink; a
+`SegmentedControl` draws its indicator by construction and needs nothing added; a
+`Button` that is a held toggle takes the same border as the icon toggle, on its own
+ground. What is NOT licensed anywhere is a state drawn only in ink: the clause below
+is why.
+
+A state is never drawn in ink alone, and the catalogue's own gear-stub row was the
+exception that proved it. Until 2026-09-13 that row read "the glyph's ink: dimmed at
+default, primary the moment anything behind it deviates", which is the same ink swap
+this section opens by condemning -- `PANEL_INK.CHROME` against `PANEL_INK.VALUE`
+computes to 1.45:1 in the dark scheme (`#A6A7AB` on `#C9C9C9`) and 1.89:1 in the light
+one (`#495057` on `#212529`), against the 1.66:1 that triggered the rule. So the row
+is amended: a gear or door stub whose contents deviate from their defaults is a HELD
+state and takes the held treatment, the tint plus the 1 px border, at the same two
+ratios as every other held control. The ink may still change with it; it is no longer
+the boundary. Nothing in this section is exempt from the 3:1 floor, and a catalogue
+row that asked for an exemption was a drafting error rather than a licence.
+
+An active toggle never renames itself and never changes its glyph
+(`REGISTER-1.5.md` 10.2: the same rule that keeps `Show on canvas` from becoming
+`Hide`). State is drawn in the ground, the border and the ink. It is never drawn
+in the word, because a control that renames itself has two names and the reader
+learns neither.
+
+A control never asserts a role it does not have. `<Button variant="subtle">` with
+no colour falls to Mantine's `primaryColor`, and the accent is reserved by its
+own note for "a checked box, the highlighted bin, a filled micro-bar, the Run
+button" -- so nine buttons across AI, Data and Present drew themselves accent and
+claimed a primacy they do not have, which the reader read straight off the
+screen: "why is '+ analysis' blue?" (2026-09-12). A state drawn in the accent
+means the accent's own meaning.
+
+A state that cannot be seen is not drawn, and two shapes shipped. A key chip
+whose chord is a space renders DOM text of `" "` -- an invisible chip, in both of
+5.6's sanctioned reference surfaces -- so a rendered chord takes its NAME from
+the register (`Space`), never its literal character. And a switch drawn filled
+`#4a7ee8` with its knob at `left: 14`, which is the accent ON state, sat on an
+UNSHIPPED row beside a live gear: a control showing ON for a capability that does
+not exist (2026-09-06).
+
+Say what it will do, where the control is a door. Floor item 4 covers the scope,
+the cost estimate and the disabled reason; it does not cover a control whose
+whole effect is to open another surface, and the reader asked about exactly that:
+"why the duplicate locations for functionality? why is there an export on the top
+bar, when there is also a Present mode?" (2026-09-12). They are not duplicates,
+they are doors -- `onExport` calls `openPanelAt("present")`, the status bar's
+layout chip calls `openPanelAt("style")` -- and "nothing in either affordance
+says 'this is a shortcut'. A caret next to Export looks like a menu that exports,
+not a menu that navigates." So a control whose only effect is to open another
+surface names that surface, in its own item text or in its tooltip, using the
+panel's own name.
+
+The check, because this class has already re-opened once and its second fix was
+rejected. It has two halves and they answer two different questions, which is the
+distinction the first wording left out and which made it read as contradicting the
+acceptance suite.
+
+(a) IS THE TREATMENT VISIBLE -- the design check, run once per control kind. Two
+screenshots of the same control in its two states, the pointer parked off the control
+(`await page.mouse.move(800, 900)` first, or hover tints the unpressed state), plus
+the two ratios of the boundary against both of its adjacent colours in both schemes.
+The threshold is derived rather than chosen, because "differing by a measured pixel
+count" excluded only zero and would have passed one antialiased edge: an
+`ImageMagick compare -metric AE` over the control's own box must return at least the
+boundary's own perimeter in pixels, which for the 1 px border on a 24 px box is
+`4 * 24 - 4 = 92`, so the floor is 88 after antialiasing. An AE of 0 is the failure
+this clause exists for; an AE under the floor means a treatment that measures as
+something other than the treatment the catalogue names.
+
+(b) IS THE STATE SET -- the scenario check, run wherever a UAT asserts that a
+particular control is in a particular state. Probe `data-variant` plus
+`aria-pressed`, never the computed colour, because Playwright leaves the pointer on
+whatever it last clicked and an unpressed-but-hovered icon button computes
+`rgba(34,139,230,0.2)` against the pressed `rgba(34,139,230,0.15)`, close enough to
+read as pressed and to cause a false FAIL (`design/ui/UAT.md`, section 1.5, gotcha 9).
+
+The two do not disagree once each has its question. The colour is the evidence that a
+treatment EXISTS and is measured with the pointer removed; the attribute is the
+evidence that a state is SET and is measured with the pointer wherever the script left
+it. An `aria-pressed` attribute is not evidence for (a), and a computed background is
+not evidence for (b). `REGISTER-1.5.md` section 19 carries the same split.
+
+The ratios the catalogue owes, listed because nine of its ten rows carried no number
+and "the two never disagree" cannot be failed without one. Each pair is
+`tools/uat-contrast.py` run on a screenshot of the control in the state named, once
+per scheme, against each of the boundary's two adjacent colours. Measured today: the
+held treatment, on both sides in both schemes (above); the selected row, 5.59:1 dark
+and 7.35:1 light against its track. Owed, and each is a measurement rather than a
+decision: the selected row's `ON_SELECTED` ink against its own `SELECTED` ground (the
+second side of a pair the section insists on measuring on both); the filter chip's
+ground against the strip behind it; the checked menu row's check glyph against the row
+ground; and the running job's progress fill against its track. Until a row carries its
+pair it is an unverified row, and a control drawn to it is unverified with it.
+
+Three rows are exempt from a RATIO and take the pixel check alone, which is stated so
+the owed list above is exactly the owed list. A section chevron's state is a rotation, a
+checked menu row's is the presence of a glyph, and an unshipped row's is a tag plus the
+absence of every state -- geometric facts, not boundaries, so 1.4.11 has nothing to
+measure and the AE floor is the whole check. A disabled control is exempt from both by
+WCAG 2.2's own carve-out for an inoperable component, which its row already says.
+
+### 6.15 Text entry and focus
+
+A field is where a reader spends their own words, and this document had no general
+rule about one. Before this revision "focus" appeared on 82 of its lines and every
+one of those was either a per-surface "opens with X focused" or a rule about focus
+LEAVING a field (5.6: "Bindings fire only when focus is outside a text field").
+Nothing said that a surface whose purpose is to receive typing takes focus when it
+opens, and nothing said that a field which accepts input must be wired to state
+that changes when it does. Six incidents came through those two silences, two of
+them re-opens on one mechanism.
+
+(1) The field a surface EXISTS FOR takes focus when the surface opens. The
+discriminator is the clause's load-bearing half and the first wording left it out,
+saying only "the field that is the surface's purpose", which one reader can read as
+every surface that contains a field. Read that way it disables most of the keyboard:
+5.6's precondition is that "bindings fire only when focus is outside a text field", so
+focusing Explore's search box on the panel's opening would kill M, L, D, T, 5, F, 0, E,
+G, P and I for as long as the panel is open, with Escape the only exception (4) grants.
+The build does not do that, and the clause must not ask for it.
+
+So the two lists are separated.
+
+A surface EXISTS FOR its field when the field is the only thing the surface does, and
+it focuses that field on open: the command palette's query field; the AI console on
+Shift+backtick and the AI composer on backtick; a layer row's rename editor, on the
+gesture that opens it; the rebind pop-out's chord capture; the Import options dialog's
+first editable cell; the inspector's note editor, when it is opened as an editor.
+
+A surface CONTAINS a field when the field is one row among others, and opening the
+surface focuses NOTHING: the Explore panel, whose search field is reached by `/` (5.6)
+and by the search insight card, and whose panel-open gesture leaves focus on the control
+that opened it; a table with a filter box; a picker with a search string; a panel section
+with a text row in it. The field is still named -- it is named here, and its binding is
+named in 5.6 -- and the difference is only what happens on OPEN.
+
+The mechanism is whatever the component library honours, and it is verified against the
+installed version rather than assumed: React's `autoFocus` does not survive inside a
+Mantine `Modal`, because `useFocusTrap` (@mantine/hooks 8.3.10) queries
+`[data-autofocus]` inside the trapped node and falls back to "the first tabbable child"
+only when it finds none, and it does that inside a `setTimeout`, AFTER React has
+honoured its own `autoFocus` -- so the palette's field held focus for one macrotask and
+then handed it to the modal's close button. The reader: "opening the command palette
+doesn't select the text entry, so then I have to click to enter the text entry"
+(2026-09-13). 5.5 is amended to say the palette focuses its query field, which it had
+never said in a section that specifies in detail where focus goes AFTER Enter.
+
+(2) A field that accepts input is WIRED, and a defaulted value behind an optional
+handler is the one shape that is forbidden. The clause was written as "its handler is
+REQUIRED" and that was too narrow by one shape and too broad by another: it forbade by
+name the repair that shipped, and it turned 75 signatures into violations without
+saying so.
+
+The defect first. A controlled input whose value comes from a prop DEFAULTED in the
+destructure and whose change handler is OPTIONAL discards every keystroke in silence,
+and it type-checks. Explore's search box was exactly that: `value={query}` with
+`query = ""` defaulted and `onQueryChange?` optional, with the shell rendering the panel
+and passing neither, so "I can't type in the search nodes and edges textbox under
+explore" (2026-09-13).
+
+The three legal shapes, any of which a reviewer can confirm from the signature alone:
+
+- REQUIRED value, REQUIRED handler. The caller owns the value and cannot forget the
+  channel. This is the shape to reach for, and the API key store's repair is its
+  precedent: it became a required prop "so no surface can exist that silently swallows
+  a typed key" (2026-09-13).
+- OPTIONAL value, OPTIONAL handler, and the field OWNS a fallback. `value` absent means
+  the caller has not claimed the field, the field holds its own state, a supplied value
+  wins, and the handler is called whenever one is present. This is what shipped for
+  Explore (`panel/ExplorePanel.tsx:127,129,218,271`: `query?`, `onQueryChange?`,
+  `const [ownQuery, setOwnQuery] = useState("")`, `onQueryChange?.(typed)`), and it is
+  legitimate for the reason 6.9's Rule 7c gives: this panel is drawn at its target shape
+  whether or not its caller has wired every row, so an unclaimed field must hold what is
+  typed rather than eat it.
+- No value prop at all: the field is uncontrolled and reports on commit.
+
+The forbidden shape, and it is the one a grep finds: a DEFAULTED value with an optional
+handler and no fallback state. THE TEST, which is two greps read together rather than
+one:
+`grep -rn 'readonly on[A-Za-z]*?:' panel inspector canvas topbar` lists the optional
+handlers -- 75 today, against 87 required ones, unchanged by the Explore repair -- and
+each one whose component also takes a value prop for the same datum is checked for a
+fallback. An optional handler with no paired value prop is fine and always was: it is a
+control the surface may legitimately render inert. An optional handler paired with a
+defaulted value and no fallback is the defect, and there is no third reading.
+
+(3) WHERE a field's state lives, in three homes and one decision. The previous wording
+was one sentence -- "the state a field writes lives where that surface's other
+remembered values live (6.5 and 6.5a)" -- and it pointed at a closed list that does not
+contain the field that produced the incident, so the one question item 1 came through
+was still a guess. It is decided by one property of the surface: does the surface
+UNMOUNT under the value.
+
+| Home | When | Why |
+|---|---|---|
+| The component's own state | the surface is never unmounted while the value matters, and the value is worthless to anything outside it | nothing else has to know, and a value nobody remembers costs nothing to lose |
+| Shell session state (`ShellContext`) | the surface is unmounted and re-mounted by ordinary navigation -- a panel switch, a narrow overlay closing, a tier 2 section collapsing -- but the value is not worth a reload | the value outlives the surface's remount without ever reaching storage, which is the case 6.5's list is not for |
+| Local storage, per 6.5 | the value must survive a reload | 6.5's list is the closed set of those, and 6.5a says when the record is written |
+
+The rule that follows, stated generally because it was stated for one field and never
+as a rule: a field's state outlives its surface's remount if and only if the surface is
+SWITCHABLE -- that is, if something other than the reader's own dismissal can unmount
+it. The Explore panel body is unmounted on a panel switch, so its search query and its
+scope take the second home: the shell holds them, they are not in 6.5's list, and they
+are gone on a reload, which is correct, because a search string is a question the reader
+was asking a minute ago and not a preference. 6.5 is amended alongside this clause to
+say that its list is the PERSISTED set and to name the session set beside it, so that
+"Nothing else adapts to the user" keeps its meaning without reading as a prohibition on
+state that never leaves the session.
+
+(4) Escape while typing. 5.6's rule stands unchanged -- bindings fire only when focus
+is outside a text field or contenteditable and no modal is open -- and Escape is its
+single exception, to BOTH of its halves: Escape fires with focus in a field, and it
+fires while a modal is open, which is how the ladder's second rung closes a dialog at
+all. That was true in the build and stated nowhere, which is the condition this clause
+ends; it is stated here so the rule and its exception sit in one place instead of being
+rediscovered per field.
+
+Inside a field, Escape has two STAGES before 5.6's ladder gets the press. They are
+stages of the field and not rungs of the ladder, and the word matters: 6.12's dismissal
+guarantee requires that the ladder's rung selection be decided by what is OPEN and
+never by where focus sits, and these two are selected by nothing but where focus sits.
+The two clauses were written on the same day and read as contradicting each other.
+They are reconciled in 6.12, under the dismissal guarantee, which is the paragraph that
+wins where a dispatcher author has to choose: the field's two stages and 5.6's six
+rungs run in SERIES, the stages consult focus, the rungs never do.
+
+The stages. First, Escape ABANDONS the field's own uncommitted edit and restores the
+value the application believes, which is what "Inspector notes: Escape cancels" already
+says. Second, with nothing uncommitted, it clears a non-empty incremental query in a
+field whose surface merely CONTAINS it -- Explore's search field, a table filter, the
+picker's search string. Then, and only then, 5.6's ladder runs and closes the topmost
+transient.
+
+The second stage does not apply where the field IS what the surface is for, which is
+(1)'s own discriminator used a second time: in the command palette, a rebind pop-out or
+the Import options dialog, the first Escape closes the surface, which is what 6.12's
+table assigns it, because clearing a query inside a surface that is about to be
+dismissed spends a press and teaches nothing. The earlier wording named "a narrow
+sheet" in that list, which was wrong and left a real case unassigned: a narrow sheet
+over the panel overlay is a surface that CONTAINS a field, so the first Escape clears
+the query and the second closes the sheet. 6.12 works that case through at 1024 px.
+
+Enter's half is already settled and is repeated because it is the same
+pair: Enter commits a single-line field, and in a composer that grows to four
+lines Enter opens a new line while Cmd/Ctrl+Enter commits (5.6, amended
+2026-09-12, "a field whose Enter sends cannot be typed into").
+
+The commit rule, which is the general case the whole class reduces to: an edit has
+a channel to the state its own surface reads back, and the channel NAMES the
+edit. A channel that infers which edit the reader made from the SHAPE of what it
+receives is a defect however many branches it has.
+
+The incident is one callback, twice. `handleLayersChange` was for one revision the
+layer list's only upward channel and it could express only a REORDER. Layer ids
+are positional (`layer-${index}`), so a rename produced the same ids in the same
+order, `currentIds[index] === nextIds[index]` held at every index, the loop ran to
+completion doing nothing, and graphty-element never heard about the edit: "if I add
+a new style layer, double click on it, change its name, and then click off of it,
+the new name doesn't show; but if I double click on it again the new name is in the
+edit box" (2026-09-13). The report's own theory was wrong, which is worth keeping
+-- the name was not displayed late, it was never committed -- and the secondary
+half is its own clause: the editor seeded its text once at mount and never
+re-synced, so it re-opened holding text the application had REJECTED, a control
+that lies about what the app believes. Then the repair added a GUESS: same ids,
+same order, therefore a rename. And the guess swallowed the next kind of edit, a
+colour arriving from the style-layer inspector's `onUpdate`, which the branch
+reads the live layer back for, spreads, and overrides only `metadata.name` on --
+"changing the color of a style in the style inspector doesn't change the color in
+component or in the graph" (2026-09-13). The channel's own comment states the trap
+it was already in: "The list has one upward channel and it carries two different
+edits, so it has to say which this was." It now carries three.
+
+Applied, four clauses, each checkable by reading one signature:
+
+- An edit carries its kind. One channel per kind of edit, or one channel carrying
+  a discriminated kind; never a heuristic over the argument's shape.
+- An id is stable and is not a position. `layer-${index}` cannot survive a
+  reorder, a rename or an insert, and every diff built over positional ids is
+  guessing.
+- An editor re-seeds from the state the application believes, every time it opens,
+  so a rejected edit is never re-offered as though it had been accepted.
+- A surface that draws a value writes THROUGH the state it reads. The style-layer
+  inspector's read path once cast element-shaped layers to the editor's nested
+  type, so it drew the editor's defaults and said nothing (commit `3599a61c`); a
+  write path whose result the same surface cannot read back is that defect in the
+  other direction.
+
+And the promise the chrome already makes. "Changes save automatically" is drawn in
+the Settings title row on every Settings board, specified at `VOCAB.md:152` and
+annotated at `Settings.dc.html:32` as the sentence "which says what Close does",
+and it appears nowhere in this document that would make it true. It is made true
+here: on any surface that prints it, every control commits on change to the one
+state that surface reads back, with no commit button and no discard path, and the
+sentence may not be drawn on a surface where that is not so. Before this clause
+the words for it were not in this document at all: "single source of truth" nowhere,
+and "one commit point" once, in 6.2's tier 3b row and for a dialog only. This
+clause is the rest of what those words would have meant.
+
+### 6.16 The style layer rule
+
+Added 2026-09-13, at the product owner's direction and in their words: "styling MUST
+be applied through a style layer, and MUST NOT be applied manually in any
+circumstance." It is an absolute and it had no written form anywhere in this document
+until this section: before it, `MUST NOT be applied`, `through a style layer` and
+`manually` each returned nothing over this file, which is how the one instruction
+phrased as an absolute became the one with no rule and no test.
+
+What it governs. Every visual property of the GRAPH -- a node's colour, size, shape,
+opacity, label, and an edge's colour, width, line style and opacity -- is expressed as
+a style layer in graphty-element's StyleManager and reaches the canvas by no other
+route. There is exactly one write path into graph appearance, layers are ordered and
+named, and each is visible in Style's Layers list.
+
+Three consequences, and each is the reason the rule is worth an absolute.
+
+- A visual the reader can SEE and cannot find a layer for is unexplainable and
+  un-undoable. The legend reads the layers (5.1); the reading sentences read the
+  layers (7.5); Undo steps over layers. A manual write is invisible to all three, so
+  the legend names an encoding that is not there, or fails to name one that is.
+- A manual write races the layers. The layer set is recomputed and repainted on a load,
+  a result, a filter and a reader's edit; anything written outside it is overwritten at
+  the next repaint or survives one it should not have, and which of the two is timing.
+- The element's own tuned `default` layer is the baseline every layer composes over
+  (7.2, amended 2026-09-13). A manual write has no position in that composition and
+  therefore no defined relationship to the reader's own layers.
+
+The carve-outs, which are not exceptions to the rule but a statement of what is not
+the app applying styling. What graphty-element draws BY CONSTRUCTION as part of a
+gesture is the element's business and not a layer: the selection highlight and its
+neighbour outlines, the hover highlight, the marquee, a drag ghost, and the canvas
+clear colour. The CHROME is not the graph and is governed elsewhere: a panel, a row,
+a control or an overlay takes its colour and geometry from the shared token set
+(`PANEL_INK`, `PANEL_GRID`, compact-mantine's own tokens) under 6.14 and 6.17, and
+`CONTRAST-DIVERGENCE.md` 4.1 is the only licence for a token to differ from an
+artboard hex.
+
+The checks, and all three are greppable or watchable rather than argued.
+
+1. ONE WRITE PATH. In `graphty/src`, graph appearance is written only by adding,
+   updating, reordering or removing a style layer. A per-node, per-mesh, per-material
+   or per-instance appearance write from the app is the defect; so is mutating a layer
+   object in place rather than committing it through the channel 6.15's commit rule
+   names. The check is a grep over `graphty/src` for an appearance write that is not a
+   layer operation -- `material`, `thinInstance`, `albedoColor`, `emissiveColor`,
+   `.scaling`, `setNodeStyle`, `setEdgeStyle` -- which returns nothing, against the
+   allowed set, which is the layer helpers of `defaults/styleDescriptors.ts`, the layer
+   channel of the Style panel, and `addStyleLayers`.
+2. EVERY ENCODING HAS A ROW. Load a graph, read what the canvas encodes, and find a
+   layer in Style's Layers list for each. A visual with no row fails this rule at the
+   surface where the reader would go looking for it.
+3. EVERY LAYER NAMES ITS SOURCE. `metadata.algorithmSource` says which code path or
+   which run produced the layer -- `shell:load-defaults` for 7.2's layers -- so a
+   layer the reader did not write can be told from one they did, in the list and in
+   the inspector.
+
+### 6.17 The default component rule
+
+Added 2026-09-13, at the product owner's direction, from the same instruction 6.14
+records half of: "the custom lock button was not necessary, it was a mistake. use the
+default button and update CLAUDE.md to only use default components. if the components
+are wrong, they should be fixed." 6.14 took the state-treatment half. This section is
+the general rule, because the instruction is general and reached this document only as
+a clause about pressed toggles.
+
+The rule. Every control in the shell is a component from the shared library
+(`@graphty/compact-mantine`, and Mantine through it). A control assembled at a call
+site out of primitives, or a library component overridden at a call site to draw
+something the library does not draw, is a defect even when it looks right -- because a
+bespoke control at one call site leaves every other call site drawing the old defect,
+which is precisely what happened: two toggles drew a state the product's other toggles
+did not, and the reader's report was about the two that DID.
+
+And the second half, which is the one that makes the first affordable: where the
+shared component is wrong, THE COMPONENT IS FIXED. Not wrapped, not worked around at
+the call site, not forked. A fix in the library reaches every call site at once, which
+is the whole benefit being claimed, and it carries one obligation with it: a library
+fix is checked against every call site of that component, because a change that
+reaches everything can break everything. The 33 `vars: () =>` resolvers that ignored
+their `size` argument are the precedent for both halves -- one library defect, every
+dense control in the product wrong, one fix.
+
+Three checks.
+
+1. NO BESPOKE CONTROL. A styled primitive standing in for a library control is a
+   defect: `<button>`, `<input>`, a `<div>` with `role="button"`, or a `<Box>` given a
+   control's ground, border, radius and hit area. Where the library genuinely has no
+   component for a shape this document requires, the call site carries a one-line
+   comment naming the component that is missing and the register row it would draw,
+   and that comment is the tracked debt rather than a licence. One such exception
+   stands today and is named so it is not mistaken for compliance: Explore's search
+   field is a raw `<input>` composed out of panel tokens, because compact-mantine's
+   `CompoundRow` draws values rather than an editable field
+   (`panel/ExplorePanel.tsx`), so the library owes an editable compound row.
+2. NO STATE OR GEOMETRY AT A CALL SITE. 6.14's grep is this rule's grep too:
+   `grep -rn 'variant={.*"light"' --include=*.tsx graphty/src` returns zero, and a
+   shell file that defines a constant for a control's ground, border or ink -- as
+   `activeRingStyle` did -- is drift by construction.
+3. THE FIX IS IN THE LIBRARY. For each defect in this class the repair commit touches
+   `compact-mantine`; a repair that touches only `graphty/src` has not obeyed the
+   instruction, whatever it makes the screen look like.
+
+This rule also has a home outside this document, which the instruction names: the
+"only default components" line belongs in `graphty/CLAUDE.md` beside the styling
+absolute of 6.16, so that it reaches an implementer who never opens the design
+document. That line is owed and is not written by this revision.
 
 ## 7. Novice path
 
@@ -5738,7 +7136,7 @@ UAT-14 of `design/ui/UAT.md` are its acceptance tests.
 Below the large-graph threshold: force-directed layout (ngraph), node size
 by degree on a square-root scale with the largest node at most 4x the base
 size, labels on the top clamp(round(sqrt(n)), 5, 50) nodes by degree using
-the label top-N style helper, a single neutral node color. Nothing else
+the top-degree label layer defined below, a single neutral node color. Nothing else
 runs, except the Run on load list in Settings > Defaults when the user has
 set one.
 
@@ -5761,6 +7159,66 @@ channel being absent rather than listed as uniform. Labels stay, because a
 label ADDS a channel instead of overriding a tuned value. Recorded in
 `graphty/src/components/shell/AppShell.tsx` at the load-defaults effect;
 UAT-06 of `design/ui/UAT.md` asserts what actually ships.
+
+#### The top-degree label layer
+
+Added 2026-09-13, at the product owner's direction: "use a calculated node and the
+default text file for adding labels to nodes by degree. it must be added as a style
+layer and have a setting that can disable that feature." The paragraph above named "the
+label top-N style helper", a phrase that appeared once in this document and was defined
+nowhere -- no layer entry in 5.3 Style, no disable setting with a home, no memory key in
+6.5 -- so a reader could not build it from the document. It is defined here end to end,
+and it is the worked example of 6.16: the one encoding the shell applies on its own
+behalf is applied the way 6.16 requires everything to be.
+
+| Part | What it is |
+|---|---|
+| The layer | one style layer, `Top degree labels`, added once per dataset at load complete, `metadata.algorithmSource` = `shell:load-defaults` (6.16 check 3) |
+| The selector | every node (`""`). The layer does not pick nodes by id; the calculated half decides per node |
+| The calculated node style | inputs `algorithmResults.graphty.degree.degree`; output `style.label.enabled`; expression `typeof arguments[0] === "number" && arguments[0] >= T`, where T is the budget-th degree from the degree pass. `calculatedStyle` is a SIBLING of `style` and never nested inside it, because `Styles.getCalculatedStylesForNode` reads only the sibling and drops a nested one in silence |
+| The text | the element's own default label text, which is the node id, unless a Label role or a label attribute is set, in which case `style.label.textPath` names it. The shell supplies no text of its own |
+| The budget | `clamp(round(sqrt(n)), 5, 50)` below the large-graph threshold, 20 in Performance mode, or the reader's own number where they have set one. The reader's number is the EXISTING `Labels on canvas` row of Settings > Performance and not a second control beside it: two controls for one number is 6.4a(d)'s defect, and only one of them could be the one 6.4's routes point at |
+| The setting | Settings > Performance: one new switch, `Label the most connected nodes`, default ON, which governs whether a LOAD adds the layer. The budget is the `Labels on canvas` row that section already carries, disabled while the switch is off |
+| The memory | both, under `graphty.shell.labels.v1`, a separate key from the layout record so a shape change in one cannot corrupt the other (6.5, 6.5a) |
+
+Three things the definition has to say, because each was a trap.
+
+Why CALCULATED rather than a list of ids. A degree comparison alone keeps every node
+tied at the cut degree, which on the cat fixture labelled 15 of 20 nodes against a
+budget of 5; a list of ids spends the budget exactly but is a set of facts about one
+graph, so it cannot survive a load, a filter or an added edge, and it is the positional-
+id defect of 6.15's commit rule wearing different clothes. The calculated form keeps the
+RULE in the layer and lets the threshold carry the budget. Where the budget must be
+exact and the cut ties, the tie is broken in the degree pass's own stable id order and
+the threshold is set from the budget-th reading.
+
+The element was FIXED rather than worked around, which is 6.17 applied to a dependency.
+A calculated style whose output path is `style.label.*` used to throw in
+graphty-element's ChangeManager: `NodeStyle.label` is a
+`RichTextStyle.prefault({...}).optional()` and `getSchemaItemFromPath` stopped at the
+first wrapper with "don't know how to retreive path for: enabled", which is why the
+first shipped label layer was a static style behind a selector. `unwrapSchema` in
+`graphty-element/src/ChangeManager.ts` now unwraps optional, prefault, default,
+nullable, non-optional, readonly and catch before descending, and the leaf is still
+validated -- `style.label.enabled` is parsed against `RichTextStyle`'s own
+`z.boolean()` -- so a calculated value of the wrong type is still rejected. The obstacle
+is recorded here because a reader who does not know it existed will re-derive the static
+form and call it the design.
+
+The layer sets NO `textColor`, and this is a standing prohibition rather than an
+omission. It set `PANEL_INK.VALUE` (`#d5d7da`) for one revision on the reasoning that
+the element's `#000000` default "is invisible on the canvas ground" -- but the canvas
+ground is the element's own clear colour `#F5F5F5`, so `#000000` measures 19.26:1 on it
+and the panel ink measured about 1.1:1. The override was withdrawn on 2026-09-13 and the
+labels now measure 19.26:1. A chrome token on the canvas is the divergence
+`CONTRAST-DIVERGENCE.md` 4.1 exists to prevent, in the direction nobody checks.
+
+The layer's life in the Layers list, which is one ruling. It is an ordinary layer: it
+appears in Style's Layers list with its source, and the reader may hide it, reorder it
+or delete it like any other. Deleting it does NOT flip the setting, and the next load
+adds it again; the setting is what the reader wants LOADS to do, and the list is what
+this session is drawing. Two controls with two scopes, and neither silently means the
+other.
 
 Above the threshold (Settings > Performance): the Fixed layout when the file
 carries positions for every node, otherwise Quick grid (connected parts
@@ -6218,6 +7676,39 @@ artboards and this document. The next validation pass walks W20 through W25
 and the genomics-cytoscape-user persona (adopted, section 2) in
 particular, scoring W24's and W25's blocked phases as blocked, not failed.
 
+A second kind of pass joins this one, added 2026-09-13 with the behaviour
+rules, because a workflow walkthrough cannot see any of the defects those rules
+exist to prevent: a reviewer walking W06 finds the control, and the control then
+fails on a combination the walkthrough never composes. The behaviour audit is seven
+mechanical checks, each owned by the rule that asks for it.
+
+Each check is written out HERE, with its steps and its pass condition, and that is a
+correction of 2026-09-13 to the first version of this paragraph. That version named five
+checks in a sentence each and delegated the scenarios to `design/ui/UAT.md`, where four
+of the five have no scenario at all and the fifth runs three of its five widths -- so a
+validation plan's scenarios were citations to an absent file, which is the same shape as
+the defect 6.13 records about itself: a document asserting a behaviour nothing performs.
+A check is runnable from this section; where UAT.md carries a scripted form, the scenario
+is named beside it; where it does not, the scenario is OWED and the check is still
+runnable by hand.
+
+| # | Check | Steps | Passes when | Scenario |
+|---|---|---|---|---|
+| 1 | The composition set (6.13) | derive the pairs by the three conditions of 6.13's composition clause; open each pair on screen; screenshot; measure occlusion, contrast and reachability as that clause defines them | every pair passes all three measurements, and every pair has a recorded result | OWED (UAT-17); the eleven pairs of 6.13 are its rows |
+| 2 | The dismissal guarantee (6.12) | at each of 375, 600, 1024, 1280 and 1440 px, from a CLEARED profile and with the reset AFTER the resize, enumerate every surface drawn over the canvas, hit-test each one's close control at its centre, and press Escape with focus where the shell left it | at every width every such surface has one hit-testable dismissing control and one binding that reaches it | UAT-14, at three widths of the five: 1280 and 1440 are OWED, and they are the two where the shell's own default latches both sidebars, so they are the two the guarantee most needs |
+| 3 | The reverse audit (6.4a) | for each row of 6.4a's construction table, reach the surface in the running application by the route named, then tab through what appears and click each control | every built surface is reachable by a named route, by pointer and by key, and shows the state it claims to edit | UAT-10 covers the style-layer inspector only; the rest is OWED (UAT-18) |
+| 4 | Two states, two ratios (6.14) | for each catalogue row, screenshot the control in both states with the pointer moved off it, and measure the boundary against both adjacent colours in both schemes | `compare -metric AE` over the control's box is at or above the boundary's own perimeter in pixels (88 for a 1 px border on a 24 px box), and both ratios clear 3:1 | UAT-03 probes the attribute half for the latches (check (b) of 6.14); the pixel-and-ratio half is OWED (UAT-19) |
+| 5 | The field audit (6.15) | list every field in the shell; press its focus route; read its signature for the forbidden shape of 6.15(2); type into it and read the state back | every field named in 6.15(1) focuses as its list says, and no field is a defaulted value behind an optional handler with no fallback | OWED (UAT-20); the two greps of 6.15(2) are its first half and can be run today |
+| 6 | The style layer audit (6.16) | load a graph; list what the canvas encodes; find a layer for each in Style's Layers list; grep for appearance writes outside the layer channel | every visible encoding has a layer row, every layer names its source, and the grep returns nothing | OWED (UAT-21) |
+| 7 | The default component audit (6.17) | grep for bespoke controls and for state or geometry written at a call site; read each recorded exception's comment | every exception is a named, commented debt, and 6.14's variant grep returns zero | OWED (UAT-22); it is red today at three call sites |
+
+Two notes on the audit as a whole. None of the seven is a structural test and none can
+be satisfied by one -- a test that renders a component with props the test supplies
+cannot see any of them, which is the process failure behind this entire class. And UAT.md
+is where the scripted forms live and where its standing gotchas record which of these
+have bitten; a check marked OWED above is a gap in the suite and is reported as one
+rather than being treated as a pass.
+
 Third pass (2026-09-04), against the 39 artboards of section 9 and this
 document at revision 1.3: 37 reviewers (25 workflow walkthroughs, 12
 persona reviews), 290 raw findings, 168 after merge, 70 confirmed by two
@@ -6312,6 +7803,32 @@ pro tool, 5 a tutorial), down from an average of 2.8 in the second pass.
 
 ## 12. Open questions
 
+- What may a reader latch themselves into below 1280 px? The 2026-09-13
+  amendment permits both latches at every width, and at 375 px two latched
+  overlays cover the canvas end to end with both close controls inside the
+  covering surfaces. 6.12's dismissal guarantee holds as written -- the controls
+  are on screen and hit-testable -- but whether a control inside the covering
+  surface satisfies the spirit of it at that width is the product owner's call,
+  since the amendment that created the state was theirs. Options: (a) leave it,
+  and the guarantee is satisfied by the headers' own close controls, which is the
+  default and what is specified today; (b) below a named width the SECOND latch is
+  refused, with the refusal explained in one line on the control rather than
+  silently, which is the withdrawn 2026-09-12 rule brought back with a reason
+  drawn; (c) below a named width the second surface opens as a sheet over the
+  first rather than as a second overlay, which keeps both reachable and costs a
+  new surface shape. Only (a) needs no new work.
+- 6.17 forbids a bespoke control and records one standing exception: Explore's
+  search field is a raw `<input>` because compact-mantine's `CompoundRow` draws
+  values rather than an editable field. Does the library get an editable compound
+  row in this pass, which removes the exception and reaches every future field, or
+  does the exception stand as a commented debt? The rule works either way; the
+  question is only when.
+- The behaviour audit of section 10 names six scenarios that do not exist yet
+  (UAT-17 through UAT-22, one per check plus the two missing widths of UAT-14).
+  Writing them is the only thing that turns the seven checks from rules into a
+  suite. Are they in scope for the next pass, and in what order? The composition
+  set and the two owed widths of the dismissal guarantee are the two that have
+  already caught a shipped defect.
 - The expert-state mockups use the synthetic 200-node fraud network (612
   edges); the large-graph mockups use a 120,000-node synthetic security
   event graph. Which open dataset (50,000 to 100,000 nodes, redistributable)
@@ -6594,6 +8111,158 @@ left to drift.
 
 ## 13. Revision history
 
+- 1.14 (2026-09-13): the second iteration on the behaviour half, applied against
+  revision 1.13 after an adversarial review of it. 1.13 was strong on the classes a
+  reviewer can check by reading a signature or a number and weak on the class it was
+  written for, stacking, so this revision corrects the numbers, resolves the
+  contradictions by NAMING which clause wins, turns every rule the critic could not
+  turn into a test into one or withdraws it, and closes the two items that had no
+  written form at all. Nothing here softens 1.13; six of its clauses are overruled or
+  narrowed and each says so where it sits.
+  (1) 6.13's ladder is rebuilt on the build's real numbers. Its rungs are NAMED and
+  never numbered, because three ladders in this document use the word rung and "rungs 4
+  through 8" had two readings. The pop-out rung of 8 is WITHDRAWN: no pop-out is near 8,
+  every one draws at 1000 or 1100, and applied literally the old text would have put a
+  pop-out under Settings -- the defect the section exists to prevent, reversed. Two
+  bands are now explicitly DELEGATED with obligations (Mantine's 100/200/300/400, the
+  pop-out layer's 1000/1100), the host/guest discriminator is stated once (the surface
+  the trigger lives in is the host) so a menu no longer carries two contradictory
+  numbers, the region overlay moves above the canvas menu to 16 as a RULING against the
+  build, and the 149 px geometry argument that excused the canvas-transient pair is
+  withdrawn with the arithmetic that kills it (clearance reaches zero at 882 px and is
+  -253.5 px at 375). New: one surface per rung, with the pop-out stack as the single
+  named exception, which settles the two shell overlays the old text left to DOM order;
+  stacking contexts and clipping ancestors, with the three in this shell named and the
+  toast's own clipping-to-nothing recorded; a guest/row/clip split that stops the
+  clipping clause forbidding every menu in the product; the closed region-id set with
+  the two entries that are owed; and a DERIVED composition set with three measurements
+  -- occlusion in pixels, contrast in ratios, reachability by hit test -- replacing
+  "which surface is READABLE", which was the one measurement-shaped clause in 1.13 with
+  no number in it. Welcome's band is anchored to the canvas rect, the clause that put it
+  12 px above a toolbar the Empty state does not draw having been unbuildable.
+  (2) 6.12 gains the reconciliation 1.13 needed and did not have: the field's two Escape
+  STAGES and 5.6's six RUNGS run in series, the stages consult focus and the rungs never
+  do, and the paragraph under the dismissal guarantee is the one that wins. The pair rule
+  gains its carve-out for a close whose cause also removes the opener; closers are
+  DECLARED rather than defaulted, with the `closeOnClickOutside` grep that is red at all
+  six modals today; the guarantee's set is named by kind and is made equal to the table's
+  rows, with a governed-card row and a report-editor-drawer row added; and a pop-out is
+  now closed by a shell overlay opening in another region, which is what keeps a guest
+  from outliving its host's visibility.
+  (3) 6.14 gains an accessibility column per catalogue row, because "the two never
+  disagree" was unfailable for eight of ten rows; the gear-stub row's ink-only treatment
+  is AMENDED -- it licensed a 1.45:1 swap inside the section founded on 1.66:1 not being
+  a state -- and every held state now takes one measured treatment; the mechanism clause
+  says what it requires of the component's inputs (`pressed`, not a variant) and records
+  that the mechanism does not exist yet, with the grep that is red at three call sites;
+  the check is split into the design half (visible treatment, pointer off, AE floor of 88
+  derived from the border's own perimeter) and the scenario half (`data-variant` plus
+  `aria-pressed`), which is how it stops contradicting UAT's gotcha 9; and the four
+  ratios the catalogue still owes are listed as owed.
+  (4) 6.15's clauses are rewritten where they failed on their own files. (1) gains the
+  discriminator -- a surface EXISTS FOR its field or merely CONTAINS one -- without which
+  the clause would disable every single-letter binding while Explore is open. (2) is
+  narrowed from "the handler is REQUIRED" to three legal shapes and one forbidden one,
+  because the shipped repair took a shape the old wording forbade by name and 75
+  signatures would otherwise have been violations. (3) answers where a field's state
+  lives in three homes with one decision (does the surface unmount), which is the gap
+  that produced item 1, and states the general unmount rule. (4) renames its two rungs to
+  stages and assigns the case nobody had assigned.
+  (5) 6.5a(2) is REVERSED and the reversal is recorded: a remembered value is never
+  discarded for the width it is read at, because the first wording contradicted
+  `ShellContext`'s own "a stored value must keep winning", 6.12's latch veto and (1)'s own
+  rationale. (4) is restated as the observable (the key is ABSENT after a first paint)
+  rather than as a code shape. Both storage keys are now NAMED -- `graphty.shell.layout.v2`
+  and `graphty.shell.labels.v1` -- which is what (3) asks for and what the document failed
+  on itself. 6.5's list is declared the PERSISTED set with the session set named beside
+  it, so its closing sentence no longer reads as a prohibition on session state.
+  (6) The two product-owner absolutes that had no home get one. 6.16 is new: styling is
+  applied through a style layer and never manually, with the carve-outs for what the
+  element draws by construction and for chrome, and three greppable checks. 6.17 is new:
+  only default components, the component is FIXED when it is wrong, and a bespoke control
+  is a defect with its one standing exception recorded as a commented debt. 7.2 gains The
+  top-degree label layer, defined end to end -- the calculated node style on
+  `style.label.enabled`, why calculated rather than a list of ids, the element's
+  ChangeManager fix that made it possible, the standing prohibition on `textColor` (the
+  canvas ground is `#F5F5F5`, so the element's `#000000` measures 19.26:1 and the panel
+  ink measured 1.1:1), the switch in Settings > Performance and the memory key -- and 5.3
+  Style says shell-authored layers appear in the Layers list. 6.4a(c)'s ungreppable check
+  gets its marker, `(unshipped: <id>)`, and this revision applies it to its own text.
+  Section 10's behaviour audit becomes seven checks written out with steps and pass
+  conditions, each naming its scenario or naming it OWED, because four of the five it
+  delegated to UAT.md had no scenario there and the fifth ran three of its five widths.
+  Three questions go to section 12 rather than being answered here: what a reader may
+  latch themselves into below 1280 px, whether the library gets an editable compound row
+  now, and when UAT-17 through UAT-22 are written.
+
+- 1.13 (2026-09-13): the behaviour half, applied against revision 1.12. This
+  document was strong on what each surface CONTAINS and had almost nothing on how
+  surfaces BEHAVE together, and 33 interaction defects mined from the session
+  record fall into five classes that share that one asymmetry. Each class is now a
+  rule with a stated failure mode, in the section a reader would look in, and each
+  cites the incident it exists to prevent. Nothing above is softened or deleted, and
+  the three places where a new rule adds to or overrides a settled one say so where
+  they sit: 6.14's withdrawal of the bespoke pressed ring, 5.6's rung 2 and its
+  new Escape exception, and 6.13's ruling that the canvas bottom band holds one
+  dock. (1) 6.13 is new and owns stacking, which nothing owned: before this
+  revision the phrase z-index appeared in this document zero times, the only
+  ordering statements were about canvas overlays, and
+  Settings shipped at `z-index: auto` so the toolbar and the minimap painted through
+  a surface meant to replace the panel. Nine named rungs, what happens when two
+  surfaces of one kind are open, one scrim clause, a clipping clause (a 28 px row
+  bled 46 px above and below over four measured neighbours), the three failures a
+  reader cannot tell apart -- overlap, clipping and a list that outgrew its own
+  written cap of four rows -- and the composition set, because every check that
+  missed the Settings bug was structural and no screenshot held two surfaces at
+  once. (2) 6.12 gains two subsections: a table of what opens each surface, what may
+  close it and what may NEVER close it, with the clause that a close and its reopen
+  are a pair; and the dismissal guarantee, which forbids the shell from reaching a
+  screen where a surface over the canvas has no dismissing control -- the state a
+  first visit reached at 375 x 812 with two latched overlays covering the canvas end
+  to end. The focus ladder gains the clause it was missing on the day it was
+  written: the landing element must be focusable when focus is handed to it and must
+  survive the change that closed the surface. (3) 6.14 is new and owns control
+  state. `aria-pressed` alone is not a state (measured: 0 differing pixels, one md5
+  across both states of the latch), the boundary that distinguishes a state is held
+  to 1.4.11's 3:1 on BOTH of its adjacent colours in both schemes, and the treatment
+  lives in the shared component and never at a call site -- which is the product
+  owner's own ruling, recorded as a departure: "the custom lock button was not
+  necessary, it was a mistake... if the components are wrong, they should be fixed".
+  The shell's `activeRingStyle` is withdrawn with it. A catalogue of ten stateful
+  control kinds, four riding clauses, and a check that names its method.
+  `REGISTER-1.5.md` section 19 carries the drawing. (4) 6.4 gains 6.4a, the reverse
+  audit: 6.4 walked from a capability to its routes and nothing walked back, so a
+  whole style-layer inspector shipped with a handled kind that no code constructed
+  and was dead for weeks. Five clauses -- constructible, both hands, the assertion
+  and the unshipped tag agree, one capability one implementation, and reachable
+  includes scrollable (a centred flex item in an `overflow: auto` column has an
+  unreachable top end, measured at -61.56 px with `scrollTop` 0). (5) 6.15 is new
+  and owns text entry: which field takes focus when a surface opens and by what
+  mechanism (React's `autoFocus` does not survive a Mantine `Modal`), that a field
+  which accepts input has a REQUIRED handler wired to state that changes (75
+  optional handlers against 87 required ones in the shell today), what Escape does
+  inside a field before 5.6's ladder gets it, and the commit rule -- an edit names
+  itself, and a channel that infers the edit from the shape of its argument is a
+  defect however many branches it has, which is the one mechanism behind both the
+  swallowed rename and the swallowed colour. It also makes "Changes save
+  automatically" true, a sentence every Settings board has drawn since 1.5 and no
+  section supported. 6.5 gains 6.5a, four clauses on when a record is written,
+  because a default written at first paint becomes indistinguishable from a choice.
+  Two smaller things travel with the five. The Escape ladder's rung selection is
+  the shell dispatcher's, not a function of where focus sits, which is the standing
+  defect behind gotcha 10 of `design/ui/UAT.md`. And section 10 gains the behaviour
+  audit: five mechanical checks, one per rule, none of which a structural test or a
+  workflow walkthrough can satisfy. `REGISTER-1.5.md` gains section 19, the pressed
+  treatment, with its drawing and its measured ratios in the boards' own palette:
+  the set already draws the tint and the accent glyph on 69 controls and draws no
+  boundary on any of them, so the addition is one property, the 1 px border, and no
+  ink changes. Sections 10.2 and 18 point at it. Four sections carry an in-place amendment
+  rather than a new rule, each dated where it sits: 5.5, which never said the
+  palette focuses its own query field; 5.6, where Escape is named as the one
+  binding that fires with focus in a field and rung 2 gains the Help menu, the
+  shortcuts reference and Settings; 6.8 point 1, where `aria-pressed` is now the
+  accessibility half of a treatment whose visual half 6.14 owns; and 10.
+
 - 1.12 (2026-09-13): four amendments, applied against revision 1.11. All four
   come from the product owner directly, all four contradict a rule this document
   had already settled, and each is dated in place at the clause it overrides.
@@ -6622,7 +8291,10 @@ left to drift.
   maximum degree rather than the observed range, so the cat fixture drew every
   node between 3.12x and 4.00x the base -- the 4x ceiling honoured, the point
   missed -- and re-proposing it means fixing the normalisation first. Sections
-  6.12, 7.1 and 7.2 carry the amendments in place. `design/ui/UAT.md` is new
+  6.12, 7.1 and 7.2 carry the amendments in place. The storage key moved with (3),
+  per 6.5a: `graphty.shell.layout.v1` became `graphty.shell.layout.v2`, so the new
+  latch defaults reach a reader whose v1 record already answered the question.
+  `design/ui/UAT.md` is new
   with this revision (item 7 of the same seven) and is the acceptance suite;
   UAT-01, UAT-02, UAT-06, UAT-11, UAT-12 and UAT-14 are the scenarios that pin
   these four.

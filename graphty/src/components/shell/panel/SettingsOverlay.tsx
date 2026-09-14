@@ -1,11 +1,21 @@
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
-import { ActionIcon, Box, Overlay } from "@mantine/core";
+import { ActionIcon, Box, NumberInput, Overlay, Switch } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { AiProviderSettings, type AiProviderSettingsProps } from "../../ai/AiProviderSettings";
 import { ColorSchemeToggle } from "../../ColorSchemeToggle";
 import { formatChords, SHELL_KEY_BINDINGS } from "../bindings";
 import { OVERLAY_INSET, PANEL_HEADER_HEIGHT, SHELL_OVERLAY_Z_INDEX } from "../constants";
+import {
+    LABEL_COUNT_MAX,
+    LABEL_COUNT_MIN,
+    LARGE_GRAPH_NODE_THRESHOLD,
+    PERFORMANCE_LABEL_COUNT,
+    type PersistedLabelSettings,
+    readPersistedLabelSettings,
+    resolveLabelSettings,
+    writePersistedLabelSettings,
+} from "../defaults/loadDefaults";
 import { ComingTag } from "./PanelSection";
 
 /** The overlay's own name, drawn at the dialog title size. */
@@ -86,8 +96,130 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
  * providers was on the wrong side of this line: spec 5.1 places AI settings inside
  * Settings and 5.3 AI tier 3 opens this pane from the assistant's setup prompt, and
  * until now that prompt led to a stub.
+ *
+ * `performance` joined it on 2026-09-13 with the label controls below: spec 7.2 puts the
+ * label budget in this pane, and the product owner asked that the top-degree label layer
+ * "have a setting that can disable that feature". The pane draws the two label controls
+ * and NOT the rest of 7.2's Performance branch -- the large-graph threshold, the layout
+ * substitution and the size scale stay code constants -- which is why this is the smallest
+ * honest pane rather than a page of switches over settings nothing reads.
  */
-const SHIPPED_SECTION_IDS: readonly string[] = ["appearance", "shortcuts", "ai"];
+const SHIPPED_SECTION_IDS: readonly string[] = ["appearance", "shortcuts", "performance", "ai"];
+
+/** The switch's label: the verb and the thing, in the reader's words. */
+const LABEL_SWITCH_LABEL = "Label the most connected nodes";
+
+/** What flipping the switch actually does, named as a layer because that is what it is. */
+const LABEL_SWITCH_DESCRIPTION =
+    'A style layer named "Top degree labels" draws the label. Off, a load adds no such layer and no node is labelled.';
+
+/** The budget field's label. */
+const LABEL_COUNT_LABEL = "How many labels";
+
+/** What an empty budget field means, and the two ceilings a number is held to. */
+const LABEL_COUNT_DESCRIPTION = `Empty follows the graph's size: the rounded square root of the node count, never fewer than ${String(LABEL_COUNT_MIN)} and never more than ${String(LABEL_COUNT_MAX)}, and at most ${String(PERFORMANCE_LABEL_COUNT)} above ${LARGE_GRAPH_NODE_THRESHOLD.toLocaleString("en-US")} nodes.`;
+
+/** The placeholder that says what an empty field will do. */
+const LABEL_COUNT_PLACEHOLDER = "Automatic";
+
+/**
+ * When the change takes effect, said plainly.
+ *
+ * Both controls are read when a graph LOADS (`loadDefaults` consults the stored record and
+ * the label layer is added once per load), and the shell has no route from this pane to the
+ * live canvas: Settings is handed a key store and nothing else, and the layer is added by
+ * the one-shot effect in `AppShell`. So the honest sentence is this one rather than silence
+ * -- a reader who flipped the switch and saw the labels stay would be entitled to call it
+ * broken. Making it live means re-applying the layer from the setting in `AppShell`, which
+ * is noted for whoever owns that file.
+ */
+const NEXT_LOAD_LINE = "Applies the next time a graph loads.";
+
+/** How wide a settings field is allowed to get: a field wider than its label reads as a table. */
+const FIELD_WIDTH = 360;
+
+/**
+ * Reads the budget field's value back as the record stores it.
+ *
+ * Mantine's NumberInput reports "" for an empty field and a number otherwise, and the
+ * record's two states are a number of at least one or null for "decide for me". Anything
+ * that is not a usable count -- an empty field, a partial entry, a zero, a negative -- is
+ * null rather than a number, because "labels on, none drawn" is the switch's job.
+ * @param value - what the NumberInput reported.
+ * @returns the reader's budget, or null to follow the graph's size.
+ */
+function readerLabelCount(value: string | number): number | null {
+    const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+        return null;
+    }
+
+    return Math.min(LABEL_COUNT_MAX, Math.round(parsed));
+}
+
+/**
+ * Settings > Performance: whether a load labels the most connected nodes, and how many.
+ *
+ * It holds the record in state and writes it on every change, which is what the header's
+ * "Changes save automatically" already promises -- there is no Apply button to add. The
+ * state is seeded from storage in the initialiser rather than in an effect, so the switch
+ * never draws the default for a frame before correcting itself, and storage is the only
+ * source of truth: nothing else in the app writes this key.
+ * @returns the two controls and the sentence that says when they take effect.
+ */
+function LabelSettingsPane(): React.JSX.Element {
+    const [settings, setSettings] = useState<PersistedLabelSettings>(() =>
+        resolveLabelSettings(readPersistedLabelSettings()),
+    );
+
+    const commit = (next: PersistedLabelSettings): void => {
+        setSettings(next);
+        writePersistedLabelSettings(next);
+    };
+
+    return (
+        <Box
+            data-testid="settings-labels"
+            style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: PANEL_GRID.PAD_LEFT,
+                maxWidth: FIELD_WIDTH,
+            }}
+        >
+            <Switch
+                label={LABEL_SWITCH_LABEL}
+                description={LABEL_SWITCH_DESCRIPTION}
+                checked={settings.topDegreeLabelsOn}
+                data-testid="settings-labels-switch"
+                onChange={(event) => {
+                    commit({ ...settings, topDegreeLabelsOn: event.currentTarget.checked });
+                }}
+            />
+
+            <NumberInput
+                label={LABEL_COUNT_LABEL}
+                description={LABEL_COUNT_DESCRIPTION}
+                placeholder={LABEL_COUNT_PLACEHOLDER}
+                min={1}
+                max={LABEL_COUNT_MAX}
+                allowDecimal={false}
+                allowNegative={false}
+                disabled={!settings.topDegreeLabelsOn}
+                value={settings.labelCount ?? ""}
+                data-testid="settings-labels-count"
+                onChange={(value) => {
+                    commit({ ...settings, labelCount: readerLabelCount(value) });
+                }}
+            />
+
+            <Box component="span" style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}>
+                {NEXT_LOAD_LINE}
+            </Box>
+        </Box>
+    );
+}
 
 /**
  * Props of the Settings overlay.
@@ -123,10 +255,11 @@ export interface SettingsOverlayProps {
  * inset 12 on all four sides -- not a route and not a 280px panel
  * (spec 03 section 2.7).
  *
- * Three of the seven panes draw content: Appearance re-homes the app's colour
- * scheme control, Keyboard shortcuts draws the 5.6 table, and AI providers draws
- * the provider list and its key form. The other four are stubs and say so with the
- * 5.8 tag -- see `SHIPPED_SECTION_IDS`, which is the one list that decides which.
+ * Four of the seven panes draw content: Appearance re-homes the app's colour
+ * scheme control, Keyboard shortcuts draws the 5.6 table, Performance draws the label
+ * switch and the label budget, and AI providers draws the provider list and its key
+ * form. The other three are stubs and say so with the 5.8 tag -- see
+ * `SHIPPED_SECTION_IDS`, which is the one list that decides which.
  *
  * The Keyboard shortcuts pane renders the WHOLE 5.6 table, unshipped rows
  * included and tagged, which is what section 10.3 asks of this one surface; the
@@ -347,6 +480,10 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                         </Box>
 
                         {section.id === "appearance" && <ColorSchemeToggle />}
+
+                        {/* Settings > Performance, spec 7.2's home for the label budget, with
+                            the switch the product owner asked for beside it (2026-09-13). */}
+                        {section.id === "performance" && <LabelSettingsPane />}
 
                         {/* Settings > AI providers, the destination spec 5.1 already promised
                             and 5.3 AI tier 3 opens from the assistant's setup prompt. The pane

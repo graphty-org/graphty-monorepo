@@ -14,14 +14,16 @@
  * 1. `calculatedStyle` is a SIBLING of `style`, never nested inside it.
  *    Styles.getCalculatedStylesForNode only reads the sibling, so a nested
  *    calculatedStyle is silently dropped and the encoding never appears.
- * 2. A calculatedStyle may not output into `style.label.*`. NodeStyle.label is a
- *    ZodOptional<ZodPrefault<...>> that ChangeManager.getSchemaItemFromPath does not
- *    descend, so such a layer THROWS. The label layer is therefore a static style
- *    behind a selector.
+ * 2. A calculatedStyle MAY now output into `style.label.*`, as of the element fix of
+ *    2026-09-13. NodeStyle.label is a `RichTextStyle.prefault({...}).optional()`, and
+ *    ChangeManager.getSchemaItemFromPath used to stop at the first wrapper and throw
+ *    "don't know how to retreive path for: enabled"; it now unwraps optional, prefault,
+ *    default, nullable, non-optional, readonly and catch before descending
+ *    (graphty-element/src/ChangeManager.ts `unwrapSchema`). The leaf is still validated:
+ *    `style.label.enabled` is parsed against RichTextStyle's own `z.boolean()`, so a
+ *    calculated value of the wrong type is still rejected.
  * 3. A JMESPath literal needs backticks around it, which is the form
- *    graphty-element's own KruskalAlgorithm.ts:41 ships. A JSON ARRAY is a literal too,
- *    which is what lets a selector name an explicit set of node ids; see
- *    {@link topDegreeLabelLayer}.
+ *    graphty-element's own KruskalAlgorithm.ts:41 ships.
  *
  * The palette hexes below are copied, not imported: they are the Okabe-Ito set from
  * graphty-element/src/config/palettes/categorical.ts (OKABE_ITO_COLORS), and
@@ -30,7 +32,7 @@
  * the citation is the guard.
  */
 
-import { LABEL_TEXT_COLOR } from "./loadDefaults";
+
 
 /** A calculated style. `calculatedStyle` is a SIBLING of `style`, never nested in it. @public */
 export interface CalculatedStyleDescriptor {
@@ -81,91 +83,81 @@ export interface StyleLayerDescriptor {
 export const LOAD_DEFAULTS_LAYER_SOURCE = "shell:load-defaults";
 
 /**
- * A selector matching exactly the named node ids, and no other node.
+ * The per-node degree the label rule reads, as a calculatedStyle input path.
  *
- * `id == 'A' || id == 'B'` is the attested form (LayeredStyles.stories.ts:89-91), but it
- * cannot be built from arbitrary ids without quoting rules of its own, so this uses the
- * JSON-literal form of the same test: `contains` over a backtick literal. Two details
- * are load-bearing:
- *
- * - `to_string(id)` is required. The ids arrive as strings (`readDegreeResults` stores
- *   `String(node.id)`) while the record the selector matches carries the id as the file
- *   wrote it, which is a NUMBER on the numerically-identified files. JMESPath `contains`
- *   compares by type, so without the coercion a numeric-id graph would match nothing and
- *   draw no labels at all.
- * - A backtick inside the literal would close it, so the JSON is escaped for backticks.
- *   JSON.stringify has already escaped quotes and backslashes.
- *
- * `id` is the field the ids are compared against because that is the default
- * `data.knownFields.nodeIdPath` (DataConfig.ts:4), the same assumption the degree
- * selector above makes about its result path.
- * @param ids - the node ids to match. An empty list matches no node.
- * @returns the JMESPath selector.
+ * It is `graphty`.`degree`.`degree`: the namespace and type graphty-element's own
+ * DegreeAlgorithm registers, and the per-node result it writes with
+ * `addNodeResult(nodeId, "degree", degree)`. The same path appears in
+ * `analysis/runs.ts`, which READS the results back; a path that drifted would leave the
+ * rule matching nothing and the reader with no labels and no error.
  */
-function nodeIdSetSelector(ids: readonly string[]): string {
-    const literal = JSON.stringify(ids).replaceAll("`", "\\`");
+export const DEGREE_INPUT_PATH = "algorithmResults.graphty.degree.degree";
 
-    return `contains(\`${literal}\`, to_string(id))`;
-}
+/** Where the label rule writes its verdict. Validated against RichTextStyle's own `enabled`. */
+export const LABEL_ENABLED_OUTPUT_PATH = "style.label.enabled";
 
 /**
- * Labels on the top-degree nodes.
+ * Labels on the most connected nodes, as a RULE rather than a list.
  *
- * Static, not calculated: `label.enabled` is read only off the merged static style at
- * mesh build, and a calculatedStyle whose output is `style.label.*` throws in
- * ChangeManager. `textColor` is set because RichTextStyle defaults it to #000000, which
- * is invisible on the canvas ground.
+ * CALCULATED, not static, and not a selector over node ids -- the product owner's
+ * instruction of 2026-09-13: "use a calculated node and the default text style for adding
+ * labels to nodes by degree. it must be added as a style layer and have a setting that can
+ * disable that feature." What was here before named the five highest-degree node ids in a
+ * `contains(...)` selector, so the layer described one dataset: it had to be rebuilt on
+ * every load, said nothing a reader could read as a rule, and meant nothing at all once
+ * the data changed under it. This layer matches every node (`selector: ""`) and asks the
+ * node's own degree whether to draw its label, so the same layer keeps its meaning across
+ * a reload, a re-run and a different file.
  *
- * There are two selector forms, and only one of them keeps 7.2's budget:
+ * THE DEFAULT TEXT STYLE, and nothing else. The layer decides WHETHER a label is drawn;
+ * how it looks is the element's own RichTextStyle prefault. It must not name a colour: the
+ * canvas ground is the element's clear colour #F5F5F5, so the #000000 default reads at
+ * 19.26:1, and the dark-panel ink this once set read at about 1.1:1 -- the glyph fill
+ * vanished and what stayed legible was the alpha fringing round it (2026-09-13). The only
+ * thing the static half may carry is `textPath`, which is WHICH attribute to draw rather
+ * than how it looks, and only when the caller names one.
  *
- * - With `labelNodeIds`, the selector names those nodes and nothing else, so exactly
- *   `labelCount` labels are drawn -- which is what "labels on the top
- *   clamp(round(sqrt(n)), 5, 50) nodes by degree" asks for. Pass the first `labelCount`
- *   ids of `DegreeResults.byDegreeDescending`, which is already sorted by degree with a
- *   stable id tie-break, so the set is deterministic.
- * - With only `degreeThreshold`, the selector is a degree comparison, and EVERY node at
- *   the cut degree is kept. That overshoots the budget by the size of the tie group at
- *   the cut: on the shipped cat fixture (20 nodes, degrees 4,4,4 then twelve 3s) the
- *   budget is 5, the cut degree is 3, and 15 of the 20 nodes are labelled. The form
- *   exists because a degree cut is all `labelDegreeThreshold` can express, not because
- *   the overshoot is wanted.
- * @param input - which nodes to label, and optionally the attribute to draw.
- * @param input.degreeThreshold - the cut from `labelDegreeThreshold`; used only when no ids are given.
- * @param input.labelNodeIds - the exact nodes to label, highest degree first. Overrides the cut.
+ * The rule is `degree >= cut`. It cannot count, and it cannot split a tie either, so the
+ * cut is chosen for it by `labelCutFor` in loadDefaults.ts: inside 7.2's budget where a cut
+ * fits, and the highest tie group whole where none does -- which is what gives a
+ * near-regular graph labels at all. Everything about HOW MANY nodes end up labelled is
+ * decided there and nothing here needs to know; the layer only carries the cut.
+ *
+ * `typeof` guards the comparison because a node the degree pass never reached carries no
+ * result at all, and `undefined >= 0` is false while `null >= 0` is TRUE -- a bare
+ * comparison would label every unreached node on a graph whose cut is zero.
+ *
+ * There is no node-id parameter. One was accepted and ignored between 2026-09-13 and this
+ * change, which meant the signature promised a list this layer had stopped being; a caller
+ * passing ids now gets a compile error instead of a silent no-op.
+ * @param input - the cut, and optionally the attribute to draw.
+ * @param input.degreeThreshold - the cut from `labelCutFor` (or `labelDegreeThreshold`).
  * @param input.labelAttribute - the attribute to draw as the label; omitted falls back to the node id.
  * @returns the top-degree label layer.
  */
 export function topDegreeLabelLayer(input: {
-    /** The cut from `labelDegreeThreshold`; used only when no ids are given. */
+    /** The cut from `labelCutFor`: a node is labelled at or above this degree. */
     readonly degreeThreshold: number;
-    /** The exact nodes to label. When given, the label count is exact. */
-    readonly labelNodeIds?: readonly string[];
     /** The attribute to draw as the label. Omitted falls back to the node id. */
     readonly labelAttribute?: string;
 }): StyleLayerDescriptor {
-    const label: Record<string, unknown> = {
-        enabled: true,
-        textColor: LABEL_TEXT_COLOR,
-    };
-
-    if (input.labelAttribute !== undefined) {
-        label.textPath = input.labelAttribute;
-    }
-
-    const selector =
-        input.labelNodeIds === undefined
-            ? `algorithmResults.graphty.degree.degree >= \`${String(input.degreeThreshold)}\``
-            : nodeIdSetSelector(input.labelNodeIds);
+    const style: Record<string, unknown> =
+        input.labelAttribute === undefined ? {} : { label: { textPath: input.labelAttribute } };
 
     return {
         metadata: {
             name: "Top degree labels",
-            description: "Labels the highest-degree nodes (spec 7.2).",
+            description: "Labels the most connected nodes (spec 7.2). Settings > Performance turns this off.",
             algorithmSource: LOAD_DEFAULTS_LAYER_SOURCE,
         },
         node: {
-            selector,
-            style: { label },
+            selector: "",
+            style,
+            calculatedStyle: {
+                inputs: [DEGREE_INPUT_PATH],
+                output: LABEL_ENABLED_OUTPUT_PATH,
+                expr: `typeof arguments[0] === "number" && arguments[0] >= ${String(input.degreeThreshold)}`,
+            },
         },
     };
 }

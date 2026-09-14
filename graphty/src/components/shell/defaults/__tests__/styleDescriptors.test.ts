@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { LABEL_TEXT_COLOR } from "../loadDefaults";
 import {
     COMMUNITY_COLOUR_CAP,
     COMMUNITY_LAYER_NAME,
     COMMUNITY_LAYER_SOURCE,
     COMMUNITY_PALETTE,
     communityColourLayers,
+    DEGREE_INPUT_PATH,
+    LABEL_ENABLED_OUTPUT_PATH,
+    LOAD_DEFAULTS_LAYER_SOURCE,
     type StyleLayerDescriptor,
     topDegreeLabelLayer,
 } from "../styleDescriptors";
@@ -63,73 +65,115 @@ describe("every layer descriptor", () => {
         }
     });
 
-    it("never outputs a calculated value into style.label, which throws in ChangeManager", () => {
-        for (const layer of everyLayer()) {
-            expect(layer.node.calculatedStyle?.output.startsWith("style.label")).not.toBe(true);
+    /* The inverse of the board that stood here until 2026-09-13, which asserted that no
+       layer may output into `style.label` because ChangeManager threw on the path. The
+       element fix (`unwrapSchema`) made the path reachable, and the label layer is now the
+       one layer that uses it, so the rule this file has to keep is the OUTPUT SHAPE: a
+       calculated output is a path into style, and the label layer's is the enabled flag
+       rather than any part of how the text looks. */
+    it("writes a calculated label verdict into enabled, and nothing about how the text looks", () => {
+        const outputs = everyLayer()
+            .map((layer) => layer.node.calculatedStyle?.output)
+            .filter((output): output is string => output !== undefined);
+
+        for (const output of outputs) {
+            if (output.startsWith("style.label")) {
+                expect(output).toBe("style.label.enabled");
+            }
         }
+
+        expect(outputs).toContain("style.label.enabled");
     });
 });
 
 describe("topDegreeLabelLayer", () => {
-    it("selects on the degree cut with a backticked JMESPath literal", () => {
-        expect(topDegreeLabelLayer({ degreeThreshold: 3 }).node.selector).toBe(
-            "algorithmResults.graphty.degree.degree >= `3`",
-        );
+    /* A RULE, not a list (2026-09-13, the product owner). Every board here is about that
+       distinction: the layer matches every node and asks each node's own degree, so it
+       carries no node id, no count and nothing that ties it to the file that was open when
+       it was made. */
+    it("matches every node, so the layer names no dataset", () => {
+        expect(topDegreeLabelLayer({ degreeThreshold: 3 }).node.selector).toBe("");
     });
 
-    it("is a static style, because label.enabled is read only off the merged static style", () => {
-        const layer = topDegreeLabelLayer({ degreeThreshold: 3 });
+    it("decides per node from the degree the element publishes", () => {
+        const calculated = topDegreeLabelLayer({ degreeThreshold: 3 }).node.calculatedStyle;
 
-        expect(layer.node.calculatedStyle).toBeUndefined();
-        expect(layer.node.style).toEqual({ label: { enabled: true, textColor: LABEL_TEXT_COLOR } });
+        expect(calculated?.inputs).toEqual([DEGREE_INPUT_PATH]);
+        expect(calculated?.output).toBe(LABEL_ENABLED_OUTPUT_PATH);
+        expect(LABEL_ENABLED_OUTPUT_PATH).toBe("style.label.enabled");
+    });
+
+    it("names no node id anywhere, at any cut", () => {
+        const layer = topDegreeLabelLayer({ degreeThreshold: 4 });
+
+        expect(JSON.stringify(layer)).not.toContain("contains(");
+        expect(JSON.stringify(layer)).not.toContain("to_string(id)");
+    });
+
+    /* The ignored `labelNodeIds` parameter is GONE as of this change, so the board that
+       used to prove it was ignored cannot be written: passing it is a compile error now,
+       which is the stronger guarantee. What survives as a runtime claim is that the cut is
+       the layer's only input -- the same cut gives the same layer, every time. */
+    it("is decided by the cut alone, so the same cut gives the same layer", () => {
+        expect(topDegreeLabelLayer({ degreeThreshold: 3 })).toEqual(topDegreeLabelLayer({ degreeThreshold: 3 }));
+        expect(topDegreeLabelLayer({ degreeThreshold: 3 })).not.toEqual(topDegreeLabelLayer({ degreeThreshold: 4 }));
+    });
+
+    it("sets no text style at all, so the element's own default text is what is drawn", () => {
+        /* `enabled` is the layer's whole say. It must not name an ink: the element's
+           #000000 default reads 19.26:1 against its own #F5F5F5 canvas, and the dark-panel
+           ink this used to set read about 1.1:1 against it (2026-09-13). */
+        expect(topDegreeLabelLayer({ degreeThreshold: 3 }).node.style).toEqual({});
     });
 
     it("draws the node id when no attribute is named", () => {
-        const label = topDegreeLabelLayer({ degreeThreshold: 1 }).node.style.label as Record<string, unknown>;
-
-        expect("textPath" in label).toBe(false);
+        expect("label" in topDegreeLabelLayer({ degreeThreshold: 1 }).node.style).toBe(false);
     });
 
-    it("draws the named attribute when one is given", () => {
+    it("draws the named attribute when one is given, and still names no colour", () => {
         const layer = topDegreeLabelLayer({ degreeThreshold: 1, labelAttribute: "name" });
 
-        expect(layer.node.style).toEqual({
-            label: { enabled: true, textColor: LABEL_TEXT_COLOR, textPath: "name" },
-        });
+        expect(layer.node.style).toEqual({ label: { textPath: "name" } });
     });
 
-    describe("the exact label set", () => {
-        it("names the given ids and nothing else, so the budget cannot be overshot by a tie", () => {
-            const layer = topDegreeLabelLayer({ degreeThreshold: 3, labelNodeIds: ["mochi", "tuna", "pumpkin"] });
+    it("tags itself as the shell's own, so a dataset boundary can retire it", () => {
+        const layer = topDegreeLabelLayer({ degreeThreshold: 3 });
 
-            expect(layer.node.selector).toBe('contains(`["mochi","tuna","pumpkin"]`, to_string(id))');
-        });
+        expect(layer.metadata.algorithmSource).toBe(LOAD_DEFAULTS_LAYER_SOURCE);
+        expect(layer.metadata.name).toBe("Top degree labels");
+    });
 
-        it("coerces the record's id, because a numerically-identified file carries a number there", () => {
-            expect(topDegreeLabelLayer({ degreeThreshold: 3, labelNodeIds: ["1", "34"] }).node.selector).toBe(
-                'contains(`["1","34"]`, to_string(id))',
+    describe("the rule it computes", () => {
+        /* The expression is pinned as a STRING rather than evaluated: the element builds it
+           with `new Function`, which this repo's lint forbids here, and
+           graphty-element does not export `CalculatedValue` for a test to borrow. So these
+           boards pin the two things that can silently go wrong in it, and the rule's real
+           behaviour is proved where it actually runs -- graphty-element's own
+           change-manager boards for the `style.label.*` path, and the canvas itself. */
+        it("compares the node's degree against the cut", () => {
+            expect(topDegreeLabelLayer({ degreeThreshold: 4 }).node.calculatedStyle?.expr).toBe(
+                'typeof arguments[0] === "number" && arguments[0] >= 4',
             );
         });
 
-        it("escapes a backtick in an id so it cannot close the literal", () => {
-            expect(topDegreeLabelLayer({ degreeThreshold: 3, labelNodeIds: ["a`b", 'c"d'] }).node.selector).toBe(
-                'contains(`["a\\`b","c\\"d"]`, to_string(id))',
+        it("carries the cut as a bare number literal, not a string", () => {
+            expect(topDegreeLabelLayer({ degreeThreshold: 12 }).node.calculatedStyle?.expr).toContain(">= 12");
+            expect(topDegreeLabelLayer({ degreeThreshold: 12 }).node.calculatedStyle?.expr).not.toContain('"12"');
+        });
+
+        it("guards on typeof, because null >= 0 is true and an unreached node has no degree", () => {
+            // A bare `arguments[0] >= 0` would label every node on a graph whose degree
+            // pass never ran, since `null >= 0` passes and `undefined >= 0` does not.
+            expect(topDegreeLabelLayer({ degreeThreshold: 0 }).node.calculatedStyle?.expr).toBe(
+                'typeof arguments[0] === "number" && arguments[0] >= 0',
             );
         });
 
-        it("matches no node for an empty set rather than falling back to the degree cut", () => {
-            expect(topDegreeLabelLayer({ degreeThreshold: 3, labelNodeIds: [] }).node.selector).toBe(
-                "contains(`[]`, to_string(id))",
-            );
-        });
-
-        it("keeps the same static label style as the degree-cut form", () => {
-            const layer = topDegreeLabelLayer({ degreeThreshold: 3, labelNodeIds: ["mochi"], labelAttribute: "name" });
-
-            expect(layer.node.calculatedStyle).toBeUndefined();
-            expect(layer.node.style).toEqual({
-                label: { enabled: true, textColor: LABEL_TEXT_COLOR, textPath: "name" },
-            });
+        it("reads the same input the degree pass writes", () => {
+            expect(topDegreeLabelLayer({ degreeThreshold: 3 }).node.calculatedStyle?.inputs).toEqual([
+                DEGREE_INPUT_PATH,
+            ]);
+            expect(DEGREE_INPUT_PATH).toBe("algorithmResults.graphty.degree.degree");
         });
     });
 });

@@ -98,6 +98,7 @@ import {
     asElementGraph,
     type ElementStyleLayerLike,
     removeLayersFromSource,
+    repaintStyles,
 } from "./analysis/elementBridge";
 import { computeGraphShape, type GraphShape } from "./analysis/graphShape";
 import { COMMUNITY_METHOD_NAME, type DegreeResults, runCommunityDetection, runDegreePass } from "./analysis/runs";
@@ -161,7 +162,7 @@ import { ActivityPanel } from "./panel/ActivityPanel";
 import { AiPanel } from "./panel/AiPanel";
 import { AnalyzePanel } from "./panel/AnalyzePanel";
 import { DataPanel, type LoadedDataSummary } from "./panel/DataPanel";
-import { ExplorePanel } from "./panel/ExplorePanel";
+import { ExplorePanel, type ExploreSearchScope } from "./panel/ExplorePanel";
 import { PresentPanel } from "./panel/PresentPanel";
 import { SettingsOverlay } from "./panel/SettingsOverlay";
 import { StylePanel } from "./panel/StylePanel";
@@ -451,6 +452,52 @@ function elementStyleLayer(layer: StyleLayerDescriptor): ElementStyleLayerLike {
 }
 
 /**
+ * One half of a layer as the list and the inspector hand it back: the node half or the
+ * edge half of a `LayerItem`, absent on a layer that does not style that end.
+ */
+type LayerItemHalf = LayerItem["styleLayer"]["node"] | LayerItem["styleLayer"]["edge"];
+
+/**
+ * Whether two halves of a layer say the same thing.
+ *
+ * Compared by VALUE and not by reference: the inspector rebuilds the half it edits on
+ * every keystroke (`StyleLayerPropertiesPanel.handleColorChange` restates the whole
+ * style), so a reference test would call every edit a change -- including the halves a
+ * rename leaves alone. A half holds only what graphty-element's `StyleLayer` holds --
+ * a selector string and two plain records of style values -- so serialising it is a
+ * true value test, and the worst a key-order difference can cost is one write of the
+ * same values.
+ * @param before - the half the shell last read from the element.
+ * @param after - the half that just came up the list's channel.
+ * @returns true when nothing in the half changed.
+ */
+function sameStyleHalf(before: LayerItemHalf, after: LayerItemHalf): boolean {
+    if (before === undefined || after === undefined) {
+        return before === after;
+    }
+
+    return JSON.stringify(before) === JSON.stringify(after);
+}
+
+/**
+ * One half of a layer, shaped as graphty-element's `StyleLayer` takes it.
+ *
+ * `calculatedStyle` is written only when the half carries one, so a half without one
+ * does not plant an `undefined` beside `style` -- the element's own schema reads the
+ * two as siblings, and a present-but-undefined calculated style is not the same fact as
+ * an absent one.
+ * @param half - the half the list or the inspector handed back.
+ * @returns the same half, as the element's layer takes it.
+ */
+function elementStyleHalf(half: NonNullable<LayerItemHalf>): NonNullable<StyleLayer["node"]> {
+    return {
+        selector: half.selector,
+        style: half.style,
+        ...(half.calculatedStyle === undefined ? {} : { calculatedStyle: half.calculatedStyle }),
+    };
+}
+
+/**
  * The graph data the shell holds on to: what `GraphtyHandle.getData` last reported.
  */
 interface ShellGraphData {
@@ -621,6 +668,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [loadCompletions, setLoadCompletions] = useState(0);
     const [layers, setLayers] = useState<IndexedLayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+    /* The Explore search field and the set it runs over.
+       They are held HERE, beside `selectedLayerId` and the canvas layout's
+       `timeSlider`, rather than inside `ExplorePanel`, because `renderPanelBody`
+       builds the panel body per activity: leaving Explore for Style unmounts the
+       panel, so state held inside it is state the reader loses on a panel switch.
+       Every other value the panel remembers already lives at this level for that
+       reason. Product owner, 2026-09-13: "I can't type in the search nodes and edges
+       textbox under explore" -- the field was a controlled input with neither prop
+       supplied, so its value was pinned to the empty string and every keystroke was
+       discarded. */
+    const [exploreQuery, setExploreQuery] = useState("");
+    const [exploreScope, setExploreScope] = useState<ExploreSearchScope>("all");
     const [viewMode, setViewMode] = useState<CanvasViewMode>("3d");
     const [layoutType, setLayoutType] = useState<string>(DEFAULT_LAYOUT);
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
@@ -1206,6 +1265,21 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         setLayers(styleLayersToLayerItems(detail.layers));
     }, []);
 
+    /**
+     * Repaints after a layer-list write, through the bridge's own repaint.
+     *
+     * This callback holds the element's `Graph`, which the bridge's `ElementGraph` view is
+     * a subset of, so it goes through `asElementGraph` like every other call here.
+     * @param graph - the element graph, as this callback holds it.
+     */
+    const repaintElementStyles = useCallback((graph: unknown) => {
+        const bridged = asElementGraph(graph);
+
+        if (bridged !== null) {
+            repaintStyles(bridged);
+        }
+    }, []);
+
     const handleLayersChange = useCallback(
         (next: LayerItem[]) => {
             const graph = graphtyRef.current?.graph ?? null;
@@ -1218,14 +1292,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const currentIds = layers.map((layer) => layer.id);
             const nextIds = next.map((layer) => layer.id);
 
-            /* The list has one upward channel and it carries two different edits, so it has
+            /* The list has one upward channel and it carries every kind of edit, so it has
                to say which this was. Layer ids are positional (`layer-${index}`,
                layerConversion.ts:29), so the SAME ids in the SAME order cannot be a reorder:
-               the list was edited in place, which today means the row's inline rename. Before
-               this branch existed every rename fell through the loop below on `continue` and
-               reached graphty-element -- the single source of truth these names are drawn
-               from -- never at all, so the row kept drawing the old name while the editor held
-               the new one. */
+               the list was edited IN PLACE. Before this branch existed every rename fell
+               through the loop below on `continue` and reached graphty-element -- the single
+               source of truth these names are drawn from -- never at all, so the row kept
+               drawing the old name while the editor held the new one. */
             const inPlace =
                 currentIds.length === nextIds.length && currentIds.every((id, index) => id === nextIds[index]);
 
@@ -1235,7 +1308,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 for (const item of next) {
                     const before = layers.find((layer) => layer.id === item.id);
 
-                    if (before === undefined || before.name === item.name) {
+                    if (before === undefined) {
+                        continue;
+                    }
+
+                    /* An in-place edit is not only a rename. The same channel carries the
+                       style-layer inspector's own edits -- `onUpdate` for the node half,
+                       `onEdgeUpdate` for the edge half -- so the branch asks WHAT changed
+                       instead of assuming. It used to read the live layer back, spread it and
+                       override `metadata.name` alone, which spread a style edit away: product
+                       owner, 2026-09-13, "changing the color of a style in the style inspector
+                       doesn't change the color in component or in the graph". */
+                    const renamed = before.name !== item.name;
+                    const nodeEdited = !sameStyleHalf(before.styleLayer.node, item.styleLayer.node);
+                    const edgeEdited = !sameStyleHalf(before.styleLayer.edge, item.styleLayer.edge);
+
+                    if (!renamed && !nodeEdited && !edgeEdited) {
                         continue;
                     }
 
@@ -1248,15 +1336,34 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     /* The live layer is read from the manager and spread, rather than rebuilt
                        from the `LayerItem`: the item is a lossy projection of a layer
                        (layerConversion.ts:23-49 keeps only selector, style and
-                       calculatedStyle), and metadata is spread rather than replaced so a layer
-                       created by a run keeps its `algorithmSource` binding -- which is what
-                       DECISIONS-1.7:1829 and :1962 mean by "the typed name once renamed" and
-                       "a renamed layer never re-derives". */
+                       calculatedStyle), so only the halves that actually changed are written
+                       over. Metadata is spread rather than replaced so a layer created by a run
+                       keeps its `algorithmSource` binding -- which is what DECISIONS-1.7:1829
+                       and :1962 mean by "the typed name once renamed" and "a renamed layer
+                       never re-derives". */
                     manager.updateLayerByIndex(before.index, {
                         ...layer,
-                        metadata: { ...layer.metadata, name: item.name },
+                        /* The name is written only by a rename. `LayerItem.name` falls back to
+                           `Layer ${index + 1}` when a layer carries none (layerConversion.ts:25),
+                           so writing it unconditionally would turn that display fallback into a
+                           name the element then owns, on the back of an edit to a colour. */
+                        ...(renamed ? { metadata: { ...layer.metadata, name: item.name } } : {}),
+                        ...(nodeEdited && item.styleLayer.node !== undefined
+                            ? { node: elementStyleHalf(item.styleLayer.node) }
+                            : {}),
+                        ...(edgeEdited && item.styleLayer.edge !== undefined
+                            ? { edge: elementStyleHalf(item.styleLayer.edge) }
+                            : {}),
                     });
                 }
+
+                /* Repaint, always. `updateLayerByIndex` re-evaluates selectors through the
+                   element's own style-changed handler, which runs WITHOUT algorithmResults
+                   and never runs calculated values (elementBridge.ts:142-151). So any edit
+                   to the list -- a bare rename included -- silently dropped every
+                   algorithmResults-driven encoding on the canvas, and the top-degree labels
+                   never came back. Found in review, 2026-09-13. */
+                repaintElementStyles(graph);
 
                 return;
             }
@@ -1272,12 +1379,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
                 if (from !== undefined && to !== undefined) {
                     manager.reorderLayers(from.index, to.index);
+                    // Same reason as the edit path above: reordering re-evaluates the stack.
+                    repaintElementStyles(graph);
                 }
 
                 break;
             }
         },
-        [layers],
+        [layers, repaintElementStyles],
     );
 
     const handleAddLayer = useCallback(() => {
@@ -1554,19 +1663,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const degreeThreshold = labelDegreeThreshold(degrees.degreesDescending, defaults.labelCount);
 
             if (degreeThreshold !== undefined) {
-                // The ids, not just the cut. A degree comparison keeps every node tied at
-                // the cut degree, which on the cat fixture labelled 15 of 20 nodes against
-                // 7.2's budget of 5; naming the nodes spends the budget exactly.
-                // `byDegreeDescending` is already sorted with a stable id tie-break, so
-                // the chosen set is deterministic.
-                styleLayers.push(
-                    topDegreeLabelLayer({
-                        degreeThreshold,
-                        labelNodeIds: degrees.byDegreeDescending
-                            .slice(0, defaults.labelCount)
-                            .map((reading) => reading.id),
-                    }),
-                );
+                styleLayers.push(topDegreeLabelLayer({degreeThreshold}));
             }
 
             // `addStyleLayers` repaints, which is what makes the calculated size and the
@@ -1992,6 +2089,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             case "explore":
                 return (
                     <ExplorePanel
+                        query={exploreQuery}
+                        onQueryChange={setExploreQuery}
+                        scope={exploreScope}
+                        onScopeChange={setExploreScope}
                         visibleScopeLabel={`${nodeCount.toLocaleString()} nodes`}
                         timeSliderOn={canvasLayout.timeSlider}
                         onTimeSliderChange={(on) => {
@@ -2094,6 +2195,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         canvasLayout.drawerOpen,
         canvasLayout.legend,
         canvasLayout.timeSlider,
+        exploreQuery,
+        exploreScope,
         handleAddAlgorithmLayers,
         handleAddLayer,
         handleApplyLayout,

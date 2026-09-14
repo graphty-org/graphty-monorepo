@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, within } from "../../../test/test-utils
 import { COMMUNITY_NAMESPACE, COMMUNITY_TYPE, DEGREE_NAMESPACE, DEGREE_TYPE } from "../analysis/runs";
 import { AppShell } from "../AppShell";
 import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIGHT } from "../constants";
+import { DEGREE_INPUT_PATH, LABEL_ENABLED_OUTPUT_PATH } from "../defaults/styleDescriptors";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
 
 /**
@@ -71,7 +72,8 @@ function reportSelection(container: HTMLElement, nodeId: string | null) {
  */
 interface FakeStyleLayer {
     metadata?: Record<string, unknown>;
-    node?: { selector: string; style: Record<string, unknown> };
+    node?: { selector: string; style: Record<string, unknown>; calculatedStyle?: Record<string, unknown> };
+    edge?: { selector: string; style: Record<string, unknown>; calculatedStyle?: Record<string, unknown> };
 }
 
 /**
@@ -100,9 +102,20 @@ function installGraph(container: HTMLElement, layers: FakeStyleLayer[]): FakeSty
 
     expect(element).not.toBeNull();
 
+    /* `updateLayerByIndex` WRITES, as the real `StyleManager` does: it replaces the
+       layer and then emits `style-changed`, which is how a committed edit gets back down
+       to the shell (StyleManager.ts:183-190). A recorder that only counted calls could
+       not tell an edit that reached the element from one the shell spread away on the way
+       out, which is exactly the defect the colour board below stands on. */
     const manager: FakeStyleManager = {
         getLayers: () => layers,
-        updateLayerByIndex: vi.fn(() => true),
+        updateLayerByIndex: vi.fn((index: number, layer: FakeStyleLayer) => {
+            layers[index] = layer;
+
+            element?.dispatchEvent(new CustomEvent("style-changed"));
+
+            return true;
+        }),
         reorderLayers: vi.fn(() => true),
     };
 
@@ -881,6 +894,59 @@ describe("AppShell", () => {
         });
     });
 
+    describe("the Explore search field", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        /* The field is a controlled input, and the shell supplied neither its value nor
+           its handler, so it was pinned to the empty string and every keystroke was
+           discarded -- product owner, 2026-09-13: "I can't type in the search nodes and
+           edges textbox under explore". Typing is the only assertion that fails on that:
+           the field rendered perfectly well all along. The panel switch is the second
+           half: `renderPanelBody` builds the Explore body per activity, so a field whose
+           state lived inside the panel would come back empty, and this is why the query
+           is held in the shell beside the panel's other remembered values. */
+        it("holds what is typed, and still holds it after a panel switch", async () => {
+            const { container } = await renderMeasuredShell();
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            // The load's own 7.2 default leaves the panel on Explore, so the field is
+            // already on screen: clicking the rail item here would close the panel.
+            await screen.findByRole("region", { name: "Explore" });
+
+            const field = screen.getByRole("textbox", { name: "Search nodes and edges" });
+
+            fireEvent.change(field, { target: { value: "acct" } });
+
+            expect(field).toHaveValue("acct");
+
+            fireEvent.click(screen.getByRole("button", { name: "Style" }));
+            fireEvent.click(screen.getByRole("button", { name: "Explore" }));
+
+            expect(screen.getByRole("textbox", { name: "Search nodes and edges" })).toHaveValue("acct");
+        });
+
+        it("keeps the scope the reader picked", async () => {
+            const { container } = await renderMeasuredShell();
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            await screen.findByRole("region", { name: "Explore" });
+
+            fireEvent.click(screen.getByTestId("explore-search-scope"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
+
+            fireEvent.click(screen.getByRole("button", { name: "Style" }));
+            fireEvent.click(screen.getByRole("button", { name: "Explore" }));
+
+            expect(screen.getByTestId("explore-search-scope")).toHaveTextContent("Visible nodes");
+        });
+    });
+
     describe("the style layers list", () => {
         afterEach(() => {
             window.localStorage.clear();
@@ -929,6 +995,79 @@ describe("AppShell", () => {
                 node: { selector: "", style: {} },
             });
             expect(manager.reorderLayers).not.toHaveBeenCalled();
+        });
+
+        /* The same in-place channel carries the style-layer inspector's own edits, and it
+           used to read the live layer back, spread it and override `metadata.name` alone
+           -- which spread every style edit away before it reached the element. Product
+           owner, 2026-09-13: "changing the color of a style in the style inspector doesn't
+           change the color in component or in the graph". The colour is asserted twice:
+           once as the shell handed it over, and once read back OUT of the StyleManager,
+           because only the second says the element now holds it. */
+        it("commits a colour from the style inspector, and the layer reads it back", async () => {
+            const { container } = await renderStylePanel();
+            const manager = installGraph(container, [
+                { metadata: { name: "default" } },
+                {
+                    metadata: { name: "Base", algorithmSource: "pagerank" },
+                    node: {
+                        selector: "",
+                        style: {
+                            color: { mode: "solid", color: "#5B8FF9", opacity: 1 },
+                            texture: { color: "#5B8FF9" },
+                        },
+                    },
+                },
+            ]);
+
+            fireEvent.click(within(screen.getByTestId("style-layers")).getByText("Base"));
+
+            /* Several controls in the surface carry a hex field, so this one is reached
+               through the node Color group it belongs to -- `Color Mode` is that group's
+               own first row -- and the field is checked to be holding the layer's own
+               colour before it is typed into. */
+            const colorGroup = (await screen.findByText("Color Mode")).parentElement?.parentElement;
+
+            expect(colorGroup).not.toBeNull();
+
+            const hex = within(colorGroup as HTMLElement).getByLabelText("Color hex value");
+
+            expect(hex).toHaveValue("5B8FF9");
+
+            fireEvent.change(hex, { target: { value: "FF0000" } });
+            fireEvent.blur(hex);
+
+            expect(manager.updateLayerByIndex).toHaveBeenCalledTimes(1);
+
+            const written = manager.getLayers()[1];
+
+            expect(written?.node?.style.texture).toEqual({ color: "#FF0000" });
+
+            /* And NO editor-only `color` key beside it. NodeStyle does not declare one --
+               the element's colour lives at `texture.color` -- and a key the schema does not
+               declare makes the merged style deep-UNEQUAL to an identical-looking one, so
+               `Styles.styleToId` mints a fresh id and `NodeMesh` a fresh mesh for a look the
+               graph already had. This assertion used to require the leak (2026-09-13). */
+            expect(Object.keys(written?.node?.style ?? {})).not.toContain("color");
+            // The layer keeps its name and its run binding: a colour edit is not a rename.
+            expect(written?.metadata).toEqual({ name: "Base", algorithmSource: "pagerank" });
+            expect(manager.reorderLayers).not.toHaveBeenCalled();
+        });
+
+        it("commits the node selector the inspector edits, through the same channel", async () => {
+            const { container } = await renderStylePanel();
+            const manager = installGraph(container, [
+                { metadata: { name: "Base" }, node: { selector: "", style: {} } },
+            ]);
+
+            fireEvent.click(within(screen.getByTestId("style-layers")).getByText("Base"));
+
+            const selector = await screen.findByLabelText("Node Selector");
+
+            fireEvent.change(selector, { target: { value: "type == `person`" } });
+            fireEvent.blur(selector);
+
+            expect(manager.getLayers()[0]?.node?.selector).toBe("type == `person`");
         });
 
         it("leaves the layers alone when nothing was renamed", async () => {
@@ -1057,11 +1196,24 @@ describe("AppShell", () => {
             const added = shellLayers(graph.styleManager.getLayers());
 
             expect(added).toHaveLength(1);
-            expect(added[0]?.node).toHaveProperty("style.label.enabled", true);
-            // Nothing the shell adds may set a node colour or a node size any more.
+            /* The label layer is a RULE, not a list: it matches every node (`selector: ""`)
+               and decides per node from the degree pass, so `label.enabled` lives in the
+               calculated half and the static half sets no appearance at all. This board used
+               to read `style.label.enabled` off the static half, which was the id-set shape
+               the rule replaced on 2026-09-13. */
+            expect(added[0]?.node).toHaveProperty("selector", "");
+            expect(added[0]?.node).toHaveProperty("calculatedStyle.output", LABEL_ENABLED_OUTPUT_PATH);
+            expect(added[0]?.node).toHaveProperty("calculatedStyle.inputs", [DEGREE_INPUT_PATH]);
+            /* Nothing the shell adds may set a node colour or a node size any more, by either
+               half: the static one, or a calculated one aimed at anything but the label. */
             for (const layer of added) {
                 expect(layer.node?.style).not.toHaveProperty("texture");
-                expect(layer.node?.calculatedStyle).toBeUndefined();
+                expect(layer.node?.style).not.toHaveProperty("shape");
+                const calculated = layer.node?.calculatedStyle as { output?: string } | undefined;
+
+                if (calculated !== undefined) {
+                    expect(calculated.output).toBe(LABEL_ENABLED_OUTPUT_PATH);
+                }
             }
             /* And the repaint that makes an `algorithmResults` selector match at all. */
             expect(graph.dataManager.applyStylesToExistingNodes).toHaveBeenCalled();

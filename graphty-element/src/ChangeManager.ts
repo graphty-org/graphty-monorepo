@@ -142,20 +142,47 @@ function getSchema(schemas: Record<string, z4.$ZodType | undefined>, output: str
     return getSchemaItemFromPath(topSchema, outputPath);
 }
 
-function getSchemaItemFromPath(schema: z4.$ZodType, path: string[]): z4.$ZodType | undefined {
-    if (schema instanceof z4.$ZodOptional) {
-        // @ts-expect-error unwrap exists on optional, not sure why it doesn't show up here
-        schema = schema.unwrap();
+/**
+ * Peels off every Zod wrapper that decorates a schema without changing the shape
+ * underneath it. Each of these wrappers keeps the real schema in `_zod.def.innerType`
+ * (see `$ZodOptionalDef` and friends in zod/v4/core), so a walker that stops at the
+ * first one cannot reach the branch it wraps: `NodeStyle.label` is
+ * `RichTextStyle.prefault({...}).optional()`, which put `style.label.*` out of reach of
+ * calculated values until this unwrapped both layers.
+ * @param schema - A schema that may be wrapped any number of times
+ * @returns The innermost schema, with the transparent wrappers removed
+ */
+function unwrapSchema(schema: z4.$ZodType): z4.$ZodType {
+    let current = schema;
+
+    while (
+        current instanceof z4.$ZodOptional ||
+        current instanceof z4.$ZodNullable ||
+        current instanceof z4.$ZodDefault ||
+        current instanceof z4.$ZodPrefault ||
+        current instanceof z4.$ZodNonOptional ||
+        current instanceof z4.$ZodReadonly ||
+        current instanceof z4.$ZodCatch
+    ) {
+        current = current._zod.def.innerType;
     }
+
+    return current;
+}
+
+function getSchemaItemFromPath(schema: z4.$ZodType | undefined, path: string[]): z4.$ZodType | undefined {
+    // a wrapped schema (optional, prefault, default, ...) is the same schema for the
+    // purpose of walking an output path, so look through the wrappers before descending
+    const unwrapped = schema === undefined ? undefined : unwrapSchema(schema);
 
     const currentItem = path.shift();
     if (!currentItem) {
-        return schema;
+        return unwrapped;
     }
 
-    if (schema instanceof z4.$ZodObject) {
-        // @ts-expect-error shape exists on object, not sure why it doesn't show up here
-        const schemaItem = schema.shape[currentItem];
+    if (unwrapped instanceof z4.$ZodObject) {
+        const schemaItem = unwrapped._zod.def.shape[currentItem];
+        // note: an unknown key yields undefined here, and the recursion rejects it below
         return getSchemaItemFromPath(schemaItem, path);
     }
 

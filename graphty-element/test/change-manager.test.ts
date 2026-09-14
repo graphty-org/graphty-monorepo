@@ -185,5 +185,74 @@ describe("ChangeManager", () => {
         assert.deepStrictEqual(styleObj, { result: 20 } as unknown as AdHocData);
     });
 
+    // Regression tests for calculated outputs that land inside a wrapped branch of the
+    // schema. `NodeStyle.label` is `RichTextStyle.prefault({...}).optional()`, and the
+    // schema walker used to stop at the first wrapper, so every `style.label.*` output
+    // threw "don't know how to retreive path for: ..." instead of validating.
+    it("runs a calculated value into a wrapped (optional + prefault) branch", () => {
+        // setup test
+        const inputPath = "graphty.degree.total";
+        const outputPath = "style.label.enabled";
+        const cm = new ChangeManager();
+        const algObj = cm.watch("algorithmResults", {} as unknown as AdHocData);
+        const styleObj = cm.addData("style", {} as unknown as AdHocData, NodeStyle);
+        cm.addCalculatedValue(new CalculatedValue([`algorithmResults.${inputPath}`], outputPath, "arguments[0] > 2"));
+
+        // run test
+        deepSet(algObj, inputPath, 5);
+
+        // validate test results
+        const expectedStyle = { label: { enabled: true } } as unknown as AdHocData;
+        assert.deepStrictEqual(styleObj, expectedStyle);
+    });
+
+    it("validates the leaf schema inside a wrapped branch", () => {
+        // setup test: textColor is a ColorStyle, so a named color is coerced to hex --
+        // which only happens if the walker reached the real leaf and not a wrapper
+        const inputPath = "graphty.degree.total";
+        const outputPath = "style.label.textColor";
+        const cm = new ChangeManager();
+        const algObj = cm.watch("algorithmResults", {} as unknown as AdHocData);
+        const styleObj = cm.addData("style", {} as unknown as AdHocData, NodeStyle);
+        cm.addCalculatedValue(new CalculatedValue([`algorithmResults.${inputPath}`], outputPath, '"lightblue"'));
+
+        // run test
+        deepSet(algObj, inputPath, 5);
+
+        // validate test results
+        const expectedStyle = { label: { textColor: "#ADD8E6" } } as unknown as AdHocData;
+        assert.deepStrictEqual(styleObj, expectedStyle);
+    });
+
+    it("rejects a bad value inside a wrapped branch", () => {
+        // setup test
+        const inputPath = "graphty.degree.total";
+        const outputPath = "style.label.fontSize";
+        const cm = new ChangeManager();
+        const algObj = cm.watch("algorithmResults", {} as unknown as AdHocData);
+        cm.addData("style", {} as unknown as AdHocData, NodeStyle);
+        cm.addCalculatedValue(new CalculatedValue([`algorithmResults.${inputPath}`], outputPath, '"not a number"'));
+
+        // run test
+        expect(() => {
+            deepSet(algObj, inputPath, 5);
+        }).toThrow(/expected number/);
+    });
+
+    it("still rejects an output path the schema does not have", () => {
+        // setup test
+        const inputPath = "graphty.degree.total";
+        const outputPath = "style.notAThing.nope";
+        const cm = new ChangeManager();
+        const algObj = cm.watch("algorithmResults", {} as unknown as AdHocData);
+        cm.addData("style", {} as unknown as AdHocData, NodeStyle);
+        cm.addCalculatedValue(new CalculatedValue([`algorithmResults.${inputPath}`], outputPath, "arguments[0]"));
+
+        // run test
+        expect(() => {
+            deepSet(algObj, inputPath, 5);
+        }).toThrow(/don't know how to retreive path for: nope/);
+    });
+
     // TODO: converts color
 });

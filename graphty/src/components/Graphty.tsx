@@ -1,16 +1,9 @@
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
-import { DEFAULT_GRAPH_NODE_COLOR } from "../constants/colors";
-import type {
-    ArrowConfig,
-    ColorConfig,
-    EdgeLineConfig,
-    EdgeStyle,
-    NodeEffectsConfig,
-    RichTextStyle,
-    ShapeConfig,
-} from "../types/style-layer";
+import type { EdgeStyle } from "../types/style-layer";
+import { editorToElementRichTextStyle } from "../utils/richTextStyleBridge";
+import { editorToElementArrow, editorToElementEdgeLine } from "../utils/styleBridge";
 import type { LayerItem } from "./layout/LeftSidebar";
 
 interface GraphNode {
@@ -43,137 +36,47 @@ interface GraphtyElementType extends HTMLElement {
 }
 
 /**
- * Map UI shape types to graphty-element shape types.
+ * Turns the editor's whole edge style into graphty-element's.
+ *
+ * The only conversion this component still owns. `utils/styleBridge` and
+ * `utils/richTextStyleBridge` hold one writer per BRANCH -- line, arrow, rich text -- and
+ * this is the composition of them, which neither bridge has a twin for. What the
+ * composition adds is the OMISSION discipline: a branch whose writer returns undefined is
+ * left OFF the result entirely rather than written as a present key with an `undefined`
+ * value.
+ *
+ * That discipline is the point, not a detail. graphty-element interns styles by deep value
+ * equality (`Styles.styleToId`, which scans every style it has ever seen) and `NodeMesh`
+ * keys its mesh cache on the id that scan hands back, so `{arrowHead: undefined}` and `{}`
+ * are two style ids -- and two meshes -- for one look, and each extra id makes every later
+ * lookup slower. An absent key also lets another matching layer's value through the
+ * element's `defaultsDeep` merge, where a present undefined does not, so the two are
+ * different facts as well as different costs.
+ *
+ * Every MAPPING it needs comes from the bridges and none of them is copied here: two
+ * copies of a canonicalisation drift, and a drifted shape is a new style id. This function
+ * belongs beside those writers in `utils/styleBridge`, and is named as it would be named
+ * there.
+ * @param edgeStyle - the edge style configuration the editor handed back.
+ * @returns the element-shaped edge style, carrying only the branches that have a value.
+ * @public
  */
-const SHAPE_TYPE_MAP: Record<string, string> = {
-    torusKnot: "torus-knot",
-    torus: "torus-knot", // torus not supported, fallback to torus-knot
-    disc: "geodesic", // disc not supported, fallback to geodesic
-    plane: "box", // plane not supported, fallback to box
-};
-
-/**
- * Convert ShapeConfig to graphty-element format.
- * @param shape - The shape configuration to convert
- * @returns The converted shape config for graphty-element
- */
-function _convertShapeConfig(shape: ShapeConfig): { type?: string; size?: number } {
-    const type = SHAPE_TYPE_MAP[shape.type] ?? shape.type;
-    return {
-        type,
-        size: shape.size,
-    };
-}
-
-/**
- * Convert ColorConfig to graphty-element texture.color format.
- * @param colorConfig - The color configuration to convert
- * @returns The converted color config for graphty-element texture
- */
-function _convertColorConfig(
-    colorConfig: ColorConfig,
-): string | { colorType: string; value?: string; colors?: string[]; direction?: number; opacity?: number } {
-    switch (colorConfig.mode) {
-        case "solid": {
-            // For solid colors, we can use either a simple string or the advanced format
-            const { opacity, color } = colorConfig;
-            if (opacity === 1.0) {
-                // Use simple string format
-                return color;
-            }
-
-            // Use advanced format with opacity
-            return {
-                colorType: "solid",
-                value: color,
-                opacity,
-            };
-        }
-
-        case "gradient":
-            return {
-                colorType: "gradient",
-                colors: colorConfig.stops.map((stop) => stop.color),
-                direction: colorConfig.direction,
-                opacity: colorConfig.opacity,
-            };
-
-        case "radial":
-            return {
-                colorType: "radial-gradient",
-                colors: colorConfig.stops.map((stop) => stop.color),
-                opacity: colorConfig.opacity,
-            };
-
-        default:
-            // This should never happen, but TypeScript requires exhaustive handling
-            return DEFAULT_GRAPH_NODE_COLOR;
-    }
-}
-
-/**
- * Convert EdgeLineConfig to graphty-element line format.
- * Converts opacity from 0-100 to 0-1.
- * @param line - The edge line configuration to convert
- * @returns The converted line config for graphty-element
- */
-function convertEdgeLineConfig(line: EdgeLineConfig): {
-    type?: string;
-    width?: number;
-    color?: string;
-    opacity?: number;
-} {
-    return {
-        type: line.type,
-        width: line.width,
-        color: line.color,
-        opacity: line.opacity / 100, // Convert 0-100 to 0-1
-    };
-}
-
-/**
- * Convert ArrowConfig to graphty-element arrow format.
- * Converts opacity from 0-100 to 0-1.
- * @param arrow - The arrow configuration to convert
- * @returns The converted arrow config for graphty-element, or undefined if type is "none"
- */
-function convertArrowConfig(
-    arrow: ArrowConfig,
-): { type?: string; size?: number; color?: string; opacity?: number } | undefined {
-    // Don't include arrow config if type is "none"
-    if (arrow.type === "none") {
-        return undefined;
-    }
-
-    return {
-        type: arrow.type,
-        size: arrow.size,
-        color: arrow.color,
-        opacity: arrow.opacity / 100, // Convert 0-100 to 0-1
-    };
-}
-
-/**
- * Convert EdgeStyle to graphty-element edge style format.
- * @param edgeStyle - The edge style configuration to convert
- * @returns The converted edge style for graphty-element
- */
-function _convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
+export function editorToElementEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
     if (edgeStyle.line) {
-        result.line = convertEdgeLineConfig(edgeStyle.line);
+        result.line = editorToElementEdgeLine(edgeStyle.line);
     }
 
     if (edgeStyle.arrowHead) {
-        const converted = convertArrowConfig(edgeStyle.arrowHead);
+        const converted = editorToElementArrow(edgeStyle.arrowHead);
         if (converted) {
             result.arrowHead = converted;
         }
     }
 
     if (edgeStyle.arrowTail) {
-        const converted = convertArrowConfig(edgeStyle.arrowTail);
+        const converted = editorToElementArrow(edgeStyle.arrowTail);
         if (converted) {
             result.arrowTail = converted;
         }
@@ -181,7 +84,7 @@ function _convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
 
     // Convert label if present and enabled
     if (edgeStyle.label) {
-        const convertedLabel = convertRichTextStyle(edgeStyle.label);
+        const convertedLabel = editorToElementRichTextStyle(edgeStyle.label);
         if (convertedLabel) {
             result.label = convertedLabel;
         }
@@ -189,133 +92,10 @@ function _convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
 
     // Convert tooltip if present and enabled
     if (edgeStyle.tooltip) {
-        const convertedTooltip = convertRichTextStyle(edgeStyle.tooltip);
+        const convertedTooltip = editorToElementRichTextStyle(edgeStyle.tooltip);
         if (convertedTooltip) {
             result.tooltip = convertedTooltip;
         }
-    }
-
-    return result;
-}
-
-/**
- * Convert NodeEffectsConfig to graphty-element effect format.
- * @param effects - The node effects configuration to convert
- * @returns The converted effects config for graphty-element, or undefined if no effects are set
- */
-function _convertEffectsConfig(effects: NodeEffectsConfig): Record<string, unknown> | undefined {
-    const result: Record<string, unknown> = {};
-
-    // Add glow if enabled
-    if (effects.glow?.enabled) {
-        result.glow = {
-            color: effects.glow.color,
-            strength: effects.glow.strength,
-        };
-    }
-
-    // Add outline if enabled
-    if (effects.outline?.enabled) {
-        result.outline = {
-            color: effects.outline.color,
-            width: effects.outline.width,
-        };
-    }
-
-    // Add wireframe if true
-    if (effects.wireframe) {
-        result.wireframe = true;
-    }
-
-    // Add flatShaded if true
-    if (effects.flatShaded) {
-        result.flatShaded = true;
-    }
-
-    // Return undefined if no effects are set
-    if (Object.keys(result).length === 0) {
-        return undefined;
-    }
-
-    return result;
-}
-
-/**
- * Map UI attach position to graphty-element attach position.
- */
-const ATTACH_POSITION_MAP: Record<string, string> = {
-    above: "top",
-    below: "bottom",
-    left: "left",
-    right: "right",
-    center: "center",
-};
-
-/**
- * Convert RichTextStyle to graphty-element text format.
- * Returns undefined if the text style is not enabled.
- * @param textStyle - The rich text style configuration to convert
- * @returns The converted text style for graphty-element, or undefined if not enabled
- */
-function convertRichTextStyle(textStyle: RichTextStyle): Record<string, unknown> | undefined {
-    // Don't include if not enabled or no text
-    if (!textStyle.enabled || !textStyle.text) {
-        return undefined;
-    }
-
-    // Map attachPosition to location (where the label appears relative to the node)
-    const location = ATTACH_POSITION_MAP[textStyle.position.attachPosition] ?? "top";
-
-    const result: Record<string, unknown> = {
-        enabled: true,
-        text: textStyle.text,
-        // Location determines where label appears relative to node
-        location,
-        // Font settings - flat properties
-        font: textStyle.font.family,
-        fontSize: textStyle.font.size,
-        fontWeight: String(textStyle.font.weight),
-        textColor: textStyle.font.color,
-        // Position settings
-        attachOffset: textStyle.position.offset,
-        // Billboard mode: 7 = BILLBOARDMODE_ALL, 0 = none
-        billboardMode: textStyle.position.billboard ? 7 : 0,
-    };
-
-    // Add background if enabled
-    if (textStyle.background?.enabled) {
-        result.backgroundColor = textStyle.background.color;
-        result.backgroundPadding = textStyle.background.padding;
-        result.cornerRadius = textStyle.background.borderRadius;
-    }
-
-    // Add outline effect if enabled
-    if (textStyle.effects?.outline?.enabled) {
-        result.textOutline = true;
-        result.textOutlineColor = textStyle.effects.outline.color;
-        result.textOutlineWidth = textStyle.effects.outline.width;
-    }
-
-    // Add shadow effect if enabled
-    if (textStyle.effects?.shadow?.enabled) {
-        result.textShadow = true;
-        result.textShadowColor = textStyle.effects.shadow.color;
-        result.textShadowBlur = textStyle.effects.shadow.blur;
-    }
-
-    // Add animation if not "none" - map our animation types to graphty-element types
-    // graphty-element supports: "none", "pulse", "bounce", "shake", "glow", "fill"
-    // We have: "none", "typewriter", "fade-in", "slide-in"
-    // For now, map unsupported animations to "none"
-    if (textStyle.animation && textStyle.animation.type !== "none") {
-        // Our animation types don't directly map to graphty-element, skip for now
-        result.animation = "none";
-    }
-
-    // Add advanced options if present
-    if (textStyle.advanced) {
-        result.resolution = textStyle.advanced.resolution;
-        result.depthFadeEnabled = textStyle.advanced.depthFade;
     }
 
     return result;

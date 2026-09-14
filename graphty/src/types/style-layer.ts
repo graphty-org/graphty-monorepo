@@ -84,21 +84,6 @@ export interface NodeEffectsConfig {
 }
 
 /**
- * Node style configuration with shape and color options.
- */
-export interface NodeStyle {
-    shape?: ShapeConfig;
-    color?: ColorConfig;
-    // Legacy support for simple color string
-    texture?: { color?: string };
-    // Node effects
-    effects?: NodeEffectsConfig;
-    // Labels and tooltips
-    label?: RichTextStyle;
-    tooltip?: RichTextStyle;
-}
-
-/**
  * Edge line type options.
  * Matches graphty-element LineType enum.
  */

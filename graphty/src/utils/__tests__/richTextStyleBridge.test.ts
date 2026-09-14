@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import type { RichTextStyle } from "../../types/style-layer";
-import { elementToEditorRichTextStyle } from "../richTextStyleBridge";
+import { editorToElementRichTextStyle, elementToEditorRichTextStyle } from "../richTextStyleBridge";
 import { DEFAULT_RICH_TEXT_STYLE } from "../style-defaults";
 
 /**
- * The element-shaped style `convertRichTextStyle` (Graphty.tsx:260) writes for a label
- * with every branch turned on, copied field for field from that function.
+ * The element-shaped style a label carries with every branch turned on, copied field for
+ * field from `convertRichTextStyle` (Graphty.tsx:260).
  *
- * It is spelled out here rather than imported because the writer is a private function
- * inside a component module. That makes this the contract between the two halves: if the
- * writer changes a key, this fixture and the converter have to change with it, and the
- * assertions below are what say so.
+ * It is spelled out rather than produced by either half, which is what makes it the
+ * contract BETWEEN them: the reader is checked against it below, the writer is checked
+ * against it too, and the round trip closes the loop. Change a key here and one of the two
+ * halves has to change with it.
  */
 const ELEMENT_SHAPED = {
     enabled: true,
@@ -146,67 +146,120 @@ describe("elementToEditorRichTextStyle", () => {
             expect(elementToEditorRichTextStyle({ fontWeight: "700" }).font.weight).toBe(700);
         });
     });
+});
 
-    /* The round trip. `convertRichTextStyle` is private to Graphty.tsx, so its mapping is
-       restated here; the value of the test is that the two halves agree on every key, and
-       a drift in either one fails it. */
-    describe("round trip through the writer's own mapping", () => {
-        /**
-         * The element-shaped object `convertRichTextStyle` produces for an editor style.
-         * @param style - the editor-shaped style.
-         * @returns the element-shaped style.
-         */
-        function writeLikeGraphty(style: RichTextStyle): Record<string, unknown> {
-            const attachToLocation: Record<string, string> = {
-                above: "top",
-                below: "bottom",
-                center: "center",
-                left: "left",
-                right: "right",
-            };
+describe("editorToElementRichTextStyle", () => {
+    /** The editor-shaped style whose element form is `ELEMENT_SHAPED`, branch for branch. */
+    const editorShaped: RichTextStyle = {
+        enabled: true,
+        text: "Mr_Whiskers",
+        location: "static",
+        font: { family: "Helvetica", size: 24, weight: 700, color: "#d5d7da" },
+        background: { enabled: true, color: "#2a3035", padding: 4, borderRadius: 2 },
+        position: { attachPosition: "below", offset: 3, billboard: true },
+        effects: {
+            outline: { enabled: true, color: "#000000", width: 2 },
+            shadow: { enabled: true, color: "#111111", blur: 5, offsetX: 0, offsetY: 0 },
+        },
+        advanced: { resolution: 256, depthFade: true },
+    };
 
-            return {
-                enabled: true,
-                text: style.text,
-                location: attachToLocation[style.position.attachPosition] ?? "top",
-                font: style.font.family,
-                fontSize: style.font.size,
-                fontWeight: String(style.font.weight),
-                textColor: style.font.color,
-                attachOffset: style.position.offset,
-                billboardMode: style.position.billboard ? 7 : 0,
-            };
-        }
+    it("writes the element's flat keys, and only those", () => {
+        /* Key for key, because the element's schema is a Zod strictObject: ONE key it
+           does not declare -- a nested `font`, say -- and the whole label fails to
+           parse and rebuilds as a blank texture. */
+        expect(editorToElementRichTextStyle(editorShaped)).toEqual(ELEMENT_SHAPED);
+    });
 
-        it("returns the editor's own values after a write and a read", () => {
+    it("writes the font as a string and the weight as a string", () => {
+        const flat = editorToElementRichTextStyle(editorShaped);
+
+        expect(typeof flat?.font).toBe("string");
+        expect(flat?.fontWeight).toBe("700");
+    });
+
+    it("has no element form for a disabled style", () => {
+        expect(editorToElementRichTextStyle({ ...editorShaped, enabled: false })).toBeUndefined();
+    });
+
+    it("has an element form for an enabled style with no text yet", () => {
+        /* Requiring text made the editor's Enabled checkbox unusable: ticking it wrote
+           undefined, the branch was dropped, and the checkbox sprang back off, so all four
+           rich-text branches were unreachable from the UI. The element draws a label from
+           `textPath` as readily as from `text`, so text was never the thing that made a
+           label real -- `enabled` is (2026-09-13). */
+        const flat = editorToElementRichTextStyle({ ...editorShaped, text: "" });
+
+        expect(flat).toBeDefined();
+        expect(flat?.enabled).toBe(true);
+        expect(flat).not.toHaveProperty("text");
+    });
+
+    it("leaves a group the editor turned OFF absent rather than writing it off", () => {
+        const flat = editorToElementRichTextStyle({
+            ...editorShaped,
+            background: { enabled: false, color: "#2a3035", padding: 4, borderRadius: 2 },
+            effects: {
+                outline: { enabled: false, color: "#000000", width: 2 },
+                shadow: { enabled: false, color: "#111111", blur: 5, offsetX: 0, offsetY: 0 },
+            },
+        });
+
+        expect(flat).not.toHaveProperty("backgroundColor");
+        expect(flat).not.toHaveProperty("textOutline");
+        expect(flat).not.toHaveProperty("textShadow");
+    });
+});
+
+/* The round trip, now between the two EXPORTED halves rather than against a copy of
+   the writer's mapping restated in the test. Either half drifting from the other fails
+   this, in whichever direction the drift happened. */
+describe("the round trip between the two halves", () => {
+    it("element -> editor -> element returns the element's own style", () => {
+        expect(editorToElementRichTextStyle(elementToEditorRichTextStyle(ELEMENT_SHAPED))).toEqual(ELEMENT_SHAPED);
+    });
+
+    it("editor -> element -> editor returns the editor's own style", () => {
+        const original: RichTextStyle = {
+            enabled: true,
+            text: "Mrs_Henderson",
+            location: "static",
+            font: { family: "Georgia", size: 18, weight: 600, color: "#a3a8b1" },
+            background: { enabled: true, color: "#101418", padding: 6, borderRadius: 3 },
+            position: { attachPosition: "right", offset: 7, billboard: false },
+            effects: {
+                outline: { enabled: true, color: "#000000", width: 1 },
+                shadow: { enabled: true, color: "#222222", blur: 2, offsetX: 0, offsetY: 0 },
+            },
+            advanced: { resolution: 128, depthFade: false },
+        };
+
+        expect(elementToEditorRichTextStyle(editorToElementRichTextStyle(original))).toEqual(original);
+    });
+
+    it("survives every attach position the editor can express, both ways", () => {
+        for (const attachPosition of ["above", "below", "left", "right", "center"] as const) {
             const original: RichTextStyle = {
                 ...DEFAULT_RICH_TEXT_STYLE,
                 enabled: true,
-                text: "Mrs_Henderson",
-                font: { family: "Georgia", size: 18, weight: 600, color: "#a3a8b1" },
-                position: { attachPosition: "right", offset: 7, billboard: false },
+                text: "x",
+                position: { attachPosition, offset: 0, billboard: true },
             };
 
-            const returned = elementToEditorRichTextStyle(writeLikeGraphty(original));
+            expect(elementToEditorRichTextStyle(editorToElementRichTextStyle(original))).toEqual(original);
+        }
+    });
 
-            expect(returned.text).toBe(original.text);
-            expect(returned.font).toEqual(original.font);
-            expect(returned.position).toEqual(original.position);
-        });
+    it("loses the editor's own `location`, which the writer does not write down", () => {
+        // Asymmetry 1 in the module's own doc: `textPath` is what the reader reads it
+        // off, and the writer has no key to put it in.
+        const original: RichTextStyle = {
+            ...DEFAULT_RICH_TEXT_STYLE,
+            enabled: true,
+            text: "x",
+            location: "textPath",
+        };
 
-        it("survives every attach position the editor can express", () => {
-            for (const attachPosition of ["above", "below", "left", "right", "center"] as const) {
-                const original: RichTextStyle = {
-                    ...DEFAULT_RICH_TEXT_STYLE,
-                    enabled: true,
-                    text: "x",
-                    position: { attachPosition, offset: 0, billboard: true },
-                };
-
-                expect(elementToEditorRichTextStyle(writeLikeGraphty(original)).position.attachPosition).toBe(
-                    attachPosition,
-                );
-            }
-        });
+        expect(elementToEditorRichTextStyle(editorToElementRichTextStyle(original)).location).toBe("static");
     });
 });

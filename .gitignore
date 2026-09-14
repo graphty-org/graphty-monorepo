@@ -130,3 +130,6 @@ layout/log/*
 
 # Claude Code session archive (synced by claude-history-sync.sh; see CLAUDE.md)
 .claudehistory/
+
+# Python bytecode caches (tools/uat-contrast.py leaves one beside itself)
+__pycache__/

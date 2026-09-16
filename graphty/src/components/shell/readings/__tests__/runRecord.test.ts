@@ -90,6 +90,42 @@ describe("caveatsLine", () => {
         );
     });
 
+    it("reports an iterative run that did not converge, and nothing else -- MANDATORY spec 2043-2047", () => {
+        expect(caveatsLine({ notConvergedAfterIterations: 100 })).toBe("Did not converge in 100 iterations.");
+    });
+
+    it("groups the iteration count, like every other count on the line", () => {
+        expect(caveatsLine({ notConvergedAfterIterations: 1000 })).toBe("Did not converge in 1,000 iterations.");
+    });
+
+    it("keeps the approximate clause ahead of the convergence clause", () => {
+        expect(caveatsLine({ approximateSampleSize: 200, notConvergedAfterIterations: 100 })).toBe(
+            "Approximate (sample of 200). Did not converge in 100 iterations.",
+        );
+    });
+
+    it("puts the convergence clause ahead of the method clause -- what the run did, then what it covered", () => {
+        expect(caveatsLine({ notConvergedAfterIterations: 100, fallbackMethodName: "Label propagation" })).toBe(
+            "Did not converge in 100 iterations. Label propagation.",
+        );
+    });
+
+    it("seats the convergence clause between approximate and method in the full order", () => {
+        expect(
+            caveatsLine({
+                filterActive: true,
+                drawnSampleSize: 1000,
+                largestPart: { nodes: 900, ofNodes: 1000 },
+                partialStoppedAfterSeconds: 5,
+                fallbackMethodName: "Label propagation",
+                notConvergedAfterIterations: 100,
+                approximateSampleSize: 100,
+            }),
+        ).toBe(
+            "Approximate (sample of 100). Did not converge in 100 iterations. Label propagation, stopped after 5 s (partial). Computed on the largest part (900 of 1,000 nodes). Showing a sample of 1,000. A filter or time window is active.",
+        );
+    });
+
     it("puts every clause it has in the one fixed order", () => {
         expect(
             caveatsLine({

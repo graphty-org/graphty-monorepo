@@ -166,6 +166,60 @@ export function communityReading(statistics: CommunityStatistics): string {
 }
 
 /**
+ * The community result's COLLAPSED headline: the one line the Results-list card draws
+ * beside the run's name, e.g. "6 groups, modularity 0.447".
+ *
+ * WHY IT LIVES HERE, beside {@link communityReading}, rather than in the panel that draws
+ * it. The collapsed line and the expanded reading are two statements about one run, and
+ * spec 2200-2202 puts them on screen at the same moment -- "A result open in the inspector
+ * renders its Results-list card collapsed to title, state and headline", with the full
+ * reading on the inspector surface a few hundred pixels away. Assembled at the call site
+ * the two would drift the first time either changed: the same defect
+ * `nodeMetricHeadline` records for the node-metric card, where a collapsed line
+ * reading "Main bridge: a (0)" sat beside an expanded one reading "No node sits on a
+ * shortest path between two others". Built from the SAME {@link CommunityStatistics} by
+ * the same module, they cannot disagree about the facts, only about how much of them
+ * they have room for.
+ *
+ * IT IS A HEADLINE, NOT A SENTENCE. No full stop, no verb, no clause about what the
+ * colours mean: it is a fragment drawn after a run's name on one 32px row, where the
+ * reading is prose in a block that has room to be prose. That is also why it keeps the
+ * fact the reading spends its second sentence on -- modularity, which is nowhere else on
+ * either surface -- and drops the ones that are already drawn beside it.
+ *
+ * THREE FORMS, and each one is a fact rather than a preference:
+ *
+ * - No groups at all reads "No groups". A run that found nothing may not print "0 groups,
+ *   modularity 0.000": the modularity of no partition is not a measurement, and a headline
+ *   that prints one asserts an outcome nothing computed (spec 7415-7418).
+ * - With modularity, it is named, at the SAME three decimals {@link formatModularity}
+ *   gives the reading. A headline rounding to two while the reading shows three would
+ *   read as two different numbers for one run.
+ * - Without it -- a method that reports no modularity -- the largest group's size takes
+ *   the slot instead, exactly as {@link fewGroupsReading} does with its second sentence,
+ *   so the two surfaces fall back to the same fact rather than to two different ones.
+ *
+ * Pure, and no computation at all beyond formatting what it was handed.
+ * @param statistics - what the grouping run reported, method-independent.
+ * @returns the headline, e.g. "6 groups, modularity 0.447", "6 groups, largest 118 members", "No groups".
+ */
+export function communityHeadline(statistics: CommunityStatistics): string {
+    const { groupCount, largestGroupSize, modularity } = statistics;
+
+    if (groupCount <= 0) {
+        return "No groups";
+    }
+
+    const groups = `${formatCount(groupCount)} ${pluralise(groupCount, "group")}`;
+
+    if (modularity !== undefined && Number.isFinite(modularity)) {
+        return `${groups}, modularity ${formatModularity(modularity)}`;
+    }
+
+    return `${groups}, largest ${formatCount(largestGroupSize)} ${pluralise(largestGroupSize, "member")}`;
+}
+
+/**
  * One row of the result body.
  * @public
  */

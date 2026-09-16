@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     COMMUNITY_MANY_GROUPS_THRESHOLD,
     type CommunityGroupSize,
+    communityHeadline,
     communityReading,
     communityResultBody,
     type CommunityStatistics,
@@ -192,6 +193,96 @@ describe("communityReading", () => {
                 }),
             ).toBe("13 groups found. The 0 largest hold 0% of nodes; the largest has 0 members.");
         });
+    });
+});
+
+/** The cat fixture as a method that reports no modularity would hand it over. */
+const WITHOUT_MODULARITY: CommunityStatistics = {
+    groupCount: 4,
+    largestGroupSize: 7,
+    nodeCount: 20,
+    groups: CAT_GROUPS,
+    colouredGroupCount: 4,
+    encodingApplied: true,
+};
+
+/**
+ * Whether every character is printable ASCII.
+ *
+ * Written as a loop rather than a regular expression because the range it tests includes
+ * control characters, and a literal control-character class is what the lint rule that
+ * would have to be silenced exists to catch.
+ * @param value - the string to check.
+ * @returns true when every character is in the printable ASCII range.
+ */
+function isPrintableAscii(value: string): boolean {
+    for (let index = 0; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+
+        if (code < 0x20 || code > 0x7e) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+describe("communityHeadline", () => {
+    /* The collapsed line the Analyze panel's Results card draws (spec 2200-2202). It is
+       read at the same moment as the expanded reading a few hundred pixels away, so the
+       numbers in it are the reading's own numbers, formatted the same way. */
+    it("names the group count and the modularity, at the reading's own three decimals", () => {
+        expect(communityHeadline(CAT_STATISTICS)).toBe("4 groups, modularity 0.447");
+        expect(communityReading(CAT_STATISTICS)).toContain("0.447");
+    });
+
+    it("is a headline and not a sentence: no full stop, one line, ASCII", () => {
+        const headline = communityHeadline(CAT_STATISTICS);
+
+        expect(headline.endsWith(".")).toBe(false);
+        expect(headline).not.toContain("\n");
+        expect(isPrintableAscii(headline)).toBe(true);
+    });
+
+    it("makes a one-group run singular", () => {
+        expect(
+            communityHeadline({
+                ...CAT_STATISTICS,
+                groupCount: 1,
+                largestGroupSize: 20,
+                groups: [{ communityId: 0, size: 20 }],
+            }),
+        ).toBe("1 group, modularity 0.447");
+    });
+
+    /* A method that reports no modularity falls back to the SAME fact the reading's
+       second sentence falls back to, so the two surfaces never state different things
+       about one run. */
+    it("falls back to the largest group when the method reported no modularity", () => {
+        expect(communityHeadline(WITHOUT_MODULARITY)).toBe("4 groups, largest 7 members");
+    });
+
+    it("makes a one-member largest group singular", () => {
+        expect(communityHeadline({ ...WITHOUT_MODULARITY, largestGroupSize: 1 })).toBe("4 groups, largest 1 member");
+    });
+
+    /* A run that found nothing may not print "0 groups, modularity 0.000": the modularity
+       of no partition is not a measurement, and a headline that prints one asserts an
+       outcome nothing computed (spec 7415-7418). */
+    it("says so plainly when the run found no groups", () => {
+        expect(communityHeadline({ ...CAT_STATISTICS, groupCount: 0, largestGroupSize: 0, groups: [] })).toBe(
+            "No groups",
+        );
+    });
+
+    it("drops a non-finite modularity rather than printing it", () => {
+        expect(communityHeadline({ ...CAT_STATISTICS, modularity: Number.NaN })).toBe("4 groups, largest 7 members");
+    });
+
+    it("groups thousands with an ASCII comma", () => {
+        expect(communityHeadline({ ...CAT_STATISTICS, groupCount: 3412, modularity: 0.12 })).toBe(
+            "3,412 groups, modularity 0.120",
+        );
     });
 });
 

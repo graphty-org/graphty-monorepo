@@ -29,6 +29,17 @@
  * (partial). Computed on the largest part (912,000 of 1,000,000 nodes). Showing a
  * sample of 50,000." -- what the run did, then what it covered, then what is drawn,
  * then whether a filter is narrowing it.
+ *
+ * A run that did not converge says so immediately after the approximate clause and
+ * before the method clause, and that position follows from the same sentence. The order
+ * at 5856-5858 is what the run DID, then what it COVERED, then what is DRAWN, then
+ * whether a filter narrows it -- and failing to converge is what the run did, not a
+ * limit on what it covered, so the clause sits with the approximate clause rather than
+ * after the coverage clauses. The clause exists at all because of MANDATORY spec
+ * 2043-2047: "Instant and iterative classes run at once, the caveats line saying
+ * converged or not." Only a method that publishes a convergence flag can fill it, and a
+ * converged run leaves {@link CaveatFacts.notConvergedAfterIterations} absent, so the
+ * line stays empty for it -- the absence is the feature here too.
  */
 
 import { formatCount } from "./readingFormat";
@@ -62,6 +73,11 @@ export function runRecordLine(facts: RunRecordFacts): string {
 export interface CaveatFacts {
     /** The sample size of an approximate run. */
     readonly approximateSampleSize?: number;
+    /**
+     * Iterations an iterative method ran without converging. Absent means it converged,
+     * or that the method does not report convergence.
+     */
+    readonly notConvergedAfterIterations?: number;
     /** The method name, when the run used a cheaper method than the one asked for. */
     readonly fallbackMethodName?: string;
     /** Seconds after which a partial run stopped. */
@@ -116,6 +132,10 @@ export function caveatsLine(facts: CaveatFacts): string | undefined {
 
     if (facts.approximateSampleSize !== undefined) {
         clauses.push(`Approximate (sample of ${formatCount(facts.approximateSampleSize)}).`);
+    }
+
+    if (facts.notConvergedAfterIterations !== undefined) {
+        clauses.push(`Did not converge in ${formatCount(facts.notConvergedAfterIterations)} iterations.`);
     }
 
     const method = methodClause(facts);

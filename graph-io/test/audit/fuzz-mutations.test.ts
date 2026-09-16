@@ -37,8 +37,21 @@ const decoder = new TextDecoder();
 /** Largest corpus file mutated by the property tests (root.gv at 23 KB is in; nothing is skipped today). */
 const MAX_FUZZED_BYTES = 200 * 1024;
 
-/** The wall-clock budget of one import of a mutated corpus file. */
-const HANG_MS = 10_000;
+/**
+ * The wall-clock budget of one import: a HANG detector, not a throughput gate.
+ *
+ * It exists to catch an importer that never finishes -- catastrophic backtracking, an unbounded
+ * loop -- so it only has to sit above the slowest import that legitimately COMPLETES. It must not
+ * be tuned to the machine that happens to run it: at 10 s, calibrated on a 32-core dev box where
+ * the 50 MB documents import in 3.9-9.1 s, a GitHub runner doing the same completed work in
+ * 10.8-17.9 s failed six of them. A hang is unbounded, so a wide margin costs nothing and a narrow
+ * one buys nothing.
+ *
+ * 30 s is roughly 1.7x the slowest completion observed on CI and stays below the 60 s per-test
+ * timeout on the 50 MB cases, so a real hang still trips this assertion -- with its format name and
+ * timing in the message -- rather than the bare timeout.
+ */
+const HANG_MS = 30_000;
 
 type Outcome =
     | { readonly kind: "snapshot"; readonly report: ImportReport }
@@ -664,7 +677,7 @@ describe("fuzz audit: structural attacks", () => {
         };
         for (const format of CORPUS_FORMATS) {
             it(
-                `${format}: completes within 10 s with a snapshot or an ImportError`,
+                `${format}: completes within ${HANG_MS / 1000} s with a snapshot or an ImportError`,
                 async () => {
                     const outcome = await expectSnapshotOrImportError(format, documents[format]);
                     expect(outcome.kind).toBe("snapshot");

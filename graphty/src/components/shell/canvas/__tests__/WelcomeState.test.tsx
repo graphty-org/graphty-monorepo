@@ -21,19 +21,36 @@ import { WelcomeState } from "../WelcomeState";
 /** The host width every board measures in, wide enough for the 600 px content band. */
 const HOST_WIDTH = 900;
 
+/** The sentence a failed load hands the block, as the shell composes it. */
+const LOAD_ERROR = "Could not load friends.json. Unexpected token o in JSON at position 1.";
+
 /**
  * Draws Welcome inside a positioned host, so its `position: absolute; inset: 0`
  * wrapper resolves against a known box rather than against the test viewport.
+ * @param error - the failed load's sentence, or undefined when nothing has failed.
  * @returns the rendered container.
  */
-function renderWelcome(): HTMLElement {
+function renderWelcome(error?: string): HTMLElement {
     const { container } = render(
         <div style={{ position: "relative", width: HOST_WIDTH, height: 700 }}>
-            <WelcomeState onOpenFile={vi.fn()} onPasteOrOpenFromUrl={vi.fn()} />
+            <WelcomeState onOpenFile={vi.fn()} onPasteOrOpenFromUrl={vi.fn()} error={error} />
         </div>,
     );
 
     return container;
+}
+
+/**
+ * The dashed drop zone, which is the block's drop target and the failed load's home.
+ * @param container - the rendered container.
+ * @returns the zone.
+ */
+function dropZoneOf(container: HTMLElement): HTMLElement {
+    const zone = container.querySelector<HTMLElement>("[data-dragging]");
+
+    expect(zone).not.toBeNull();
+
+    return zone as HTMLElement;
 }
 
 /**
@@ -114,6 +131,65 @@ describe("WelcomeState surface", () => {
         expect(container.querySelector(".mantine-Overlay-root")).toBeNull();
         expect(wrapper.style.position).toBe("absolute");
         expect(wrapper.style.zIndex).toBe("");
+    });
+
+    /*
+     * Spec 4105 makes a failed load a sub-state of EMPTY and puts its sentence inline in
+     * the drop zone; spec 1034 repeats it with the formats list beside it. The block is
+     * the Empty state's whole canvas, so this is where a reader who has just been told
+     * nothing loaded is standing.
+     */
+    describe("the failed load's sentence", () => {
+        it("draws nothing extra, and leaves the zone as it was, when no load has failed", () => {
+            const container = renderWelcome();
+            const zone = dropZoneOf(container);
+
+            expect(container.querySelector("[data-welcome-error]")).toBeNull();
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+            expect(zone.textContent).toContain("Drop a graph file (or a nodes file and an edges file) here");
+            expect(zone.textContent).toContain(
+                "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2",
+            );
+        });
+
+        it("draws the sentence inside the drop zone, above the accepted formats line", () => {
+            const container = renderWelcome(LOAD_ERROR);
+            const zone = dropZoneOf(container);
+            const error = container.querySelector<HTMLElement>("[data-welcome-error]");
+
+            expect(error).not.toBeNull();
+            expect(error?.textContent).toBe(LOAD_ERROR);
+            expect(zone).toContainElement(error);
+
+            /* Order matters on this one: the sentence says which file did not load, and
+               the line under it says what would have. Reading them the other way round
+               is reading the answer before the question. */
+            const formats = [...zone.querySelectorAll("span")].find((span) =>
+                span.textContent?.startsWith("Accepted formats:"),
+            );
+
+            expect(formats).not.toBeUndefined();
+            expect(
+                (error as HTMLElement).compareDocumentPosition(formats as HTMLElement) &
+                    Node.DOCUMENT_POSITION_FOLLOWING,
+            ).toBeTruthy();
+        });
+
+        it("announces it, in the danger ink, as text and not as a control", () => {
+            const container = renderWelcome(LOAD_ERROR);
+            const error = container.querySelector<HTMLElement>("[data-welcome-error]");
+
+            expect(error).toHaveAttribute("role", "alert");
+            expect(error?.style.color).toBe(PANEL_INK.DANGER);
+
+            /* Spec 975-979: "Nothing in this block is iconified and the error text is
+               never moved behind an info circle." So it is not a button, not a tooltip's
+               contents and not a popover's -- there is nothing to open to read it. */
+            expect(error?.closest("button")).toBeNull();
+            expect(error?.closest('[role="tooltip"]')).toBeNull();
+            expect(error?.closest('[role="dialog"]')).toBeNull();
+            expect(error?.querySelector("svg")).toBeNull();
+        });
     });
 
     it("still draws every string of the artboard on the sheet", () => {

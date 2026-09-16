@@ -409,7 +409,37 @@ export function pointerFractionWithin(box: PointerBox, clientX: number, clientY:
 export interface CanvasBottomStackInput {
     /** The drawer and the slider, as {@link canvasToolbarBottomOffset} reads them. */
     readonly stack: CanvasBottomStackState;
-    /** The live canvas rect's width in CSS pixels. */
+    /**
+     * The LIVE canvas rect's width in CSS pixels -- the strip of graph the reader can
+     * actually see, with nothing painted over it.
+     *
+     * Read this literally, because for one release it was not true and the difference
+     * was the whole of a reported defect. The activity panel and the inspector USED to
+     * become 280 px absolutely positioned overlays below 1280 px over a canvas element
+     * that was never resized under them (spec 01 section 7 item 7), so the element rect
+     * ran underneath both of them and every offset measured off it described a strip
+     * that was 560 px wider than the reader's. Measured live at 1200x800 with Karate
+     * loaded: the canvas element reported 1152 px while 592 px of graph was visible, the
+     * drawer drew itself across the full 1152 and `document.elementFromPoint` over its
+     * own "Data table" title returned the PANEL. That is the "the data table isn't
+     * visible when the panels are open" report, and it was never clipping, a zero size
+     * or a missing render -- it was an honest measurement of the wrong box.
+     *
+     * The gap is now closed at the source rather than corrected here. Both sidebars are
+     * docked flex columns of the body row at every width the shell lays out at, and
+     * below 1280 px it does not lay out at all (product owner, 2026-09-14: "there will
+     * be no more auto-hide. below 1280 should just say 'screen too small' or something
+     * similar"). Nothing is ever painted over the canvas element by a region, so the
+     * element rect IS the live rect and this module subtracts no inset from it. Verified
+     * live at 1440x900 with both sidebars open: canvas [328, 40, 832, 836], drawer
+     * [328, 616, 832, 260] hit-testing to itself, legend [892, 723] clear of the
+     * inspector's 1160, minimap [340, 764] clear of the panel's 328.
+     *
+     * If a region ever paints over the canvas again, THIS is the field that must shrink
+     * -- an inset subtracted here, once, rather than a z-index raised on the drawer.
+     * Spec 5.2:448 says the drawer never covers the panel or the inspector, and only
+     * measuring the visible strip keeps that true.
+     */
     readonly canvasWidth: number;
     /** The canvas element's height in CSS pixels. */
     readonly canvasHeight: number;
@@ -421,15 +451,6 @@ export interface CanvasBottomStackInput {
     readonly legendVisible: boolean;
     /** How many channels currently carry an encoding. */
     readonly encodedChannelCount: number;
-    /**
-     * Whether the data table drawer OVERLAYS the canvas rather than docking into it.
-     * Below 1280 px it does: spec 01 section 7 item 3 says "the Data table drawer
-     * overlays from the bottom", and item 7 says the canvas is not resized under a
-     * narrow overlay. It still stacks under the toolbar, the minimap and the legend --
-     * it is drawn at the same height either way -- it simply takes no canvas away.
-     * @default false
-     */
-    readonly drawerOverlaysCanvas?: boolean;
 }
 
 /**
@@ -462,6 +483,21 @@ export interface CanvasBottomStackLayout {
  * test. Bottom to top the stack is: canvas rect, data table drawer (a dock, 260 by
  * default), time slider (an overlay, 70), canvas toolbar (an overlay, 36), with the
  * minimap and the legend riding the toolbar's own baseline.
+ *
+ * ONE RECT, ONE STACK. Every offset here is measured against `canvasWidth` and
+ * `canvasHeight`, which are the LIVE canvas rect -- see the long note on
+ * {@link CanvasBottomStackInput.canvasWidth} for what that phrase cost. The drawer, the
+ * time slider, the minimap and the legend all hang off this one measurement, which is
+ * why a single wrong width took all four of them out together and a single right one
+ * brings all four back. They are not four bugs and they never were.
+ *
+ * The drawer is ALWAYS a dock here. A `drawerOverlaysCanvas` flag stood in this input
+ * until 2026-09-14 and forced `dockedHeight` to 0, because below 1280 px spec 01
+ * section 7 item 3 made the drawer an overlay that shortened nothing. The sub-1280
+ * layout has since been deleted whole rather than reworked, on the product owner's
+ * instruction, so the flag could only ever have been false in a shell that draws a
+ * canvas at all. A parameter whose every caller passes one value is a parameter that
+ * lies about the shapes the code handles, so it went with the layout that needed it.
  * @param input - the canvas rect, the docks, the profile and the Views menu state.
  * @returns every offset and every visibility decision the stack makes.
  */
@@ -469,7 +505,6 @@ export function canvasBottomStack(input: CanvasBottomStackInput): CanvasBottomSt
     const {
         canvasHeight,
         canvasWidth,
-        drawerOverlaysCanvas = false,
         encodedChannelCount,
         legendVisible,
         minimapVisible,
@@ -498,7 +533,7 @@ export function canvasBottomStack(input: CanvasBottomStackInput): CanvasBottomSt
         toolbarBottom: canvasToolbarBottomOffset(clamped),
         overlayBottom,
         timeSliderBottom: timeSliderBottomOffset(clamped),
-        dockedHeight: drawerOverlaysCanvas ? 0 : dockedHeight(clamped, canvasHeight),
+        dockedHeight: dockedHeight(clamped, canvasHeight),
         minimapDrawn: isMinimapDrawn(minimapVisible, clamped),
         legendDrawn: isLegendDrawn(legendVisible, encodedChannelCount, clamped),
         legendCompact: isLegendCompact(clamped),

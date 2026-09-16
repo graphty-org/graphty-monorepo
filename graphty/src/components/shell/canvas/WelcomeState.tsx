@@ -36,6 +36,19 @@
  * scene clear colour is NOT touched -- that would still be depending on the graph
  * background, only on a different value, and it belongs to graphty-element under the
  * authority split of design/ui/mockups/system/CONTRAST-DIVERGENCE.md section 5.
+ *
+ * AMENDMENT 2026-09-13, the failed load: spec 4105 makes a failed load a SUB-STATE of
+ * Empty -- "the error appears inline in the drop zone" -- and spec 1034 spells the same
+ * rule out again, "Parse errors that cannot be resolved appear inline in the drop zone
+ * with the supported formats list". So the block takes an `error` sentence and draws it
+ * inside the dashed zone, immediately above the accepted-formats line, in the danger
+ * ink. It is drawn as plain text with `role="alert"`, never behind an info circle, a
+ * tooltip or a popover: spec 975-979 closes the parse-error block with "Nothing in this
+ * block is iconified and the error text is never moved behind an info circle", and the
+ * reader who has just been told nothing loaded is the last reader who should have to go
+ * looking for the reason. The sentence itself is composed by the shell, because only the
+ * shell knows which file the reader chose, and 6.10 floor item 7 makes that filename a
+ * floor item.
  */
 
 import { COMPACT_SIZING, PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
@@ -57,6 +70,12 @@ export interface WelcomeStateProps {
     readonly onFilesDropped?: (files: FileList) => void;
     /** Sample datasets, recent files and recipes, supplied by the Data activity. */
     readonly children?: React.ReactNode;
+    /**
+     * Why the last load did not arrive, as one finished sentence naming the file first
+     * (6.10 floor items 4 and 7), or absent while nothing has failed. It is drawn inside
+     * the drop zone, which is the route the reader takes to try again.
+     */
+    readonly error?: string;
 }
 
 const HEADING = "Open a graph to get started";
@@ -69,11 +88,12 @@ const PASTE_OR_URL = "or paste data / open from URL";
 
 /**
  * Draws the Empty state's Welcome block, centred in the canvas.
- * @param props - the two routes in, the drop handler and the Data activity's lists.
+ * @param props - the two routes in, the drop handler, the failed load's sentence and
+ * the Data activity's lists.
  * @returns the Welcome element.
  */
 export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
-    const { children, onFilesDropped, onOpenFile, onPasteOrOpenFromUrl } = props;
+    const { children, error, onFilesDropped, onOpenFile, onPasteOrOpenFromUrl } = props;
     const [dragging, setDragging] = useState(false);
 
     const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -224,6 +244,28 @@ export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
                             >
                                 {OPEN_FILE}
                             </Button>
+
+                            {/*
+                                The failed load, inline in the drop zone (spec 4105,
+                                spec 1034). It sits directly above the accepted-formats
+                                line because the two are read together: the sentence says
+                                which file did not load and why, and the line under it
+                                says what would have loaded.
+                            */}
+                            {error === undefined ? null : (
+                                <span
+                                    data-welcome-error="true"
+                                    role="alert"
+                                    style={{
+                                        fontSize: CANVAS_TYPE.SMALL,
+                                        lineHeight: CANVAS_LEADING.DENSE,
+                                        color: PANEL_INK.DANGER,
+                                        textAlign: "center",
+                                    }}
+                                >
+                                    {error}
+                                </span>
+                            )}
 
                             <span
                                 style={{

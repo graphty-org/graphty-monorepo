@@ -252,6 +252,13 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
 
     const box: React.CSSProperties = {
         position: "absolute",
+        // One overlay inset from the RIGHT edge of the canvas element, which is the
+        // right edge of the live canvas strip: the inspector is a docked flex column
+        // beside this element, not an overlay over it. While it WAS an overlay (below
+        // 1280 px, deleted 2026-09-14) this 12 was measured from an edge 280 px to the
+        // inspector's right, and the legend drew itself underneath it -- measured live
+        // at 1200x800 as [932, 684, 256, 80] resolving to a button inside the
+        // inspector. Any future correction belongs in `canvasBottomStack`, once.
         right: OVERLAY_INSET,
         bottom,
         width: LEGEND_WIDTH,
@@ -316,9 +323,20 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
                                         height: CANVAS_METRICS.LEGEND_STOP_ROW,
                                     }}
                                 >
-                                    {channel.stops.map((stop) => (
+                                    {/*
+                                        Keyed by POSITION, not by label. A stop is min,
+                                        median or max -- a slot in a fixed three-slot row,
+                                        with no identity of its own (see LegendStop) --
+                                        and over a metric whose nodes all score the same
+                                        the min and max stops print the identical string,
+                                        which is a duplicate React key and a dropped
+                                        swatch. A uniform degree distribution is not a
+                                        corner case: every node in a ring or a regular
+                                        lattice has the same degree.
+                                    */}
+                                    {channel.stops.map((stop, stopIndex) => (
                                         <div
-                                            key={stop.label}
+                                            key={`${channel.channel}-stop-${String(stopIndex)}`}
                                             style={{
                                                 display: "flex",
                                                 alignItems: "center",

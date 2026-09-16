@@ -91,21 +91,54 @@ describe("canvasLayout", () => {
         });
     });
 
+    /*
+     * THE REFLOW LADDER, RESTATED RATHER THAN NUDGED.
+     *
+     * Every width below is a LIVE canvas rect -- the strip of graph the reader can see
+     * -- and that has to be said out loud, because for one release the number fed to
+     * `hasOverlayReflowed` was the canvas ELEMENT's width and the two differed by up to
+     * 560 px. Below 1280 px the activity panel and the inspector became 280 px
+     * absolutely positioned overlays over a canvas that spec 01 section 7 item 7
+     * deliberately did not resize under them, so at a 1200 px window the element
+     * measured 1152 while 592 px of graph was visible: the ladder took its two-line
+     * decision over 1152, the reader saw 592, and the minimap and legend stayed on one
+     * line inside a strip half that wide.
+     *
+     * The sub-1280 layout was deleted whole on 2026-09-14 (product owner: "there will be
+     * no more auto-hide. below 1280 should just say 'screen too small' or something
+     * similar"), so both sidebars are docked flex columns and the element rect IS the
+     * live rect. THE NUMBERS BELOW THEREFORE DID NOT MOVE -- and that is the point. They
+     * were always meant to describe the visible strip; what changed is that the shell
+     * now hands over a width that means what these rows say it means. A row adjusted
+     * until it passed would have hidden exactly that.
+     *
+     * WHAT IS REACHABLE IN THE SHIPPED SHELL, worked out rather than assumed:
+     * - 622 (desktop bar) IS reachable. The canvas floor is CANVAS_MIN_WIDTH = 520, and
+     *   `maxActivityPanelWidth` / `maxInspectorWidth` let a reader drag the sidebars out
+     *   until the canvas hits it, so widths from 520 up cross this threshold on any
+     *   window the shell lays out at.
+     * - 650 (narrow bar) is NOT reachable. `canvasToolbarProfile` picks the narrow
+     *   profile only below a 1280 px VIEWPORT, which is exactly where the shell now
+     *   renders "screen too small" instead of a canvas. The row below therefore pins the
+     *   pure function's contract, not a state a reader can get into; it is kept because
+     *   `canvasBottomStack` takes the profile as a parameter and must keep honouring it,
+     *   and it is labelled so nobody reads it as evidence that a narrow bar still ships.
+     */
     describe("the two-line reflow", () => {
-        it("does not fire at the reference canvas of 832", () => {
+        it("does not fire at the reference canvas of 832, the live strip at 1440 with both sidebars docked", () => {
             expect(stackAt(NOTHING, 832).reflowed).toBe(false);
         });
 
-        it("does not fire at 672, the canvas at 1280 with both columns open", () => {
+        it("does not fire at 672, the live strip at 1280 with both sidebars docked", () => {
             expect(stackAt(NOTHING, 672).reflowed).toBe(false);
         });
 
-        it("fires below 622 with the desktop bar", () => {
+        it("fires below 622 of LIVE canvas with the desktop bar, which a sidebar drag can reach", () => {
             expect(stackAt(NOTHING, 621).reflowed).toBe(true);
             expect(stackAt(NOTHING, 622).reflowed).toBe(false);
         });
 
-        it("fires below 650 with the narrow bar", () => {
+        it("fires below 650 with the narrow bar, a profile no width the shell lays out at selects", () => {
             const narrow = (width: number): boolean =>
                 canvasBottomStack({
                     stack: NOTHING,
@@ -172,6 +205,71 @@ describe("canvasLayout", () => {
 
         it("keeps its height on a canvas that has not been measured yet", () => {
             expect(dockedHeight(DRAWER, 0)).toBe(DATA_DRAWER_DEFAULT_HEIGHT);
+        });
+
+        /*
+         * The drawer is a dock at every width the shell lays out at, with no escape
+         * hatch. A `drawerOverlaysCanvas` flag stood in `CanvasBottomStackInput` until
+         * 2026-09-14 and forced this to 0, because below 1280 px spec 01 section 7 item
+         * 3 made the drawer an overlay that shortened nothing. That layout was deleted
+         * rather than reworked, so the flag had exactly one reachable value left. It went
+         * with the layout, and this board is what stops it coming back as an option
+         * nobody can exercise.
+         */
+        it("takes the drawer's height with no way for a caller to ask it not to", () => {
+            const layout = canvasBottomStack({
+                stack: DRAWER,
+                canvasWidth: WIDE_CANVAS,
+                canvasHeight: CANVAS_HEIGHT,
+                profile: CANVAS_TOOLBAR_DESKTOP,
+                minimapVisible: true,
+                legendVisible: true,
+                encodedChannelCount: 1,
+            });
+
+            expect(layout.dockedHeight).toBe(DATA_DRAWER_DEFAULT_HEIGHT);
+            expect(Object.keys(layout)).not.toContain("drawerOverlaysCanvas");
+        });
+    });
+
+    /*
+     * ONE RECT, ONE STACK -- the fact the owner's "the data table isn't visible when the
+     * panels are open" report turned on.
+     *
+     * The drawer, the time slider, the minimap and the legend are four components, but
+     * they are ONE measurement: every offset any of them takes comes out of this
+     * function, measured against `canvasWidth` and `canvasHeight`. That is why a rect
+     * wider than the visible strip did not produce four bugs -- it produced one bug that
+     * showed up in four places -- and why the repair is a single correct rect rather
+     * than four z-index raises. Spec 5.2:448 forbids the drawer covering the panel or
+     * the inspector, so raising it above them would have bought visibility by breaking
+     * the guarantee; shrinking the rect keeps it.
+     *
+     * These boards pin the coupling itself, so that anybody who ever needs to inset the
+     * rect can see, in one place, exactly how much rides on it.
+     */
+    describe("the whole bottom stack rides one rect", () => {
+        it("moves every offset together when the measured rect narrows", () => {
+            const wide = stackAt(DRAWER_AND_SLIDER, 832);
+            const narrow = stackAt(DRAWER_AND_SLIDER, 560);
+
+            expect(wide.reflowed).toBe(false);
+            expect(narrow.reflowed).toBe(true);
+
+            // The toolbar keeps its ladder rung; the two baseline overlays rise off it
+            // together. Neither is ever hidden by the reflow (spec 01 section 5).
+            expect(narrow.toolbarBottom).toBe(wide.toolbarBottom);
+            expect(narrow.overlayBottom).toBe((wide.overlayBottom ?? 0) + OVERLAY_REFLOW_RISE);
+            expect(narrow.minimapDrawn).toBe(wide.minimapDrawn);
+            expect(narrow.legendDrawn).toBe(wide.legendDrawn);
+        });
+
+        it("takes the reflow decision over the width it is given and nothing else", () => {
+            // 592 is what the reader could see at a 1200 px window with both sidebars
+            // over the canvas; 1152 is what the canvas ELEMENT reported at that moment.
+            // The two disagree about the reflow, which is the defect in one line.
+            expect(stackAt(NOTHING, 592).reflowed).toBe(true);
+            expect(stackAt(NOTHING, 1152).reflowed).toBe(false);
         });
     });
 

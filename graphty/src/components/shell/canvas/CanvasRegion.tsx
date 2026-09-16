@@ -11,6 +11,33 @@
  *    inset by the data table drawer's height, so the drawer really does take canvas
  *    away, while the minimap, the legend, the Insights strip, the time slider and the
  *    canvas toolbar are drawn over the full rect and take none.
+ *
+ *    THE ELEMENT RECT IS THE LIVE RECT, and for one release it was not. The activity
+ *    panel and the inspector used to become 280 px absolutely positioned overlays below
+ *    1280 px, over a canvas element that spec 01 section 7 item 7 deliberately did NOT
+ *    resize under them; this div is `position: relative` with no `z-index`, so it opens
+ *    no stacking context and the drawer's 5 and the minimap's and legend's 6 competed
+ *    directly with the panel's 8 and the inspector's 15 in the body row's own context,
+ *    and lost. Measured live at 1200x800 with Karate loaded: the drawer drew itself at
+ *    [48, 516, 1152, 260] and `document.elementFromPoint` over its own "Data table"
+ *    title returned the PANEL. That is the whole of "the data table isn't visible when
+ *    the panels are open", and it took the legend and the minimap with it, because all
+ *    four hang off this one measurement.
+ *
+ *    That layout was deleted rather than reworked (product owner, 2026-09-14: "there
+ *    will be no more auto-hide. below 1280 should just say 'screen too small' or
+ *    something similar"). Both sidebars are now docked flex columns of the body row at
+ *    every width the shell lays out at, and below 1280 px it draws a "screen too small"
+ *    state instead of laying out, so nothing is ever painted over this element by a
+ *    region and `useCanvasRect` measures the strip the reader sees. Verified live at
+ *    1440x900 with both sidebars open: canvas [328, 40, 832, 836], drawer
+ *    [328, 616, 832, 260] hit-testing to itself, legend [892, 723] clear of the
+ *    inspector's 1160, minimap [340, 764] clear of the panel's 328.
+ *
+ *    THE FIX IF IT EVER REGRESSES IS AN INSET, NOT A Z-INDEX. Spec 5.2:448 guarantees
+ *    the drawer never covers the panel or the inspector; raising the drawer above them
+ *    would buy visibility by breaking that guarantee, where narrowing the rect the whole
+ *    bottom stack is measured against keeps it, and repairs all four overlays at once.
  * 2. **One baseline, one ladder.** The canvas toolbar rides 12 px above whichever of
  *    the canvas floor, the time slider and the drawer is uppermost -- the four
  *    documented offsets 12 / 82 / 272 / 342 -- and the minimap and the legend ride the
@@ -209,6 +236,8 @@ export interface CanvasWelcomeConfig {
     readonly onPasteOrOpenFromUrl: () => void;
     /** A file dropped on the zone. */
     readonly onFilesDropped?: (files: FileList) => void;
+    /** Why the last load did not arrive, drawn inline in the drop zone (spec 4105). */
+    readonly error?: string;
     /** Sample datasets, recent files and recipes, from the Data activity. */
     readonly children?: React.ReactNode;
 }
@@ -317,19 +346,20 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
         () =>
             canvasBottomStack({
                 stack,
+                // The element's own measured width, handed over with nothing subtracted,
+                // because no region paints over this element any more -- see rule 1 at
+                // the top of this file for the release in which that was false and the
+                // four overlays it took out. If a sidebar ever overlays the canvas
+                // again, an inset belongs HERE, before the bottom stack decides
+                // anything, and not on any one overlay's z-index.
                 canvasWidth: rect.width,
                 canvasHeight: rect.height,
                 profile: rect.profile,
                 minimapVisible: overlays.minimap,
                 legendVisible: overlays.legend,
                 encodedChannelCount: channels.length,
-                // Spec 01 section 7 item 3: below 1280 "the Data table drawer overlays
-                // from the bottom", so it shortens nothing. On desktop it is a dock and
-                // the graph host gives up its height.
-                drawerOverlaysCanvas: breakpoint === "narrow",
             }),
         [
-            breakpoint,
             channels.length,
             overlays.legend,
             overlays.minimap,
@@ -421,6 +451,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                     onOpenFile={welcome?.onOpenFile ?? noop}
                     onPasteOrOpenFromUrl={welcome?.onPasteOrOpenFromUrl ?? noop}
                     onFilesDropped={welcome?.onFilesDropped}
+                    error={welcome?.error}
                 >
                     {welcome?.children}
                 </WelcomeState>

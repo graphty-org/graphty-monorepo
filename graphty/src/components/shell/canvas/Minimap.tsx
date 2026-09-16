@@ -187,6 +187,14 @@ export function Minimap(props: MinimapProps): React.JSX.Element | null {
             onPointerMove={handlePointerMove}
             style={{
                 position: "absolute",
+                // One overlay inset from the LEFT edge of the canvas element, which is the
+                // left edge of the live canvas strip: the activity panel is a docked
+                // flex column beside this element, not an overlay over it. While it WAS
+                // an overlay (below 1280 px, deleted 2026-09-14) this 12 was measured
+                // from an edge 280 px to the panel's left, and the minimap drew itself
+                // under the panel -- measured live at 1200x800 as [60, 664, 160, 100]
+                // resolving to a node inside the panel. Any future correction belongs in
+                // `canvasBottomStack`, once, not as a second term added here.
                 left: OVERLAY_INSET,
                 bottom,
                 width: MINIMAP_WIDTH,

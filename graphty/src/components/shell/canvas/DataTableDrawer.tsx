@@ -7,9 +7,27 @@
  * A dock, not an overlay: it SHORTENS the live canvas rect (the canvas region gives
  * the graph host `bottom: <drawer height>`), the time slider docks to its top edge,
  * and the canvas toolbar rides 12 px above whichever of the two is uppermost. While it
- * is open the minimap hides and the legend compacts. It never covers the panel or the
- * inspector -- it is drawn inside the canvas element, which is a column of the body
- * row. Below 1280 it coexists with the inspector and closes the activity panel.
+ * is open the minimap hides and the legend compacts.
+ *
+ * IT NEVER COVERS THE PANEL OR THE INSPECTOR (spec 5.2:443-448), and that is now true
+ * by INSET rather than by eviction. The guarantee used to be bought below 1280 px by
+ * having the drawer CLOSE the activity panel when it opened, and that purchase failed
+ * twice over. It failed on its own terms -- `closePanelForNarrowDrawer` refused to
+ * close a LATCHED panel and the desktop first visit latched it -- and it failed in
+ * principle, because a surface that hides another surface to make room for itself is a
+ * second thing that can hide a sidebar, which the one-button model forbids outright
+ * (product owner, 2026-09-14). With the panel still there and this drawer laid out
+ * against a canvas element that ran underneath it, the reader got the defect they
+ * reported: measured live at 1200x800, drawer [48, 516, 1152, 260] at z-index 5 under a
+ * panel at z-index 8, `document.elementFromPoint` over this component's own "Data
+ * table" title returning the PANEL.
+ *
+ * Both halves are gone. The drawer is drawn inside the canvas element, which is a
+ * docked flex column of the body row with a sidebar on either side of it, so the
+ * drawer's `left: 0; right: 0` already stops at the live canvas edges and it covers
+ * neither sidebar without evicting anything. It stays at {@link CANVAS_DOCK_Z_INDEX},
+ * BELOW both sidebars, deliberately: raising it would buy visibility by breaking the
+ * very guarantee this paragraph is about.
  *
  * The Graph / Table segmented control lives at the top centre of the canvas and is
  * exported beside the drawer, because it is the drawer's own control: Table maximises
@@ -257,6 +275,13 @@ export function DataTableDrawer<TRow extends object>(
             data-maximised={maximised ? "true" : "false"}
             style={{
                 position: "absolute",
+                // Edge to edge of the canvas element, which IS the live canvas strip
+                // between the two docked sidebars. No inset is subtracted here and none
+                // should be: an inset is a property of the RECT the whole bottom stack
+                // is measured against, so it belongs in `canvasBottomStack`, once, where
+                // the time slider, the minimap and the legend would get it too. Four
+                // components each correcting for the same covered strip is four places
+                // to forget.
                 left: 0,
                 right: 0,
                 bottom: 0,

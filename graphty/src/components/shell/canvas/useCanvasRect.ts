@@ -4,6 +4,21 @@
  * The reflow threshold is a function of the canvas rect, not of the window: at 1280
  * with the panel and the inspector open the canvas is 672 wide and does not reflow,
  * while a 1440 window with both open and a dragged panel can. Build spec 01 section 5.
+ *
+ * WHAT THIS ELEMENT MEASURES IS THE LIVE CANVAS RECT, and the whole bottom stack --
+ * the data table drawer, the time slider, the minimap, the legend and the canvas
+ * toolbar -- is positioned against what comes out of here. For one release that
+ * identity was false: the activity panel and the inspector became 280 px absolutely
+ * positioned overlays below 1280 px over a canvas element that was deliberately not
+ * resized under them (spec 01 section 7 item 7), so this hook honestly reported an
+ * element that ran 560 px wider than the strip anybody could see, and all four overlays
+ * drew themselves into the covered part. That layout was deleted whole on 2026-09-14;
+ * both sidebars are docked flex columns at every width the shell lays out at, so the
+ * element is the strip and no caller needs to correct what it returns.
+ *
+ * The one thing a caller must NOT do is take the correction on itself. If a region ever
+ * covers the canvas again, the inset belongs in `canvasBottomStack`, where one
+ * subtraction reaches every overlay, and not in four components separately.
  */
 
 import { type RefObject, useEffect, useMemo, useState } from "react";

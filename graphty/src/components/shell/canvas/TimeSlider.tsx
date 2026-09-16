@@ -115,6 +115,11 @@ export function TimeSlider(props: TimeSliderProps): React.JSX.Element {
             data-canvas-overlay="time-slider"
             style={{
                 position: "absolute",
+                // Edge to edge of the canvas element, which IS the live canvas strip
+                // between the two docked sidebars, so the slider stops where the graph
+                // does. It shares this measurement with the drawer, the minimap and the
+                // legend, which is why one wrong rect used to take all four out
+                // together; see the rule 1 note at the top of `CanvasRegion.tsx`.
                 left: 0,
                 right: 0,
                 bottom,

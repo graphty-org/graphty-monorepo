@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
-import { DATA_DRAWER_DEFAULT_HEIGHT } from "../../constants";
-import { DATA_DRAWER_MIN_HEIGHT } from "../canvasLayout";
+import { CANVAS_MENU_Z_INDEX, CANVAS_POPOUT_Z_INDEX, DATA_DRAWER_DEFAULT_HEIGHT } from "../../constants";
+import { CANVAS_DOCK_Z_INDEX, DATA_DRAWER_MIN_HEIGHT } from "../canvasLayout";
 import { DataTableDrawer, GraphTableSegment } from "../DataTableDrawer";
 
 interface Row {
@@ -68,6 +68,38 @@ describe("DataTableDrawer", () => {
             expect(screen.getByRole("button", { name: "Show" })).toHaveTextContent("Selected");
             expect(container.querySelector("[data-drawer-show='count']")).toHaveTextContent("3");
             expect(container.querySelector("[data-drawer-show='total']")).toHaveTextContent("of 200");
+        });
+
+        /*
+         * Spec 5.2:448 -- the drawer never covers the activity panel or the inspector --
+         * and the ONE way that guarantee may be kept.
+         *
+         * When the owner reported "the data table isn't visible when the panels are
+         * open", the tempting repair was to raise this dock above the sidebars: at
+         * 1200x800 it sat at z-index 5 under a panel at 8 and an inspector at 15, and
+         * a bigger number would have put the table on screen in one line. It would also
+         * have inverted the guarantee above -- bought the drawer's visibility with the
+         * panel's -- and the spec is explicit that the drawer is the surface that yields.
+         *
+         * The real repair was the rect the drawer is measured against, not its z-order:
+         * both sidebars are docked flex columns now, so `left: 0; right: 0` already
+         * stops at the live canvas edges (measured end to end in CanvasRegion.test.tsx's
+         * "the live canvas strip" boards). This board is what stops the tempting repair
+         * being made later by somebody who has only the symptom in front of them.
+         */
+        it("stays a dock BELOW the sidebars in z-order and spans its container edge to edge", () => {
+            const { container } = render(<DataTableDrawer {...defaultProps} />);
+            const drawer = container.querySelector("[data-canvas-overlay='data-drawer']") as HTMLElement;
+
+            expect(drawer.style.zIndex).toBe(String(CANVAS_DOCK_Z_INDEX));
+            expect(CANVAS_DOCK_Z_INDEX).toBeLessThan(CANVAS_POPOUT_Z_INDEX);
+            expect(CANVAS_DOCK_Z_INDEX).toBeLessThan(CANVAS_MENU_Z_INDEX);
+
+            // No inset of its own. An inset is a property of the RECT the whole bottom
+            // stack is measured against -- it belongs in `canvasBottomStack`, once, where
+            // the slider, the minimap and the legend would get it too.
+            expect(drawer.style.left).toBe("0px");
+            expect(drawer.style.right).toBe("0px");
         });
     });
 

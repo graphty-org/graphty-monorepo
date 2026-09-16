@@ -118,10 +118,7 @@ interface InspectorContentsProps {
     readonly kindLabel: string;
     readonly identityLabel?: string;
     readonly showPin: boolean;
-    readonly keptOpen?: boolean;
-    readonly onKeepOpenChange?: (kept: boolean) => void;
     readonly onCopyReading: () => void;
-    readonly onToggle: () => void;
     readonly setFooterNode: (node: HTMLDivElement | null) => void;
     readonly children?: React.ReactNode;
 }
@@ -136,10 +133,7 @@ function InspectorContents(props: InspectorContentsProps): React.JSX.Element {
         kindLabel,
         identityLabel,
         showPin,
-        keptOpen,
-        onKeepOpenChange,
         onCopyReading,
-        onToggle,
         setFooterNode,
         children,
     } = props;
@@ -147,19 +141,18 @@ function InspectorContents(props: InspectorContentsProps): React.JSX.Element {
 
     return (
         <>
-            {/* Two pins, deliberately: `pinned` is the comparison pin this provider owns
-                and `keptOpen` is 6.12's latch, which the shell store owns. Neither reads
-                the other. */}
+            {/* ONE pin now, where there used to be two. `pinned` is the comparison pin
+                this provider owns; the other was 6.12's `keptOpen` latch, deleted on
+                2026-09-14 with the rest of the per-surface panel model. They never read
+                each other, which is exactly why two controls drawn alike in one 36 px row
+                was a reading hazard. */}
             <InspectorHeader
                 kindLabel={kindLabel}
                 identityLabel={identityLabel}
                 showPin={showPin}
                 pinned={snapshot !== null}
-                keptOpen={keptOpen}
                 onCopyReading={onCopyReading}
-                onKeepOpenChange={onKeepOpenChange}
                 onPin={showPin ? pin : undefined}
-                onToggle={onToggle}
             />
 
             {/* Blocks 1 to 5 scroll. The horizontal padding is NOT drawn here: every
@@ -202,11 +195,8 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
         kindLabel,
         identityLabel,
         pinned,
-        keptOpen,
         onCopyReading,
-        onKeepOpenChange,
         onPin,
-        onToggle,
         onWidthChange,
         children,
     } = props;
@@ -268,10 +258,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
                     kindLabel={kindLabel}
                     identityLabel={identityLabel}
                     showPin={showPin}
-                    keptOpen={keptOpen}
-                    onKeepOpenChange={onKeepOpenChange}
                     onCopyReading={onCopyReading}
-                    onToggle={onToggle}
                     setFooterNode={setFooterNode}
                 >
                     {children}

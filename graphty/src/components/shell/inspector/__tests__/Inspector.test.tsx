@@ -34,14 +34,19 @@ const defaultProps = {
     selectionKind: "none" as SelectionKind,
     kindLabel: "Graph summary",
     onCopyReading: vi.fn(),
-    onToggle: vi.fn(),
 };
 
 describe("Inspector", () => {
     describe("geometry", () => {
-        it("measures the trailing cluster as three 24px boxes and two 4px gaps", () => {
-            // 52 until 2026-09-12, when the always-drawn `Keep open` latch joined
-            // `Copy reading` and the collapse control in the row.
+        it("still reserves an 80px trailing cluster, which is now wider than what it holds", () => {
+            /* 52 until 2026-09-12, when the always-drawn `Keep open` latch joined `Copy
+               reading` and the collapse control; 80 ever since. Both of those controls
+               were deleted on 2026-09-14, so the row now draws `Copy reading` and, where a
+               pin is allowed, `Pin as A` -- 52px of controls inside an 80px reservation.
+               The constant lives in `inspector/inspectorConstants.ts`, which belongs to
+               the style-inspector rebuild landing after this change; narrowing it (and the
+               167px name band that is measured against it) is that unit's to do, with the
+               artboard in hand. This board records the discrepancy rather than hiding it. */
             expect(INSPECTOR_HEADER_CLUSTER_WIDTH).toBe(80);
         });
 
@@ -110,33 +115,20 @@ describe("Inspector", () => {
         });
     });
 
-    describe("the Keep open latch", () => {
-        it("threads the latch to the header without touching the comparison pin", () => {
-            const onKeepOpenChange = vi.fn();
-
+    /* REPLACED "the Keep open latch" on 2026-09-14. It threaded 6.12's latch to the
+       header and proved the latch and the comparison pin were different objects. The latch
+       is gone; the pin is not, and the board below is what remains of the distinction. */
+    describe("what the column no longer owns", () => {
+        it("draws neither a latch nor a collapse control, and still draws the comparison pin", () => {
             render(
                 <Harness>
-                    <Inspector
-                        {...defaultProps}
-                        selectionKind="node"
-                        kindLabel="Node"
-                        identityLabel="Mr_Whiskers"
-                        keptOpen
-                        onKeepOpenChange={onKeepOpenChange}
-                    />
+                    <Inspector {...defaultProps} selectionKind="node" kindLabel="Node" identityLabel="Mr_Whiskers" />
                 </Harness>,
             );
 
-            const latch = screen.getByRole("button", { name: "Keep open" });
-
-            expect(latch).toHaveAttribute("aria-pressed", "true");
-            // The two pins are different objects: latching the column takes no snapshot.
+            expect(screen.queryByRole("button", { name: "Keep open" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Toggle inspector" })).toBeNull();
             expect(screen.getByRole("button", { name: "Pin as A" })).toHaveAttribute("aria-pressed", "false");
-
-            fireEvent.click(latch);
-
-            expect(onKeepOpenChange).toHaveBeenCalledWith(false);
-            expect(screen.queryByTestId("inspector-pinned-card")).not.toBeInTheDocument();
         });
     });
 

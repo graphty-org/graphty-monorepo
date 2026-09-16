@@ -2,7 +2,7 @@ import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import type { LayerItem } from "../../../layout/LeftSidebar";
 import { ShellProvider } from "../../ShellContext";
 import { StyleLayerInspector, type StyleLayerSource } from "../StyleLayerInspector";
@@ -78,7 +78,14 @@ describe("StyleLayerInspector", () => {
                 </Harness>,
             );
 
-            expect(screen.getByTestId("coming-tag")).toBeInTheDocument();
+            /* Scoped to the Source section. The properties panel below it now draws its
+               own per-row Coming tag on the Flat shaded toggle -- `effect.flatShaded` is
+               accepted by the element's schema and read by nothing -- so a document-wide
+               query for the tag finds two, which is the correct number rather than a
+               fault. */
+            const sourceSection = screen.getByRole("group", { name: "Source" });
+
+            expect(within(sourceSection).getByTestId("coming-tag")).toBeInTheDocument();
         });
     });
 });

@@ -2,25 +2,30 @@
  * The inspector's 36 px title row (spec 03 section 3.2).
  *
  * One inventory, one order, every board that draws one. Trailing, in this order:
- * `Copy reading`, `Pin as A`, `Keep open`, `Toggle inspector (D)`. The pin is drawn only
- * for a node, edge, selection or result -- never for Nothing selected. Leading: the
- * surface KIND, which never truncates, then its IDENTITY, which ellipsizes into its own
- * title. No leading glyph, ever.
+ * `Copy reading`, then `Pin as A`. The pin is drawn only for a node, edge, selection or
+ * result -- never for Nothing selected. Leading: the surface KIND, which never truncates,
+ * then its IDENTITY, which ellipsizes into its own title. No leading glyph, ever.
  *
- * INSPECTOR-TITLE-1.9 section 4 refused a fourth slot in this row by measurement
- * ("nothing else is ever in this row"). The product owner asked for the latch on
- * 2026-09-12 and it lands here; the cost is that with the pin also drawn the cluster is
- * 108 px and the name band 139 rather than 167, so the longest names ellipsize in that
- * one state. The override is recorded in INSPECTOR-TITLE-1.9 itself. `Pin as A` did NOT
- * move out of the row to make space: its delta machinery reads from this position, and
- * moving it would have put a working comparison at risk to save 28 px.
+ * TWO CONTROLS LEFT THIS ROW ON 2026-09-14, a `Keep open` latch and a `Toggle inspector
+ * (D)` collapse chevron. Both were individual controls over ONE sidebar; the product
+ * owner's instruction was "there is one button to hide / show both at the same time and
+ * not individual buttons", and that one button lives in the top bar. INSPECTOR-TITLE-1.9
+ * section 4 had refused a fourth slot in this row by measurement, the latch was granted an
+ * override on 2026-09-12 at a measured cost of 28 px off the name band, and both the
+ * override and the cost are now moot. `Pin as A` STAYS: it is the comparison pin, it
+ * freezes the CONTENT rather than holding the column, and its delta machinery reads from
+ * this position.
+ *
+ * FOLLOW-UP, not this file's to make: `INSPECTOR_HEADER_CLUSTER_WIDTH` still reserves
+ * 80 px for what is now at most 52 px of controls, and `INSPECTOR_HEADER_NAME_BAND` is
+ * still measured against the wider cluster. Both live in `inspectorConstants.ts`, which
+ * belongs to the style-inspector rebuild landing after this change.
  */
 
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import { ActionIcon, Box, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
-import { keyChipFor } from "../bindings";
 import { PANEL_HEADER_HEIGHT, TOOLTIP_DELAY_MS } from "../constants";
 import {
     INSPECTOR_CLUSTER_GAP,
@@ -48,24 +53,20 @@ export interface InspectorHeaderProps {
      * over a tinted ground and reports as its pressed state.
      */
     readonly pinned?: boolean;
-    /**
-     * Whether the column is latched open, which `Keep open` draws as an accent border over
-     * a tinted ground and reports as its pressed state. This is not
-     * {@link InspectorHeaderProps.pinned}: that is the comparison pin, which freezes the
-     * content; this holds the column on screen (6.12).
+    /*
+     * `keptOpen`, `onKeepOpenChange` and `onToggle` all left on 2026-09-14. The trailing
+     * cluster ended in a `Keep open` latch and a collapse chevron; both were individual
+     * controls over ONE sidebar, and the product owner asked for "one button to hide /
+     * show both at the same time and not individual buttons". The inspector is drawn
+     * whenever the sidebars are shown, so it has nothing of its own to collapse.
+     *
+     * `pinned` and `onPin` STAY. The pin is the comparison pin (design 5.4): it freezes a
+     * copy of the CONTENT as an anchor and never held the column. Two objects, two words.
      */
-    readonly keptOpen?: boolean;
-    /**
-     * The latch. The control is drawn only where the region supplies this, exactly as
-     * the pin is; the shell always supplies it.
-     */
-    readonly onKeepOpenChange?: (kept: boolean) => void;
     /** Copies the reading, the caveats line, the Counts rows and the legend's channel lines. */
     readonly onCopyReading: () => void;
     /** Takes the pin. Absent for the Nothing-selected surface, which has no pin. */
     readonly onPin?: () => void;
-    /** Collapses the column. The same verb lives in the top bar. */
-    readonly onToggle: () => void;
 }
 
 /**
@@ -146,8 +147,7 @@ function HeaderIcon(props: HeaderIconProps): React.JSX.Element {
  * @returns the 36 px header, its name band and its trailing cluster.
  */
 export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element {
-    const { kindLabel, identityLabel, showPin, pinned, keptOpen, onCopyReading, onKeepOpenChange, onPin, onToggle } =
-        props;
+    const { kindLabel, identityLabel, showPin, pinned, onCopyReading, onPin } = props;
 
     return (
         <Box
@@ -230,14 +230,13 @@ export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element 
                     onClick={onCopyReading}
                 />
 
-                {/* The pin takes the SAME treatment as the latch two slots along
-                    (2026-09-13, second pass): until then it passed `pressed` and no
-                    `active`, so a held pin rendered identically to an empty one -- the
-                    exact defect reported against the latch, in the same header row. A pin
-                    that is held and a pin that is not are two states of one control, and
-                    1.4.11 asks the same 3:1 boundary of this one as of that one. Both take
-                    it from the shared ActionIcon theme, which is where that boundary
-                    lives. */}
+                {/* The pin draws its held state as an accent border over a tinted ground
+                    with an accent glyph (2026-09-13, second pass): until then it passed
+                    `pressed` and no `active`, so a held pin rendered identically to an
+                    empty one. A pin that is held and a pin that is not are two states of
+                    one control, and 1.4.11 asks a 3:1 boundary between them. It comes from
+                    compact-mantine's shared ActionIcon theme, which is where that boundary
+                    lives -- never from a local ring here. */}
                 {showPin && onPin !== undefined && (
                     <HeaderIcon
                         words={INSPECTOR_HEADER_LABELS.pinAsA}
@@ -249,39 +248,6 @@ export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element 
                         onClick={onPin}
                     />
                 )}
-
-                {/* The latch, immediately left of the control that dismisses the column,
-                    so the pair reads as keep-open against dismiss. It draws its latched
-                    state as an accent border over a tinted ground, with an accent glyph
-                    (2026-09-13: until then the two states rendered byte for byte
-                    identically -- `pressed` reached `aria-pressed` and nothing else -- and
-                    the product owner could not tell a locked column from an unlocked one;
-                    the border is the second pass, because the ground alone measured 1.21:1
-                    where 1.4.11 asks 3:1, and the third pass moved it off a local helper
-                    and into the shared ActionIcon theme). The word and the padlock are the
-                    same in both states (6.8; REGISTER-1.5 10.2). */}
-                {onKeepOpenChange !== undefined && (
-                    <HeaderIcon
-                        words={INSPECTOR_HEADER_LABELS.keepOpen}
-                        chip={null}
-                        glyph={<UiGlyph name="keepOpen" size={PANEL_GRID.GLYPH} />}
-                        active={keptOpen ?? false}
-                        pressed={keptOpen ?? false}
-                        testId="inspector-keep-open"
-                        onClick={() => {
-                            onKeepOpenChange(!(keptOpen ?? false));
-                        }}
-                    />
-                )}
-
-                <HeaderIcon
-                    words={INSPECTOR_HEADER_LABELS.toggleInspector}
-                    chip={keyChipFor("toggleInspector")}
-                    glyph={<UiGlyph name="chevronRight" size={PANEL_GRID.CHEVRON} />}
-                    pressed
-                    testId="inspector-toggle"
-                    onClick={onToggle}
-                />
             </Box>
         </Box>
     );

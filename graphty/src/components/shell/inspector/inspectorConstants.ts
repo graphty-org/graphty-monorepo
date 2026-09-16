@@ -16,7 +16,6 @@
 
 import { COMPACT_SIZING, PANEL_GRID } from "@graphty/compact-mantine";
 
-import { KEEP_OPEN_LABEL } from "../constants";
 import type { SelectionKind } from "../types";
 
 /* -------------------------------------------------------------------------- */
@@ -237,8 +236,23 @@ export const INSPECTOR_SECTION_IDS = {
     multiNotes: "inspector.multiple.notes",
     /** Style layer, Source -- drawn only when the layer came from a run. */
     layerSource: "inspector.layer.source",
-    /** Style layer, the encoding channels. */
+    /** Style layer, the node encoding channels. */
     layerEncoding: "inspector.layer.encoding",
+    /**
+     * Style layer, the Computed section.
+     *
+     * Drawn only when one of the layer's halves carries a `calculatedStyle` -- a rule the
+     * element evaluates per node rather than a value the reader chose. It says what the
+     * rule does, which channel it owns and what it reads, and carries the one verb that
+     * converts it to a fixed value. Nothing drew any of that before: the panel read only
+     * the static half, so a layer whose whole job was calculated showed the element's
+     * defaults as though it had chosen them.
+     */
+    layerComputed: "inspector.layer.computed",
+    /** Style layer, the "Which nodes" selector section. */
+    layerSelector: "inspector.layer.selector",
+    /** Style layer, the edge encoding channels and the "Which edges" selector. */
+    layerEdge: "inspector.layer.edge",
     /** Algorithm result, the body for its result shape. */
     resultBody: "inspector.result.body",
     /** Pattern match, the ranked match list. */
@@ -263,11 +277,6 @@ export const INSPECTOR_HEADER_LABELS = {
     copyReading: "Copy reading",
     /** Freezes a copy of the current content as card A above the live content. */
     pinAsA: "Pin as A",
-    /**
-     * Latches the column open (6.12). It holds the SURFACE, where `pinAsA` freezes the
-     * CONTENT -- two objects, two words, two drawings, in one row.
-     */
-    keepOpen: KEEP_OPEN_LABEL,
     /** Collapses the column. The chip comes from the one dispatcher, never from here. */
     toggleInspector: "Toggle inspector",
     /** Releases the pinned card. Spec 03 section 3.3. */

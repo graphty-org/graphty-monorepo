@@ -38,7 +38,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { theme } from "../../theme";
 import { CompactColorInput } from "../sidebar/controls/CompactColorInput";
-import { StyleColorInput } from "../sidebar/controls/StyleColorInput";
 
 // Wrapper component with theme provider
 function ThemeWrapper({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -1048,123 +1047,12 @@ describe("Compact CSS Regression Tests", () => {
             });
         });
 
-        describe("StyleColorInput", () => {
-            const defaultProps = {
-                label: "Fill Color",
-                value: undefined as string | undefined,
-                defaultValue: "#5B8FF9",
-                onChange: vi.fn(),
-            };
-
-            it("color swatch ActionIcon has correct size (24px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
-                const computed = window.getComputedStyle(actionIcon);
-                expect(computed.height).toBe("24px");
-                expect(computed.width).toBe("24px");
-            });
-
-            it("hex input has correct compact height (24px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.height).toBe("24px");
-            });
-
-            it("hex input has monospace font family", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.fontFamily).toBe("monospace");
-            });
-
-            it("hex input has uppercase text transform", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.textTransform).toBe("uppercase");
-            });
-
-            it("when using default value, hex input has italic font-style", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} value={undefined} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.fontStyle).toBe("italic");
-            });
-
-            it("when using default value, hex input has dimmed color", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} value={undefined} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                // Dimmed color: #7a828e = rgb(122, 130, 142)
-                expect(computed.color).toBe("rgb(122, 130, 142)");
-            });
-
-            it("when explicit value is set, hex input has normal font-style", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} value="#FF0000" />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.fontStyle).toBe("normal");
-            });
-
-            it("when explicit value is set, hex input has normal text color", () => {
-                render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} value="#FF0000" />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                // Normal text color: #d5d7da = rgb(213, 215, 218)
-                expect(computed.color).toBe("rgb(213, 215, 218)");
-            });
-
-            it("shows reset button only when explicit value is set", () => {
-                const { rerender } = render(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} value={undefined} />
-                    </ThemeWrapper>,
-                );
-                // No reset button when using default
-                expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
-
-                // Reset button appears when explicit value is set
-                rerender(
-                    <ThemeWrapper>
-                        <StyleColorInput {...defaultProps} value="#FF0000" />
-                    </ThemeWrapper>,
-                );
-                expect(screen.getByRole("button", { name: "Reset Fill Color to default" })).toBeDefined();
-            });
-        });
+        /* The `StyleColorInput` block that used to sit here is GONE with the component.
+           It was the sidebar's own fork of a colour field, and after the style inspector
+           was rebuilt on compact-mantine nothing rendered it but this file -- design 6.17
+           check 1 forbids a call-site substitute for a library control, and a regression
+           test is not a consumer. `CompactColorInput` above is the library's, and its own
+           package tests cover the geometry this block was asserting. */
     });
 
     describe("Border Radius Consistency", () => {

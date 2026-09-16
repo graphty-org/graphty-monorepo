@@ -234,10 +234,39 @@ export class Styles {
     }
 
     /**
-     * Retrieves calculated style values for a node from matching layers.
+     * Retrieves calculated style values for a node from every layer whose node selector matches.
+     *
+     * THE RETURNED ARRAY IS IN ASCENDING LAYER ORDER -- bottom layer first, top layer last -- and
+     * that is the OPPOSITE of the order `getStyleForNode` builds. Both orders exist to produce the
+     * SAME precedence rule, "the top layer wins", because the two arrays feed consumers with
+     * opposite merge semantics:
+     *
+     * - `getStyleForNode` hands its array to lodash `defaultsDeep`, which is FIRST-wins. So it
+     *   unshifts, putting the topmost matching layer at index 0.
+     * - This array is handed to `ChangeManager.loadCalculatedValues`, which inserts it into a Set
+     *   in array order; `runAllCalculatedValues` then iterates that Set in insertion order and
+     *   every `CalculatedValue.run` ends in an unconditional `deepSet` into the node's
+     *   `styleUpdates` (CalculatedValue.ts:84). That is LAST-writer-wins. So this method pushes,
+     *   putting the topmost matching layer last, where its write lands on top.
+     *
+     * THE DEFECT THIS FIXES. This method used to `unshift`, copying `getStyleForNode`'s descending
+     * order without copying its first-wins consumer. The two halves of one layer stack therefore
+     * disagreed about which layer was on top: two live layers both writing `style.texture.color`
+     * through `calculatedStyle` gave the colour to the BOTTOM one, while the same two layers
+     * writing it through `style` gave it to the TOP one. Nothing shipped in the app hits that pair,
+     * which is why it was never reported as a bug, but algorithm suggested-styles and generated
+     * layers are user-extensible, so it was an inversion waiting for the first layer stack that
+     * shared an output path.
+     *
+     * WHY THIS ONLY BECAME MEANINGFUL RECENTLY. Until `ChangeManager.loadCalculatedValues` began
+     * clearing `calculatedValues` as well as `watchedInputs`, the Set held every value the node had
+     * ever been handed and iterated in accumulation order ACROSS loads -- an order this method did
+     * not control at all. Now that a load replaces the set, the order built here is exactly the
+     * order the values run in, so it is load-bearing.
      * @param data - Node data for selector matching
      * @param algorithmResults - Optional algorithm results for selector matching
-     * @returns Array of calculated values to apply to the node
+     * @returns Calculated values to apply to the node, in ascending layer order (bottom first), so
+     * that the last one to run -- the topmost matching layer -- wins a shared output path
      */
     getCalculatedStylesForNode(data: AdHocData, algorithmResults?: AdHocData): CalculatedValue[] {
         // Combine data and algorithmResults for selector matching
@@ -252,7 +281,7 @@ export class Styles {
             if (nodeMatch && node?.calculatedStyle) {
                 const { inputs, output, expr } = node.calculatedStyle;
                 const cv = new CalculatedValue(inputs, output, expr);
-                ret.unshift(cv);
+                ret.push(cv);
             }
         }
 
@@ -260,9 +289,23 @@ export class Styles {
     }
 
     /**
-     * Retrieves calculated style values for an edge from matching layers.
+     * Retrieves calculated style values for an edge from every layer whose edge selector matches.
+     *
+     * THE RETURNED ARRAY IS IN ASCENDING LAYER ORDER -- bottom layer first, top layer last -- for
+     * the same reason as `getCalculatedStylesForNode`, and it is deliberately the OPPOSITE of the
+     * order `getStyleForEdge` builds. `getStyleForEdge` feeds lodash `defaultsDeep`, which is
+     * FIRST-wins, so it unshifts. This array is fed to `ChangeManager.loadCalculatedValues` ->
+     * `runAllCalculatedValues` -> `CalculatedValue.run`, which ends in an unconditional `deepSet`
+     * (CalculatedValue.ts:84) and is therefore LAST-writer-wins, so it pushes. Two opposite array
+     * orders, one precedence rule: the top layer wins.
+     *
+     * THE DEFECT THIS FIXES. This method used to `unshift` like its static sibling, so the BOTTOM
+     * layer won a shared calculated output path -- `style.line.color`, say -- while the TOP layer
+     * won a shared static one. One layer stack, two contradictory answers to "which layer is on
+     * top".
      * @param data - Edge data for selector matching
-     * @returns Array of calculated values to apply to the edge
+     * @returns Calculated values to apply to the edge, in ascending layer order (bottom first), so
+     * that the last one to run -- the topmost matching layer -- wins a shared output path
      */
     getCalculatedStylesForEdge(data: AdHocData): CalculatedValue[] {
         const ret: CalculatedValue[] = [];
@@ -282,7 +325,7 @@ export class Styles {
             if (edgeMatch && edge?.calculatedStyle) {
                 const { inputs, output, expr } = edge.calculatedStyle;
                 const cv = new CalculatedValue(inputs, output, expr);
-                ret.unshift(cv);
+                ret.push(cv);
             }
         }
 

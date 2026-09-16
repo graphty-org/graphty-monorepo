@@ -76,11 +76,15 @@ describe("Edge Calculated Styles", () => {
         const edgeData = { value: 5, weight: 10 } as unknown as AdHocData;
         const cvs = multiStyles.getCalculatedStylesForEdge(edgeData);
 
+        // ASCENDING layer order: index 0 is the FIRST (bottom) layer. This used to assert the
+        // reverse, because getCalculatedStylesForEdge unshifted -- which made the bottom layer run
+        // LAST and therefore win a shared output path, the opposite of the static merge's rule.
+        // These two layers write different paths, so only the order changed here, not the outcome.
         assert.equal(cvs.length, 2);
-        assert.deepEqual(cvs[0].inputs, ["data.weight"]);
-        assert.equal(cvs[0].output, "style.line.width");
-        assert.deepEqual(cvs[1].inputs, ["data.value"]);
-        assert.equal(cvs[1].output, "style.line.color");
+        assert.deepEqual(cvs[0].inputs, ["data.value"]);
+        assert.equal(cvs[0].output, "style.line.color");
+        assert.deepEqual(cvs[1].inputs, ["data.weight"]);
+        assert.equal(cvs[1].output, "style.line.width");
     });
 
     it("getCalculatedStylesForEdge respects edge selector", () => {

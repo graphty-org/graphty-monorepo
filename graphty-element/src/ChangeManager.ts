@@ -100,12 +100,45 @@ export class ChangeManager {
     }
 
     /**
-     * Loads calculated values, optionally running them immediately.
-     * @param cvs - Array of calculated values to load
-     * @param runImmediately - Whether to execute all calculated values immediately
+     * Loads the calculated values the CURRENT style layers ask for, replacing whatever was
+     * loaded before, and optionally running all of them once immediately.
+     *
+     * Both collections are cleared here, not only `watchedInputs`. That is the whole point of
+     * the method: "load" means load, not accumulate.
+     *
+     * THE DEFECT THIS FIXES. `calculatedValues` used to survive this call, so a style layer the
+     * user had REMOVED kept painting for the life of the loaded graph. The chain:
+     * `DataManager.applyStylesToExistingNodes` installs the new layer's static style through
+     * `Node.updateStyle`, then calls this method, then calls `Node.update`. Every CalculatedValue
+     * still sitting in the set was re-run by `runAllCalculatedValues`, and `CalculatedValue.run`
+     * ends in an unconditional `deepSet` into the node's `styleUpdates`. `Node.update` then merges
+     * with `_.defaultsDeep(plainStyleUpdates, style)` (Node.ts:150-151), and lodash's FIRST
+     * argument wins -- so the dead layer's calculated output beat the live layer's static style on
+     * the SAME repaint, not merely the next one. Concretely: run "Most connected" (a viridis ramp
+     * over `algorithmResults.graphty.degree.degreePct`), then run "Groups". Removing the metric
+     * layer does not remove the algorithm results its expression reads, so it recomputed the
+     * identical colour and the canvas stayed byte-identical viridis while the legend said groups.
+     * The set is per-Node, which is why the stain never crossed a dataset boundary -- new Nodes get
+     * fresh ChangeManagers -- but was permanent for the life of one loaded graph. `SelectionManager`
+     * calls this method too, so the dead layer re-applied on every selection change as well.
+     *
+     * WHY CLEARING IS SAFE. `Styles.getCalculatedStylesForNode` (and its edge sibling) rebuilds the
+     * whole list fresh from the CURRENT layers on every call and constructs new CalculatedValue
+     * objects each time, so after the clear the set holds exactly the live layers. Two live layers
+     * that share one output path -- both writing `style.texture.color`, say -- both still register
+     * and both still run, and the later one still wins.
+     *
+     * THE ONE CONTRACT THIS NARROWS is `Node.addCalculatedStyle` / `Edge.addCalculatedStyle`: a
+     * value added through those is dropped by the next load. It never fully survived one anyway --
+     * the pre-existing `watchedInputs.clear()` above already unhooked it from its data-change
+     * triggers -- and neither method is called anywhere in this repository.
+     * @param cvs - Calculated values the current style layers ask for. REPLACES the loaded set.
+     * @param runImmediately - Whether to execute all calculated values immediately. Needed when the
+     * values are loaded after their input data is already populated.
      */
     loadCalculatedValues(cvs: CalculatedValue[], runImmediately = false): void {
         this.watchedInputs.clear();
+        this.calculatedValues.clear();
         this.addCalculatedValues(cvs);
 
         // Optionally run all calculated values immediately

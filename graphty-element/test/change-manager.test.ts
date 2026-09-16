@@ -185,6 +185,57 @@ describe("ChangeManager", () => {
         assert.deepStrictEqual(styleObj, { result: 20 } as unknown as AdHocData);
     });
 
+    // Regression test for the defect where a REMOVED style layer kept painting.
+    // `loadCalculatedValues` used to clear `watchedInputs` but not `calculatedValues`, so
+    // `runAllCalculatedValues` re-ran every value the node had EVER been handed. In the app that
+    // meant: run "Most connected" (a viridis ramp over the degree results), then run "Groups" --
+    // the dead ramp recomputed the identical colour into `styleUpdates` and `Node.update` merged
+    // it OVER the community colours with `_.defaultsDeep(plainStyleUpdates, style)`, whose first
+    // argument wins. The canvas stayed byte-identical viridis while the legend said groups.
+    // The existing watchedInputs test above only ever covered the data-change trigger path; this
+    // one covers the runAll path, which is the one every repaint actually takes.
+    it("drops calculated values from a removed style layer when loading new ones", () => {
+        const cm = new ChangeManager();
+        cm.watch("algorithmResults", { degree: 5 } as unknown as AdHocData);
+        const styleObj = cm.addData("style", {} as unknown as AdHocData);
+
+        // the metric layer is loaded and paints
+        const viridisCv = new CalculatedValue(
+            ["algorithmResults.degree"],
+            "style.color",
+            "'#VIRIDIS' + arguments[0]",
+        );
+        cm.loadCalculatedValues([viridisCv], true);
+        assert.deepStrictEqual(styleObj, { color: "#VIRIDIS5" } as unknown as AdHocData);
+
+        // Node.update consumes every key out of styleUpdates once it has merged them
+        for (const key of Object.keys(styleObj)) {
+            Reflect.deleteProperty(styleObj, key);
+        }
+
+        // the metric layer is removed: nothing may repaint into style
+        cm.loadCalculatedValues([], true);
+        assert.deepStrictEqual(styleObj, {} as unknown as AdHocData);
+        assert.strictEqual(cm.calculatedValues.size, 0);
+    });
+
+    // The safety half of the same change: clearing the set must not drop live layers that share
+    // one output path. `Styles.getCalculatedStylesForNode` rebuilds the whole list from the
+    // CURRENT layers on every call, so both of these are handed back in on every load and both
+    // still run -- the later one wins, exactly as before the clear was added.
+    it("keeps every loaded calculated value that shares an output path", () => {
+        const cm = new ChangeManager();
+        cm.watch("algorithmResults", { degree: 5 } as unknown as AdHocData);
+        const styleObj = cm.addData("style", {} as unknown as AdHocData);
+
+        const bottomLayerCv = new CalculatedValue(["algorithmResults.degree"], "style.color", "'#BOTTOM'");
+        const topLayerCv = new CalculatedValue(["algorithmResults.degree"], "style.color", "'#TOP'");
+        cm.loadCalculatedValues([bottomLayerCv, topLayerCv], true);
+
+        assert.strictEqual(cm.calculatedValues.size, 2);
+        assert.deepStrictEqual(styleObj, { color: "#TOP" } as unknown as AdHocData);
+    });
+
     // Regression tests for calculated outputs that land inside a wrapped branch of the
     // schema. `NodeStyle.label` is `RichTextStyle.prefault({...}).optional()`, and the
     // schema walker used to stop at the first wrapper, so every `style.label.*` output

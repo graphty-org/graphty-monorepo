@@ -10,6 +10,13 @@ Requested by the product owner on 2026-09-13, item 7 of seven: "create user
 acceptance tests that Claude can run manually using the Playwright MCP to verify that
 key paths are working and rendering correctly".
 
+Amended 2026-09-14 for the panel model of spec revision 1.15. The two `Keep open`
+latches, the per-surface close controls, the narrow-screen layout and every
+auto-hide are gone, replaced by one `Toggle sidebars` switch in the top bar, one
+binding (Cmd/Ctrl+B) and one persisted boolean. UAT-03 and UAT-14 are REWRITTEN for
+that model; UAT-11 and UAT-12 are RETIRED in place, because both tested mechanisms
+that no longer exist.
+
 Scenarios have stable ids, `UAT-01` upward. Report a result as
 `UAT-05 PASS` or `UAT-05 FAIL: the status bar still read "20 nodes"`. Ids are never
 renumbered; a retired scenario keeps its id and is struck out in place.
@@ -21,8 +28,9 @@ Storybook, and section 1.7 is their setup.
 Related documents:
 
 - `design/ui/app-shell-progressive-disclosure-design.md` -- the shell spec. Sections
-  cited below by number (5.2 narrow screens, 6.12 the latch, 7.1 Welcome, 7.2 what a
-  load decides, 7.3 the insight rule table, 7.5 the graph-summary reading).
+  cited below by number (5.2 the 1024 px minimum, 6.12 showing and hiding the
+  sidebars, 7.1 Welcome, 7.2 what a load decides, 7.3 the insight rule table, 7.5 the
+  graph-summary reading).
 - `design/ui/mockups/system/` -- REGISTER-1.5, DECISIONS-1.7, DECISIONS-1.8,
   CONTRAST-DIVERGENCE, COMPACTION-1.6.
 - `design/ui/mockups/artboards/*.dc.html` -- the artboards.
@@ -68,8 +76,10 @@ when source changes.
 
 ### 1.2 Viewport
 
-Unless a scenario says otherwise, run at **1600 x 1000**. The shell's narrow
-breakpoint is 1280; scenarios that exercise it say so and set their own size.
+Unless a scenario says otherwise, run at **1600 x 1000**. The shell lays out at
+**1024 px and above and nowhere else**: below 1024 px it draws a centred "Screen too
+small" state over a shell that is still mounted but hidden and inert (spec 5.2).
+Scenarios that exercise the boundary say so and set their own size.
 
 Every colour expected below is a **dark-scheme** value: `main.tsx` mounts Mantine with
 `defaultColorScheme="dark"`, so the probe's `scheme` field must read `dark`. If it
@@ -84,7 +94,7 @@ mcp__playwright__browser_resize
 
 ### 1.3 Reaching a fresh first visit
 
-The shell persists its layout in `localStorage` under `graphty.shell.layout.v2` (plus
+The shell persists its layout in `localStorage` under `graphty.shell.layout.v3` (plus
 `graphty.shell.canvas.v1` and `graphty.shell.insights.v1`). Several scenarios test
 what a **first-time** reader sees, so they begin by clearing storage and reloading.
 This is the standard reset; it appears as "RESET" in the steps below.
@@ -121,7 +131,7 @@ mcp__playwright__browser_run_code_unsafe
           return "PRESENT x=" + Math.round(r.x) + " y=" + Math.round(r.y) +
                  " w=" + Math.round(r.width) + " h=" + Math.round(r.height);
         };
-        const latch = (s) => {
+        const toggle = (s) => {
           const el = q(s);
           if (el === null) return "ABSENT";
           const cs = getComputedStyle(el);
@@ -136,8 +146,9 @@ mcp__playwright__browser_run_code_unsafe
           panelTitle: q("[data-testid=\"panel-header-title\"]")?.textContent ?? null,
           inspector: box("[data-testid=\"inspector\"]"),
           inspectorKind: q("[data-testid=\"inspector-kind\"]")?.textContent ?? null,
-          panelLatch: latch("[data-testid=\"panel-header-keep-open\"]"),
-          inspectorLatch: latch("[data-testid=\"inspector-keep-open\"]"),
+          tooSmall: box("[data-testid=\"screen-too-small\"]"),
+          sidebarsSwitch: toggle("button[aria-label=\"Toggle sidebars\"]"),
+          sidebarsSwitchBox: box("button[aria-label=\"Toggle sidebars\"]"),
           counts: q("[data-status-slot=\"counts\"]")?.innerText.replace(/\n/g, " ") ?? null,
           layoutChip: q("[data-status-slot=\"layout\"]")?.innerText.replace(/\n/g, " ") ?? null,
           reading: q("[data-testid=\"graph-summary-reading\"]")?.textContent ?? null,
@@ -148,14 +159,18 @@ mcp__playwright__browser_run_code_unsafe
             .map((b) => b.innerText.split("\n")[0]).filter(Boolean),
           legend: q("[data-canvas-overlay=\"legend\"]")?.innerText.replace(/\n/g, " | ") ?? null,
           styleLayers: q("[data-testid=\"style-layers\"]")?.innerText.replace(/\n+/g, " | ") ?? null,
-          stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v2") ?? "{}"),
+          stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v3") ?? "{}"),
         };
       });
     }
 ```
 
 Fields referenced by name in the expected results below (`probe.counts`,
-`probe.panelLatch`, ...) are this object's fields.
+`probe.sidebarsSwitch`, ...) are this object's fields. On a viewport narrower than
+1024 px only `probe.tooSmall` is `PRESENT`; the other selectors still RESOLVE,
+because the shell stays mounted behind the overlay, but nothing they find is
+reachable -- the frame carries `inert` and `aria-hidden` and is `visibility:
+hidden`. That is the expected state there, not a broken probe (spec 5.2).
 
 ### 1.5 Standing gotchas
 
@@ -188,7 +203,7 @@ reporting a failure.
    | a sample row click | 4.0 s |
    | a `Find groups` click | 3.5 s |
    | a Welcome hint click (load **and** run in one) | 7.0 s |
-   | a latch or panel toggle click | 0.4 s |
+   | a sidebars toggle click | 0.4 s |
 
    Never assert on a canvas fact without one of these waits. A failure reported
    without one is not a failure.
@@ -209,11 +224,16 @@ reporting a failure.
 6. **The Data panel's `Sample datasets` section starts collapsed.** Click its label
    once before looking for rows in the panel.
 
-7. **`Toggle inspector` is two buttons when the inspector is open.** The inspector's
-   own header carries `[data-testid="inspector-toggle"]`; the top bar's carries the
-   same `aria-label` and no testid. When the inspector is CLOSED only the top bar's
-   exists, which is the one to click to reopen it:
-   `page.locator('button[aria-label="Toggle inspector"]').first()`.
+7. **There is exactly ONE sidebars control and it is in the top bar.** Until
+   2026-09-14 there were four: a panel toggle and an inspector toggle in the top
+   bar, a close X in the panel header and a collapse chevron in the inspector
+   header, plus two `Keep open` latches beside them. All six are gone. The one
+   control is `button[aria-label="Toggle sidebars"]`, it carries no testid, and it
+   is unique -- `.first()` is no longer needed and a scenario that needs it is
+   reading a stale DOM. `[data-testid="panel-header-keep-open"]`,
+   `[data-testid="panel-header-close"]`, `[data-testid="inspector-keep-open"]` and
+   `[data-testid="inspector-toggle"]` select nothing; a scenario still using one is
+   BROKEN, not failing.
 
 8. **The minimap draws nothing, by design.** `Minimap.tsx`'s own header says the
    drawing is a placeholder that "does not yet project graphty-element's own scene",
@@ -221,21 +241,24 @@ reporting a failure.
    rectangle at the bottom left of the canvas is the expected state, not a defect.
 
 9. **Playwright leaves the pointer on whatever it last clicked, and hover has a
-   colour.** An icon button that is unlatched but still hovered computes
-   `background-color: rgba(34, 139, 230, 0.2)` -- close enough to the latched
-   `rgba(34, 139, 230, 0.15)` to read as "still latched" and cause a false FAIL on
+   colour.** An icon button that is NOT pressed but is still hovered computes
+   `background-color: rgba(34, 139, 230, 0.2)` -- close enough to the pressed
+   `rgba(34, 139, 230, 0.15)` to read as "still pressed" and cause a false FAIL on
    UAT-03. Always `await page.mouse.move(800, 900)` before probing a computed
    background, and prefer `data-variant` plus `aria-pressed`, which hover does not
    touch, over the colour.
 
-10. **Escape does not reach the narrow-overlay rung while focus is still on the
-    rail icon that opened the overlay.** Measured at 1024 x 900: open the Data
-    panel by clicking `[data-activity="data"]`, press Escape, and the panel is
-    still there -- focus is on the rail button and the press never reaches
-    Escape's third rung (5.6). Click something that takes no focus first
-    (`[data-testid="panel-header-title"]` works) and the same Escape closes it;
-    a tap on the canvas closes it from anywhere. A scenario that presses Escape
-    straight after a rail click is testing the rail, not the ladder.
+10. **Below 1024 px the shell is present but unreachable.** Measured at 1000 x 800 and
+    at 375 x 812: `[data-testid="screen-too-small"]` is present and
+    `[data-testid="app-shell"]` IS STILL IN THE DOM, carrying `inert`,
+    `aria-hidden="true"` and `visibility: hidden`. Assert unreachability, not absence:
+    an early return here used to unmount the canvas element, and widening back across
+    the boundary then produced an empty canvas under a status bar still reporting the
+    loaded dataset. That is the specified state (spec 5.2), not a render failure and
+    not a slow load -- waiting longer will not produce a usable rail. The gotcha this replaces was about Escape failing
+    to reach the narrow-overlay rung while focus sat on the rail icon that opened the
+    overlay; there are no overlays and no such rung any more, and Escape reaches
+    neither sidebar at any width.
 
 ### 1.6 How to check RENDERING, and the warning about it
 
@@ -512,10 +535,12 @@ mcp__nanobanana-mcp__gemini_chat
 
 ---
 
-### UAT-03 -- Both sidebars start locked open, and the locks show it
+### UAT-03 -- Both sidebars start shown, and the one switch shows it
 
-Product owner items 3 and 4. Departure from 6.12 recorded in `ShellContext.tsx` at
-`FIRST_VISIT_LAYOUT`, dated 2026-09-13.
+Spec 6.12, Showing and hiding the sidebars. This REPLACES the latch scenario of
+2026-09-13, which tested two `Keep open` controls that no longer exist. What survives
+of it is its question: does the shell open with both sidebars, and does the control
+that governs them draw the state it is in.
 
 **Precondition.** Viewport 1600 x 1000.
 
@@ -525,38 +550,65 @@ Product owner items 3 and 4. Departure from 6.12 recorded in `ShellContext.tsx` 
 mcp__playwright__browser_run_code_unsafe
   code: |
     async (page) => {
-      await page.click("[data-testid=\"panel-header-keep-open\"]");
-      await page.mouse.move(800, 900);   // gotcha 9: hover tints an unlatched button
-      await page.waitForTimeout(400);
-      return await page.evaluate(() => {
-        const el = document.querySelector("[data-testid=\"panel-header-keep-open\"]");
-        const cs = getComputedStyle(el);
-        return { variant: el.getAttribute("data-variant"), pressed: el.getAttribute("aria-pressed"),
-                 bg: cs.backgroundColor, label: el.getAttribute("aria-label"),
-                 stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v2")).panelKeptOpen };
+      const read = () => page.evaluate(() => {
+        const sel = "button[aria-label=\"Toggle sidebars\"]";
+        const el = document.querySelector(sel);
+        const cs = el === null ? null : getComputedStyle(el);
+        const has = (s) => document.querySelector(s) !== null;
+        return {
+          count: document.querySelectorAll(sel).length,
+          variant: el === null ? null : el.getAttribute("data-variant"),
+          pressed: el === null ? null : el.getAttribute("aria-pressed"),
+          bg: cs === null ? null : cs.backgroundColor,
+          label: el === null ? null : el.getAttribute("aria-label"),
+          panel: has("[data-testid=\"activity-panel\"]"),
+          inspector: has("[data-testid=\"inspector\"]"),
+          dead: ["panel-header-keep-open", "panel-header-close", "inspector-keep-open",
+                 "inspector-toggle"].filter((t) => has("[data-testid=\"" + t + "\"]")),
+          stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v3") ?? "{}"),
+        };
       });
+      const out = { "1 first visit": await read() };
+      await page.click("button[aria-label=\"Toggle sidebars\"]");
+      await page.mouse.move(800, 900);   // gotcha 9: hover tints an unpressed button
+      await page.waitForTimeout(400);
+      out["2 hidden"] = await read();
+      await page.keyboard.press("Control+b");
+      await page.waitForTimeout(400);
+      out["3 shown again, by the binding"] = await read();
+      return out;
     }
 ```
 
 **Expected result.**
 
 - On the fresh visit, `probe.panel` is `PRESENT x=48 ... w=280` and
-  `probe.inspector` is `PRESENT x=1320 ... w=280`. Both sidebars are open with no
-  interaction.
+  `probe.inspector` is `PRESENT x=1320 ... w=280`. Both sidebars are on screen with
+  no interaction at all, on a cleared profile.
 - `probe.panelTitle` is `Data`.
-- `probe.panelLatch` and `probe.inspectorLatch` are both
-  `light/true/bg=rgba(34, 139, 230, 0.15)` -- a tinted ground and `aria-pressed=true`.
-  A latch that reads `subtle/.../bg=rgba(0, 0, 0, 0)` while pressed is item 4
-  unfixed.
-- `probe.stored` contains `"panelKeptOpen": true` and `"inspectorKeptOpen": true`
-  under the key `graphty.shell.layout.v2`. A record under `...v1` means the storage
-  bump did not land.
-- After the click, the panel latch reads `variant: "subtle"`, `pressed: "false"` and
-  `bg: "rgba(0, 0, 0, 0)"`, and `stored` is `false`. Without the `mouse.move` the same
-  probe returns `bg: "rgba(34, 139, 230, 0.2)"` -- the hover tint, not the latch tint;
-  see gotcha 9. `variant` and `pressed` are the reliable pair.
-- The ONE word `Keep open` is the `aria-label` in both states -- a toggle never
-  renames itself (REGISTER-1.5 10.2), so a label that changed to `Unlock` is a FAIL.
+- Step 1: `count` is `1` and `dead` is `[]`. ONE control governs both sidebars, and
+  the four testids of the deleted controls select nothing (gotcha 7). A `count` of 2
+  means the mirrored pair of region switches is still drawn; a non-empty `dead` means
+  a per-surface close control survived the removal.
+- Step 1: `variant/pressed/bg` is `light/true/rgba(34, 139, 230, 0.15)` -- a tinted
+  ground and `aria-pressed=true`, because the sidebars are shown. A switch reading
+  `subtle/.../bg=rgba(0, 0, 0, 0)` while both sidebars are on screen is spec 6.14
+  unfixed: the control does not draw the state it is in.
+- Step 2: `panel` and `inspector` are BOTH `false`, `variant/pressed` is
+  `subtle/false`, and `stored` contains `"sidebarsHidden": true`. They go together;
+  one going without the other is the defect this model exists to end. Without the
+  `mouse.move` the background reads `rgba(34, 139, 230, 0.2)` -- the hover tint, not
+  the pressed tint; see gotcha 9. `variant` and `pressed` are the reliable pair.
+- Step 3: Cmd/Ctrl+B brings both back, `pressed` is `true` again and
+  `stored.sidebarsHidden` is `false`. The binding and the button are one control, not
+  two that happen to agree.
+- The ONE phrase `Toggle sidebars` is the `aria-label` in every state -- a toggle
+  never renames itself (REGISTER-1.5 10.2) -- so a label that became `Show sidebars`
+  while hidden is a FAIL.
+- `stored` holds exactly five keys: `activeActivity`, `panelWidth`, `inspectorWidth`,
+  `sidebarsHidden` and `sectionOpen`, under `graphty.shell.layout.v3`. A record under
+  `...v2`, or one carrying `panelKeptOpen`, `inspectorKeptOpen` or `inspectorOpen`,
+  means the storage bump did not land (spec 6.5a).
 
 ---
 
@@ -869,144 +921,28 @@ mcp__playwright__browser_run_code_unsafe
 
 ---
 
-### UAT-11 -- The lock sequence: locking the second surface keeps the first
+### ~~UAT-11 -- The lock sequence: locking the second surface keeps the first~~
 
-Product owner item 5, verbatim: "if I lock one panel, open the other, lock the other,
-the first one closes". Run this at **1200 x 1000**, below the 1280 narrow breakpoint,
-which is where the old narrow-exclusivity rule fired. That rule was removed for
-READER-DRIVEN latching on 2026-09-13; the departure from 6.12 and 5.2 is recorded in
-`ShellContext.tsx` at `setPanelKeptOpen`.
+**RETIRED 2026-09-14.** Ids are never renumbered, so this one is struck in place
+rather than removed. It drove two `Keep open` latches and the narrow exclusivity rule
+those latches were a veto on; spec revision 1.15 deleted both, together with every
+other mechanism that could close one sidebar without the other. The product owner's
+item 5 of 2026-09-13 -- "if I lock one panel, open the other, lock the other, the
+first one closes" -- is now answered by construction and not by a test: there is one
+control, it hides and shows both sidebars together, and no code path exists that can
+close one of them alone. What is still worth checking is checked by UAT-03.
 
-**Precondition.** Nothing loaded. Viewport set by the steps. Below 1280 a first visit
-opens NEITHER surface (`firstVisitLayout`, second pass 2026-09-13; UAT-14 is that
-scenario), so this sequence opens them itself -- which is what makes both latches the
-reader's own deliberate clicks rather than a default.
+---
 
-**Steps.**
+### ~~UAT-12 -- The control case: an UNLOCKED panel still yields below 1280~~
 
-```
-mcp__playwright__browser_run_code_unsafe
-  code: |
-    async (page) => {
-      await page.setViewportSize({ width: 1200, height: 1000 });
-      await page.evaluate(() => localStorage.clear());
-      await page.reload({ waitUntil: "load" });
-      await page.waitForTimeout(2500);
-      const probe = () => page.evaluate(() => {
-        const p = document.querySelector("[data-testid=\"panel-header-keep-open\"]");
-        const i = document.querySelector("[data-testid=\"inspector-keep-open\"]");
-        const at = (s) => {
-          const el = document.querySelector(s);
-          return el === null ? "ABSENT" : "PRESENT x=" + Math.round(el.getBoundingClientRect().x);
-        };
-        return {
-          panelLatch: p === null ? "ABSENT" : p.getAttribute("data-variant") + "/" + p.getAttribute("aria-pressed"),
-          inspLatch: i === null ? "ABSENT" : i.getAttribute("data-variant") + "/" + i.getAttribute("aria-pressed"),
-          panel: at("[data-testid=\"activity-panel\"]"),
-          inspector: at("[data-testid=\"inspector\"]"),
-          stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v2")),
-        };
-      });
-      const s = {};
-      s["0 first visit"] = await probe();
-      await page.click("[data-activity=\"data\"]");
-      await page.waitForTimeout(500);
-      s["1 panel opened"] = await probe();
-      await page.click("[data-testid=\"panel-header-keep-open\"]");
-      await page.mouse.move(800, 950);   // gotcha 9: hover tints an unlatched button
-      await page.waitForTimeout(500);
-      s["2 panel LOCKED"] = await probe();
-      await page.locator("button[aria-label=\"Toggle inspector\"]").first().click();
-      await page.waitForTimeout(700);
-      s["3 inspector opened"] = await probe();
-      await page.click("[data-testid=\"inspector-keep-open\"]");
-      await page.mouse.move(800, 950);
-      await page.waitForTimeout(500);
-      s["4 inspector LOCKED"] = await probe();
-      await page.reload({ waitUntil: "load" });
-      await page.waitForTimeout(2500);
-      s["5 after reload"] = await probe();
-      return s;
-    }
-```
+**RETIRED 2026-09-14.** It asserted that an unlatched panel gave way to the inspector
+below 1280 px -- the auto-hide the product owner removed in the same instruction
+("there will be no more auto-hide"). Below 1280 px the shell draws only "Screen too
+small" and no layout at all (spec 5.2), and at or above 1280 px no surface yields to
+another for any reason. UAT-14 covers what the boundary does now.
 
-**Expected result.** Step by step, as measured at 1200 x 1000:
-
-| step | panelLatch | inspLatch | panel | inspector |
-| --- | --- | --- | --- | --- |
-| 0 first visit | `ABSENT` | `ABSENT` | `ABSENT` | `ABSENT` |
-| 1 panel opened | `subtle/false` | `ABSENT` | `PRESENT x=48` | `ABSENT` |
-| 2 panel LOCKED | `light/true` | `ABSENT` | `PRESENT x=48` | `ABSENT` |
-| 3 inspector opened | `light/true` | `subtle/false` | `PRESENT x=48` | `PRESENT x=920` |
-| 4 inspector LOCKED | `light/true` | `light/true` | `PRESENT x=48` | `PRESENT x=920` |
-| 5 after reload | `light/true` | `light/true` | `PRESENT x=48` | `PRESENT x=920` |
-
-- The whole scenario turns on steps 3 and 4: `panel` must still be `PRESENT x=48` and
-  `panelLatch` must still be `light/true`. `panel: "ABSENT"` at step 3 or 4, or
-  `panelLatch` falling back to `subtle/false`, is item 5 unfixed.
-- `stored` at step 4 holds `"panelKeptOpen": true` and `"inspectorKeptOpen": true`
-  together. A record that can never hold both true is the old exclusivity rule still
-  in the setters.
-- Step 5 is the persistence half: both latches come back `light/true` after a reload
-  and both surfaces are on screen. A stored `false` must survive a reload too -- a
-  reader's own unlatch outranks a first-visit default (UAT-03).
-- Step 0 is the narrow first-visit default, and it is UAT-14's subject. A latch reading
-  `light/true` there is the 2026-09-13 regression and it makes the rest of this table
-  untestable, because every click below would then be unlatching rather than latching.
-
-### UAT-12 -- The control case: an UNLOCKED panel still yields below 1280
-
-This is the scenario that gives UAT-11 its meaning. It is NOT a bug and must not be
-reported as one. Spec 6.12's surface lifecycle: an unkept surface is still closed by
-the shell when another surface needs the room. The latch is what buys the exemption.
-
-**Precondition.** Viewport 1200 x 1000, nothing loaded.
-
-**Steps.**
-
-```
-mcp__playwright__browser_run_code_unsafe
-  code: |
-    async (page) => {
-      await page.setViewportSize({ width: 1200, height: 1000 });
-      await page.evaluate(() => localStorage.clear());
-      await page.reload({ waitUntil: "load" });
-      await page.waitForTimeout(2500);
-      await page.click("[data-activity=\"data\"]");   // open the panel and do NOT latch it
-      await page.waitForTimeout(500);
-      const before = await page.evaluate(() => ({
-        panel: document.querySelector("[data-testid=\"activity-panel\"]") !== null,
-        panelLatch: document.querySelector("[data-testid=\"panel-header-keep-open\"]")
-          .getAttribute("aria-pressed"),
-      }));
-      await page.locator("button[aria-label=\"Toggle inspector\"]").first().click();
-      await page.waitForTimeout(700);
-      const after = await page.evaluate(() => {
-        const i = document.querySelector("[data-testid=\"inspector\"]");
-        return {
-          panel: document.querySelector("[data-testid=\"activity-panel\"]") !== null,
-          inspector: i !== null,
-          inspectorX: i === null ? null : Math.round(i.getBoundingClientRect().x),
-          activeActivity: JSON.parse(localStorage.getItem("graphty.shell.layout.v2")).activeActivity,
-        };
-      });
-      return { before, after };
-    }
-```
-
-**Expected result.**
-
-- `before.panel` is `true` and `before.panelLatch` is `"false"`: the panel is open and
-  UNLATCHED, which is the whole premise. An opened panel that latches itself would make
-  this scenario a duplicate of UAT-11.
-- `after.panel` is `false`, `after.inspector` is `true`, `after.inspectorX` is `920`,
-  and `after.activeActivity` is `null`. An UNLOCKED panel gives way to the inspector
-  below 1280, and the shell records that the panel is closed.
-- Compare with UAT-11 step 3, where the only difference is the latch and the panel
-  survives. If BOTH scenarios keep the panel, the shell has stopped reclaiming room
-  from unkept surfaces, which is a different defect.
-- At 1600 x 1000 this scenario does not apply at all: there is room for both and
-  neither closes.
+---
 
 ### UAT-13 -- The loaded graph renders
 
@@ -1098,119 +1034,159 @@ the label positions off the screenshot and crop tightly around each word.
 
 ---
 
-### UAT-14 -- A narrow first visit leaves the reader a canvas
+### UAT-14 -- The first visit at five widths: two lay out, three do not
 
-Product owner items 3 and 6 at the place where they collide. Item 3 latched both
-sidebars open by default; item 6 gave Welcome its own sheet but left it centred in the
-FULL canvas rect. Below the 1280 breakpoint both sidebars are 280 px OVERLAYS over a
-canvas that is never resized under them, and 6.12 makes a latch a veto on every close
-the shell performs as a side effect -- so a default that latched both produced a screen
-with no canvas and no way out. The fix is `firstVisitLayout(shellWidth)` in
-`ShellContext.tsx` (second pass, 2026-09-13): at or above the breakpoint the first visit
-latches both surfaces, and below it the first visit opens neither and spends no latch the
-reader did not ask for. Spec 6.12 and 5.2 are the authority; the amendment is recorded in
-the design document's 6.12 and in section 13 under 1.12.
+Spec 5.2 and 6.12, and section 10's check 2. This REPLACES the width-aware latch
+default of 2026-09-13, which this scenario used to be the acceptance test for. It
+keeps the two questions that mattered -- what does a first-time reader get at each
+width, and can they always reach the control that governs it -- and answers them
+against a shell that has one layout, one control and one boolean.
 
-**Precondition.** Nothing loaded. Each viewport starts from its own RESET, so the reset
-happens AFTER the resize -- a reset at 1600 followed by a resize to 1024 tests a
-remembered layout, not a first visit, and will pass while the defect is present.
+**Precondition.** Nothing loaded. Each viewport starts from its own RESET, so the
+reset happens AFTER the resize -- a reset at 1600 followed by a resize to 1024 tests
+a remembered layout, not a first visit, and will pass while a defect is present.
 
-**Steps.** Run once per viewport in `[[1024, 900], [600, 900], [375, 812]]`.
+**Steps.** Run once per viewport in `[[1440, 900], [1280, 900], [1024, 900],
+[1000, 800], [375, 812]]`. Steps 2 to 5 apply only at the three widths that lay out.
 
 ```
 mcp__playwright__browser_run_code_unsafe
   code: |
     async (page) => {
-      await page.setViewportSize({ width: 1024, height: 900 });
+      await page.setViewportSize({ width: 1440, height: 900 });
       await page.evaluate(() => localStorage.clear());
       await page.reload({ waitUntil: "load" });
       await page.waitForTimeout(2500);
       const probe = () => page.evaluate(() => {
+        const q = (s) => document.querySelector(s);
         const box = (s) => {
-          const el = document.querySelector(s);
+          const el = q(s);
           if (el === null) return "ABSENT";
           const r = el.getBoundingClientRect();
-          return "x=" + Math.round(r.x) + " right=" + Math.round(r.right) + " w=" + Math.round(r.width);
+          return "x=" + Math.round(r.x) + " y=" + Math.round(r.y) +
+                 " right=" + Math.round(r.right) + " bottom=" + Math.round(r.bottom) +
+                 " w=" + Math.round(r.width);
         };
-        const sheet = document.querySelector("[data-canvas-welcome-sheet]");
-        const panel = document.querySelector("[data-testid=\"activity-panel\"]");
-        const insp = document.querySelector("[data-testid=\"inspector\"]");
+        const sw = q("button[aria-label=\"Toggle sidebars\"]");
+        const sheet = q("[data-canvas-welcome-sheet]");
+        const panel = q("[data-testid=\"activity-panel\"]");
+        const insp = q("[data-testid=\"inspector\"]");
         const covered = sheet === null ? null : (() => {
           const s = sheet.getBoundingClientRect();
           const left = panel === null ? 0 : panel.getBoundingClientRect().right;
           const right = insp === null ? window.innerWidth : insp.getBoundingClientRect().x;
           return Math.round(Math.max(0, left - s.x)) + "/" + Math.round(Math.max(0, s.right - right));
         })();
+        const hit = sw === null ? null : (() => {
+          const r = sw.getBoundingClientRect();
+          const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return top === null ? "NONE" : (sw.contains(top) ? "THE SWITCH" : top.tagName + "." + top.className);
+        })();
         return {
           viewport: window.innerWidth + "x" + window.innerHeight,
+          shell: box("[data-testid=\"app-shell\"]"),
+          tooSmall: box("[data-testid=\"screen-too-small\"]"),
+          heading: q("[data-testid=\"screen-too-small\"] h1")?.textContent ?? null,
+          detail: q("[data-testid=\"screen-too-small\"]")?.innerText.split("\n")[1] ?? null,
           panel: box("[data-testid=\"activity-panel\"]"),
           inspector: box("[data-testid=\"inspector\"]"),
+          switchBox: box("button[aria-label=\"Toggle sidebars\"]"),
+          switchPressed: sw === null ? null : sw.getAttribute("aria-pressed"),
+          switchHit: hit,
           sheet: box("[data-canvas-welcome-sheet]"),
-          heading: document.querySelector("[data-canvas-welcome-sheet] h1")?.textContent ?? null,
           covered,
-          stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v2")),
+          stored: JSON.parse(localStorage.getItem("graphty.shell.layout.v3") ?? "{}"),
         };
       });
       const out = { "1 first visit": await probe() };
-      await page.click("[data-activity=\"data\"]");
-      await page.waitForTimeout(500);
-      out["2 panel opened by the reader"] = await probe();
+      if (await page.locator("[data-testid=\"app-shell\"]").count() === 0) return out;
       await page.click("[data-shell-region=\"canvas\"]", { position: { x: 400, y: 400 } });
-      await page.waitForTimeout(500);
-      out["3 canvas tapped"] = await probe();
+      await page.waitForTimeout(400);
+      out["2 canvas tapped"] = await probe();
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(400);
+      out["3 Escape pressed"] = await probe();
+      await page.click("button[aria-label=\"Toggle sidebars\"]");
+      await page.mouse.move(800, 860);
+      await page.waitForTimeout(400);
+      out["4 sidebars hidden"] = await probe();
+      await page.keyboard.press("Control+b");
+      await page.waitForTimeout(400);
+      out["5 sidebars shown by the binding"] = await probe();
       return out;
     }
 ```
 
-**Expected result.** Step 1, the first visit, as measured at each viewport:
+**Expected result.** Step 1, the first visit, at each viewport:
 
-| viewport | panel | inspector | sheet | covered L/R |
-| --- | --- | --- | --- | --- |
-| 1024 x 900 | `ABSENT` | `ABSENT` | `x=219 right=853 w=634` | `0/0` |
-| 600 x 900 | `ABSENT` | `ABSENT` | `x=48 right=600 w=552` | `0/0` |
-| 375 x 812 | `ABSENT` | `ABSENT` | `x=48 right=375 w=327` | `0/0` |
+| viewport | shell | tooSmall | panel | inspector | switchPressed |
+| --- | --- | --- | --- | --- | --- |
+| 1440 x 900 | `PRESENT` | `ABSENT` | `x=48 ... w=280` | `x=1160 ... w=280` | `true` |
+| 1280 x 900 | `PRESENT` | `ABSENT` | `x=48 ... w=280` | `x=1000 ... w=280` | `true` |
+| 1024 x 900 | `PRESENT` | `ABSENT` | `x=48 ... w=280` | `x=744 ... w=280` | `true` |
+| 1000 x 800 | `HIDDEN` | `PRESENT` | -- | -- | `null` |
+| 375 x 812 | `HIDDEN` | `PRESENT` | -- | -- | `null` |
 
-- `covered` is `0/0` at every width. That is the whole scenario: not one pixel of the
-  Welcome sheet is under a sidebar, because there is no sidebar to be under. Any non-zero
-  number here on a FIRST visit is the regression.
-- `heading` is the complete string `Open a graph to get started`. It is in the DOM even
-  when it is covered, which is why `covered` and not the heading is the assertion -- the
-  defect rendered as "aph to get started" on screen while this field read in full.
-- `stored` holds `"activeActivity": null`, `"inspectorOpen": false`,
-  `"panelKeptOpen": false` and `"inspectorKeptOpen": false`. A stored latch of `true`
-  below 1280 on a first visit is the defect, whatever the boxes say.
-- The sheet shrinks with the viewport (`maxWidth: 100%`): 634 at 1024, 552 at 600, 327 at
-  375 -- its 600 px content band plus 2 x 16 padding and two hairlines where there is
-  room for it, and the canvas width where there is not. A sheet still 634 px wide at 375
-  would be overflowing the canvas.
+- Both sidebars are drawn on a FIRST visit at all three layout widths, and
+  `stored.sidebarsHidden` is `false`. There is no width-aware default any more: the
+  same boolean with the same default governs 1024, 1280 and 1440 alike. A first visit
+  that differs between them is spec 6.12 unfixed.
+- The inspector's right edge is the window's, so its `x` is the viewport width minus
+  280: 1160 at 1440, 1000 at 1280, 744 at 1024. The canvas between them is 672 px at
+  1280 and 416 px at 1024. 416 is BELOW the 520 px clamp of spec 5.1 and that is not a
+  failure: the clamp bounds a sidebar DRAG, never the viewport (spec 5.2).
+- **1024 is inclusive.** At exactly 1024 the shell lays out. A run that reports the
+  too-small state at 1024 is an off-by-one in the comparison, not a resize that did
+  not take -- re-read `probe.viewport` before reporting it.
+- At the two narrow widths `heading` is exactly `Screen too small` and `detail` is
+  exactly `Graphty needs a window at least 1024 pixels wide.` `shell` reads `HIDDEN`
+  rather than `ABSENT`: the frame is still in the DOM, carrying `inert`,
+  `aria-hidden="true"` and `visibility: hidden` (gotcha 10). Assert those three
+  attributes, not absence.
+- **The round trip is part of this scenario.** After the 375 run, resize back to
+  1440 WITHOUT reloading and confirm the shell lays out again. Then load a sample,
+  resize to 1000, resize back to 1440, and confirm the graph is STILL DRAWN -- the
+  canvas must not come back empty under a status bar that still reports its node
+  count. That regression shipped once, on 2026-09-15, and only a resize round trip
+  catches it.
+- `covered` is `0/0` at both layout widths. The sidebars are docked columns that
+  resize the canvas rather than overlays over it (spec 5.1), so the canvas rect
+  excludes them and the Welcome sheet centred in it cannot be under one. A non-zero
+  number here means a sidebar is being drawn as an overlay again.
 
-Steps 2 and 3 are the other half -- the reader is not trapped by their own click:
+Steps 2 to 5 are the dismissal guarantee and the removal of auto-hide, checked rather
+than assumed. They run only at 1440 and 1280:
 
-- Step 2: the panel is `PRESENT x=48`, its latch reads `subtle/false`, and at 1024
-  `covered` becomes `109/0`. A surface the reader opened does cover part of the sheet;
-  what matters is that it is dismissible.
-- Step 3: after a tap on the canvas the panel is `ABSENT` again, `covered` is back to
-  `0/0`, and `stored.activeActivity` is `null`. Escape does the same thing, but only
-  once focus has left the rail icon -- gotcha 10.
-- At 1600 x 1000 this scenario does not apply: both surfaces are latched open by default
-  (UAT-03), neither is an overlay, and `covered` is `0/0` because the canvas rect
-  excludes them.
+- Step 2, a canvas tap: `panel` and `inspector` are UNCHANGED. Nothing closes on a
+  canvas tap at any width. This is the clause the product owner reported as a bug on
+  2026-09-12 ("when I click to select a node in the graph it closes the right
+  panel"), and it is now true by construction rather than by an exception.
+- Step 3, Escape: `panel` and `inspector` are UNCHANGED. Escape reaches neither
+  sidebar at any width (spec 5.6; the old third rung is gone).
+- Step 4: BOTH sidebars are `ABSENT`, `switchPressed` is `false`, and
+  `stored.sidebarsHidden` is `true`. One press, both surfaces.
+- Step 5: both are back and `switchPressed` is `true`. The binding reaches the same
+  control the button does.
+- At every one of steps 1 to 5 at both layout widths, `switchBox` lies inside the top
+  bar -- `y=0` and `bottom` at or under `40` -- and `switchHit` is `THE SWITCH`. That
+  is the dismissal guarantee made checkable: the top bar is the grid row ABOVE the
+  body row, so nothing the panel, the canvas or the inspector draws can cover the one
+  control that governs them. A `switchHit` naming some other element is the guarantee
+  failing, whatever the boxes say.
 
-> **Regression signature, measured on the pre-fix build on 2026-09-13.** At 1024 x 900
-> on a genuine first visit: panel `x=48 right=328`, inspector `x=744 right=1024`, sheet
-> `x=219 right=853`, `covered` `109/109`, both latches `light/true`, and both Escape and
-> a canvas tap refused -- `closeNarrowOverlay` vetoes a LATCHED overlay, so with both
-> latched it could only ever return false. At 600 x 900 the panel took `[48, 328]` and
-> the inspector `[320, 600]` against a canvas of `[48, 600]`, and at 375 x 812 `[48,
-> 328]` and `[95, 375]` against `[48, 375]`: the two overlays covered the canvas end to
-> end and overlapped each other, so the sheet under them showed nothing at all. If a run
-> reproduces any of that, report `UAT-14 FAIL` and quote the `covered` pair.
-
-A residual that is NOT this scenario's subject, recorded so it is not re-reported as one:
-the sheet is centred in the full canvas rect, so a surface the reader opens below 1280
-still overlaps it. Measured at 1200 x 1000 with both surfaces opened and latched by hand
-(UAT-11 step 4), each covers 21 px of the sheet -- its 16 px padding plus the hairline
-plus 4 px of the content band. The fix removed the default; it did not move the sheet.
+> **What this scenario used to be, kept because the failure it recorded is the reason
+> the model changed.** Until 2026-09-14 the shell had a second layout below 1280 px in
+> which both sidebars were 280 px overlays over a canvas that was never resized under
+> them, and a `Keep open` latch on each that vetoed every close the shell performed.
+> Measured on the pre-fix build at 1024 x 900 on a genuine first visit: panel
+> `x=48 right=328`, inspector `x=744 right=1024`, sheet `x=219 right=853`, `covered`
+> `109/109`, both latches `light/true`, and both Escape and a canvas tap refused. At
+> 600 x 900 the two overlays took `[48, 328]` and `[320, 600]` against a canvas of
+> `[48, 600]`, and at 375 x 812 `[48, 328]` and `[95, 375]` against `[48, 375]` --
+> covering the canvas end to end, overlapping each other, and showing nothing of the
+> sheet beneath them. The first repair was a width-aware default; the second was
+> deleting the layout. If a run ever reproduces a sidebar below 1280 px, report
+> `UAT-14 FAIL` and quote `probe.shell` and `probe.tooSmall`.
 
 ---
 
@@ -1391,7 +1367,7 @@ the product blamed. Selectors drift; the table in section 4 is the place to repa
 them.
 
 A full pass of UAT-01 through UAT-14 against the app takes about twelve minutes of wall
-time, most of it the waits in gotcha 3. UAT-15 and UAT-16 run against Storybook (1.7),
+time, most of it the waits in gotcha 3; UAT-11 and UAT-12 are retired and are not run. UAT-15 and UAT-16 run against Storybook (1.7),
 add about a minute, and need no preview build -- they can be run on their own when only
 the compact theme or a story has changed.
 
@@ -1403,10 +1379,19 @@ Which scenarios answer which of the seven items the product owner reported on
 | 1, component sizes do not vary | UAT-15 |
 | 2, filled icons are not filled | UAT-16 |
 | 3, sidebars locked open by default | UAT-03, UAT-14 |
-| 4, the locks do not show their state | UAT-03, UAT-11 |
-| 5, locking one surface closed the other | UAT-11, UAT-12 |
+| 4, the locks do not show their state | UAT-03 |
+| 5, locking one surface closed the other | UAT-11 and UAT-12, both RETIRED 2026-09-14 |
 | 6, Welcome unreadable on the canvas | UAT-01, UAT-02, UAT-13, UAT-14 |
 | 7, this suite | every scenario |
+
+Items 3, 4 and 5 were answered on 2026-09-13 by a pair of `Keep open` latches, and
+that answer was SUPERSEDED on 2026-09-14: the product owner's "our panel open /
+closed / autohide is a confusing nightmare" removed the latches, the per-surface
+close controls and the narrow layout together, and one `Toggle sidebars` switch
+replaced all of it (spec 6.12). The rows above name the scenarios that test the
+replacement. Item 5 cannot recur by construction -- there is no code path that closes
+one sidebar without the other -- which is why its two scenarios are retired rather
+than rewritten.
 
 ---
 
@@ -1421,13 +1406,8 @@ Everything the scenarios depend on, in one place.
 | activity rail button | `[data-activity="data" \| "explore" \| "analyze" \| "style" \| "present" \| "ai" \| "settings" \| "help"]`, carries `aria-pressed` |
 | activity panel | `[data-testid="activity-panel"]`, content `[data-testid="activity-panel-content"]` |
 | panel title | `[data-testid="panel-header-title"]` |
-| panel latch | `[data-testid="panel-header-keep-open"]`, `aria-label="Keep open"` |
-| panel close | `[data-testid="panel-header-close"]` |
-| inspector | `[data-testid="inspector"]` |
-| inspector kind / name | `[data-testid="inspector-kind"]`, `[data-testid="inspector-header-name"]` |
-| inspector latch | `[data-testid="inspector-keep-open"]` |
-| inspector toggle (header) | `[data-testid="inspector-toggle"]` |
-| inspector toggle (top bar) | `button[aria-label="Toggle inspector"]` without a testid |
+| sidebars switch (top bar) | `button[aria-label="Toggle sidebars"]`, carries `aria-pressed` and `data-variant`, no testid; the ONE control for both sidebars |
+| the too-small state | `[data-testid="screen-too-small"]`, the only thing drawn below 1280 px |
 | graph summary reading | `[data-testid="graph-summary-reading"]` |
 | result layer chip | `[data-testid="result-layer"]` |
 | style layer list | `[data-testid="style-layers"]` |
@@ -1441,7 +1421,7 @@ Everything the scenarios depend on, in one place.
 | status bar slot | `[data-status-slot="counts" \| "layout"]` |
 | canvas toolbar | `[data-testid="canvas-toolbar"]` |
 | command palette | `[data-testid="command-palette"]`, opened with `Control+k` |
-| persisted layout | `localStorage["graphty.shell.layout.v2"]` |
+| persisted layout | `localStorage["graphty.shell.layout.v3"]`, exactly five keys: `activeActivity`, `panelWidth`, `inspectorWidth`, `sidebarsHidden`, `sectionOpen` |
 | persisted canvas / insights | `localStorage["graphty.shell.canvas.v1"]`, `["graphty.shell.insights.v1"]` |
 
 And for the two Storybook scenarios (1.7), which reach none of the above:

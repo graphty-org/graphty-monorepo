@@ -107,9 +107,9 @@ six-field rule for placing any new capability.
 ### 5.1 Layout
 
 ```
-Desktop (>= 1280 px wide)
+The one layout (>= 1024 px wide; below that, section 5.2)
 +---------------------------------------------------------------------+
-|  top bar: dataset name | undo redo | cmd-K | export v | compare | share | panel | inspector |
+|  top bar: dataset name | undo redo | cmd-K | export v | compare | share | sidebars |
 +----+----------------+------------------------------+----------------+
 | R  |  Activity      |                              |  Inspector     |
 | A  |  panel         |         canvas               |                |
@@ -150,14 +150,18 @@ Regions:
 - Activity rail. Fixed 48 px column on the left edge, starting below the top
   bar. Icons top to bottom:
   Data, Explore, Analyze, Style, Present, AI. Pinned at the bottom: Settings,
-  Help. One activity is active at a time. Clicking the active icon closes its
-  panel. The Data icon carries an unnumbered warning dot when the validation
+  Help. One activity is active at a time. The rail is a pure activity CHOOSER: a
+  click on the already-active icon does NOT close its panel (struck 2026-09-14;
+  6.12, Showing and hiding the sidebars, records the departure and flags it), and
+  a click on any icon while the sidebars are hidden brings both back and draws
+  that panel. The Data icon carries an unnumbered warning dot when the validation
   report has warnings; the count belongs to the status bar chip, which owns it
   (One fact, one region, below; section 5.3, Data). The Present icon carries a
   badge counting pinned items plus unresolved notes.
 - Activity panel. 280 px wide, opens to the right of the rail. Content depends
-  on the active activity (section 5.3). Resizable on desktop. Activity panels
-  never float; the only remembered layout state is widths and collapse. Each
+  on the active activity (section 5.3). Resizable. Activity panels never float;
+  the only remembered layout state is the two widths and the one boolean that
+  hides both sidebars (6.12). It has no close control of its own. Each
   panel header's overflow menu offers "Expand all sections" and "Collapse all
   sections"; alt-click on any section or card header applies the toggle to
   every sibling in that panel.
@@ -299,22 +303,27 @@ Regions:
     false) so the legend owns the bottom-right corner and the shell owns VR
     and AR entry (section 5.6).
 - Inspector. 280 px wide, right edge. Content depends on selection
-  (section 5.4). Collapsible.
+  (section 5.4). Drawn whenever the sidebars are shown, and with no collapse
+  control of its own since 2026-09-14 (6.12).
 - Top bar. 40 px. Left: dataset name. Center: undo, redo, command palette
   trigger. Right: an Export button that opens a two-item menu (Image, Data,
-  both landing in the Present panel), a Compare toggle next to the inspector
-  toggle (enters Compare mode, section 5.3, Analyze), a Share button that
+  both landing in the Present panel), a Compare toggle next to the sidebars
+  switch (enters Compare mode, section 5.3, Analyze), a Share button that
   opens a menu (Export data with a CX2 or GraphML preset, Copy image, both
   landing in Present; its tooltip names NDEx upload as a later phase, section
-  11; the button is never drawn without this menu), then the two region
-  switches: panel toggle, inspector toggle.
-  The panel's switch is an amendment of 2026-09-12, at the product owner's
-  direction ("the right panel has an open / close button, but the left
-  doesn't"): the two switches are a PAIR, drawn the same and lit the same, in
-  the order the regions sit on screen, and the panel's runs the same Cmd+B the
-  panel header's X already advertises. Before it, the panel could be closed
-  from its own X and reopened only from the rail, whose icons choose an
-  activity rather than show or hide the column.
+  11; the button is never drawn without this menu), then ONE switch for both
+  sidebars, titled `Toggle sidebars`.
+  That one switch replaced a mirrored PAIR -- a panel toggle beside an inspector
+  toggle -- on 2026-09-14, at the product owner's direction ("there is one button
+  to hide / show both at the same time and not individual buttons"). It keeps one
+  verb in both states (6.8), reports `aria-pressed` while the sidebars are on
+  screen (6.14), and carries the one binding, Cmd/Ctrl+B, which was the panel
+  switch's already. It is the whole of the show-and-hide model, and 6.12's
+  Showing and hiding the sidebars owns it. The pair it replaced was itself an
+  amendment of 2026-09-12 ("the right panel has an open / close button, but the
+  left doesn't"), made because the panel could be closed from its own X and
+  reopened only from the rail; both halves of that problem are gone, since
+  neither sidebar has a close control of its own any more.
   There is no saved or unsaved indicator, because there is no project save in
   this pass. The hamburger menu in the current TopMenuBar is removed. File
   actions move to the Data panel, view toggles to the canvas toolbar
@@ -434,76 +443,89 @@ region that owns it.
 | File name | the top bar | the Loaded data first row |
 | Mapping | one Loaded data line with one Change | a second mapping line and its duplicate Change |
 
-### 5.2 Narrow screens (iPad with Magic Keyboard)
+### 5.2 Below 1024 px: too small to lay out
 
-Breakpoint: below 1280 px.
+Minimum width: 1024 px. There is one layout and it is 5.1's.
 
-- The rail and canvas are always visible.
-- The activity panel overlays the canvas from the left. The inspector overlays
-  from the right. Only one overlay is open at a time. Opening one closes the
-  other, unless the other is KEPT OPEN (6.12), in which case the newly opened
-  surface takes the dismissible slot and the kept one stays; at most one
-  surface may be kept open below 1280 px, so the rule still leaves a graph to
-  read. The Data table drawer overlays the canvas from the bottom, coexists
-  with the inspector, and closes the activity panel.
-- Overlays close on Escape, on tapping the canvas, or on clicking the active
-  rail icon -- and a kept-open overlay closes on none of those three, only on
-  its own close control (6.12). Tapping the canvas toolbar is not tapping the
-  canvas: the toolbar is drawn inside the canvas element, and without this
-  clause a tap on Zoom to fit would dismiss the panel the user is working in.
-  Neither is a tap that SELECTS a node or an edge: that tap is the one that
-  fills the inspector, and dismissing the inspector on it makes a selection
-  impossible to explore -- which is what it did until this clause was written
-  on 2026-09-12, at the product owner's direction ("when I click to select a
-  node in the graph it closes the right panel"). A tap that selects is told
-  from a tap on empty space by what the pick produced, which the element
-  reports before the tap is handled; a tap that clears the selection is a tap
-  on the canvas and dismisses as before.
-- A pop-out (6.11) is a second sheet over its panel at full panel width with a
-  back chevron in its header, so the one-overlay-at-a-time rule holds. The
-  anchor rule of 6.11 does not apply below 1280 px and is not approximated: a
-  sheet has no gap axis and no shared edge line, and its opener is not on
-  screen behind it, so the back chevron and the header title carry the whole
-  relationship. What does carry over is the opener's identity -- the header
-  names the opener exactly as the desktop pop-out's title does, the opener is
-  lit again when the sheet is dismissed, and the sheet closes on the same
-  events as the pop-out (Escape, the opener's section collapsing, the region
-  changing activity). A confirm or a cost gate is a sheet here too, never a
-  floating card over the canvas.
-- Overlays are the same width as on desktop (280 px). The canvas is not
-  resized under them.
-- The status bar and top bar persist. The Insights strip narrows to a single
-  row of chips. The time slider keeps full width.
-- Touch targets are not enlarged. Trackpad and keyboard are the primary
-  inputs. Touch works but is secondary. Touch gestures are listed in 5.6.
-- The iPad render ceiling (Settings > Performance) is lower than desktop.
-  Above it the Import options dialog defaults to a subset load and warns:
-  "This file has 1,000,000 nodes. On iPad, graphty can show about 50,000 of
-  them smoothly and may run out of memory with more. Open it on a desktop
-  for the full graph, or continue anyway." The Insights strip chip row above
-  the threshold is the fixed cheap set (7.3). The canvas toolbar's Zoom
-  to selection button is enabled while a selection exists, so the action is
-  reachable with the inspector open.
-- The canvas toolbar needs no special case here, which is the best evidence
-  its placement is right: overlays do not resize the canvas, so the rect stays
-  1132 px wide and the bar centres on it. At its 274 px narrow width its edges
-  land 149 px clear of a 280 px panel overlay on the left and 149 px clear of
-  a 280 px inspector overlay on the right, with either overlay open or both
-  closed. Its lower edge sits 36 px above the window bottom, above the status
-  bar and clear of the iPadOS home indicator. The 149 px is this width's
-  measurement and not a general clearance, which a later section read it as: the
-  clearance is `(window - 322) / 2 - 280`, so it reaches zero at 882 px and is
-  negative below that, and 6.13 orders the canvas transient against the region
-  overlay rather than relying on geometry that holds only here.
-- Below 1280 px a pinned inspector card (section 5.4) is a second tab of the
-  inspector overlay.
-- Below 1280 px, activating a row whose defined behaviour is "selects and
-  centers the target and shows it in the inspector" -- a search result, a
-  result-table row, a path step, a note row, a Matches row -- closes the panel
-  overlay and opens the inspector overlay on that target. A back affordance in
-  the inspector header returns to the panel with its list state and scroll
-  position intact. Without this the one path the row exists for costs an extra
-  interaction, because the inspector the row points at is not on screen.
+Below 1024 px the shell does not lay out at all. It draws one centred state -- the
+heading "Screen too small" over the line "Graphty needs a window at least 1024
+pixels wide." -- and nothing else is REACHABLE: no rail, no activity panel, no
+canvas, no inspector, no status bar, no overlays and no docks. The line names the
+number rather than leaving a reader to resize by guesswork.
+
+The shell behind that state stays MOUNTED, hidden and inert, and this is a
+requirement rather than an implementation note. Drawing the too-small state
+INSTEAD of the shell unmounts the canvas element with it, so widening back across
+the boundary mounts a fresh render surface holding no graph while the shell still
+reports the dataset it loaded: measured 2026-09-15 against the built app, a resize
+to 1100 and back left an empty canvas under a status bar still reading "20 nodes
+29 edges". A reader who narrows a window and widens it again has not asked to lose
+their graph. (`AppShell.tsx`, the `screenTooSmall` overlay over the still-mounted
+frame, both after every hook so the hook order survives a resize across the
+boundary; `constants.ts`, `SCREEN_TOO_SMALL_TITLE`, `screenTooSmallDetail` and
+`SCREEN_TOO_SMALL_Z_INDEX`.)
+
+The minimum was 1280 px from 2026-09-14 to 2026-09-15, when the product owner met
+the too-small state on an iPad that "actually works fine with the sidebars" and
+asked for that size and larger. 1024 px is the landscape width of every modern
+iPad, so it admits the family rather than one model. At 1024 the arithmetic is 48
+rail + 280 panel + 280 inspector, leaving a 416 px canvas -- narrow, but a real
+canvas that nothing covers, which is what the deleted overlay layout could not
+produce at this width. 416 is below the 520 px canvas clamp of 5.1 and the two do
+not contradict: that clamp bounds how far a reader may DRAG a sidebar, and has
+never governed what the viewport itself hands over. Portrait iPads (768 to 834 px)
+remain below the minimum.
+
+This section used to specify a second, narrower layout, and every clause of it was
+deleted on 2026-09-14 at the product owner's direction: "there will be no more
+auto-hide. below 1280 should just say 'screen too small' or something similar."
+(The number moved to 1024 the next day; see above.) What went, so that a reader of an older revision knows what is no longer true: the
+activity panel and the inspector as 280 px overlays over a canvas that was never
+resized under them; the one-overlay-at-a-time rule and its kept-open carve-outs;
+the width-aware first-visit default; dismissal on a canvas tap and on Escape's
+third rung, together with the tap-that-selects exception written for it on
+2026-09-12; the sheet form of a pop-out and of a confirm; the pinned inspector card
+as a second tab; the row activation that closed the panel and opened the inspector
+on its target; the Data table drawer closing the panel; and the iPad render ceiling
+with its Import options copy. None of it exists in the build and none of it is
+specified any more.
+
+Why the whole layout went rather than the parts that misbehaved, and the
+measurement is this document's own -- the deleted 6.12 recorded it, and it is kept
+here because it is the reason. At 1024 x 900 the two overlays took [48, 328] and
+[744, 1024] while the Welcome sheet spanned [219, 853], so 109 px of the sheet sat
+under each overlay and its heading rendered on screen as "aph to get started". At
+600 x 900 the overlays took [48, 328] and [320, 600] against a canvas of [48, 600].
+At 375 x 812 they took [48, 328] and [95, 375] against [48, 375], covering the
+canvas end to end and overlapping each other, so nothing of the sheet beneath them
+showed at all. A layout that cannot show the graph it exists to show is not a
+layout, and the mechanisms that arranged which half of it to hide were spent
+arranging a screen nobody could work on. Saying "screen too small" is the
+honest form of the same fact and costs one sentence.
+
+Two consequences, because each answers a question this section used to answer:
+
+- The defect the 2026-09-12 tap-that-selects clause was written for ("when I click
+  to select a node in the graph it closes the right panel") cannot recur at any
+  width, because no canvas tap closes any surface at any width. That clause is
+  deleted as SATISFIED, not as overruled.
+- The dismissal guarantee (6.12) gets easier rather than harder to meet. The two
+  sidebars are docked columns that resize the canvas (5.1) and are never surfaces
+  drawn over it, so they are outside the guarantee's set; and the one control that
+  hides and shows them sits in the top bar, which is the grid row above the body
+  row and cannot be covered by anything the body row draws.
+
+Clauses elsewhere in this document that specify narrow-screen behaviour are
+DORMANT. They describe a breakpoint the shell no longer has, nothing may be built
+from them, and they are left in place with their reasoning rather than cut out of
+sections they are woven into. The set is closed and is listed here so a later pass
+does not have to hunt for it: 5.6's narrow canvas toolbar variant (274 x 40) and
+its 650 px reflow threshold; 6.7's tap-only info circle; 6.8 point 3's larger icon
+form; 6.11's sheet form for a pop-out and its clause that the desktop anchor rules
+are not approximated below 1280; 6.13's region-overlay rung (its composition pair
+below 882 px is not dormant but DELETED, since the pair needed an overlay); and
+6.15's narrow-sheet case. Each is marked where it sits, and if the minimum width
+ever moves, they are where to start.
 
 ### 5.3 Activities and capability homes
 
@@ -3408,16 +3430,18 @@ Header: a pin icon appears whenever a node, edge, selection or result is
 shown. Pinning freezes a copy of the current content as card A above the
 live content; the live content continues to follow the selection and its
 numeric rows show a delta against A. One pin at a time; unpin from the card
-or on data reload. Below 1280 px the pinned card is a second tab of the
-inspector overlay.
+or on data reload.
 
-What this pin is NOT: it is not the "Keep open" latch that sits beside it in
-the same header. The pin holds the CONTENT -- a frozen reading to compare the
-live one against -- and the latch holds the SURFACE on screen. They are two
-objects with two words and two drawings (the pushpin and a padlock), and
-6.12's "The latch" owns the second; this section owns only the first. The
-inspector is otherwise a pure function of the selection, and the latch is the
-one thing that decides whether the column is drawn at all.
+What this pin is NOT: it is not a control over the SURFACE. Until 2026-09-14 a
+`Keep open` padlock sat beside it in this same header and held the inspector on
+screen, and this paragraph existed to keep the two apart -- one holds content, the
+other held the surface. That latch and every other per-surface open or close
+control were deleted whole (6.12, Showing and hiding the sidebars), and what
+decides whether the inspector column is drawn at all is now one switch in the top
+bar that draws both sidebars or neither. The distinction outlives its other half:
+the pin holds the CONTENT, a frozen reading to compare the live one against, and
+nothing in this header holds the surface. The inspector is otherwise a pure
+function of the selection.
 
 | Selection | Inspector shows |
 |---|---|
@@ -3594,7 +3618,7 @@ container radius concentric at 7. The width follows:
 pad  seg  div     zoom group    div  views pad
 ```
 
-Below 1280 px, 6.8 point 3 already mandates the larger form for any icon that
+Below 1280 px (dormant, 5.2), 6.8 point 3 already mandates the larger form for any icon that
 is the sole path to a capability, so the responsive rule falls out of the icon
 rule rather than being invented here: items 32, segmented 68, Views 40,
 dividers and gaps unchanged, giving 3 + 68 + 12 + (32*4 + 2*3) + 12 + 40 + 3 +
@@ -3755,8 +3779,7 @@ Browser shortcuts are never overridden.
 | Selection | Escape | The ladder below |
 | Panels | Cmd/Ctrl+K | Command palette |
 | Panels | / | Focus Explore search |
-| Panels | Cmd/Ctrl+B | Toggle the activity panel |
-| Panels | D | Toggle inspector |
+| Panels | Cmd/Ctrl+B | Toggle both sidebars, together (6.12) |
 | Panels | M; L | Toggle minimap; toggle legend |
 | Panels | T | Toggle the time slider (when a Time role is assigned) |
 | Panels | Shift+T | Toggle the Data table drawer |
@@ -3802,13 +3825,14 @@ the topmost transient: context menu, popover, pinned or unpinned pop-out,
 palette, dialog, and -- named here 2026-09-13, because 6.12 had already ruled
 them transients a reader opens and returns from while this rung's list did not
 carry them -- the Help menu, the keyboard shortcuts reference and Settings,
-returning focus to the opener that produced it; 3 on narrow screens close the overlay panel or inspector;
-4 pause time slider playback; 5 clear the selection and the selected style
-layer; 6 nothing. Escape never closes the desktop activity panel and never
-leaves XR.
+returning focus to the opener that produced it; 3 pause time slider playback;
+4 clear the selection and the selected style layer; 5 nothing. Escape never
+closes either sidebar, at any width, and never leaves XR. The ladder had SIX
+rungs until 2026-09-14: the old rung 3 closed whichever narrow overlay was
+open, and it went with the narrow layout itself (5.2), leaving five.
 
 Two things about this ladder that 1.14 states so a dispatcher author cannot pick one
-of them and drop the other. Its six rungs are selected by what is OPEN and never by
+of them and drop the other. Its five rungs are selected by what is OPEN and never by
 where focus sits, which is 6.12's dismissal guarantee. And where focus IS inside a
 field, two stages of 6.15(4) run BEFORE rung 1 -- abandon that field's uncommitted
 edit, then clear its incremental query where the field's surface merely contains it --
@@ -4541,7 +4565,8 @@ defect as a test that stubs its own subject.
 
 Remembered per user in local storage: tier 2 section open states, Analyze
 question group open states (including Advanced), last active activity,
-panel widths, inspector collapsed state, time slider on or off, dismissed
+panel and inspector widths, whether both sidebars are hidden (ONE boolean,
+6.12), time slider on or off, dismissed
 Insights strip (global across datasets, restored only from Help), retired
 insight cards, Data table drawer open state and height, Show mode, hidden
 table columns (per dataset name), Compare split ratio and Link views,
@@ -4573,75 +4598,45 @@ whose surface is unmounted by ordinary navigation while the value is still worth
 having. Anything in that set is gone on a reload by design; anything that must
 survive a reload belongs on the list above and nowhere else.
 
-6.5a. When a record is written, and why a default is not a choice.
+6.5a. Where the record is kept, and why the key moved.
 
-The list above is what is remembered. It says nothing about WHEN a record is
-written, and four incidents came through that silence inside one day. The
-reading side was careful about it -- `readPersistedShellLayout` reports a
-missing field as ABSENT rather than as false, precisely so that an explicit
-unlatch survives a later change of default -- and the writing side defeated that
-care by running on mount. Four clauses, one per incident.
+This subsection was three times its present length through revisions 1.12 to 1.14,
+and almost all of it ruled on ONE question: when may a record be written, given
+that a default written down at first paint is indistinguishable from a choice on
+the next visit and can therefore never be improved again. That question had teeth
+because the record held two latches whose defaults moved twice and an
+`activeActivity` whose `null` meant two different things. On 2026-09-14 the record
+became five fields of which exactly one is a mode -- `sidebarsHidden`, default
+false -- and the ambiguity the machinery policed went with the machinery: writing
+`sidebarsHidden: false` and `activeActivity: "data"` on mount says exactly what an
+absent record said. Clauses (1) and (4) of the old subsection are therefore
+WITHDRAWN rather than carried forward unread, and the shipped store does write on
+mount. What replaces them is two facts, one reason and one rule.
 
-(1) A record is written by a reader's own gesture, never by a first paint.
-Measured on a cleared profile: the persistence effect ran on MOUNT, so
-`graphty.shell.layout.v1` held
-`{"activeActivity":null,...,"panelKeptOpen":false,"inspectorKeptOpen":false}`
-"with no interaction whatsoever". Every later visit then read a record saying
-the reader had chosen those values, and they had not. A default is what the
-shell does while memory is silent; the moment it is written down it becomes
-indistinguishable from a choice, and the reader can never be given a better
-default again.
+The key is `graphty.shell.layout.v3` (`ShellContext.tsx`,
+`SHELL_LAYOUT_STORAGE_KEY`) and it holds five fields and no others:
+`activeActivity`, `panelWidth`, `inspectorWidth`, `sidebarsHidden` and the tier 2
+`sectionOpen` map. A second key, `graphty.shell.labels.v1`
+(`defaults/loadDefaults.ts`, `LABEL_SETTINGS_STORAGE_KEY`), holds the label switch
+and the label budget of 7.2, kept separate so that a shape change in one cannot
+corrupt the other. Section 13's 1.14 and 1.15 entries name them too.
 
-(2) A default is recomputed per width; a remembered value is never discarded for the
-width it is read at. This clause is REVERSED from how it was first written on
-2026-09-13, and the reversal is recorded rather than quietly applied, because the first
-wording contradicted three things at once: `ShellContext.tsx`'s own stated rule ("A
-stored value must keep winning, because a reader who unlatched a panel last week...",
-line 33, with `firstVisitLayout` spread UNDER the persisted record at :296-304 so that
-"only an ABSENT field takes a default"); 6.12's 2026-09-13 amendment, which makes both
-latches a "user-controlled veto" available "at every width"; and (1)'s own rationale,
-since a default that overwrites a choice at render time is the same defect as a default
-written at first paint, pointed the other way. Implemented as first written, a reader who
-latched both surfaces at 1440 and then opened at 600 would have both latches discarded,
-because `firstVisitLayout(600)` latches neither.
+Why v3, which is the one clause of the old subsection that survives in substance:
+when a default moves, the storage key moves with it, or the new default reaches
+nobody who has ever opened the app. Every v2 record carries `inspectorOpen: false`
+and a possibly-null `activeActivity`, and a v3 reader that honoured those fields
+would read them as "this reader hid things" and deliver the OLD behaviour forever.
+The bump costs every existing reader their remembered panel width, inspector width
+and section-open map, once. That is a real and visible loss, it is the same cost
+the v1-to-v2 bump already accepted, and it is written down here rather than left
+to be discovered.
 
-So: `firstVisitLayout(shellWidth)` is a FALLBACK and nothing else. It is consulted for a
-field the record does not contain, at the width in front of the reader, and it never
-overrides a field the record does contain. The incident that produced the first wording
--- a narrow first visit storing `panelKeptOpen: false` and that value winning at 1440 --
-is answered by (1) and not by this clause: the narrow first visit had no business
-WRITING anything. Width-dependent MEMORY does not exist in this shell. A stored value is
-a choice, and a choice is not a function of the window it was made in.
-
-(3) When a default moves, the storage key is versioned, and the new key is named
-in the section 13 entry that moves it. Flipping the latch defaults reached nobody
-who had ever opened the app, because their record already answered the question;
-the key had to go to v2 to reach them.
-
-(4) No write reaches storage before the reader's first gesture. The clause was first
-written as "one key is written on the gesture that changes it and read when the surface
-it governs first draws, and never both on mount", and "never both on mount" is a
-property of code shape rather than of behaviour, so it could be argued rather than
-measured -- and the shipped repair does not satisfy it as written: the store is read
-three times on mount (`ShellContext.tsx:302`, `:326`, `:336`) and the write effect still
-runs on mount and returns early. Stated as the observable, which is what (1) already
-does well: after a first paint on a cleared profile, the key is ABSENT. That is one read
-of `localStorage` and it cannot be argued with. The code shape that achieves it is the
-implementer's business; an effect that runs and returns early passes, and an effect that
-writes a default does not.
-
-This is the memory rule's other half and not a rewrite of it: the list above is
-unchanged, and every item on it is still remembered.
-
-The keys, named here because (3) requires a key to be named where the default that
-moved is recorded and the document did not name one: `graphty.shell.layout.v2` holds
-the layout record -- the activity, the widths, the collapsed state and the two
-latches -- and is at v2 because revision 1.12 moved the latch defaults
-(`ShellContext.tsx`, `SHELL_LAYOUT_STORAGE_KEY`); `graphty.shell.labels.v1` holds the
-label switch and the label budget of 7.2 (`defaults/loadDefaults.ts`,
-`LABEL_SETTINGS_STORAGE_KEY`), kept separate from the layout record so that a shape
-change in one cannot corrupt the other. Section 13's 1.12 and 1.14 entries name them
-too, which is where (3) says to look.
+The one rule that stays a rule, because it is about behaviour rather than about
+code shape: a stored value is a record of the READER, and the window is not part
+of it. A stored value is never discarded, recomputed or overridden for the width
+it is read at. Width-dependent MEMORY does not exist in this shell -- and since
+2026-09-14 neither does a width-dependent DEFAULT, because there is one layout
+(5.2) and therefore one default.
 
 ### 6.6 Expression rule
 
@@ -4708,7 +4703,7 @@ a focusable control is not itself a tab stop; one attached to static text is,
 with role button and aria-expanded. The popover is the tooltip bubble at
 250 px: at most two sentences and 220 characters, then at most one "Learn
 more" link, then the binding as a key chip when one exists. A sentence that
-will not fit is not a circle. Below 1280 px and on any touch pointer, tap is
+will not fit is not a circle. Below 1280 px (dormant, 5.2) and on any touch pointer, tap is
 the only open gesture and the popover opens pinned. Info circles are chrome:
 Performance mode and the "Hover and tooltips" switch govern canvas tooltips
 only and never turn a circle off, so the densest screens keep their
@@ -4779,7 +4774,7 @@ Four things every icon-only control carries:
    object, then the key chip; 150 ms delay; never suppressed in Performance
    mode, which governs canvas elements only.
 3. A 24 by 24 CSS px hit area with 4 px clear space, growing to 32 by 32 with
-   a 16 px glyph below 1280 px for any icon that is the sole path to a
+   a 16 px glyph below 1280 px (dormant, 5.2) for any icon that is the sole path to a
    capability; a delete icon is always last in its cluster with 8 px of
    separation.
 4. A non-hover twin: every hover-revealed icon repeats as a full-text item in
@@ -5505,7 +5500,8 @@ at [1177,300]; the filter rule editor at [336,277 360x217] from a rule row at
 280x163], correctly centred on the canvas band's centre and correctly
 unanchored, because a preview takes no lane.
 
-None of this applies below 1280 px and none of it is approximated there: a
+None of this applied below 1280 px and none of it was approximated there (DORMANT
+since 2026-09-14, because the shell does not lay out below 1280 px at all; 5.2): a
 pop-out is a second sheet over its panel (5.2), a sheet has no gap axis and no
 shared edge line, and the back chevron and the header title carry the whole
 relationship to an opener that is not on screen behind it.
@@ -5556,8 +5552,10 @@ No artboard may show two transients of different classes open at once. A dialog
 replaces and closes any open menu or pop-out in the same region rather than
 dimming it behind its scrim, which the Escape ladder already implies.
 
-Below 1280 px and on iPad a pop-out is a second sheet over its panel at full
-panel width with a back chevron, honouring 5.2's one-overlay-at-a-time rule.
+Below 1280 px and on iPad a pop-out was a second sheet over its panel at full
+panel width with a back chevron. DORMANT since 2026-09-14: the shell does not lay
+out below 1280 px (5.2), so no sheet is drawn there and none may be built from
+this paragraph.
 
 The preview, the sixth surface. Everything above governs a pop-out; a preview is
 not one, and it is written down here because it was drawn on an artboard first
@@ -5696,23 +5694,24 @@ owner. What it does is put one front door on them and rule on the questions
 none of them answered, each of which was reached by a reader before it was
 reached by a drafter.
 
-Until 2026-09-12 this section moved no decision those sections had already
-made. It moves one now: the latch below is a user-controlled veto on the
-closes 5.2 performs, added at the product owner's direction, and 5.2 is
-amended to say so.
+Until 2026-09-12 this section moved no decision those sections had already made.
+It moved one for two revisions -- a latch that vetoed the closes 5.2 performed --
+and on 2026-09-14 that decision and the closes it vetoed were deleted together
+(Showing and hiding the sidebars, below). What this section owns for the two
+sidebars is now smaller than what it owned before it moved anything: one control,
+one binding and one boolean.
 
 Where the settled rules live, so that this section is the only place a reader
 has to start:
 
 | Question | Owned by |
 |---|---|
-| One activity at a time; the active rail icon closes its panel | 5.1 |
+| One activity at a time; the rail chooses an activity and closes nothing | 5.1 |
 | Panels never float; docks resize the canvas and overlays do not | 5.1 |
-| One overlay at a time below 1280 px, and what the drawer closes there | 5.2 |
 | Escape's six rungs, and that Escape never closes the desktop panel | 5.6 |
 | What survives a reload, per user | 6.5 |
 | One pop-out per region; a pop-out closes when its opener's section collapses or its region changes activity | 6.11 |
-| Which closes a reader may refuse, and how that is remembered | 6.12, The latch |
+| How both sidebars are shown and hidden, and how that is remembered | 6.12, Showing and hiding the sidebars |
 | What OPENS each surface, what may close it, what may never | 6.12, What opens a surface |
 | That a reader can always dismiss what covers the canvas | 6.12, The dismissal guarantee |
 | Which surface is above which, and what a fixed row does with content that overflows | 6.13 |
@@ -5722,89 +5721,84 @@ has to start:
 | Whether two surfaces may share a rung, and which ancestors clip or create a context | 6.13, One surface per rung; Stacking contexts |
 | Where a field's state lives, and whether it survives its surface's remount | 6.15(3) |
 
-#### The latch
+#### Showing and hiding the sidebars
 
-Added 2026-09-12, at the product owner's direction: "panels should have a pin
-to keep them open / in manual mode, and should only close if the pin isn't
-selected."
+Added 2026-09-14, at the product owner's direction, and it REPLACES the subsection
+"The latch" that stood here through revisions 1.12, 1.13 and 1.14 together with
+both of its amendments: "our panel open / closed / autohide is a confusing
+nightmare. remove the panel locks and remove autohide ... there is one button to
+hide / show both at the same time and not individual buttons."
 
-The activity panel and the inspector each carry one control in their own title
-row, titled `Keep open`, drawn as a padlock, reporting its state as a pressed
-toggle and never renaming itself. It is NOT a pin and is deliberately not drawn
-with the pushpin: the inspector already draws `Pin as A` (5.4), which freezes a
-copy of the content for comparison, and two pushpins in one 36 px row would
-read as one idea drawn twice. One holds content, the other holds the surface.
+The model, entire:
 
-What the latch does, in one sentence: a KEPT surface is never closed by the
-shell, only by the reader. Applied, a kept surface is not closed by
+- Both sidebars are drawn whenever the shell lays out (5.2: it lays out at 1280 px
+  and above and nowhere else). There is no state in which one is on screen and the
+  other is not. They are shown together and hidden together.
+- ONE control does it: a switch in the top bar titled `Toggle sidebars`, drawn with
+  the shared `TopBarIconButton` in the slot the two region switches used to occupy.
+  It keeps ONE verb in both states, because a toggle never renames itself (6.8),
+  and it reports `aria-pressed="true"` while the sidebars are on screen (6.14).
+- ONE binding, Cmd/Ctrl+B, which was the panel switch's already. `D`, which toggled
+  the inspector, is unbound.
+- ONE persisted boolean, `sidebarsHidden`, default false, remembered per 6.5 under
+  the key 6.5a names. It is the same default at every width the shell lays out at,
+  because there is only one layout.
+- NOTHING ELSE opens or closes either sidebar. Not Escape, not a canvas tap, not a
+  selection change, not a dataset boundary, not a run finishing, not a drawer
+  opening, not the window width, and not the shell on the reader's behalf under any
+  other circumstance whatever.
 
-- the narrow one-overlay-at-a-time rule of 5.2, when the other surface opens,
-- the Data table drawer opening below 1280 px, which 5.2 otherwise closes the
-  panel for -- and which costs the drawer nothing, since 5.2 already says the
-  drawer never covers the panel,
-- a tap on the canvas, including a tap on empty canvas,
-- Escape's third rung, which passes over it to the next rung, or
-- a selection change, which never closed a surface and now cannot start to.
+What went, named here because none of it is recoverable from a diff and a reader of
+an older revision will come looking: two `Keep open` latches and the memory behind
+them; the width-aware first-visit layout; three auto-close rules the latches
+existed to veto (the narrow one-overlay-at-a-time rule, the canvas tap, and the
+Escape ladder's third rung); the activity panel's header X; the inspector's
+collapse control; and the rail's close-on-active-click. Each of those existed to
+correct another, which is why they went whole: remove any subset and what is left is
+incoherent, because every one of them was a patch on the rest.
+`ShellContext.tsx` holds the replacement and carries this paragraph in its own
+header comment, so the code says why as well as what.
 
-and IS closed by the controls that mean close and nothing else: the header X or
-collapse control, the top bar's switch for that region, the binding behind that
-switch (Cmd+B, D), and the rail's click on the already-active activity. Those
-are the reader's own gestures; the latch exists to refuse the shell's, not the
-reader's. An UNKEPT surface behaves exactly as it did before this section
-existed, which is what keeps 5.2 true for everyone who never touches the
-control.
+Two departures are the product owner's to confirm and are flagged rather than
+landed silently.
 
-Below 1280 px at most ONE surface may be kept, and latching one releases the
-other. Without that rule a 1200 px window spends 48 + 280 + 280 on chrome and
-leaves the reader nothing to annotate, and 5.2's one-overlay guarantee has
-nothing left to guarantee. On desktop both may be kept, because neither is an
-overlay there. Where one surface is kept and the other is open, the UNKEPT one
-holds the dismissible slot, because it is the only one a tap may close.
+(a) A click on a rail icon REVEALS hidden sidebars. It sets the activity and clears
+`sidebarsHidden`, and it can only ever SHOW, so it is not a second hiding mechanism
+and not a return of the auto-behaviour the instruction abolished. Without it, six of
+the eight rail icons would do nothing at all while the sidebars were hidden, which
+is six controls reporting a state they are not in (6.14) and a floor violation
+(6.10). The PROGRAMMATIC route is a different function and deliberately does not
+reveal: the session's first load and a run function opening its own panel set the
+activity and leave the sidebars where the reader left them, so a background
+completion can never yank them back over a reader who asked for the canvas
+(`ShellContext.tsx`, `selectActivity` against `openActivity`). The programmatic
+route is also what the command palette's "open that panel" rows take today
+(`AppShell.tsx`, `openPanelAt`), which leaves one gap worth naming rather than
+discovering: a palette row invoked while the sidebars are hidden changes what the
+panel WILL draw without putting it on screen. Whether those rows should reveal, as
+a rail click does, is the product owner's call and not a drafter's -- both readings
+are defensible, since a palette row is as much the reader's own gesture as a rail
+click is, and it is recorded here so the answer is chosen rather than inherited.
 
-Amendment 2026-09-13, at the product owner's direction, in two parts. The
-paragraph above is OVERRIDDEN, not reworded: it said what it meant, and it was
-overruled.
+(b) The rail's close-on-active-click is STRUCK, and 5.1's "Clicking the active icon
+closes its panel" with it. The rail is now a pure activity chooser. This changes
+long-standing muscle memory, and it is here rather than buried in 5.1 because it
+was the last individual control that hid one sidebar on its own -- which is exactly
+why it could not be kept once the rest went.
 
-(1) The exclusivity is withdrawn for READER-DRIVEN latching. The product
-owner: "there's a bug with the lock: if I lock one panel, open the other, lock
-the other, the first one closes". That was this clause working exactly as
-written -- the sequence latches the panel, opens the inspector, latches the
-inspector, and "latching one releases the other" then unlatches the panel,
-after which 5.2's one-overlay rule closes it, because an unkept surface has no
-veto. Both surfaces may now be latched at every width, by two deliberate
-clicks. The departure is recorded in `ShellContext.tsx` at `setPanelKeptOpen`
-and `setInspectorKeptOpen`, and the cost this paragraph names is real and is
-accepted: a reader who latches both at 1200 px leaves themselves 592 px of
-canvas and may unlatch either to get it back.
+One thing was specified during implementation and then deliberately NOT built, and
+its absence is recorded here so it is not read as an oversight: a width-aware
+first-visit default, sidebars hidden below 1280 px, on the ground that two 280 px
+overlays cover a 375 or 600 px canvas end to end and the dismissal guarantee forbids
+a default that leaves no graph. The measurement was right and the branch is
+unnecessary. There is no layout below 1280 px for it to protect (5.2), so the
+default is false at every width the shell draws at, no width-dependent behaviour
+remains anywhere in the store, and the guarantee is satisfied by there being nothing
+over the canvas to dismiss.
 
-(2) The DEFAULT keeps the rule. "An UNKEPT surface behaves exactly as it did
-before this section existed" was no panel and a collapsed inspector; the
-product owner's "the sidebars should be locked open by default" overrides that
-too, but only where there is room for it. At or above 1280 px a first visit
-opens the Data panel and the inspector and latches both. Below 1280 px a first
-visit opens NEITHER and latches neither, because a default that latched both
-produced a screen the reader could not leave: both surfaces are 280 px
-overlays over a canvas that is never resized under them (5.2), and a latch
-vetoes the canvas tap and Escape's third rung alike, so the shell's own
-narrow-overlay close could only ever refuse. Measured on genuine first visits
-while it was so -- at 1024 x 900 the panel took [48, 328], the inspector [744,
-1024] and the Welcome sheet [219, 853], putting 109 px of the sheet under each
-overlay and rendering its heading as "aph to get started"; at 600 x 900 the two
-overlays took [48, 328] and [320, 600] against a canvas of [48, 600], and at
-375 x 812 [48, 328] and [95, 375] against [48, 375], covering the canvas end to
-end and overlapping each other, so nothing of the sheet under them showed at
-all. So the rule stated above
-still governs what the SHELL spends on the reader's behalf, and what changed
-is that the reader may now spend more than it on their own. `firstVisitLayout`
-in `ShellContext.tsx` holds the branch, and UAT-14 of `design/ui/UAT.md` is
-its acceptance test.
-
-It is remembered per 6.5, as two booleans beside the inspector's collapsed
-state, and it SURVIVES the dataset boundary below on that section's own test:
-what a reader keeps open is true of the reader, not of the graph. It is not the
-comparison pin, which does not survive; getting those two the wrong way round
-makes the latch forget itself on every file open, which is the complaint it was
-added to answer.
+It is remembered per 6.5 and it SURVIVES the dataset boundary below, on that
+section's own test: whether a reader wants the chrome on screen is true of the
+reader, not of the graph that has gone.
 
 #### The dataset boundary
 
@@ -5819,8 +5813,8 @@ it holds is true of the person, and does not when what it holds is true of the
 graph that has gone. Applied:
 
 Survives, because it describes the user's working habits and the next dataset
-inherits them: panel and inspector widths, the inspector's collapsed state,
-both `Keep open` latches (The latch, above), tier 2 section open states, the
+inherits them: panel and inspector widths, whether the sidebars are hidden
+(Showing and hiding the sidebars, above), tier 2 section open states, the
 last active activity, the canvas toolbar, minimap and legend visibility,
 density, label order, decimal places, and both switches of 6.9 Rule 11. A user who closes one file and opens another has not
 changed their mind about how they work, and a shell that resets to defaults at
@@ -5828,8 +5822,8 @@ every boundary makes them say so again on every file.
 
 Does not survive, because its subject no longer exists: the selection and the
 selected style layer, a pinned inspector card -- the COMPARISON pin of 5.4,
-which already says this and it is the general case of that clause, and not the
-latch above, which does survive -- every open pop-out, the context menu, the
+which already says this and it is the general case of that clause -- every open
+pop-out, the context menu, the
 command palette, active filters and the time window, algorithm results and
 their run records, and the Data table drawer, which closes because a drawer
 with no rows is the empty surface 6.2 forbids -- its remembered open state and
@@ -5868,12 +5862,12 @@ still on screen; otherwise the region that owned it; otherwise the canvas.
 
 Three cases are worth naming because each is reached by a different route. 5.6
 already returns focus to the opener on Escape, and that is this ladder's first
-rung rather than a separate rule. Closing the activity panel from the rail
-leaves focus on the rail icon that closed it, which is where the reader already
-is. Collapsing the inspector while focus is inside it leaves focus on the
-inspector toggle in the top bar, which is the control that will bring it back.
-And at a dataset boundary, where the openers are going too, focus lands on the
-canvas.
+rung rather than a separate rule. Hiding the sidebars while focus is inside either
+of them leaves focus on the `Toggle sidebars` switch in the top bar, which is both
+the control that performed the close and the control that will bring them back, so
+the ladder's first rung and its second agree here and there is nothing left to
+decide. And at a dataset boundary, where the openers are going too, focus lands on
+the
 
 Added 2026-09-13, and it is the clause the ladder was missing on the day it was
 written: the element focus lands on must be FOCUSABLE at the moment focus is
@@ -5914,26 +5908,25 @@ overlay are, and it closes on everything that closes a menu.
 
 #### What opens a surface, what may close it, and what may never
 
-Added 2026-09-13. The latch above rules on which closes a reader may REFUSE. It
-presupposes a settled answer to the prior question -- what opens each surface,
-and what is allowed to close it -- and that answer was spread across 5.1, 5.2,
-5.6 and the rail's own behaviour, which is the condition this section exists to
-end. Nearly everything in the table is already true somewhere above -- the two
-rows that ADD to a settled list are called out under it, so nothing new arrives
-here unannounced -- and the table is where a drafter checks one surface against all
-three columns at once, which is what nobody could do while the rule had five
-homes.
+Added 2026-09-13, and shorter since 2026-09-14, when the latch above it and the
+closes it vetoed were deleted together. The question it answers -- what opens each
+surface, and what is allowed to close it -- was spread across 5.1, 5.2, 5.6 and the
+rail's own behaviour, which is the condition this section exists to end. Nearly
+everything in the table is already true somewhere above -- the two rows that ADD to
+a settled list are called out under it, so nothing new arrives here unannounced --
+and the table is where a drafter checks one surface against all three columns at
+once, which is what nobody could do while the rule had five homes.
 
 | Surface | Opened by | Closed by | Never closed by |
 |---|---|---|---|
-| Activity panel | a rail icon; the top bar's panel switch; Cmd/Ctrl+B; a palette row that names a panel; the session's first load, which switches it to Explore (5.1) | its header X; the same switch or binding; a click on the already-active rail icon; below 1280 px a canvas tap or Escape's third rung, while unkept (5.2) | Escape on desktop (5.6); a selection change; a dataset boundary; the opening of a dialog, a menu, a pop-out, Settings or Help |
-| Inspector | the top bar's inspector switch; D; Enter on a selection (unshipped: inspectSelection; 6.1 asserts it, 5.8 tags it, 6.4a(c) resolves the disagreement); below 1280 px, a row whose behaviour is "selects, centers and shows in the inspector" (5.2) | its collapse control; the same switch or binding; below 1280 px a canvas tap on EMPTY space or Escape's third rung, while unkept | a tap that SELECTS (5.2, amended 2026-09-12); a selection change; Escape on desktop |
+| Activity panel | it is drawn whenever the sidebars are shown; the top bar's `Toggle sidebars` switch; Cmd/Ctrl+B; a rail icon, which chooses the activity it draws and reveals it when the sidebars are hidden. A palette row that names a panel and the session's first load (5.1) choose the activity WITHOUT revealing, per 6.12(a) | the `Toggle sidebars` switch or Cmd/Ctrl+B, and nothing else at any width | Escape (5.6); a canvas tap; a click on the already-active rail icon; a selection change; a dataset boundary; the opening of a dialog, a menu, a pop-out, Settings or Help |
+| Inspector | it is drawn whenever the sidebars are shown; the top bar's `Toggle sidebars` switch; Cmd/Ctrl+B; Enter on a selection (unshipped: inspectSelection; 6.1 asserts it, 5.8 tags it, 6.4a(c) resolves the disagreement) | the `Toggle sidebars` switch or Cmd/Ctrl+B, and nothing else at any width | its own collapse control and `D`, both deleted 2026-09-14; a canvas tap, including one that SELECTS; a selection change; a dataset boundary; Escape |
 | A pop-out | its focusable opener, on Enter or Space; its palette row (6.11) | Escape's second rung; its close X; a click outside, unless pinned; its opener's section collapsing; its region changing activity; a dialog opening in its region; a shell overlay opening, unless its own region is that overlay's (6.13, What the ladder delegates) | a selection change, while pinned (6.11); its opener scrolling out of the region, which docks it instead |
 | A menu | its trigger; Shift+F10; right-click, long-press or two-finger tap (5.6) | Escape's second rung; a choice; a click outside; a dialog opening in the same region | a selection change |
 | The command palette | Cmd/Ctrl+K; the top bar pill; Cmd/Ctrl+S, scoped to Save | Escape's second rung; Enter on a row; a click outside | anything else, and it is never on screen with a dialog (6.13) |
 | Settings | the rail's Settings icon; a palette row naming a Settings section; a deep link from a panel (5.3) | its close X; Escape's second rung | the rail's active marker, which it never moves, and the panel behind it, which it returns to (above) |
 | Help | the rail's Help icon; `?` for the shortcuts reference | Escape's second rung; a choice; a click outside | anything else |
-| The Data table drawer | the Data panel's tier 1 toggle; Shift+T; a click on the status bar counts | the same toggle or binding; below 1280 px, the activity panel opening (5.2); a dataset boundary, because a drawer with no rows is the empty surface 6.2 forbids | Escape, at any width; the inspector, which it coexists with (5.2) |
+| The Data table drawer | the Data panel's tier 1 toggle; Shift+T; a click on the status bar counts | the same toggle or binding; a dataset boundary, because a drawer with no rows is the empty surface 6.2 forbids | Escape, at any width; the sidebars being hidden or shown, which it is independent of; the inspector, which it coexists with (5.1) |
 | A tier 3b dialog | the commit it gates (6.11, question 1) | its own commit or Cancel; Escape's second rung | a click outside; a canvas tap; anything the shell does on its own behalf |
 | Welcome | the Empty state of the state axis (6.1) | a dataset arriving | anything the reader can press: it is the canvas's content in that state and not a surface over it (7.1), so it has nothing to dismiss and needs none of the guarantee below |
 | A toast | the action it reports (5.1) | its own timer, or the host ceasing to report the completion | a click anywhere else, and never its own Undo before that Undo is pressed |
@@ -5947,11 +5940,10 @@ JOINS them, on the ground 6.12 already gives Help and the shortcuts reference,
 that it is a transient the reader opened and returns from rather than a
 destination they navigated to, and 5.6's rung 2 is amended to include it. And the
 Data table drawer is deliberately NOT on the ladder at any width: it is a dock and
-not one of 5.2's two overlays, so 5.2's Escape clause does not reach it and rung 3
-has nothing to do with it. A dock is left to its own toggle because the rows in it
-ARE the selection (5.1), and an Escape that closed the dock would take the rows out
-from under a reader one rung before the same key clears what they had selected in
-them.
+not one of the two sidebars and no rung reaches it. A dock is left to its own
+toggle because the rows in it ARE the selection (5.1), and an Escape that closed the
+dock would take the rows out from under a reader one rung before the same key clears
+what they had selected in them.
 
 Four rules ride with the table.
 
@@ -5960,8 +5952,11 @@ region's state rather than a chooser that happens to reach it. The panel had a
 one-way X for one revision and the only route back was the rail, whose icons
 choose an activity rather than show or hide a column, which is how "the left
 panel has no way of keeping it open after I click" came to be a true report of
-two defects at once (2026-09-13). 5.1 carries the pair for the panel and the
-inspector; this is the general clause, and it applies to any surface added later:
+two defects at once (2026-09-13). 5.1 carries the pair for the two sidebars, and
+since 2026-09-14 it is ONE control for BOTH of them, which is the strongest form the
+pair rule can take: the gesture that hides them is the gesture that brings them
+back, so neither can acquire a one-way close. This is the general clause, and it
+applies to any surface added later:
 no surface may have a closing gesture without a reopening control drawn on screen
 at the same time, and that control draws its own state per 6.14.
 
@@ -6005,9 +6000,10 @@ the same day. At every width, in every state, and after every default the SHELL
 applies on the reader's behalf, every surface drawn over the canvas has at least one
 dismissing control on screen and at least one binding that reaches it. The set is
 named by KIND rather than by a span of 6.13's rungs, because "rungs 4 through 8" had
-two readings and the ordinals are gone: a region overlay, a canvas transient, a
-canvas menu, a guest (a menu, a popover, a picker or a pop-out), a shell overlay, a
-dialog, and a toast. A default may never produce a screen the reader cannot
+two readings and the ordinals are gone: a region overlay (a kind with no members
+since 2026-09-14, because the narrow layout that drew them is gone; 5.2), a canvas
+transient, a canvas menu, a guest (a menu, a popover, a picker or a pop-out), a
+shell overlay, a dialog, and a toast. A default may never produce a screen the reader cannot
 leave. Canvas chrome is deliberately outside the guarantee and stays that way:
 the legend is floor item 5 and is not dismissible at all (6.10, 6.11), and it
 occludes nothing, because 5.6's two-line reflow moves it rather than letting it
@@ -6024,34 +6020,50 @@ governed-card row; the Undo history popover takes the menu row, being a popover 
 trigger; and the report editor drawer takes a row of its own beside the Data table
 drawer.
 
-Stated so it is checked rather than asserted: on a first paint at each of 375,
-600, 1024, 1280 and 1440 px, enumerate every surface drawn over the canvas, find
-and hit-test each one's close control, and press Escape with focus where the
-shell left it. The regression this replaces passed every structural test in the
-suite. `FIRST_VISIT_LAYOUT` latched both sidebars at every width and was consumed
-in a `useState` initialiser before any measurement landed; below 1280 px both
-surfaces are 280 px overlays over a canvas that is never resized under them
-(5.2); a latch vetoes the canvas tap AND Escape's third rung, so
-`closeNarrowOverlay` could only ever refuse. Measured at 375 x 812 the two
-overlays covered the canvas end to end and nothing of the Welcome sheet showed
-between them. The cause is the process one: no test anywhere mounted the shell
-with persistence on and an empty store, which is why the defect shipped with the
-suite green. UAT-14 is that test at 1024, 600 and 375 px; the two widths where the
-shell's own default LATCHES both sidebars, 1280 and 1440, are owed, and they are the
-two the guarantee most needs (section 10, check 2).
+Stated so it is checked rather than asserted: on a first paint at 1280 and at 1440
+px, from a CLEARED profile and with the reset AFTER the resize, enumerate every
+surface drawn over the canvas, find and hit-test each one's close control, and
+press Escape with focus where the shell left it. Those are the two widths the check
+has, because they are the two the shell lays out at; below 1280 px there is no
+canvas and no surface over it (5.2), so there is nothing to enumerate and the
+guarantee is satisfied by having nothing to guarantee.
 
-One clause makes the guarantee reachable, and it is a defect standing right now:
-the Escape ladder is dispatched from the SHELL's state, and which of 5.6's six rungs
-fires is decided by what is open, never by where focus happens to sit. Measured at
-1024 x 900, Escape does not reach the narrow-overlay rung while focus is still on
-the rail icon that opened the overlay -- which is exactly where focus is one
-gesture after opening it -- so "a scenario that presses Escape straight after a
-rail click is testing the rail, not the ladder" (`design/ui/UAT.md`, section 1.5,
-gotcha 10). A rung that fires only when focus is already inside the surface it
-closes cannot be reached from the control that opened that surface, and the
-guarantee above is then satisfied on paper and not on screen. 5.6 already puts
-every binding through one dispatcher in the shell; this says the ladder's rung
-selection is part of what that dispatcher owns.
+The two sidebars are not in the guarantee's set at all, and that is what the
+2026-09-14 model buys. They are docked columns that resize the canvas (5.1) rather
+than surfaces drawn over it, so they occlude nothing; and the one control that
+hides and shows them sits in the TOP BAR, which is a grid row of its own ABOVE the
+body row -- the bar occupies y 0..40 and the panel, the canvas and the inspector
+share the row beneath it -- so no sidebar, dock, overlay or transient the body row
+draws can cover it. That is the measurement that makes this checkable rather than
+arguable: one hit test on one button at each of the two layout widths, plus
+Cmd/Ctrl+B as the binding that reaches it.
+
+The regression this rule replaces passed every structural test in the suite.
+`FIRST_VISIT_LAYOUT` latched both sidebars at every width and was consumed in a
+`useState` initialiser before any measurement landed; below 1280 px both surfaces
+were 280 px overlays over a canvas that was never resized under them; a latch
+vetoed the canvas tap AND Escape's third rung, so `closeNarrowOverlay` could only
+ever refuse; and measured at 375 x 812 the two overlays covered the canvas end to
+end with nothing of the Welcome sheet showing between them. The cause was the
+process one: no test anywhere mounted the shell with persistence on and an empty
+store, which is why the defect shipped with the suite green. The 2026-09-14 model
+retires the class rather than the instance -- no width-dependent default, no veto,
+and no shell-performed close left to get wrong -- and UAT-14 is the scenario,
+rewritten for it (section 10, check 2).
+
+One clause makes the guarantee reachable, and it outlives the surface it was
+written about. The Escape ladder is dispatched from the SHELL's state, and which of
+5.6's rungs fires is decided by what is open, never by where focus happens to sit.
+The incident behind it was the narrow-overlay rung, measured at 1024 x 900: Escape
+did not reach that rung while focus was still on the rail icon that had opened the
+overlay -- which is exactly where focus is one gesture after opening it -- so "a
+scenario that presses Escape straight after a rail click is testing the rail, not
+the ladder" (`design/ui/UAT.md`, section 1.5, gotcha 10). The rung is gone with the
+overlays it closed (5.2); the rule it proved is not. A rung that fires only when
+focus is already inside the surface it closes cannot be reached from the control
+that opened that surface, and the guarantee above is then satisfied on paper and
+not on screen. 5.6 already puts every binding through one dispatcher in the shell;
+this says the ladder's rung selection is part of what that dispatcher owns.
 
 That clause and 6.15(4) were written on the same day and read as contradicting each
 other, since 6.15 gives Escape two stages that fire only with focus inside a field.
@@ -6066,38 +6078,25 @@ the same ladder:
    what the surface is for (6.15(1) draws that line). They are stages of the field,
    not rungs of the ladder, and they are named that way from here so the word rung
    keeps one meaning.
-2. 5.6's SIX RUNGS run second, and none of them consults focus at all. Each is
+2. 5.6's FIVE RUNGS run second, and none of them consults focus at all. Each is
    selected by what is open, per the clause above. A press that the field's two
    stages did not consume falls through to rung 1 and down.
 
-The case this leaves assigned, which neither clause assigned on the day: at 1024 px,
-with text in Explore's search field inside the panel OVERLAY, the first Escape clears
-the query (stage 2, because the panel merely contains the field) and the second
-closes the overlay (rung 3, because the panel is unlatched). The narrow activity
-panel is not one of 6.15's three named "the field IS the surface" exceptions and does
-not become one.
+The case this leaves assigned, which neither clause assigned on the day: with text
+in Explore's search field inside the activity panel, the first Escape clears the
+query (stage 2, because the panel merely CONTAINS the field) and the second falls
+through the rungs without touching the panel, because Escape closes neither sidebar
+at any width (5.6). The activity panel is not one of 6.15's three named "the field
+IS the surface" exceptions and does not become one.
 
-The guarantee is a floor under the latch, not a limit on it. A reader may still
-latch both surfaces at 1200 px and leave themselves 592 px of canvas, per the
-amendment above, because they did it themselves and both close controls are on
-screen in front of them. What is forbidden is the SHELL arriving at that state
-on its own.
-
-What the reader may latch THEMSELVES into below 1280 px is a narrower question and
-this clause does not settle it. At 375 px two latched overlays cover the canvas end
-to end, and both close controls sit in those overlays' own headers rather than over
-the canvas; whether a control inside the covering surface satisfies "a dismissing
-control on screen" is the one reading this rule leaves open, at the width where it
-matters most. The guarantee holds as stated, and the routes are named so the reading
-can be checked rather than argued: each overlay's own header X, each region's switch
-in the top bar, which is above the body row and is never covered by either overlay,
-and the bindings behind those switches (Cmd/Ctrl+B, D). All four are reader gestures,
-which is exactly the set a latch does not refuse (The latch, above). What Escape does
-NOT do at that width is reach the overlays at all: a latch vetoes its third rung, so
-Escape is not one of the routes and must not be counted as one. The question of whether the second latch should be
-refused, warned or left alone below some width is the product owner's, and it is
-recorded in section 12 with its options rather than decided here, because the
-2026-09-13 amendment that permitted the second latch was theirs.
+What a reader may leave themselves with, now that the latch is gone and there is
+one control: both sidebars shown, which at 1280 px leaves a canvas 672 px wide and
+never less than the 520 px floor 5.1 clamps the drags to; or both hidden, which
+leaves the canvas the whole body row. There is no third state, no width at which the set changes, and
+no state the SHELL can arrive at on its own that one press of one button does not
+leave. That is the whole of what this guarantee now has to check for the two
+sidebars, and the rest of its set -- the transients, the guests, the dialogs, the
+toasts and the governed cards -- is unchanged by the 2026-09-14 model.
 
 ### 6.13 The stacking order
 
@@ -6152,7 +6151,7 @@ a one-line comment declaring it a guest and naming its host.
 | Canvas chrome | 6 | `CANVAS_TOOLBAR_Z_INDEX` | the Insights strip, the filter strip, the minimap, the legend, the time slider, the canvas toolbar, note markers, the note hover card |
 | Canvas transient | 8 | `CANVAS_POPOUT_Z_INDEX` | a transient anchored to canvas chrome and hosted by the canvas region: a preview, a scrub readout's card, and any of 6.11's three governed cards -- a cost estimate, a cap warning, a destructive confirm -- drawn on the canvas rather than in a panel |
 | Canvas menu | 15 | `CANVAS_MENU_Z_INDEX` | a menu whose trigger is in the canvas region: the Views menu, the layout menu, the canvas context menu |
-| Region overlay | 16 | owed one name, `REGION_OVERLAY_Z_INDEX`, taken by both halves | below 1280 px, the activity panel and the inspector as overlays, with the sheets that open over them (5.2) |
+| Region overlay | 16 | owed one name, `REGION_OVERLAY_Z_INDEX`, taken by both halves | DORMANT since 2026-09-14: its only members were the activity panel and the inspector as overlays below 1280 px, and there is no layout below 1280 px any more (5.2). The rung keeps its place in the order so a region overlay added later lands where this section ruled it should |
 | Shell overlay | 20 | `SHELL_OVERLAY_Z_INDEX` | Settings and the keyboard shortcuts reference: a surface that covers the panel, the canvas and the inspector together |
 | Dialog | 200 | Mantine's `modal` elevation, ADOPTED as this rung (see What the ladder delegates) | a tier 3b dialog and the command palette, each with its own scrim |
 | Report | 400 | Mantine's `overlay` elevation, ADOPTED as this rung, and PASSED rather than inherited | a toast |
@@ -6171,7 +6170,9 @@ new number, one a new order -- and both follow from 5.1's "overlays never block 
 ladder does not amend.
 
 (1) The region overlay moves ABOVE the canvas menu, to 16, and is owed one constant
-that both halves take. The build draws the panel's narrow overlay at 8
+that both halves take. The ruling is recorded as made and is now DORMANT with its
+rung (5.2 deleted the overlays it ordered); what follows is why it was made, kept
+because the ordering argument is the reusable part. The build draws the panel's narrow overlay at 8
 (`panel/ActivityPanel.tsx:155`) and the inspector's at 15
 (`inspector/Inspector.tsx:242`), so the two halves of a pair 5.1 requires to be
 drawn and lit alike sit on two different rungs, and a canvas menu at 15 ties with
@@ -6362,7 +6363,7 @@ in this shell create a context and which clip. Both were unmentioned until
 
 | Ancestor | What it does | What the ladder cannot express about it |
 |---|---|---|
-| The body row (`AppShell.tsx:3095-3108`) | `position: relative`, `overflow: hidden` | it is the positioned ancestor of the narrow region overlays, of Settings and of the shortcuts surface, so those three are ordered against each other INSIDE it, and no number given to one of them can lift it above a sibling of the body row |
+| The body row (`AppShell.tsx:3095-3108`) | `position: relative`, `overflow: hidden` | it is the positioned ancestor of Settings and of the shortcuts surface (and was of the narrow region overlays, until 5.2 deleted them), so those three are ordered against each other INSIDE it, and no number given to one of them can lift it above a sibling of the body row |
 | The status bar (`statusbar/StatusBar.tsx:47-63`) | `position: relative`, `overflow: hidden`, height 24 | it is the completion toast's containing block, and the toast is `position: absolute; bottom: 100%` (`LoadCompleteToast.tsx:69-75`), so the whole toast is clipped out of existence, taking its Details and its Undo with it, and no z-index would bring it back |
 | A panel or inspector scroll region | `overflow: auto` | a guest anchored to a row inside it is clipped at the region's edge unless it is portalled, which is why `withinPortal` is the right default for a menu on a panel row and why the portal then has to be given a rung or declared a guest |
 
@@ -6486,20 +6487,22 @@ surface rather than a list they have to be told:
 
 1. the two surfaces can be open at the same time -- the table of 6.12 permits it,
    and One surface per rung, above, does not forbid it;
-2. their rects overlap at one of the five widths of the dismissal guarantee (375,
-   600, 1024, 1280, 1440 px), computed from the geometry 5.1 and 5.2 give rather
-   than assumed; and
+2. their rects overlap at one of the widths the shell lays out at (1280 and
+   1440 px; below 1280 px nothing is drawn at all, 5.2), computed from the
+   geometry 5.1 gives rather than assumed; and
 3. they are not host and guest, which the ladder orders by construction -- EXCEPT
    where the guest can outlive the visibility of its host, which is a pair below
    and the reason that exception is written down.
 
-Applied to the build today the set is eleven pairs, and the last three are the ones
+Applied to the build today the set is ten pairs, and the last three are the ones
 the list of eight did not contain: panel plus Settings; panel plus a menu opened
 inside it; inspector plus a pop-out; a dock plus the time slider plus the toolbar;
-a dialog over each of those; the palette over a panel; a toast over a dialog;
-below 882 px, either region overlay plus a canvas transient; a panel pop-out plus
-Settings; the shortcuts reference plus Settings; and a toast inside the status bar,
-which is the composition of a surface with its own clipping ancestor.
+a dialog over each of those; the palette over a panel; a toast over a dialog; a
+panel pop-out plus Settings; the shortcuts reference plus Settings; and a toast
+inside the status bar, which is the composition of a surface with its own clipping
+ancestor. It was eleven until 2026-09-14: "below 882 px, either region overlay plus
+a canvas transient" needed a region overlay, and 5.2 deleted the width at which one
+was drawn.
 
 The question asked of the screenshot, with the numbers the previous wording
 lacked. "Which surface is READABLE" named no metric, no judge and no pass
@@ -6547,7 +6550,10 @@ differing pixels and the two header PNGs shared one md5,
 `07a655051899103eb1e0f0f85568bf69` -- while the panel's latch varied only its ink,
 `#a3a8b1` against `#d5d7da`, which is 1.66:1 between the two greys. The reader's
 report was exact: "the sidebar locks don't indicate if they are currently locked
-or not" (2026-09-13).
+or not" (2026-09-13). Both controls were DELETED on 2026-09-14 with the latch
+itself (6.12), so the measurement above is now evidence rather than a live defect.
+The rule it founded is untouched: the one `Toggle sidebars` switch that replaced
+them is a held-state toggle like any other and owes its two states the same way.
 
 The boundary floor. The visual boundary that distinguishes a control's state is
 held to WCAG 2.2 1.4.11, 3:1, and the ratio is measured on BOTH of the boundary's
@@ -6593,17 +6599,18 @@ has no `pressed` input. The library keys the boundary off the VARIANT instead
 (`compact-mantine/src/theme/styles/buttons.ts:95-97`,
 `return variant === "light" ? { "--ai-bd": "1px solid var(--ai-color)" } : {}`), so a
 call site obtains the treatment by choosing a variant and the state-to-variant mapping
-stays duplicated at every call site: `panel/PanelHeader.tsx:257-261` is still
-`variant={latched ? "light" : "subtle"}` with `c={latched ? undefined : PANEL_INK.CHROME}`,
+stays duplicated at every call site: `topbar/topBarControls.tsx:103-104` is still
+`variant={active ? "light" : "subtle"}` with `c={active || disabled ? undefined : PANEL_INK.CHROME}`,
 choosing ground AND ink, and the next author of a toggle can still write
 `variant="subtle"` and draw nothing. Two things follow.
 
 - The component takes `pressed` and maps it to ground, border and ink itself. A call
-  site passes `pressed={latched}` and no variant, no colour and no ink. THE TEST, and
+  site passes `pressed={held}` and no variant, no colour and no ink. THE TEST, and
   it is one grep: `grep -rn 'variant={.*"light"' --include=*.tsx graphty/src` returns
-  zero. It returns three today -- `panel/PanelHeader.tsx:258`,
-  `inspector/InspectorHeader.tsx:127` and `topbar/topBarControls.tsx:103` -- which are
-  the three rows this section says it repaired, repaired through the variant.
+  zero. It returns TWO today -- `inspector/InspectorHeader.tsx:128` and
+  `topbar/topBarControls.tsx:103` -- down from three on 2026-09-14, the panel
+  header's having gone with the latch rather than having been repaired. Both
+  survivors are rows this section says it repaired, repaired through the variant.
 - Keying the boundary off `variant="light"` is the interim and not the rule, and its
   side effect is named so it is not mistaken for a decision: every non-toggle
   `variant="light"` ActionIcon in the product gains a border it never asked for. The
@@ -6630,7 +6637,7 @@ eight of the ten rows while only two of them named an attribute at all.
 
 | Control | States | Treatment | Accessibility | The fact it reports |
 |---|---|---|---|---|
-| An icon toggle in a title row or a toolbar (`Keep open`, `Pin as A`, the two region switches, `Show on canvas`, `Link views`) | pressed, not pressed | the `light` variant -- tinted ground, accent glyph -- plus the 1 px border in its own ink; the word, the title and the glyph unchanged between states (6.8; `REGISTER-1.5.md` 10.2 and 19) | `aria-pressed` | whether the state is currently held |
+| An icon toggle in a title row or a toolbar (`Pin as A`, the one `Toggle sidebars` switch, `Show on canvas`, `Link views`) | pressed, not pressed | the `light` variant -- tinted ground, accent glyph -- plus the 1 px border in its own ink; the word, the title and the glyph unchanged between states (6.8; `REGISTER-1.5.md` 10.2 and 19) | `aria-pressed` | whether the state is currently held |
 | A switch row (RT-5) | on, off | the switch atom, which draws its own state by construction; the accent fill is the ON state and is reserved for it | the atom's own `role="switch"` with `aria-checked`, by construction | the setting itself |
 | A section chevron | open, closed | rotation, plus RT-8's trailing slot switching from the state mark to the section's verbs and its gear (6.11) | `aria-expanded` on the control, `aria-controls` naming the section body | what is inside, without opening it |
 | A gear or door stub | everything behind it at default, something not | the held treatment -- tint plus the 1 px border -- when anything behind it deviates (6.11's stub obligation; amended 2026-09-13, see A state is never drawn in ink alone) | the accessible name carries the deviation, as the title's second sentence ("Parsing. 2 changed"), there being no ARIA state for "differs from default" | that a closed surface hides a non-default |
@@ -6841,7 +6848,7 @@ UNMOUNT under the value.
 | Home | When | Why |
 |---|---|---|
 | The component's own state | the surface is never unmounted while the value matters, and the value is worthless to anything outside it | nothing else has to know, and a value nobody remembers costs nothing to lose |
-| Shell session state (`ShellContext`) | the surface is unmounted and re-mounted by ordinary navigation -- a panel switch, a narrow overlay closing, a tier 2 section collapsing -- but the value is not worth a reload | the value outlives the surface's remount without ever reaching storage, which is the case 6.5's list is not for |
+| Shell session state (`ShellContext`) | the surface is unmounted and re-mounted by ordinary navigation -- a panel switch, the sidebars being hidden, a tier 2 section collapsing -- but the value is not worth a reload | the value outlives the surface's remount without ever reaching storage, which is the case 6.5's list is not for |
 | Local storage, per 6.5 | the value must survive a reload | 6.5's list is the closed set of those, and 6.5a says when the record is written |
 
 The rule that follows, stated generally because it was stated for one field and never
@@ -6884,9 +6891,11 @@ The second stage does not apply where the field IS what the surface is for, whic
 the Import options dialog, the first Escape closes the surface, which is what 6.12's
 table assigns it, because clearing a query inside a surface that is about to be
 dismissed spends a press and teaches nothing. The earlier wording named "a narrow
-sheet" in that list, which was wrong and left a real case unassigned: a narrow sheet
-over the panel overlay is a surface that CONTAINS a field, so the first Escape clears
-the query and the second closes the sheet. 6.12 works that case through at 1024 px.
+sheet" in that list, which was wrong and left a real case unassigned. That case is
+MOOT since 2026-09-14: there are no sheets and no narrow layout to draw them in
+(5.2, dormant). What it settled stands and is what the panel's own case turns on --
+a surface that merely CONTAINS a field takes the two stages first -- and 6.12 works
+that case through on the docked activity panel.
 
 Enter's half is already settled and is repeated because it is the same
 pair: Enter commits a single-line field, and in a composer that grows to four
@@ -7695,9 +7704,9 @@ runnable by hand.
 | # | Check | Steps | Passes when | Scenario |
 |---|---|---|---|---|
 | 1 | The composition set (6.13) | derive the pairs by the three conditions of 6.13's composition clause; open each pair on screen; screenshot; measure occlusion, contrast and reachability as that clause defines them | every pair passes all three measurements, and every pair has a recorded result | OWED (UAT-17); the eleven pairs of 6.13 are its rows |
-| 2 | The dismissal guarantee (6.12) | at each of 375, 600, 1024, 1280 and 1440 px, from a CLEARED profile and with the reset AFTER the resize, enumerate every surface drawn over the canvas, hit-test each one's close control at its centre, and press Escape with focus where the shell left it | at every width every such surface has one hit-testable dismissing control and one binding that reaches it | UAT-14, at three widths of the five: 1280 and 1440 are OWED, and they are the two where the shell's own default latches both sidebars, so they are the two the guarantee most needs |
+| 2 | The dismissal guarantee (6.12) | at 1280 and at 1440 px, from a CLEARED profile and with the reset AFTER the resize, enumerate every surface drawn over the canvas, hit-test each one's close control at its centre, and press Escape with focus where the shell left it; then at 1024, 600 and 375 px confirm the shell draws the too-small state and no surface at all (5.2) | at both layout widths every such surface has one hit-testable dismissing control and one binding that reaches it, and below 1280 px there is nothing to enumerate | UAT-14 runs all five widths: the two the shell lays out at and the three where it does not. The two sidebars are outside the set (6.12), so the widths that used to need it most are the ones that no longer draw an overlay at all |
 | 3 | The reverse audit (6.4a) | for each row of 6.4a's construction table, reach the surface in the running application by the route named, then tab through what appears and click each control | every built surface is reachable by a named route, by pointer and by key, and shows the state it claims to edit | UAT-10 covers the style-layer inspector only; the rest is OWED (UAT-18) |
-| 4 | Two states, two ratios (6.14) | for each catalogue row, screenshot the control in both states with the pointer moved off it, and measure the boundary against both adjacent colours in both schemes | `compare -metric AE` over the control's box is at or above the boundary's own perimeter in pixels (88 for a 1 px border on a 24 px box), and both ratios clear 3:1 | UAT-03 probes the attribute half for the latches (check (b) of 6.14); the pixel-and-ratio half is OWED (UAT-19) |
+| 4 | Two states, two ratios (6.14) | for each catalogue row, screenshot the control in both states with the pointer moved off it, and measure the boundary against both adjacent colours in both schemes | `compare -metric AE` over the control's box is at or above the boundary's own perimeter in pixels (88 for a 1 px border on a 24 px box), and both ratios clear 3:1 | UAT-03 probes the attribute half for the one `Toggle sidebars` switch (check (b) of 6.14), which is what the two latches it used to probe became; the pixel-and-ratio half is OWED (UAT-19) |
 | 5 | The field audit (6.15) | list every field in the shell; press its focus route; read its signature for the forbidden shape of 6.15(2); type into it and read the state back | every field named in 6.15(1) focuses as its list says, and no field is a defaulted value behind an optional handler with no fallback | OWED (UAT-20); the two greps of 6.15(2) are its first half and can be run today |
 | 6 | The style layer audit (6.16) | load a graph; list what the canvas encodes; find a layer for each in Style's Layers list; grep for appearance writes outside the layer channel | every visible encoding has a layer row, every layer names its source, and the grep returns nothing | OWED (UAT-21) |
 | 7 | The default component audit (6.17) | grep for bespoke controls and for state or geometry written at a call site; read each recorded exception's comment | every exception is a named, commented debt, and 6.14's variant grep returns zero | OWED (UAT-22); it is red today at three call sites |
@@ -7803,20 +7812,12 @@ pro tool, 5 a tutorial), down from an average of 2.8 in the second pass.
 
 ## 12. Open questions
 
-- What may a reader latch themselves into below 1280 px? The 2026-09-13
-  amendment permits both latches at every width, and at 375 px two latched
-  overlays cover the canvas end to end with both close controls inside the
-  covering surfaces. 6.12's dismissal guarantee holds as written -- the controls
-  are on screen and hit-testable -- but whether a control inside the covering
-  surface satisfies the spirit of it at that width is the product owner's call,
-  since the amendment that created the state was theirs. Options: (a) leave it,
-  and the guarantee is satisfied by the headers' own close controls, which is the
-  default and what is specified today; (b) below a named width the SECOND latch is
-  refused, with the refusal explained in one line on the control rather than
-  silently, which is the withdrawn 2026-09-12 rule brought back with a reason
-  drawn; (c) below a named width the second surface opens as a sheet over the
-  first rather than as a second overlay, which keeps both reachable and costs a
-  new surface shape. Only (a) needs no new work.
+- ANSWERED, 2026-09-14, and kept here for one revision so a reader of 1.14 does
+  not go looking for it: "What may a reader latch themselves into below 1280 px?"
+  Nothing. There is no latch and there is no layout below 1280 px -- the shell
+  draws "Screen too small" there (5.2) -- so the question's three options are all
+  moot. It is answered by deletion rather than by a decision, which is the only
+  reason it is recorded as answered at all.
 - 6.17 forbids a bespoke control and records one standing exception: Explore's
   search field is a raw `<input>` because compact-mantine's `CompoundRow` draws
   values rather than an editable field. Does the library get an editable compound
@@ -8110,6 +8111,80 @@ row that is itself resident, so there is one mechanism at one scale and nothing
 left to drift.
 
 ## 13. Revision history
+
+- 1.15 (2026-09-14): the panel model, applied against revision 1.14. The product
+  owner, verbatim: "our panel open / closed / autohide is a confusing nightmare.
+  remove the panel locks and remove autohide ... there is one button to hide /
+  show both at the same time and not individual buttons", and, on the breakpoint,
+  "there will be no more auto-hide. below 1280 should just say 'screen too small'
+  or something similar." Five interlocking mechanisms are DELETED rather than
+  reworked, and the sections that specified them are rewritten rather than
+  annotated, because a document that still describes a latch after the latch is
+  gone is the defect this document records about itself elsewhere: an asserted
+  behaviour nothing performs.
+  (1) 6.12's "The latch" is deleted entire, both of its 2026-09-13 amendments with
+  it, and replaced by "Showing and hiding the sidebars": both sidebars are drawn
+  together, ONE control (`Toggle sidebars`, in the top bar, in the slot the
+  mirrored pair of region switches occupied), ONE binding (Cmd/Ctrl+B), ONE
+  persisted boolean (`sidebarsHidden`, default false). Nothing else opens or
+  closes either sidebar -- not Escape, not a canvas tap, not a selection change,
+  not a dataset boundary, not the window width, and not the shell on the reader's
+  behalf under any other circumstance. Gone with the latch: two `Keep open`
+  controls and the memory behind them, the activity panel's header X, the
+  inspector's collapse control, the `D` binding, and the width-aware first-visit
+  layout. Two departures are FLAGGED there rather than landed silently, because
+  both are the product owner's to confirm: a rail click reveals hidden sidebars
+  (it can only ever show, so it is not a second hiding mechanism), and the rail's
+  close-on-active-click is struck.
+  (2) 5.2 no longer describes a layout. Below 1280 px the shell draws "Screen too
+  small" over "Graphty needs a window at least 1280 pixels wide." and nothing else
+  -- no rail, no panel, no canvas, no inspector, no status bar. Every
+  narrow-screen behaviour this document specified goes with it: the
+  one-overlay-at-a-time rule, the kept-open carve-outs, the sheet forms, the
+  canvas-tap and Escape-rung dismissals, the pinned card's second tab, the row
+  activation that traded the panel for the inspector, and the iPad render ceiling
+  with its Import options copy. Clauses in other sections that still name the
+  breakpoint are DORMANT and 5.2 lists them, so the set is closed and findable
+  rather than scattered.
+  (3) 5.1 loses two things and gains one. The rail is a pure activity chooser:
+  "Clicking the active icon closes its panel" is STRUCK. The top bar's two region
+  switches become one `Toggle sidebars`.
+  (4) 5.6's Escape ladder loses its third rung and has FIVE, because there is no
+  overlay to dismiss; Escape never closed a docked sidebar and still does not. The
+  binding table loses `D` and restates Cmd/Ctrl+B over both sidebars at once.
+  (5) 6.5's remembered set trades "inspector collapsed state" and the two latch
+  entries for one `sidebarsHidden`. 6.5a shrinks to the storage key and its
+  reason: the key is now `graphty.shell.layout.v3`, because every v2 record
+  carries `inspectorOpen: false` and a possibly-null `activeActivity` that a v3
+  reader would honour as a deliberate hide, so the bump is the only thing that
+  makes the new default reach anyone who has ever opened the app -- at the
+  one-time cost of their remembered widths and section states, which is a real
+  loss and is recorded rather than discovered. The "a default is not a choice"
+  machinery collapses with the ambiguity it policed, and its clause (4) is
+  WITHDRAWN as stated: the record is written on mount and says exactly what an
+  absent record would have said.
+  (6) The dismissal guarantee STANDS and gets easier to satisfy. The two sidebars
+  leave its set -- they are docked columns that resize the canvas, not surfaces
+  drawn over it -- and it is restated over one top-bar control with the
+  measurement that makes it checkable: the top bar is a grid row above the body
+  row (the bar at y 0..40, the panel, canvas and inspector sharing the row
+  beneath), so nothing the body row draws can cover it, at 1280 and at 1440. Its
+  latch clauses and the whole "what may a reader latch themselves into below 1280
+  px" paragraph are deleted, and section 12's open question of the same name is
+  ANSWERED BY DELETION.
+  (7) The rest is consequence and is listed so nothing is left half-amended:
+  section 10's checks 2 and 4 are restated over the widths and the control that
+  now exist; 6.13's region-overlay rung is marked dormant and its composition set
+  drops the pair that needed an overlay; 6.14's catalogue row names the one
+  sidebars switch instead of `Keep open` and the two region switches, and its
+  variant grep is re-counted at two call sites; 5.4 stops contrasting the
+  comparison pin with a latch that no longer sits beside it; and
+  `design/ui/UAT.md` is rewritten wherever it tested the removed model -- UAT-03,
+  UAT-11, UAT-12 and UAT-14, plus the standard probe, three gotchas and the
+  selector table.
+  What is NOT done, deliberately: the revision-log entries below record the latch
+  and the narrow layout as they were ADDED, and they are left standing. They are
+  history, and a history edited to agree with the present is not one.
 
 - 1.14 (2026-09-13): the second iteration on the behaviour half, applied against
   revision 1.13 after an adversarial review of it. 1.13 was strong on the classes a

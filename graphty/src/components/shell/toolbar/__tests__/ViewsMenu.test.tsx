@@ -1,7 +1,8 @@
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen, within } from "../../../../test/test-utils";
+import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { LEGEND_EMPTY_REASON } from "../../canvas/legendAvailability";
 import { CANVAS_TOOLBAR_DESKTOP } from "../../constants";
 import { ViewsMenu,type ViewsMenuProps } from "../ViewsMenu";
 
@@ -182,6 +183,77 @@ describe("ViewsMenu", () => {
 
             expect(onToggleToolbar).toHaveBeenCalledTimes(1);
             expect(onOpenChange).toHaveBeenCalledWith(false);
+        });
+    });
+
+    describe("the Legend row when nothing is encoded", () => {
+        /*
+            The owner's report was "the legend doesn't show up, even when checked". The
+            legend cannot render until an algorithm run has painted an encoding, and until
+            this row learned that, it reported "checked" for a legend that could not
+            exist -- a 6.14 violation (design line 6633). The fix keeps the row and puts
+            the reason on it (floor item 4, design line 6641).
+        */
+        it("disables the row, keeps its name and its check mark, and carries the reason as its second line", async () => {
+            render(<ViewsMenu {...props({ legendShown: true, legendAvailable: false })} />);
+
+            const legend = await row("Legend");
+
+            expect(legend).toHaveAttribute("aria-disabled", "true");
+            expect(legend.textContent).toContain("Legend");
+            expect(legend).toHaveAttribute("aria-checked", "true");
+            expect(legend.textContent).toContain(LEGEND_EMPTY_REASON);
+        });
+
+        it("refuses the click rather than flipping a boolean whose effect cannot be seen", async () => {
+            const user = userEvent.setup();
+            const onToggleLegend = vi.fn();
+
+            render(<ViewsMenu {...props({ legendAvailable: false, onToggleLegend })} />);
+
+            await user.click(await row("Legend"));
+
+            expect(onToggleLegend).not.toHaveBeenCalled();
+        });
+
+        it("keeps the disabled row in the arrow-key ring, so traversal counts do not change", async () => {
+            render(<ViewsMenu {...props({ legendAvailable: false, vrSupported: true, arSupported: true })} />);
+
+            const names = await rowNames();
+
+            expect(names).toHaveLength(12);
+            expect(names[9]).toMatch(/^Legend/);
+
+            const toolbar = await row("Toolbar");
+
+            toolbar.focus();
+            fireEvent.keyDown(toolbar, { key: "ArrowDown" });
+
+            const legend = await row("Legend");
+
+            expect(document.activeElement).toBe(legend);
+
+            // And the ring carries on THROUGH it: a row that cannot be acted on is still
+            // a row the reader can reach and read.
+            fireEvent.keyDown(legend, { key: "ArrowDown" });
+
+            expect(document.activeElement).toBe(await row("Enter VR"));
+        });
+
+        it("draws the row live again once a run has encoded a channel", async () => {
+            const user = userEvent.setup();
+            const onToggleLegend = vi.fn();
+
+            render(<ViewsMenu {...props({ legendAvailable: true, onToggleLegend })} />);
+
+            const legend = await row("Legend");
+
+            expect(legend).toHaveAttribute("aria-disabled", "false");
+            expect(legend.textContent).not.toContain(LEGEND_EMPTY_REASON);
+
+            await user.click(legend);
+
+            expect(onToggleLegend).toHaveBeenCalledTimes(1);
         });
     });
 

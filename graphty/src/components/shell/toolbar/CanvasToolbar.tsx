@@ -34,8 +34,20 @@
  * unchecked.
  *
  * A tap on the bar is NOT a tap on the canvas (SPEC:411-413): the bar is drawn inside
- * the canvas element, so below 1280 px a tap on Zoom to fit must not dismiss the open
- * panel. The container stops the pointer before the canvas's own tap handler sees it.
+ * the canvas element, so a tap on Zoom to fit must not read as a tap on the graph. The
+ * container stops the pointer before the canvas's own handler sees it. The rule this
+ * guard was written for -- below 1280 px a canvas tap dismissed whichever region
+ * overlay was open -- went with the sub-1280 layout on 2026-09-14, and `AppShell` now
+ * passes the canvas no tap handler at all. The guard stays because its statement is
+ * about what this bar IS, not about what the canvas currently does with a tap: the next
+ * thing given to the canvas element will inherit the same containment for free.
+ *
+ * The bar is centred on `left: 50%` of the canvas element, and that IS the visible
+ * centre: the element is a docked flex column of the body row with a sidebar on either
+ * side of it, so its own middle is the middle of the strip the reader sees. It was NOT
+ * true while the sidebars were absolutely positioned overlays over an unresized canvas;
+ * it happened to look right only because both sidebars were the same 280 px, and any
+ * change that made them differ would have landed this bar off-centre by half a sidebar.
  */
 
 import { PANEL_INK } from "@graphty/compact-mantine";
@@ -116,8 +128,11 @@ export interface CanvasToolbarComponentProps extends CanvasToolbarProps {
 }
 
 /**
- * Keeps a press on the bar off the canvas. The bar lives inside the canvas element,
- * and below 1280 px a tap on the canvas closes an open overlay.
+ * Keeps a press on the bar off the canvas. The bar lives INSIDE the canvas element, so
+ * without this every press on Zoom to fit would also read as a press on the graph
+ * (SPEC:411-413). The dismissal it was originally written to stop -- a canvas tap
+ * closing an open region overlay below 1280 px -- no longer exists, but the containment
+ * it states does, and the bar is still drawn inside the element it must not speak for.
  * @param event - the pointer or mouse event the bar received.
  */
 function stopCanvasTap(event: React.SyntheticEvent): void {

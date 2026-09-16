@@ -40,6 +40,7 @@ import { ActionIcon, createScopedKeydownHandler, Menu, Tooltip, UnstyledButton }
 import React from "react";
 
 import { keyChipFor } from "../bindings";
+import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
 import { ComingTag } from "../ComingTag";
 import { CANVAS_MENU_Z_INDEX, type CanvasToolbarProfile, TOOLTIP_DELAY_MS } from "../constants";
 import { MenuCaret } from "../MenuCaret";
@@ -106,6 +107,16 @@ export interface ViewsMenuProps {
     readonly minimapShown: boolean;
     /** Whether the legend is shown. */
     readonly legendShown: boolean;
+    /**
+     * Whether the legend has anything to draw, from
+     * {@link legendAvailable}. False -- the state straight after a load, before any
+     * algorithm run has painted an encoding -- draws the Legend row DISABLED with
+     * {@link LEGEND_EMPTY_REASON} as its second line, because a row that reports
+     * "checked" while the legend cannot exist reports a state the reader cannot see
+     * (6.14, design line 6633). Defaults to true so a caller that has not measured its
+     * channels draws the row exactly as it drew before this prop existed.
+     */
+    readonly legendAvailable?: boolean;
     /** Whether the toolbar is shown. Unchecking it hides this menu with the bar. */
     readonly toolbarShown: boolean;
     /** Whether the browser reports immersive-vr support. The row is omitted when it does not. */
@@ -282,6 +293,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         profile,
         minimapShown,
         legendShown,
+        legendAvailable = true,
         toolbarShown,
         vrSupported,
         arSupported,
@@ -441,11 +453,25 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     glyph={toolbarShown ? <UiGlyph name="check" size={glyphSize} /> : undefined}
                     onSelect={choose(onToggleToolbar)}
                 />
+                {/*
+                    The Legend row keeps its name, its check mark and its arrow-key place
+                    when the legend cannot be drawn, and says why on the row itself. The
+                    check mark is NOT stripped: it still reports the remembered boolean
+                    truthfully, and the second line is what tells the reader that the
+                    remembered boolean is not the thing deciding anything right now
+                    (floor item 4; design line 6641). A disabled row stays in the ring
+                    that `rowKeydownHandler` walks, so keyboard traversal counts do not
+                    change -- which is what this file's own row comment already requires
+                    of a row that cannot be acted on.
+                */}
                 <ViewsMenuRow
                     label="Legend"
+                    secondLine={legendAvailable ? undefined : LEGEND_EMPTY_REASON}
                     checked={legendShown}
                     glyph={legendShown ? <UiGlyph name="check" size={glyphSize} /> : undefined}
                     keyChip={keyChipFor("toggleLegend")}
+                    disabled={!legendAvailable}
+                    height={legendAvailable ? PANEL_GRID.CONTROL_HEIGHT : PANEL_GRID.ROW_PITCH}
                     onSelect={onToggleLegend}
                 />
 

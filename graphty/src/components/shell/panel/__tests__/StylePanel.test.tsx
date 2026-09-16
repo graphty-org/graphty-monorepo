@@ -220,5 +220,33 @@ describe("StylePanel", () => {
 
             expect(onLegendShownChange).toHaveBeenCalledWith(false);
         });
+
+        /*
+            The defect: the switch read ON, and was pressable, on every freshly loaded
+            graph, while the legend could not render at all -- nothing paints a colour
+            encoding until an algorithm run applies one. That is a control reporting a
+            state the reader cannot see (6.14, design line 6633). Floor item 4 has the
+            disabled control keep its place and its word and carry its one reason after
+            its own full stop.
+        */
+        it("disables the switch and states the reason in its title when nothing is encoded", async () => {
+            renderPanel({ legendShown: true, legendAvailable: false });
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+
+            expect(screen.getByTestId("style-legend-row").getAttribute("title")).toBe(
+                "Show legend (L). Nothing is encoded yet",
+            );
+            expect(await screen.findByRole("switch", { name: "Show legend" })).toBeDisabled();
+        });
+
+        it("leaves the switch live, and its title without a reason, once a channel is encoded", async () => {
+            renderPanel({ legendShown: true, legendAvailable: true });
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+
+            expect(screen.getByTestId("style-legend-row").getAttribute("title")).toBe("Show legend (L)");
+            expect(await screen.findByRole("switch", { name: "Show legend" })).toBeEnabled();
+        });
     });
 });

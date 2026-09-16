@@ -13,6 +13,7 @@ import React, { useState } from "react";
 import { type LayerItem, LeftSidebar } from "../../layout/LeftSidebar";
 import { RunLayoutsModal } from "../../RunLayoutsModal";
 import { keyChipFor } from "../bindings";
+import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
 import { MORE_LABEL, MoreGlyph } from "./PanelHeader";
 import { COMING_GROUP_SENTENCE, ComingTag, PanelSection, SectionAddButton } from "./PanelSection";
 
@@ -128,6 +129,16 @@ export interface StylePanelProps {
     readonly onStylesOverflow?: (label: string) => void;
     /** Whether the canvas legend is shown. */
     readonly legendShown?: boolean;
+    /**
+     * Whether the legend has anything to draw, from
+     * {@link legendAvailable}. False -- the state straight after a load, before any
+     * algorithm run has painted an encoding -- draws the switch DISABLED with
+     * {@link LEGEND_EMPTY_REASON} appended to the row's title, because a switch reading
+     * ON while the legend cannot exist reports a state the reader cannot see (6.14,
+     * design line 6633). Defaults to true so a caller that has not measured its channels
+     * draws the row exactly as it drew before this prop existed.
+     */
+    readonly legendAvailable?: boolean;
     /** Shows or hides the canvas legend. */
     readonly onLegendShownChange?: (shown: boolean) => void;
 }
@@ -168,13 +179,27 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
         onSaveStyle,
         onStylesOverflow,
         legendShown = true,
+        legendAvailable = true,
         onLegendShownChange,
     } = props;
 
     const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
 
     const legendChip = keyChipFor("toggleLegend");
-    const legendTitle = legendChip === null ? "Show legend" : `Show legend (${legendChip})`;
+    const legendName = legendChip === null ? "Show legend" : `Show legend (${legendChip})`;
+    /*
+        Floor item 4: a disabled control carries its ONE reason appended to its own title
+        after a full stop, which is the form "Export. Load data first" and "Note. Select
+        something first" already take in this shell. The reason is imported rather than
+        retyped, so the Views menu's Legend row and this switch cannot give the reader two
+        different explanations of one state.
+
+        The defect this repairs: the switch used to read ON, and be pressable, on every
+        freshly loaded graph, while the legend could not render at all -- nothing paints a
+        colour encoding until an algorithm run applies one (see canvas/legendAvailability.ts
+        for all six conditions). Design line 6633: a control must show the state it is in.
+    */
+    const legendTitle = legendAvailable ? legendName : `${legendName}. ${LEGEND_EMPTY_REASON}`;
 
     return (
         <>
@@ -336,6 +361,7 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                         label="Show legend"
                         control="switch"
                         checked={legendShown}
+                        disabled={!legendAvailable}
                         onChange={(checked) => {
                             onLegendShownChange?.(checked);
                         }}

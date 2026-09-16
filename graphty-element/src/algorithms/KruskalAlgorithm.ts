@@ -23,7 +23,7 @@ export class KruskalAlgorithm extends Algorithm {
         layers: [
             {
                 edge: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.kruskal.inMST == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.kruskal.inMST"],

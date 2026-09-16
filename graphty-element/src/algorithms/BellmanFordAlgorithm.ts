@@ -73,7 +73,7 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
         layers: [
             {
                 edge: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.\"bellman-ford\".isInPath == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bellman-ford.isInPath"],
@@ -88,7 +88,7 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
             },
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.\"bellman-ford\".isInPath == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bellman-ford.isInPath"],

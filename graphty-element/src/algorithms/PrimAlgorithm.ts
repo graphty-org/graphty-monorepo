@@ -69,7 +69,7 @@ export class PrimAlgorithm extends Algorithm<PrimOptions> {
         layers: [
             {
                 edge: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.prim.inMST == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.prim.inMST"],

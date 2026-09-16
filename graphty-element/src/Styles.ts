@@ -253,10 +253,17 @@ export class Styles {
      * order without copying its first-wins consumer. The two halves of one layer stack therefore
      * disagreed about which layer was on top: two live layers both writing `style.texture.color`
      * through `calculatedStyle` gave the colour to the BOTTOM one, while the same two layers
-     * writing it through `style` gave it to the TOP one. Nothing shipped in the app hits that pair,
-     * which is why it was never reported as a bug, but algorithm suggested-styles and generated
-     * layers are user-extensible, so it was an inversion waiting for the first layer stack that
-     * shared an output path.
+     * writing it through `style` gave it to the TOP one.
+     *
+     * THE SHIPPED CASE, which an earlier version of this comment wrongly said did not exist:
+     * `DegreeAlgorithm` and `LouvainAlgorithm` BOTH write `style.texture.color` through
+     * `calculatedStyle`, and the Algorithms/Combined stories stack them deliberately --
+     * `CommunityStructureWithPath` even comments that louvain "overrides degree colour". Under the
+     * old `unshift` the bottom layer won, so degree's viridis ramp beat louvain's community
+     * colours: the opposite of what the stack asked for. Correcting the order also promoted the
+     * TOP layer of that stack to last writer, which is how it surfaced that a highlight layer was
+     * repainting every element it did not highlight (see the scoped selectors in
+     * `src/algorithms/*.ts`).
      *
      * WHY THIS ONLY BECAME MEANINGFUL RECENTLY. Until `ChangeManager.loadCalculatedValues` began
      * clearing `calculatedValues` as well as `watchedInputs`, the Set held every value the node had

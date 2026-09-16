@@ -26,7 +26,7 @@ export class BipartiteMatchingAlgorithm extends Algorithm {
         layers: [
             {
                 edge: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.\"bipartite-matching\".inMatching == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bipartite-matching.inMatching"],

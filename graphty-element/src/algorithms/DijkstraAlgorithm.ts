@@ -94,7 +94,7 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
         layers: [
             {
                 edge: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
@@ -109,7 +109,7 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
             },
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.dijkstra.isInPath"],

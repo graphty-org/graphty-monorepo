@@ -135,7 +135,7 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
         layers: [
             {
                 edge: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.\"min-cut\".inCut == `true`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.min-cut.inCut"],

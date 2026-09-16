@@ -102,10 +102,31 @@ export function edgeEndpointId(value: unknown): string | null {
  * `src`/`dst` is preferred because that is the spelling `Graphty.tsx`'s `getData`
  * writes; `source`/`target` is accepted because that is the spelling most source files
  * carry into `edge.data`, which `getData` spreads over the record.
+ *
+ * EXPORTED ON 2026-09-14, and the reason is the defect it retires. `AppShell` had a
+ * SECOND, private reader of the same fact -- an `edgeEndpoint` helper and a
+ * `neighborsOf` loop that read `edge.source` and `edge.target` and nothing else. Those
+ * two fields are exactly the two `getData` never writes (`Graphty.tsx:280-286` builds
+ * `{id, src, dst, ...edge.data}`), so every edge yielded no endpoint, every iteration was
+ * skipped, and the node inspector reported "Expand 0 neighbors" for every node on every
+ * dataset. It read as an id-type bug and was not one: a JSON file whose edge records
+ * happen to be spelled `{"source":..,"target":..}` restored the two names through the
+ * `...edge.data` spread and worked, while karate.gml could not -- `GMLDataSource.ts`
+ * :302-310 builds `{src, dst, ...edge}` and then deliberately DELETES `source` and
+ * `target` from the data. Verified in the browser: node 34 on Karate Club reported 0
+ * neighbours while its own result card said 17 links.
+ *
+ * The fix was not to add the two missing field names to the second reader. It was to
+ * delete the second reader, because two spellings of one fact is what let them disagree
+ * in the first place, and adding the names would have left the next call site free to
+ * invent a third spelling. `edgeEndpointId` beside this also accepts an endpoint given as
+ * a node OBJECT and rejects the empty string as an id, neither of which the private
+ * helper did, so the shell's neighbour list got strictly better as well as correct.
  * @param edge - one edge record.
  * @returns both endpoint ids, either of which may be null.
+ * @public
  */
-function edgeEndpoints(edge: Readonly<Record<string, unknown>>): {
+export function edgeEndpoints(edge: Readonly<Record<string, unknown>>): {
     readonly source: string | null;
     readonly target: string | null;
 } {

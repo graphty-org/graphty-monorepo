@@ -82,6 +82,54 @@ function capabilitiesOf(cards: readonly { readonly capability: InsightCapability
     return cards.map((card) => card.capability);
 }
 
+/**
+ * The titles of a card list, in order. The slice's acceptance criteria are written in
+ * the drawn titles ("Who has influence"), not in capability ids, so the assertions that
+ * stand for a reader read the same way.
+ * @param cards - the cards.
+ * @returns their titles.
+ */
+function titlesOf(cards: readonly { readonly title: string }[]): string[] {
+    return cards.map((card) => card.title);
+}
+
+/**
+ * A 500-node graph, comfortably below the threshold and comfortably above rule 5's
+ * 20-node floor -- the size at which all three centrality cards are live at once.
+ * @param overrides - fields to change.
+ * @returns the shape.
+ */
+function centralityShape(overrides: Partial<InsightsGraphShape> = {}): InsightsGraphShape {
+    return {
+        nodeCount: 500,
+        edgeCount: 1840,
+        directedness: "undirected",
+        hasTimeRole: false,
+        validationIssueTypeCount: 0,
+        searchExample: "node-17",
+        largeGraphThreshold: LARGE_GRAPH_THRESHOLD,
+        ...overrides,
+    };
+}
+
+/**
+ * Every member of the {@link InsightCapability} union, written out. The annotation is
+ * the compile-time half of the membership guard below: a string that is not a member
+ * cannot be added here, and the union cannot gain a member without this list being
+ * updated to match the rule table it indexes.
+ */
+const ALL_INSIGHT_CAPABILITIES: readonly InsightCapability[] = [
+    "centrality-betweenness",
+    "centrality-degree",
+    "centrality-pagerank",
+    "community-detection",
+    "component-analysis",
+    "data-validation",
+    "narrow-the-view",
+    "search",
+    "temporal-navigation",
+];
+
 describe("insightCandidates", () => {
     describe("the cat graph the reference shell draws", () => {
         it("yields exactly the three cards Main.dc.html draws", () => {
@@ -449,20 +497,109 @@ describe("insightsStripModel", () => {
 });
 
 describe("SLICE_AVAILABLE_CAPABILITIES", () => {
-    it("is the two capabilities this slice can complete end to end", () => {
-        expect(SLICE_AVAILABLE_CAPABILITIES).toEqual(["community-detection", "search"]);
+    it("is the five capabilities this slice can complete end to end", () => {
+        expect(SLICE_AVAILABLE_CAPABILITIES).toEqual([
+            "centrality-betweenness",
+            "centrality-degree",
+            "centrality-pagerank",
+            "community-detection",
+            "search",
+        ]);
     });
 
-    it("reports availability per capability", () => {
+    it("holds exactly five entries, every one of them a member of the capability union", () => {
+        const declared: readonly InsightCapability[] = SLICE_AVAILABLE_CAPABILITIES;
+
+        expect(declared).toHaveLength(5);
+
+        for (const capability of declared) {
+            expect(ALL_INSIGHT_CAPABILITIES).toContain(capability);
+        }
+    });
+
+    it("reports availability per capability, now that the slice runs the three centralities", () => {
+        expect(isSliceAvailable("centrality-degree")).toBe(true);
+        expect(isSliceAvailable("centrality-pagerank")).toBe(true);
+        expect(isSliceAvailable("centrality-betweenness")).toBe(true);
         expect(isSliceAvailable("community-detection")).toBe(true);
         expect(isSliceAvailable("search")).toBe(true);
-        expect(isSliceAvailable("centrality-degree")).toBe(false);
-        expect(isSliceAvailable("data-validation")).toBe(false);
     });
 
-    it("leaves the cat graph with Find groups and Search once filtered", () => {
+    it("still refuses the four capabilities nothing can run, open or read", () => {
+        expect(isSliceAvailable("component-analysis")).toBe(false);
+        expect(isSliceAvailable("data-validation")).toBe(false);
+        expect(isSliceAvailable("narrow-the-view")).toBe(false);
+        expect(isSliceAvailable("temporal-navigation")).toBe(false);
+    });
+
+    it("leaves the cat graph with all three of its cards once filtered, degree included", () => {
         const shown = insightsStripModel(catShape(), []).cards.filter((card) => isSliceAvailable(card.capability));
 
-        expect(capabilitiesOf(shown)).toEqual(["community-detection", "search"]);
+        expect(capabilitiesOf(shown)).toEqual(["community-detection", "centrality-degree", "search"]);
+    });
+});
+
+describe("the three centrality cards at 500 nodes", () => {
+    it("draws Who has influence on a directed graph with nothing retired and nothing estimated", () => {
+        const model = insightsStripModel(centralityShape({ directedness: "directed" }), []);
+
+        expect(titlesOf(model.cards)).toContain("Who has influence");
+        expect(model.cards.every((card) => isSliceAvailable(card.capability))).toBe(true);
+    });
+
+    it("draws Who is most connected on an undirected graph of the same size", () => {
+        const model = insightsStripModel(centralityShape(), []);
+
+        expect(titlesOf(model.cards)).toContain("Who is most connected");
+        expect(model.cards.every((card) => isSliceAvailable(card.capability))).toBe(true);
+    });
+
+    it("draws Find the bridges at 500 nodes below the threshold", () => {
+        expect(titlesOf(insightsStripModel(centralityShape(), []).cards)).toContain("Find the bridges");
+    });
+
+    it("does not draw Find the bridges at 20 nodes or fewer", () => {
+        expect(titlesOf(insightsStripModel(centralityShape({ nodeCount: 20 }), []).cards)).not.toContain(
+            "Find the bridges",
+        );
+        expect(titlesOf(insightsStripModel(centralityShape({ nodeCount: 8 }), []).cards)).not.toContain(
+            "Find the bridges",
+        );
+    });
+
+    it("does not draw Find the bridges above the large-graph threshold", () => {
+        const shape = centralityShape({ nodeCount: 500, largeGraphThreshold: 400 });
+
+        expect(titlesOf(insightsStripModel(shape, []).cards)).not.toContain("Find the bridges");
+    });
+
+    it("refuses the bridges card at a 120 s estimate while still offering degree at 0.1 s", () => {
+        const shape = centralityShape({
+            estimateSeconds: { "centrality-betweenness": 120, "centrality-degree": 0.1 },
+        });
+        const titles = titlesOf(insightsStripModel(shape, []).cards);
+
+        expect(titles).not.toContain("Find the bridges");
+        expect(titles).toContain("Who is most connected");
+    });
+
+    it("frees the retired centrality's cap slot, so four cards are still drawn", () => {
+        const withNothingRetired = insightsStripModel(fraudShape(), []);
+        const withInfluenceRetired = insightsStripModel(fraudShape(), ["centrality-pagerank"]);
+
+        expect(capabilitiesOf(withNothingRetired.cards)).toEqual([
+            "data-validation",
+            "community-detection",
+            "centrality-pagerank",
+            "search",
+        ]);
+        expect(withInfluenceRetired.cards).toHaveLength(INSIGHTS_CARD_CAP);
+        expect(capabilitiesOf(withInfluenceRetired.cards)).toEqual([
+            "data-validation",
+            "community-detection",
+            "centrality-betweenness",
+            "search",
+        ]);
+        expect(capabilitiesOf(withInfluenceRetired.droppedCards)).toEqual(["temporal-navigation"]);
     });
 });

@@ -439,14 +439,45 @@ export function insightsStripModel(
 /**
  * The capabilities this slice can complete end to end.
  *
- * A card promises three things at once (7.3: run, open its home panel, write a
- * reading). Only community detection can keep all three this slice, and Search keeps
- * them trivially because it runs nothing and writes no reading -- it focuses the
- * Explore query field. Every other capability the table produces would either be inert
- * or claim a reading nothing can write, so the caller filters them out while the table
- * itself stays complete.
+ * A card promises three things AT ONCE (7.3, "Clicking a card does three things at
+ * once", lines 7289 to 7297): it runs the capability with size-aware defaults, it opens
+ * its home panel and highlights the control, and it writes a plain-language reading into
+ * the inspector. A capability that can keep only two of the three makes a card that is
+ * a lie about the third, which is what this list exists to prevent -- and why it is
+ * narrower than the rule table above.
+ *
+ * The three centrality capabilities now keep all three. The shell runs them through
+ * `analysis/nodeMetrics.ts`, the card opens Analyze, and `readings/nodeMetricReading.ts`
+ * writes the reading. Community detection has kept all three since the novice path
+ * shipped, and Search keeps them trivially because it runs nothing and writes no reading
+ * -- it focuses the Explore query field.
+ *
+ * What is still excluded, one clause each: component-analysis has no run behind it;
+ * data-validation has no validation pass, so there is no report to open and no issue
+ * breakdown to read (see {@link validationCard}); narrow-the-view would open a filter
+ * builder this shell does not draw; and temporal-navigation has no time slider to
+ * toggle. Each would therefore be inert, or would claim a reading nothing can write, so
+ * the CALLER filters them out. The TABLE itself stays complete, because
+ * {@link insightCandidates} is spec 7.3's rule table rather than this slice's menu: a
+ * capability dropped from the table would stop being offered on the day it ships, and
+ * nothing would fail to say so -- the card would simply never appear again.
+ *
+ * One gate this widening now leans on. "Find the bridges" needs BOTH of the rule-5
+ * conditions (spec line 7268: nodes > 20 AND below the large-graph threshold) and, on
+ * top of them, the 60 s estimate ceiling -- which only bites when the caller supplies
+ * {@link InsightsGraphShape.estimateSeconds}. AppShell now supplies it from
+ * `analysis/metricCost.ts`. Without it an unestimated betweenness card below the
+ * threshold is permitted BY DESIGN, as {@link passesEstimateGate} already records:
+ * below the threshold a run is cheap by construction, and refusing every unestimated
+ * card there would empty the strip on the small graphs the novice path is written for.
  */
-export const SLICE_AVAILABLE_CAPABILITIES: readonly InsightCapability[] = ["community-detection", "search"];
+export const SLICE_AVAILABLE_CAPABILITIES: readonly InsightCapability[] = [
+    "centrality-betweenness",
+    "centrality-degree",
+    "centrality-pagerank",
+    "community-detection",
+    "search",
+];
 
 /**
  * Whether a capability is one this slice can actually run.

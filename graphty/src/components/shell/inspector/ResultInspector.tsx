@@ -5,17 +5,53 @@
  * result shape, then the resident state swatch and layer name with `Change encoding`,
  * `Delete layer` and `Remove result`.
  *
+ * Those first two verbs are drawn only in the card's APPLIED form. Spec 2233-2236 gives
+ * the applied form "the resident state swatch, the layer name, and Change encoding", and
+ * a card whose run painted nothing -- auto-apply's limit 2 suppressed it, or Delete layer
+ * has since taken the picture -- has no layer for either verb to act on. Drawn anyway,
+ * they did real damage rather than nothing: Change encoding opened Style for an encoding
+ * that does not exist, and Delete layer fell through to whichever tag the shell had last
+ * recorded and deleted somebody else's layers. The un-applied form keeps `Remove result`
+ * alone; spec 2234's "Encode as style" button belongs beside it and exists nowhere in
+ * this build, so the row draws no encoding verb rather than one that does nothing.
+ *
  * Three floor items meet on this one surface and none of them may move behind a door:
  * the reading (item 1), every departure from exact and complete (item 2) and the
  * one-line run record (item 3) -- and a door may not separate a floor item from the
  * thing it qualifies, which is why all three are drawn above the body rather than
  * inside the Details the chevron opens.
  *
- * Only the header and the documented section skeleton are built in this pass; the
- * body's per-shape drawings arrive with the shapes themselves.
+ * The body's per-shape drawing now has its FIRST shape: Node metric (spec 2307) --
+ * the top ranked nodes, each with its rank as a RankChip in the trailing slot and each
+ * selecting the node it names, plus the aggregate tie row when one applies. Every other
+ * result shape still arrives with the shape itself.
+ *
+ * The distribution beneath those rows is ONE RT-9 chart row whose only text is its two
+ * axis ends (spec 4902, 3438-3442), not the five printed figures spec 2307 also asks
+ * for. That is a real conflict between two lines of the spec, and RT-9 is the row type
+ * rule, so it wins: min, median, mean, max and p99 as five printed statistics is exactly
+ * the table a chart row exists to replace, and the figures stay reachable through the
+ * copy path. Drawn INSIDE the Result section, under the rows, because it describes the
+ * same run they do.
+ *
+ * The reading, the caveats line and the run record stay ABOVE all of it, outside every
+ * door, because a door may not separate a floor item from the thing it qualifies -- the
+ * same rule that keeps them out of the Details chevron.
+ *
+ * There is deliberately NO legend block on this surface. Floor item 5 is marked not
+ * applicable on the Result face (spec 2258): the obligation to say what the colours mean
+ * lands on the canvas legend's colour channel, which is where a metric run publishes it.
  */
 
-import { ControlSection, DataRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
+import {
+    ControlSection,
+    DataRow,
+    HistogramRow,
+    PANEL_GRID,
+    PANEL_INK,
+    ProseBlock,
+    RankChip,
+} from "@graphty/compact-mantine";
 import { Box, Group, Text } from "@mantine/core";
 import React from "react";
 
@@ -34,6 +70,10 @@ export interface ResultBodyRow {
     readonly name: string;
     /** The figure beside it, already formatted. */
     readonly value: string;
+    /** The row's rank in the result, drawn as a RankChip in the trailing slot. */
+    readonly rank?: number;
+    /** Selects the thing the row names. A row without one is inert text (RT-6). */
+    readonly onSelect?: () => void;
 }
 
 /**
@@ -50,16 +90,49 @@ export interface ResultInspectorProps {
     readonly onOpenRunDetails?: () => void;
     /** The body for this result's shape. */
     readonly body: readonly ResultBodyRow[];
+    /**
+     * The result's distribution, drawn as one RT-9 chart row under the rows.
+     *
+     * Absent draws nothing: a chart row with no bins is a 0-to-0 axis claiming a
+     * distribution that was never measured, which is the fabricated-figure failure this
+     * surface exists to refuse.
+     */
+    readonly distribution?: {
+        /** The chart's own name, which is also its accessible name and its axis description. */
+        readonly caption: string;
+        /** The bars, in axis order, each already carrying its own phrase. */
+        readonly bins: readonly { readonly label: string; readonly count: number }[];
+        /** The value at the start of the axis -- one of RT-9's only two pieces of text. */
+        readonly axisMin: string;
+        /** The value at the end of the axis -- the other. */
+        readonly axisMax: string;
+    };
     /** The colour the result's style layer paints, as a CSS colour the caller supplies. */
     readonly stateSwatch?: string;
     /** The style layer's own name. */
     readonly layerName?: string;
-    /** Opens the layer's encoding. */
+    /** Opens the layer's encoding. Drawn only in the applied form. */
     readonly onChangeEncoding: () => void;
-    /** Removes the style layer. A destructive verb, so it keeps its words (6.8). */
+    /**
+     * Removes the style layer and leaves the run (spec 2241-2243), after which this card
+     * draws its un-applied form. A destructive verb, so it keeps its words (6.8). Drawn
+     * only in the applied form.
+     */
     readonly onDeleteLayer: () => void;
-    /** Removes the result. A destructive verb, so it keeps its words (6.8). */
+    /**
+     * Removes the result AND every layer that reads it (spec 2243-2244). A destructive
+     * verb, so it keeps its words (6.8).
+     */
     readonly onRemoveResult: () => void;
+    /**
+     * What Remove result will act on, drawn resident under the verb.
+     *
+     * Floor item 4 and spec 2241-2249: the layer count is named BEFORE the act, and the
+     * spec writes it into the verb's own line rather than into a tooltip, so it is the
+     * action's `cost` slot rather than a title. Absent on a result that painted nothing,
+     * because there is then no count to name.
+     */
+    readonly removeResultCost?: string;
 }
 
 /**
@@ -74,29 +147,41 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
         runRecord,
         onOpenRunDetails,
         body,
+        distribution,
         stateSwatch,
         layerName,
         onChangeEncoding,
         onDeleteLayer,
         onRemoveResult,
+        removeResultCost,
     } = props;
 
     const bodySection = useInspectorSection(INSPECTOR_SECTION_IDS.resultBody, true);
 
+    /* The layer name is what says this run painted: it is passed together with the swatch,
+       the tag and the count, or none of them is (AppShell's `activeResult`). So the same
+       fact gates the two layer verbs and the swatch-and-name row below. */
+    const applied = layerName !== undefined;
+
     const actions: InspectorAction[] = [
-        {
-            id: "changeEncoding",
-            label: "Change encoding",
-            onSelect: onChangeEncoding,
-        },
-        {
-            id: "deleteLayer",
-            label: "Delete layer",
-            onSelect: onDeleteLayer,
-        },
+        ...(applied
+            ? [
+                  {
+                      id: "changeEncoding",
+                      label: "Change encoding",
+                      onSelect: onChangeEncoding,
+                  },
+                  {
+                      id: "deleteLayer",
+                      label: "Delete layer",
+                      onSelect: onDeleteLayer,
+                  },
+              ]
+            : []),
         {
             id: "removeResult",
             label: "Remove result",
+            ...(removeResultCost === undefined ? {} : { cost: removeResultCost }),
             onSelect: onRemoveResult,
         },
     ];
@@ -118,7 +203,7 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
                     {runRecord}
                 </ProseBlock>
 
-                {layerName !== undefined && (
+                {applied && (
                     <Group gap={INSPECTOR_CLUSTER_GAP} wrap="nowrap" data-testid="result-layer">
                         {stateSwatch !== undefined && (
                             <Box
@@ -151,23 +236,49 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
                 )}
             </Box>
 
-            {body.length > 0 ? (
-                <ControlSection
-                    label="Result"
-                    opened={bodySection.opened}
-                    onOpenChange={bodySection.onOpenChange}
-                >
-                    {body.map((row) => (
-                        <DataRow key={row.name} name={row.name} value={row.value} />
-                    ))}
-                </ControlSection>
-            ) : (
+            {body.length === 0 && distribution === undefined ? (
                 <ControlSection
                     label="Result"
                     opened={bodySection.opened}
                     onOpenChange={bodySection.onOpenChange}
                     empty
                 />
+            ) : (
+                <ControlSection label="Result" opened={bodySection.opened} onOpenChange={bodySection.onOpenChange}>
+                    {body.map((row) => (
+                        <DataRow
+                            key={row.name}
+                            name={row.name}
+                            value={row.value}
+                            /*
+                                The rank is a RankChip reading `#1`, never the sentence
+                                "Rank 1 of 318" -- DataRow's own doc names the control,
+                                and 6.17 makes a chip assembled at the call site a
+                                defect. A row with no rank -- spec 2307's aggregate tie
+                                line -- gets no chip at all rather than a defaulted one.
+                            */
+                            {...(row.rank === undefined
+                                ? {}
+                                : { trailing: <RankChip>{`#${String(row.rank)}`}</RankChip> })}
+                            {...(row.onSelect === undefined ? {} : { onClick: row.onSelect })}
+                        />
+                    ))}
+
+                    {/*
+                        RT-9, one chart row, two axis ends and nothing else in text. It
+                        sits under the rows and inside the same section because it
+                        describes the same run they do, and a reader who collapses
+                        Result should lose both together or neither.
+                    */}
+                    {distribution !== undefined && (
+                        <HistogramRow
+                            label={distribution.caption}
+                            bins={[...distribution.bins]}
+                            minLabel={distribution.axisMin}
+                            maxLabel={distribution.axisMax}
+                        />
+                    )}
+                </ControlSection>
             )}
 
             <InspectorActions label="Actions" actions={actions} />

@@ -28,10 +28,47 @@ export interface LoadDataRequest {
     replaceExisting: boolean;
 }
 
-interface LoadDataModalProps {
-    opened: boolean;
-    onClose: () => void;
-    onLoad: (request: LoadDataRequest) => void;
+/**
+ * Props of {@link LoadDataModal}.
+ *
+ * Exported, unlike the bare interface this replaces, because the dialog's contract is
+ * now something a caller has to read rather than guess: `onLoad` returns a promise and
+ * the dialog AWAITS it. Every other panel body in the shell (`DataPanelProps`,
+ * `WelcomeStateProps`) already publishes its props for the same reason.
+ * @public
+ */
+export interface LoadDataModalProps {
+    /** Whether the dialog is on screen. */
+    readonly opened: boolean;
+    /** Closes the dialog. The dialog resets its own inputs before calling it. */
+    readonly onClose: () => void;
+    /**
+     * Loads what the reader chose.
+     *
+     * The dialog awaits it, closes on a resolution and STAYS OPEN on a rejection with
+     * the reason in its own error line. That is the whole reason the return type is a
+     * promise: `handleClose` resets the inputs, so a dialog that closed on a failed load
+     * destroyed the file, URL or pasted text the reader would need to try again, and
+     * spec 1107-1108 says errors stop the import rather than quietly finishing it.
+     *
+     * WHAT THIS ASKS OF A CALLER, and why the sentence above was not enough on its own.
+     * The promise must not resolve until the data has actually been READ. The shell's
+     * `handleLoad` used to resolve as soon as graphty-element had accepted the bytes --
+     * the app's load path ends in a property assignment and the element reports a parse
+     * failure later, out of band, through its `data-loading-error` event rather than by
+     * rejecting anything -- so for a malformed paste and a malformed file, which are the
+     * failures this contract exists for, the promise resolved, this dialog closed, and
+     * `resetState` destroyed the reader's text a beat before the failure was reported
+     * anywhere. A caller that resolves on acceptance rather than on arrival keeps every
+     * word of the contract above and still loses the input. The shell now waits for the
+     * element's own `data-loaded` / `data-loading-error` before settling this promise.
+     *
+     * Because of that wait, this can take as long as the load takes. The dialog shows the
+     * Load button busy for the whole of it and refuses a second press, and its Cancel
+     * stays live: a reader who does not want to wait may leave, and the shell reports the
+     * failure on its own surfaces if one arrives afterwards.
+     */
+    readonly onLoad: (request: LoadDataRequest) => Promise<void>;
 }
 
 interface DetectionResult {
@@ -49,6 +86,9 @@ const FORMAT_OPTIONS = [
     { value: "dot", label: "DOT (Graphviz)" },
     { value: "pajek", label: "Pajek NET" },
 ];
+
+/** What the error line says when the refusal carried no message of its own. */
+const UNREADABLE_LOAD_ERROR = "The data could not be loaded, and the loader gave no reason.";
 
 const FORMAT_EXTENSIONS: Record<string, FormatType> = {
     ".json": "json",
@@ -72,6 +112,30 @@ function detectFormatFromFilename(filename: string): FormatType | null {
     }
 
     return null;
+}
+
+/**
+ * What the dialog's error line says about a load that was refused.
+ *
+ * The rejection reaches here from the shell, which reaches it from `GraphtyHandle` or
+ * from graphty-element, so its message is written by whoever actually knew what was
+ * wrong and is printed as it stands. What is never printed is a thrown value that reads
+ * as nothing at all: an empty message, or the `[object Object]` that stringifying a
+ * plain object would produce -- which is why an object is not stringified here. Either
+ * of those at a reader is the silent failure again, one indirection further along.
+ * @param error - whatever the load rejected with.
+ * @returns one sentence for the dialog's error line, never empty.
+ */
+function loadFailureMessage(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message.trim() === "" ? UNREADABLE_LOAD_ERROR : error.message.trim();
+    }
+
+    if (typeof error === "string" && error.trim() !== "") {
+        return error.trim();
+    }
+
+    return UNREADABLE_LOAD_ERROR;
 }
 
 function detectFormatFromContent(content: string): DetectionResult {
@@ -124,7 +188,8 @@ function detectFormatFromContent(content: string): DetectionResult {
  * @param root0 - Component props
  * @param root0.opened - Whether the modal is open
  * @param root0.onClose - Close the modal
- * @param root0.onLoad - Called with the load request when data is loaded
+ * @param root0.onLoad - Called with the load request; awaited, so a rejection keeps the
+ * dialog open with the reader's file, URL or pasted text still in it
  * @returns The load data modal component
  */
 export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): React.JSX.Element {
@@ -137,6 +202,11 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
     const [isDragging, setIsDragging] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [replaceExisting, setReplaceExisting] = useState(true);
+    /* Whether a load is in flight. It is not cosmetic: `onLoad` now settles only once
+       graphty-element has said what became of the data, so the press and the answer are
+       seconds apart on a large file, and a dialog that looked idle in between invited a
+       second press that would start a second load over the first. */
+    const [isLoading, setIsLoading] = useState(false);
 
     const resetState = useCallback(() => {
         setSelectedFormat("auto");
@@ -243,7 +313,11 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
         return detectedFormat?.format ?? null;
     }, [selectedFormat, detectedFormat]);
 
-    const handleLoad = useCallback(() => {
+    const handleLoad = useCallback(async (): Promise<void> => {
+        if (isLoading) {
+            return;
+        }
+
         const format = getEffectiveFormat();
 
         // For auto format with URL or file, we can let graphty-element do the detection
@@ -270,9 +344,49 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
             return;
         }
 
-        onLoad(request);
+        /* The dialog closes only once the load has ARRIVED, which is a stronger claim than
+           the one this comment used to make and the reason the wait exists at all.
+           `handleClose` calls `resetState`, which drops the selected file, the URL and the
+           pasted text -- exactly what the reader needs to fix a separator, a format or a
+           typo and try again -- so closing first and reporting the failure somewhere else
+           takes the input away at the one moment it matters.
+
+           It used to do precisely that on the commonest failure there is. `onLoad`
+           resolved as soon as graphty-element had accepted the bytes, because the app's
+           load path ends in a property assignment and the element reports a parse failure
+           afterwards through its own `data-loading-error` event instead of rejecting. So a
+           malformed paste closed this dialog, `resetState` wiped the textarea, and the
+           sentence about it appeared in the canvas a beat later with no way back to the
+           text. The fix is in the shell, which now settles this promise on the element's
+           report rather than on its acceptance (`AppShell.handleLoad`); what is here is
+           the busy state that wait made necessary.
+
+           The error goes to the block this component already has (the AlertCircle line
+           below), which is where the two pre-flight refusals above already land. */
+        setIsLoading(true);
+
+        try {
+            await onLoad(request);
+        } catch (loadError: unknown) {
+            setError(loadFailureMessage(loadError));
+
+            return;
+        } finally {
+            setIsLoading(false);
+        }
+
         handleClose();
-    }, [inputMethod, selectedFile, url, pastedContent, getEffectiveFormat, onLoad, handleClose, replaceExisting]);
+    }, [
+        inputMethod,
+        isLoading,
+        selectedFile,
+        url,
+        pastedContent,
+        getEffectiveFormat,
+        onLoad,
+        handleClose,
+        replaceExisting,
+    ]);
 
     const canLoad = useCallback((): boolean => {
         const hasData =
@@ -519,7 +633,18 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
                     <Button variant="subtle" color="gray" onClick={handleClose}>
                         Cancel
                     </Button>
-                    <Button onClick={handleLoad} disabled={!canLoad()} leftSection={<Upload size={16} />}>
+                    {/* Busy for the whole of the wait, which is now as long as the load
+                        takes rather than as long as the assignment takes: Mantine's own
+                        loading state, so this control behaves like every other button in
+                        the app and nothing bespoke is invented for it. */}
+                    <Button
+                        onClick={() => {
+                            void handleLoad();
+                        }}
+                        disabled={!canLoad() || isLoading}
+                        loading={isLoading}
+                        leftSection={<Upload size={16} />}
+                    >
                         Load {getFormatDisplay() !== "Auto-detect" ? getFormatDisplay() : "Data"}
                     </Button>
                 </Group>

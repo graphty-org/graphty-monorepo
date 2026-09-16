@@ -127,6 +127,26 @@ export interface StatusBarCompletion {
     readonly onDetails: () => void;
     /** Dismisses the toast. */
     readonly onDismiss?: () => void;
+    /**
+     * How the sentence is meant: a completion that REPORTS a load ("info", the default
+     * and the only thing the member was built for) or one that reports a load that did
+     * not arrive ("error").
+     *
+     * The severity is what makes the toast the failed load's surface in the Loaded state,
+     * where spec 4105's inline drop-zone error has nowhere to draw because Welcome is not
+     * on screen. It changes two things and no more: the live-region politeness of the
+     * toast, and its ink. There is no third member here on purpose -- the warning and
+     * info model of spec 1100-1108, with its issue-type badge and its "N data issues"
+     * chip, has no producer in this build, and a severity a reader can see but nothing
+     * can emit is a promise the screen cannot keep.
+     */
+    readonly severity?: "error" | "info";
+    /**
+     * What the toast's one link is called, when "Details" is the wrong word for where it
+     * goes. A failed load has no mapping line to scroll to, so its link says what it does
+     * ("Open Data"); absent, the toast keeps its own `DETAILS_LABEL`.
+     */
+    readonly actionLabel?: string;
 }
 
 /**

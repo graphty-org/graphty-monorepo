@@ -26,8 +26,7 @@ export type TopBarGlyphName =
     | "search"
     | "share"
     | "splitCaret"
-    | "toggleInspector"
-    | "togglePanel"
+    | "toggleSidebars"
     | "undo";
 
 /**
@@ -81,23 +80,23 @@ export const TOP_BAR_GLYPHS: Readonly<Record<TopBarGlyphName, ReactNode>> = {
             <rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5" />
         </>
     ),
-    toggleInspector: (
-        <>
-            <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
-            <line x1="10" y1="2.5" x2="10" y2="13.5" />
-        </>
-    ),
     /*
-     * The exact mirror of `toggleInspector`: the same frame with its divider on the LEFT
-     * edge, because the two switches say the same thing about opposite sides of the
-     * canvas and a reader tells them apart by which side the column is drawn on.
-     * Added 2026-09-12 with the panel switch itself, at the product owner's direction
-     * ("the right panel has an open / close button, but the left doesn't").
+     * ONE drawing for ONE control, 2026-09-14: the same 12 x 11 frame the two old
+     * switches shared, with a divider on BOTH edges, because it says one thing about both
+     * sides of the canvas at once.
+     *
+     * It replaced `toggleInspector` (divider on the right edge) and `togglePanel` (the
+     * exact mirror, divider on the left), which were added 2026-09-12 as a matched pair.
+     * A reader told them apart by which side the column was drawn on, which worked
+     * perfectly and was the problem: two drawings for two controls over two sidebars is
+     * exactly the "individual buttons" the product owner asked to be rid of. 6.8 gives a
+     * verb one word and one drawing wherever it is drawn, and there is now one verb.
      */
-    togglePanel: (
+    toggleSidebars: (
         <>
             <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
             <line x1="6" y1="2.5" x2="6" y2="13.5" />
+            <line x1="10" y1="2.5" x2="10" y2="13.5" />
         </>
     ),
 };

@@ -11,6 +11,18 @@
  * line and highlighting it for two seconds. On the session's FIRST load the panel has
  * already switched to Explore, and this toast is the route back to Data -- which is
  * why the sentence stays on screen rather than behind a door.
+ *
+ * It also reports a load that did NOT arrive, at the "error" severity. That is not a
+ * second component because it is not a second fact: a load ends, and this is the line
+ * that says how it ended. Once a dataset is drawn there is nowhere else for the failure
+ * to go -- spec 4105 puts a failed load's sentence inline in the Welcome drop zone, and
+ * Welcome is not on screen in the Loaded state -- so an additive file dropped on a
+ * populated canvas would otherwise fail exactly as silently as it did before, which is
+ * the defect this exists to close. The error form differs from the report form in three
+ * places and no more: `role="alert"` rather than `role="status"`, the danger ink, and a
+ * link that says where it goes. It does NOT dismiss itself: a host that means the
+ * sentence to stay passes no `onDismiss`, and an error that erases itself on a six
+ * second timer is the silent failure again in a nicer font.
  */
 
 import { PANEL_INK } from "@graphty/compact-mantine";
@@ -47,7 +59,8 @@ export interface LoadCompleteToastProps {
  * @returns The toast.
  */
 export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React.JSX.Element {
-    const { message, onDetails, onDismiss } = completion;
+    const { actionLabel, message, onDetails, onDismiss, severity } = completion;
+    const failed = severity === "error";
 
     useEffect(() => {
         if (onDismiss === undefined) {
@@ -65,7 +78,9 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
         <Paper
             data-status-float="true"
             p={STATUS_BAR_GEOMETRY.TOAST_PADDING}
-            role="status"
+            /* A failure is announced at once (`alert`); a completion is not, because the
+               numbers it reports are also on the status bar the reader is looking at. */
+            role={failed ? "alert" : "status"}
             shadow="md"
             style={{
                 position: "absolute",
@@ -77,7 +92,11 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
             withBorder
         >
             <Group align="flex-start" gap={STATUS_BAR_GEOMETRY.GROUP_GAP} wrap="nowrap">
-                <Text c={PANEL_INK.VALUE} fz={STATUS_BAR_GEOMETRY.FONT_SIZE} lh={STATUS_BAR_GEOMETRY.LINE_HEIGHT}>
+                <Text
+                    c={failed ? PANEL_INK.DANGER : PANEL_INK.VALUE}
+                    fz={STATUS_BAR_GEOMETRY.FONT_SIZE}
+                    lh={STATUS_BAR_GEOMETRY.LINE_HEIGHT}
+                >
                     {message}
                 </Text>
                 <Anchor
@@ -88,7 +107,7 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
                     style={{ flex: "0 0 auto" }}
                     type="button"
                 >
-                    {DETAILS_LABEL}
+                    {actionLabel ?? DETAILS_LABEL}
                 </Anchor>
             </Group>
         </Paper>

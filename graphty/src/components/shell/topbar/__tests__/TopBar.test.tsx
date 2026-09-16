@@ -19,10 +19,8 @@ const baseProps: TopBarOwnProps = {
     onShare: vi.fn(),
     compareActive: false,
     onToggleCompare: vi.fn(),
-    panelOpen: true,
-    onTogglePanel: vi.fn(),
-    inspectorOpen: true,
-    onToggleInspector: vi.fn(),
+    sidebarsShown: true,
+    onToggleSidebars: vi.fn(),
 };
 
 const renderTopBar = (overrides: Partial<TopBarOwnProps> = {}): TopBarOwnProps => {
@@ -35,8 +33,7 @@ const renderTopBar = (overrides: Partial<TopBarOwnProps> = {}): TopBarOwnProps =
         onExport: vi.fn(),
         onShare: vi.fn(),
         onToggleCompare: vi.fn(),
-        onTogglePanel: vi.fn(),
-        onToggleInspector: vi.fn(),
+        onToggleSidebars: vi.fn(),
         ...overrides,
     };
 
@@ -65,12 +62,14 @@ describe("TopBar", () => {
     });
 
     describe("the bar's inventory", () => {
-        it("draws nine controls and nothing else", () => {
+        it("draws eight controls and nothing else", () => {
             renderTopBar();
 
-            // Eight until 2026-09-12, when the panel's own switch joined the
-            // inspector's at the product owner's direction.
-            expect(screen.getAllByRole("button")).toHaveLength(9);
+            /* Eight until 2026-09-12, when the panel's own switch joined the inspector's;
+               nine until 2026-09-14, when both were replaced by ONE sidebars switch at the
+               product owner's direction ("there is one button to hide / show both at the
+               same time and not individual buttons"). */
+            expect(screen.getAllByRole("button")).toHaveLength(8);
         });
 
         it("draws no saved or unsaved indicator", () => {
@@ -127,20 +126,12 @@ describe("TopBar", () => {
     });
 
     describe("the right slot", () => {
-        it("draws Export, Share, Compare and the two region switches in that order", () => {
+        it("draws Export, Share, Compare and the one sidebars switch in that order", () => {
             renderTopBar();
 
-            const names = screen
-                .getAllByRole("button")
-                .map((button) => button.getAttribute("aria-label"));
+            const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"));
 
-            expect(names.slice(4)).toEqual([
-                "Export",
-                "Share this view",
-                "Compare two views",
-                "Toggle panel",
-                "Toggle inspector",
-            ]);
+            expect(names.slice(4)).toEqual(["Export", "Share this view", "Compare two views", "Toggle sidebars"]);
         });
 
         it("opens Export onto exactly two rows", async () => {
@@ -171,50 +162,41 @@ describe("TopBar", () => {
             expect(props.onShare).toHaveBeenCalledWith("copy-image");
         });
 
-        it("expresses Compare and the inspector as toggles that never rename themselves", () => {
-            renderTopBar({ compareActive: true, inspectorOpen: false });
+        it("expresses Compare and the sidebars as toggles that never rename themselves", () => {
+            renderTopBar({ compareActive: true, sidebarsShown: false });
 
-            expect(screen.getByRole("button", { name: "Compare two views" })).toHaveAttribute(
-                "aria-pressed",
-                "true",
-            );
-            expect(screen.getByRole("button", { name: "Toggle inspector" })).toHaveAttribute(
-                "aria-pressed",
-                "false",
-            );
+            expect(screen.getByRole("button", { name: "Compare two views" })).toHaveAttribute("aria-pressed", "true");
+            expect(screen.getByRole("button", { name: "Toggle sidebars" })).toHaveAttribute("aria-pressed", "false");
         });
 
-        it("mirrors the inspector switch with a panel switch, each lit while its region is shown", () => {
-            renderTopBar({ panelOpen: true, inspectorOpen: false });
+        it("lights the one switch while the sidebars are on screen", () => {
+            renderTopBar({ sidebarsShown: true });
 
-            expect(screen.getByRole("button", { name: "Toggle panel" })).toHaveAttribute("aria-pressed", "true");
-            expect(screen.getByRole("button", { name: "Toggle inspector" })).toHaveAttribute("aria-pressed", "false");
+            expect(screen.getByRole("button", { name: "Toggle sidebars" })).toHaveAttribute("aria-pressed", "true");
         });
 
-        it("reports the panel switch through its own callback", () => {
+        it("draws no per-region switch of its own", () => {
+            renderTopBar();
+
+            expect(screen.queryByRole("button", { name: "Toggle panel" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Toggle inspector" })).toBeNull();
+        });
+
+        it("reports the sidebars switch through its own callback", () => {
             const props = renderTopBar();
 
-            fireEvent.click(screen.getByRole("button", { name: "Toggle panel" }));
+            fireEvent.click(screen.getByRole("button", { name: "Toggle sidebars" }));
 
-            expect(props.onTogglePanel).toHaveBeenCalledTimes(1);
+            expect(props.onToggleSidebars).toHaveBeenCalledTimes(1);
         });
 
-        it("carries the panel binding in the title and not in the name", () => {
+        it("carries the sidebars binding in the title and not in the name", () => {
             renderTopBar();
 
-            const toggle = screen.getByRole("button", { name: "Toggle panel" });
+            const toggle = screen.getByRole("button", { name: "Toggle sidebars" });
 
-            expect(toggle).toHaveAccessibleName("Toggle panel");
-            expect(keyChipFor("togglePanel")).toBe("Ctrl+B");
-        });
-
-        it("carries the inspector binding in the title and not in the name", () => {
-            renderTopBar();
-
-            const toggle = screen.getByRole("button", { name: "Toggle inspector" });
-
-            expect(toggle).toHaveAttribute("aria-pressed", "true");
-            expect(keyChipFor("toggleInspector")).toBe("D");
+            expect(toggle).toHaveAccessibleName("Toggle sidebars");
+            expect(keyChipFor("toggleSidebars")).toBe("Ctrl+B");
         });
     });
 
@@ -242,12 +224,10 @@ describe("TopBar", () => {
             expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
         });
 
-        it("leaves the inspector toggle enabled", () => {
+        it("leaves the sidebars toggle enabled", () => {
             renderTopBar({ datasetName: null, dataLoaded: false });
 
-            expect(screen.getByRole("button", { name: "Toggle inspector" })).not.toHaveAttribute(
-                "aria-disabled",
-            );
+            expect(screen.getByRole("button", { name: "Toggle sidebars" })).not.toHaveAttribute("aria-disabled");
         });
     });
 

@@ -57,15 +57,13 @@ import {
     EXPORT_MENU_DATA,
     EXPORT_MENU_IMAGE,
     exportTitle,
-    INSPECTOR_TOGGLE_VERB,
-    inspectorToggleTitle,
-    PANEL_TOGGLE_VERB,
-    panelToggleTitle,
     redoAccessibleName,
     redoTitle,
     SHARE_MENU_COPY_IMAGE,
     SHARE_MENU_EXPORT_DATA,
     shareTitle,
+    SIDEBARS_TOGGLE_VERB,
+    sidebarsToggleTitle,
 } from "./topBarStrings";
 import { UndoSplitButton } from "./UndoSplitButton";
 import type { HistoryEntry, HistoryRow } from "./undoStore";
@@ -126,17 +124,15 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
         dataLoaded,
         datasetName,
         history = EMPTY_HISTORY,
-        inspectorOpen,
         onExport,
         onOpenCommandPalette,
         onOpenHistory,
         onRedo,
         onShare,
         onToggleCompare,
-        onToggleInspector,
-        onTogglePanel,
+        onToggleSidebars,
         onUndo,
-        panelOpen,
+        sidebarsShown,
     } = props;
 
     const barRef = useRef<HTMLElement>(null);
@@ -344,23 +340,20 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                     active={compareActive}
                     onClick={onToggleCompare}
                 />
-                {/* The pair, in screen order: the panel's switch left of the
-                    inspector's, each lit while its own region is shown. */}
+                {/* ONE switch for BOTH sidebars, in the slot the mirrored pair occupied
+                    until 2026-09-14. It is lit, and reports aria-pressed="true", while
+                    they are on screen; it keeps its one verb in both states (6.8,
+                    REGISTER-1.5 10.2), exactly as the two it replaced did. It is the
+                    shared TopBarIconButton, not a control of its own: the dismissal
+                    guarantee (6.12) leans on this button being reachable at every width,
+                    and a bespoke one would be a second thing to keep reachable. */}
                 <TopBarIconButton
-                    title={panelToggleTitle()}
-                    accessibleName={PANEL_TOGGLE_VERB}
-                    glyph="togglePanel"
-                    pressed={panelOpen}
-                    active={panelOpen}
-                    onClick={onTogglePanel}
-                />
-                <TopBarIconButton
-                    title={inspectorToggleTitle()}
-                    accessibleName={INSPECTOR_TOGGLE_VERB}
-                    glyph="toggleInspector"
-                    pressed={inspectorOpen}
-                    active={inspectorOpen}
-                    onClick={onToggleInspector}
+                    title={sidebarsToggleTitle()}
+                    accessibleName={SIDEBARS_TOGGLE_VERB}
+                    glyph="toggleSidebars"
+                    pressed={sidebarsShown}
+                    active={sidebarsShown}
+                    onClick={onToggleSidebars}
                 />
             </div>
 

@@ -37,7 +37,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Explore"
-                    onClose={vi.fn()}
                 >
                     <div />
                 </ActivityPanel>,
@@ -54,7 +53,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Data"
-                    onClose={vi.fn()}
                 >
                     <div />
                 </ActivityPanel>,
@@ -71,7 +69,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Style"
-                    onClose={vi.fn()}
                 >
                     <div />
                 </ActivityPanel>,
@@ -89,7 +86,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Explore"
-                    onClose={vi.fn()}
                 >
                     <div />
                 </ActivityPanel>,
@@ -106,7 +102,6 @@ describe("ActivityPanel", () => {
                     presentation="docked"
                     title="Data"
                     overflowItems={[ownRow]}
-                    onClose={vi.fn()}
                 >
                     <div />
                 </ActivityPanel>,
@@ -130,7 +125,6 @@ describe("ActivityPanel", () => {
                     presentation="docked"
                     title="Data"
                     overflowItems={[ownRow]}
-                    onClose={vi.fn()}
                 >
                     <PanelSection sectionId="data.one" label="One">
                         <div>one</div>
@@ -162,7 +156,6 @@ describe("ActivityPanel", () => {
                     presentation="docked"
                     title="Data"
                     overflowItems={[ownRow]}
-                    onClose={vi.fn()}
                 >
                     <PanelSection sectionId="data.one" label="One" defaultOpen>
                         <div>one</div>
@@ -181,53 +174,26 @@ describe("ActivityPanel", () => {
         });
     });
 
-    describe("closing", () => {
-        it("closes from the header X", () => {
-            const onClose = vi.fn();
-
+    /* REPLACED the "closing" and "the Keep open latch" describes on 2026-09-14. The
+       panel header drew an X and a latch, both individual controls over ONE sidebar; the
+       product owner asked for "one button to hide / show both at the same time and not
+       individual buttons". The panel is drawn exactly when the shell's `sidebarsHidden`
+       is false and has nothing of its own to close or latch. */
+    describe("what the panel no longer owns", () => {
+        it("draws no close control and no latch of its own", () => {
             renderInShell(
                 <ActivityPanel
                     activity="explore"
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Explore"
-                    onClose={onClose}
                 >
                     <div />
                 </ActivityPanel>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Close the panel" }));
-
-            expect(onClose).toHaveBeenCalledTimes(1);
-        });
-    });
-
-    describe("the Keep open latch", () => {
-        it("hands the latch to its header and holds no latch state of its own", () => {
-            const onKeepOpenChange = vi.fn();
-
-            renderInShell(
-                <ActivityPanel
-                    activity="explore"
-                    width={ACTIVITY_PANEL_WIDTH_DEFAULT}
-                    presentation="docked"
-                    title="Explore"
-                    keptOpen
-                    onKeepOpenChange={onKeepOpenChange}
-                    onClose={vi.fn()}
-                >
-                    <div />
-                </ActivityPanel>,
-            );
-
-            const latch = screen.getByRole("button", { name: "Keep open" });
-
-            expect(latch).toHaveAttribute("aria-pressed", "true");
-
-            fireEvent.click(latch);
-
-            expect(onKeepOpenChange).toHaveBeenCalledWith(false);
+            expect(screen.queryByRole("button", { name: "Close the panel" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Keep open" })).toBeNull();
         });
     });
 
@@ -239,7 +205,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Explore"
-                    onClose={vi.fn()}
                     onWidthChange={vi.fn()}
                 >
                     <div />
@@ -257,7 +222,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="overlay"
                     title="Explore"
-                    onClose={vi.fn()}
                     onWidthChange={vi.fn()}
                 >
                     <div />
@@ -276,7 +240,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Explore"
-                    onClose={vi.fn()}
                     onWidthChange={onWidthChange}
                 >
                     <div />
@@ -297,7 +260,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Explore"
-                    onClose={vi.fn()}
                     onWidthChange={vi.fn()}
                 >
                     <div />
@@ -325,7 +287,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="overlay"
                     title="AI"
-                    onClose={vi.fn()}
                 >
                     <div />
                 </ActivityPanel>,
@@ -341,7 +302,6 @@ describe("ActivityPanel", () => {
                     width={ACTIVITY_PANEL_WIDTH_DEFAULT}
                     presentation="docked"
                     title="Present"
-                    onClose={vi.fn()}
                 >
                     <div>body</div>
                 </ActivityPanel>,

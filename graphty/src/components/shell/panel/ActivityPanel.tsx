@@ -56,10 +56,12 @@ function activityGlyph(activity: ActivityId): React.ReactNode {
  * header, which is the pointer twin of those two rows (spec 03 sections 1.2,
  * 1.3 and 1.4).
  *
- * The header's `Keep open` latch is passed straight through to the store's own
- * `panelKeptOpen` by the shell (6.12): this component holds no latch state of its
- * own, because the rules the latch vetoes -- the narrow one-overlay rule and the
- * canvas tap -- are the store's and the shell's, not the panel's.
+ * The header carried a `Keep open` latch and a close X until 2026-09-14. Both were
+ * removed with the rest of the per-surface panel model ("remove the panel locks and
+ * remove autohide ... there is one button to hide / show both at the same time and not
+ * individual buttons"), so this component now passes the header nothing about its own
+ * presence: the panel is drawn exactly when the shell's `sidebarsHidden` is false, and
+ * nothing it contains can change that.
  * @param props - the panel's props.
  * @returns the activity panel column.
  */
@@ -70,9 +72,6 @@ export function ActivityPanel(props: ActivityPanelProps): React.JSX.Element {
         presentation,
         title,
         overflowItems,
-        keptOpen,
-        onKeepOpenChange,
-        onClose,
         onWidthChange,
         children,
     } = props;
@@ -169,9 +168,6 @@ export function ActivityPanel(props: ActivityPanelProps): React.JSX.Element {
                     glyph={activityGlyph(activity)}
                     overflowItems={menuItems}
                     actionsRef={setHeaderActionsNode}
-                    keptOpen={keptOpen}
-                    onKeepOpenChange={onKeepOpenChange}
-                    onClose={onClose}
                 />
 
                 {/*

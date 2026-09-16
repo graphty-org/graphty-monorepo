@@ -12,17 +12,15 @@ import {
     HISTORY_INFO_TEXT,
     HISTORY_TITLE,
     historyStateLine,
-    INSPECTOR_TOGGLE_VERB,
-    inspectorToggleTitle,
     PALETTE_PILL_TEXT,
-    PANEL_TOGGLE_VERB,
-    panelToggleTitle,
     redoAccessibleName,
     redoTitle,
     SHARE_MENU_COPY_IMAGE,
     SHARE_MENU_EXPORT_DATA,
     SHARE_TITLE,
     shareTitle,
+    SIDEBARS_TOGGLE_VERB,
+    sidebarsToggleTitle,
     undoAccessibleName,
     undoTitle,
     XR_VOICE_PROVENANCE,
@@ -64,16 +62,14 @@ describe("topBarStrings", () => {
             expect(compareTitle(false)).toBe("Compare two views. Load data first");
         });
 
-        it("never renames the inspector toggle, on either platform", () => {
-            expect(inspectorToggleTitle(true)).toBe("Toggle inspector (D)");
-            expect(inspectorToggleTitle(false)).toBe("Toggle inspector (D)");
-            expect(INSPECTOR_TOGGLE_VERB).toBe("Toggle inspector");
-        });
-
-        it("never renames the panel toggle, and spells its chip for the platform", () => {
-            expect(panelToggleTitle(true)).toBe("Toggle panel (Cmd+B)");
-            expect(panelToggleTitle(false)).toBe("Toggle panel (Ctrl+B)");
-            expect(PANEL_TOGGLE_VERB).toBe("Toggle panel");
+        /* REPLACED two boards on 2026-09-14, one for each of the mirrored switches this
+           bar used to draw ("Toggle inspector (D)" and "Toggle panel (Ctrl+B)"). There is
+           one switch and one verb now, and the chip is Mod+B's, which was the panel
+           switch's already. */
+        it("never renames the sidebars toggle, and spells its chip for the platform", () => {
+            expect(sidebarsToggleTitle(true)).toBe("Toggle sidebars (Cmd+B)");
+            expect(sidebarsToggleTitle(false)).toBe("Toggle sidebars (Ctrl+B)");
+            expect(SIDEBARS_TOGGLE_VERB).toBe("Toggle sidebars");
         });
 
         it("names the menu rows the spec fixes", () => {

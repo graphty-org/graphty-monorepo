@@ -1,9 +1,8 @@
-import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
-import { ActionIcon, Box, Menu, Tooltip } from "@mantine/core";
+import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import { ActionIcon, Box, Menu } from "@mantine/core";
 import React from "react";
 
-import { keyChipFor } from "../bindings";
-import { KEEP_OPEN_LABEL, PANEL_HEADER_HEIGHT, TOOLTIP_DELAY_MS } from "../constants";
+import { PANEL_HEADER_HEIGHT } from "../constants";
 import type { PanelOverflowItem } from "../types";
 
 /**
@@ -71,29 +70,23 @@ export function MoreGlyph(): React.JSX.Element {
     );
 }
 
-/**
- * The close control's accessible name: the tooltip with the key chip removed
- * (spec 04 section 8.2 obligation 1).
- */
-export const CLOSE_PANEL_LABEL = "Close the panel";
-
 /** The overflow control's name. The register keeps this control's own word. */
 export const MORE_LABEL = "More";
 
-/**
- * The text the close control's tooltip prints: the verb, then the key chip.
+/*
+ * TWO CONTROLS AND THEIR STRINGS LEFT THIS HEADER ON 2026-09-14.
  *
- * The chip comes from the one binding table and resolves Cmd against Ctrl for
- * the running platform (spec 04 section 10.3), so the string is
- * "Close the panel (Cmd+B)" on an Apple platform and "(Ctrl+B)" elsewhere. An
- * unshipped action returns no chip at all, in which case the verb stands alone.
- * @returns the close control's tooltip text.
+ * `CLOSE_PANEL_LABEL` / `closePanelTooltip` drew an X titled "Close the panel (Ctrl+B)",
+ * and a `Keep open` latch sat left of `More`. Both were individual controls over ONE
+ * sidebar. The product owner's instruction was "our panel open / closed / autohide is a
+ * confusing nightmare. remove the panel locks and remove autohide ... there is one button
+ * to hide / show both at the same time and not individual buttons", so the panel is drawn
+ * whenever the sidebars are shown and has nothing of its own to close and nothing of its
+ * own to latch.
+ *
+ * The header keeps `More` and the panel-body actions slot, which are about the panel's
+ * CONTENT rather than its presence.
  */
-function closePanelTooltip(): string {
-    const chip = keyChipFor("togglePanel");
-
-    return chip === null ? CLOSE_PANEL_LABEL : `${CLOSE_PANEL_LABEL} (${chip})`;
-}
 
 /**
  * Props of the activity panel's 36px title row.
@@ -116,31 +109,17 @@ export interface PanelHeaderProps {
      * left of the universal `More` and X rather than between them.
      */
     readonly actionsRef?: (node: HTMLDivElement | null) => void;
-    /**
-     * Whether the panel is latched open, which the `Keep open` toggle draws as an accent
-     * border over a tinted ground and reports as its pressed state. The title never
-     * changes with it, and neither does the control's own word or drawing: an active
-     * toggle does not rename itself (REGISTER-1.5 section 10.2).
-     */
-    readonly keptOpen?: boolean;
-    /**
-     * The latch (6.12, "The latch"). The control is drawn only where a region supplies
-     * this, exactly as `Pin as A` is in the inspector; the shell always supplies it.
-     */
-    readonly onKeepOpenChange?: (kept: boolean) => void;
-    /** The header X. */
-    readonly onClose: () => void;
 }
 
 /**
- * The activity panel's title row: the activity glyph, the activity name, the
- * `Keep open` latch, an optional `More` overflow and the close X.
+ * The activity panel's title row: the activity glyph, the activity name, the panel's own
+ * actions slot and an optional `More` overflow.
  *
- * The latch sits left of `More` and the X, which is where 6.8 reads a keep-open
- * against a dismiss, and it was added on 2026-09-12 at the product owner's
- * direction ("the left panel has no way of keeping it open after I click"). The
- * row has room for it: the panel's name is a single activity word, so nothing in
- * this header competes for the name band the way the inspector's does.
+ * It USED to end in a `Keep open` latch and a close X. Both were deleted on 2026-09-14
+ * with the rest of the per-surface panel model; see the note above `MORE_LABEL` for what
+ * they were and why they went. The row is one control shorter on both counts, so the four
+ * `__screenshots__` baselines that draw a panel header move -- that is the change, not a
+ * regression, and they were re-approved deliberately.
  *
  * There is no panel-level info circle, ever (spec 03 section 1.2): an unshipped
  * row's explanation rides on the row itself as a `Coming` tag.
@@ -148,11 +127,9 @@ export interface PanelHeaderProps {
  * @returns the 36px title row.
  */
 export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
-    const { title, glyph, overflowItems, actionsRef, keptOpen, onKeepOpenChange, onClose } = props;
+    const { title, glyph, overflowItems, actionsRef } = props;
 
     const hasOverflow = overflowItems !== undefined && overflowItems.length > 0;
-    const closeTooltip = closePanelTooltip();
-    const latched = keptOpen ?? false;
 
     return (
         <Box
@@ -217,60 +194,6 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
                     data-testid="panel-header-actions"
                     style={{ display: "flex", alignItems: "center", gap: CLUSTER_GAP, flex: "0 0 auto" }}
                 />
-                {onKeepOpenChange !== undefined && (
-                    <Tooltip label={KEEP_OPEN_LABEL} openDelay={TOOLTIP_DELAY_MS} position="bottom">
-                        {/*
-                            Latched is drawn as the shell's own pressed toggle: Mantine's
-                            `light` variant, which is a TINTED GROUND plus an accent glyph,
-                            exactly as the top bar draws an active control
-                            (topbar/topBarControls.tsx, "a tinted ground and an accent
-                            glyph"). Until 2026-09-13 the only difference between the two
-                            states was one step of the grey ramp -- 1.66:1 between the two
-                            inks, no ground, no border -- which the product owner could not
-                            read ("the sidebar locks don't indicate if they are currently
-                            locked or not").
-
-                            Three channels carry the state, and the comment says three
-                            because the code draws three (2026-09-13, second pass: the
-                            tinted ground alone measured 1.21:1 against this header, and a
-                            claim that it "does not rest on colour alone" was not true of
-                            the code as written). The BOUNDARY is the 1px accent border
-                            Mantine's `light` variant draws, which is what meets 1.4.11's
-                            3:1; the ground and the accent glyph are the recognisable
-                            treatment on top of it; and `aria-pressed` carries the state
-                            for a reader who sees none of them. The word and the drawing
-                            never change: one verb, one drawing (6.8), and an active toggle
-                            does not rename itself (REGISTER-1.5 10.2).
-
-                            That border comes from `@graphty/compact-mantine`'s ActionIcon
-                            theme, not from here (2026-09-13, third pass). This file drew
-                            it itself as an inset box-shadow, `activeRingStyle`, until the
-                            product owner ruled the bespoke control out: "the custom lock
-                            button was not necessary, it was a mistake. use the default
-                            button ... if the components are wrong, they should be fixed".
-                            The library was the wrong thing, so the library was fixed, and
-                            every toggle in the app inherits the boundary instead of these
-                            two header rows having one of their own. Do not reintroduce a
-                            local ring here; see `compactActionIconVariantVars`.
-                        */}
-                        <ActionIcon
-                            type="button"
-                            variant={latched ? "light" : "subtle"}
-                            size={PANEL_GRID.CONTROL_HEIGHT}
-                            radius="sm"
-                            c={latched ? undefined : PANEL_INK.CHROME}
-                            aria-label={KEEP_OPEN_LABEL}
-                            aria-pressed={latched}
-                            data-testid="panel-header-keep-open"
-                            onClick={() => {
-                                onKeepOpenChange(!latched);
-                            }}
-                        >
-                            <UiGlyph name="keepOpen" size={PANEL_GRID.GLYPH} />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
-
                 {hasOverflow && (
                     <Menu position="bottom-end" withinPortal shadow="md">
                         <Menu.Target>
@@ -309,21 +232,6 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
                         </Menu.Dropdown>
                     </Menu>
                 )}
-
-                <Tooltip label={closeTooltip} openDelay={TOOLTIP_DELAY_MS} position="bottom">
-                    <ActionIcon
-                        type="button"
-                        variant="subtle"
-                        size={PANEL_GRID.CONTROL_HEIGHT}
-                        radius="sm"
-                        c={PANEL_INK.CHROME}
-                        aria-label={CLOSE_PANEL_LABEL}
-                        data-testid="panel-header-close"
-                        onClick={onClose}
-                    >
-                        <UiGlyph name="close" size={PANEL_GRID.CHEVRON} />
-                    </ActionIcon>
-                </Tooltip>
             </Box>
         </Box>
     );

@@ -358,11 +358,10 @@ export type ShellCommandId =
     | "timelinePlayPause"
     | "timelineStep"
     | "toggleDataDrawer"
-    | "toggleInspector"
     | "toggleLegend"
     | "toggleMinimap"
     | "toggleNotesLayer"
-    | "togglePanel"
+    | "toggleSidebars"
     | "toggleTimeSlider"
     | "toggleViewMode"
     | "undo"
@@ -660,22 +659,23 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         preventDefault: true,
     },
     {
-        id: "togglePanel",
+        /*
+         * ONE binding for BOTH sidebars, 2026-09-14. It was `togglePanel` and it kept its
+         * chord, because Mod+B was already the panel's and is what the top bar's tooltip
+         * has always advertised; only its meaning widened. Its twin, `toggleInspector` on
+         * the bare D key, was DELETED rather than renamed: a second chord for the same
+         * fact is a second thing that can disagree with the first, which is the whole
+         * complaint this change answers ("our panel open / closed / autohide is a
+         * confusing nightmare"). The shortcuts overlay and the command palette both read
+         * this table, so both follow from here.
+         */
+        id: "toggleSidebars",
         chords: ["Mod+B"],
-        action: "Toggle the activity panel",
+        action: "Toggle the sidebars",
         scope: "global",
         owner: "dispatcher",
         shipped: true,
         preventDefault: true,
-    },
-    {
-        id: "toggleInspector",
-        chords: ["D"],
-        action: "Toggle inspector",
-        scope: "global",
-        owner: "dispatcher",
-        shipped: true,
-        preventDefault: false,
     },
     {
         id: "toggleMinimap",
@@ -1036,20 +1036,24 @@ export function keyChipFor(id: ShellCommandId, apple: boolean = isApplePlatform(
 export type EscapeRungId =
     | "cancelDragOrMarquee"
     | "clearSelection"
-    | "closeNarrowOverlay"
     | "closeTopmostTransient"
     | "pauseTimelinePlayback";
 
 /**
- * The Escape ladder: one rung per press, first match wins. Rung 6 ("nothing") is the
- * absence of a handler, so it is not in the list.
+ * The Escape ladder: one rung per press, first match wins. The last rung ("nothing") is
+ * the absence of a handler, so it is not in the list.
  *
- * Escape never closes the desktop activity panel and never leaves XR.
+ * A `closeNarrowOverlay` rung sat third until 2026-09-14. It dismissed whichever of the
+ * two region overlays was open below 1280 px, and a latched overlay could refuse it. It
+ * went with the narrow layout itself: the shell does not lay out below
+ * `NARROW_BREAKPOINT` any more, it draws a "screen too small" state, so there is no
+ * overlay for Escape to dismiss and no width at which this rung could fire.
+ *
+ * Escape never closes the activity panel and never leaves XR.
  */
 export const ESCAPE_LADDER: readonly EscapeRungId[] = [
     "cancelDragOrMarquee",
     "closeTopmostTransient",
-    "closeNarrowOverlay",
     "pauseTimelinePlayback",
     "clearSelection",
 ];

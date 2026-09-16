@@ -98,9 +98,22 @@ describe("shell constants", () => {
             expect(CANVAS_TOOLBAR_BOTTOM_OFFSET_BASE).toBe(OVERLAY_INSET);
         });
 
+        /*
+         * 1024 from 2026-09-15, down from 1280: the product owner hit the too-small state
+         * on an iPad that "actually works fine with the sidebars". 1024 is the landscape
+         * width of every modern iPad, so it admits the family rather than one model.
+         *
+         * 416 is deliberately below CANVAS_MIN_WIDTH and the two do not contradict: the
+         * clamp bounds how far a reader may DRAG a sidebar, never what the viewport hands
+         * over. The sum is asserted here so a future widening of either column has to
+         * come back and restate what the smallest supported canvas is.
+         */
         it("fixes the canvas clamp and the narrow breakpoint", () => {
             expect(CANVAS_MIN_WIDTH).toBe(520);
-            expect(NARROW_BREAKPOINT).toBe(1280);
+            expect(NARROW_BREAKPOINT).toBe(1024);
+            expect(
+                NARROW_BREAKPOINT - ACTIVITY_RAIL_WIDTH - ACTIVITY_PANEL_WIDTH_DEFAULT - INSPECTOR_WIDTH_DEFAULT,
+            ).toBe(416);
         });
 
         it("fixes the undo depth at 50", () => {
@@ -188,8 +201,8 @@ describe("shell constants", () => {
 
         it("picks the profile by the narrow breakpoint", () => {
             expect(canvasToolbarProfile(1440).id).toBe("desktop");
-            expect(canvasToolbarProfile(1280).id).toBe("desktop");
-            expect(canvasToolbarProfile(1279).id).toBe("narrow");
+            expect(canvasToolbarProfile(NARROW_BREAKPOINT).id).toBe("desktop");
+            expect(canvasToolbarProfile(NARROW_BREAKPOINT - 1).id).toBe("narrow");
         });
     });
 
@@ -295,14 +308,16 @@ describe("shell constants", () => {
         });
 
         it("pins both columns at 280 below the breakpoint, where the canvas is not resized", () => {
-            expect(clampActivityPanelWidth(420, 1024, 280)).toBe(280);
-            expect(clampInspectorWidth(420, 1024, 280)).toBe(280);
-            expect(liveCanvasWidth(1024, 280, 280)).toBe(1024 - 48);
+            const narrow = NARROW_BREAKPOINT - 1;
+
+            expect(clampActivityPanelWidth(420, narrow, 280)).toBe(280);
+            expect(clampInspectorWidth(420, narrow, 280)).toBe(280);
+            expect(liveCanvasWidth(narrow, 280, 280)).toBe(narrow - ACTIVITY_RAIL_WIDTH);
         });
 
-        it("reads the breakpoint as strictly below 1280", () => {
-            expect(isNarrowViewport(1280)).toBe(false);
-            expect(isNarrowViewport(1279)).toBe(true);
+        it("reads the breakpoint as strictly below, so the minimum width itself lays out", () => {
+            expect(isNarrowViewport(NARROW_BREAKPOINT)).toBe(false);
+            expect(isNarrowViewport(NARROW_BREAKPOINT - 1)).toBe(true);
         });
     });
 

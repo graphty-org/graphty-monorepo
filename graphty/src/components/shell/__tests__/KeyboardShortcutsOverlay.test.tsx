@@ -27,7 +27,7 @@ describe("KeyboardShortcutsOverlay", () => {
         it("reads its rows from the one binding table", () => {
             render(<KeyboardShortcutsOverlay opened onClose={vi.fn()} />);
 
-            const row = SHELL_KEY_BINDINGS.find((binding) => binding.id === "toggleInspector");
+            const row = SHELL_KEY_BINDINGS.find((binding) => binding.id === "toggleSidebars");
 
             expect(row).toBeDefined();
             expect(screen.getByText(row?.action ?? "")).toBeInTheDocument();

@@ -59,6 +59,24 @@ const PASTE_TITLE = "Paste data";
 /** The unshipped recipe runner (5.8: recipes are new work, app). */
 const RUN_A_RECIPE_LABEL = "Run a recipe...";
 
+/**
+ * The unshipped merge, drawn in the Loaded state so its absence is on screen.
+ *
+ * Spec 872-882 gives a second file a "What to do with this file" dialog whose four
+ * choices open with Replace current graph and Add to current graph. This build has the
+ * first and not the second: the app's load path reaches graphty-element through the
+ * `dataSource`/`dataSourceConfig` pair, whose initialisation guard is per LOAD and is
+ * reset only by `clearData()`, so a load that does not replace starts nothing at all. The
+ * shell refuses such a load with a sentence rather than performing it silently, and this
+ * row is the same fact stated BEFORE the drop instead of after it -- which is what the
+ * panel already does for its other two unshipped routes rather than letting a reader find
+ * out by using one.
+ */
+const ADD_TO_GRAPH_LABEL = "Add to current graph";
+
+/** The merge row's tooltip: what this build does with a second file instead. */
+const ADD_TO_GRAPH_TITLE = "Add to current graph (Merge by id). Coming. A second file replaces the dataset";
+
 /** The unshipped table join, with its 6.3 technical half in its tooltip. */
 const TABLE_JOIN_LABEL = "Add attributes from a table";
 
@@ -246,8 +264,15 @@ export interface LoadedDataFact {
 export interface DataPanelProps {
     /** The 6.1 state axis. The Loaded sections render from "loaded" on. */
     readonly stateAxis: ShellStateAxis;
-    /** Loads data, from the re-homed Load data dialog. */
-    readonly onLoad: (request: LoadDataRequest) => void;
+    /**
+     * Loads data, from the re-homed Load data dialog or from the drop zone.
+     *
+     * It returns the shell's own load, unwrapped: the dialog awaits it and stays open
+     * when it is refused, which is what keeps the reader's file, URL or pasted text
+     * alive for a second try (spec 1107-1108). The panel hands the dialog this very
+     * function rather than a wrapper, so nothing in between can drop the promise.
+     */
+    readonly onLoad: (request: LoadDataRequest) => Promise<void>;
     /** The sample datasets on offer. */
     readonly samples?: readonly DataSample[];
     /** The recently opened files. */
@@ -311,6 +336,19 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
         setLoadOpen(false);
     };
 
+    /**
+     * Loads what was dropped on the panel, as the state it was dropped in.
+     *
+     * `replaceExisting: !loaded` is the whole difference between a drop that crosses the
+     * 6.12 dataset boundary and one that does not, and it is deliberately NOT forced true
+     * here: a drop that silently threw away the dataset the reader is looking at, with no
+     * dialog and no undo, would be a worse answer to {@link ADD_TO_GRAPH_LABEL}'s absence
+     * than saying so. So an additive drop still asks for the merge the reader meant, and
+     * the shell answers it in one sentence naming the route that does work. What this
+     * panel owes the reader is that the limit is visible before the drop, which is the
+     * Coming row above.
+     * @param event - the drop.
+     */
     const handleDrop = (event: React.DragEvent<HTMLDivElement>): void => {
         event.preventDefault();
 
@@ -322,7 +360,15 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
 
         const [file] = files;
 
-        onLoad({ inputMethod: "file", format: "auto", file, replaceExisting: !loaded });
+        /* The drop route has no dialog to hold open, so the rejection is consumed here
+           rather than left to the runtime as an unhandled rejection. Nothing is lost by
+           that: the shell reports a failed load on its own two surfaces -- the Welcome
+           drop zone's inline sentence in the Empty state (spec 4105) and the status bar
+           toast once a dataset is drawn -- and neither of them is this panel's to draw.
+           The dialog's route, which DOES need the rejection, gets `onLoad` itself. */
+        void onLoad({ inputMethod: "file", format: "auto", file, replaceExisting: !loaded }).catch(
+            () => undefined,
+        );
     };
 
     return (
@@ -374,9 +420,14 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                 <ActionRow state={RUN_A_RECIPE_LABEL} residentActions={<ComingTag />} />
 
                 {loaded && (
-                    <Box title={TABLE_JOIN_TITLE} data-testid="data-table-join">
-                        <ActionRow state={TABLE_JOIN_LABEL} residentActions={<ComingTag />} />
-                    </Box>
+                    <>
+                        <Box title={ADD_TO_GRAPH_TITLE} data-testid="data-add-to-graph">
+                            <ActionRow state={ADD_TO_GRAPH_LABEL} residentActions={<ComingTag />} />
+                        </Box>
+                        <Box title={TABLE_JOIN_TITLE} data-testid="data-table-join">
+                            <ActionRow state={TABLE_JOIN_LABEL} residentActions={<ComingTag />} />
+                        </Box>
+                    </>
                 )}
             </PanelSection>
 

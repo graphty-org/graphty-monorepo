@@ -106,16 +106,16 @@ describe("useShellKeyBindings", () => {
         });
 
         it("does not fire an unmodified binding while Cmd is held", () => {
-            const onToggleInspector = vi.fn();
+            const onToggleMinimap = vi.fn();
 
-            mountDispatcher({ handlers: { toggleInspector: onToggleInspector } });
-            press("d", { metaKey: true });
+            mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
+            press("m", { metaKey: true });
 
-            expect(onToggleInspector).not.toHaveBeenCalled();
+            expect(onToggleMinimap).not.toHaveBeenCalled();
 
-            press("d");
+            press("m");
 
-            expect(onToggleInspector).toHaveBeenCalledTimes(1);
+            expect(onToggleMinimap).toHaveBeenCalledTimes(1);
         });
 
         it("separates a binding from its Shift twin", () => {
@@ -166,23 +166,23 @@ describe("useShellKeyBindings", () => {
         });
 
         it("does not fire a binding while focus is in a text field", () => {
-            const onToggleInspector = vi.fn();
+            const onToggleMinimap = vi.fn();
             const input = mountElement('<input type="text" />');
 
-            mountDispatcher({ handlers: { toggleInspector: onToggleInspector } });
-            press("d", {}, input);
+            mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
+            press("m", {}, input);
 
-            expect(onToggleInspector).not.toHaveBeenCalled();
+            expect(onToggleMinimap).not.toHaveBeenCalled();
         });
 
         it("still fires from a control that is not text entry", () => {
-            const onToggleInspector = vi.fn();
+            const onToggleMinimap = vi.fn();
             const button = mountElement("<button>Run</button>");
 
-            mountDispatcher({ handlers: { toggleInspector: onToggleInspector } });
-            press("d", {}, button);
+            mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
+            press("m", {}, button);
 
-            expect(onToggleInspector).toHaveBeenCalledTimes(1);
+            expect(onToggleMinimap).toHaveBeenCalledTimes(1);
         });
 
         it("leaves Escape to the widget while focus is in a text field", () => {
@@ -210,17 +210,20 @@ describe("useShellKeyBindings", () => {
 
         it("falls through a rung that had nothing to do", () => {
             const cancelDragOrMarquee = vi.fn(() => false);
-            const closeNarrowOverlay = vi.fn(() => true);
+            /* This rung used to be `closeNarrowOverlay`, which was deleted from the ladder
+               on 2026-09-14 with the narrow layout itself. Any rung between the first and
+               the last proves the same fall-through. */
+            const closeTopmostTransient = vi.fn(() => true);
             const clearSelection = vi.fn(() => true);
 
             mountDispatcher({
                 handlers: {},
-                escapeLadder: { cancelDragOrMarquee, closeNarrowOverlay, clearSelection },
+                escapeLadder: { cancelDragOrMarquee, closeTopmostTransient, clearSelection },
             });
             press("Escape");
 
             expect(cancelDragOrMarquee).toHaveBeenCalledTimes(1);
-            expect(closeNarrowOverlay).toHaveBeenCalledTimes(1);
+            expect(closeTopmostTransient).toHaveBeenCalledTimes(1);
             expect(clearSelection).not.toHaveBeenCalled();
         });
 
@@ -293,13 +296,13 @@ describe("useShellKeyBindings", () => {
         });
 
         it("does not deliver a keyup to a binding that is not held", () => {
-            const onToggleInspector = vi.fn();
+            const onToggleMinimap = vi.fn();
 
-            mountDispatcher({ handlers: { toggleInspector: onToggleInspector } });
+            mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
 
-            window.dispatchEvent(new KeyboardEvent("keyup", { key: "d", bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "m", bubbles: true }));
 
-            expect(onToggleInspector).not.toHaveBeenCalled();
+            expect(onToggleMinimap).not.toHaveBeenCalled();
         });
     });
 });

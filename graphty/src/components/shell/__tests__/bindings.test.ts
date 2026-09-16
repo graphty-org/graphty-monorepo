@@ -180,7 +180,7 @@ describe("shell key bindings", () => {
     describe("key chips", () => {
         it("prints the first chord of a shipped action", () => {
             expect(keyChipFor("commandPalette", true)).toBe("Cmd+K");
-            expect(keyChipFor("toggleInspector", false)).toBe("D");
+            expect(keyChipFor("toggleSidebars", false)).toBe("Ctrl+B");
         });
 
         it("owns the AI composer's send chip, so no surface invents one", () => {
@@ -199,14 +199,20 @@ describe("shell key bindings", () => {
     });
 
     describe("the Escape ladder", () => {
-        it("lists the five acting rungs in order", () => {
+        /* FOUR rungs since 2026-09-14. `closeNarrowOverlay` sat third and dismissed
+           whichever region overlay was open below 1280 px; the shell does not lay out
+           below 1280 px at all any more, so there is no overlay for it to close. */
+        it("lists the four acting rungs in order", () => {
             expect(ESCAPE_LADDER).toEqual([
                 "cancelDragOrMarquee",
                 "closeTopmostTransient",
-                "closeNarrowOverlay",
                 "pauseTimelinePlayback",
                 "clearSelection",
             ]);
+        });
+
+        it("no longer carries a narrow-overlay rung", () => {
+            expect(ESCAPE_LADDER).not.toContain("closeNarrowOverlay");
         });
     });
 });

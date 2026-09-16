@@ -22,7 +22,6 @@ function renderInPanel(ui: React.ReactNode) {
             width={ACTIVITY_PANEL_WIDTH_DEFAULT}
             presentation="docked"
             title="Explore"
-            onClose={vi.fn()}
         >
             {ui}
         </ActivityPanel>,

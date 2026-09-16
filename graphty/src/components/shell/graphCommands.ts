@@ -152,19 +152,48 @@ export function graphZoomStep(graph: ShellGraph | null, direction: "in" | "out")
 }
 
 /**
+ * The same id read as a number, when it is one written as text.
+ *
+ * graphty-element keys its node Map on the id the source file carried, untouched
+ * (`NodeIdType = string | number`, DataManager.ts:211), and `GMLDataSource` parses a
+ * bare integer with `parseInt` -- so the shipped Karate Club and Football samples hold
+ * NUMBER keys. Every id the shell has already printed is a string by then, and
+ * `Map.get("1")` misses the key `1` silently: no throw, no event, a control that does
+ * nothing. So a printed id that is a run of digits is retried in its own type.
+ *
+ * Integers only. A float or a hexadecimal id would round-trip through `Number` into a
+ * different value than the file carried, and an id the file did not carry is worse than
+ * a lookup that missed.
+ * @param value - the id as it was printed.
+ * @returns the numeric form, or null when the id is not an integer written as text.
+ */
+function numericId(value: string): number | null {
+    return /^-?\d+$/.test(value) ? Number.parseInt(value, 10) : null;
+}
+
+/**
  * Centres the camera on the selected node.
  *
  * The node's own mesh is where it is, so the target comes from the graph rather than
  * from the layout the shell last heard about.
+ *
+ * `getNodeMesh` is another raw `Map.get` on the element's own id (Graph.ts -> DataManager),
+ * so it takes the same numeric retry {@link graphSelectNode} does: before it, Locate and
+ * Zoom to selection were silent no-ops on every graph with numeric ids.
  * @param graph - the graph, or null before it has initialised.
  * @param nodeId - the selected node's id, or null when nothing is selected.
  */
-export function graphZoomToSelection(graph: ShellGraph | null, nodeId: string | null): void {
+export function graphZoomToSelection(graph: ShellGraph | null, nodeId: string | number | null): void {
     if (graph === null || nodeId === null) {
         return;
     }
 
-    const mesh = invoke(graph, "getNodeMesh", nodeId);
+    const found = invoke(graph, "getNodeMesh", nodeId);
+    const numeric = typeof nodeId === "string" ? numericId(nodeId) : null;
+    const mesh =
+        (typeof found !== "object" || found === null) && numeric !== null
+            ? invoke(graph, "getNodeMesh", numeric)
+            : found;
 
     if (typeof mesh !== "object" || mesh === null) {
         return;
@@ -201,11 +230,32 @@ export function graphViewPreset(graph: ShellGraph | null, preset: GraphViewPrese
 
 /**
  * Selects one node on the canvas, which is what fills the inspector.
+ *
+ * The id is the ELEMENT's own id -- `string | number`, as `Graph.selectNode` declares it
+ * -- and not the string the surface printed. That distinction is the whole of this
+ * function's history: every ranked row, Most connected row and neighbour row used to hand
+ * over `String(node.id)`, `SelectionManager.selectById` did `this.nodes.get("1")` against
+ * a Map keyed on the number `1`, and the lookup missed. `selectById` returns false and
+ * emits nothing, so the row looked like a control and did nothing at all on the two
+ * shipped samples that carry numeric ids (karate.gml, football.gml).
+ *
+ * Callers should pass the raw id wherever they still hold it. Where one has already been
+ * printed -- the graph summary's Most connected rows and the inspector's neighbour rows
+ * read theirs off a reading built from strings -- the miss is caught here and retried in
+ * the id's own type, so one boundary handles both.
  * @param graph - the graph, or null before it has initialised.
- * @param nodeId - the node to select.
+ * @param nodeId - the node to select, as the element spells its ids.
  */
-export function graphSelectNode(graph: ShellGraph | null, nodeId: string): void {
-    invoke(graph, "selectNode", nodeId);
+export function graphSelectNode(graph: ShellGraph | null, nodeId: string | number): void {
+    if (invoke(graph, "selectNode", nodeId) !== false || typeof nodeId !== "string") {
+        return;
+    }
+
+    const numeric = numericId(nodeId);
+
+    if (numeric !== null) {
+        invoke(graph, "selectNode", numeric);
+    }
 }
 
 /**

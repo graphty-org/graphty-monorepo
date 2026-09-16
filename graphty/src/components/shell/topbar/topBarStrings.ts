@@ -69,19 +69,20 @@ export const SHARE_MENU_COPY_IMAGE = "Copy image";
 /** The Compare toggle's title, in every state. Spec 02 section 2.4. */
 export const COMPARE_TITLE = "Compare two views";
 
-/** The inspector toggle's verb; a toggle never renames itself. Spec 02 section 2.4. */
-export const INSPECTOR_TOGGLE_VERB = "Toggle inspector";
-
 /**
- * The panel toggle's verb, the mirror of the inspector's.
+ * The sidebars toggle's verb. ONE verb in every state, because a toggle never renames
+ * itself (6.8, REGISTER-1.5 10.2). Spec 02 section 2.4.
  *
- * Spec 02 section 2.4 draws one region switch in this bar. The product owner asked for
- * the second on 2026-09-12 ("the right panel has an open / close button, but the left
- * doesn't"), and it takes the shape the first already has: one verb in every state, the
- * chip from the one binding table. The binding itself is not new -- `togglePanel` /
- * Mod+B already ships, and the panel header's X already advertises it.
+ * It replaced TWO verbs on 2026-09-14 -- "Toggle inspector", which this bar had carried
+ * since it was built, and "Toggle panel", added 2026-09-12 as its mirror. Each owned one
+ * sidebar. The product owner's instruction was "there is one button to hide / show both
+ * at the same time and not individual buttons", so there is one verb, one drawing and one
+ * chip. The chip is Mod+B's, which was the panel switch's already.
+ *
+ * Plural deliberately: it names both sidebars, so a reader is not left wondering which
+ * one a singular would have meant.
  */
-export const PANEL_TOGGLE_VERB = "Toggle panel";
+export const SIDEBARS_TOGGLE_VERB = "Toggle sidebars";
 
 /**
  * The suffix a control disabled for want of data takes. Spec 02 sections 1.2 and 2.4.
@@ -212,24 +213,18 @@ export function compareTitle(dataLoaded: boolean): string {
 }
 
 /**
- * The inspector toggle's title -- the same string in every state, because a toggle
- * never renames itself. Spec 02 section 2.4.
+ * The sidebars toggle's title -- the same string in every state, because a toggle never
+ * renames itself. The chip is `toggleSidebars`'s, so it reads Cmd+B on an Apple platform
+ * and Ctrl+B elsewhere. Spec 02 section 2.4.
+ *
+ * It replaced `inspectorToggleTitle` and `panelToggleTitle`, which drew "Toggle inspector
+ * (D)" and "Toggle panel (Ctrl+B)" side by side. Two titles, two chips and two switches
+ * over what is now one fact.
  * @param apple - whether to print the Apple spelling of the chip; defaults to the running platform.
- * @returns "Toggle inspector (D)".
+ * @returns "Toggle sidebars (Ctrl+B)".
  */
-export function inspectorToggleTitle(apple: boolean = isApplePlatform()): string {
-    return withChip(INSPECTOR_TOGGLE_VERB, keyChipFor("toggleInspector", apple));
-}
-
-/**
- * The panel toggle's title -- the same string in every state, for the same reason the
- * inspector's is. The chip is `togglePanel`'s, so it reads Cmd+B on an Apple platform
- * and Ctrl+B elsewhere.
- * @param apple - whether to print the Apple spelling of the chip; defaults to the running platform.
- * @returns "Toggle panel (Ctrl+B)".
- */
-export function panelToggleTitle(apple: boolean = isApplePlatform()): string {
-    return withChip(PANEL_TOGGLE_VERB, keyChipFor("togglePanel", apple));
+export function sidebarsToggleTitle(apple: boolean = isApplePlatform()): string {
+    return withChip(SIDEBARS_TOGGLE_VERB, keyChipFor("toggleSidebars", apple));
 }
 
 /**

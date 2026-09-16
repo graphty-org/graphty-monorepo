@@ -86,13 +86,13 @@ export type ShellBreakpoint = "desktop" | "narrow";
  */
 export type RegionPresentation = "docked" | "overlay";
 
-/**
- * Which overlay is open below 1280 px. Only one is open at a time: opening the
- * activity panel closes the inspector and the reverse. The data table drawer is not
- * on this axis -- it coexists with the inspector and closes the panel.
- * Spec 01 section 7 items 2 and 3.
+/*
+ * There was a `NarrowOverlay` union here ("inspector" | "none" | "panel"), naming which
+ * of the two regions was the one dismissible overlay below 1280 px. It went with the
+ * whole narrow layout on 2026-09-14: the shell does not lay out below
+ * `NARROW_BREAKPOINT` at all any more, it draws a "screen too small" state, so there is
+ * no overlay to name and nothing for a tap or an Escape press to dismiss.
  */
-export type NarrowOverlay = "inspector" | "none" | "panel";
 
 /**
  * Per-section open/closed state, keyed by a stable section id. Section ids are owned
@@ -108,104 +108,119 @@ export type SectionOpenMap = Readonly<Record<string, boolean>>;
  * @public
  */
 export interface ShellLayoutState {
-    /** The open activity, or null when no panel is open. */
-    readonly activeActivity: ActivityId | null;
+    /**
+     * Which activity the panel draws. NON-NULLABLE since 2026-09-14: under the one-button
+     * panel model there is no such thing as "no panel" while the sidebars are shown, and
+     * no such thing as an active activity while they are hidden, so the two facts are
+     * {@link ShellLayoutState.sidebarsHidden} and this, never a null here.
+     */
+    readonly activeActivity: PrimaryActivityId;
     /** The activity panel's width, already clamped for the current viewport. */
     readonly panelWidth: number;
-    /** Whether the inspector column is shown. */
-    readonly inspectorOpen: boolean;
     /** The inspector's width, already clamped for the current viewport. */
     readonly inspectorWidth: number;
     /**
-     * Whether the activity panel is LATCHED open ("Keep open", 6.12): nothing but the
-     * user's own close control may close it. False is today's behaviour, unchanged.
+     * Whether BOTH sidebars are hidden. The whole of the shell's show/hide model, and
+     * the only thing the reader's one top-bar control writes.
+     *
+     * It replaced, on 2026-09-14, five interlocking mechanisms: two "Keep open" latches,
+     * a width-aware first-visit layout built on them, three auto-close rules they could
+     * veto, `inspectorOpen` as an axis independent of the panel, and the rail's
+     * close-on-active-click. The product owner's verdict was "our panel open / closed /
+     * autohide is a confusing nightmare"; the failure mode was that no reader could
+     * predict which gesture would take a surface away, because six of them could.
+     *
+     * Default false -- both sidebars shown -- at every width the shell lays out at.
+     * Below `NARROW_BREAKPOINT` it lays out at none, and draws a "screen too small"
+     * state instead.
      */
-    readonly panelKeptOpen: boolean;
-    /** Whether the inspector is latched open on the same rule (6.12). */
-    readonly inspectorKeptOpen: boolean;
+    readonly sidebarsHidden: boolean;
     /** Per-section open/closed state. */
     readonly sectionOpen: SectionOpenMap;
     /** The 6.1 state axis. */
     readonly stateAxis: ShellStateAxis;
-    /** Which side of the breakpoint the shell is on. */
+    /**
+     * Which side of the breakpoint the shell is on. It no longer selects between two
+     * LAYOUTS -- there is only one -- but the frame reads it to decide whether to lay
+     * out at all, and the canvas region reads it for its own chip-versus-card form.
+     */
     readonly breakpoint: ShellBreakpoint;
-    /** Which overlay is open below 1280 px. Always "none" on desktop. */
-    readonly narrowOverlay: NarrowOverlay;
     /** The shell's measured width in CSS pixels. */
     readonly shellWidth: number;
 }
 
 /**
  * Exactly what the shell store writes to local storage, and nothing more. The 6.5
- * list has more entries than these four, but the rest belong to the regions and
+ * list has more entries than these five, but the rest belong to the regions and
  * features that own them, not to this store. Spec 04 section 6.1.
  *
- * The two latches joined the record on 2026-09-12 under the SAME key: every field is
- * validated on its own when it is read, so an older record simply carries no latch and
- * a newer one read by older code is ignored field by field. Neither needs a v2 key.
+ * REWRITTEN 2026-09-14 with the panel model. `inspectorOpen`, `panelKeptOpen` and
+ * `inspectorKeptOpen` all left, and `activeActivity` lost its null. The key moved to
+ * `graphty.shell.layout.v3` in the same change -- see `SHELL_LAYOUT_STORAGE_KEY`'s own
+ * comment for why a shape that only SHRINKS still needed a new key.
  */
 export interface PersistedShellLayout {
-    /** 6.5 "last active activity". */
-    readonly activeActivity: ActivityId | null;
+    /** 6.5 "last active activity". Never null: the panel always draws one. */
+    readonly activeActivity: PrimaryActivityId;
     /** 6.5 "panel widths" -- the requested width, before the viewport clamp. */
     readonly panelWidth: number;
     /** 6.5 "panel widths" -- the requested width, before the viewport clamp. */
     readonly inspectorWidth: number;
-    /** 6.5 "inspector collapsed state". */
-    readonly inspectorOpen: boolean;
+    /**
+     * Whether both sidebars are hidden. The one remembered fact about how the reader
+     * wants the shell laid out, replacing the four this record used to carry.
+     *
+     * It is written unconditionally, including on mount. The old record could not be:
+     * a latch default written on mount was indistinguishable from a deliberate unlatch
+     * on the next visit, so the store carried a `latchChosen` ref and a first-paint
+     * comparison to keep defaults out of it (6.5a, "a default is not a choice"). One
+     * boolean whose default is false is not ambiguous, so all of that collapsed.
+     */
+    readonly sidebarsHidden: boolean;
     /** 6.5 "tier 2 section open states". */
     readonly sectionOpen: SectionOpenMap;
-    /**
-     * 6.12 "The latch", panel side. It describes how the reader works rather than what
-     * the graph holds, so it survives a reload and a dataset boundary alike.
-     *
-     * OPTIONAL, and the absence is meaningful: it says the reader has never chosen a
-     * latch state, so the width-aware first-visit default still applies. Writing an
-     * unchosen `false` made a narrow first visit look like a deliberate unlatch and
-     * suppressed the default on every later visit (2026-09-13).
-     */
-    readonly panelKeptOpen?: boolean;
-    /** 6.12 "The latch", inspector side, absent under the same rule. */
-    readonly inspectorKeptOpen?: boolean;
 }
 
 /**
  * The shell store's public surface. Side effects (measuring the viewport, writing
  * local storage) live in effects inside the provider, never in render.
+ *
+ * SIX MEMBERS LEFT ON 2026-09-14 and are not coming back one at a time: `closePanel`,
+ * `setInspectorOpen`, `toggleInspector`, `setPanelKeptOpen`, `setInspectorKeptOpen` and
+ * `closeNarrowOverlay`. Each was a separate route by which one sidebar could vanish, and
+ * together they were the "confusing nightmare" the product owner named. What replaced
+ * all six is {@link ShellContextValue.setSidebarsHidden} and
+ * {@link ShellContextValue.toggleSidebars}, which move both sidebars together and are
+ * reached from exactly one control and one binding.
  */
 export interface ShellContextValue extends ShellLayoutState {
     /**
-     * Rail click. Applies the close-on-active-click rule: clicking the icon of the
-     * already-active activity closes its panel and leaves no activity active
-     * (spec 02 section 1.4). Below 1280 px, opening the panel closes the inspector
-     * overlay (spec 01 section 7 item 2).
+     * Rail click: draws that activity's panel, and reveals the sidebars if they are
+     * hidden.
+     *
+     * It no longer applies spec:153's close-on-active-click -- clicking the icon of the
+     * already-active activity is now a no-op rather than a close, because the rail is a
+     * pure activity chooser and the one top-bar control is the only thing that hides a
+     * sidebar. That change needs the product owner's explicit assent: it contradicts
+     * spec:153 and changes long-standing muscle memory.
      */
-    readonly selectActivity: (activity: ActivityId) => void;
+    readonly selectActivity: (activity: PrimaryActivityId) => void;
     /**
-     * Opens an activity without the toggle rule. The one caller is the first-load
-     * rule: on the session's FIRST load the panel switches to Explore regardless of
-     * what was remembered (spec 02 section 1.5).
+     * Draws an activity's panel WITHOUT revealing hidden sidebars. The programmatic
+     * route: the first-load rule (spec 02 section 1.5), a run function opening its own
+     * panel, a failure surface pointing at Data. A reader who hid the sidebars asked for
+     * the canvas, and a background completion pulling them back is the kind of
+     * shell-performed layout change this model exists to abolish.
      */
-    readonly openActivity: (activity: ActivityId) => void;
-    /** Closes the activity panel. The Cmd+B binding and the header X both land here. */
-    readonly closePanel: () => void;
+    readonly openActivity: (activity: PrimaryActivityId) => void;
     /** Requests an activity panel width; the clamp is applied before it is exposed. */
     readonly setPanelWidth: (width: number) => void;
-    /** Shows or hides the inspector column. */
-    readonly setInspectorOpen: (open: boolean) => void;
-    /**
-     * Latches or unlatches the activity panel (6.12, "The latch"). Both surfaces may be
-     * latched at every width: 6.12's narrow exclusivity was dropped on 2026-09-13 at the
-     * product owner's direction, and the reason is recorded at the setter in
-     * `ShellContext`.
-     */
-    readonly setPanelKeptOpen: (kept: boolean) => void;
-    /** Latches or unlatches the inspector. Independent of the panel's latch, at any width. */
-    readonly setInspectorKeptOpen: (kept: boolean) => void;
-    /** Toggles the inspector column. The D binding and both chevrons land here. */
-    readonly toggleInspector: () => void;
     /** Requests an inspector width; the clamp is applied before it is exposed. */
     readonly setInspectorWidth: (width: number) => void;
+    /** Hides or shows BOTH sidebars. The one writer of the one boolean. */
+    readonly setSidebarsHidden: (hidden: boolean) => void;
+    /** Flips {@link ShellLayoutState.sidebarsHidden}. The top bar's one control and Cmd/Ctrl+B both land here. */
+    readonly toggleSidebars: () => void;
     /** Reads a section's open state, falling back to the section's own default. */
     readonly isSectionOpen: (sectionId: string, defaultOpen?: boolean) => boolean;
     /** Sets one section's open state. */
@@ -220,15 +235,6 @@ export interface ShellContextValue extends ShellLayoutState {
     readonly setSectionsOpen: (sectionIds: readonly string[], open: boolean) => void;
     /** Moves the shell along the 6.1 state axis. */
     readonly setStateAxis: (state: ShellStateAxis) => void;
-    /**
-     * Escape ladder rung 3: below 1280 px, closes whichever overlay is open.
-     * Returns true when something was closed, so the ladder stops there.
-     *
-     * A LATCHED overlay is not closed and false is returned, so the press falls
-     * through to the next rung rather than dismissing a surface the reader pinned
-     * open (6.12, "The latch").
-     */
-    readonly closeNarrowOverlay: () => boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -251,7 +257,12 @@ export interface RailBadge {
  * Props of the activity rail region.
  */
 export interface ActivityRailProps {
-    /** The active activity, or null when no panel is open. */
+    /**
+     * The active activity, or null when no panel is on screen -- which since 2026-09-14
+     * means "the sidebars are hidden", not "no activity is chosen". The store always
+     * holds an activity; the shell passes null while the panel is not drawn, so the
+     * rail's marker never claims a panel the reader cannot see.
+     */
     readonly activeActivity: ActivityId | null;
     /**
      * Activities drawn but disabled. Their title is the activity name plus
@@ -266,9 +277,12 @@ export interface ActivityRailProps {
     /** The Present badge, or null when the sum is zero. */
     readonly presentBadge?: RailBadge | null;
     /**
-     * Rail click. The shell decides what each id does: the six primary ids toggle a
-     * panel through the store's close-on-active-click rule, "settings" opens the
-     * full-panel overlay and "help" opens the rail-anchored menu.
+     * Rail click. The shell decides what each id does: the six primary ids draw that
+     * activity's panel and reveal the sidebars if they are hidden, "settings" opens the
+     * full-panel overlay and "help" opens the rail-anchored menu. Clicking the
+     * already-active icon is a no-op -- spec:153's close-on-active-click was struck on
+     * 2026-09-14, because the rail is a pure activity chooser and the top bar's one
+     * control is the only thing that hides a sidebar.
      */
     readonly onActivityClick: (activity: ActivityId) => void;
 }
@@ -315,12 +329,14 @@ export interface ActivityPanelProps {
      * is not rendered at all and the header takes its no-More padding.
      */
     readonly overflowItems?: readonly PanelOverflowItem[];
-    /** Whether the panel is latched open; the header's "Keep open" reports it pressed. */
-    readonly keptOpen?: boolean;
-    /** The header's "Keep open" toggle (6.12, "The latch"). */
-    readonly onKeepOpenChange?: (kept: boolean) => void;
-    /** Header X, titled "Close the panel (Cmd+B)". */
-    readonly onClose: () => void;
+    /*
+     * `keptOpen`, `onKeepOpenChange` and `onClose` all left on 2026-09-14. The panel
+     * header carried a "Keep open" latch and an X; both were individual controls over one
+     * sidebar, and the product owner asked for "one button to hide / show both at the
+     * same time and not individual buttons". The panel is drawn whenever the sidebars
+     * are shown and is not drawn when they are not, so it has nothing of its own to
+     * report and nothing of its own to close.
+     */
     /** Desktop boundary drag. Absent below 1280 px, where the panel does not resize. */
     readonly onWidthChange?: (width: number) => void;
     /** The panel body. */
@@ -442,7 +458,10 @@ export interface CanvasToolbarProps {
  * Props of the inspector region.
  */
 export interface InspectorProps {
-    /** Whether the inspector column is shown. */
+    /**
+     * Whether the inspector column is shown, which since 2026-09-14 is exactly
+     * "the sidebars are not hidden". The inspector has no open state of its own.
+     */
     readonly open: boolean;
     /** The inspector's width, already clamped by the store. */
     readonly width: number;
@@ -462,19 +481,16 @@ export interface InspectorProps {
      * below 1280 px the pinned card becomes a second tab (spec 03 section 3.3).
      */
     readonly pinned?: boolean;
-    /**
-     * Whether the inspector is latched open (6.12, "The latch"). This is NOT `pinned`:
-     * that is the comparison pin, which freezes the content; this holds the column.
+    /*
+     * `keptOpen`, `onKeepOpenChange` and `onToggle` all left on 2026-09-14, for the same
+     * reason the panel header's pair did: the latch and the collapse chevron were
+     * individual controls over one sidebar. `pinned` STAYS -- it is the comparison pin,
+     * which freezes the CONTENT, and it never held the column.
      */
-    readonly keptOpen?: boolean;
-    /** The header's "Keep open" toggle. */
-    readonly onKeepOpenChange?: (kept: boolean) => void;
     /** Header "Copy reading". */
     readonly onCopyReading: () => void;
     /** Header "Pin as A". Absent for the Nothing-selected surface, which has no pin. */
     readonly onPin?: () => void;
-    /** Header chevron and top bar switch, both titled "Toggle inspector (D)". */
-    readonly onToggle: () => void;
     /** Desktop boundary drag. Absent below 1280 px. */
     readonly onWidthChange?: (width: number) => void;
     /** The inspector body. */
@@ -518,17 +534,17 @@ export interface TopBarProps {
     readonly compareActive: boolean;
     /** Compare two views. */
     readonly onToggleCompare: () => void;
-    /** Whether the activity panel is shown; the toggle draws active. */
-    readonly panelOpen: boolean;
     /**
-     * Toggle panel (Cmd+B). The mirror of the inspector switch, immediately left of it,
-     * so both regions are shown and brought back from one place.
+     * Whether BOTH sidebars are on screen; the one switch draws active and reports
+     * `aria-pressed="true"` while they are.
+     *
+     * This ONE pair replaced `panelOpen` / `onTogglePanel` / `inspectorOpen` /
+     * `onToggleInspector` on 2026-09-14. Two mirrored switches, each owning one sidebar,
+     * were exactly the "individual buttons" the product owner asked to be rid of.
      */
-    readonly onTogglePanel: () => void;
-    /** Whether the inspector column is shown; the toggle draws active. */
-    readonly inspectorOpen: boolean;
-    /** Toggle inspector (D). A toggle never renames itself. */
-    readonly onToggleInspector: () => void;
+    readonly sidebarsShown: boolean;
+    /** Toggle sidebars (Cmd/Ctrl+B). One verb in every state, per 6.8 and REGISTER-1.5 10.2. */
+    readonly onToggleSidebars: () => void;
 }
 
 /* -------------------------------------------------------------------------- */

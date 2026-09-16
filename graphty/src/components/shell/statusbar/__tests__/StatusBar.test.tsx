@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { act, fireEvent, render, screen } from "../../../../test/test-utils";
 import { STATUS_BAR_SLOT_ORDER } from "../../constants";
 import { LAYOUT_MENU_LABEL } from "../LayoutChipMenu";
+import { DETAILS_LABEL } from "../LoadCompleteToast";
 import { StatusBar } from "../StatusBar";
+import { STATUS_BAR_GEOMETRY } from "../statusBarGeometry";
 import type { StatusBarRegionProps } from "../statusBarModel";
 
 function getBar(container: HTMLElement): HTMLElement {
@@ -532,6 +534,90 @@ describe("StatusBar", () => {
             renderBar();
 
             expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+        });
+
+        /*
+         * The ERROR severity, which is what makes this toast the failed load's surface in
+         * the Loaded state -- spec 4105 draws that sentence inline in the Welcome drop
+         * zone, and Welcome is not on screen once a dataset is drawn, so a file added to a
+         * populated canvas had nowhere at all to be reported.
+         */
+        describe("a load that did not arrive", () => {
+            afterEach(() => {
+                vi.useRealTimers();
+            });
+
+            const failure = {
+                message: "Could not load friends.json. Unexpected token o in JSON at position 1.",
+                severity: "error" as const,
+                actionLabel: "Open Data",
+            };
+
+            it("announces itself and names where its link goes", () => {
+                const onDetails = vi.fn();
+
+                renderBar({ completion: { ...failure, onDetails }, slots: { counts } });
+
+                const toast = screen.getByRole("alert");
+
+                expect(toast.textContent).toContain(failure.message);
+
+                /* Not "Details": that word goes to a mapping line in the Loaded data
+                   section, and a load that never arrived has no mapping to show. */
+                fireEvent.click(screen.getByRole("button", { name: "Open Data" }));
+                expect(onDetails).toHaveBeenCalledTimes(1);
+                expect(screen.queryByRole("button", { name: DETAILS_LABEL })).toBeNull();
+            });
+
+            it("leaves a plain completion exactly as it was", () => {
+                renderBar({
+                    completion: { message: "Loaded 20 nodes and 29 edges in 1 s.", onDetails: vi.fn() },
+                    slots: { counts },
+                });
+
+                expect(screen.getByRole("status")).toBeInTheDocument();
+                expect(screen.queryByRole("alert")).toBeNull();
+                expect(screen.getByRole("button", { name: DETAILS_LABEL })).toBeInTheDocument();
+            });
+
+            it("stays on screen past the toast duration when no onDismiss was given", () => {
+                vi.useFakeTimers();
+                renderBar({ completion: { ...failure, onDetails: vi.fn() }, slots: { counts } });
+
+                act(() => {
+                    vi.advanceTimersByTime(STATUS_BAR_GEOMETRY.TOAST_DURATION_MS * 2);
+                });
+
+                /* An error that erases itself six seconds later is the silent failure
+                   again in a nicer font. Without an `onDismiss` there is no timer at all,
+                   which is the contract the component documents. */
+                expect(screen.getByRole("alert")).toBeInTheDocument();
+            });
+
+            it("still dismisses a completion whose host asked for it", () => {
+                const onDismiss = vi.fn();
+
+                vi.useFakeTimers();
+                renderBar({
+                    completion: { message: "Loaded 20 nodes and 29 edges in 1 s.", onDetails: vi.fn(), onDismiss },
+                    slots: { counts },
+                });
+
+                act(() => {
+                    vi.advanceTimersByTime(STATUS_BAR_GEOMETRY.TOAST_DURATION_MS);
+                });
+
+                expect(onDismiss).toHaveBeenCalledTimes(1);
+            });
+
+            it("draws in the Empty state, where the bar has no slot to draw", () => {
+                /* The toast renders outside the slot list, so a shell that is Empty --
+                   which is where a failed replacing load leaves it -- still reports. */
+                const { container } = renderBar({ completion: { ...failure, onDetails: vi.fn() }, slots: {} });
+
+                expect(container.querySelectorAll("[data-status-slot]")).toHaveLength(0);
+                expect(container.querySelector("[data-status-float]")).not.toBeNull();
+            });
         });
     });
 });

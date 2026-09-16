@@ -2,12 +2,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
-import { act, fireEvent, render, screen, within } from "../../../test/test-utils";
+import { act, fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
+import { NODE_METRIC_DEFINITIONS } from "../analysis/nodeMetrics";
 import { COMMUNITY_NAMESPACE, COMMUNITY_TYPE, DEGREE_NAMESPACE, DEGREE_TYPE } from "../analysis/runs";
 import { AppShell } from "../AppShell";
 import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIGHT } from "../constants";
+
+/**
+ * Mantine's own modal and overlay stacking order. The too-small overlay must clear it,
+ * because a reader who narrows the window with the Load data dialog open has to see the
+ * too-small message rather than a dialog floating over it.
+ */
+const MANTINE_MODAL_Z_INDEX = 200;
+import { NODE_METRIC_LAYER_SOURCE_TAGS, viridisAt } from "../defaults/nodeMetricStyle";
 import { DEGREE_INPUT_PATH, LABEL_ENABLED_OUTPUT_PATH } from "../defaults/styleDescriptors";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
+import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
 
 /**
  * Renders the shell with the store pinned, so a board decides its own breakpoint and
@@ -143,6 +153,9 @@ function installGraph(container: HTMLElement, layers: FakeStyleLayer[]): FakeSty
 /** How many microtask turns a flush walks: enough for the run-then-read-then-paint chain. */
 const FLUSH_TURNS = 10;
 
+/** How many task turns a dropped file's read is given before the board asserts. */
+const FILE_READ_TURNS = 3;
+
 /**
  * Lets the load path's promise chain settle inside `act`.
  *
@@ -182,6 +195,116 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
             await Promise.resolve();
         }
     });
+}
+
+/**
+ * Reports the load FAILED, as graphty-element does when a parse or a fetch throws.
+ *
+ * This is the only route by which a malformed file EVER reaches the shell.
+ * `GraphtyHandle.loadFromFile` ends in a property assignment
+ * (`element.dataSourceConfig = {data}`) and the element's setter discards the parse with
+ * `void this.#graph.addDataFromSource(...)`, so the shell's own promise chain RESOLVES
+ * over a file that never parsed and reports a successful load. What actually says so is
+ * `DataManager.addDataFromSource`, which wraps its whole chunk loop in a try and emits
+ * exactly one `data-loading-error` from the catch (DataManager.ts:545-566) -- forwarded
+ * like every other graph event as a bubbling, composed CustomEvent.
+ * @param container - the render result's container.
+ * @param message - what the element's `Error` says, or undefined for an error that says
+ * nothing at all.
+ */
+async function reportLoadingError(container: HTMLElement, message?: string): Promise<void> {
+    const element = container.querySelector("graphty-element");
+
+    expect(element).not.toBeNull();
+
+    await act(async () => {
+        element?.dispatchEvent(
+            new CustomEvent("data-loading-error", {
+                bubbles: true,
+                composed: true,
+                detail: {
+                    type: "data-loading-error",
+                    error: message === undefined ? undefined : new Error(message),
+                    context: "parsing",
+                    format: "json",
+                    canContinue: false,
+                },
+            }),
+        );
+
+        for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
+            await Promise.resolve();
+        }
+    });
+}
+
+/**
+ * One file, in the two shapes the drop routes read it in.
+ *
+ * The Data panel destructures the list (`const [file] = files`, which needs an iterator)
+ * and the canvas asks it for `files.item(0)`, so a stand-in that serves only one of them
+ * passes one route and throws on the other.
+ * @param file - the dropped file.
+ * @returns something both routes can read.
+ */
+function fileList(file: File): FileList {
+    const list = [file] as unknown as { item: (index: number) => File | null };
+
+    list.item = (index: number) => (index === 0 ? file : null);
+
+    return list as unknown as FileList;
+}
+
+/**
+ * Drops one file on a zone and lets the load path settle.
+ *
+ * Chromium empties the file list of any DataTransfer that did not come from a real user
+ * drag, so the list the handler reads is attached to the event itself.
+ * @param zone - the drop target.
+ * @param file - the file to drop.
+ */
+async function dropFile(zone: HTMLElement, file: File): Promise<void> {
+    const drop = new Event("drop", { bubbles: true, cancelable: true });
+
+    Object.defineProperty(drop, "dataTransfer", { value: { files: fileList(file) } });
+
+    await act(async () => {
+        zone.dispatchEvent(drop);
+
+        /* Waited out as a TASK, not as a handful of microtask turns. `loadFromFile` reads
+           the file (`await file.text()`), which is a real asynchronous read in the
+           browser, and only then assigns the element's data source. A board that ran on
+           microtasks alone told the element its data had failed to parse before the data
+           had reached it -- an order the application cannot produce, and one that hid a
+           `finishLoad` landing AFTER the failure it was supposed to precede. */
+        for (let turn = 0; turn < FILE_READ_TURNS; turn += 1) {
+            await new Promise((resolve) => {
+                window.setTimeout(resolve, 0);
+            });
+        }
+
+        for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
+            await Promise.resolve();
+        }
+    });
+}
+
+/**
+ * The sentence the failure surfaces drew inline in the Welcome drop zone, or null.
+ * @param container - the render result's container.
+ * @returns the inline error element, or null when nothing has failed.
+ */
+function inlineLoadError(container: HTMLElement): HTMLElement | null {
+    return container.querySelector<HTMLElement>("[data-welcome-error]");
+}
+
+/**
+ * The status bar's toast, or null when the bar is drawing none.
+ * @param container - the render result's container.
+ * @returns the toast element, or null.
+ */
+function statusToast(container: HTMLElement): HTMLElement | null {
+    return container.querySelector<HTMLElement>("[data-status-float]");
 }
 
 /** One `handle.loadData` or `handle.loadFromUrl` call, as the element received it. */
@@ -230,9 +353,16 @@ function captureLoads(container: HTMLElement): readonly RecordedLoad[] {
     return loads;
 }
 
-/** One node, as both the element's data manager and its algorithm results spell it. */
+/**
+ * One node, as both the element's data manager and its algorithm results spell it.
+ *
+ * The id is `string | number` because the ELEMENT's is: `DataManager` stores whatever the
+ * file carried, untouched, and `GMLDataSource` parses a bare integer with `parseInt`, so
+ * two of the three shipped samples (karate.gml, football.gml) hold NUMBER keys. A stub
+ * that could only hold strings could not fail the way those two samples fail.
+ */
 interface StubNode {
-    id: string;
+    id: string | number;
     data: Record<string, unknown>;
     algorithmResults: Record<string, unknown>;
 }
@@ -269,12 +399,26 @@ interface StubLayer {
 interface StubGraph {
     /** Every algorithm run the shell asked for, in order. */
     readonly runAlgorithm: ReturnType<typeof vi.fn>;
+    /** Every canvas selection the shell asked for, which is the spine's last hop. */
+    readonly selectNode: ReturnType<typeof vi.fn>;
+    /** Every clear of it. The element has to be told, or its own selection outlives the shell's. */
+    readonly deselectNode: ReturnType<typeof vi.fn>;
+    /** What the ELEMENT still holds, which is not always what the shell thinks it holds. */
+    readonly elementHoldsSelection: () => string | number | null;
     /** The layers the shell added, and the two repaint spies. */
     readonly styleManager: {
         getLayers: () => StubLayer[];
         addLayer: ReturnType<typeof vi.fn>;
         removeLayerByIndex: ReturnType<typeof vi.fn>;
     };
+    /**
+     * Adds one node to the graph BEHIND the shell's back, as a merge would.
+     *
+     * The records the shell measured are not the records the graph holds for ever: this is
+     * how a board reaches the state a merging load would leave -- one held degree pass, and
+     * a graph that has grown since it ran.
+     */
+    readonly addNode: (id: string) => void;
     /** The data manager, for its two repaint spies and the clear a replacing load makes. */
     readonly dataManager: {
         applyStylesToExistingNodes: ReturnType<typeof vi.fn>;
@@ -319,6 +463,136 @@ function writeNodeResult(node: StubNode, type: string, values: Record<string, nu
 }
 
 /**
+ * What a board wants this stand-in to be, beyond the cat fixture.
+ */
+interface NovicePathOptions {
+    /**
+     * A synthetic graph of this size instead of the cat fixture.
+     *
+     * The cost gate is a function of the graph's own size, so the only way to reach its
+     * "ask" band is to stand a graph in front of it that is actually big enough. The
+     * records are shaped exactly like the fixture's, so every other surface reads them
+     * the same way.
+     */
+    readonly synthetic?: { readonly nodeCount: number; readonly edgeCount: number };
+    /**
+     * What the stub's PageRank publishes at graph level.
+     *
+     * Absent means it publishes NOTHING, which is the element saying nothing rather than
+     * saying it did not converge -- and the two must not be conflated, which is why the
+     * caveat tests `converged === false` rather than `!converged`.
+     */
+    readonly pagerank?: { readonly converged: boolean; readonly iterations: number };
+    /** Layers already standing on the graph before the shell adds any of its own. */
+    readonly extraLayers?: readonly StubLayer[];
+    /**
+     * A ring of this many nodes instead of the cat fixture.
+     *
+     * Every node has exactly two links, so every betweenness score is the same, the
+     * element's min-max normalisation divides by a range of 0 and writes `scorePct: 0` for
+     * every node -- the degenerate ranking whose top fraction is 0 and whose canvas is
+     * uniformly the bottom of the ramp.
+     */
+    readonly ring?: number;
+    /**
+     * How many nodes the metric pass leaves WITHOUT a published value.
+     *
+     * The element publishes per-node results only for the nodes its pass reached, and
+     * `readNodeMetricResults` skips a node whose value is not a finite number rather than
+     * reading it as 0 -- while still counting it in `nodeCount`, so the ranking can say
+     * how many nodes it did not measure. That difference is the only thing that puts the
+     * legend's "Not measured (N nodes)" departure on screen, and nothing in the fixture
+     * could produce it: every node of a stub that writes for all of them is measured.
+     *
+     * The LAST n nodes are the ones left out, and only for the three node metrics -- the
+     * grouping run is untouched, because it is not what this reaches.
+     */
+    readonly unmeasured?: number;
+    /**
+     * The fixture's ids as the GML samples carry them: integers, stored as NUMBERS.
+     *
+     * The failure this reaches is a silent one: the shell prints an id, hands the printed
+     * string back to `selectNode`, and the element's `Map.get("1")` misses the key `1`,
+     * returns false and emits nothing.
+     */
+    readonly numericIds?: boolean;
+}
+
+/**
+ * A synthetic graph of a given size, in the fixture's own shape.
+ * @param nodeCount - how many nodes.
+ * @param edgeCount - how many edges.
+ * @returns the records, as the sample fixtures spell them.
+ */
+function syntheticGraph(nodeCount: number, edgeCount: number): StringFixtureRecords {
+    const nodes = Array.from({ length: nodeCount }, (_unused, index) => ({ id: `n${String(index)}` }));
+    const edges = Array.from({ length: edgeCount }, (_unused, index) => {
+        const source = index % nodeCount;
+        const target = (index * 7 + 1) % nodeCount;
+
+        return {
+            src: `n${String(source)}`,
+            dst: `n${String(source === target ? (target + 1) % nodeCount : target)}`,
+        };
+    });
+
+    return { nodes, edges };
+}
+
+/**
+ * The records a fixture hands the stand-in, in the two id types the element accepts.
+ *
+ * Readonly all the way down because `CAT_SOCIAL_NETWORK` is `as const`: a mutable shape
+ * here would force a copy of the fixture at every call site, and the copy is what would
+ * then drift from what FIXTURES.md measures.
+ */
+interface FixtureRecords {
+    readonly nodes: readonly { readonly id: string | number }[];
+    readonly edges: readonly { readonly src: string | number; readonly dst: string | number }[];
+}
+
+/** The same records before any renumbering, which is to say with the ids the file wrote. */
+interface StringFixtureRecords {
+    readonly nodes: readonly { readonly id: string }[];
+    readonly edges: readonly { readonly src: string; readonly dst: string }[];
+}
+
+/**
+ * A ring of n nodes: n edges, every degree exactly 2.
+ * @param nodeCount - how many nodes are in the ring.
+ * @returns the records, as the sample fixtures spell them.
+ */
+function ringGraph(nodeCount: number): StringFixtureRecords {
+    const nodes = Array.from({ length: nodeCount }, (_unused, index) => ({ id: `n${String(index)}` }));
+    const edges = Array.from({ length: nodeCount }, (_unused, index) => ({
+        src: `n${String(index)}`,
+        dst: `n${String((index + 1) % nodeCount)}`,
+    }));
+
+    return { nodes, edges };
+}
+
+/**
+ * The same records with INTEGER ids, the way GMLDataSource hands them to the element.
+ *
+ * Positions are 1-based to match karate.gml's own `node [ id 1 ]`, and the edges are
+ * remapped by position so the graph's shape is untouched -- only the type of its ids.
+ * @param fixture - the records to renumber.
+ * @returns the same graph with numeric ids.
+ */
+function withNumericIds(fixture: StringFixtureRecords): FixtureRecords {
+    const numbering = new Map<string, number>(fixture.nodes.map((node, index) => [node.id, index + 1]));
+
+    return {
+        nodes: fixture.nodes.map((node) => ({ id: numbering.get(node.id) ?? 0 })),
+        edges: fixture.edges.map((edge) => ({
+            src: numbering.get(edge.src) ?? 0,
+            dst: numbering.get(edge.dst) ?? 0,
+        })),
+    };
+}
+
+/**
  * Stands a graph on the mounted host that answers the whole novice path.
  *
  * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in
@@ -334,21 +608,30 @@ function writeNodeResult(node: StubNode, type: string, values: Record<string, nu
  * @param container - the render result's container.
  * @returns the stub's doors, to assert the calls the shell made on it.
  */
-function installNovicePathGraph(container: HTMLElement): StubGraph {
+function installNovicePathGraph(container: HTMLElement, options: NovicePathOptions = {}): StubGraph {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
 
-    const nodes = new Map<string, StubNode>();
+    const sized =
+        options.synthetic === undefined
+            ? CAT_SOCIAL_NETWORK
+            : syntheticGraph(options.synthetic.nodeCount, options.synthetic.edgeCount);
+    const shaped = options.ring === undefined ? sized : ringGraph(options.ring);
+    const fixture: FixtureRecords = options.numericIds === true ? withNumericIds(shaped) : shaped;
+    const nodes = new Map<string | number, StubNode>();
 
-    for (const node of CAT_SOCIAL_NETWORK.nodes) {
+    for (const node of fixture.nodes) {
         nodes.set(node.id, { id: node.id, data: { ...node }, algorithmResults: {} });
     }
 
-    const edges = new Map<string, { id: string; srcId: string; dstId: string; data: Record<string, unknown> }>();
-    const degrees = new Map<string, number>();
+    const edges = new Map<
+        string,
+        { id: string; srcId: string | number; dstId: string | number; data: Record<string, unknown> }
+    >();
+    const degrees = new Map<string | number, number>();
 
-    CAT_SOCIAL_NETWORK.edges.forEach((edge, index) => {
+    fixture.edges.forEach((edge, index) => {
         const id = `edge-${String(index)}`;
 
         edges.set(id, { id, srcId: edge.src, dstId: edge.dst, data: { ...edge } });
@@ -358,6 +641,11 @@ function installNovicePathGraph(container: HTMLElement): StubGraph {
 
     const maxDegree = Math.max(...degrees.values());
 
+    /* The nodes the metric pass did not reach, and so published nothing for. See
+       {@link NovicePathOptions.unmeasured}. */
+    const unmeasured = new Set<string | number>([...nodes.keys()].slice(nodes.size - (options.unmeasured ?? 0)));
+    const measuredNodes = (): StubNode[] => [...nodes.values()].filter((node) => !unmeasured.has(node.id));
+
     /* The element's OWN layers, present before the shell adds anything.
        graphty-element opens its stack with a `default` layer carrying
        `NodeStyle.parse(defaultNodeStyle)` -- every node's shape type (Styles.ts:54-67) --
@@ -365,7 +653,23 @@ function installNovicePathGraph(container: HTMLElement): StubGraph {
        removes layers by INDEX rather than by tag fail a board: without them the stub had
        nothing to lose, and a wipe that took the element's shape types with it, and left
        the next load drawing zero nodes, passed every test. */
-    const layers: StubLayer[] = [{ metadata: { name: "default" } }, { metadata: { name: "selection" } }];
+    /* BOTH element-owned layers carry a node COLOUR here, as the real ones do: the base
+       layer parses the whole of `defaultNodeStyle` (Styles.ts:54-67) and the selection
+       layer paints the gold highlight (SelectionManager.ts:21-34). Neither carries an
+       algorithmSource. Seeding them bare -- which is how they were seeded until the first
+       integration -- is what let a hand-authored check that finds one of them on every
+       graph, and so suppresses auto-apply forever, pass every board it had. */
+    const layers: StubLayer[] = [
+        { metadata: { name: "default" }, node: { selector: "", style: { texture: { color: "#6366F1" } } } },
+        {
+            metadata: { name: "selection" },
+            node: {
+                selector: "algorithmResults.graphty.selected == `true`",
+                style: { texture: { color: "#FFD700" } },
+            },
+        },
+        ...(options.extraLayers ?? []),
+    ];
     const styleManager = {
         getLayers: () => layers,
         addLayer: vi.fn((layer: StubLayer) => {
@@ -392,10 +696,66 @@ function installNovicePathGraph(container: HTMLElement): StubGraph {
         await Promise.resolve();
 
         if (type === "degree") {
-            for (const node of nodes.values()) {
+            for (const node of measuredNodes()) {
                 const degree = degrees.get(node.id) ?? 0;
 
                 writeNodeResult(node, "degree", { degree, degreePct: degree / maxDegree });
+            }
+
+            return;
+        }
+
+        if (type === "pagerank") {
+            /* PageRank's own fields (PageRankAlgorithm.ts:219-235): `rank` with `rankPct`
+               max-normalised, and the graph-level pair this is the only metric to publish. */
+            const ranks = new Map<string | number, number>();
+
+            for (const node of measuredNodes()) {
+                ranks.set(node.id, (degrees.get(node.id) ?? 0) + 1);
+            }
+
+            const maxRank = Math.max(...ranks.values());
+
+            for (const node of measuredNodes()) {
+                const rank = ranks.get(node.id) ?? 0;
+
+                writeNodeResult(node, "pagerank", { rank, rankPct: rank / maxRank });
+            }
+
+            if (options.pagerank !== undefined) {
+                dataManager.graphResults = {
+                    graphty: {
+                        pagerank: {
+                            converged: options.pagerank.converged,
+                            iterations: options.pagerank.iterations,
+                        },
+                    },
+                };
+            }
+
+            return;
+        }
+
+        if (type === "betweenness") {
+            /* Betweenness's own fields (BetweennessCentralityAlgorithm.ts:61-78): `score`
+               with `scorePct` MIN-MAX normalised, so the bottom node reads exactly 0. */
+            const scores = new Map<string | number, number>();
+
+            for (const node of measuredNodes()) {
+                scores.set(node.id, (degrees.get(node.id) ?? 0) * 2);
+            }
+
+            const maxScore = Math.max(...scores.values());
+            const minScore = Math.min(...scores.values());
+            const span = maxScore - minScore;
+
+            for (const node of measuredNodes()) {
+                const score = scores.get(node.id) ?? 0;
+
+                writeNodeResult(node, "betweenness", {
+                    score,
+                    scorePct: span === 0 ? 0 : (score - minScore) / span,
+                });
             }
 
             return;
@@ -425,6 +785,48 @@ function installNovicePathGraph(container: HTMLElement): StubGraph {
         }
     });
 
+    /* The SELECTION, modelled rather than counted. `Graph.selectNode` is a pass-through to
+       `SelectionManager.selectById`, which is `dataManager.getNode(id)` -- a raw `Map.get`
+       on the element's own id -- and then `select()`, which RETURNS EARLY, emitting
+       nothing, when the node handed to it is the one it already holds
+       (SelectionManager.ts:120-123, and its own test "selecting the same node is a no-op").
+       A bare `vi.fn()` here records the argument and proves neither: it cannot tell an id
+       that found a node from one that missed, and it cannot tell a select that reached the
+       reader from one the element swallowed. */
+    let selectedId: string | number | null = null;
+
+    const emitSelection = (nodeId: string | number | null): void => {
+        element?.dispatchEvent(
+            new CustomEvent("selection-changed", {
+                detail: {
+                    previousNodeId: null,
+                    currentNodeId: nodeId,
+                    currentNode: nodeId === null ? null : { data: {} },
+                },
+            }),
+        );
+    };
+
+    const selectNode = vi.fn((nodeId: string | number) => {
+        const node = nodes.get(nodeId);
+
+        if (node === undefined || selectedId === node.id) {
+            return false;
+        }
+
+        selectedId = node.id;
+        emitSelection(node.id);
+
+        return true;
+    });
+    const deselectNode = vi.fn(() => {
+        if (selectedId === null) {
+            return;
+        }
+
+        selectedId = null;
+        emitSelection(null);
+    });
     const graph = {
         dataManager,
         getDataManager: () => dataManager,
@@ -432,6 +834,8 @@ function installNovicePathGraph(container: HTMLElement): StubGraph {
         getStyleManager: () => styleManager,
         getLayers: () => layers,
         runAlgorithm,
+        selectNode,
+        deselectNode,
         addListener: vi.fn(),
     };
 
@@ -449,7 +853,102 @@ function installNovicePathGraph(container: HTMLElement): StubGraph {
         },
     });
 
-    return { runAlgorithm, styleManager, dataManager };
+    const addNode = (id: string): void => {
+        nodes.set(id, { id, data: { id }, algorithmResults: {} });
+    };
+
+    return {
+        runAlgorithm,
+        selectNode,
+        deselectNode,
+        elementHoldsSelection: () => selectedId,
+        addNode,
+        styleManager,
+        dataManager,
+    };
+}
+
+/**
+ * The layers the SHELL added for a node-metric encoding, by tag.
+ *
+ * By TAG, never by index or by count: one metric encoding drives colour at a time, and
+ * the failure this catches is a second run stacking its ramp on the first's.
+ * @param layers - every layer the style manager holds.
+ * @returns the metric encoding layers, in stack order.
+ */
+function metricLayers(layers: readonly StubLayer[]): readonly StubLayer[] {
+    return layers.filter(
+        (layer) =>
+            typeof layer.metadata?.algorithmSource === "string" &&
+            NODE_METRIC_LAYER_SOURCE_TAGS.includes(layer.metadata.algorithmSource),
+    );
+}
+
+/**
+ * The layers the SHELL added for a community encoding, by tag.
+ *
+ * The other half of {@link metricLayers}, and the pair is what a board asserts node colour
+ * with: the two families both drive node colour, so "one encoding at a time" is a claim
+ * about both lists at once and cannot be made from either alone.
+ * @param layers - every layer the style manager holds.
+ * @returns the community colour layers, in stack order.
+ */
+function communityLayers(layers: readonly StubLayer[]): readonly StubLayer[] {
+    return layers.filter((layer) => layer.metadata?.algorithmSource === "graphty:louvain");
+}
+
+/**
+ * A colour as the DOM spells it back, so a board compares like with like.
+ *
+ * `style.background` is read back in the browser's own notation ("rgb(68, 1, 84)"), and a
+ * board that compared it with the hex it was given would fail for the wrong reason.
+ * @param value - the colour, as the shell wrote it.
+ * @returns the same colour as the DOM reports it.
+ */
+function cssColour(value: string): string {
+    const probe = document.createElement("div");
+
+    probe.style.background = value;
+
+    return probe.style.background;
+}
+
+/**
+ * Publishes the element's `style-changed`, which is how the shell learns its layer list.
+ *
+ * The stand-in's `addLayer` does not emit it, so a board that wants the shell to have
+ * READ the layers -- which is what the auto-apply decision is taken over -- says so here
+ * rather than asserting against a list the shell never saw.
+ * @param container - the render result's container.
+ */
+function reportStyleChanged(container: HTMLElement): void {
+    act(() => {
+        container.querySelector("graphty-element")?.dispatchEvent(new CustomEvent("style-changed"));
+    });
+}
+
+/**
+ * Loads the cat sample row and lets the 7.2 defaults land.
+ * @param container - the render result's container.
+ */
+async function loadCatSample(container: HTMLElement): Promise<void> {
+    fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+    await reportLoadComplete(container);
+}
+
+/**
+ * Opens the Analyze panel and presses one Suggested row's Run.
+ * @param cardName - the card's plain name, e.g. "Most connected".
+ */
+async function runSuggested(cardName: string): Promise<void> {
+    /* The rail's Analyze button TOGGLES, and a completed run has already opened the
+       panel, so a second run that clicked it blindly would close the panel it needs. */
+    if (screen.queryByRole("region", { name: "Analyze" }) === null) {
+        fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: `Run ${cardName}` }));
+    await flushMicrotasks();
 }
 
 describe("AppShell", () => {
@@ -469,12 +968,17 @@ describe("AppShell", () => {
             renderShell();
 
             const shell = screen.getByTestId("app-shell");
-            const bar = screen.getByRole("banner");
+            /* The frame's own first child, not `getByRole("banner")`: since 2026-09-14 the
+               Data panel is drawn by default, and its 36px header is a second `<header>`
+               element that dom-accessibility-api also reports as a banner. Reading the
+               child directly asserts the same fact -- the bar is the frame's first grid
+               row -- without depending on how many headers the body happens to hold. */
+            const bar = shell.firstElementChild as HTMLElement;
 
             // The bar is the frame's OWN first row, not a child of the row that holds
             // the rail: spec 02 section 1.1 had it inset by the rail's 48 px column
             // until the product owner reversed that on 2026-09-12 (design 5.1).
-            expect(shell.firstElementChild).toBe(bar);
+            expect(bar.tagName).toBe("HEADER");
             expect(screen.getByTestId("shell-main-row")).not.toContainElement(bar);
             expect(getComputedStyle(shell).gridTemplateRows.split(" ")[0]).toBe(`${TOP_BAR_HEIGHT}px`);
         });
@@ -512,13 +1016,18 @@ describe("AppShell", () => {
             expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
         });
 
-        it("closes the panel when the active activity is clicked again", () => {
+        /* REWRITTEN 2026-09-14 from "closes the panel when the active activity is clicked
+           again". spec:153's close-on-active-click was struck: the rail is a pure activity
+           chooser, and the top bar's one control is the only thing that hides a sidebar.
+           This CHANGES LONG-STANDING MUSCLE MEMORY and needs the product owner's explicit
+           assent before it ships. */
+        it("leaves the panel open when the active activity is clicked again", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
 
-            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
         });
 
         it("routes Settings to its own overlay rather than through the active activity", () => {
@@ -641,94 +1150,140 @@ describe("AppShell", () => {
         });
     });
 
-    describe("the top bar's region switches", () => {
-        it("opens the panel from the top bar, and closes it again", async () => {
+    /* -------------------------------------------------------------------------- */
+    /* THE ONE PANEL MODEL (2026-09-14)                                            */
+    /*                                                                             */
+    /* Five describes stood between here and the Empty state, and all five were     */
+    /* deleted with the mechanisms they tested:                                     */
+    /*                                                                              */
+    /*  - "the top bar's region switches": two mirrored switches, one per sidebar.   */
+    /*  - "the Keep open latch": a latch in each header, vetoing every close the     */
+    /*    shell performed on its own.                                                */
+    /*  - "the first visit, with nothing remembered": a width-aware first-visit      */
+    /*    layout that opened neither surface below 1280 and latched both above it.   */
+    /*  - "the node-tap carve-out": a canvas tap dismissing whichever region overlay  */
+    /*    was open below 1280, unless the tap had selected a node.                    */
+    /*                                                                               */
+    /* The product owner's instruction was "our panel open / closed / autohide is a   */
+    /* confusing nightmare. remove the panel locks and remove autohide ... there is    */
+    /* one button to hide / show both at the same time and not individual buttons",    */
+    /* followed by "there will be no more auto-hide. below 1280 should just say         */
+    /* 'screen too small' or something similar". What replaced all of it is one        */
+    /* persisted boolean and one control, and these boards are its whole surface.      */
+    /* -------------------------------------------------------------------------- */
+
+    describe("the one sidebars switch", () => {
+        it("draws exactly one sidebars control, and no per-surface toggle, latch or close anywhere in the shell", async () => {
             await renderMeasuredShell();
 
-            const toggle = screen.getByRole("button", { name: "Toggle panel" });
+            expect(screen.getAllByRole("button", { name: "Toggle sidebars" })).toHaveLength(1);
 
-            expect(toggle).toHaveAttribute("aria-pressed", "false");
+            /* Queried over the WHOLE tree, not one region: the point is that no surface
+               anywhere kept a control of its own over its own presence. */
+            expect(screen.queryByRole("button", { name: "Toggle panel" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Toggle inspector" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Keep open" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Close the panel" })).toBeNull();
+            expect(screen.queryByTestId("panel-header-keep-open")).toBeNull();
+            expect(screen.queryByTestId("panel-header-close")).toBeNull();
+            expect(screen.queryByTestId("inspector-keep-open")).toBeNull();
+            expect(screen.queryByTestId("inspector-toggle")).toBeNull();
+        });
+
+        it("hides and shows BOTH sidebars from the one button", async () => {
+            await renderMeasuredShell();
+
+            const toggle = screen.getByRole("button", { name: "Toggle sidebars" });
+
+            expect(toggle).toHaveAttribute("aria-pressed", "true");
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+            expect(screen.getByTestId("inspector")).toBeInTheDocument();
 
             fireEvent.click(toggle);
 
-            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
-            expect(screen.getByRole("button", { name: "Toggle panel" })).toHaveAttribute("aria-pressed", "true");
-
-            fireEvent.click(screen.getByRole("button", { name: "Toggle panel" }));
-
             expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+            expect(screen.queryByTestId("inspector")).toBeNull();
+            expect(screen.getByRole("button", { name: "Toggle sidebars" })).toHaveAttribute("aria-pressed", "false");
+
+            fireEvent.click(screen.getByRole("button", { name: "Toggle sidebars" }));
+
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+            expect(screen.getByTestId("inspector")).toBeInTheDocument();
         });
 
-        it("runs the same callback as Mod+B, so the switch and the key cannot drift", async () => {
+        it("runs the same callback as Ctrl+B, and the D key no longer reaches the inspector", async () => {
             await renderMeasuredShell();
 
             fireEvent.keyDown(window, { key: "b", ctrlKey: true });
 
-            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
-            expect(screen.getByRole("button", { name: "Toggle panel" })).toHaveAttribute("aria-pressed", "true");
-
-            fireEvent.click(screen.getByRole("button", { name: "Toggle panel" }));
-
             expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+            expect(screen.queryByTestId("inspector")).toBeNull();
+
+            /* D was `toggleInspector` until 2026-09-14 and its row was deleted from the
+               binding table rather than renamed: a second chord for one fact is a second
+               thing that can disagree with the first. */
+            fireEvent.keyDown(window, { key: "d" });
+
+            expect(screen.queryByTestId("inspector")).toBeNull();
+
+            fireEvent.keyDown(window, { key: "b", ctrlKey: true });
+
+            expect(screen.getByTestId("inspector")).toBeInTheDocument();
         });
 
-        it("leaves the switch unlit for Settings, which is not a panel", async () => {
+        it("keeps the rail a pure chooser: the active icon no longer closes its panel", async () => {
+            await renderMeasuredShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+
+            /* spec:153's close-on-active-click was the last individual control that hid
+               ONE sidebar. It is struck, and this board is the record of that. */
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+        });
+
+        it("brings both sidebars back when a rail icon is clicked while they are hidden", async () => {
+            await renderMeasuredShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "Toggle sidebars" }));
+
+            expect(screen.queryByTestId("activity-panel")).toBeNull();
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+
+            /* A rail icon that did nothing for six of its eight destinations would be six
+               controls reporting a state they are not in (6.14). The click can only ever
+               SHOW, so it is not a second hiding mechanism. */
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+            expect(screen.getByTestId("inspector")).toBeInTheDocument();
+        });
+
+        it("leaves the switch lit for Settings, which covers the body row rather than replacing the panel", async () => {
             await renderMeasuredShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
-            expect(screen.getByRole("button", { name: "Toggle panel" })).toHaveAttribute("aria-pressed", "false");
+            expect(screen.getByRole("button", { name: "Toggle sidebars" })).toHaveAttribute("aria-pressed", "true");
+        });
+
+        it("does not close the activity panel when the data table drawer opens", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            fireEvent.keyDown(window, { key: "T", shiftKey: true });
+
+            /* `closePanelForNarrowDrawer` evicted the panel below 1280 so the drawer would
+               not be covered by it. Opening a dock may not hide a sidebar under the
+               one-button model; 5.2 line 448's promise that the drawer never covers either
+               sidebar is kept by INSETTING the drawer instead. */
+            expect(screen.getByTestId("activity-panel")).toBeInTheDocument();
         });
     });
 
-    describe("the Keep open latch", () => {
-        it("draws a latch on the panel header and reports it to the store", async () => {
-            await renderMeasuredShell();
-
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-
-            const latch = screen.getByTestId("panel-header-keep-open");
-
-            expect(latch).toHaveAttribute("aria-pressed", "false");
-
-            fireEvent.click(latch);
-
-            expect(screen.getByTestId("panel-header-keep-open")).toHaveAttribute("aria-pressed", "true");
-        });
-
-        it("keeps a latched panel open when the inspector opens over it below 1280", async () => {
-            await renderMeasuredShell(NARROW_BREAKPOINT - 1);
-
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-            fireEvent.click(screen.getByTestId("panel-header-keep-open"));
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
-            expect(screen.getByTestId("inspector")).toBeInTheDocument();
-            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
-        });
-
-        it("closes a latched panel from its own X, which is the one gesture that always means close", async () => {
-            await renderMeasuredShell();
-
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-            fireEvent.click(screen.getByTestId("panel-header-keep-open"));
-            fireEvent.click(screen.getByTestId("panel-header-close"));
-
-            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
-        });
-    });
-
-    /* -------------------------------------------------------------------------- */
-    /* The first visit, with the store ON (2026-09-13, second pass)                */
-    /* -------------------------------------------------------------------------- */
-
-    /*
-     * Every other board here passes `persist={false}`, and that is why the first-visit
-     * regression shipped with the suite green: the first-visit layout is taken ONLY when
-     * persistence is on, so no board ever mounted the state a genuine first reader gets.
-     * These mount it -- store on, nothing remembered -- at the widths the two reviewers
-     * measured.
-     */
     describe("the first visit, with nothing remembered", () => {
         afterEach(() => {
             window.localStorage.clear();
@@ -752,118 +1307,93 @@ describe("AppShell", () => {
             return result;
         }
 
-        it("opens no overlay at 1024, so Welcome is not covered by two surfaces it cannot dismiss", async () => {
-            const { container } = await renderFirstVisitShell(1024);
-
-            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
-            expect(screen.queryByTestId("inspector")).toBeNull();
-            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
-        });
-
-        it("lets a canvas tap dismiss the surface the reader opens at 1024", async () => {
-            const { container } = await renderFirstVisitShell(1024);
-
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-
-            // The rail's click OPENS the panel here, because a first visit at this width
-            // no longer arrives with Data already active -- before the fix the same click
-            // was the close-on-active-click and this board never reached the tap.
-            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
-            expect(screen.getByTestId("panel-header-keep-open")).toHaveAttribute("aria-pressed", "false");
-
-            reportSelection(container, null);
-            fireEvent.click(container.querySelector('[data-shell-region="canvas"]') as HTMLElement);
-
-            // Before the fix the default latch vetoed this close, so the panel stayed and
-            // the reader had no gesture Welcome teaches that reclaimed any canvas.
-            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
-        });
-
-        it("still locks both sidebars open at 1440, which is what was asked for", async () => {
+        it("shows both sidebars at 1440, which is what was asked for", async () => {
             await renderFirstVisitShell(1440);
 
             expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
             expect(screen.getByTestId("inspector")).toBeInTheDocument();
-            expect(screen.getByTestId("panel-header-keep-open")).toHaveAttribute("aria-pressed", "true");
-            expect(screen.getByTestId("inspector-keep-open")).toHaveAttribute("aria-pressed", "true");
-        });
-    });
-
-    describe("the node-tap carve-out", () => {
-        it("dismisses the narrow overlay when the tap hit empty canvas", async () => {
-            const { container } = await renderMeasuredShell(NARROW_BREAKPOINT - 1);
-
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-            reportSelection(container, null);
-            fireEvent.click(container.querySelector('[data-shell-region="canvas"]') as HTMLElement);
-
-            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+            expect(screen.getByRole("button", { name: "Toggle sidebars" })).toHaveAttribute("aria-pressed", "true");
         });
 
-        it("keeps the narrow overlay open when the tap selected a node", async () => {
-            const { container } = await renderMeasuredShell(NARROW_BREAKPOINT - 1);
+        it("shows both sidebars at the minimum width too, because width no longer decides anything", async () => {
+            await renderFirstVisitShell(NARROW_BREAKPOINT);
 
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-            reportSelection(container, "Garbage_Bandit");
-            fireEvent.click(container.querySelector('[data-shell-region="canvas"]') as HTMLElement);
-
-            // Design 5.2 already says a tap on the canvas toolbar is not a tap on the
-            // canvas; this is the node case, and without it the tap that fills the
-            // inspector is also the tap that dismisses it.
             expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
-        });
-
-        it("keeps the inspector open when a node is tapped under it, which is the reported bug", async () => {
-            const { container } = await renderMeasuredShell(NARROW_BREAKPOINT - 1);
-
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-            reportSelection(container, "Garbage_Bandit");
-            fireEvent.click(container.querySelector('[data-shell-region="canvas"]') as HTMLElement);
-
             expect(screen.getByTestId("inspector")).toBeInTheDocument();
         });
 
-        it("reads a selection reported on POINTERUP, which is the ordering it depends on", async () => {
-            const { container } = await renderMeasuredShell(NARROW_BREAKPOINT - 1);
-            const element = container.querySelector("graphty-element") as HTMLElement;
+        it("remembers hidden sidebars across a reload", async () => {
+            const first = await renderFirstVisitShell(1440);
 
-            /* graphty-element fires `selection-changed` from its own pick, on pointerup,
-               one event before React's click -- measured at pointerup t=11123 ms against
-               click t=11124 ms. This listener stands for that phase: the carve-out is
-               only correct while the selection is knowable from inside the click. */
-            element.addEventListener("pointerup", () => {
-                element.dispatchEvent(
-                    new CustomEvent("selection-changed", {
-                        detail: { previousNodeId: null, currentNodeId: "Ghost_Cat", currentNode: { data: {} } },
-                    }),
-                );
-            });
+            fireEvent.click(screen.getByRole("button", { name: "Toggle sidebars" }));
+            first.unmount();
 
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            const second = render(<AppShell initialShellWidth={1440} measureViewport={false} />);
 
             await act(async () => {
-                fireEvent.pointerDown(element);
-                fireEvent.pointerUp(element);
-                fireEvent.click(element);
                 await Promise.resolve();
             });
 
-            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+            expect(screen.queryByTestId("activity-panel")).toBeNull();
+            second.unmount();
+        });
+    });
+
+    describe("below the minimum width", () => {
+        /* THE WHOLE NARROW LAYOUT IS GONE. It was two 280 px overlays over a canvas that
+           was never resized under them, one open at a time, dismissible by a canvas tap
+           or Escape's third rung, either dismissal vetoable by a latch. The spec measured
+           what it produced (SPEC:5790-5796): at 1024x900 109 px of the Welcome sheet sat
+           under each overlay and its heading read "aph to get started"; at 600 and 375
+           there was no canvas and no Welcome content at all. */
+        it("renders a screen-too-small state instead of laying out", async () => {
+            await renderMeasuredShell(NARROW_BREAKPOINT - 1);
+
+            expect(screen.getByTestId("screen-too-small")).toBeInTheDocument();
+            expect(screen.getByRole("heading", { name: "Screen too small" })).toBeInTheDocument();
+            expect(screen.getByText(new RegExp(`${String(NARROW_BREAKPOINT)} pixels wide`))).toBeInTheDocument();
         });
 
-        it("cannot save the overlay from a selection reported after the click", async () => {
-            const { container } = await renderMeasuredShell(NARROW_BREAKPOINT - 1);
+        /*
+         * This asserted `app-shell` was NULL until 2026-09-15, on the reasonable-sounding
+         * argument that a shell which does not lay out should not be in the DOM. Driving
+         * the built app showed what that cost: unmounting the subtree unmounted
+         * `<graphty-element>` with it, and widening back past 1280 remounted a FRESH
+         * element -- a new Babylon scene with no data -- while this component's state
+         * still said a graph was loaded, so nothing reloaded it. Load the cat fixture,
+         * resize to 1100, resize back to 1440, and the canvas is empty (3.25% of canvas
+         * pixels non-background, against 6.48% before) under a status bar still reading
+         * "20 nodes 29 edges".
+         *
+         * So the shell now STAYS MOUNTED and is hidden behind the overlay. What the
+         * reader must not be able to do is reach it: hence hidden, inert and aria-hidden,
+         * which is what this test pins instead of absence.
+         */
+        it("keeps the shell mounted but hidden and unreachable, so the loaded graph survives", async () => {
+            await renderMeasuredShell(NARROW_BREAKPOINT - 1);
 
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-            fireEvent.click(container.querySelector('[data-shell-region="canvas"]') as HTMLElement);
-            reportSelection(container, "Garbage_Bandit");
+            const shell = screen.getByTestId("app-shell");
 
-            /* This board is the ordering assumption written down as its consequence: if
-               graphty-element ever moves `selection-changed` to the click phase, AFTER
-               React's handler, this is what ships and the carve-out above stops working.
-               A failure here is a signal to read the element's pick path again, not to
-               relax the assertion. */
-            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+            expect(shell).toBeInTheDocument();
+            expect(shell).toHaveStyle({ visibility: "hidden" });
+            expect(shell).toHaveAttribute("inert");
+            expect(shell).toHaveAttribute("aria-hidden", "true");
+        });
+
+        it("puts the too-small message above the shell rather than beside it", async () => {
+            await renderMeasuredShell(NARROW_BREAKPOINT - 1);
+
+            const overlay = screen.getByTestId("screen-too-small");
+
+            expect(overlay).toHaveStyle({ position: "fixed" });
+            expect(Number(overlay.style.zIndex)).toBeGreaterThan(MANTINE_MODAL_Z_INDEX);
+        });
+
+        it("lays out again at exactly the minimum width", async () => {
+            await renderMeasuredShell(NARROW_BREAKPOINT);
+
+            expect(screen.queryByTestId("screen-too-small")).toBeNull();
+            expect(screen.getByTestId("app-shell")).toBeInTheDocument();
         });
     });
 
@@ -1023,14 +1553,20 @@ describe("AppShell", () => {
             fireEvent.click(within(screen.getByTestId("style-layers")).getByText("Base"));
 
             /* Several controls in the surface carry a hex field, so this one is reached
-               through the node Color group it belongs to -- `Color Mode` is that group's
-               own first row -- and the field is checked to be holding the layer's own
-               colour before it is typed into. */
-            const colorGroup = (await screen.findByText("Color Mode")).parentElement?.parentElement;
+               through the node Color group it belongs to, and the field is checked to be
+               holding the layer's own colour before it is typed into. The group is found
+               by its ROLE rather than by a stray text node: compact-mantine's ControlGroup
+               publishes `role="group"` named by its own visible header, which is the
+               drawing the style inspector is now built out of. (The `Color Mode` label
+               this used to walk up from belonged to the sidebar's deleted
+               `NodeColorControl` fork.) */
+            const colorGroups = (await screen.findAllByRole("group", { name: "Color" })).filter(
+                (element) => element.getAttribute("data-testid") === "control-group",
+            );
 
-            expect(colorGroup).not.toBeNull();
+            expect(colorGroups).toHaveLength(1);
 
-            const hex = within(colorGroup as HTMLElement).getByLabelText("Color hex value");
+            const hex = within(colorGroups[0]).getByLabelText("Color hex value");
 
             expect(hex).toHaveValue("5B8FF9");
 
@@ -1049,8 +1585,13 @@ describe("AppShell", () => {
                `Styles.styleToId` mints a fresh id and `NodeMesh` a fresh mesh for a look the
                graph already had. This assertion used to require the leak (2026-09-13). */
             expect(Object.keys(written?.node?.style ?? {})).not.toContain("color");
-            // The layer keeps its name and its run binding: a colour edit is not a rename.
-            expect(written?.metadata).toEqual({ name: "Base", algorithmSource: "pagerank" });
+            /* The layer keeps its name and its run binding -- a colour edit is not a rename,
+               and the tag is what every retirement in the shell removes BY, so dropping it
+               to mark the hand would leave a layer nothing can retire. What the edit adds is
+               the hand-bound flag: a person has taken this channel, so the next run's
+               auto-apply leaves it alone instead of replacing the reader's own colour
+               (spec 2219-2231, limit 2). */
+            expect(written?.metadata).toEqual({ name: "Base", algorithmSource: "pagerank", handBound: true });
             expect(manager.reorderLayers).not.toHaveBeenCalled();
         });
 
@@ -1094,11 +1635,19 @@ describe("AppShell", () => {
         });
 
         it("draws Welcome's three sample rows, with the size string each carries", async () => {
-            await renderMeasuredShell();
+            const { container } = await renderMeasuredShell();
+
+            /* Scoped to the WELCOME sheet since 2026-09-14. The Data panel is now drawn by
+               default and offers the same three samples from the same manifest (spec
+               5648), so every name and size is on screen twice; an unscoped query finds
+               both and says nothing about which surface drew them. */
+            const welcome = container.querySelector("[data-canvas-welcome='true']") as HTMLElement;
+
+            expect(welcome).not.toBeNull();
 
             for (const record of SAMPLE_MANIFEST) {
-                expect(screen.getByText(record.name)).toBeInTheDocument();
-                expect(screen.getByText(sampleSizeString(record.size))).toBeInTheDocument();
+                expect(within(welcome).getByText(record.name)).toBeInTheDocument();
+                expect(within(welcome).getByText(sampleSizeString(record.size))).toBeInTheDocument();
             }
 
             expect(SAMPLE_MANIFEST).toHaveLength(3);
@@ -1153,8 +1702,6 @@ describe("AppShell", () => {
             installNovicePathGraph(container);
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
             /* The hand-walk's own sentence. It is the template's, fed only facts one
                O(n+m) pass measured: no type clause, because no column-role model exists,
                and no "at most N steps", because a diameter is above the template's
@@ -1171,8 +1718,6 @@ describe("AppShell", () => {
             installNovicePathGraph(container);
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
             const inspector = screen.getByTestId("inspector");
 
             expect(within(inspector).getByText("Chonky_Boy")).toBeInTheDocument();
@@ -1232,10 +1777,10 @@ describe("AppShell", () => {
             expect(strip).not.toBeNull();
             expect(within(strip).getByText("Find groups")).toBeInTheDocument();
             expect(within(strip).getByText("Search for something you know")).toBeInTheDocument();
-            /* The rule table produced a degree card too, and it is filtered out rather than
-               drawn: it cannot write a reading in this build, which is the third thing 7.3
-               makes a card click promise. */
-            expect(within(strip).queryByText("Who is most connected")).toBeNull();
+            /* The rule table has always produced a degree card, and it used to be filtered
+               out because it could not write a reading. It can now, so it is drawn -- the
+               third thing 7.3 makes a card click promise is met. */
+            expect(within(strip).getByText("Who is most connected")).toBeInTheDocument();
         });
 
         it("runs Find groups from its card: paints the groups, opens Analyze and writes the reading", async () => {
@@ -1255,8 +1800,6 @@ describe("AppShell", () => {
 
             expect(graph.runAlgorithm).toHaveBeenCalledWith(COMMUNITY_NAMESPACE, COMMUNITY_TYPE);
             expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
-
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
 
             const inspector = screen.getByTestId("inspector");
 
@@ -1461,8 +2004,6 @@ describe("AppShell", () => {
             installNovicePathGraph(container);
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
             /* The degree pass ranked all 20 nodes and Most connected draws the top five.
                The link opens the table on the ranked LIST, so it says how long that list
                is; "See all 5 ranked" would be the five rows already on screen. */
@@ -1478,8 +2019,6 @@ describe("AppShell", () => {
             installNovicePathGraph(container);
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
             const inspector = screen.getByTestId("inspector");
             const values = within(inspector).getByTestId("histogram-values");
 
@@ -1505,8 +2044,6 @@ describe("AppShell", () => {
             installNovicePathGraph(container);
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
             /* No edge record in the JSON fixture carries a `directed` key, so the O(n+m)
                pass read no direction and the row says so. `graphInfo.graphType.directed`
                defaults to TRUE and measures nothing, and the row used to print it. */
@@ -1576,8 +2113,6 @@ describe("AppShell", () => {
             const panel = screen.getByRole("region", { name: "Style" });
 
             fireEvent.click(within(panel).getByText("Top degree labels"));
-            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
-
             const inspector = screen.getByTestId("inspector");
 
             // The header names the surface...
@@ -1610,6 +2145,1485 @@ describe("AppShell", () => {
             expect(after).not.toBeNull();
             expect(within(after).queryByText("Find groups")).toBeNull();
             expect(within(after).getByText("Search for something you know")).toBeInTheDocument();
+        });
+    });
+
+    /* --------------------------------------------------------------------- */
+    /* The node metric path (spec 2307): run -> reading -> encoding -> select  */
+    /* --------------------------------------------------------------------- */
+
+    describe("the node metric path", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        it("runs Most connected: paints one tagged layer, repaints, and writes the reading", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            const repaintsBefore = graph.dataManager.applyStylesToExistingNodes.mock.calls.length;
+
+            await runSuggested("Most connected");
+
+            const painted = graph.styleManager
+                .getLayers()
+                .filter((layer) => layer.metadata?.algorithmSource === "graphty:degree");
+
+            expect(painted).toHaveLength(1);
+            /* The repaint is what makes the calculated value run over nodes that already
+               exist: graphty-element's own style-changed handler evaluates selectors
+               WITHOUT `algorithmResults` and never runs calculated values, so a layer
+               added and left unrepainted matches nothing and paints nothing. */
+            expect(graph.dataManager.applyStylesToExistingNodes.mock.calls.length).toBeGreaterThan(repaintsBefore);
+
+            const inspector = screen.getByTestId("inspector");
+
+            /* The fixture's own top node: degree 4, ties broken by id. The reading names
+               it, which is the whole point of a reading -- a figure with no subject is a
+               number, not a sentence. */
+            expect(
+                within(inspector).getByText("Mr_Whiskers is the most connected, with 4 links. The typical node has 3."),
+            ).toBeInTheDocument();
+            expect(within(inspector).getByText("Degree centrality, 20 nodes")).toBeInTheDocument();
+            /* An exact, complete, converged run names no departure, and that ABSENCE is
+               the feature: a caveats line on every result is a line nobody reads. */
+            expect(inspector.querySelector('[data-testid="prose-block"][data-variant="departure"]')).toBeNull();
+
+            /* RT-9's chart row, read off the run the shell just did. `metricDistribution`
+               has its own boards and so has the chart component, and the line that joins
+               them -- the one `distribution` field the shell passes -- had none: dropping
+               it took the chart off every node-metric result in the app and left both
+               halves' suites green.
+
+               The caption is the producer's own, `${plainName} per node`, so a chart
+               named anything else is a chart drawn from something other than this run;
+               the axis ends are the fixture's real degree range, 2 to 4. */
+            const chart = within(inspector).getByRole("img", { name: "Most connected per node" });
+
+            expect(chart).toBeInTheDocument();
+
+            const axis = within(inspector).getByTestId("chart-axis");
+
+            expect(axis).toHaveTextContent("2");
+            expect(axis).toHaveTextContent("4");
+            /* And the bars are this fixture's own distribution -- 5 nodes of degree 2, 12
+               of 3, 3 of 4 -- rather than a chart with an axis and nothing under it. */
+            expect(
+                within(within(inspector).getByTestId("histogram-values")).getByText("2 links: 5 nodes"),
+            ).toBeInTheDocument();
+            expect(inspector.querySelectorAll('[data-testid="histogram-bar"]')).toHaveLength(3);
+        });
+
+        /* Floor item 5, from the shell's side. `nodeMetricColourChannel` has its own
+           boards and the Legend component has its own, and the ONE line that joins them --
+           `setColourChannel(nodeMetricColourChannel(...))` -- had none: a mutant that
+           cleared the channel on every metric run left the whole suite green and shipped a
+           viridis-painted canvas with no key to it. The only other legend assertions in
+           this file were negative ones, which cannot tell a channel that was cleared from
+           one that was never published.
+
+           The figures are the fixture's own degree range, 2 to 4 with a median of 3, and
+           the sentence is the one degree's max normalisation earns: the lowest node is at
+           its own share of the maximum, not at the ramp's floor. */
+        it("names the ramp a metric run painted: the channel, its three stops and its scale", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            const legend = screen.getByLabelText("Legend");
+
+            expect(within(legend).getByText("Color: Most connected")).toBeInTheDocument();
+            expect(within(legend).getByText("Degree centrality", { exact: false })).toBeInTheDocument();
+            expect(within(legend).getByText("2")).toBeInTheDocument();
+            expect(within(legend).getByText("median 3")).toBeInTheDocument();
+            expect(within(legend).getByText("4")).toBeInTheDocument();
+            expect(within(legend).getByText("linear, scaled to the highest value")).toBeInTheDocument();
+
+            /* The run reached all 20 nodes, so there is no departure to draw -- and the
+               absence is what makes the line below mean something when it appears. */
+            expect(legend.querySelector('[data-testid="prose-block"][data-variant="departure"]')).toBeNull();
+        });
+
+        /* The other half of the same channel: the nodes the run did not reach keep the
+           neutral colour, and this line is what says why they are grey (design 236, 5117).
+           A legend that stayed silent about them would claim the ramp covers a graph it
+           covers two nodes short of. */
+        it("names the nodes a metric run did not reach, on the legend that names the ramp", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { unmeasured: 2 });
+
+            await loadCatSample(container);
+            await runSuggested("Bridges");
+
+            const legend = screen.getByLabelText("Legend");
+
+            expect(within(legend).getByText("Color: Bridges")).toBeInTheDocument();
+            expect(within(legend).getByText("Not measured (2 nodes)")).toBeInTheDocument();
+            /* And betweenness is the min-max metric, so its sentence is the other one. */
+            expect(
+                within(legend).getByText("linear, scaled between the lowest and highest value"),
+            ).toBeInTheDocument();
+        });
+
+        /* Ruling 3. The 7.2 load already ran a degree pass and the shell is still holding
+           it, so the card reads that rather than recomputing numbers it has in hand. */
+        it("reads the degree pass the load already ran rather than running a second one", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
+        });
+
+        /* Ruling 3's short circuit, and the condition it was missing. The 7.2 pass runs
+           ONCE per dataset, and the degree card read it back with no test of whether it
+           still described the graph: a graph that had grown since the pass was ranked from
+           the records that were there when it ran, the run record counted them, and the
+           ramp left every node the pass never saw unencoded under a legend claiming to
+           cover the whole graph. */
+        it("runs a real degree pass when the held one no longer covers the graph", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
+
+            // The graph grows under the held pass, and says so the way the element does.
+            graph.addNode("Newcomer");
+            await reportLoadComplete(container);
+            await runSuggested("Most connected");
+
+            /* A second degree pass, over the graph as it is now -- where the short circuit
+               would have re-served the first one. */
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE, DEGREE_TYPE]);
+        });
+
+        /* MANDATORY 06: an iterative method says whether it converged. PageRank is the
+           only one of the three that publishes the flag, and it publishes it by absence
+           as well as by value -- so the test is `=== false`, not `!converged`. */
+        it("names the iteration count when Influence did not converge", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { pagerank: { converged: false, iterations: 100 } });
+
+            await loadCatSample(container);
+            await runSuggested("Influence");
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByText("Did not converge in 100 iterations.")).toBeInTheDocument();
+        });
+
+        it("draws no caveats line for a PageRank run that converged", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { pagerank: { converged: true, iterations: 12 } });
+
+            await loadCatSample(container);
+            await runSuggested("Influence");
+
+            expect(
+                screen.getByTestId("inspector").querySelector('[data-testid="prose-block"][data-variant="departure"]'),
+            ).toBeNull();
+        });
+
+        /* The spine's last two hops, and the precedence rule behind them: a selected node
+           outranks a result, so the pick replaces the surface the row was drawn on. */
+        it("selects the node a ranked row names, and the inspector then draws that node", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByText("#1")).toBeInTheDocument();
+            fireEvent.click(within(inspector).getByRole("button", { name: /Mr_Whiskers/ }));
+
+            expect(graph.selectNode).toHaveBeenCalledWith("Mr_Whiskers");
+
+            reportSelection(container, "Mr_Whiskers");
+
+            const after = screen.getByTestId("inspector");
+
+            expect(within(after).getByText("Node")).toBeInTheDocument();
+            expect(within(after).queryByText("Degree centrality, 20 nodes")).toBeNull();
+        });
+
+        /* One node-metric encoding drives colour at a time, retired BY TAG. An index walk
+           over this stack takes the element's `default` layer with it, and with it every
+           node's shape type -- the "shape with type required to create mesh" failure. */
+        it("replaces the first metric's encoding when a second metric runs", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+
+            await runSuggested("Influence");
+
+            const painted = metricLayers(graph.styleManager.getLayers());
+
+            expect(painted).toHaveLength(1);
+            expect(painted[0]?.metadata?.algorithmSource).toBe("graphty:pagerank");
+            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toContain("default");
+        });
+
+        /* Auto-apply limit 2 (spec 2219-2231). The reading is a floor item and the
+           encoding is not, so a hand that already holds node colour keeps it and the
+           result still arrives -- with no legend channel, because nothing was painted. */
+        it("adds no layer when a hand-authored layer already drives node colour", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container, {
+                extraLayers: [
+                    {
+                        metadata: { name: "My colours" },
+                        node: { selector: "", style: { texture: { color: "#ff0000" } } },
+                    },
+                ],
+            });
+
+            await loadCatSample(container);
+            reportStyleChanged(container);
+            await runSuggested("Most connected");
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            // An unencoded channel is absent, never empty, so the legend draws nothing.
+            expect(screen.queryByLabelText("Legend")).toBeNull();
+
+            expect(screen.getByTestId("inspector")).toHaveTextContent("Degree centrality, 20 nodes");
+        });
+
+        /* The element's own base layer parses the whole of `defaultNodeStyle` and so
+           carries a node colour on EVERY graph. A naive "no algorithmSource means a
+           person made it" test would find it every time and suppress auto-apply for good. */
+        it("is not suppressed by the element's own default and selection layers", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            reportStyleChanged(container);
+            await runSuggested("Most connected");
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+        });
+
+        describe("the size gate", () => {
+            /** Big enough that betweenness clears the ask limit and small enough to build. */
+            const ASK_SIZE = { nodeCount: 2000, edgeCount: 30000 };
+
+            /** The vocabulary spec 1918-1927 keeps off every surface a reader sees. */
+            const COST_CLASS_WORDS = /instant|iterative|heavy|sampled/i;
+
+            it("asks before it spends the time, and runs once the reader agrees", async () => {
+                const { container } = await renderMeasuredShell();
+
+                captureLoads(container);
+
+                const graph = installNovicePathGraph(container, { synthetic: ASK_SIZE });
+
+                await loadCatSample(container);
+                await runSuggested("Bridges");
+
+                /* Nothing ran: the estimate opened the door instead, and the pass only
+                   starts when the dialog re-enters the same callback with confirmed true. */
+                expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
+
+                const dialog = screen.getByRole("dialog");
+
+                expect(dialog).toHaveTextContent(/at this size/);
+                /* The cost CLASS is the implementation's vocabulary, not the reader's:
+                   naming one hands them a category they cannot act on in place of the
+                   time they can. */
+                expect(dialog.textContent ?? "").not.toMatch(COST_CLASS_WORDS);
+
+                fireEvent.click(within(dialog).getByRole("button", { name: /^Run/ }));
+                await flushMicrotasks();
+
+                expect(graph.runAlgorithm).toHaveBeenCalledWith(
+                    NODE_METRIC_DEFINITIONS.betweenness.namespace,
+                    NODE_METRIC_DEFINITIONS.betweenness.type,
+                );
+                expect(screen.queryByRole("dialog")).toBeNull();
+            });
+
+            /* Spec 7300 conditions the retirement on the capability having been RUN. The
+               panel's handler retired the card BEFORE the run, so a Cancel on the confirm
+               the run opened took the card away for a run that never happened -- for that
+               browser, on every dataset, since nothing un-retires one. */
+            it("keeps the Insights card when the reader cancels the run it opened", async () => {
+                const { container } = await renderMeasuredShell();
+
+                captureLoads(container);
+                installNovicePathGraph(container, { synthetic: ASK_SIZE });
+
+                await loadCatSample(container);
+
+                const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+                expect(within(strip).getByText("Find the bridges")).toBeInTheDocument();
+
+                await runSuggested("Bridges");
+                fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+                await flushMicrotasks();
+
+                const after = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+                expect(within(after).getByText("Find the bridges")).toBeInTheDocument();
+            });
+
+            /* And the other half of the same rule: a run that COMPLETED from its own panel
+               does retire its card, because the reader has been where the card was taking
+               them. */
+            it("retires the Insights card once the run the panel started has finished", async () => {
+                const { container } = await renderMeasuredShell();
+
+                captureLoads(container);
+                installNovicePathGraph(container, { synthetic: ASK_SIZE });
+
+                await loadCatSample(container);
+                await runSuggested("Bridges");
+
+                fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Run/ }));
+                await flushMicrotasks();
+
+                const after = container.querySelector('[data-canvas-overlay="insights"]');
+
+                expect(after === null ? null : within(after as HTMLElement).queryByText("Find the bridges")).toBeNull();
+            });
+
+            it("runs nothing when the reader cancels", async () => {
+                const { container } = await renderMeasuredShell();
+
+                captureLoads(container);
+
+                const graph = installNovicePathGraph(container, { synthetic: ASK_SIZE });
+
+                await loadCatSample(container);
+                await runSuggested("Bridges");
+
+                fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+                await flushMicrotasks();
+
+                expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
+                expect(screen.queryByRole("dialog")).toBeNull();
+            });
+        });
+
+        /* 6.12: what a boundary clears is what was true of the graph that has gone. A
+           metric encoding reads `algorithmResults` off nodes that left with the dataset,
+           so it goes -- by tag, with the community layers, and never by index. */
+        it("takes every metric encoding, the result and the channel across a dataset boundary", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            /* Stated BEFORE the crossing, so the null below is a TRANSITION rather than a
+               constant: this board is titled for what it takes across the boundary, and
+               until the channel was asserted standing, "the legend is null afterwards"
+               was equally true of a shell that had never drawn one. */
+            expect(within(screen.getByLabelText("Legend")).getByText("Color: Most connected")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
+            await flushMicrotasks();
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toEqual([
+                "default",
+                "selection",
+            ]);
+            expect(screen.queryByLabelText("Legend")).toBeNull();
+
+            // The result went with the data it described, so the summary is what is left.
+            expect(screen.getByTestId("inspector")).not.toHaveTextContent("Degree centrality, 20 nodes");
+        });
+
+        /* 7.3: a card click runs the method, opens its home panel and writes the reading.
+           Unit F's widened availability list is what lets this card through the filter. */
+        it("runs Most connected from its own insight card and opens Analyze", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            fireEvent.click(within(strip).getByText("Who is most connected"));
+            await flushMicrotasks();
+
+            expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+
+            expect(screen.getByTestId("inspector")).toHaveTextContent("Degree centrality, 20 nodes");
+        });
+
+        /* `GraphSummaryProps.onSelectNode` has existed, and GraphSummary has wired it to
+           the Most connected rows, since the surface was built -- and AppShell had never
+           passed it, so every one of those rows was inert text that looked like a control.
+           It is the same spine, reached from the graph summary instead of from a result. */
+        it("selects the node a Most connected row names", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            fireEvent.click(within(screen.getByTestId("inspector")).getByRole("button", { name: /Chonky_Boy/ }));
+
+            expect(graph.selectNode).toHaveBeenCalledWith("Chonky_Boy");
+            // The call is not the outcome: the id has to FIND a node, or the row is inert.
+            expect(graph.elementHoldsSelection()).toBe("Chonky_Boy");
+        });
+
+        /* The same row on a graph whose ids are numbers, which two of the three shipped
+           samples are: karate.gml and football.gml declare `node [ id 1 ]`, GMLDataSource
+           parses that with parseInt and the element keys its node Map on the NUMBER.
+
+           These rows are the one ranking still built from PRINTED ids -- `readDegreeResults`
+           (analysis/runs.ts) stores `String(node.id)` -- so `selectById("1")` missed the key
+           `1`, returned false and emitted nothing, and every Most connected row on those two
+           samples was inert text that looked like a control. The board above could not fail
+           on that: its fixture's ids are strings, so the printed form and the element's own
+           form are the same object. What is asserted here is the OUTCOME rather than the
+           argument -- the element really holds that node afterwards -- so the round trip has
+           to complete however the shell spells the id on the way out. */
+        it("completes the round trip from a Most connected row on a numeric-id graph", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container, { numericIds: true });
+
+            await loadCatSample(container);
+            /* `withNumericIds` numbers by position, so the fixture's first node -- which its
+               own edges also make the most connected, with 4 links -- is id 1. A row draws
+               the printed id and the value beside it, and the two together are its whole
+               accessible name. */
+            const topId = CAT_SOCIAL_NETWORK.nodes.findIndex((node) => node.id === "Mr_Whiskers") + 1;
+            const topDegree = 4;
+
+            fireEvent.click(
+                within(screen.getByTestId("inspector")).getByRole("button", {
+                    name: `${String(topId)} ${String(topDegree)}`,
+                }),
+            );
+
+            expect(graph.elementHoldsSelection()).toBe(topId);
+            expect(within(screen.getByTestId("inspector")).getByText("Node")).toBeInTheDocument();
+        });
+
+        /* Spec 4389-4390: nothing leaves the palette index because it left a resting
+           panel. The row carries the 6.3 pair on one line, as the Suggested row does. */
+        it("runs a metric from the command palette, named by its 6.3 pair", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            fireEvent.click(screen.getByRole("button", { name: /Search commands, nodes and edges/ }));
+            await screen.findByTestId("command-palette");
+            fireEvent.click(screen.getByRole("option", { name: /Most connected \(Degree centrality\)/ }));
+            await flushMicrotasks();
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
+        });
+
+        /* ------------------------------------------------------------------ */
+        /* Node colour has one owner, whichever shape holds it                  */
+        /* ------------------------------------------------------------------ */
+
+        /* Both families paint node colour, and a metric layer wins over any community
+           layer whatever the stack order: its calculatedStyle has an empty selector and
+           graphty-element merges calculated values OVER the static style (Node.ts:151).
+           So a run that leaves the other family's layers standing leaves the canvas
+           painted by a run the screen is no longer describing. */
+        it("hands node colour to the run that took it last, in both orders", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+
+            await runSuggested("Groups");
+
+            // Forward: the ramp came off, so what is painted is what the legend names.
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(4);
+            expect(screen.getByLabelText("Legend")).toHaveTextContent("Groups (Communities, Louvain)");
+
+            await runSuggested("Most connected");
+
+            // And the mirror, which is the same rule read the other way round.
+            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(screen.getByLabelText("Legend")).toHaveTextContent("Most connected");
+
+            // And the element's own layers are still underneath all of it, by tag.
+            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toContain("default");
+        });
+
+        /* Spec 2241-2243. The verb used to take the result with the picture -- floor items
+           1, 2 and 3, the reading, the departures and the run record, off the screen
+           together -- and to remove whichever layer a separate "which metric is applied"
+           field named, which a community run never wrote. Pressed on a Groups card it
+           deleted the degree ramp. */
+        it("Delete layer takes the picture this card names and leaves the run", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+            await runSuggested("Groups");
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByTestId("result-layer")).toHaveTextContent("Groups (Communities, Louvain)");
+
+            fireEvent.click(within(inspector).getByRole("button", { name: "Delete layer" }));
+
+            const after = screen.getByTestId("inspector");
+
+            // The layers this card named, and no others.
+            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toContain("default");
+
+            // The run is still on screen, in the card's un-applied form.
+            expect(within(after).getByText("Louvain, 20 nodes")).toBeInTheDocument();
+            expect(within(after).queryByTestId("result-layer")).toBeNull();
+            expect(within(after).queryByRole("button", { name: "Delete layer" })).toBeNull();
+            expect(within(after).queryByRole("button", { name: "Change encoding" })).toBeNull();
+            expect(within(after).getByRole("button", { name: "Remove result" })).toBeInTheDocument();
+
+            // Nothing is encoded now, so the channel naming colours is gone with them.
+            expect(screen.queryByLabelText("Legend")).toBeNull();
+        });
+
+        /* Spec 2243-2244: Remove result "deletes the run and every layer that reads it",
+           and names the count before it acts (floor item 4). The sentence used to say the
+           opposite -- "Keeps 1 style layer painted" -- for verbs that were swapped. */
+        it("Remove result says how many layers it will take, then takes them", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Groups");
+
+            const inspector = screen.getByTestId("inspector");
+
+            // The count is this result's own: one layer per coloured group.
+            expect(within(inspector).getByText("Removes 4 style layers.")).toBeInTheDocument();
+
+            fireEvent.click(within(inspector).getByRole("button", { name: "Remove result" }));
+
+            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(screen.queryByLabelText("Legend")).toBeNull();
+            expect(screen.getByTestId("inspector")).not.toHaveTextContent("Louvain, 20 nodes");
+        });
+
+        /* A metric run owns exactly one layer, so the same sentence counts one. */
+        it("counts one layer on a metric result", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            expect(screen.getByTestId("inspector")).toHaveTextContent("Removes 1 style layer.");
+        });
+
+        /* Auto-apply limit 2 again, from the card's side this time. A suppressed run
+           painted nothing, so there is no layer for either layer verb to act on: drawn
+           anyway, Change encoding opened Style for an encoding that does not exist and
+           Delete layer fell through to whatever tag was last recorded -- on a shell with
+           groups painted, it silently deleted the group colours. */
+        it("draws no layer verbs on a result whose encoding was suppressed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container, {
+                extraLayers: [
+                    {
+                        metadata: { name: "My colours" },
+                        node: { selector: "", style: { texture: { color: "#ff0000" } } },
+                    },
+                ],
+            });
+
+            await loadCatSample(container);
+            reportStyleChanged(container);
+            await runSuggested("Groups");
+            await runSuggested("Bridges");
+
+            const inspector = screen.getByTestId("inspector");
+
+            // The reading is a floor item and arrives; the encoding is not and did not.
+            expect(within(inspector).getByText("Betweenness centrality, 20 nodes")).toBeInTheDocument();
+            expect(within(inspector).queryByTestId("result-layer")).toBeNull();
+            expect(within(inspector).queryByRole("button", { name: "Delete layer" })).toBeNull();
+            expect(within(inspector).queryByRole("button", { name: "Change encoding" })).toBeNull();
+
+            /* And the run that DID paint is untouched, legend included: a run that painted
+               nothing may not take the legend off a canvas that is still coloured. */
+            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(4);
+            expect(screen.getByLabelText("Legend")).toHaveTextContent("Groups (Communities, Louvain)");
+        });
+
+        /* Spec 2306 and legendChannels.ts:234: the card's swatch, the legend's top stop and
+           the top node on the canvas are three drawings of ONE number. The swatch was
+           hard-coded to the top of the palette, so a run whose fractions are all 0 -- every
+           node on a ring sits on the same number of shortest paths, so the element's
+           min-max normalisation writes 0 for all of them -- drew a yellow swatch beside a
+           deep-purple graph and three deep-purple legend stops. */
+        it("reads the card's swatch off the same fraction the legend and the canvas are read off", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { ring: 24 });
+
+            await loadCatSample(container);
+            await runSuggested("Bridges");
+
+            const swatch = within(screen.getByTestId("inspector")).getByTestId("result-swatch");
+
+            expect(swatch.style.background).toBe(cssColour(viridisAt(0)));
+            expect(swatch.style.background).not.toBe(cssColour(viridisAt(1)));
+        });
+
+        /* ------------------------------------------------------------------ */
+        /* The spine, on a graph whose ids are not strings                      */
+        /* ------------------------------------------------------------------ */
+
+        /* karate.gml and football.gml declare `node [ id 1 ]`, GMLDataSource parses that
+           with parseInt, and DataManager keys its Map on the NUMBER. The ranking used to
+           carry `String(node.id)`, so `selectById("1")` missed the key `1`, returned false
+           and emitted nothing: every ranked row on two of the three shipped samples was
+           inert text that looked like a control, and a board written with string ids passed
+           anyway. */
+        it("hands a ranked row's own id to the element, not the one it printed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container, { numericIds: true });
+
+            await loadCatSample(container);
+            await runSuggested("Bridges");
+
+            /* The fixture's own top node, numbered by position exactly as `withNumericIds`
+               numbers it, so the board names the id it expects rather than agreeing with
+               whatever the shell handed over. Its score is the highest and its printed id
+               sorts first, so it is rank 1 on this run. */
+            const topId = CAT_SOCIAL_NETWORK.nodes.findIndex((node) => node.id === "Mr_Whiskers") + 1;
+
+            // The row leads with the id it names, and ids are unique, so the anchor is one row.
+            fireEvent.click(
+                within(screen.getByTestId("inspector")).getByRole("button", {
+                    name: new RegExp(`^${String(topId)}\\b`),
+                }),
+            );
+
+            expect(graph.selectNode).toHaveBeenCalledWith(topId);
+            expect(graph.selectNode).not.toHaveBeenCalledWith(String(topId));
+            // The lookup found a node, so the element really holds it and said so.
+            expect(graph.elementHoldsSelection()).toBe(topId);
+            expect(within(screen.getByTestId("inspector")).getByText("Node")).toBeInTheDocument();
+        });
+
+        /* The degree card is the one ranking still built from PRINTED ids: it reads the
+           7.2 pass the shell is holding, and `readDegreeResults` (analysis/runs.ts:113-126)
+           stores `String(node.id)`. The round trip still has to complete, which is what
+           `graphSelectNode`'s retry is for -- it hands over what it was given, and resolves
+           the miss in the id's own type rather than leaving the row inert. When runs.ts
+           carries the raw id too, the retry stops firing here and this board still passes. */
+        it("completes the round trip from the degree card, whose ids are printed ones", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container, { numericIds: true });
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            const topId = CAT_SOCIAL_NETWORK.nodes.findIndex((node) => node.id === "Mr_Whiskers") + 1;
+
+            fireEvent.click(
+                within(screen.getByTestId("inspector")).getByRole("button", {
+                    name: new RegExp(`^${String(topId)}\\b`),
+                }),
+            );
+
+            expect(graph.selectNode).toHaveBeenCalledWith(topId);
+            expect(graph.elementHoldsSelection()).toBe(topId);
+            expect(within(screen.getByTestId("inspector")).getByText("Node")).toBeInTheDocument();
+        });
+
+        /* The other half of the same round trip. `SelectionManager.select` returns early,
+           emitting nothing, for the node it already holds -- so a run that cleared only the
+           SHELL's selection left that one node unreachable by every route: its ranked row,
+           its Most connected row, and a click on the node itself. */
+        it("tells the element the selection is cleared, so the run's top row still works", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            // Picked on the canvas, which is what leaves the ELEMENT holding it.
+            act(() => {
+                graph.selectNode("Mr_Whiskers");
+            });
+
+            expect(graph.elementHoldsSelection()).toBe("Mr_Whiskers");
+
+            await runSuggested("Most connected");
+
+            expect(graph.deselectNode).toHaveBeenCalled();
+            expect(graph.elementHoldsSelection()).toBeNull();
+
+            fireEvent.click(within(screen.getByTestId("inspector")).getByRole("button", { name: /Mr_Whiskers/ }));
+
+            expect(graph.elementHoldsSelection()).toBe("Mr_Whiskers");
+            expect(within(screen.getByTestId("inspector")).getByText("Node")).toBeInTheDocument();
+        });
+
+        /* 7.1 item 2: ONE entry per user action. The encoding gets no second row, because
+           nothing here can undo the layer independently of the result. */
+        it("leaves exactly one undoable history entry for a metric run", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+            expect(await screen.findByText("1 entry, 0 undone")).toBeInTheDocument();
+        });
+    });
+
+    /* ---------------------------------------------------------------------- */
+    /* The load that did not arrive                                            */
+    /* ---------------------------------------------------------------------- */
+
+    /*
+     * The defect these stand on was not a quiet report. It was a WRONG one: on a
+     * malformed file, a 404 URL and unparsable pasted text alike the shell said the load
+     * had succeeded, because `GraphtyHandle.loadFromFile` ends in a property assignment
+     * and the element's setter discards the parse. So every board here drives a load that
+     * the shell's own promise chain resolves, and then has the element say what actually
+     * happened -- which is the only thing that ever did.
+     */
+    describe("the load that did not arrive", () => {
+        /** JSON that stops mid-object: detectable as JSON, unparsable as a graph. */
+        const MALFORMED_PASTE = '{"nodes": [{"id": "a"}';
+
+        afterEach(() => {
+            vi.useRealTimers();
+            window.localStorage.clear();
+        });
+
+        it("falls back to Empty when a replacing load's data never parses", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
+
+            /* A second sample, from the Data panel: a REPLACING load, which clears the
+               graph before it starts. The shell claims it at once, because nothing on the
+               load path can reject. */
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
+            await flushMicrotasks();
+
+            expect(screen.getByText("football.gml")).toBeInTheDocument();
+
+            await reportLoadingError(container, "Unexpected token 'g' on line 1");
+
+            /* Spec 4105: a failed load is a sub-state of EMPTY. Welcome comes back, which
+               is the reader's route in; the top bar names neither the dataset that failed
+               nor the one the replacing load already threw away; and the status bar stops
+               counting a dataset that is no longer on the canvas. */
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            expect(screen.queryByText("football.gml")).toBeNull();
+            expect(screen.queryByText(CAT_SOCIAL_NETWORK_NAME)).toBeNull();
+            expect(container.querySelectorAll("[data-status-slot]")).toHaveLength(0);
+        });
+
+        it("names the file the reader chose first, and keeps the reason the element gave", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(
+                screen.getByTestId("data-drop-zone"),
+                new File(["{oops"], "friends.json", { type: "application/json" }),
+            );
+            await reportLoadingError(container, "Unexpected token o in JSON at position 1");
+
+            const inline = inlineLoadError(container);
+
+            /* 6.10 floor item 7 makes the user's own filenames a floor item, and the
+               element's message names the FORMAT and never the file -- so the shell
+               carries the name from the top of the load and leads the sentence with it.
+               6.10 floor item 4 keeps the reason, in the words of whoever knew it. */
+            expect(inline).not.toBeNull();
+            expect(inline?.textContent).toBe(
+                "Could not load friends.json. Unexpected token o in JSON at position 1.",
+            );
+            expect(inline).toHaveAttribute("role", "alert");
+
+            /* In the drop zone, beside the formats line, and not behind a door: spec 1034
+               puts it "inline in the drop zone with the supported formats list", and spec
+               975-979 forbids moving the error text behind an info circle. */
+            const zone = inline?.parentElement;
+
+            expect(zone?.getAttribute("data-dragging")).not.toBeNull();
+            expect(zone?.textContent).toContain(
+                "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2",
+            );
+            expect(inline?.closest("[role='tooltip']")).toBeNull();
+            expect(inline?.closest("[data-info-circle]")).toBeNull();
+        });
+
+        /* ------------------------------------------------------------------ */
+        /* The dialog, driven through the SHELL's own onLoad                    */
+        /* ------------------------------------------------------------------ */
+
+        /*
+         * The dialog's own boards supply a rejecting `onLoad` of their own making, and for
+         * the input they use the real `AppShell.handleLoad` used to RESOLVE: pasted text
+         * goes through `GraphtyHandle.loadData`, which is two property assignments and
+         * cannot reject, so the dialog closed and `resetState` wiped the textarea while the
+         * element was still parsing. The reader's only copy of what they typed was gone,
+         * and the board claiming to prevent exactly that stayed green because it was
+         * testing its own stub. Nothing in the suite drove the dialog through the shell at
+         * all, so these two do -- one for each side of the contract.
+         */
+        it("keeps the reader's pasted text in the dialog when the element refuses the load", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(
+                within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "Paste data" }),
+            );
+
+            const dialog = await screen.findByRole("dialog");
+
+            fireEvent.click(within(dialog).getByText("Paste"));
+            fireEvent.change(within(dialog).getByLabelText("Paste graph data"), {
+                target: { value: MALFORMED_PASTE },
+            });
+            fireEvent.click(within(dialog).getByRole("button", { name: /^Load / }));
+            await flushMicrotasks();
+
+            /* Still holding the reader's text BEFORE the element has said anything: the
+               press and the answer are now seconds apart, and nothing may close over that
+               text while the only thing anyone knows is that the bytes were accepted.
+               The TEXT is what is asserted rather than the dialog's presence, because
+               `handleClose` runs `resetState` -- a dialog that closed here leaves an empty
+               textarea behind it, which is exactly the loss this is about. */
+            expect(screen.getByLabelText("Paste graph data")).toHaveValue(MALFORMED_PASTE);
+
+            await reportLoadingError(container, "Unexpected end of JSON input");
+
+            const refused = screen.getByRole("dialog");
+
+            expect(refused).toBeInTheDocument();
+            expect(within(refused).getByLabelText("Paste graph data")).toHaveValue(MALFORMED_PASTE);
+            /* The shell's sentence, not the element's: the element's message never names
+               what the reader chose (6.10 floor item 7), and "pasted-data" is what this
+               route is called. */
+            expect(
+                within(refused).getByText("Could not load pasted-data. Unexpected end of JSON input."),
+            ).toBeInTheDocument();
+        });
+
+        /* The other side of it: the dialog may not close on ACCEPTANCE either, because
+           acceptance is only the property assignment. It closes when the element reports
+           the data arrived -- the same event that moves the reader to Explore on the
+           session's first load, which is why nothing of the dialog is left on screen
+           afterwards. */
+        it("holds the dialog open until the element says the pasted data arrived", async () => {
+            const { container } = await renderMeasuredShell();
+
+            const loads = captureLoads(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(
+                within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "Paste data" }),
+            );
+
+            const dialog = await screen.findByRole("dialog");
+
+            fireEvent.click(within(dialog).getByText("Paste"));
+            fireEvent.change(within(dialog).getByLabelText("Paste graph data"), {
+                target: { value: '{"nodes": [{"id": "a"}]}' },
+            });
+            fireEvent.click(within(dialog).getByRole("button", { name: /^Load / }));
+            await flushMicrotasks();
+
+            // The bytes reached the element, and that is ALL that is known so far.
+            expect(loads).toHaveLength(1);
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+            // Still the reader's, because `handleClose` would have wiped it: see above.
+            expect(screen.getByLabelText("Paste graph data")).toHaveValue('{"nodes": [{"id": "a"}]}');
+
+            await reportLoadComplete(container);
+
+            expect(screen.queryByRole("dialog")).toBeNull();
+        });
+
+        /* The additive route, which the element cannot perform and used to report a SUCCESS
+           for: the app's load path ends in a property assignment on the element's
+           dataSource pair, whose initialisation guard is per LOAD and is reset only by
+           clearData(), so a second load that did not replace started nothing, parsed
+           nothing, emitted nothing -- and `finishLoad` renamed the dataset in the top bar
+           over a canvas that had not changed by one node. It is refused before the element
+           is touched, with a sentence naming the route that does work. */
+        it("refuses an additive load rather than claiming one the element cannot perform", async () => {
+            const { container } = await renderMeasuredShell();
+
+            const loads = captureLoads(container);
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            const loadsAfterSample = loads.length;
+
+            /* Dropped on the Data panel's zone with a dataset already drawn, which is the
+               additive route (`replaceExisting: !loaded`). */
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "extra.json"));
+
+            // Nothing reached the element, so nothing can have been silently swallowed.
+            expect(loads).toHaveLength(loadsAfterSample);
+
+            /* Nothing was cleared but the cat sample's own replacing clear, the canvas
+               still holds its graph, and the top bar names the dataset that IS drawn
+               rather than the file that never arrived. */
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
+            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
+            expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
+
+            /* And the Loaded data section still describes the dataset that IS drawn. The
+               surviving branch restores the summary as well as the name: `finishLoad`
+               overwrites both optimistically, so a branch that put back only the name left
+               the section describing a file that never arrived -- or, on this route, whose
+               format is "auto" and whose summary is therefore undefined, drew the whole
+               section in its empty form for a graph that is still on the canvas. */
+            const summary = container.querySelector('[data-testid="compound-segment-value"]');
+
+            expect(summary?.textContent).toBe("json");
+
+            /* Welcome is not on screen in the Loaded state, so the toast is the failure's
+               only surface here -- and it is the surface the additive route had none of. */
+            const toast = statusToast(container);
+
+            expect(toast).not.toBeNull();
+            expect(toast).toHaveAttribute("role", "alert");
+            expect(toast?.textContent).toContain(
+                "Could not load extra.json. Adding a file to a dataset that is already loaded is not built yet.",
+            );
+            expect(screen.getByRole("button", { name: "Open Data" })).toBeInTheDocument();
+
+            /* And it does not erase itself. An error on a six second timer is the silent
+               failure again in a nicer font, so the completion is passed with no
+               `onDismiss` and the toast has no timer to fire. */
+            vi.useFakeTimers();
+
+            act(() => {
+                vi.advanceTimersByTime(STATUS_BAR_GEOMETRY.TOAST_DURATION_MS * 2);
+            });
+
+            expect(statusToast(container)).not.toBeNull();
+        });
+
+        /* The retry the error sentence itself invites, on the zone it is drawn in. The
+           Welcome zone's drop is not a replacing load, so nothing on that route cleared the
+           element -- and graphty-element's data-source guard is per LOAD: the failed load
+           latched it and only `clearData()` resets it (its own regression board,
+           graphty-element/test/browser/element-clear-data.test.ts, states that contract).
+           So the corrected file reached the setters, started no load at all, and the shell
+           -- whose promise chain resolves on a property assignment -- reported a SUCCESS,
+           named the file in the top bar and left the canvas blank. */
+        it("clears the element after a failed load, so the retry the sentence invites can work", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+            const zone = container.querySelector("[data-dragging]") as HTMLElement;
+
+            expect(zone).not.toBeNull();
+
+            await dropFile(zone, new File(["{oops"], "friends.json"));
+
+            /* The optimistic success first, which is the order the application produces:
+               the shell's chain resolves on a property assignment and the parse throws
+               later. Waited for rather than assumed -- the file read is a real asynchronous
+               read, and a board that reported the failure before the load had claimed
+               anything would be testing an order the application cannot reach. */
+            await waitFor(() => {
+                expect(screen.getByText("friends.json")).toBeInTheDocument();
+            });
+
+            await reportLoadingError(container, "Unexpected token o in JSON at position 1");
+
+            /* The element is cleared, which is what releases its per-load guard and drops
+               any records a mid-stream failure had already added. */
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+
+            /* And the reader is not left on an activity the rail has just disabled.
+               AMENDED with the fix for the dialog's contract: the first-load switch to
+               Explore now waits for the element's own `data-loaded` rather than firing on
+               the optimistic `finishLoad` (it was unmounting the Data panel, and the Load
+               data dialog with it, seconds before anyone knew whether the data parsed). So
+               this load never moved the reader anywhere, and there is nothing to move
+               back: what the board can still say is that no activity the Empty state
+               disables is left open. The redirect to Data that used to be asserted here is
+               still live for the case it was written for -- a failure while the reader IS
+               on Explore, which a replacing load over a drawn dataset reaches. */
+            expect(screen.queryByRole("region", { name: "Explore" })).toBeNull();
+
+            // The retry, on the same zone the sentence is drawn in.
+            await dropFile(
+                container.querySelector("[data-dragging]") as HTMLElement,
+                new File([JSON.stringify(CAT_SOCIAL_NETWORK)], "friends.json", { type: "application/json" }),
+            );
+            await reportLoadComplete(container);
+
+            await waitFor(() => {
+                expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
+            });
+            expect(inlineLoadError(container)).toBeNull();
+
+            /* Spec 4107 spends the first-load switch on "the session's first load", and a
+               load that showed the reader nothing is not one: the latch was spent on the
+               failure, so the first dataset that really arrived never got its Explore. */
+            expect(screen.getByRole("region", { name: "Explore" })).toBeInTheDocument();
+        });
+
+        it("surfaces the reachable throw -- a format nothing could detect -- through both surfaces", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+
+            /* This one never reaches the element: `loadFromFile` cannot name a format for
+               it and throws, so it is the `.catch` path -- the one branch that was already
+               reporting something, into the console. */
+            await dropFile(
+                screen.getByTestId("data-drop-zone"),
+                new File(["nothing here that reads like a graph"], "notes.txt"),
+            );
+
+            expect(inlineLoadError(container)?.textContent).toBe(
+                "Could not load notes.txt. Could not detect file format from 'notes.txt'. " +
+                    "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+            );
+            expect(statusToast(container)?.textContent).toContain("Could not load notes.txt.");
+
+            // And the shell never claimed the load: no dataset name, no counts, Welcome.
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            expect(container.querySelectorAll("[data-status-slot]")).toHaveLength(0);
+        });
+
+        it("reports a sample that does not parse, and drops the card its hint had armed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            // The hint, not the row: this is the one interaction that arms a suggested
+            // card for the load that is starting (7.1 item 2).
+            fireEvent.click(container.querySelector('[data-sample-hint="cat-social-network"]') as HTMLElement);
+            await reportLoadingError(container, "Unexpected end of JSON input");
+
+            expect(inlineLoadError(container)?.textContent).toBe(
+                `Could not load ${CAT_SOCIAL_NETWORK_NAME}. Unexpected end of JSON input.`,
+            );
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+
+            /* The armed card went with the load that did not arrive. A completion
+               reported afterwards -- the shell cannot stop the element sending one --
+               therefore runs nothing over whatever is on the canvas instead. */
+            await reportLoadComplete(container);
+
+            expect(graph.runAlgorithm).not.toHaveBeenCalled();
+        });
+
+        it("says nothing it cannot stand behind when the element's error carries no message", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "friends.json"));
+            await reportLoadingError(container);
+
+            // Never an empty sentence and never "[object Object]": the file is still
+            // named, and the shell supplies the reason the element did not.
+            expect(inlineLoadError(container)?.textContent).toBe(
+                "Could not load friends.json. The data could not be read, and the loader gave no reason.",
+            );
+        });
+
+        it("clears the sentence when the next load starts, and when the dataset boundary is crossed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "friends.json"));
+            await reportLoadingError(container, "Unexpected token o in JSON at position 1");
+
+            expect(inlineLoadError(container)).not.toBeNull();
+
+            // (a) the next attempt: the sentence described the load before it, and a
+            // failure that outlives the load it describes is a second wrong claim.
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await flushMicrotasks();
+
+            expect(inlineLoadError(container)).toBeNull();
+            expect(statusToast(container)).toBeNull();
+
+            /* (b) the boundary: Close dataset takes the sentence with the dataset, by the
+               same route a replacing load does (6.12). The panel is reopened on Data
+               because the session's FIRST successful load switches it to Explore
+               (spec 02 section 1.5), which is where that click has just left it. */
+            await reportLoadComplete(container);
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "extra.json"));
+            await reportLoadingError(container, "Unexpected token o in JSON at position 1");
+
+            expect(statusToast(container)).not.toBeNull();
+
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }));
+            fireEvent.click(await screen.findByText("Close dataset. Starts a new session"));
+            await flushMicrotasks();
+
+            expect(statusToast(container)).toBeNull();
+            expect(inlineLoadError(container)).toBeNull();
+        });
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* The Results tab's body (2026-09-14)                                         */
+    /* -------------------------------------------------------------------------- */
+
+    describe("the Analyze panel's Results tab", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        it("disables the Results button with no run, and carries its reason", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
+
+            const results = screen.getByTestId("analyze-tab-results");
+
+            expect(results).toBeDisabled();
+            expect(results.getAttribute("title")).toContain("No results yet");
+        });
+
+        it("shows one row naming the run and its headline after Groups, and opens it in the inspector", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
+            fireEvent.click(screen.getByRole("button", { name: "Run Groups" }));
+            await flushMicrotasks();
+
+            const panel = screen.getByRole("region", { name: "Analyze" });
+
+            fireEvent.click(within(panel).getByTestId("analyze-tab-results"));
+
+            /* The BODY, not only the tab's badge. The defect this closes is exactly a
+               badge that said "Results (1)" over a body that still drew the Suggested
+               cards, because `resultCount` and the list were two independently passed
+               facts and only one of them reached the reader. */
+            const row = within(panel).getByTestId("analyze-result-groups");
+
+            expect(within(row).getByText("Groups")).toBeInTheDocument();
+            expect(row.textContent ?? "").toMatch(/\d+ groups/);
+            expect(within(panel).queryByRole("button", { name: "Run Groups" })).toBeNull();
+
+            /* Opening a result clears the node selection, and tells the ELEMENT so:
+               SelectionManager.select returns early for the node it already holds, so a
+               shell that cleared only its own state leaves every route back to that node
+               inert. */
+            reportSelection(container, "Mr_Whiskers");
+            expect(within(screen.getByTestId("inspector")).getByText("Node")).toBeInTheDocument();
+
+            const deselectsBefore = graph.deselectNode.mock.calls.length;
+
+            fireEvent.click(within(row).getByRole("button", { name: /Groups/ }));
+
+            expect(graph.deselectNode.mock.calls.length).toBeGreaterThan(deselectsBefore);
+            expect(within(screen.getByTestId("inspector")).queryByText("Node")).toBeNull();
+        });
+
+        it("names the run the same way on the Results row as the History entry does", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            const panel = screen.getByRole("region", { name: "Analyze" });
+
+            fireEvent.click(within(panel).getByTestId("analyze-tab-results"));
+
+            /* Floor item 6: one run is not called three things on three surfaces. The
+               plain half of the 6.3 pair is what the row prints. */
+            expect(within(panel).getByText("Most connected")).toBeInTheDocument();
+        });
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* Legend availability (2026-09-14)                                            */
+    /* -------------------------------------------------------------------------- */
+
+    describe("the legend's availability", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        it("disables both legend controls with their reason while nothing is encoded", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Style" }));
+            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+
+            expect(await screen.findByRole("switch", { name: "Show legend" })).toBeDisabled();
+            expect(screen.getByTestId("style-legend-row").getAttribute("title")).toBe(
+                "Show legend (L). Nothing is encoded yet",
+            );
+        });
+
+        it("leaves the remembered legend boolean alone when L is pressed with nothing encoded", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Style" }));
+            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+
+            const before = (await screen.findByRole("switch", { name: "Show legend" })).getAttribute("aria-checked");
+
+            fireEvent.keyDown(window, { key: "l" });
+
+            const after = screen.getByRole("switch", { name: "Show legend" }).getAttribute("aria-checked");
+
+            /* A no-op rather than a disabled key: a key press has no ink to grey out, so
+               the only honest thing it can do is nothing. Flipping the boolean invisibly
+               would surprise the reader with a legend (or none) at the next painting run. */
+            expect(after).toBe(before);
+        });
+
+        it("enables both legend controls once a run has painted an encoding", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            fireEvent.click(screen.getByRole("button", { name: "Style" }));
+            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+
+            expect(await screen.findByRole("switch", { name: "Show legend" })).toBeEnabled();
+            expect(screen.getByTestId("style-legend-row").getAttribute("title")).toBe("Show legend (L)");
+        });
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* Neighbours (2026-09-14)                                                     */
+    /* -------------------------------------------------------------------------- */
+
+    describe("the node inspector's neighbours", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        /**
+         * Loads the cat fixture, selects one node and returns its real link count.
+         *
+         * THE DEFECT: `neighborsOf` read `edge.source` and `edge.target`, the two fields
+         * `GraphtyHandle.getData` never writes -- it writes `{id, src, dst, ...edge.data}`
+         * -- so every node on every dataset reported zero neighbours while its own result
+         * card said otherwise. Verified in the browser on node 34 of Karate Club.
+         * @param numericIds - whether the fixture carries integer ids, as GML loads do.
+         * @returns the selected node's id and how many distinct neighbours it has.
+         */
+        async function selectBusiestNode(numericIds: boolean) {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            installNovicePathGraph(container, { numericIds });
+
+            await loadCatSample(container);
+
+            /* The count is derived from the FIXTURE, not read back off the stub, so the
+               board measures the same records `installNovicePathGraph` seeded rather than
+               whatever the shell happened to store. */
+            const fixture = numericIds ? withNumericIds(CAT_SOCIAL_NETWORK) : CAT_SOCIAL_NETWORK;
+            const counts = new Map<string, Set<string>>();
+
+            for (const edge of fixture.edges) {
+                const src = String(edge.src);
+                const dst = String(edge.dst);
+
+                if (!counts.has(src)) {
+                    counts.set(src, new Set());
+                }
+
+                if (!counts.has(dst)) {
+                    counts.set(dst, new Set());
+                }
+
+                counts.get(src)?.add(dst);
+                counts.get(dst)?.add(src);
+            }
+
+            const [busiest] = [...counts.entries()].sort((one, two) => two[1].size - one[1].size);
+
+            reportSelection(container, busiest[0]);
+
+            return { neighborCount: busiest[1].size };
+        }
+
+        it("reads the node's REAL link count from the src/dst spelling getData writes", async () => {
+            const { neighborCount } = await selectBusiestNode(false);
+
+            expect(neighborCount).toBeGreaterThan(0);
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(
+                within(inspector).getByRole("button", { name: `Expand ${String(neighborCount)} neighbors` }),
+            ).toBeInTheDocument();
+        });
+
+        it("reads the same count on a numeric-id graph, which retires the id-type suspicion", async () => {
+            /* The observation arrived as "it must be the id type", because a JSON file
+               whose edges are spelled {"source":..,"target":..} accidentally worked (the
+               names came back through getData's `...edge.data` spread) while karate.gml
+               could not -- GMLDataSource deletes both names from the data it hands on.
+               Running this board on BOTH id types retires that suspicion permanently. */
+            const { neighborCount } = await selectBusiestNode(true);
+
+            expect(neighborCount).toBeGreaterThan(0);
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(
+                within(inspector).getByRole("button", { name: `Expand ${String(neighborCount)} neighbors` }),
+            ).toBeInTheDocument();
         });
     });
 });

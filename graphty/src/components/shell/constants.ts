@@ -135,11 +135,89 @@ export const PANEL_HEADER_HEIGHT = 36;
 export const CANVAS_MIN_WIDTH = 520;
 
 /**
- * Narrow-screen breakpoint. Below it the panel and inspector become overlays, the
- * canvas is not resized under them, and the canvas toolbar takes its larger profile.
+ * The width below which the shell does not lay out at all.
+ *
+ * It USED to be a narrow-screen breakpoint: below it the panel and inspector became
+ * 280 px overlays over a canvas that was never resized under them, one at a time, each
+ * dismissible by a canvas tap or the Escape ladder's third rung, each vetoable by a
+ * latch. That whole layout was deleted on 2026-09-14 at the product owner's direction:
+ * "there will be no more auto-hide. below 1280 should just say 'screen too small' or
+ * something similar."
+ *
+ * The measurement behind the instruction is in the spec itself (SPEC:5790-5796): at
+ * 1024x900 the two OVERLAYS took [48,328] and [744,1024] while the Welcome sheet spanned
+ * [219,853], so 109 px of the sheet sat under each overlay and its heading read "aph to
+ * get started"; at 600 and at 375 there was no canvas and no Welcome content at all. A
+ * layout that cannot show the graph it exists to show is not a layout, and saying so is
+ * more honest than four mechanisms arranging which half of it to hide.
+ *
+ * WHY 1024 AND NOT 1280. The number was 1280 from 2026-09-14 until 2026-09-15, when the
+ * product owner reported the too-small state on an iPad that "actually works fine with
+ * the sidebars" and asked for that size and larger. 1024 is the landscape width of every
+ * modern iPad, including the 10.2 inch and the mini, so it is the one number that admits
+ * the whole family rather than a guess at which model is in hand.
+ *
+ * The measurement above does NOT argue against it, and the difference is the point: it
+ * was taken when both regions were 280 px OVERLAYS floating over a canvas that was never
+ * resized under them. They are docked grid columns now, so at 1024 the arithmetic is
+ * 48 rail + 280 panel + 280 inspector = 608, leaving a real 416 px canvas that nothing
+ * covers. That is narrow but it is a canvas, which is exactly what the old layout could
+ * not produce at this width.
+ *
+ * 416 sits below {@link CANVAS_MIN_WIDTH} (520) and that is not a contradiction: that
+ * constant clamps how far a reader may DRAG a sidebar, so the canvas cannot be squeezed
+ * further by hand. It has never governed what the viewport itself hands over.
+ *
+ * Below this the shell says so and names the width, rather than laying out a canvas too
+ * small to read. Portrait iPads (768 to 834) are still below it.
+ *
  * Spec 01 section 1 (SPEC:403) and section 7.
  */
-export const NARROW_BREAKPOINT = 1280;
+export const NARROW_BREAKPOINT = 1024;
+
+/**
+ * The heading of the state the shell draws below {@link NARROW_BREAKPOINT}.
+ *
+ * It says what is wrong rather than what the reader did wrong, and the line beneath it
+ * names the number, because "too small" without a figure leaves a reader resizing by
+ * guesswork. ASCII only, per the house rule.
+ */
+export const SCREEN_TOO_SMALL_TITLE = "Screen too small";
+
+/**
+ * The body line under {@link SCREEN_TOO_SMALL_TITLE}, naming the minimum width.
+ * @param minimumWidth - the width the shell needs, in CSS pixels.
+ * @returns the sentence the state draws.
+ */
+export function screenTooSmallDetail(minimumWidth: number = NARROW_BREAKPOINT): string {
+    return `Graphty needs a window at least ${String(minimumWidth)} pixels wide.`;
+}
+
+/**
+ * The gap between the too-small state's heading and its detail line. The panel grid's own
+ * 8px step, so this state is not measured in numbers nothing else in the shell uses.
+ */
+export const SCREEN_TOO_SMALL_GAP = 8;
+
+/** The too-small state's padding, so the sentence never touches a 320px edge. */
+export const SCREEN_TOO_SMALL_PAD = 24;
+
+/** The too-small heading's size: the inspector's kind label, one step up. */
+export const SCREEN_TOO_SMALL_TITLE_FONT_SIZE = 16;
+
+/** The too-small detail line's size: the shell's ordinary 12px body text. */
+export const SCREEN_TOO_SMALL_DETAIL_FONT_SIZE = 12;
+
+/**
+ * The too-small overlay's stacking order.
+ *
+ * It covers the still-mounted shell, so it must sit above everything the shell draws --
+ * including the modal layer, since a reader who narrows the window with the Load data
+ * dialog open must see the too-small message rather than a dialog floating over it.
+ * Mantine's own modal/overlay z-index is 200, so this clears that band deliberately
+ * rather than by one.
+ */
+export const SCREEN_TOO_SMALL_Z_INDEX = 1000;
 
 /* -------------------------------------------------------------------------- */
 /* Canvas overlay geometry (build spec 01 sections 1, 2, 5)                     */
@@ -297,7 +375,7 @@ export const SHELL_OVERLAY_Z_INDEX = 20;
  * between them (spec 01 section 4, SPEC:3534).
  */
 export interface CanvasToolbarProfile {
-    /** Which profile this is: desktop at >= 1280 px, narrow below it. */
+    /** Which profile this is: desktop at or above {@link NARROW_BREAKPOINT}, narrow below it. */
     readonly id: "desktop" | "narrow";
     /** Icon button box, square. 28 desktop / 32 narrow (SPEC:3520, SPEC:3532). */
     readonly itemSize: number;
@@ -731,18 +809,6 @@ export const UNDO_DEPTH = 50;
  * in Performance mode. Spec 04 sections 8.2 and 8.4.
  */
 export const TOOLTIP_DELAY_MS = 150;
-
-/**
- * The latch's verb, on the activity panel's title row and on the inspector's alike.
- *
- * One word lives here rather than one in each region, because 6.8 gives a verb exactly
- * one word and one drawing wherever it is drawn, and this one is drawn in two regions.
- * It is NOT the inspector's `Pin as A` (design 5.4), which freezes a copy of the
- * CONTENT as a comparison anchor: this holds the SURFACE on screen. Two objects, two
- * words, two drawings -- `keepOpen`, a padlock, and the register's pushpin.
- * Design 6.12 ("The latch"), added 2026-09-12 at the product owner's direction.
- */
-export const KEEP_OPEN_LABEL = "Keep open";
 
 /* -------------------------------------------------------------------------- */
 /* The menu-affordance caret (spec 02 section 8; REGISTER-1.5 section 1.1)      */

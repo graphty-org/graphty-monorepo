@@ -6,6 +6,7 @@ import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
+import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
 // the older half of the library, brought to the same standard as the row types.
@@ -81,6 +82,23 @@ export interface StyleSelectProps {
      * @default false
      */
     disabled?: boolean;
+    /**
+     * One sentence saying why the control is off, shown only while `disabled`
+     * is true.
+     *
+     * It is appended to the control's own name after a full stop and drawn as
+     * the tooltip -- "Fill. Load data first" -- and it also joins the control's
+     * accessible description, so a screen reader reads the reason out instead
+     * of announcing an unexplained unavailable control.
+     *
+     * Write it as a whole sentence naming what would make the control usable
+     * again, not as a restatement that it is off. THE DEFECT THIS REPAIRS: a
+     * disabled control here used to be dimmed and silent, so a reader who could
+     * not press it had no route at all to learning why -- spec:6641 asks for
+     * the reason to travel with the ink, and until now this component had
+     * nowhere to put it.
+     */
+    disabledReason?: string;
     /** Called when the control takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. Forwarded unchanged. */
@@ -107,6 +125,7 @@ export interface StyleSelectProps {
  * @param props.options - The choices offered
  * @param props.onChange - Called with the new choice, or with `undefined` when the control is reset
  * @param props.disabled - Whether the control cannot be used at all
+ * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
  * @returns The dropdown, and its reset button when a choice has been made
@@ -133,10 +152,20 @@ export function StyleSelect({
     options,
     onChange,
     disabled = false,
+    disabledReason,
     onFocus,
     onBlur,
 }: StyleSelectProps): React.JSX.Element {
     const labels = useLabels();
+
+    // The reason is carried to a pointer user as a tooltip and to a screen
+    // reader as the field's description. It goes through Mantine's own
+    // `description` prop rather than through `aria-describedby`, because
+    // Input.Wrapper computes its own `aria-describedby` and overwrites anything
+    // passed in -- measured against @mantine/core 8.3.10, not assumed -- and
+    // the description element is then styled out of sight, exactly as
+    // PanelField does it.
+    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
 
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
@@ -173,10 +202,18 @@ export function StyleSelect({
     };
 
     return (
-        <Group data-testid="style-select" gap={CONTROL_GAP} wrap="nowrap" align="flex-end">
+        <Group
+            data-testid="style-select"
+            gap={CONTROL_GAP}
+            wrap="nowrap"
+            align="flex-end"
+            title={annotation.title}
+            data-disabled={disabled ? "true" : undefined}
+        >
             <Select
                 data-testid="style-select-field"
                 label={label}
+                description={annotation.description}
                 value={displayValue}
                 onChange={handleSelectChange}
                 onFocus={onFocus}
@@ -194,6 +231,11 @@ export function StyleSelect({
                               color: PANEL_INK.CHROME,
                           }
                         : undefined,
+                    // Present in the accessibility tree, absent from the
+                    // layout: a visible description would push every row in a
+                    // panel of these out of the 32px pitch the grid is built
+                    // on.
+                    description: VISUALLY_HIDDEN_STYLE,
                 }}
                 style={{ flex: 1 }}
             />

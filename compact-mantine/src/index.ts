@@ -198,4 +198,4 @@ export type {
 // follows a release, or automate it -- a constant a human has to remember will
 // drift again.
 /** The released version of this package. */
-export const VERSION = "0.6.0";
+export const VERSION = "0.7.0";

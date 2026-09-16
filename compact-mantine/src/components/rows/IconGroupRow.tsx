@@ -5,6 +5,7 @@ import React, { useRef } from "react";
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { usePanelLabels } from "../../context/PanelLabelsContext";
 import type { ChangeHandler } from "../../types/events";
+import { useControlAnnotation } from "../../utils/control-annotation";
 import { useDevWarning } from "../../utils/dev-warning";
 import { TrailingSlot } from "./TrailingSlot";
 
@@ -223,6 +224,23 @@ export interface IconGroupRowProps {
      */
     disabled?: boolean;
     /**
+     * One sentence saying why the whole group is off, shown only while
+     * `disabled` is true.
+     *
+     * It is appended to the group's own name after a full stop and drawn as the
+     * row's tooltip -- "Node shape. Load data first" -- and it joins the
+     * group's accessible description, so the reason reaches a pointer user and
+     * a screen reader user alike. With no `label` to append to, the sentence
+     * stands on its own.
+     *
+     * It says nothing about one option: a single unavailable choice is
+     * `disabled` on that option, and its own word still names it. THE DEFECT
+     * THIS REPAIRS: a whole group drawn dimmed with no explanation reads as a
+     * broken control, which is what spec:6641 forbids -- and until now this row
+     * had nowhere to put the one reason.
+     */
+    disabledReason?: string;
+    /**
      * Draw the word beside the drawing on the selected option only.
      *
      * Some option sets have names the panel cannot afford to hide -- layout
@@ -290,6 +308,7 @@ export interface IconGroupRowProps {
  * @param props.labelledBy - The `id` of the element that already names the group
  * @param props.name - The name shared by the group's radio inputs
  * @param props.disabled - Whether the whole group cannot be used
+ * @param props.disabledReason - One sentence saying why the group is off, drawn only while it is off
  * @param props.hybrid - Draw the word beside the drawing on the selected option only
  * @param props.width - How wide the track is drawn, or `"fill"` to take the rest of the row
  * @param props.trailing - The row's 24px trailing slot
@@ -320,6 +339,7 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
         labelledBy,
         name,
         disabled = false,
+        disabledReason,
         hybrid = false,
         width,
         trailing,
@@ -329,6 +349,14 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
 
     const showLabels = usePanelLabels();
     const count = options.length;
+
+    // The reason rides on the radio group itself rather than on one segment:
+    // it is the whole choice that is unavailable, and the group is the element
+    // that already carries the group's name. Mantine's SegmentedControl does
+    // forward `aria-describedby` to its role="radiogroup" root (measured
+    // against @mantine/core 8.3.10), so the hidden sentence is pointed at from
+    // there.
+    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
 
     const [firstOption] = options;
     const [selected, handleChange] = useUncontrolled<string>({
@@ -458,6 +486,8 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
     return (
         <Box
             data-testid="icon-group-row"
+            title={annotation.title}
+            data-disabled={disabled ? "true" : undefined}
             style={{
                 display: "flex",
                 alignItems: "center",
@@ -489,6 +519,7 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                 radius="sm"
                 aria-label={label}
                 aria-labelledby={labelledBy}
+                aria-describedby={annotation.describedBy}
                 data-testid="icon-group-track"
                 data-hybrid={hybrid ? "true" : undefined}
                 // --sc-color paints the selected segment for the one frame
@@ -549,6 +580,10 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                     },
                 }}
             />
+
+            {annotation.description !== undefined && (
+                <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
+            )}
 
             <TrailingSlot>{trailing}</TrailingSlot>
         </Box>

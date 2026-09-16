@@ -8,6 +8,7 @@ import {
     Stack,
     Text,
     TextInput,
+    VisuallyHidden,
 } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useState } from "react";
@@ -18,6 +19,7 @@ import { useLabels, useLocale, useNumberParser } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
+import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
 import { Popout } from "./popout";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
@@ -182,6 +184,50 @@ export interface CompactColorInputProps {
      */
     onOpacityChange?: ChangeHandler<number | undefined>;
     /**
+     * Called once per gesture with BOTH halves of the colour, whichever of them
+     * moved.
+     *
+     * Reach for this one, alone, whenever you drive the control from your own
+     * state. `onColorChange` and `onOpacityChange` are kept for call sites that
+     * already use them, but they cannot carry a gesture that moves both halves
+     * at once.
+     *
+     * THE DEFECT THIS REPAIRS, reproduced at runtime rather than reasoned
+     * about: dragging in the picker used to call `onColorChange` and then
+     * `onOpacityChange` back to back inside one React batch. A controlled
+     * consumer builds its next state out of the props it is holding -- the only
+     * snapshot it has -- and both callbacks run against the SAME pre-gesture
+     * snapshot, so the second one writes a state rebuilt from a colour the
+     * first one had already replaced. A test in this package
+     * (tests/components/CompactColorInput.test.tsx, "the two separate callbacks
+     * cannot carry one gesture") drives a picker swatch and watches the second
+     * write arrive as `{opacity: 50}` with the new colour gone. The application
+     * had already forked this whole component to escape it.
+     *
+     * Both halves are always passed, so a consumer never has to remember which
+     * one moved -- the same shape `GradientEditor` already uses for its stops
+     * and its direction. `undefined` keeps its meaning from the props: the
+     * reader has chosen nothing for that half and the default is showing.
+     *
+     * Supplying this ALONGSIDE `onColorChange` or `onOpacityChange` makes every
+     * gesture write twice. Pick one route.
+     * @example
+     * ```tsx
+     * <CompactColorInput
+     *     label="Fill"
+     *     color={style.color}
+     *     opacity={style.opacity}
+     *     defaultColor="#5B8FF9"
+     *     onChange={(color, opacity) => { setStyle({...style, color, opacity}); }}
+     * />
+     * ```
+     */
+    onChange?: (
+        color: string | undefined,
+        opacity: number | undefined,
+        event?: React.SyntheticEvent,
+    ) => void;
+    /**
      * The field's name, drawn above the control and used to name the group the
      * three controls sit in.
      *
@@ -204,6 +250,22 @@ export interface CompactColorInputProps {
      * @default false
      */
     disabled?: boolean;
+    /**
+     * One sentence saying why the control is off, shown only while `disabled`
+     * is true.
+     *
+     * It is appended to the control's own name after a full stop and drawn as
+     * the tooltip -- "Glow colour. Glow is not drawn yet" -- and it also joins
+     * the accessible description of the swatch, the hex box and the opacity
+     * box, so the reason reaches a pointer user and a screen reader user alike.
+     * With no `label` to append to, the sentence stands on its own.
+     *
+     * THE DEFECT THIS REPAIRS: a disabled colour control used to be dimmed and
+     * silent, so a reader who could not open the picker had no route at all to
+     * learning why -- spec:6641 asks for the one reason to travel with the
+     * disabled ink, and until now this component had nowhere to put it.
+     */
+    disabledReason?: string;
     /** Called when the hex box or the opacity box takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /**
@@ -240,9 +302,11 @@ export interface CompactColorInputProps {
  * @param props.defaultOpacity - The opacity shown while the reader has set none of their own
  * @param props.onColorChange - Called with the new colour, or with `undefined` when the control is reset
  * @param props.onOpacityChange - Called with the new opacity, or with `undefined` when the control is reset
+ * @param props.onChange - Called once per gesture with both halves of the colour, whichever of them moved
  * @param props.label - The field's name, drawn above the control and used to name the group
  * @param props.showOpacity - Whether to offer an opacity box beside the colour
  * @param props.disabled - Whether the control cannot be used at all
+ * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
  * @param props.onFocus - Called when the hex box or the opacity box takes focus
  * @param props.onBlur - Called when the hex box or the opacity box loses focus
  * @returns The joined colour control, and its reset button when something has been set
@@ -267,9 +331,11 @@ export function CompactColorInput({
     defaultOpacity = MAX_OPACITY,
     onColorChange,
     onOpacityChange,
+    onChange,
     label,
     showOpacity = true,
     disabled = false,
+    disabledReason,
     onFocus,
     onBlur,
 }: CompactColorInputProps): React.JSX.Element {
@@ -277,6 +343,15 @@ export function CompactColorInput({
     const parseNumber = useNumberParser();
     const decimalSeparator = useDecimalSeparator();
     const labelId = useId();
+
+    // The swatch is a plain button, so it takes `aria-describedby` and points
+    // at a hidden element of this component's own. The hex box and the opacity
+    // box are Input.Wrapper-based, and Input.Wrapper computes its own
+    // `aria-describedby` from its `description` prop and overwrites anything
+    // passed in (measured against @mantine/core 8.3.10), so those two take the
+    // sentence through `description` with the description element styled out of
+    // sight -- the route PanelField already uses.
+    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
 
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
@@ -324,17 +399,29 @@ export function CompactColorInput({
      * @param picked - The colour the picker reports
      */
     const handlePickerChange = (picked: string): void => {
-        if (picked.length === HEXA_LENGTH) {
-            setChosenColor(picked.slice(0, HEXA_ALPHA_START).toUpperCase());
+        const carriesAlpha = picked.length === HEXA_LENGTH;
+        const nextColor = carriesAlpha ? picked.slice(0, HEXA_ALPHA_START).toUpperCase() : picked.toUpperCase();
+        const movesOpacity = carriesAlpha && showOpacity;
+        const nextOpacity = movesOpacity
+            ? parseAlphaFromHexa(picked.slice(HEXA_ALPHA_START, HEXA_LENGTH))
+            : chosenOpacity;
 
-            if (showOpacity) {
-                setChosenOpacity(parseAlphaFromHexa(picked.slice(HEXA_ALPHA_START, HEXA_LENGTH)));
-            }
+        setChosenColor(nextColor);
 
-            return;
+        if (movesOpacity) {
+            setChosenOpacity(nextOpacity);
         }
 
-        setChosenColor(picked.toUpperCase());
+        // One write for the whole gesture, AFTER both halves are settled. The
+        // two setters above report through onColorChange and onOpacityChange,
+        // which cannot carry a gesture that moved both: a controlled consumer
+        // rebuilds its next state from the props it is holding, both callbacks
+        // see the same pre-gesture snapshot inside one React batch, and the
+        // second write silently drops the first's colour. That is the race the
+        // application forked this component to escape; onChange is the fix, and
+        // it passes both halves every time so a consumer never has to work out
+        // which one moved.
+        onChange?.(nextColor, nextOpacity);
     };
 
     /**
@@ -366,6 +453,10 @@ export function CompactColorInput({
 
         if (SIX_DIGIT_HEX.test(candidate) && candidate !== displayColor) {
             setChosenColor(candidate, event);
+            // Both halves, every time: the opacity has not moved, but a
+            // consumer driving the control from one state object needs the
+            // value to rebuild that object with rather than a gap to guess at.
+            onChange?.(candidate, chosenOpacity, event);
         } else {
             setHexDraft(displayColor.replace("#", "").toUpperCase());
         }
@@ -401,6 +492,8 @@ export function CompactColorInput({
         const clamped = Math.min(MAX_OPACITY, Math.max(MIN_OPACITY, typed));
         if (clamped !== displayOpacity) {
             setChosenOpacity(clamped, event);
+            // Both halves, every time -- see the hex commit above.
+            onChange?.(chosenColor, clamped, event);
         }
 
         setOpacityDraft(clamped);
@@ -418,12 +511,31 @@ export function CompactColorInput({
         if (showOpacity) {
             setChosenOpacity(undefined, event);
         }
+
+        // The reset is the other gesture that moves both halves at once, and it
+        // loses one of them to exactly the same race. `undefined` here keeps
+        // its meaning from the props: the reader has chosen nothing and the
+        // default is showing again. With no opacity box on screen the reader's
+        // opacity is untouched, so it is reported back as it stands rather than
+        // being cleared behind their back.
+        onChange?.(undefined, showOpacity ? undefined : chosenOpacity, event);
     };
 
     const hexPosition: JoinPosition = showOpacity ? "middle" : "end";
 
     const controls = (
-        <Group data-testid="compact-color-input" gap={CONTROL_GAP} wrap="nowrap">
+        <Group
+            data-testid="compact-color-input"
+            gap={CONTROL_GAP}
+            wrap="nowrap"
+            // The tooltip belongs to the OUTERMOST element this component
+            // returns, and only there: written on both the labelled wrapper and
+            // the run of controls inside it, one hover would match two elements
+            // and `getByTitle` would find a pair. A title on an ancestor already
+            // covers everything inside it.
+            title={label === undefined ? annotation.title : undefined}
+            data-disabled={disabled ? "true" : undefined}
+        >
             <Group gap={0} wrap="nowrap">
                 <Popout>
                     <Popout.Trigger>
@@ -444,6 +556,7 @@ export function CompactColorInput({
                             data-testid="compact-color-input-swatch"
                             disabled={disabled}
                             aria-label={labels.colorSwatch}
+                            aria-describedby={annotation.describedBy}
                         >
                             <ColorSwatch
                                 color={displayColor}
@@ -474,6 +587,7 @@ export function CompactColorInput({
                 <TextInput
                     data-testid="compact-color-input-hex"
                     disabled={disabled}
+                    description={annotation.description}
                     value={hexDraft}
                     onChange={handleHexChange}
                     onFocus={onFocus}
@@ -493,6 +607,10 @@ export function CompactColorInput({
                                   }
                                 : {}),
                         },
+                        // Present in the accessibility tree, absent from the
+                        // layout: a visible description would break the 24px
+                        // joined run this control is measured as.
+                        description: VISUALLY_HIDDEN_STYLE,
                     }}
                 />
 
@@ -508,6 +626,7 @@ export function CompactColorInput({
                         <NumberInput
                             data-testid="compact-color-input-opacity"
                             disabled={disabled}
+                            description={annotation.description}
                             value={opacityDraft}
                             onChange={handleOpacityChange}
                             onFocus={onFocus}
@@ -534,6 +653,9 @@ export function CompactColorInput({
                                           }
                                         : {}),
                                 },
+                                // Present in the accessibility tree, absent
+                                // from the layout -- see the hex box above.
+                                description: VISUALLY_HIDDEN_STYLE,
                             }}
                         />
                     </>
@@ -557,6 +679,14 @@ export function CompactColorInput({
                     <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
                 </ActionIcon>
             )}
+
+            {/* One hidden sentence, pointed at by the swatch button. The two
+                boxes beside it carry the same words through Input.Wrapper's own
+                description slot, because that wrapper overwrites any
+                aria-describedby handed to it. */}
+            {annotation.description !== undefined && (
+                <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
+            )}
         </Group>
     );
 
@@ -565,7 +695,13 @@ export function CompactColorInput({
     }
 
     return (
-        <Stack data-testid="compact-color-input-labelled" gap={0} role="group" aria-labelledby={labelId}>
+        <Stack
+            data-testid="compact-color-input-labelled"
+            gap={0}
+            role="group"
+            aria-labelledby={labelId}
+            title={annotation.title}
+        >
             <Text id={labelId} data-testid="compact-color-input-label" size="xs" c={PANEL_INK.CHROME} mb={1} lh={1.2}>
                 {label}
             </Text>

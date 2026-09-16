@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import React, { type ReactNode } from "react";
+import React, { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme, CompactColorInput, PopoutManager } from "../../src";
@@ -412,6 +412,241 @@ describe("CompactColorInput", () => {
             expect(screen.getByTestId("compact-color-input-hex")).toBeDisabled();
             expect(screen.getByTestId("compact-color-input-opacity")).toBeDisabled();
             expect(screen.getByTestId("compact-color-input-reset")).toBeDisabled();
+        });
+    });
+    // One gesture, one write. These tests exist because the application forked
+    // this whole component to escape the race the first of them reproduces, and
+    // U6 of the shell repair moves the fork back into the library: see the
+    // `onChange` doc comment in CompactColorInput.tsx.
+    describe("one write per gesture", () => {
+        /**
+         * The half of the colour a controlled consumer is holding.
+         */
+        interface ColorSnapshot {
+            color?: string | undefined;
+            opacity?: number | undefined;
+        }
+
+        /**
+         * A controlled consumer shaped exactly like the style panel: it keeps
+         * both halves of the colour in ONE state object and rebuilds that
+         * object from the snapshot the current render is holding.
+         *
+         * That closure is the whole point. It is what every controlled consumer
+         * of a two-part control does, and it is what makes two callbacks fired
+         * inside one React batch write over each other.
+         * @param props - Component props
+         * @param props.onWrite - Called with each state object the consumer builds
+         * @param props.combined - Use the combined `onChange` rather than the two separate callbacks
+         * @param props.showOpacity - Whether the control offers an opacity box
+         * @returns The control, driven from the consumer's own state
+         */
+        function ControlledConsumer({
+            onWrite,
+            combined,
+            showOpacity = true,
+        }: {
+            onWrite: (next: ColorSnapshot) => void;
+            combined: boolean;
+            showOpacity?: boolean;
+        }): React.JSX.Element {
+            const [style, setStyle] = useState<ColorSnapshot>({});
+
+            if (combined) {
+                return (
+                    <CompactColorInput
+                        label="Fill"
+                        defaultColor="#FF0000"
+                        showOpacity={showOpacity}
+                        color={style.color}
+                        opacity={style.opacity}
+                        onChange={(color, opacity): void => {
+                            const merged = { ...style, color, opacity };
+                            setStyle(merged);
+                            onWrite(merged);
+                        }}
+                    />
+                );
+            }
+
+            return (
+                <CompactColorInput
+                    label="Fill"
+                    defaultColor="#FF0000"
+                    showOpacity={showOpacity}
+                    color={style.color}
+                    opacity={style.opacity}
+                    onColorChange={(color): void => {
+                        const merged = { ...style, color };
+                        setStyle(merged);
+                        onWrite(merged);
+                    }}
+                    onOpacityChange={(opacity): void => {
+                        const merged = { ...style, opacity };
+                        setStyle(merged);
+                        onWrite(merged);
+                    }}
+                />
+            );
+        }
+
+        /**
+         * Opens the picker and presses the half-transparent blue swatch, which
+         * is one gesture that moves BOTH halves of the colour: `#5B8FF980` is
+         * `#5B8FF9` at 50 per cent.
+         * @param user - The user-event session driving the test
+         */
+        async function pickTranslucentBlue(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+            await user.click(screen.getByRole("button", { name: /swatch/i }));
+            // The picker's own swatches are named by their hexa value, so the
+            // half-transparent blue is reachable by name rather than by index.
+            await user.click(screen.getByRole("button", { name: "#5B8FF980" }));
+        }
+
+        // THE DEFECT, pinned rather than fixed: two callbacks cannot carry one
+        // gesture, and this is why `onChange` exists. It is asserted as the
+        // behaviour it is so that nobody deletes the combined callback on the
+        // grounds that the two separate ones "look fine".
+        it("the two separate callbacks cannot carry one gesture", async () => {
+            const user = userEvent.setup();
+            const writes = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <ControlledConsumer combined={false} onWrite={writes} />
+                </TestWrapper>,
+            );
+
+            await pickTranslucentBlue(user);
+
+            expect(writes).toHaveBeenCalledTimes(2);
+            expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9" });
+            // The second write was rebuilt from the same stale snapshot as the
+            // first, so the colour the reader just picked is gone.
+            expect(writes.mock.calls[1][0]).toEqual({ opacity: 50 });
+        });
+
+        it("a picker gesture reports colour and opacity in ONE onChange call", async () => {
+            const user = userEvent.setup();
+            const writes = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <ControlledConsumer combined onWrite={writes} />
+                </TestWrapper>,
+            );
+
+            await pickTranslucentBlue(user);
+
+            expect(writes).toHaveBeenCalledTimes(1);
+            expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9", opacity: 50 });
+        });
+
+        it("a consumer supplying only onChange gets exactly one call per gesture", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" label="Fill" onChange={onChange} />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /swatch/i }));
+            await user.click(screen.getByRole("button", { name: "#5B8FF980" }));
+            expect(onChange).toHaveBeenCalledTimes(1);
+
+            await user.click(screen.getByRole("button", { name: "#FF6B6B80" }));
+            expect(onChange).toHaveBeenCalledTimes(2);
+        });
+
+        it("fires onChange on the hex commit with both halves", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" opacity={40} label="Fill" onChange={onChange} />
+                </TestWrapper>,
+            );
+
+            const hex = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(hex);
+            await user.type(hex, "00FF00");
+            await user.tab();
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe("#00FF00");
+            expect(onChange.mock.calls[0][1]).toBe(40);
+            expect(onChange.mock.calls[0][2].type).toBe("blur");
+        });
+
+        it("fires onChange on the opacity commit with both halves", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" color="#00FF00" label="Fill" onChange={onChange} />
+                </TestWrapper>,
+            );
+
+            const opacity = screen.getByRole("textbox", { name: /opacity/i });
+            await user.clear(opacity);
+            await user.type(opacity, "25");
+            await user.tab();
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe("#00FF00");
+            expect(onChange.mock.calls[0][1]).toBe(25);
+            expect(onChange.mock.calls[0][2].type).toBe("blur");
+        });
+
+        it("fires onChange on the reset with both halves cleared", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput
+                        defaultColor="#FF0000"
+                        color="#00FF00"
+                        opacity={40}
+                        label="Fill"
+                        onChange={onChange}
+                    />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /reset/i }));
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBeUndefined();
+            expect(onChange.mock.calls[0][1]).toBeUndefined();
+            expect(onChange.mock.calls[0][2].type).toBe("click");
+        });
+
+        // The glow and outline colour fields pass showOpacity={false}, which is
+        // the arrangement the application's fork used to paper over with a
+        // hardcoded opacity of 100. The control must still be usable, and must
+        // not clear an opacity the reader cannot see or reach.
+        it("carries one gesture through with showOpacity false", async () => {
+            const user = userEvent.setup();
+            const writes = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <ControlledConsumer combined showOpacity={false} onWrite={writes} />
+                </TestWrapper>,
+            );
+
+            expect(screen.queryByRole("textbox", { name: /opacity/i })).not.toBeInTheDocument();
+
+            await user.click(screen.getByRole("button", { name: /swatch/i }));
+            await user.click(screen.getByRole("button", { name: "#5B8FF980" }));
+
+            expect(writes).toHaveBeenCalledTimes(1);
+            expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9", opacity: undefined });
         });
     });
 });

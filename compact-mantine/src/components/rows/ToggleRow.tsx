@@ -1,9 +1,12 @@
-import { Box, Checkbox, Switch } from "@mantine/core";
+import { Box, Checkbox, Switch, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
+import { useLabels } from "../../i18n";
+import { FieldGlyph } from "../../icons";
 import type { ChangeHandler } from "../../types/events";
+import { useControlAnnotation } from "../../utils/control-annotation";
 import { useDevWarning } from "../../utils/dev-warning";
 import { TrailingSlot } from "./TrailingSlot";
 
@@ -142,6 +145,48 @@ export interface ToggleRowProps {
      * unavailable rather than merely looking it.
      */
     disabled?: boolean;
+    /**
+     * One sentence saying why the toggle is off, shown only while `disabled` is
+     * true.
+     *
+     * It is appended to the row's own word after a full stop and becomes the
+     * row's tooltip -- "Legend. Nothing is encoded yet" -- and it joins the
+     * control's accessible description, so the reason reaches a pointer user
+     * and a screen reader user alike.
+     *
+     * THE DEFECT THIS REPAIRS, and it was the sharper half of the two: this row
+     * used to hardcode its tooltip as `wrapperProps = {title: label}`, so a
+     * call site could not append a reason even by hand. A disabled toggle was
+     * therefore dimmed and permanently unexplained, which is what spec:6641
+     * forbids. The caller supplies the sentence; the library never invents one,
+     * because only the call site knows what would turn the control back on.
+     */
+    disabledReason?: string;
+    /**
+     * Whether the boolean comes from a data attribute rather than being set by
+     * hand.
+     *
+     * The row draws a filled attribute glyph beside its word -- the same filled
+     * glyph `PanelField` uses to say the same thing -- so a panel can say "this
+     * follows the data" without spending a row on a fixed-or-by-attribute
+     * switch. A boolean channel can be bound just as a numeric one can, and
+     * until now `PanelField` was the only control in the library able to say
+     * so, which is why a bound boolean had to be drawn as a number field or not
+     * drawn at all.
+     * @default false
+     */
+    bound?: boolean;
+    /**
+     * What a screen reader says about a row whose value comes from a data
+     * attribute. Only used when `bound` is set.
+     *
+     * Defaults to the `fieldBound` string, so translating it once through
+     * `LabelsProvider` covers every bound control in the panel. Pass it here
+     * only to say something more specific about one row, and pass an empty
+     * string to say nothing -- byte for byte the contract `PanelField` already
+     * documents.
+     */
+    boundDescription?: string;
     /** Called when the control takes focus. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. */
@@ -178,6 +223,9 @@ export interface ToggleRowProps {
  * @param props.control - Which control to draw: a 16px checkbox, or a 28x16 switch for a live mode
  * @param props.trailing - What to put in the fixed 24px slot at the end of the row
  * @param props.disabled - Whether the toggle can be changed
+ * @param props.disabledReason - One sentence saying why the toggle is off, drawn only while it is off
+ * @param props.bound - Whether the boolean comes from a data attribute rather than being set by hand
+ * @param props.boundDescription - What a screen reader says about a bound row, defaulting to `fieldBound`
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
  * @returns The toggle row
@@ -197,9 +245,13 @@ export function ToggleRow({
     control = "checkbox",
     trailing,
     disabled = false,
+    disabledReason,
+    bound = false,
+    boundDescription,
     onFocus,
     onBlur,
 }: ToggleRowProps): React.JSX.Element {
+    const labels = useLabels();
     // Controlled and uncontrolled, exactly as StyleSelect and ToggleWithContent.
     const [isChecked, setChecked] = useUncontrolled<boolean>({
         value: checked,
@@ -239,11 +291,48 @@ export function ToggleRow({
         },
     };
 
+    // The per-row string is an override of the shared one rather than the only
+    // way to set it, so a row that says nothing about its own bound state still
+    // announces it in whatever language LabelsProvider was given. An empty
+    // string is the caller saying "announce nothing", and is honoured.
+    const boundText = boundDescription ?? labels.fieldBound;
+
     // The whole word is the accessible name whether or not it fits, because an
     // ellipsis shortens what is drawn and not what is read out. The title
     // repeats it for a sighted pointer user, who has neither the accessible
-    // name nor the room.
-    const wrapperProps = { title: label };
+    // name nor the room -- and, once the row is disabled with a reason, carries
+    // that reason after a full stop.
+    //
+    // Unlike the Input.Wrapper controls in this library, a Mantine Checkbox and
+    // a Mantine Switch DO forward `aria-describedby` through to their input
+    // (measured against @mantine/core 8.3.10), so the sentence is rendered into
+    // a hidden element of this row's own and pointed at from the control.
+    const annotation = useControlAnnotation({
+        name: label,
+        enabledTitle: label,
+        disabled,
+        disabledReason,
+        extraDescriptions: bound ? [boundText] : undefined,
+    });
+
+    const wrapperProps = { title: annotation.title };
+
+    // The filled glyph is the whole of the visible bound marker, and it is
+    // deliberately the same drawing PanelField fills in: one convention for
+    // "this value follows the data", across every row type that can say it.
+    // The glyph is aria-hidden, so the meaning travels in the description
+    // above rather than in a picture a screen reader cannot see.
+    const boundMarker = bound
+        ? (
+            <Box
+                component="span"
+                data-testid="toggle-row-bound"
+                style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", color: PANEL_INK.CHROME }}
+            >
+                <FieldGlyph name="attribute" filled />
+            </Box>
+        )
+        : null;
 
     return (
         <Box
@@ -251,6 +340,7 @@ export function ToggleRow({
             data-control={control}
             data-checked={isChecked ? "true" : "false"}
             data-disabled={disabled ? "true" : undefined}
+            data-bound={bound ? "true" : undefined}
             style={{
                 display: "flex",
                 alignItems: "center",
@@ -270,6 +360,7 @@ export function ToggleRow({
                     label={label}
                     checked={isChecked}
                     disabled={disabled}
+                    aria-describedby={annotation.describedBy}
                     onChange={handleInputChange}
                     onFocus={onFocus}
                     onBlur={onBlur}
@@ -282,6 +373,7 @@ export function ToggleRow({
                     label={label}
                     checked={isChecked}
                     disabled={disabled}
+                    aria-describedby={annotation.describedBy}
                     onChange={handleInputChange}
                     onFocus={onFocus}
                     onBlur={onBlur}
@@ -289,6 +381,10 @@ export function ToggleRow({
                     styles={controlStyles}
                 />
             )}
+            {annotation.description !== undefined && (
+                <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
+            )}
+            {boundMarker}
             <TrailingSlot>{trailing}</TrailingSlot>
         </Box>
     );

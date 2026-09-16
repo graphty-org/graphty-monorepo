@@ -12,6 +12,11 @@
 
 import { describe, expect, it } from "vitest";
 
+/* The element's narrow config module, not its package entry point: NodeStyle.ts imports
+   Zod and two sibling schemas and nothing else, so pinning the shape vocabulary against
+   the real enum here costs no Babylon and needs no build of the element. */
+import { NodeShapes } from "../../../../graphty-element/src/config/NodeStyle";
+import { NODE_SHAPE_OPTIONS } from "../../constants/style-options";
 import type { ArrowConfig, EdgeLineConfig, NodeEffectsConfig } from "../../types/style-layer";
 import { DEFAULT_ARROW_HEAD, DEFAULT_ARROW_TAIL, DEFAULT_COLOR, DEFAULT_EDGE_LINE } from "../style-defaults";
 import {
@@ -36,34 +41,57 @@ const NO_EFFECTS: NodeEffectsConfig = {
 };
 
 describe("editorToElementShape", () => {
-    it("renames the shapes the element spells differently", () => {
+    it("renames the one legacy spelling the editor used to use", () => {
         expect(editorToElementShape({ type: "torusKnot", size: 2 })).toEqual({ type: "torus-knot", size: 2 });
     });
 
-    it("falls back to a shape the element can actually build", () => {
-        // None of these three are in graphty-element's NodeShapes enum.
-        expect(editorToElementShape({ type: "torus", size: 1 }).type).toBe("torus-knot");
-        expect(editorToElementShape({ type: "disc", size: 1 }).type).toBe("geodesic");
-        expect(editorToElementShape({ type: "plane", size: 1 }).type).toBe("box");
+    it("no longer substitutes a different shape for one the element cannot build", () => {
+        /* WHAT THIS TEST USED TO ASSERT, and why the change is the fix rather than a
+           relaxation. It used to pin `plane -> "box"`, `disc -> "geodesic"` and
+           `torus -> "torus-knot"` as deliberate fallbacks, which made the product owner's
+           report a TESTED behaviour: "there is no 'plane' shape, and when selected a box
+           shows up". The substitutions existed because the app's picker was a second,
+           hand-maintained copy of the element's vocabulary that had drifted to offer three
+           shapes the element had no mesh for. The picker is now derived from the element's
+           own list and pinned against it by
+           `constants/__tests__/style-options.test.ts`, so a value that is not a real shape
+           can no longer be chosen -- and if one ever reaches this function anyway, it must
+           pass through UNCHANGED and fail loudly at the element rather than be quietly
+           turned into something else. */
+        expect(editorToElementShape({ type: "plane", size: 1 }).type).toBe("plane");
+        expect(editorToElementShape({ type: "disc", size: 1 }).type).toBe("disc");
+    });
+
+    it("writes torus as a torus now that the element can build one", () => {
+        /* `NodeMesh` always registered a working `torus` creator; only the zod enum
+           omitted it, which is the sole reason Torus was ever degraded to a torus-knot. */
+        expect(editorToElementShape({ type: "torus", size: 1 })).toEqual({ type: "torus", size: 1 });
     });
 
     it("passes through a name both models share", () => {
         expect(editorToElementShape({ type: "icosphere", size: 1.5 })).toEqual({ type: "icosphere", size: 1.5 });
     });
 
-    it("maps two different editor shapes onto ONE element shape, deep-equal", () => {
-        /* The performance claim in miniature: "torus" and "torusKnot" are two rows in the
-           editor's menu and one mesh in the element. Deep-equal here means ONE style id
-           and ONE mesh; unequal would mean two of each for the same look. */
-        expect(editorToElementShape({ type: "torus", size: 1 })).toEqual(
-            editorToElementShape({ type: "torusKnot", size: 1 }),
-        );
+    it("EVERY shape the picker offers round-trips into a shape the element can build", () => {
+        /* This is the assertion that makes the drift a test failure instead of a silent
+           substitution. The picker's own list is pinned against `NodeShapes.options` in
+           `constants/__tests__/style-options.test.ts`; here the WRITE path is pinned
+           against the same vocabulary, so a shape can neither be offered nor written
+           unless the element can build it. */
+        for (const option of NODE_SHAPE_OPTIONS) {
+            const written = editorToElementShape({ type: option.value, size: 1 });
+
+            expect(NodeShapes.options).toContain(written.type as (typeof NodeShapes.options)[number]);
+        }
     });
 });
 
 describe("elementToEditorShape", () => {
-    it("reads the element's spelling back into the editor's", () => {
-        expect(elementToEditorShape({ type: "torus-knot", size: 2 })).toEqual({ type: "torusKnot", size: 2 });
+    it("reads the element's spelling STRAIGHT THROUGH", () => {
+        /* There used to be an inverse map here turning `torus-knot` back into the editor's
+           `torusKnot`. The picker's values are the element's own names now, so inverting
+           anything would hand the control a value that is not in its own option list. */
+        expect(elementToEditorShape({ type: "torus-knot", size: 2 })).toEqual({ type: "torus-knot", size: 2 });
     });
 
     it("fills in the editor's defaults for what the element did not set", () => {
@@ -72,7 +100,7 @@ describe("elementToEditorShape", () => {
     });
 
     it("round-trips every shape the element can name", () => {
-        for (const type of ["icosphere", "box", "geodesic", "torusKnot"]) {
+        for (const type of NodeShapes.options) {
             expect(editorToElementShape(elementToEditorShape(editorToElementShape({ type, size: 1 })))).toEqual(
                 editorToElementShape({ type, size: 1 }),
             );

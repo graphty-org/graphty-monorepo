@@ -58,6 +58,7 @@ export {
     defaultXRConfig,
     EdgeStyle,
     isViewMode,
+    NodeShapes,
     NodeStyle,
     RichTextStyle,
     StyleHelpers,

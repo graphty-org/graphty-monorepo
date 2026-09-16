@@ -5,7 +5,7 @@ export { defaultEdgeStyle, EdgeStyle } from "./EdgeStyle";
 export type { FetchEdgesFn, FetchNodesFn } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export type { NodeStyleConfig } from "./NodeStyle";
-export { defaultNodeStyle, NodeStyle } from "./NodeStyle";
+export { defaultNodeStyle, NodeShapes, NodeStyle } from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
 export type { StyleHelpersType } from "./StyleHelpers";

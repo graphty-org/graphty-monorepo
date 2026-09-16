@@ -133,31 +133,28 @@ export interface ElementArrow {
 }
 
 /**
- * Map UI shape types to graphty-element shape types.
+ * The ONE legacy shape spelling this bridge still translates.
  *
- * Copied verbatim from `SHAPE_TYPE_MAP` in `components/Graphty.tsx`. "torus", "disc" and
- * "plane" are offered by the editor and are NOT in the element's `NodeShapes` enum, so
- * each falls back to the nearest shape the element can actually build; "torusKnot" is the
- * same shape under a different spelling. Anything not listed passes through unchanged.
+ * WHAT THIS MAP USED TO BE, AND THE DEFECT IT CAUSED. It used to carry three SILENT
+ * SUBSTITUTIONS beside the rename: `torus -> "torus-knot"`, `disc -> "geodesic"` and
+ * `plane -> "box"`. Those existed because the app's shape picker was a second,
+ * hand-maintained copy of the element's vocabulary and had drifted to offer three shapes
+ * graphty-element's `NodeShapes` enum did not contain. Rather than fail, the write path
+ * quietly wrote something else -- which is the product owner's report verbatim: "there is
+ * no 'plane' shape, and when selected a box shows up". The picker now derives from the
+ * element's own vocabulary (`constants/style-options.ts`, pinned against `NodeShapes` by
+ * `constants/__tests__/style-options.test.ts`), so there is nothing left to substitute
+ * and the substitutions are gone. A shape the element cannot build can no longer be
+ * chosen, so it can no longer be silently rewritten.
+ *
+ * `torusKnot` SURVIVES, and only as a READER. It is not offered by the picker any more --
+ * the option's value is the element's own `torus-knot` -- but layers saved by older
+ * builds of the app carry the editor's camel-case spelling in `shape.type`, and an
+ * unmapped value would reach `NodeMesh` as an unknown shape and draw nothing at all.
+ * Anything not listed passes through unchanged.
  */
 const SHAPE_TYPE_MAP: Readonly<Record<string, string>> = {
     torusKnot: "torus-knot",
-    torus: "torus-knot", // torus not supported, fallback to torus-knot
-    disc: "geodesic", // disc not supported, fallback to geodesic
-    plane: "box", // plane not supported, fallback to box
-};
-
-/**
- * The element's shape names that the editor spells differently, mapped back.
- *
- * Only the RENAMES invert. The fallbacks in `SHAPE_TYPE_MAP` are lossy on purpose --
- * "torus", "disc" and "plane" have no element form, so a layer holding "torus-knot",
- * "geodesic" or "box" is read as the element name, which the editor's own option list
- * also offers. Reading it back as the editor's discarded name would claim the element is
- * drawing something it cannot draw.
- */
-const ELEMENT_SHAPE_TO_EDITOR: Readonly<Record<string, string>> = {
-    "torus-knot": "torusKnot",
 };
 
 /**
@@ -236,6 +233,14 @@ export function editorToElementShape(shape: ShapeConfig): ElementShape {
  *
  * A field the element did not set takes the editor's default, so the result is always
  * whole and the controls can read into it without guarding.
+ *
+ * NOT ON THE STYLE INSPECTOR'S READ PATH ANY MORE, and it must not go back on it. Filling
+ * an unset field with the editor's default is exactly right for a control that has no
+ * third state, and exactly wrong for one that does: the panel drew those defaults in
+ * ordinary value ink as though the layer had chosen them, which is how a layer whose node
+ * style is `{}` came to show Icosphere size 1 and #6366F1. Read a channel for a CONTROL
+ * through the narrow readers at the end of this file; this whole-config form is for a
+ * consumer that genuinely needs a complete editor config.
  * @param source - the layer's `style.shape`, as the element holds it.
  * @returns the editor-shaped shape config.
  * @public
@@ -249,8 +254,14 @@ export function elementToEditorShape(source: unknown): ShapeConfig {
 
     const type = readString(branch, "type");
 
+    /* Read STRAIGHT THROUGH. There used to be an `ELEMENT_SHAPE_TO_EDITOR` map here
+       turning the element's `torus-knot` back into the editor's `torusKnot`, because the
+       picker spelled that shape differently. The picker now uses the element's own names,
+       so inverting anything would hand the control a value that is not in its own option
+       list. A legacy `torusKnot` still reaches the element correctly through
+       `SHAPE_TYPE_MAP` on the way out. */
     return {
-        type: type === undefined ? DEFAULT_SHAPE.type : (ELEMENT_SHAPE_TO_EDITOR[type] ?? type),
+        type: type ?? DEFAULT_SHAPE.type,
         size: readNumber(branch, "size") ?? DEFAULT_SHAPE.size,
     };
 }
@@ -381,6 +392,14 @@ function advancedColorToEditor(advanced: Record<string, unknown>): ColorConfig |
  * `color` object left behind by the panel before this bridge existed, or a bare `color`
  * string from the oldest saved layers. The editor-shaped `color` object is read FIRST so
  * that a layer carrying both still opens on the values its author last typed.
+ *
+ * NOT ON THE STYLE INSPECTOR'S READ PATH ANY MORE, and it must not go back on it. Filling
+ * an unset field with the editor's default is exactly right for a control that has no
+ * third state, and exactly wrong for one that does: the panel drew those defaults in
+ * ordinary value ink as though the layer had chosen them, which is how a layer whose node
+ * style is `{}` came to show Icosphere size 1 and #6366F1. Read a channel for a CONTROL
+ * through the narrow readers at the end of this file; this whole-config form is for a
+ * consumer that genuinely needs a complete editor config.
  * @param style - the layer's node style, as the element holds it.
  * @returns the editor-shaped colour config.
  * @public
@@ -641,4 +660,259 @@ export function elementToEditorArrow(source: unknown, fallback: ArrowConfig): Ar
         color: readString(branch, "color") ?? fallback.color,
         opacity: readOpacityAsPercent(readNumber(branch, "opacity"), fallback.opacity),
     };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Narrow readers: what the layer ACTUALLY sets, with nothing invented          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * WHY THIS SECOND SET OF READERS EXISTS, and what was wrong with reading a layer through
+ * the whole-config bridges above.
+ *
+ * Every `elementToEditor*` function returns a COMPLETE editor config, filling anything
+ * the element did not set with the editor's own `DEFAULT_*` value. That is documented as
+ * deliberate ("the result is always whole and the controls can read into it without
+ * guarding") and it is exactly right for a control that has no third state -- which is
+ * what the panel's Mantine `NativeSelect`s and `NumberInput`s were.
+ *
+ * It is wrong for the panel, and the product owner found it. Selecting the shell's own
+ * "Top degree labels" layer -- whose node style is `{}` and which has no edge half at all
+ * -- showed shape Icosphere at size 1, colour #6366F1, and an edge line 8 units wide in
+ * #A9A9A9. Those are `DEFAULT_SHAPE`, `DEFAULT_COLOR` and `DEFAULT_EDGE_LINE` byte for
+ * byte, drawn in ordinary value ink as though the layer had chosen them. A reader could
+ * not tell "this layer paints every node indigo" from "this layer says nothing about
+ * colour", and the two mean opposite things in a stack of layers the element merges with
+ * `defaultsDeep`. The spec records this very defect being fixed for the WRITE path and
+ * left standing on the read path (spec:6908-6914).
+ *
+ * compact-mantine's controls DO have the third state: `value` is `T | undefined` and
+ * `undefined` means "the reader has not chosen anything, so draw `defaultValue`" -- which
+ * they draw in italics in the chrome ink, with no reset affordance. These readers return
+ * that `undefined` faithfully. The panel then hands the ELEMENT's own default as
+ * `defaultValue`, so the italic value the panel shows is the value the canvas is actually
+ * using rather than a second opinion about it.
+ *
+ * Nothing here replaces the whole-config bridges: the WRITE path still goes through them,
+ * because a written branch must be complete for the element's strict schema to parse it.
+ */
+
+/**
+ * A node's shape branch, as the layer actually holds it.
+ * @public
+ */
+export interface NarrowShape {
+    /** The element's shape name, or undefined when the layer sets no shape type. */
+    readonly type?: string | undefined;
+    /** The size multiplier, or undefined when the layer sets none. */
+    readonly size?: number | undefined;
+}
+
+/**
+ * Reads `style.shape` without inventing anything.
+ * @param style - the layer's node style, element-shaped.
+ * @returns the shape the layer sets, with absent fields left absent.
+ * @public
+ */
+export function narrowShape(style: Record<string, unknown>): NarrowShape {
+    const branch = asRecord(style.shape);
+
+    if (branch === undefined) {
+        return {};
+    }
+
+    const type = readString(branch, "type");
+
+    return {
+        /* The legacy camel-case spelling is normalised on the way IN as well as on the
+           way out, so a layer saved by an older build opens on an option the picker
+           actually offers instead of on a blank field. */
+        type: type === undefined ? undefined : (SHAPE_TYPE_MAP[type] ?? type),
+        size: readNumber(branch, "size"),
+    };
+}
+
+/**
+ * A node's colour, as the layer actually holds it.
+ *
+ * `mode` is undefined when the layer sets no colour at all, which is a different fact
+ * from "the layer sets a solid colour": the first lets a lower layer's colour through.
+ * @public
+ */
+export interface NarrowColor {
+    /** Which fill the layer chose, or undefined when it chose none. */
+    readonly mode?: "solid" | "gradient" | "radial" | undefined;
+    /** The solid colour as a hex string, when the mode is solid. */
+    readonly color?: string | undefined;
+    /** The opacity in the editor's 0-100 scale, when the layer sets one. */
+    readonly opacityPercent?: number | undefined;
+    /** The gradient's stop colours, in order, when the mode is a gradient. */
+    readonly colors?: readonly string[] | undefined;
+    /** The linear gradient's direction in degrees, when the layer sets one. */
+    readonly direction?: number | undefined;
+}
+
+/**
+ * Reads a node style's colour -- however it is written -- without inventing anything.
+ *
+ * Reads the whole node style rather than one branch for the same reason
+ * {@link elementToEditorColorConfig} does: the colour has lived in three places over the
+ * app's life, and a layer on disk may hold the element's `texture.color` (a hex string or
+ * an advanced object), an editor-shaped `color` object left behind by an older panel, or
+ * a bare `color` string from the oldest saved layers.
+ * @param style - the layer's node style, element-shaped.
+ * @returns the colour the layer sets, or an empty record when it sets none.
+ * @public
+ */
+export function narrowColor(style: Record<string, unknown>): NarrowColor {
+    const legacy = asRecord(style.color);
+
+    if (legacy !== undefined && typeof legacy.mode === "string") {
+        const mode = legacy.mode === "gradient" || legacy.mode === "radial" ? legacy.mode : "solid";
+        const stops = Array.isArray(legacy.stops) ? legacy.stops : [];
+
+        return {
+            mode,
+            color: readString(legacy, "color"),
+            opacityPercent: readOpacityAsPercent(readNumber(legacy, "opacity"), 100),
+            colors: stops
+                .map((stop) => asRecord(stop))
+                .map((stop) => (stop === undefined ? undefined : readString(stop, "color")))
+                .filter((color): color is string => color !== undefined),
+            direction: readNumber(legacy, "direction"),
+        };
+    }
+
+    const texture = asRecord(style.texture);
+    const advanced = texture === undefined ? undefined : asRecord(texture.color);
+
+    if (advanced !== undefined) {
+        const colorType = readString(advanced, "colorType");
+        const rawColors = advanced.colors;
+        const colors = Array.isArray(rawColors) ? rawColors.filter((entry): entry is string => typeof entry === "string") : [];
+        const opacityPercent = readOpacityAsPercent(readNumber(advanced, "opacity"), 100);
+
+        if (colorType === "solid") {
+            return { mode: "solid", color: readString(advanced, "value"), opacityPercent };
+        }
+
+        if (colorType === "gradient") {
+            return { mode: "gradient", colors, direction: readNumber(advanced, "direction"), opacityPercent };
+        }
+
+        if (colorType === "radial-gradient") {
+            return { mode: "radial", colors, opacityPercent };
+        }
+
+        /* An advanced object with a discriminator this build does not know is NOT read as
+           "no colour": the layer plainly sets one, and drawing the element default in its
+           place would be the defect this whole section exists to close. */
+        return { mode: "solid" };
+    }
+
+    const plain = texture === undefined ? undefined : readString(texture, "color");
+
+    if (plain !== undefined) {
+        return { mode: "solid", color: plain, opacityPercent: 100 };
+    }
+
+    const bare = readString(style, "color");
+
+    if (bare !== undefined) {
+        return { mode: "solid", color: bare, opacityPercent: 100 };
+    }
+
+    return {};
+}
+
+/**
+ * An edge's line branch, as the layer actually holds it.
+ * @public
+ */
+export interface NarrowLine {
+    /** The line type, or undefined when the layer sets none. */
+    readonly type?: string | undefined;
+    /** The line width in the element's own units, or undefined. */
+    readonly width?: number | undefined;
+    /** The line colour as a hex string, or undefined. */
+    readonly color?: string | undefined;
+    /** The opacity in the editor's 0-100 scale, or undefined. */
+    readonly opacityPercent?: number | undefined;
+}
+
+/**
+ * Reads `style.line` without inventing anything.
+ * @param style - the layer's edge style, element-shaped.
+ * @returns the line the layer sets, with absent fields left absent.
+ * @public
+ */
+export function narrowLine(style: Record<string, unknown>): NarrowLine {
+    const branch = asRecord(style.line);
+
+    if (branch === undefined) {
+        return {};
+    }
+
+    const opacity = readNumber(branch, "opacity");
+
+    return {
+        type: readString(branch, "type"),
+        width: readNumber(branch, "width"),
+        color: readString(branch, "color"),
+        opacityPercent: opacity === undefined ? undefined : readOpacityAsPercent(opacity, 100),
+    };
+}
+
+/**
+ * An edge's arrow branch, as the layer actually holds it.
+ * @public
+ */
+export interface NarrowArrow {
+    /** The arrow type, or undefined when the layer sets none. */
+    readonly type?: string | undefined;
+    /** The arrow size, or undefined. */
+    readonly size?: number | undefined;
+    /** The arrow colour as a hex string, or undefined. */
+    readonly color?: string | undefined;
+    /** The opacity in the editor's 0-100 scale, or undefined. */
+    readonly opacityPercent?: number | undefined;
+}
+
+/**
+ * Reads `style.arrowHead` or `style.arrowTail` without inventing anything.
+ * @param style - the layer's edge style, element-shaped.
+ * @param key - which end of the edge to read.
+ * @returns the arrow the layer sets, with absent fields left absent.
+ * @public
+ */
+export function narrowArrow(style: Record<string, unknown>, key: "arrowHead" | "arrowTail"): NarrowArrow {
+    const branch = asRecord(style[key]);
+
+    if (branch === undefined) {
+        return {};
+    }
+
+    const opacity = readNumber(branch, "opacity");
+
+    return {
+        type: readString(branch, "type"),
+        size: readNumber(branch, "size"),
+        color: readString(branch, "color"),
+        opacityPercent: opacity === undefined ? undefined : readOpacityAsPercent(opacity, 100),
+    };
+}
+
+/**
+ * Whether a layer half sets one named branch at all.
+ *
+ * Used for the label and tooltip rows, whose whole state is presence: a layer either
+ * styles a label or it says nothing about labels, and the two are different facts to the
+ * element's `defaultsDeep` merge.
+ * @param style - the layer's node or edge style, element-shaped.
+ * @param key - the branch to look for.
+ * @returns true when the branch is present and is an object.
+ * @public
+ */
+export function hasStyleBranch(style: Record<string, unknown>, key: string): boolean {
+    return asRecord(style[key]) !== undefined;
 }

@@ -121,53 +121,40 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(element theme rules inputs bridge styling labels spec tooling)
+STEPS=(repaint meshes shapes lines theme metrics loaddata results legend panels inspector canvas spec tooling)
 
 declare -A SUBJECTS=(
-    [element]="fix(graphty-element): let a calculated style reach a wrapped schema branch"
-    [theme]="fix(compact-mantine): give the active icon button a state boundary that meets 3:1"
-    [rules]="docs(workspace): require default components and style-layer-only graph styling"
-    [inputs]="fix(graphty): let the Explore search take typing and the palette open focused"
-    [bridge]="fix(graphty): write every style branch in the shape graphty-element interns"
-    [styling]="fix(graphty): carry a style edit to the layer without clobbering the rest"
-    [labels]="feat(graphty): draw the top-degree labels from a calculated style, with a switch"
-    [spec]="docs(graphty): design the interactions the shell kept getting wrong"
-    [tooling]="chore(tools): make --check stop, and ignore Python bytecode caches"
+    [repaint]="fix(graphty-element): make load mean load, so a removed layer stops painting"
+    [meshes]="fix(graphty-element): reattach edges on a shape change and dispose what a dataset leaves"
+    [shapes]="feat(graphty-element): export the shape enum, add the torus it already builds, paint gradients"
+    [lines]="perf(graphty-element): bound the patterned-line mesh count and restore culling"
+    [theme]="feat(compact-mantine): disabled reasons, bound toggles, and one colour change per gesture"
+    [metrics]="feat(graphty): rank nodes by degree, PageRank and betweenness, and read the result back"
+    [loaddata]="fix(graphty): surface a load that failed instead of reporting success"
+    [results]="feat(graphty): give the Analyze Results tab a body"
+    [legend]="fix(graphty): stop offering a legend that cannot draw"
+    [panels]="feat(graphty): one sidebar switch, no latch, no autohide, no narrow layout"
+    [inspector]="feat(graphty): rebuild the style inspector and show computed channels"
+    [canvas]="fix(graphty): inset the canvas overlays so the data table and legend are visible"
+    [spec]="docs(workspace): record the panel model that replaced the latch"
+    [tooling]="chore(tools): re-point the commit script at this change set"
 )
 
 declare -A PATHS=(
-    [element]="graphty-element/src/ChangeManager.ts
-               graphty-element/test/change-manager.test.ts"
-    [theme]="compact-mantine/src/theme/components/buttons.ts
-             compact-mantine/src/theme/styles/buttons.ts
-             compact-mantine/tests/theme/buttons.test.ts
-             compact-mantine/tests/theme/buttons-integration.test.tsx"
-    [rules]="CLAUDE.md"
-    [inputs]="graphty/src/components/shell/panel/ExplorePanel.tsx
-              graphty/src/components/shell/panel/__tests__/ExplorePanel.test.tsx
-              graphty/src/components/shell/CommandPalette.tsx
-              graphty/src/components/shell/__tests__/CommandPalette.test.tsx"
-    [bridge]="graphty/src/utils/styleBridge.ts
-              graphty/src/utils/__tests__/styleBridge.test.ts
-              graphty/src/utils/richTextStyleBridge.ts
-              graphty/src/utils/__tests__/richTextStyleBridge.test.ts
-              graphty/src/types/style-layer.ts
-              graphty/src/components/Graphty.tsx
-              graphty/src/components/__tests__/Graphty.test.tsx"
-    [styling]="graphty/src/components/sidebar/panels/StyleLayerPropertiesPanel.tsx
-               graphty/src/components/sidebar/panels/__tests__/StyleLayerPropertiesPanel.test.tsx
-               graphty/src/components/shell/panel/PanelHeader.tsx
-               graphty/src/components/shell/panel/__tests__/PanelHeader.test.tsx
-               graphty/src/components/shell/inspector/InspectorHeader.tsx
-               graphty/src/components/shell/inspector/__tests__/InspectorHeader.test.tsx"
-    [labels]="graphty/src/components/shell/defaults
-              graphty/src/components/shell/panel/SettingsOverlay.tsx
-              graphty/src/components/shell/panel/__tests__/SettingsOverlay.test.tsx
-              graphty/src/components/shell/AppShell.tsx
-              graphty/src/components/shell/__tests__/AppShell.test.tsx"
-    [spec]="design/ui/app-shell-progressive-disclosure-design.md
-            design/ui/mockups/system/REGISTER-1.5.md"
-    [tooling]="tools/commit-changes.sh .gitignore"
+    [repaint]="graphty-element/src/ChangeManager.ts graphty-element/src/Styles.ts graphty-element/test/change-manager.test.ts graphty-element/test/calculated-style.test.ts graphty-element/test/style-helpers/edge-calculated-styles.test.ts"
+    [meshes]="graphty-element/src/Node.ts graphty-element/src/Edge.ts graphty-element/src/managers/DataManager.ts graphty-element/src/meshes/NodeEffects.ts graphty-element/test/node-shape-edge-reattach.test.ts graphty-element/test/browser/scene-teardown.test.ts"
+    [shapes]="graphty-element/src/config/NodeStyle.ts graphty-element/src/config/index.ts graphty-element/index.ts graphty-element/src/meshes/NodeMesh.ts graphty-element/test/node-mesh-gradient.test.ts graphty-element/test/browser/node-mesh-gradient.test.ts graphty/src/constants/style-options.ts graphty/src/constants/__tests__/style-options.test.ts graphty/src/utils/styleBridge.ts graphty/src/utils/__tests__/styleBridge.test.ts"
+    [lines]="graphty-element/src/meshes/PatternedLineMesh.ts graphty-element/src/meshes/PatternedLineRenderer.ts graphty-element/src/meshes/FilledArrowRenderer.ts graphty-element/src/constants/meshConstants.ts graphty-element/test/patterned-line-mesh-count.test.ts graphty-element/test/meshes/FilledArrowRenderer.test.ts"
+    [theme]="compact-mantine/src compact-mantine/tests"
+    [metrics]="graphty/src/components/shell/insights graphty/src/components/shell/analysis graphty/src/components/shell/readings/nodeMetricReading.ts graphty/src/components/shell/readings/__tests__/nodeMetricReading.test.ts graphty/src/components/shell/defaults/nodeMetricStyle.ts graphty/src/components/shell/defaults/__tests__/nodeMetricStyle.test.ts graphty/src/components/shell/inspector/ResultInspector.tsx graphty/src/components/shell/inspector/__tests__/ResultInspector.test.tsx"
+    [loaddata]="graphty/src/components/LoadDataModal.tsx graphty/src/components/__tests__/LoadDataModal.test.tsx"
+    [results]="graphty/src/components/shell/panel/AnalyzePanel.tsx graphty/src/components/shell/panel/AnalyzeResultCard.tsx graphty/src/components/shell/panel/__tests__/AnalyzePanel.test.tsx graphty/src/components/shell/readings"
+    [legend]="graphty/src/components/shell/canvas/legendAvailability.ts graphty/src/components/shell/canvas/__tests__/legendAvailability.test.ts graphty/src/components/shell/toolbar graphty/src/components/shell/panel/StylePanel.tsx graphty/src/components/shell/panel/__tests__/StylePanel.test.tsx"
+    [panels]="graphty/src/components/shell/AppShell.tsx graphty/src/components/shell/__tests__/ShellContext.test.tsx graphty/src/components/shell/ShellContext.tsx graphty/src/components/shell/types.ts graphty/src/components/shell/constants.ts graphty/src/components/shell/bindings.ts graphty/src/components/shell/useShellKeyBindings.ts graphty/src/components/shell/graphCommands.ts graphty/src/components/shell/CommandPalette.tsx graphty/src/components/shell/topbar graphty/src/components/shell/rail graphty/src/components/shell/statusbar graphty/src/components/shell/panel graphty/src/components/shell/__tests__ graphty/src/components/shell/defaults graphty/src/App.tsx graphty/src/App.test.tsx"
+    [inspector]="graphty/src/components/sidebar graphty/src/components/layout graphty/src/hooks graphty/src/components/__tests__ graphty/src/components/shell/inspector"
+    [canvas]="graphty/src/components/shell/canvas"
+    [spec]="design/ui"
+    [tooling]="tools/commit-changes.sh design/graph-format"
 )
 
 # ---------------------------------------------------------------------------
@@ -176,222 +163,218 @@ declare -A PATHS=(
 # that is commitlint's body-max-line-length, and it is checked before staging.
 # ---------------------------------------------------------------------------
 
-body_element() {
-    cat <<'MSGEOF'
-A calculatedStyle whose output path pointed into a wrapped branch of the node schema threw
-rather than resolving. `NodeStyle.label` is a `ZodOptional<ZodPrefault<...>>` and the path
-walker stopped at the wrapper instead of descending its inner type, so `style.label.enabled`
--- a path the schema really has -- was rejected as though it did not exist.
+body_repaint() {
+    cat <<'BODY'
+loadCalculatedValues cleared watchedInputs and not calculatedValues, so the set
+only ever grew. A layer removed from the StyleManager kept its calculated value
+registered, runAllCalculatedValues re-ran it on every repaint, and Node.update
+merges styleUpdates OVER the base style -- so a deleted layer's colour beat the
+layer that replaced it, for the life of the loaded graph.
 
-The walker unwraps the wrappers it used to stop at. General, not special-cased to `label`:
-every other wrapped branch had the same defect and nobody had reached one yet.
+Running Groups after Most connected was the visible case: the layer list, the
+reading and the legend all switched to groups while every node pixel stayed the
+degree ramp's viridis. Measured against the built app, 10 of 10 sampled node
+pixels were byte-identical across the two runs; 187 of 187 now change.
 
-What is allowed as an output path is unchanged. A path the schema does not have is still
-rejected, and there is a board for that beside the one that covers the wrapped branch.
+Styles pushes calculated values in layer order rather than unshifting, so the
+last to run is the top layer -- the precedence the static merge already had.
+BODY
+}
 
-This is what let the shell stop drawing its labels from a hardcoded list of five node ids.
-MSGEOF
+body_meshes() {
+    cat <<'BODY'
+Edge.update kept a position dirty check and returned before re-shooting its ray,
+so an edge only reattached when an endpoint MOVED. A shape change at constant
+size moved nothing, and the edge stayed anchored to geometry that was gone.
+
+This was a regression, not a gap: 973f1d96 (2025-11-11) added the check, and
+before it update() called transformArrowCap unconditionally every frame. The one
+invalidation hook that existed, a2cb98c5, keys off size, because it was written
+for selection.
+
+Glow was never drawn: inclusion has to name the instance's SOURCE mesh, because
+Babylon's effect layer asks hasMesh(subMesh.getRenderingMesh()). The layer is
+created with excludeByDefault, since an empty inclusion list means every mesh.
+
+Arrowheads, patterned-line segments and labels are parented to graph-root, which
+outlives a dataset, so a replacing load left orphans where old edges converged.
+BODY
+}
+
+body_shapes() {
+    cat <<'BODY'
+The editor offered Plane and Disc, which the element cannot build, and hid
+twelve shapes it can. Selecting Plane silently drew a box.
+
+Plane and Disc are removed rather than implemented: CreatePlane makes a
+zero-thickness single-sided quad, so half the graph would face away and vanish,
+it disappears edge-on, and edge attachment is ray-vs-bounding-sphere, so every
+edge touching one would detach.
+
+Torus is added to the enum instead of removed from the editor, because NodeMesh
+already registers a working CreateTorus and only the zod enum omitted it.
+
+The editor's option list is DERIVED from the element's exported enum, with a
+round-trip assertion, so the next drift is a build failure rather than a control
+that lies about what it will draw.
+BODY
+}
+
+body_lines() {
+    cat <<'BODY'
+A dotted line built one mesh per dash with no cap, so the segment count scaled
+with edge length over dash pitch: narrowing the width to 1 shrank the pitch and
+the mesh count went UP. Each dash also took its own ShaderMaterial, and culling
+was switched off wholesale with alwaysSelectAsActiveMesh.
+
+The count is bounded, materials are released with the meshes that own them, and
+culling stays on -- the arrowhead path sizes its bounding volume to what the
+shader actually draws instead of opting out of the frustum test.
+BODY
 }
 
 body_theme() {
-    cat <<'MSGEOF'
-Mantine's `light` variant is what an icon button wears when it is active, and its tint
-measured 1.21:1 against the panel header ground. WCAG 1.4.11 asks 3:1 for the boundary of a
-non-text control state, so a toggle in this app announced itself with a difference a reader
-could miss entirely.
+    cat <<'BODY'
+The style inspector needs three things no compact control could express: a
+disabled control that states its reason, a control bound to a computed value
+that says so rather than showing an editable default, and a colour change that
+arrives as one gesture instead of a stream of partial values.
 
-The app shell had worked around it with a local ring drawn in the panel header and imported
-by the inspector. That was the wrong answer -- it left one control behaving unlike every
-other toggle in the application -- and it is deleted in the same change that lands this one.
-The fix belongs here, once, where every caller inherits it.
-
-Measured in both colour schemes on the real header ground rather than against a nominal
-background, because the tint composites over whatever is behind it.
-MSGEOF
+They land in the library rather than at the call site, so every caller gets them
+and the app can delete its forked colour input.
+BODY
 }
 
-body_rules() {
-    cat <<'MSGEOF'
-Two rules, both written from an episode in this repository rather than from principle.
+body_metrics() {
+    cat <<'BODY'
+Three capabilities the Analyze panel drew but could not run: Most connected
+(degree), Influence (PageRank) and Bridges (betweenness). Each now runs, ranks
+every node, writes a plain-language reading and a one-line run record, and
+applies a viridis colour layer once on first completion.
 
-Use the default components; never write a bespoke control to work around one; fix the shared
-component so every caller gets the fix. The lock button is the worked example and it is
-named in the file.
+The ranking carries the element's own node id rather than a printed copy.
+Karate Club and College football are GML, whose ids are numbers, so comparing a
+printed id against a real one selected nothing at all on two of three samples.
 
-Graph styling goes through a style layer and never anywhere else. This one is about the
-canvas: node and edge appearance reaches graphty-element as layers through the StyleManager,
-never by mutating a mesh, a material or a node object. The failure mode is stated, because
-the rule is easy to break by accident and the damage is invisible until later -- styling
-applied outside the layer system does not appear in the layer list, cannot be reordered,
-removed or persisted, and is silently lost at a dataset boundary.
-MSGEOF
+Betweenness ships exact-only behind a size gate: the algorithms package exposes
+no k-source parameter, so a sampled caveat would claim a sample never taken.
+BODY
 }
 
-body_inputs() {
-    cat <<'MSGEOF'
-Two reports, one shape between them: a control that looks ready and is not.
+body_loaddata() {
+    cat <<'BODY'
+handleLoad ended its promise chain in console.error, so a malformed file, a 404
+or unparsable pasted text produced nothing visible on any route.
 
-The Explore search field could not be typed in. It was a controlled input -- `value={query}`
-with `query` defaulted to the empty string and its handler optional -- and the shell rendered
-the panel without passing either, so the value was pinned and every keystroke was discarded.
-The query and the scope now have state, held where the panel's other remembered values are
-held rather than inside the panel: the body is rebuilt per activity, so state kept inside it
-would not survive a switch to Style and back. The panel also keeps its own fallback, so an
-unclaimed field can no longer silently eat input.
+Fixing the catch alone would not have been enough: graphty-element reports a
+parse failure out of band through data-loading-error and does not reject, so the
+promise had already resolved and the dialog had already closed and cleared the
+reader's input. The shell now waits for the element's own report before
+settling.
 
-The command palette opened unfocused, so it had to be clicked before it would take a
-keystroke. React's `autoFocus` does not survive Mantine's focus trap, which queries
-`[data-autofocus]` in a timeout that runs after React has done its part -- the close button
-was taking focus back one macrotask after open. The attribute is the mechanism, and no timer
-of ours is involved.
-
-The rest of the shell was swept for both shapes. One more controlled-value site is reported
-and not fixed here: PresentPanel is rendered with no props at all.
-MSGEOF
+The failure names the file, keeps the dialog open with its input, and clears the
+element -- without which the retry the message invites loaded nothing and then
+reported success.
+BODY
 }
 
-body_bridge() {
-    cat <<'MSGEOF'
-graphty-element interns a style by DEEP VALUE EQUALITY and keys its mesh cache on the id
-that interning hands back. `Styles.styleToId` scans every style it has ever seen and reuses
-an id only for a style that is `isEqual` to one already there; `NodeMesh` then builds its
-cache key as `node-style-${id}-3d`. So two nodes share a mesh only when their merged styles
-are deep equal, and a style written in a shape the element does not declare is never equal
-to the canonical one that looks the same.
+body_results() {
+    cat <<'BODY'
+The Results tab was a real tab with a real count that switched real state, and
+the panel body never branched on it -- so selecting Results kept rendering the
+Run tab's Suggested list, and a completed analysis became unreachable the moment
+anything else was selected.
 
-The inspector was writing the EDITOR's shapes straight into layers. `color: {mode, color,
-opacity}` where NodeStyle has no `color` key at all and the colour lives at `texture.color`.
-`effects` where the element's key is `effect`, singular, and enables glow and outline by
-PRESENCE rather than by a flag. The editor's shape names -- torusKnot, disc, plane -- where
-the element wants torus-knot, geodesic, box. Edge opacity as 0-100 where the element wants
-0-1. Each of those makes a look that already exists intern as a second style and build a
-second mesh.
-
-Measured before the change, on a 115-node graph with exactly two distinct looks: three
-colour edits took the interned styles 2 -> 4 -> 6 -> 8 and the cached meshes 3 -> 5 -> 7 -> 9,
-leaving six dead styles and six dead meshes. In isolation the leak is exact -- a style and
-the same style plus the editor's `color` key intern as two ids for one picture. And the scan
-is linear in the map, about 0.95 ms per interned style per 115-node repaint, so at a
-thousand styles a repaint costs the better part of a second.
-
-What this does NOT fix, and the measurement is the reason to say so plainly: the growth is
-not caused by the leak. A perfectly canonical colour edit grows both counters the same way,
-because neither the intern map nor the mesh cache ever evicts. This removes a multiplier and
-stops a control lying about its shape; bounding the growth needs eviction inside
-graphty-element, which is not this change.
-
-The conversions were not rewritten while being moved. A different canonical shape is still a
-different style id, so the mappings are the ones Graphty.tsx already had, lifted into
-`utils/styleBridge.ts` beside the rich-text pair and used from both sides. The private
-`_convert*` family it duplicated is deleted, after proving it dead rather than assuming it.
-
-Two decisions went the other way from the interning argument, on purpose. An arrow set to
-"none" is WRITTEN rather than omitted: an absent branch and `{type: "none"}` look identical
-on a lone layer, but the element merges matching layers with `defaultsDeep`, so an absent
-arrow lets a LOWER layer's arrow through and a reader who picks "none" keeps seeing arrows.
-And an enabled label with no text yet is kept: requiring text made the Enabled checkbox
-unusable -- ticking it wrote undefined, the branch was dropped, and the box sprang back off --
-and the element draws a label from `textPath` as readily as from `text`.
-MSGEOF
+It now draws the result as a card collapsed to title, headline and primary
+action while the same result is open in the inspector, which is the
+one-body-on-screen rule the result shapes already ask for.
+BODY
 }
 
-body_styling() {
-    cat <<'MSGEOF'
-Changing a colour in the style inspector changed nothing, and fixing that exposed two more
-faults behind it.
+body_legend() {
+    cat <<'BODY'
+The Legend control reported a state the legend was not in: it could be checked
+while nothing was encoded, and a legend with no encoded channel draws nothing,
+so the reader ticked a box and nothing appeared.
 
-The layer-list channel carried a rename and dropped everything else: the same-ids-same-order
-branch read the live layer back, spread it, and overrode only the name, so a style edit was
-spread away. It now asks what actually changed -- name, node half, edge half -- and writes
-only that.
-
-Every write then repaints. `updateLayerByIndex` and `reorderLayers` re-evaluate selectors
-through the element's own style-changed handler, which runs WITHOUT algorithmResults and
-never runs calculated values, so any edit to the list -- a bare rename included -- silently
-deleted every algorithmResults-driven encoding from the canvas and the labels never came
-back.
-
-And the inspector's twelve write handlers restated the whole style from the editor's models
-instead of patching the branch each one owns. That mattered most for the rich-text branches,
-because two different shapes share the name `RichTextStyle`: graphty-element's is flat with
-about 47 keys, the editor's is nested with six, and the element's schema is a strict object,
-so one foreign key makes the whole label fail to parse and rebuild as a blank texture.
-Editing a colour wrote the editor's label over the element's. Each handler now patches its
-own branch and leaves the others exactly as the element had them, and the two rich-text
-branches are written in element shape through the bridge -- whose editor-to-element half
-this adds, as the exact inverse of the half already there, with the round trip checking the
-two against each other.
-
-The shell's local contrast ring goes with this, now that compact-mantine's own active state
-meets 3:1. The inspector stops importing a helper from the panel, and `Pin as A` takes the
-same treatment as the latch it sits beside.
-MSGEOF
+The control is disabled with its reason when there is nothing to draw, rather
+than the legend rendering an empty box.
+BODY
 }
 
-body_labels() {
-    cat <<'MSGEOF'
-The top-degree labels were drawn by naming five node ids in a selector. That is a list, not
-a rule: it had to be rebuilt on every load and could not survive a change of data.
+body_panels() {
+    cat <<'BODY'
+Five mechanisms decided whether a sidebar was on screen: a per-surface latch, a
+per-surface close control, a rail click that closed the active panel, a
+width-aware first-visit default, and a narrow layout in which only one overlay
+could be open and a canvas tap dismissed it.
 
-They are drawn by a calculated node style now, which reads each node's degree and decides --
-possible only because graphty-element stopped rejecting a calculated output into a wrapped
-schema branch, which is the commit before this one.
+All five are gone. There is one persisted boolean and one control that hides and
+shows both sidebars together. Nothing else opens or closes them.
 
-The layer says WHETHER a label is drawn and nothing about how it looks. It names no colour:
-the element's own #000000 default measures 19.26:1 against its #F5F5F5 canvas, and the panel
-ink the layer used to set measured about 1.1:1 -- the glyph fill vanished and what stayed
-legible was the alpha fringing around it, which is why the labels looked like grey text with
-a dark outline when no outline was ever enabled.
+Below 1280 the shell no longer lays out -- it says the screen is too small and
+names the width it needs. The old narrow layout put 109px of the Welcome sheet
+under each overlay at 1024, leaving the heading reading "aph to get started".
 
-Settings > Performance carries a switch that turns the feature off, and it persists the way
-the shell's other settings do.
+The too-small state is drawn as an overlay OVER the still-mounted shell rather
+than instead of it. Returning early unmounted graphty-element, and widening back
+past 1280 remounted a fresh scene with no data while the shell still believed a
+graph was loaded: measured against the built app, a resize to 1100 and back left
+the canvas empty under a status bar still reading 20 nodes 29 edges.
 
-One case the rule could not serve: a near-regular graph, where the degrees are too alike for
-a top-N cut to mean anything. The College football sample is one, and it drew no labels at
-all while the switch still read ON. That is handled rather than left to be discovered.
-MSGEOF
+Also here: the node inspector reported 0 neighbours for a node the result card
+said had 17 links, because it read an edge endpoint spelling getData never
+writes.
+BODY
+}
+
+body_inspector() {
+    cat <<'BODY'
+The style inspector was the old left-sidebar panel re-homed whole. It drew its
+own local controls, so it was the one inspector surface with no left margin, and
+it read only the static style -- so a layer whose whole encoding is a calculated
+value showed the element's defaults as though the layer had set them. "Top
+degree labels", whose only job is drawing labels, showed Label as disabled.
+
+It is rebuilt on the shared controls, and a computed channel is drawn in its own
+row: what it encodes, what it reads, the expression behind a disclosure, and one
+explicit verb to convert it to a fixed value. The control it would otherwise
+contradict is disabled with that reason, because a calculated value is applied
+after the static style and merged over it -- an editable control there would
+silently lose the reader's edit on the next repaint.
+BODY
+}
+
+body_canvas() {
+    cat <<'BODY'
+The data table, the legend, the minimap and the time slider positioned against
+the canvas element's rect, which spans the full width under the sidebars, so all
+four were drawn partly or wholly behind them.
+
+They now inset against the live canvas strip. Insetting rather than raising the
+z-order, because the drawer is specified never to cover the panel or the
+inspector -- raising it would trade one contradiction for another.
+BODY
 }
 
 body_spec() {
-    cat <<'MSGEOF'
-The spec was strong on what each surface CONTAINS and quiet on how surfaces BEHAVE together,
-and that asymmetry is where this shell kept failing. The classes are not hypothetical; each
-one below is a defect that reached the product owner, several more than once.
+    cat <<'BODY'
+Section 6.12's latch is deleted, with the dismissal guarantee's latch clauses,
+the memory rule's two latch entries, the narrow-screen section, and the rail
+click that closed the active panel. What replaces them is one switch and one
+remembered boolean.
 
-Stacking: which surface is above which, for every pair that can be open at once. Named, not
-left to whoever picks a z-index next.
-
-Surface lifecycle, beyond the latch: what opens a surface, what may close it, what may never
-close it, and what a reader is always guaranteed to be able to dismiss. A first visit could
-put two latched overlays over the canvas with no gesture that dismissed either, and no rule
-forbade it.
-
-Control state: every control that has state must show it, with the contrast floor written
-down -- a state shown only by a 1.21:1 tint shipped twice.
-
-Reachability, beyond "every capability has a home": a capability that is BUILT must be
-reachable, by pointer and by key. A whole inspector surface was drawn and routed and never
-constructible from application state, so it was dead and nothing said so.
-
-Text entry: which field takes focus when a surface opens, what Escape does while typing, and
-that a field which accepts input must be wired to state that changes when it does.
-
-Every rule states the failure it prevents, as this document does elsewhere. The amendments
-were written, attacked by a reviewer, and rewritten: a rule nobody could turn into a test
-was either made checkable or removed, and the gaps that needed a decision rather than a rule
-went to section 12 as open questions instead of being answered by invention.
-MSGEOF
+Below 1280 is stated as unsupported rather than specified as a second layout.
+The acceptance scenario that tested the width-aware default is rewritten for the
+model that shipped.
+BODY
 }
 
 body_tooling() {
-    cat <<'MSGEOF'
-`--check` was a flag that lied. It parsed, set a variable, and nothing in the script ever
-read it -- so a run asking only to validate the messages fell through into the commit loop
-and committed. It validates and exits now.
-
-Also: tools/uat-contrast.py leaves a __pycache__ directory beside itself the first time it
-runs, which was showing up as untracked noise in every status.
-MSGEOF
+    cat <<'BODY'
+The step list, the subjects and the paths describe this change set rather than
+the one before it. The machinery is unchanged.
+BODY
 }
 
 # ---------------------------------------------------------------------------

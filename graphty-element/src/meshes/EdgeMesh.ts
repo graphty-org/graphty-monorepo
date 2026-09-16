@@ -302,6 +302,7 @@ void main() {
                 style.line?.opacity ?? 1.0,
                 scene,
                 this.is2DMode(scene), // Pass 2D mode detection flag
+                style.line?.patternCount, // undefined means follow the spacing rule
             );
         }
 

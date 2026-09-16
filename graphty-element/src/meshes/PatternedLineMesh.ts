@@ -22,7 +22,6 @@
 
 import { Mesh, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
 
-import { PATTERN_CONSTANTS } from "../constants/meshConstants";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import {
     PATTERN_DEFINITIONS,
@@ -53,18 +52,20 @@ import {
  * the definition as an underscore-prefixed unused parameter. Honouring `spacing.min` here is
  * what makes the count stop growing as the width shrinks.
  * @param meshWidth - Rendered length of one pattern element ALONG the line, in world units
- * @param patternDef - Pattern definition supplying the world-space spacing floor
  * @returns Centre-to-centre period in world units, never less than `meshWidth`
  * @public
  */
-export function patternElementPeriod(meshWidth: number, patternDef: PatternDefinition): number {
-    // Two competing floors, whichever is larger wins:
-    //  - a PROPORTIONAL floor (half an element of clear space) so fat dots never touch;
-    //  - an ABSOLUTE floor (the pattern's own spacing.min) so thin dots never swarm.
-    // The proportional floor governs at the element's default width; the absolute floor
-    // takes over as the width shrinks, and that is the half that bounds the cost.
-    return meshWidth + Math.max(meshWidth * 0.5, patternDef.spacing.min);
+export function patternElementPeriod(meshWidth: number): number {
+    // Half an element of clear space between elements. This is the historical rule and it is
+    // what makes the default rendering match the original stories.
+    //
+    // It deliberately carries NO absolute floor. An earlier version took the larger of this and
+    // `PATTERN_DEFINITIONS[*].spacing.min`, which stopped the count growing as the line width
+    // shrank -- but it did so by changing the spacing the caller asked for. Density is now a
+    // caller decision (`line.patternCount`), not something the renderer overrides.
+    return meshWidth + meshWidth * 0.5;
 }
+
 
 /**
  * Number of meshes a discrete pattern needs to cover a line of the given length.
@@ -73,21 +74,21 @@ export function patternElementPeriod(meshWidth: number, patternDef: PatternDefin
  * the line, the last element's right edge sits exactly on the end of it, and any interior
  * elements are distributed evenly in between. So the answer is always at least 2.
  *
- * WHY THE CEILING EXISTS -- the defect it prevents:
- * Without a ceiling this count is proportional to the line length, and the product owner
- * reported the consequence directly: "I changed line style to dot and width to 1 and
- * everything crawled to a halt." Every mesh here is a real Babylon `Mesh` with its own
- * `ShaderMaterial`, its own draw call and two uniform writes per frame. Clamping to
- * {@link PATTERN_CONSTANTS.MAX_MESHES_PER_EDGE} is a deliberate visual trade -- dots go
- * sparser on long edges -- bought in exchange for the app staying interactive. See the
- * measured numbers on PATTERN_CONSTANTS in constants/meshConstants.ts.
+ * The count is unbounded by design: it follows the spacing rule, so a longer edge gets more
+ * elements. A caller that needs a ceiling sets `line.patternCount`, which overrides the rule.
  * @param lineLength - Length of the line in world units, ALREADY trimmed for the node surface and the arrowhead by Edge.transformArrowCap
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
- * @param patternDef - Pattern definition supplying the world-space spacing floor
- * @returns Mesh count, at least 2 and never more than PATTERN_CONSTANTS.MAX_MESHES_PER_EDGE
+ * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+ * @returns Mesh count, at least 2
  * @public
  */
-export function discreteMeshCount(lineLength: number, meshWidth: number, patternDef: PatternDefinition): number {
+export function discreteMeshCount(lineLength: number, meshWidth: number, patternCount?: number): number {
+    // An explicit count is the caller's decision and overrides the spacing rule entirely, so the
+    // elements are spread evenly over the edge whatever its length or the line's width.
+    if (patternCount !== undefined) {
+        return Math.max(2, Math.floor(patternCount));
+    }
+
     // Space available between the first element's right edge and the last element's left
     // edge. lineLength is already adjusted for the node surface and the arrow, so nothing
     // is subtracted for those a second time.
@@ -98,17 +99,16 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
         return 2;
     }
 
-    const period = patternElementPeriod(meshWidth, patternDef);
+    const period = patternElementPeriod(meshWidth);
     const minSpacing = period - meshWidth;
 
     // K interior elements open K + 1 gaps, so K * meshWidth + (K + 1) * minSpacing must fit
     // inside dynamicLength. Solving for K gives the line below.
     const numInterior = Math.floor((dynamicLength - minSpacing) / period);
 
-    const totalMeshes = 2 + Math.max(0, numInterior);
-
-    return Math.min(totalMeshes, PATTERN_CONSTANTS.MAX_MESHES_PER_EDGE);
+    return 2 + Math.max(0, numInterior);
 }
+
 
 /**
  * Distances along the line, measured from its start, at which each discrete pattern
@@ -180,6 +180,8 @@ export class PatternedLineMesh {
     private color: string;
     private opacity: number;
     private is2DMode: boolean;
+    /** Explicit element count from `line.patternCount`; undefined means follow the spacing rule. */
+    private patternCount: number | undefined;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
     // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
@@ -207,6 +209,7 @@ export class PatternedLineMesh {
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
      * @param is2DMode - Whether to use 2D mode rendering
+     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
      */
     constructor(
         pattern: PatternType,
@@ -217,6 +220,7 @@ export class PatternedLineMesh {
         opacity: number,
         scene: Scene,
         is2DMode = false,
+        patternCount?: number,
     ) {
         this.pattern = pattern;
         this.scene = scene;
@@ -224,6 +228,7 @@ export class PatternedLineMesh {
         this.color = color;
         this.opacity = opacity;
         this.is2DMode = is2DMode;
+        this.patternCount = patternCount;
 
         this.createInitialMeshes(start, end);
     }
@@ -567,15 +572,19 @@ export class PatternedLineMesh {
      */
     private calculateOptimalMeshCount(lineLength: number, patternDef: PatternDefinition): number {
         if (patternDef.connected) {
-            // For connected patterns, use fixed 0.75 segment length
-            // Last segment will be scaled to fit remainder (see clipLastSegment)
+            // A connected pattern (zigzag, sinewave) tiles seamlessly, so its count follows the
+            // fixed segment length; the last segment is scaled to fit the remainder (clipLastSegment).
+            // An explicit count still wins, so `line.patternCount` controls every pattern type.
+            if (this.patternCount !== undefined) {
+                return Math.max(1, Math.floor(this.patternCount));
+            }
             const segments = Math.ceil(lineLength / PatternedLineMesh.SEGMENT_LENGTH);
-            return Math.min(Math.max(1, segments), PATTERN_CONSTANTS.MAX_MESHES_PER_EDGE);
+            return Math.max(1, segments);
         }
 
         // lineLength is ALREADY adjusted for node surface and arrow
         // (done by Edge.transformArrowCap()), so nothing is subtracted for those here.
-        return discreteMeshCount(lineLength, this.getRenderedMeshSize(), patternDef);
+        return discreteMeshCount(lineLength, this.getRenderedMeshSize(), this.patternCount);
     }
 
     /**

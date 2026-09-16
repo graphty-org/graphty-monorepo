@@ -167,6 +167,7 @@ export class PatternedLineRenderer {
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
      * @param is2DMode - Optional flag to apply 2D materials instead of 3D shader (default false)
+     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
      * @returns A PatternedLineMesh instance
      */
     static create(
@@ -178,6 +179,7 @@ export class PatternedLineRenderer {
         opacity: number,
         scene: Scene,
         is2DMode?: boolean,
+        patternCount?: number,
     ): PatternedLineMesh {
         // Register camera callback for batched shader updates
         this.registerCameraCallback(scene);
@@ -186,10 +188,10 @@ export class PatternedLineRenderer {
         // This is more efficient than creating one large mesh
         const patternDef = PATTERN_DEFINITIONS[pattern];
         if (patternDef.connected) {
-            return this.createContinuousMesh(pattern, start, end, width, color, opacity, scene, is2DMode);
+            return this.createContinuousMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
         }
 
-        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode);
+        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
     }
 
     /**
@@ -204,6 +206,7 @@ export class PatternedLineRenderer {
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
      * @param is2DMode - Whether to use 2D mode rendering
+     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
      * @returns A PatternedLineMesh instance
      */
     static createContinuousMesh(
@@ -215,10 +218,11 @@ export class PatternedLineRenderer {
         opacity: number,
         scene: Scene,
         is2DMode?: boolean,
+        patternCount?: number,
     ): PatternedLineMesh {
         // Use PatternedLineMesh approach (multiple small meshes) with zero spacing
         // This is more efficient than creating one large mesh with many vertices
-        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode);
+        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
     }
 
     /**

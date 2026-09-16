@@ -48,6 +48,21 @@ const LineStyle = z.strictObject({
     type: LineType.optional(),
     animationSpeed: z.number().min(0).optional(),
     width: z.number().positive().optional(),
+    /**
+     * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
+     *
+     * Unset means "as many as the spacing rule asks for", which is the historical behaviour:
+     * the elements sit one and a half element-widths apart, so a longer edge gets more of
+     * them and a THINNER line gets more of them too. Each element is a real mesh with its
+     * own draw call, so on a large graph at a small line width that count can reach tens of
+     * thousands and the frame rate collapses. Set this to cap it: the elements are then
+     * spread evenly over the edge whatever its length or width.
+     *
+     * This is a USER choice, deliberately. The renderer does not silently impose a ceiling,
+     * because that would change how a graph looks to buy performance the caller never asked
+     * for -- the same reason an algorithm's style layer never mutes another layer.
+     */
+    patternCount: z.number().int().min(2).optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     bezier: z.boolean().optional(),

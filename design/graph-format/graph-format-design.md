@@ -1605,7 +1605,7 @@ not convey:
 | `prepare: ["symmetric"]` (directed) | reverse plus one merge pass | +20-30 ms |
 | `checksum: true` | FNV-1a over core arrays and immutable columns | +5-10 ms (tests and debug builds) |
 | string ids, long-lived builder | Map shared by reference | 0 at freeze (C17) |
-| compaction after removals | one gather pass over staging and columns | +10-15 ms |
+| compaction after removals | one gather pass over staging and columns | +32 ms measured (the estimate was +10-15; see 15.6) |
 | K typed edge columns | gather per column (identity: one `slice`) | +2-4 ms each |
 | `arena: false` | per-array allocation | 0 (needed only above the per-allocation ceiling, section 15.3) |
 
@@ -4372,7 +4372,7 @@ from it and must be confirmed by `benchmarks/freeze.bench.ts` before 1.0.
 | --- | --- | --- | --- |
 | builder: id interning, 100k string ids | 15-25 ms | same | `Map.set` per node; paid in `addNode`, not at freeze |
 | builder: `addEdge` x 1M | 25-40 ms | same | two `Map.get`, five typed writes per edge |
-| compaction (only after removals) | 10-15 ms | 10-15 ms | one gather pass |
+| compaction (only after removals) | 32 ms measured (was 10-15) | 32 ms measured (was 10-15) | one gather pass; corrected 2026-09-16, see 15.6 |
 | arc materialisation (step 3) | 0 | 5 ms | sequential writes |
 | identity check (step 4) | < 1 ms | -- | |
 | pass 1 counting sort by target | 8 ms | 15 ms | random scatter, cache-miss bound |
@@ -4444,6 +4444,54 @@ the default suite includes one 1M-edge `fromEdgeArrays` + `reverse` +
 `toBytes` smoke test under a 2 s ceiling; the full benchmark runs on the
 pre-push hook when `BENCH=1` and results are committed alongside changes
 that touch `freeze.ts`.
+
+### 15.6 Measured corrections to 15.4 (2026-09-16, F1 landing)
+
+The 15.4 table said every row but the 20 ms CSR build was "a target
+extrapolated from it and must be confirmed by `benchmarks/freeze.bench.ts`
+before 1.0". This is the first such confirmation. It corrects one row; the
+rest of 15.4 stands or is better than budgeted.
+
+Measured on the F1 landing tree (`graph-format` in graphty-monorepo, Node
+22.22.1, i9-14900KF, single thread) with `freezeWithReport({ profile:
+true })`, 100k nodes / 1M directed edges, median of 5, the removal case
+tombstoning 99,930 of 1,000,000 edges before the freeze:
+
+| Phase | No removals | After 10 percent removed |
+| --- | --- | --- |
+| `compact` | 0.02 ms | 31.78 ms |
+| `sort` | 20.57 ms | 17.77 ms |
+| `weights` | 0.01 ms | 0.01 ms |
+| `ids` | 0.29 ms | 0.29 ms |
+| `columns` | 0.03 ms | 0.02 ms |
+| `snapshot` | 0.05 ms | 0.05 ms |
+| total | 21.04 ms | 52.50 ms |
+
+The correction: **compaction after removals costs about 32 ms, not the
+10-15 ms of 15.4 and 6.7.** The design's estimate was wrong, not the code.
+The estimate assumed "one gather pass"; the pass is a gather, but the
+dominant term is the incidence-list rebuild, which is four random accesses
+per surviving edge (`firstOut` / `firstIn` heads plus the `nextOut` /
+`nextIn` links) into arrays far larger than L2. That is cache-miss bound
+in the same way the counting sort is, so it lands in the same order as the
+sort it precedes rather than in the memcpy class the estimate assumed.
+
+Two independent measurements agree: `benchmarks/freeze.bench.ts` reports
+40.9 ms for the whole re-freeze, and the phase profile above attributes
+31.8 ms of its own 52.5 ms total to `compact` (the two totals differ
+because the harness and this profile build the removal case differently;
+the phase attribution, which is what 15.4 budgets, is the number that
+matters and reproduces).
+
+Not optimised further at F1, deliberately. Compaction runs only after
+removals, the 1M-edge re-freeze remains inside the one-dropped-frame
+budget 15.4 argues for, and the floor is structural: any rebuild of the
+incidence lists pays those four random accesses. Revisit only if a
+consumer shows removal-heavy editing as a hot path.
+
+Everything else measured at the same time was at or better than 15.4:
+freeze total 21.04 ms directed against a 25-30 ms budget, 38.5 ms
+undirected against 45-55 ms.
 
 ---
 
@@ -4745,6 +4793,24 @@ decision and the reason:
 | D-ARENA | Arena order interleaved a cold array; rule (1) ignored the per-segment binding limit; `& ~63` window math; 65,535 x 256 miscounted. | Hot-to-cold order with `hotByteLength`; per-segment condition; `% 64` formula on arc ranges; 16,776,960. | 10.3, 10.6 |
 | D-FIRST-FREEZE | First freeze reported `null` remaps even after removals. | The old index space of the first freeze is the builder's own; remaps are `null` iff nothing was renumbered; node and edge remaps independent. | 3.2, 6.6 |
 | D-MISC | `keepOrder` undefined; three throw sites without codes; `remapColumn` name used for two shapes; `E_DIRECTED` "vice versa"; `producer` churn; `Q: none needed` leftover; G16 section reference; `totalWeight` in `includeViews`; `edgeIndexOf(id: NodeId)`; numeric id map wire allocation; `shared` in the freeze table. | `keepOrder` removed; `E_NO_DEFAULT` / `E_INVALID_PERMUTATION` / `E_MASK_LENGTH` added; `remapColumn` / `remapArray` / `gatherColumn` / `gatherArray` / `scatterArray`; `E_DIRECTED` covers `setDirected`; goldens mask `producer`; leftover deleted; `6.6, 7.3, 7.4`; scalar views ignored; `EdgeId`; lazy typed id arrays; SAB row removed. | various |
+
+### 17.5 Post-implementation decisions (F1 landing, 2026-09-16)
+
+Decisions taken after both packages were implemented and audited, while
+landing them in graphty-monorepo as workspace members (section 14.6 phase
+F1 plus the IO1 package landing). The eleven owner decisions consolidated
+in the packages' STATUS.md were all answered "keep what is implemented"
+and stay open for a later pass; they are deliberately NOT recorded here,
+because nothing changed.
+
+| Id | Conflict | Decision | Section |
+| --- | --- | --- | --- |
+| D-COMPACT | 15.4 and 6.7 budget compaction after removals at 10-15 ms; it measures ~32 ms at 100k / 1M. | The estimate was wrong, not the code: both tables corrected to the measured number and the phase profile recorded in 15.6. Not optimised -- the floor is the incidence-list rebuild, four random accesses per surviving edge, and compaction runs only after removals. | 6.7, 15.4, 15.6 |
+| D-GEXF-STREAM | The F1 landing prompt carried a pre-1.0 gap saying GEXF parses the whole document instead of streaming through the shared XML tokenizer. | Stale: GEXF was converted to the shared streaming tokenizer in graph-io audit round 1. Measured at F1, GEXF imports at 1.64 us/edge against GraphML's 2.51, with doubling ratios 1.93-2.04 and bounded peak memory. The gap is closed, not deferred. | 8.4 |
+| D-HOTLOOP | The streaming audit recorded three remaining per-element allocations (GEXF node frame, DOT scope-defaults copy, Pajek per-line tokens), to be removed "only where the change is local". | Recorded, not removed, where the allocation is genuinely held past the element that makes it; all three measure 2-3 us per edge, in line with every other importer. | 8.4 |
+| D-PAJEK-FILL | The Pajek vertex section was quadratic in the vertex count: `vertexLine`'s gap-fill restarted at position zero on every line, and the defaults (`nodeIdFrom: "id"`, `restoreMangledIds: true`) send every file down that branch, so ascending vertex numbers -- the order Pajek writes -- cost n(n-1)/2. | Fixed with a `filledBelow` high-water mark: 100k vertices 2355 ms -> 49 ms, the 1M-arc benchmark 3340 ms -> 790 ms, with no change to any id, node order, issue or option. The gap-fill's ORDER-INDEPENDENCE rule (index order is vertex-number order whatever the line order) is unchanged and now pinned by a test. | 8.4 |
+| D-STAGING-COPY | The move checklist says `mv` the two package directories out of the staging workspace. | Copied instead: the staging repository was in use by another session at landing time. The staging copies remain as the record; they are no longer the source of truth for either package. | 13.3 |
+| D-RECORD-MOVES | STATUS.md and CONFORMANCE.md lived in the staging workspace, outside this repository, and cite paths relative to it. | Both copied to `design/graph-format/` beside this document, so the implementation record travels with the code it describes. The staging originals are left untouched and are now historical. | 13.1 |
 
 ---
 

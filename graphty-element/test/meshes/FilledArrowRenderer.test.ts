@@ -267,11 +267,38 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
         result.dispose();
     });
 
-    test("applyShader disables frustum culling", () => {
+    test("applyShader sizes the bounding volume to what the shader draws instead of switching culling off", () => {
+        // This test used to assert `alwaysSelectAsActiveMesh === true`, i.e. that applyShader
+        // switched frustum culling OFF for every mesh it shadered. That behaviour was removed
+        // deliberately: the flag was written for thin instances, which this path no longer uses,
+        // and it meant every shadered mesh -- thousands of them on a single dotted edge -- was
+        // submitted every frame regardless of where the camera pointed.
+        //
+        // The flag could not simply be deleted, because the vertex shader magnifies the geometry
+        // by the `size` uniform on the GPU while Babylon's CPU-side bounding volume still
+        // describes the un-magnified geometry; culling against the small volume would pop
+        // arrowheads out of existence near the screen edge. So applyShader now widens the
+        // bounding volume to the extent actually drawn and lets culling run. This test pins that
+        // pair of facts: culling is ON, and the volume is the magnified one.
         const mesh = FilledArrowRenderer.createTriangle(false, scene);
-        const result = FilledArrowRenderer.applyShader(mesh, { size: 1.0, color: "#ff0000", opacity: 1.0 }, scene);
+        const geometry = mesh.getBoundingInfo().boundingBox;
+        const geometryReach = Math.max(geometry.minimum.length(), geometry.maximum.length());
+        const size = 4;
 
-        assert.isTrue(result.alwaysSelectAsActiveMesh);
+        const result = FilledArrowRenderer.applyShader(mesh, { size, color: "#ff0000", opacity: 1.0 }, scene);
+
+        assert.isFalse(result.alwaysSelectAsActiveMesh);
+
+        // The billboard basis is freely oriented, so the drawn geometry is contained in a sphere
+        // about the origin of radius size * reach; the volume is the cube that contains it.
+        const expected = geometryReach * size;
+        const { minimum, maximum } = result.getBoundingInfo().boundingBox;
+        assert.closeTo(maximum.x, expected, 1e-6);
+        assert.closeTo(maximum.y, expected, 1e-6);
+        assert.closeTo(maximum.z, expected, 1e-6);
+        assert.closeTo(minimum.x, -expected, 1e-6);
+        assert.closeTo(minimum.y, -expected, 1e-6);
+        assert.closeTo(minimum.z, -expected, 1e-6);
 
         result.dispose();
     });

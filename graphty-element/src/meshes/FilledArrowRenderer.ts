@@ -1,4 +1,4 @@
-import { Color3, Effect, Mesh, Scene, ShaderMaterial, Vector3, VertexData } from "@babylonjs/core";
+import { BoundingInfo, Color3, Effect, Mesh, Scene, ShaderMaterial, Vector3, VertexData } from "@babylonjs/core";
 
 import { MaterialHelper } from "./MaterialHelper";
 
@@ -27,6 +27,44 @@ export class FilledArrowRenderer {
     // Shared callback optimization: Track all active materials
     private static activeMaterials = new Set<ShaderMaterial>();
     private static cameraCallbackRegistered = false;
+
+    /**
+     * Unregister a shader material so the per-frame camera-uniform walk stops visiting it.
+     *
+     * WHY THIS EXISTS -- the defect it repairs:
+     * {@link FilledArrowRenderer.applyShader} builds a fresh `ShaderMaterial` per mesh and
+     * adds it to {@link FilledArrowRenderer.activeMaterials}, which is iterated once per
+     * frame. Nothing removed entries. The `catch` inside that walk reads as an eviction
+     * path but cannot fire: `ShaderMaterial.setVector3` does not throw on a disposed
+     * material, it just records the value into a dead material's uniform cache. So every
+     * arrowhead and every pattern element ever built stayed in the walk for the lifetime of
+     * the page, and since both are rebuilt wholesale on every style change the walk grew
+     * without bound.
+     *
+     * `applyShader` also subscribes to each material's `onDisposeObservable` and calls this,
+     * so the eviction happens even for callers that dispose a mesh without going through
+     * a renderer -- `Edge.dispose` and `Edge.updateStyle`, for instance, which this unit does
+     * not own and must not edit. That subscription is why the leak is closed for arrowheads
+     * as well as for patterned lines.
+     * @param material - The ShaderMaterial to stop tracking; passing an untracked material is a no-op
+     * @public
+     */
+    static releaseMaterial(material: ShaderMaterial): void {
+        this.activeMaterials.delete(material);
+    }
+
+    /**
+     * Number of shader materials currently receiving per-frame camera updates.
+     *
+     * Exists so the leak described on {@link FilledArrowRenderer.releaseMaterial} is
+     * OBSERVABLE from a test; it has no visible symptom until the frame rate has already
+     * collapsed, and asserting on frame time instead would be flaky.
+     * @returns Count of tracked materials
+     * @public
+     */
+    static getActiveMaterialCount(): number {
+        return this.activeMaterials.size;
+    }
 
     /**
      * Register filled arrow shaders
@@ -860,24 +898,84 @@ void main() {
         // Set clipping uniform (default -1.0 = disabled)
         shaderMaterial.setFloat("clipEndX", options.clipEndX ?? -1.0);
 
-        // Register material for shared camera position updates
+        // Register material for shared camera position updates, and make sure the
+        // registration ends when the material does. Without this subscription the set grows
+        // for the lifetime of the page -- see releaseMaterial for the full account.
         this.activeMaterials.add(shaderMaterial);
+        shaderMaterial.onDisposeObservable.add(() => {
+            FilledArrowRenderer.releaseMaterial(shaderMaterial);
+        });
         this.registerCameraCallback(scene);
 
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;
 
-        // No thin instance support needed - each edge has its own mesh
-        // Setting isVisible = false hides ALL thin instances, not just the base mesh.
-        // Instead, we rely on the mesh being moved far away in EdgeMesh.createArrowHead()
-        // via position.set(0, -10000, 0) to hide the base mesh template.
-
-        // CRITICAL: Disable frustum culling for thin instances!
-        // The base mesh is positioned far away (-10000), so the bounding box calculation
-        // causes frustum culling to incorrectly hide instances that are actually on screen.
-        mesh.alwaysSelectAsActiveMesh = true;
+        this.applyShaderBoundingInfo(mesh, options.size);
 
         return mesh;
+    }
+
+    /**
+     * Resize a shadered mesh's bounding volume to match what the vertex shader actually draws,
+     * so Babylon's frustum culling can be trusted to keep it.
+     *
+     * WHY THIS EXISTS -- the defect it repairs, and the defect it is careful NOT to cause:
+     *
+     * This line used to read `mesh.alwaysSelectAsActiveMesh = true`, with a comment
+     * explaining that thin instances needed it because their base mesh was parked at
+     * y = -10000. Both halves of that comment are now false. The same function's comment two
+     * lines above says thin instances are no longer used, and `applyShader` has exactly three
+     * call sites -- `PatternedLineRenderer.createPatternMesh` twice and
+     * `EdgeMesh.createFilledArrow` once -- none of which parks a template anywhere: arrowhead
+     * meshes are built one per edge and positioned at the real arrow location by `Edge`, and
+     * the `MeshCache` template that genuinely does sit at y = -10000 holds NODE meshes, uses
+     * `InstancedMesh`, and never reaches this function. The flag's effect today is simply that
+     * every mesh carrying this shader is submitted every frame regardless of where the camera
+     * is pointing -- which, at the mesh counts a dotted line used to reach, was thousands of
+     * pointless draw calls per frame.
+     *
+     * Deleting the flag outright would nevertheless have been wrong, and this is the part
+     * worth reading twice. The vertex shader ignores the mesh's rotation and scaling
+     * entirely: it takes only the TRANSLATION out of the world matrix and then lays each
+     * vertex out as `worldCenter + (x*forward + y*up + z*right) * size`. So the geometry is
+     * magnified by the `size` uniform on the GPU, while Babylon's CPU-side bounding volume
+     * still describes the un-magnified geometry. For a pattern dot the geometry is 2.0 across
+     * and `size` is `lineWidth / 2`, so at the default line width the drawn dot is four times
+     * the radius Babylon thinks it is. Culling against the small volume would have popped
+     * arrowheads and dots out of existence near the edges of the screen -- exactly the
+     * "meshes vanishing" symptom the flag was added to suppress, reintroduced by its removal.
+     *
+     * The fix is therefore to tell Babylon the truth rather than to switch culling off. The
+     * billboard basis is orthonormal but freely oriented, so the drawn geometry is contained
+     * in a sphere about the mesh origin of radius `size * maxVertexDistanceFromOrigin`; a cube
+     * of that half-extent contains that sphere for every possible orientation. The bound is
+     * deliberately conservative -- it over-estimates rather than under-estimates, because an
+     * over-estimate costs a wasted draw call at the screen edge while an under-estimate makes
+     * an arrowhead disappear.
+     *
+     * If the mesh has no geometry yet, the flag is restored for that mesh: there is nothing
+     * to measure, and never culling is the safe answer.
+     * @param mesh - Mesh whose material was just replaced with the billboarding shader
+     * @param size - The shader's `size` uniform, the factor its vertex stage scales geometry by
+     */
+    private static applyShaderBoundingInfo(mesh: Mesh, size: number): void {
+        const info = mesh.getBoundingInfo();
+        const { minimum, maximum } = info.boundingBox;
+
+        // Bound the distance from the mesh origin to the furthest vertex. Using the box
+        // corners over-estimates that distance by at most sqrt(3), which is the safe
+        // direction to be wrong in.
+        const reach = Math.max(minimum.length(), maximum.length()) * Math.abs(size);
+
+        if (!Number.isFinite(reach) || reach <= 0) {
+            // No geometry to measure (or a degenerate size). Fall back to never culling this
+            // mesh, which is what the whole shader path did before this repair.
+            mesh.alwaysSelectAsActiveMesh = true;
+            return;
+        }
+
+        mesh.alwaysSelectAsActiveMesh = false;
+        mesh.setBoundingInfo(new BoundingInfo(new Vector3(-reach, -reach, -reach), new Vector3(reach, reach, reach)));
     }
 
     /**

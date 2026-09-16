@@ -91,14 +91,19 @@ async function tryBindWithRetry(
                 });
             });
 
-            // Success - server is bound
+            // Success - server is bound. Report the port the OS actually gave us rather than the one
+            // we asked for: they differ whenever startPort is 0, which is how a caller asks for any
+            // free port (tests do this so they never collide with a lingering socket).
+            const address = server.address();
+            const boundPort = typeof address === "object" && address !== null ? address.port : port;
+
             if (!quiet) {
                 // eslint-disable-next-line no-console
                 console.log(
-                    `${colors.green}HTTP server listening on ${host}:${port}${colors.reset}`,
+                    `${colors.green}HTTP server listening on ${host}:${boundPort}${colors.reset}`,
                 );
             }
-            return { server, port };
+            return { server, port: boundPort };
         } catch (err) {
             if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
                 port++;

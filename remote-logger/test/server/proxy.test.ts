@@ -97,7 +97,8 @@ describe("Reverse proxy", () => {
 
     beforeEach(async () => {
         target = await createTargetServer();
-        const port = 8950 + Math.floor(Math.random() * 20);
+        // 0 asks the OS for any free port (see browser-bundle-endpoint.test.ts)
+        const port = 0;
         dualServer = await createDualServer({
             httpPort: port,
             httpHost: "127.0.0.1",
@@ -201,7 +202,7 @@ describe("Reverse proxy", () => {
     test("is available in logReceiveOnly mode", async () => {
         await dualServer.shutdown();
 
-        const port = 8970 + Math.floor(Math.random() * 15);
+        const port = 0;
         dualServer = await createDualServer({
             httpPort: port,
             httpHost: "127.0.0.1",

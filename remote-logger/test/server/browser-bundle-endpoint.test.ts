@@ -28,7 +28,10 @@ describe("GET /remote-logger.js endpoint", () => {
 
     beforeEach(() => {
         resetBrowserBundleCache();
-        port = 7950 + Math.floor(Math.random() * 50);
+        // 0 asks the OS for any free port: a hand-picked one collides with a socket still in
+        // TIME_WAIT from an earlier test, which surfaced as intermittent ECONNRESET. Every test
+        // below reads the real port back from dualServer.httpPort.
+        port = 0;
     });
 
     afterEach(async () => {

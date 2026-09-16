@@ -68,6 +68,13 @@ export class Edge {
     private _lastDstPos: Vector3 | null = null;
 
     /**
+     * Set once {@link Edge.dispose} has run. Guards the two methods that would otherwise rebuild
+     * this edge's meshes -- see the comment on `dispose` for why a disposed Edge still receives
+     * calls every frame.
+     */
+    private disposed = false;
+
+    /**
      * Helper to check if we're using GraphContext
      * @returns The GraphContext instance
      */
@@ -235,6 +242,15 @@ export class Edge {
 
     /**
      * Adds a calculated style value to this edge.
+     *
+     * NOT DURABLE, by design: a value added here does not survive a style reload.
+     * `ChangeManager.loadCalculatedValues` -- which `DataManager.applyStylesToExistingEdges` calls
+     * on every repaint -- REPLACES both the calculated-value set and the watched-input map with
+     * exactly what the current style layers ask for, so anything registered through this method is
+     * dropped at the next repaint. That replacement is deliberate: without it a REMOVED style
+     * layer's calculated value kept running and overwrote the replacement layer's colours on every
+     * repaint. To make a calculated value durable, put it in a style layer's `calculatedStyle` so
+     * `Styles.getCalculatedStylesForEdge` rebuilds it on every load.
      * @param cv - The calculated value to add
      */
     addCalculatedStyle(cv: CalculatedValue): void {
@@ -255,6 +271,15 @@ export class Edge {
      * Performs dirty checking to skip updates when nodes haven't moved.
      */
     update(): void {
+        // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
+        // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
+        // layout engine (its own standing TODO), so this method keeps being called on edges whose
+        // dataset was dropped. Without this guard the bezier branch below would build a brand new
+        // line mesh for an edge nobody owns.
+        if (this.disposed) {
+            return;
+        }
+
         this.context.getStatsManager().startMeasurement("Edge.update");
 
         // Process style updates from calculated values
@@ -359,6 +384,12 @@ export class Edge {
      * @param styleId - The new style ID to apply
      */
     updateStyle(styleId: EdgeStyleId): void {
+        // See update(): a disposed edge is still reachable from the layout engine, and this
+        // method builds meshes. Refuse rather than resurrect.
+        if (this.disposed) {
+            return;
+        }
+
         // Only skip update if styleId is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
         // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
@@ -515,6 +546,75 @@ export class Edge {
             this.arrowTailText.dispose();
             this.arrowTailText = null;
         }
+    }
+
+    /**
+     * Tears down every Babylon resource this edge owns.
+     *
+     * THE DEFECT THIS CLOSES, and it was visible on screen: no Edge.dispose existed at all.
+     * `DataManager.clear()` emptied its maps and called `meshCache.clear()`, which disposes the
+     * cached SOURCE meshes -- and Babylon disposes a source mesh's instances with it. That is why
+     * node spheres and 3D solid edge lines vanished on a dataset clear while roughly sixty grey
+     * ARROWHEADS stayed on the canvas, in rosettes where the previous dataset's edges had
+     * converged. Arrowheads are deliberately not cached (`EdgeMesh.createArrowHead` carries a
+     * "PERFORMANCE FIX: Create individual meshes for all arrow types" note): they are built bare
+     * against the scene and parented to the `graph-root` TransformNode, which outlives every
+     * dataset, so nothing ever disposed them. The same was true of the patterned-line meshes
+     * (dot/dash/star/...), 2D lines, bezier curves and all three RichTextLabels.
+     *
+     * Every dispose is guarded with `isDisposed()` -- matching the idiom already used in
+     * `updateStyle` -- because the line mesh may be an instance whose SOURCE `meshCache.clear()`
+     * is about to dispose, or has just disposed. `PatternedLineMesh` owns its own dispose logic
+     * (it disposes a per-element ShaderMaterial that Babylon's default flags would leave behind),
+     * so it is routed to that rather than to `AbstractMesh.dispose`.
+     *
+     * A DISPOSED EDGE STILL RECEIVES CALLS, which is why {@link Edge.disposed} exists: the layout
+     * engine keeps its own edge list and `UpdateManager` walks it every frame regardless of what
+     * DataManager holds. Calling this twice is safe.
+     */
+    dispose(): void {
+        if (this.disposed) {
+            return;
+        }
+
+        this.disposed = true;
+
+        if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.dispose();
+        } else if (!this.mesh.isDisposed()) {
+            this.mesh.dispose();
+        }
+
+        if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
+            this.arrowMesh.dispose();
+        }
+
+        this.arrowMesh = null;
+
+        if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
+            this.arrowTailMesh.dispose();
+        }
+
+        this.arrowTailMesh = null;
+
+        this.label?.dispose();
+        this.label = null;
+        this.arrowHeadText?.dispose();
+        this.arrowHeadText = null;
+        this.arrowTailText?.dispose();
+        this.arrowTailText = null;
+    }
+
+    /**
+     * Reports whether {@link Edge.dispose} has run on this edge.
+     *
+     * Note this is about the EDGE, not about `edge.mesh.isDisposed()`: a live edge's line mesh is
+     * disposed and rebuilt on every style change, so the mesh's own flag says nothing about
+     * whether the edge is still part of the graph.
+     * @returns True once this edge has been disposed
+     */
+    isDisposed(): boolean {
+        return this.disposed;
     }
 
     /**

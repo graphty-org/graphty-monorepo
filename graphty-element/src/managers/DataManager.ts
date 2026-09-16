@@ -154,9 +154,42 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Dispose every node and edge currently held, in the one order that is not wasted work.
+     *
+     * EDGES BEFORE NODES: an edge reads `srcNode.mesh` / `dstNode.mesh` while tearing itself down
+     * and its arrowheads are positioned against those meshes, so a node must still be intact when
+     * its edges go.
+     *
+     * BOTH BEFORE `meshCache.clear()`: the cache disposes the SOURCE meshes, and Babylon disposes
+     * a source's instances along with it. Disposing an instance whose source is already gone is
+     * wasted work at best; more importantly, everything a node or edge created OUTSIDE the cache
+     * -- arrowheads, patterned lines, bezier curves, labels, drag handlers -- is invisible to the
+     * cache and is only ever freed here. Before this existed, roughly sixty arrowheads per
+     * dataset stayed in the scene forever; see Edge.dispose for the full account.
+     *
+     * NOTE ON THE LAYOUT ENGINE: this class still does not notify it (the standing TODO in
+     * `clear`), so the engine keeps its own lists of these now-disposed objects and UpdateManager
+     * keeps walking them. Node and Edge both carry a `disposed` guard for exactly that reason --
+     * without it, the next frame would rebuild the meshes this method just freed.
+     */
+    private disposeNodesAndEdges(): void {
+        for (const edge of this.edges.values()) {
+            edge.dispose();
+        }
+
+        for (const node of this.nodes.values()) {
+            node.dispose();
+        }
+    }
+
+    /**
      * Disposes of the data manager and cleans up all resources
      */
     dispose(): void {
+        // Free the per-node and per-edge Babylon resources BEFORE dropping the references to
+        // them -- once the maps are cleared nothing can reach those meshes again.
+        this.disposeNodesAndEdges();
+
         // Clear all collections
         this.nodes.clear();
         this.edges.clear();
@@ -329,8 +362,22 @@ export class DataManager implements Manager {
             this.layoutEngine.removeNode(node);
         }
 
-        // TODO: Remove connected edges
+        // Dispose AFTER the layout engine has been told, so the engine is never asked to read a
+        // position off a mesh that is already gone.
+        node.dispose();
 
+        // TODO: Remove connected edges
+        //
+        // LEFT OPEN DELIBERATELY. Cascading the removal to incident edges changes an existing
+        // behaviour -- callers that remove a node and then remove its edges themselves would
+        // start seeing edges that are already gone -- so it is a separate change from fixing the
+        // mesh leak, and it needs AlgorithmManager and the shell's filter/expand paths checked
+        // first. Until then an edge can outlive an endpoint: `Edge.update` keeps ray-casting
+        // against the removed node's mesh, which `AbstractMesh.intersects` handles without
+        // throwing (it returns an empty PickingInfo once the geometry is gone), so the edge
+        // either keeps its last endpoint or falls back to centre-to-centre. Ugly, not fatal, and
+        // no worse than before -- previously the node's mesh was never disposed at all, so the
+        // dangling edge pointed at a fully drawn ghost node instead.
         return true;
     }
 
@@ -448,6 +495,10 @@ export class DataManager implements Manager {
         if (this.layoutEngine && hasRemoveEdge(this.layoutEngine)) {
             this.layoutEngine.removeEdge(edge);
         }
+
+        // Dispose AFTER the layout engine has been told. This is what frees the edge's arrowheads
+        // and label, none of which live in the mesh cache -- see Edge.dispose.
+        edge.dispose();
 
         return true;
     }
@@ -596,6 +647,11 @@ export class DataManager implements Manager {
      * Clear all data
      */
     clear(): void {
+        // Free the per-node and per-edge Babylon resources BEFORE dropping the references to
+        // them. See disposeNodesAndEdges: meshCache.clear() below only reaches CACHED meshes,
+        // and arrowheads, patterned lines and labels are not cached.
+        this.disposeNodesAndEdges();
+
         // Remove all nodes and edges
         this.nodes.clear();
         this.edges.clear();

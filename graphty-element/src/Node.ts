@@ -37,7 +37,23 @@ export class Node {
     styleId: NodeStyleId;
     pinOnDrag!: boolean;
     size!: number;
+
+    /**
+     * The shape type of the mesh currently on screen, cached beside {@link Node.size}.
+     *
+     * It exists ONLY so that {@link Node.updateStyle} can tell a geometry change from a colour
+     * change; see the invalidation block there for the defect it fixes. It is read from
+     * `style.shape.type`, so it is `undefined` for a style that names no shape.
+     */
+    shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     changeManager: ChangeManager;
+
+    /**
+     * Set once {@link Node.dispose} has run. Guards every method that would otherwise rebuild
+     * this node's mesh -- see the comment on `dispose` for why a disposed Node still receives
+     * calls.
+     */
+    private disposed = false;
 
     /**
      * Helper to check if we're using GraphContext
@@ -88,6 +104,7 @@ export class Node {
         // create mesh
         const o = Styles.getStyleForNodeStyleId(styleId);
         this.size = o.shape?.size ?? 0;
+        this.shapeType = o.shape?.type;
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
@@ -111,8 +128,9 @@ export class Node {
             nodeId: this.id,
         };
 
-        // Apply outline effect if configured in style
+        // Apply outline and glow effects if configured in style
         NodeEffects.applyOutlineEffect(this.mesh, o.effect);
+        NodeEffects.applyGlowEffect(this.mesh, o.effect);
 
         // create label
         if (o.label?.enabled) {
@@ -124,6 +142,16 @@ export class Node {
 
     /**
      * Adds a calculated style value to this node's change manager.
+     *
+     * NOT DURABLE, by design: a value added here does not survive a style reload.
+     * `ChangeManager.loadCalculatedValues` -- which `DataManager.applyStylesToExistingNodes` calls
+     * on every repaint and `SelectionManager` calls on every selection change -- REPLACES both the
+     * calculated-value set and the watched-input map with exactly what the current style layers
+     * ask for, so anything registered through this method is dropped at the next repaint. That
+     * replacement is deliberate: without it a REMOVED style layer's calculated value kept running
+     * and overwrote the replacement layer's colours on every repaint. To make a calculated value
+     * durable, put it in a style layer's `calculatedStyle` so `Styles.getCalculatedStylesForNode`
+     * rebuilds it on every load.
      * @param cv - The calculated value to add to the node's styling system
      */
     addCalculatedStyle(cv: CalculatedValue): void {
@@ -135,6 +163,17 @@ export class Node {
      * Handles mesh recreation if disposed and applies any pending style updates.
      */
     update(): void {
+        // A DELIBERATELY disposed node must never be resurrected here. The recreate-on-disposed
+        // branch below exists for the 2D/3D mode switch, which disposes meshes out from under
+        // live nodes; it cannot tell that case apart from a node this graph has finished with.
+        // Both the layout engine (which DataManager.clear does not notify -- see its TODO) and
+        // SelectionManager.selectedNode keep hard references to Nodes after a dataset is dropped,
+        // and both of them call update(), so without this guard clearing a dataset would silently
+        // rebuild every node's mesh on the next frame or the next deselect.
+        if (this.disposed) {
+            return;
+        }
+
         this.context.getStatsManager().startMeasurement("Node.update");
 
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it
@@ -181,6 +220,12 @@ export class Node {
      * @param styleId - The new style identifier to apply to the node
      */
     updateStyle(styleId: NodeStyleId): void {
+        // See update(): a disposed node is still reachable from the layout engine and from
+        // SelectionManager, and this method builds a mesh. Refuse rather than resurrect.
+        if (this.disposed) {
+            return;
+        }
+
         this.context.getStatsManager().startMeasurement("Node.updateMesh");
 
         // Only skip update if styleId is the same AND mesh is not disposed
@@ -208,10 +253,52 @@ export class Node {
 
         const o = Styles.getStyleForNodeStyleId(styleId);
         const oldSize = this.size;
+        const oldShapeType = this.shapeType;
         this.size = o.shape?.size ?? 0;
+        this.shapeType = o.shape?.type;
 
-        // If size changed, invalidate connected edges so they recalculate their endpoints
-        if (this.size !== oldSize) {
+        // If the GEOMETRY changed -- size or shape -- invalidate connected edges so they
+        // recalculate their endpoints against the new surface.
+        //
+        // THE DEFECT THIS FIXES, which is the product owner's report "when I change shapes the
+        // edges are no longer touching the surface of the node": until now this test read
+        // `this.size !== oldSize` alone. A shape change at constant size left `size` equal, so
+        // nothing was invalidated; `Edge.update` then hit its dirty check (Edge.ts: "if
+        // (!srcMoved && !dstMoved) return") and returned BEFORE `transformArrowCap()` could
+        // re-shoot the ray at the new mesh, so the edge kept the endpoints it had computed
+        // against the PREVIOUS geometry. Icosphere and box at the same declared size have
+        // bounding radii of 0.75 and 0.866, so the gap is immediately visible.
+        //
+        // TO ANSWER THE QUESTION AS ASKED -- "I think that used to work in the old shell, did you
+        // create a different code path that doesn't do that?": it DID used to work, and no, the
+        // shell did not create a code path that skips this. The regression is entirely inside
+        // graphty-element, and git dates it exactly:
+        //
+        //   973f1d96, 2025-11-11, "edge performance enhancements" -- introduced `_lastSrcPos` /
+        //   `_lastDstPos` and the early return in `Edge.update`. BEFORE that commit `update()`
+        //   called `transformArrowCap()` unconditionally on every frame, so an edge re-shot its
+        //   ray at the node meshes continuously and a shape change reattached within one frame,
+        //   for free. The dirty check bought back that per-frame ray cast and, with it, silently
+        //   made every non-positional geometry change invisible to the edges.
+        //
+        //   a2cb98c5, 2026-01-04, "improved layer and selection management" -- added the
+        //   invalidation block below, guarded on `this.size !== oldSize`, written for SELECTION
+        //   (which grows a node). It restored the behaviour for size only. Shape was never
+        //   covered, which is why the regression survived it.
+        //
+        // Both style routes -- Graph.ts's style-changed handler and
+        // DataManager.applyStylesToExistingNodes, which is what the shell repaints through --
+        // converge on this same method and this same guard, so no route bypassed a recalculation
+        // that another route performed. The old shell saw it work because it predates 973f1d96,
+        // not because it called anything different.
+        //
+        // THIS STAYS A CONDITION, never an unconditional invalidation: the loop is O(E) per node
+        // because a Node holds no incident-edge index, and a colour-only repaint reaches this
+        // line too, so invalidating unconditionally would make a full repaint O(N*E). The cost
+        // is unchanged for the size case and newly reachable for the shape case; if a repaint
+        // that changes every node's shape ever hitches, the answer is a per-node edge index, not
+        // removing the guard.
+        if (this.size !== oldSize || this.shapeType !== oldShapeType) {
             const dataManager = this.context.getDataManager();
             for (const edge of dataManager.edges.values()) {
                 if (edge.srcNode === this || edge.dstNode === this) {
@@ -256,8 +343,9 @@ export class Node {
             this.mesh.position.z = pos.z ?? 0;
         }
 
-        // Apply outline effect if configured in style
+        // Apply outline and glow effects if configured in style
         NodeEffects.applyOutlineEffect(this.mesh, o.effect);
+        NodeEffects.applyGlowEffect(this.mesh, o.effect);
 
         // recreate label if needed
         if (o.label?.enabled) {
@@ -276,6 +364,72 @@ export class Node {
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
         this.context.getStatsManager().endMeasurement("Node.updateMesh");
+    }
+
+    /**
+     * Tears down every Babylon resource this node owns.
+     *
+     * THE DEFECT THIS CLOSES: no Node.dispose existed at all. `DataManager.clear()` emptied its
+     * maps and called `meshCache.clear()`, which disposes the cached SOURCE meshes -- and Babylon
+     * disposes a source's instances with it, which is the only reason node spheres vanished on a
+     * dataset clear. Everything a node creates OUTSIDE the cache survived: its label
+     * (RichTextLabel builds its own plane and dynamic texture) and its drag handler's observers.
+     * See Edge.dispose for the visible half of the same bug, the arrowheads.
+     *
+     * ORDER MATTERS. The highlight layer is told first, because it keeps this mesh's uniqueId in
+     * a list and does not watch for disposal; then the label and drag handler, which hold their
+     * own meshes and scene observers; then the mesh itself last, so nothing is asked about a mesh
+     * that is already gone.
+     *
+     * GLOW IS DELIBERATELY NOT REMOVED HERE. Glow membership is keyed by the SHARED source mesh
+     * that MeshCache hands out instances of -- one source per style id -- so calling
+     * `NodeEffects.applyGlowEffect(mesh, undefined)` from here would darken every OTHER node that
+     * still uses this style. The source is owned by the cache, so it is freed when the cache is
+     * cleared, and the layer's leftover uniqueId is inert: Babylon's uniqueIds are monotonic per
+     * scene and never reused, so no future mesh can inherit a dead style's glow.
+     *
+     * A DISPOSED NODE STILL RECEIVES CALLS, which is why {@link Node.disposed} exists rather than
+     * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
+     * (its own standing TODO), so `UpdateManager` keeps iterating the engine's node and edge
+     * lists; and `SelectionManager.selectedNode` holds a Node across a dataset boundary and calls
+     * `updateStyle` + `update` on it when the selection is finally cleared. Both paths would have
+     * hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a node nobody owns.
+     * Calling this twice is safe.
+     */
+    dispose(): void {
+        if (this.disposed) {
+            return;
+        }
+
+        this.disposed = true;
+
+        NodeEffects.removeFromHighlight(this.mesh);
+
+        if (this.dragHandler) {
+            this.dragHandler.dispose();
+            this.dragHandler = undefined;
+        }
+
+        if (this.label) {
+            this.label.dispose();
+            this.label = undefined;
+        }
+
+        if (!this.mesh.isDisposed()) {
+            this.mesh.dispose();
+        }
+    }
+
+    /**
+     * Reports whether {@link Node.dispose} has run on this node.
+     *
+     * Note this is about the NODE, not about `node.mesh.isDisposed()`: a live node's mesh is
+     * disposed and rebuilt on every style change and on a 2D/3D switch, so the mesh's own flag
+     * says nothing about whether the node is still part of the graph.
+     * @returns True once this node has been disposed
+     */
+    isDisposed(): boolean {
+        return this.disposed;
     }
 
     /**

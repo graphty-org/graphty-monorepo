@@ -64,6 +64,14 @@ echo -e "${YELLOW}> Fast tests${NC}"
 # Each test package ORs into both flags: FAILED for the exit code, TESTS_FAILED so the
 # per-block verdict below reports only what the tests themselves did.
 
+# graph-format - single project, all tests are fast (node, no browser)
+echo "  Testing graph-format..."
+(cd graph-format && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+
+# graph-io - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
+echo "  Testing graph-io..."
+(cd graph-io && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+
 # algorithms - has test:run that runs --project=default
 echo "  Testing algorithms..."
 (cd algorithms && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }

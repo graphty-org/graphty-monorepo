@@ -16,6 +16,8 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 | `@graphty/graphty` | **graphty** or **graphty app** | - |
 | `@graphty/algorithms` | **algorithms** | - |
 | `@graphty/layout` | **layout** | - |
+| `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
+| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -26,6 +28,8 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
+| `@graphty/graph-format` | `graph-format/` | 0.1.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | 0.1.0 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
 | `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
 | `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
 | `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -35,6 +39,8 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 
 ```
 graphty-monorepo/
+├── graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
+├── graph-io/             # @graphty/graph-io package (depends on graph-format)
 ├── algorithms/           # @graphty/algorithms package
 ├── layout/               # @graphty/layout package
 ├── graphty-element/      # @graphty/graphty-element package
@@ -113,6 +119,8 @@ pnpm run coverage:preview:algorithms       # Port 9051
 pnpm run coverage:preview:layout           # Port 9052
 pnpm run coverage:preview:graphty-element  # Port 9053
 pnpm run coverage:preview:graphty          # Port 9054
+pnpm run coverage:preview:graph-format     # Port 9056
+pnpm run coverage:preview:graph-io         # Port 9057
 ```
 
 ## Shared Configuration
@@ -150,7 +158,7 @@ All dev servers use ports 9000-9099:
 - graphty: 9050
 - graphty Storybook: 9035
 - gpu-3d-force-layout: 9060
-- Coverage previews: 9051-9054
+- Coverage previews: 9051-9054, graph-format 9056, graph-io 9057
 
 ## Testing Infrastructure
 
@@ -162,6 +170,12 @@ All dev servers use ports 9000-9099:
 
 **layout:**
 - Single test project (Node.js)
+
+**graph-format:**
+- Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
+
+**graph-io:**
+- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
 **graphty:**
 - Browser-based tests (Playwright)
@@ -194,17 +208,21 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (14 parallel jobs) |
+| `ci.yml` | Push/PR | Build, lint, sharded tests (18 parallel jobs) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
 
 ### CI Test Shards
 
-The CI runs 14 parallel test jobs:
+The CI runs 18 parallel test jobs:
+- `graph-format`
+- `graph-io`
 - `algorithms-default`, `algorithms-browser`
 - `layout`
 - `graphty`
+- `remote-logger`
+- `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-4`
@@ -278,6 +296,8 @@ AlgorithmRegistry.register("custom-algo", customAlgorithm);
 ### Package CLAUDE.md Files
 
 Each package has its own CLAUDE.md with package-specific guidance:
+- `graph-format/CLAUDE.md` - Snapshot invariants, freeze pipeline, adding a view / a dtype
+- `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `algorithms/CLAUDE.md` - Algorithm-specific notes (e.g., floyd-warshall hang)
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
@@ -294,7 +314,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
   - `tsconfig.base.json` provides shared compiler options
   - Each package extends base config and sets `composite: true`
   - Dependent packages declare `references` array pointing to dependencies
-  - Build order enforced by TypeScript: `algorithms` → `layout` → `graphty-element` → `graphty`
+  - Build order enforced by TypeScript: `graph-format` → `graph-io` → `algorithms` → `layout` → `graphty-element` → `graphty`
 
 ### UI Components
 

@@ -60,6 +60,22 @@ jobs:
 
             # Download build artifacts from CI workflow instead of rebuilding
             # This ensures we release the exact same code that was tested
+            - name: Download graph-format build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-format
+                  path: graph-format/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Download graph-io build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-io
+                  path: graph-io/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download algorithms build
               uses: actions/download-artifact@v4
               with:

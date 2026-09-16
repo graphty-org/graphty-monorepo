@@ -1,4 +1,6 @@
 packages:
+    - "graph-format"
+    - "graph-io"
     - "algorithms"
     - "layout"
     - "graphty-element"

@@ -55,6 +55,26 @@ Comprehensive TypeScript graph algorithms library with 98 algorithms optimized f
 
 ---
 
+### @graphty/graph-format
+
+[![npm version](https://img.shields.io/npm/v/@graphty/graph-format.svg)](https://www.npmjs.com/package/@graphty/graph-format)
+
+Frozen CSR graph data format over typed arrays, shared by the CPU and WebGPU graph algorithm packages. A builder with duplicate and direction policies, a node id map, typed attribute columns with validity bitmaps, lazy views (reverse, degrees, edge list), derived graphs, and a zero-copy wire form for workers and IndexedDB. Zero dependencies.
+
+[View package](./graph-format)
+
+---
+
+### @graphty/graph-io
+
+[![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)
+
+Importers and exporters for the graph-format snapshot: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON (node-link, d3, JGF, Cytoscape, graphology, vis) and Neo4j admin-import CSV, each behind a per-format subpath export, plus format sniffing and an import report with aggregated issues.
+
+[View package](./graph-io)
+
+---
+
 ### @graphty/remote-logger
 
 [![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)

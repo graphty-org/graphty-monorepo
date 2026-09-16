@@ -32,6 +32,20 @@ const config: KnipConfig = {
             ],
         },
 
+        // graph-format package (design/graph-format/graph-format-design.md section 13.3)
+        "graph-format": {
+            entry: ["src/index.ts", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+        },
+
+        // graph-io package (src/index.ts re-exports every per-format subpath barrel)
+        "graph-io": {
+            entry: ["src/index.ts", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+        },
+
         // Algorithms package
         algorithms: {
             entry: ["src/index.ts", "test/**/*.test.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],

@@ -80,6 +80,15 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t build --parallel=3
 
+            # graph-format and graph-io are not yet in graphty's dependency closure (the consumer
+            # migration of design/graph-format section 14 is pending), so a PR that touches only the
+            # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
+            # artifact and every test shard's Download step would fail with "Artifact not found".
+            # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
+            - name: Build graph-format and graph-io (PR)
+              if: github.event_name == 'pull_request'
+              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io --parallel=2
+
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t lint --parallel=3
@@ -128,6 +137,20 @@ jobs:
             - name: Build layout gh-pages
               if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run layout:build:gh-pages
+
+            - name: Upload graph-format build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-graph-format
+                  path: graph-format/dist/
+                  retention-days: 1
+
+            - name: Upload graph-io build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-graph-io
+                  path: graph-io/dist/
+                  retention-days: 1
 
             - name: Upload algorithms build
               uses: actions/upload-artifact@v4
@@ -240,6 +263,8 @@ jobs:
             fail-fast: false
             matrix:
                 shard:
+                    - graph-format
+                    - graph-io
                     - algorithms-default
                     - algorithms-browser
                     - layout
@@ -257,6 +282,18 @@ jobs:
                     - graphty-element-storybook-3
                     - graphty-element-storybook-4
                 include:
+                    # graph-format - single shard (Node.js, no browser)
+                    - shard: graph-format
+                      package: graph-format
+                      test-command: pnpm exec nx run graph-format:coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    # graph-io - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
+                    - shard: graph-io
+                      package: graph-io
+                      test-command: pnpm exec nx run graph-io:coverage
+                      needs-browser: false
+                      needs-storybook: false
                     # algorithms - two shards (default and browser separated to avoid worker timeout)
                     # Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
                     - shard: algorithms-default
@@ -367,6 +404,18 @@ jobs:
               env:
                   HUSKY: "0"
 
+            - name: Download graph-format build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-format
+                  path: graph-format/dist/
+
+            - name: Download graph-io build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-io
+                  path: graph-io/dist/
+
             - name: Download algorithms build
               uses: actions/download-artifact@v4
               with:
@@ -454,8 +503,8 @@ jobs:
                   retention-days: 1
                   if-no-files-found: ignore
 
-            - name: Upload coverage (algorithms/layout/graphty/remote-logger/compact-mantine)
-              if: ${{ !cancelled() && (startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
+            - name: Upload coverage (graph-format/graph-io/algorithms/layout/graphty/remote-logger/compact-mantine)
+              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}

@@ -5,6 +5,8 @@ export default {
             2,
             "always",
             [
+                "graph-format",
+                "graph-io",
                 "algorithms",
                 "layout",
                 "graphty-element",

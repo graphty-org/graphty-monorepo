@@ -26,7 +26,7 @@ COVERAGE_DIR="$ROOT_DIR/.coverage-packages"
 OUTPUT_FILE="$ROOT_DIR/coverage/lcov.info"
 
 # Packages to process
-PACKAGES=("algorithms" "layout" "graphty" "graphty-element")
+PACKAGES=("graph-format" "graph-io" "algorithms" "layout" "graphty" "graphty-element")
 
 # Colors for output
 RED='\033[0;31m'
@@ -75,6 +75,8 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Each package should have coverage/lcov.info generated before running this script."
             echo "Run package-specific coverage commands first:"
+            echo "  cd graph-format && pnpm run coverage"
+            echo "  cd graph-io && pnpm run coverage"
             echo "  cd algorithms && pnpm run coverage"
             echo "  cd layout && pnpm run coverage"
             echo "  cd graphty && pnpm run coverage"
@@ -218,6 +220,8 @@ done
 if [ $COLLECTED -eq 0 ]; then
     log_error "No coverage files found."
     log_error "Run coverage for each package first:"
+    log_error "  cd graph-format && pnpm run coverage"
+    log_error "  cd graph-io && pnpm run coverage"
     log_error "  cd algorithms && pnpm run coverage"
     log_error "  cd layout && pnpm run coverage"
     log_error "  cd graphty && pnpm run coverage"

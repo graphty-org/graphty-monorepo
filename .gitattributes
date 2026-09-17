@@ -1,0 +1,9 @@
+# Every text file is committed with LF and checked out with LF on every host (the webgpu-graph-algorithms host
+# lane runs its tests on a windows-latest checkout; its source-entry test and prettier assume LF). The two import
+# corpora keep their own line endings (seven of their files are CRLF on purpose), and binary fixtures are marked so.
+* text=auto eol=lf
+graph-io/test/corpus/** -text
+graphty-element/test/helpers/corpus/** -text
+*.gsnp binary
+*.png binary
+*.zip binary

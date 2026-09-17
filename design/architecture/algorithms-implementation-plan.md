@@ -561,6 +561,8 @@ export function toAlgorithmGraph(g: Graph): AlgoGraph {
                         description: "Highlights path nodes with glow",
                     },
                 },
+                // REMOVED 2026-09: an unscoped whole-graph opacity write, and a fade of what the
+                // algorithm did not select. See CLAUDE.md "### Algorithm Styles".
                 {
                     node: {
                         selector: "",
@@ -964,6 +966,8 @@ export function toAlgorithmGraph(g: Graph): AlgoGraph {
                         description: "Highlights minimum spanning tree edges in green",
                     },
                 },
+                // REMOVED 2026-09: dimming what the algorithm did not select is a reader's choice
+                // and MUST NOT ship in suggestedStyles. See CLAUDE.md "### Algorithm Styles".
                 {
                     edge: {
                         selector: "algorithmResults.graphty.kruskal.inMST == `false`",

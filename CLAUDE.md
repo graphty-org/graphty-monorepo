@@ -335,6 +335,33 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - The failure mode: styling applied outside the layer system is invisible to the layer list,
   cannot be reordered, removed or persisted, and is silently lost at a dataset boundary
 
+### Algorithm Styles
+
+- An algorithm's suggested style layers MUST write ONLY to the nodes and edges that are part of
+  that algorithm's own result. Dijkstra styles the nodes and edges ON the path; every other node
+  and edge MUST be left exactly as the layers beneath it painted them, UNMODIFIED
+- "Part of the result" means the element carries a value this algorithm produced. Degree colours
+  every node because every node HAS a degree; Dijkstra colours the path because only path
+  elements have `isInPath == true`. An element the algorithm has nothing to say about is not
+  the algorithm's to paint -- not even to a default, a muted grey, or a full opacity
+- Two ways a layer breaks this, both silent:
+  - an empty `selector: ""` matches EVERY node or edge, so the layer's `calculatedStyle` runs
+    on the whole graph. Calculated values are last-writer-wins, so the write lands whatever the
+    value is -- including the value the expression returns for "not in my result"
+  - a helper with an un-highlighted branch (`blueHighlight(false)` returns `#CCCCCC`) turns
+    "this element is not part of my result" into a paint instruction. So does an input that is
+    `undefined` before the algorithm has even run
+  Scope the layer with a selector that matches only the elements carrying a result
+  (``algorithmResults.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
+  visited at all
+- Dimming, fading, greying or hiding what an algorithm did NOT select is a READER's choice, not
+  the algorithm's. It belongs to the caller -- a story, the app, a user-added layer -- and MUST
+  NOT ship in `suggestedStyles`
+- Why: layers stack bottom to top, and `applySuggestedStyles(["a", "b"])` appends a's layers and
+  then b's, so the last algorithm applied wins every property it writes. One algorithm that
+  writes to everything erases every algorithm under it -- and stacking algorithms is the entire
+  point of style layers
+
 ### Testing
 
 - Use `assert` instead of `expect` in layout tests

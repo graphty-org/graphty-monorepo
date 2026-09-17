@@ -1,3 +1,96 @@
+## 0.7.0 (2026-09-17)
+
+### 🚀 Features
+
+- **graphty:** rebuild the style inspector and show computed channels ([61231084](https://github.com/graphty-org/graphty-monorepo/commit/61231084))
+- **graphty:** one sidebar switch, no latch, no autohide, no narrow layout ([7fe30d2c](https://github.com/graphty-org/graphty-monorepo/commit/7fe30d2c))
+- **graphty:** give the Analyze Results tab a body ([ef98241e](https://github.com/graphty-org/graphty-monorepo/commit/ef98241e))
+- **graphty:** rank nodes by degree, PageRank and betweenness, and read the result back ([4ab5ebcf](https://github.com/graphty-org/graphty-monorepo/commit/4ab5ebcf))
+- **graphty-element:** export the shape enum, add the torus it already builds, paint gradients ([069f8260](https://github.com/graphty-org/graphty-monorepo/commit/069f8260))
+- **graphty:** draw the top-degree labels from a calculated style, with a switch ([#000000](https://github.com/graphty-org/graphty-monorepo/issues/000000))
+- **graphty:** build the novice path -- samples, load defaults, insights, readings ([2bc06036](https://github.com/graphty-org/graphty-monorepo/commit/2bc06036))
+
+### 🩹 Fixes
+
+- **graphty:** inset the canvas overlays so the data table and legend are visible ([6fb9db16](https://github.com/graphty-org/graphty-monorepo/commit/6fb9db16))
+- **graphty:** stop offering a legend that cannot draw ([82173334](https://github.com/graphty-org/graphty-monorepo/commit/82173334))
+- **graphty:** surface a load that failed instead of reporting success ([370105f9](https://github.com/graphty-org/graphty-monorepo/commit/370105f9))
+- **graphty:** carry a style edit to the layer without clobbering the rest ([02504094](https://github.com/graphty-org/graphty-monorepo/commit/02504094))
+- **graphty:** write every style branch in the shape graphty-element interns ([a0f22ddc](https://github.com/graphty-org/graphty-monorepo/commit/a0f22ddc))
+- **graphty:** let the Explore search take typing and the palette open focused ([1d81de25](https://github.com/graphty-org/graphty-monorepo/commit/1d81de25))
+- **graphty:** name the variant each compact story demonstrates ([cc4d3ddc](https://github.com/graphty-org/graphty-monorepo/commit/cc4d3ddc))
+- **graphty:** lock both sidebars open on a first visit and show the lock state ([e49f5943](https://github.com/graphty-org/graphty-monorepo/commit/e49f5943))
+- **graphty:** give Welcome its own surface instead of the canvas background ([2af4a1cc](https://github.com/graphty-org/graphty-monorepo/commit/2af4a1cc))
+- **graphty:** read a style layer back through an element-to-editor converter ([d663c0d1](https://github.com/graphty-org/graphty-monorepo/commit/d663c0d1))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.8.0
+- Updated graphty-element to 1.10.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.0 (2026-09-17)
+
+### 🚀 Features
+
+- **graph-format:** add the frozen CSR graph snapshot package ([5000b631](https://github.com/graphty-org/graphty-monorepo/commit/5000b631))
+
+### 🩹 Fixes
+
+- **workspace:** stop a blocked test worker from failing a green run ([#8297](https://github.com/graphty-org/graphty-monorepo/issues/8297))
+- **workspace:** quiet the CI reporter so the worker RPC is not starved ([6fc56c1b](https://github.com/graphty-org/graphty-monorepo/commit/6fc56c1b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.10.0 (2026-09-17)
+
+### 🚀 Features
+
+- **graphty-element:** let the caller set the patterned-line element count ([71a35012](https://github.com/graphty-org/graphty-monorepo/commit/71a35012))
+- **graphty-element:** export the shape enum, add the torus it already builds, paint gradients ([069f8260](https://github.com/graphty-org/graphty-monorepo/commit/069f8260))
+- **graphty-element:** publish the group count and modularity a reading needs ([ffd226df](https://github.com/graphty-org/graphty-monorepo/commit/ffd226df))
+
+### 🩹 Fixes
+
+- **graphty-element:** stop an algorithm painting elements it has no result for ([#009](https://github.com/graphty-org/graphty-monorepo/issues/009), [#440154](https://github.com/graphty-org/graphty-monorepo/issues/440154))
+- **graphty-element:** stop an algorithm's highlight from repainting the graph ([58bbf728](https://github.com/graphty-org/graphty-monorepo/commit/58bbf728))
+- **graphty-element:** reattach edges on a shape change and dispose what a dataset leaves ([054d61c3](https://github.com/graphty-org/graphty-monorepo/commit/054d61c3))
+- **graphty-element:** make load mean load, so a removed layer stops painting ([47784b5a](https://github.com/graphty-org/graphty-monorepo/commit/47784b5a))
+- **graphty-element:** let a calculated style reach a wrapped schema branch ([ef265b9d](https://github.com/graphty-org/graphty-monorepo/commit/ef265b9d))
+- **graphty-element:** let a second data source load after clearData ([53c4293a](https://github.com/graphty-org/graphty-monorepo/commit/53c4293a))
+
+### 🔥 Performance
+
+- **graphty-element:** bound the patterned-line mesh count and restore culling ([f556cb69](https://github.com/graphty-org/graphty-monorepo/commit/f556cb69))
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.0 (2026-09-17)
+
+### 🚀 Features
+
+- **compact-mantine:** disabled reasons, bound toggles, and one colour change per gesture ([195438d5](https://github.com/graphty-org/graphty-monorepo/commit/195438d5))
+
+### 🩹 Fixes
+
+- **compact-mantine:** give the active icon button a state boundary that meets 3:1 ([ef815f54](https://github.com/graphty-org/graphty-monorepo/commit/ef815f54))
+- **compact-mantine:** let every themed component vary with its size prop ([e814acc8](https://github.com/graphty-org/graphty-monorepo/commit/e814acc8))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.6.2 (2026-09-11)
 
 This was a version bump only for layout to align it with other projects, there were no code changes.

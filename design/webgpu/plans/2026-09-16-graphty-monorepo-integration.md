@@ -269,7 +269,7 @@ Every later task of Phases M1-M3 runs in this worktree; `WT` below means `/home/
 - Create: `tools/land-webgpu-graph-algorithms.sh`
 
 **Interfaces:**
-- Produces: `tools/land-webgpu-graph-algorithms.sh {prepare|merge|commit <step>|push|land} [--dry-run] [--no-sign] [--skip-gate]`; steps `workspace`, `package`, `docs`, `ignore`, `ci` (committed in that order) with the subjects and path claims below (Tasks M1-T5 through M3-T4 fill the working tree that each step commits).
+- Produces: `tools/land-webgpu-graph-algorithms.sh {prepare|merge|commit <step>|push|land} [--dry-run] [--skip-gate]`; steps `workspace`, `package`, `docs`, `ignore`, `ci` (committed in that order) with the subjects and path claims below (Tasks M1-T5 through M3-T4 fill the working tree that each step commits).
 - Consumes: the source tip `T0` (M0-T1); the worktree (M1-T1).
 
 - [ ] **Step 1: Write the script**
@@ -286,9 +286,9 @@ Every later task of Phases M1-M3 runs in this worktree; `WT` below means `/home/
 # branch is the merge and the wiring commits come after it (design/monorepo/
 # nx-monorepo-implementation-plan.md:1483-1491: history must be merged BEFORE the files exist).
 #
-# Signing: commits are GPG-signed by default (~/.gitconfig commit.gpgsign=true); run this
-# script from an interactive terminal so the pinentry prompt can appear, or pass --no-sign
-# (what the graph-format landing did).
+# Signing: every commit is GPG-signed (~/.gitconfig commit.gpgsign=true) and the script refuses to
+# run without it (owner rule of 2026-09-17: signing is never disabled); run it from an interactive
+# terminal so the pinentry prompt can appear.
 #
 # Usage, in order (all from the landing worktree):
 #   ./tools/land-webgpu-graph-algorithms.sh prepare          # fresh clone + filter-repo rewrite + fetch
@@ -301,7 +301,7 @@ Every later task of Phases M1-M3 runs in this worktree; `WT` below means `/home/
 #                                                            #   main worktree itself; pass --skip-gate: the pre-push
 #                                                            #   gate already ran on the branch push, and the main
 #                                                            #   worktree's node_modules predate the new importer)
-# Options: --dry-run (stage/commit nothing), --no-sign, --skip-gate (push --no-verify).
+# Options: --dry-run (stage/commit nothing), --skip-gate (push --no-verify).
 #
 # Every message below is plain ASCII and carries no Co-Authored-By / Claude-Session trailer;
 # the script refuses to commit a message that has either.
@@ -318,21 +318,19 @@ MERGE_SUBJECT="feat: merge the webgpu-graph-algorithms package history into the 
 EXPECTED_COMMITS=31                         # 30 from the rehearsal of 2026-09-16 + the M0-T1 docs commit
 
 DRY_RUN=0
-SIGN=1
 SKIP_GATE=0
 COMMAND=""
 STEP=""
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
-        --no-sign) SIGN=0 ;;
         --skip-gate) SKIP_GATE=1 ;;
         prepare|merge|commit|push|land) COMMAND=$arg ;;
         workspace|package|docs|ignore|ci) STEP=$arg ;;
         *) echo "unknown argument: $arg"; exit 2 ;;
     esac
 done
-[ -n "$COMMAND" ] || { echo "usage: $0 {prepare|merge|commit <step>|push|land} [--dry-run] [--no-sign] [--skip-gate]"; exit 2; }
+[ -n "$COMMAND" ] || { echo "usage: $0 {prepare|merge|commit <step>|push|land} [--dry-run] [--skip-gate]"; exit 2; }
 
 fail() { echo "REFUSING: $1"; exit 1; }
 
@@ -418,7 +416,10 @@ by line number) explaining the path forms of the staging era. design/webgpu/
 README.md indexes the corpus, since the p1 and p3 phase plans exceed a
 megabyte and GitHub does not render them; design/README.md gains the webgpu
 row and the graph-format row the F1 landing forgot; graph-format/CLAUDE.md
-and the GPU upload audit stop pointing at staging-only paths.
+and the GPU upload audit stop pointing at staging-only paths. The
+integration plan carries its execution-time amendments (the knip path
+artifact of .worktrees/ checkouts and the gate that runs from a clean-path
+copy because of it).
 MSG
 }
 
@@ -485,8 +486,10 @@ check_message() {
     awk 'length($0) > 100 { exit 1 }' "$file" || fail "a line of the commit message $file exceeds 100 characters"
 }
 
-sign_args() {
-    if [ "$SIGN" = "1" ]; then echo ""; else echo "-c commit.gpgsign=false"; fi
+require_signing() {
+    # never disabled, never overridden: the merge and every wiring commit carry the owner's signature
+    [ "$(git config --get commit.gpgsign)" = "true" ] || fail "commit.gpgsign is not true; signing is never disabled for this landing"
+    [ -n "$(git config --get user.signingkey)" ] || fail "no user.signingkey configured"
 }
 
 on_landing_branch() {
@@ -557,6 +560,7 @@ do_prepare() {
 
 do_merge() {
     on_landing_branch
+    require_signing
     # tracked modifications block the merge; untracked files (this script before its own commit, tmp/land/) do not
     [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "the worktree has uncommitted tracked changes"
     git rev-parse --verify --quiet "$REMOTE_NAME/master" > /dev/null || fail "run prepare first ($REMOTE_NAME/master is missing)"
@@ -582,12 +586,12 @@ MSG
     if [ "$DRY_RUN" = "1" ]; then echo "DRY RUN: would merge $REMOTE_NAME/master with:"; cat "$msg"; rm -f "$msg"; return; fi
     local hooks
     hooks=$(hooks_dir)
-    # shellcheck disable=SC2046
-    git -c core.hooksPath="$hooks" $(sign_args) merge --allow-unrelated-histories --no-ff -F "$msg" "$REMOTE_NAME/master"
+    git -c core.hooksPath="$hooks" merge --allow-unrelated-histories --no-ff -F "$msg" "$REMOTE_NAME/master"
     local status=$?
     rm -rf "$hooks" "$msg"
     [ "$status" = "0" ] || fail "merge failed (exit $status); git merge --abort and inspect"
     [ -z "$(git diff --name-only --diff-filter=U)" ] || fail "conflicts after the merge"
+    [ "$(git log -1 --format=%G?)" = "G" ] || fail "the merge commit is not signed (git log -1 --format=%G? printed $(git log -1 --format=%G?)); do not push it"
     echo "merged: $(git log -1 --format='%h signed=%G? %s')"
     echo "package files: $(git ls-files webgpu-graph-algorithms | wc -l); design files: $(git ls-files design/webgpu | wc -l)"
     echo "next: run the plan's tasks, then $0 commit workspace (then package, docs, ignore, ci)"
@@ -597,6 +601,7 @@ MSG
 
 do_commit() {
     on_landing_branch
+    require_signing
     [ -n "$STEP" ] || fail "commit needs a step: workspace | package | docs | ignore | ci"
     for path in ${PATHS[$STEP]}; do
         [ -e "$path" ] || fail "planned path does not exist: $path"
@@ -628,11 +633,11 @@ do_commit() {
     [ -n "$(git diff --cached --name-only)" ] || { echo "nothing staged for $STEP; no commit made"; rm -f "$msg"; return; }
     local hooks
     hooks=$(hooks_dir)
-    # shellcheck disable=SC2046
-    git -c core.hooksPath="$hooks" $(sign_args) commit -F "$msg"
+    git -c core.hooksPath="$hooks" commit -F "$msg"
     local status=$?
     rm -rf "$hooks" "$msg"
     [ "$status" = "0" ] || fail "commit failed for $STEP"
+    [ "$(git log -1 --format=%G?)" = "G" ] || fail "the $STEP commit is not signed (git log -1 --format=%G? printed $(git log -1 --format=%G?)); do not push it"
     echo "     $(git log -1 --format='%h signed=%G? %s')"
 }
 
@@ -640,6 +645,11 @@ do_commit() {
 
 do_push() {
     on_landing_branch
+    # the first-parent line above master is the merge and the wiring commits, all signed by the owner; the
+    # 31 imported commits behind the merge's second parent are unsigned by design (D-1) and are not walked
+    local unsigned
+    unsigned=$(git log --first-parent --format='%G? %h %s' master..HEAD | grep -v '^G ' | head -3)
+    [ -z "$unsigned" ] || fail "unsigned commit(s) on the first-parent line of $BRANCH above master: $unsigned"
     [ -z "$(git status --porcelain --untracked-files=normal)" ] || fail "uncommitted changes; commit every step first"
     git remote remove "$REMOTE_NAME" 2>/dev/null || true
     [ "$DRY_RUN" = "1" ] && { echo "DRY RUN: would push $BRANCH to origin"; return; }
@@ -1181,7 +1191,7 @@ Insert after the `"graph-io": { ... },` block:
 - [ ] **Step 2: Run knip**
 
 Run: `cd WT && pnpm exec knip --workspace webgpu-graph-algorithms; echo "exit=$?"`
-Expected: `exit=0` with no findings for the package. If knip reports `benchmarks/run.ts` as an unused file, that is the vitest/npm-script inference: confirm `webgpu-graph-algorithms/package.json` still has the `bench` script (`tsx benchmarks/run.ts`) and that `knip` was run from the worktree root with its own `node_modules` (a scratch install once showed that false positive). Then the whole repository: `pnpm exec knip; echo "exit=$?"` -- expected: the same findings as `master` has today and nothing under `webgpu-graph-algorithms/`.
+Expected: `exit=0` with no findings for the package -- FROM A PATH WITH NO GITIGNORED SEGMENT. Found at execution (2026-09-17): knip turns the root `.gitignore` rules `tmp/` and `.worktrees/` into `**/tmp/**` and `**/.worktrees/**` and applies them to ABSOLUTE paths, so from any `.worktrees/<name>/` checkout (or a copy under `tmp/`) it drops every npm-script-derived entry and reports `benchmarks/run.ts` unused plus `printTable` / `gpuSessionInfo` in `benchmarks/harness.ts` -- the untouched graph-format workspace shows the same six-file false positive there, and `pnpm exec knip --workspace webgpu-graph-algorithms --no-gitignore` exits 0. The proof that counts is the whole-repository run from a clean path: `rsync -a --exclude node_modules --exclude .git --exclude tmp --exclude coverage --exclude .nx WT/ /home/apowers/Projects/graphty-knipcheck/`, symlink `node_modules` (root and every workspace package) to the worktree's, then `pnpm exec knip` there -- exit 0 with no output on 2026-09-17 (master's main worktree is also clean). Delete the copy afterwards. Then the whole repository: `pnpm exec knip; echo "exit=$?"` -- expected: the same findings as `master` has today and nothing under `webgpu-graph-algorithms/`.
 
 ### Task M2-T4: Root scripts
 
@@ -1493,12 +1503,12 @@ Expected: exit 0 and `M pnpm-lock.yaml` (the file regenerated in M1-T4 step 3, u
 - [ ] **Step 3: knip, prettier, audit**
 
 Run: `cd WT && pnpm exec knip; echo "knip=$?"; pnpm exec prettier --check knip.config.ts package.json README.md pnpm-workspace.yaml webgpu-graph-algorithms/project.json .github/workflows/release.yml && bash -n tools/prepush.sh tools/merge-coverage.sh; pnpm audit --audit-level=high; echo "audit=$?"`
-Expected: `knip=0` with no findings (master is clean today), prettier clean on the listed files, `bash -n` silent, `audit=0` (38 low/moderate today, none high). Not listed on purpose: `commitlint.config.js` (its tab-indented duplicate entries are not prettier-clean on master and M2-T1 leaves them alone), `.github/workflows/ci.yml` (one pre-existing `all-checks` `needs:` line exceeds the print width; M3-T1 step 7 covers the file), and shell scripts (prettier has no parser for them).
+Expected: `knip=0` with no findings when run from the clean-path copy of Task M2-T3 step 2 (from the worktree path itself knip exits 1 on the `.worktrees/` artifact; master is clean today), prettier clean on the listed files, `bash -n` silent, `audit=0` (38 low/moderate today, none high). Not listed on purpose: `commitlint.config.js` (its tab-indented duplicate entries are not prettier-clean on master and M2-T1 leaves them alone), `.github/workflows/ci.yml` (one pre-existing `all-checks` `needs:` line exceeds the print width; M3-T1 step 7 covers the file), and shell scripts (prettier has no parser for them).
 
 - [ ] **Step 4: The pre-push gate itself**
 
 Run: `cd WT && ./tools/prepush.sh; echo "prepush=$?"`
-Expected: `prepush=0` in about 15-25 minutes (build, lint, knip, every package's fast tests including the new line, graphty's browser suite). A failure in `remote-logger`'s random-port tests is the known ECONNRESET flake -- re-run once. Any failure under `webgpu-graph-algorithms` is this plan's to fix before the commit.
+Expected: every step green EXCEPT the three failures known on 2026-09-17, so `prepush=1` with exactly those three in its summary: (1) `Knip (dead code detection)` -- the `.worktrees/` path artifact of Task M2-T3 step 2 (the clean-path copy is knip's proof; the copy cannot run the whole gate because its `node_modules` symlinks resolve `@graphty/*` workspace packages to the worktree's directories, so cross-package builds miss the sibling `dist/`); (2) `Test (graph-format)` -- a master defect the release commit `dc08826b` created and never CI-tested: `src/wire/to-wire.ts:56` hard-codes `WIRE_PRODUCER = "@graphty/graph-format@0.1.0"` while `nx release` bumped `package.json` to 0.2.0, and `test/build-output.test.ts:77` pins the two together (the published graph-format@0.2.0 stamps 0.1.0 into wire files). (3) `Test (compact-mantine)` -- the same drift: `compact-mantine/src/index.ts:201` `VERSION = "0.7.0"` against the released 0.8.0, pinned by `tests/theme/theme.test.ts:101`. The owner fixes (2) and (3) on master (their call: bump the constants, or derive them at build time so `nx release` cannot drift them again); the landing PR shows the same red `Test (graph-format)` and `Test (compact-mantine)` shards until then (M0-T2 option b: no NEW red job), and `release.yml` will not publish the GPU package until master CI is green. All three are why the owner's `push` runs with `--skip-gate` (R-M11). Otherwise `prepush=0` in about 15-25 minutes (build, lint, knip, every package's fast tests including the new line, graphty's browser suite). A failure in `remote-logger`'s random-port tests is the known ECONNRESET flake -- re-run once. Any failure under `webgpu-graph-algorithms` is this plan's to fix before the commit.
 
 ### Task M2-T9: Commit Phases M1-M2 (owner)
 
@@ -2011,7 +2021,7 @@ Expected: `0.2.0`, `dependencies["@graphty/graph-format"]` `^0.2.0` (pnpm replac
 
 - [ ] **Step 1: The staging README**
 
-In `/home/apowers/Projects/webgpu-graph-algorithms/README.md` (the staging root) add under the title: `LANDED: @graphty/webgpu-graph-algorithms, its design and the P0-P3 plans moved to graphty-org/graphty-monorepo on 2026-09-DD with this repository's history (webgpu-graph-algorithms/ and design/webgpu/ there); @graphty/graph-format and @graphty/graph-io moved on 2026-09-16. This repository is archived as the record of the staging.` Replace `2026-09-DD` with the landing date (`git -C /home/apowers/Projects/graphty-monorepo log -1 --format=%cs master`). Write `tmp/ci-round12.sh` on the M0-T1 pattern (`bash tmp/ci-push.sh README.md <<'MSG' ... MSG`, subject `docs: record the landing in graphty-monorepo and archive this repository`) and tell the owner: `! bash /home/apowers/Projects/webgpu-graph-algorithms/tmp/ci-round12.sh` (the last commit here).
+In `/home/apowers/Projects/webgpu-graph-algorithms/README.md` (the staging root) add under the title: `LANDED: @graphty/webgpu-graph-algorithms, its design and the P0-P3 plans moved to graphty-org/graphty-monorepo on 2026-09-DD with this repository's history (webgpu-graph-algorithms/ and design/webgpu/ there); @graphty/graph-format and @graphty/graph-io moved on 2026-09-16. This repository is archived as the record of the staging.` Replace `2026-09-DD` with the landing date (`git -C /home/apowers/Projects/graphty-monorepo log -1 --format=%cs master`). Write `tmp/commit-retire.sh` (NOT on the `ci-push.sh` pattern: that helper commits with `-c commit.gpgsign=false`, and from 2026-09-17 the owner's rule is that signing is never disabled -- the script commits with the default signing config, refuses if `commit.gpgsign` is not `true`, checks `signed=G` afterwards, and pushes `HEAD:master`; subject `docs: record the landing in graphty-monorepo and archive this repository`) and hand it to the owner as a plain shell line for their own terminal: `bash /home/apowers/Projects/webgpu-graph-algorithms/tmp/commit-retire.sh` (the last commit here; the owner runs signing git commands outside the Claude session since the pinentry broke a shared tty on 2026-09-17).
 
 - [ ] **Step 2: Cancel the phantom GPU run and archive**
 

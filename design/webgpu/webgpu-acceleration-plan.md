@@ -4756,3 +4756,21 @@ day: the node project's globalSetup probes the adapter ONCE and fails the
 run with one readable message when `GRAPHTY_GPU_REQUIRE` demands an adapter
 that is absent (11.2's rule unchanged; the failure is no longer repeated by
 every GPU test).
+
+Landed in graphty-monorepo (2026-09-17, phase M1 of
+`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`): this
+document moved from `design/webgpu-acceleration-plan.md` in
+graphty-org/webgpu-graph-algorithms to `design/webgpu/` here, with the
+package at `webgpu-graph-algorithms/` and the P0-P3 contract and phase plans
+under `design/webgpu/plans/`. Path forms in the body above keep their staging
+meaning: `packages/webgpu-graph-algorithms/...` means
+`webgpu-graph-algorithms/...`; `docs/superpowers/plans/...` means
+`design/webgpu/plans/...`; `tmp/webgpu-plan/...` means the notes, drafts and
+probes now under `webgpu-graph-algorithms/docs/research/...`; the absolute
+`/home/apowers/Projects/graphty-monorepo/design/graph-format/...` citations
+are `design/graph-format/...` in this repository; `HEADLESS_GPU_REPORT.md` is
+`webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md`. Nothing above was
+edited. The section 12.5 line references into ci.yml are dated 2026-09-14;
+the shards as landed are in `.github/workflows/ci.yml` and the integration
+plan's Phase M3. DEP-C of the integration plan: the T4 baseline path is
+`benchmarks/results/gpu-linux-t4.json`, not `benchmarks/baselines/`.

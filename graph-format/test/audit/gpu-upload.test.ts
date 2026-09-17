@@ -10,7 +10,7 @@
  *
  * Runs on Google Dawn for Node (the `webgpu` npm package, a devDependency of this package). On
  * this machine the NVIDIA Vulkan ICD needs `libEGL.so.1` on `LD_LIBRARY_PATH` (see
- * HEADLESS_GPU_REPORT.md appendix D: `tmp/egl/root/usr/lib/x86_64-linux-gnu`); without it Dawn falls
+ * webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md appendix D: `tmp/egl/root/usr/lib/x86_64-linux-gnu`); without it Dawn falls
  * back to Mesa's llvmpipe software adapter, which still exercises the same upload path. When Dawn
  * cannot load or finds no adapter at all the suite is skipped with the reason printed (E_NO_ADAPTER);
  * a wrong result is never a skip.

@@ -17,7 +17,7 @@ The normative design is `design/graph-format/graph-format-design.md` in the mono
 - section 17: the decision log
 
 Implement the design as written. Where it is silent, choose the simplest option consistent with the
-invariants and say so in the PR. `packages/STATUS.md` (staging) lists every deviation made so far.
+invariants and say so in the PR. `design/graph-format/STATUS.md` lists every deviation made so far.
 
 ## Package Structure
 

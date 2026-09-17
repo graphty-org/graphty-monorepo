@@ -4806,3 +4806,8 @@ file.
     (`docs/decisions/G3.md` finding G3-F6). The owner amends the snippet
     (and the "line-for-line port" wording, which now holds up to this one
     algebraic rewrite) or re-decides.
+
+Landed in graphty-monorepo (2026-09-17): this contract moved from
+`docs/superpowers/plans/` in the staging repository to `design/webgpu/plans/`;
+the package it specifies is at `webgpu-graph-algorithms/`; `design/webgpu-acceleration-plan.md`
+means `design/webgpu/webgpu-acceleration-plan.md`. The body above is unchanged.

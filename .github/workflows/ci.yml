@@ -80,14 +80,14 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t build --parallel=3
 
-            # graph-format and graph-io are not yet in graphty's dependency closure (the consumer
+            # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
             # migration of design/graph-format section 14 is pending), so a PR that touches only the
             # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
             # artifact and every test shard's Download step would fail with "Artifact not found".
             # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
-            - name: Build graph-format and graph-io (PR)
+            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io --parallel=2
+              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
 
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'
@@ -150,6 +150,13 @@ jobs:
               with:
                   name: build-graph-io
                   path: graph-io/dist/
+                  retention-days: 1
+
+            - name: Upload webgpu-graph-algorithms build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-webgpu-graph-algorithms
+                  path: webgpu-graph-algorithms/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -265,6 +272,8 @@ jobs:
                 shard:
                     - graph-format
                     - graph-io
+                    - webgpu-graph-algorithms-node
+                    - webgpu-graph-algorithms-browser
                     - algorithms-default
                     - algorithms-browser
                     - layout
@@ -293,6 +302,25 @@ jobs:
                       package: graph-io
                       test-command: pnpm exec nx run graph-io:coverage
                       needs-browser: false
+                      needs-storybook: false
+                    # webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
+                    # project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
+                    # pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
+                    # nx -> npm -> vitest pipe chain starved the worker RPC for graph-format and graph-io (6fc56c1b).
+                    # needs-lavapipe gates the apt install and the ICD lookup that export the lane's environment.
+                    - shard: webgpu-graph-algorithms-node
+                      package: webgpu-graph-algorithms
+                      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts --passWithNoTests
+                      needs-browser: false
+                      needs-storybook: false
+                      needs-lavapipe: true
+                    # the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
+                    # timeout iff every test passed (browser.close() can hang after GPU work); SwiftShader flags come
+                    # from the package's vitest.config.ts, not from CI
+                    - shard: webgpu-graph-algorithms-browser
+                      package: webgpu-graph-algorithms
+                      test-command: cd webgpu-graph-algorithms && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
+                      needs-browser: true
                       needs-storybook: false
                     # algorithms - two shards (default and browser separated to avoid worker timeout)
                     # Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
@@ -416,6 +444,12 @@ jobs:
                   name: build-graph-io
                   path: graph-io/dist/
 
+            - name: Download webgpu-graph-algorithms build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-webgpu-graph-algorithms
+                  path: webgpu-graph-algorithms/dist/
+
             - name: Download algorithms build
               uses: actions/download-artifact@v4
               with:
@@ -481,6 +515,31 @@ jobs:
                   pnpm exec http-server graphty-element/storybook-static -p 9026 &
                   sleep 3
 
+            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
+            - name: Install Mesa lavapipe
+              if: matrix.needs-lavapipe
+              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+            - name: Locate the lavapipe ICD and export the lane's environment
+              if: matrix.needs-lavapipe
+              run: |
+                  # find, not ls with globs: the ICD's file name moved between Mesa releases (lvp_icd.json on noble,
+                  # lvp_icd.x86_64.json on jammy); an unmatched glob makes ls exit 2 under bash -e
+                  icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
+                  if [ -z "$icd" ]; then
+                      echo "::error::no lavapipe ICD json after installing mesa-vulkan-drivers"
+                      dpkg -L mesa-vulkan-drivers | grep -i 'json\|lvp\|lavapipe' || true
+                      exit 1
+                  fi
+                  echo "lavapipe ICD: $icd"
+                  VK_DRIVER_FILES="$icd" vulkaninfo --summary 2>/dev/null | head -40 || true
+                  {
+                      echo "VK_DRIVER_FILES=$icd"
+                      echo "GRAPHTY_GPU_ADAPTER=llvmpipe"
+                      echo "GRAPHTY_GPU_REQUIRE=any"
+                      echo "XDG_RUNTIME_DIR=/tmp"
+                  } >> "$GITHUB_ENV"
+
             - name: Run tests
               run: ${{ matrix.test-command }}
 
@@ -511,6 +570,16 @@ jobs:
                   path: ${{ matrix.package }}/coverage/lcov.info
                   retention-days: 1
                   if-no-files-found: ignore
+
+            - name: Upload coverage (webgpu-graph-algorithms)
+              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-${{ matrix.shard }}
+                  path: webgpu-graph-algorithms/coverage/lcov.info
+                  retention-days: 1
+                  if-no-files-found: error
+                  overwrite: true
 
     # Chromatic visual regression testing (graphty-element)
     chromatic-element:

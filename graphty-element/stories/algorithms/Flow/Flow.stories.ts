@@ -50,6 +50,45 @@ const bipartiteJobMatchingData = {
     ],
 };
 
+// Directed flow network: a municipal water supply. Capacities are megalitres/day.
+//
+// The cat social network the other stories use is undirected and has no capacities, so
+// max flow across it is 0 -- every edge renders blues(0), which is #f7fbff and invisible.
+// This network is built to demonstrate the algorithm instead:
+//   - max flow is 26, and the flow assignment is unique
+//   - the bottleneck is the three plant -> city mains, which all saturate
+//   - the reservoir -> pump mains keep spare capacity, so utilisation varies
+//   - every edge carries between 4 and 9, so no edge lands on blues(0) and disappears
+const waterSupplyNetworkData = {
+    nodes: [
+        { id: "reservoir", label: "Reservoir", tier: "source" },
+        { id: "pump_north", label: "North Pump", tier: "pump" },
+        { id: "pump_central", label: "Central Pump", tier: "pump" },
+        { id: "pump_south", label: "South Pump", tier: "pump" },
+        { id: "plant_east", label: "East Plant", tier: "plant" },
+        { id: "plant_west", label: "West Plant", tier: "plant" },
+        { id: "plant_hill", label: "Hilltop Plant", tier: "plant" },
+        { id: "city", label: "City", tier: "sink" },
+    ],
+    edges: [
+        // reservoir -> pumps: sized above demand, so these run below capacity
+        { src: "reservoir", dst: "pump_north", capacity: 11 },
+        { src: "reservoir", dst: "pump_central", capacity: 10 },
+        { src: "reservoir", dst: "pump_south", capacity: 12 },
+        // pumps -> plants: each plant's intake exactly matches its outflow main
+        { src: "pump_north", dst: "plant_east", capacity: 5 },
+        { src: "pump_north", dst: "plant_west", capacity: 4 },
+        { src: "pump_central", dst: "plant_east", capacity: 4 },
+        { src: "pump_central", dst: "plant_hill", capacity: 4 },
+        { src: "pump_south", dst: "plant_west", capacity: 5 },
+        { src: "pump_south", dst: "plant_hill", capacity: 4 },
+        // plants -> city: the min cut, 9 + 9 + 8 = 26
+        { src: "plant_east", dst: "city", capacity: 9 },
+        { src: "plant_west", dst: "city", capacity: 9 },
+        { src: "plant_hill", dst: "city", capacity: 8 },
+    ],
+};
+
 /**
  * Bipartite Matching - maximum matching in bipartite graphs
  * Demonstrates job candidate ↔ job position matching
@@ -77,7 +116,7 @@ export const BipartiteMatching: Story = {
                 {
                     edge: {
                         selector: 'algorithmResults.graphty."bipartite-matching".inMatching == `false`',
-                        style: { enabled: true, line: { opacity: 0.3 } },
+                        style: { enabled: true, line: { color: "#CCCCCC", opacity: 0.3 } },
                     },
                     metadata: { name: "Reader - dim non-matched edges" },
                 },
@@ -136,12 +175,59 @@ export const BipartiteMatching: Story = {
 };
 
 /**
- * Max Flow - network flow visualization
- * Edge width proportional to flow amount
- * Edge color intensity shows flow utilization (light → dark blue)
- * Source node is green with glow, sink node is red with glow
+ * Max Flow - network flow visualization on a water supply network
+ * Edge width is proportional to the flow carried, and colour intensity with it
+ * (light -> dark blue), so the saturated plant -> city mains read darkest and widest
+ * Source node (Reservoir) is orange, sink node (City) is sky blue
+ * Max flow is 26 megalitres/day; the three plant -> city mains are the bottleneck
  */
-export const MaxFlow: Story = createAlgorithmStory("graphty:max-flow");
+export const MaxFlow: Story = {
+    args: {
+        dataSource: undefined,
+        nodeData: waterSupplyNetworkData.nodes,
+        edgeData: waterSupplyNetworkData.edges,
+        styleTemplate: templateCreator({
+            // the node names carry the demonstration, so show them
+            nodeStyle: { label: { enabled: true, textPath: "label" } },
+            graph: {
+                viewMode: "2d",
+                layout: "multipartite",
+                layoutOptions: {
+                    subsetKey: {
+                        "0": ["reservoir"],
+                        "1": ["pump_north", "pump_central", "pump_south"],
+                        "2": ["plant_east", "plant_west", "plant_hill"],
+                        "3": ["city"],
+                    },
+                    align: "vertical",
+                },
+            },
+            algorithms: ["graphty:max-flow"],
+        }),
+        runAlgorithmsOnLoad: true,
+    },
+    play: async ({ canvasElement }) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const element = canvasElement.querySelector("graphty-element");
+        if (!element) {
+            return;
+        }
+
+        const { graph } = element as Graphty;
+
+        // Name the endpoints. The algorithm otherwise defaults to the first and last node in
+        // insertion order, which is only ever the right pair by accident.
+        await graph.runAlgorithm("graphty", "max-flow", {
+            algorithmOptions: { source: "reservoir", sink: "city" },
+            applySuggestedStyles: true,
+        });
+
+        const dm = graph.getDataManager();
+        dm.applyStylesToExistingNodes();
+        dm.applyStylesToExistingEdges();
+    },
+};
 
 /**
  * Min Cut - minimum cut visualization
@@ -153,7 +239,7 @@ export const MinCut: Story = createAlgorithmStory("graphty:min-cut", [
     {
         edge: {
             selector: 'algorithmResults.graphty."min-cut".inCut == `false`',
-            style: { enabled: true, line: { opacity: 0.4 } },
+            style: { enabled: true, line: { color: "#CCCCCC", opacity: 0.4 } },
         },
         metadata: { name: "Reader - dim non-cut edges" },
     },

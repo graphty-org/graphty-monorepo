@@ -15,7 +15,7 @@ export const Kruskal: Story = createAlgorithmStory("graphty:kruskal", [
     {
         edge: {
             selector: "algorithmResults.graphty.kruskal.inMST == `false`",
-            style: { enabled: true, line: { opacity: 0.3 } },
+            style: { enabled: true, line: { color: "#999999", opacity: 0.3 } },
         },
         metadata: { name: "Reader - dim non-MST edges" },
     },
@@ -30,7 +30,7 @@ export const Prim: Story = createAlgorithmStory("graphty:prim", [
     {
         edge: {
             selector: "algorithmResults.graphty.prim.inMST == `false`",
-            style: { enabled: true, line: { opacity: 0.3 } },
+            style: { enabled: true, line: { color: "#999999", opacity: 0.3 } },
         },
         metadata: { name: "Reader - dim non-MST edges" },
     },

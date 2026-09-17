@@ -80,7 +80,7 @@ export class BFSAlgorithm extends Algorithm<BFSOptions> {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.bfs.levelPct != `null`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bfs.levelPct"],

@@ -15,7 +15,7 @@ export class StronglyConnectedComponentsAlgorithm extends Algorithm {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.scc.componentId != `null`",
                     style: {
                         enabled: true,
                     },

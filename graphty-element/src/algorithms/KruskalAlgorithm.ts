@@ -36,21 +36,6 @@ export class KruskalAlgorithm extends Algorithm {
                     description: "Highlights minimum spanning tree edges (green) - colorblind-safe",
                 },
             },
-            {
-                edge: {
-                    selector: "algorithmResults.graphty.kruskal.inMST == `false`",
-                    style: {
-                        enabled: true,
-                        line: {
-                            opacity: 0.3,
-                        },
-                    },
-                },
-                metadata: {
-                    name: "Kruskal - Non-MST Edges",
-                    description: "Dims edges not in minimum spanning tree",
-                },
-            },
         ],
         description: "Visualizes minimum spanning tree computed via Kruskal's algorithm",
         category: "path",

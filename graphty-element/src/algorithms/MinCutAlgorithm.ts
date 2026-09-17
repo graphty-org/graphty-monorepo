@@ -149,23 +149,8 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
                 },
             },
             {
-                edge: {
-                    selector: 'algorithmResults.graphty."min-cut".inCut == `false`',
-                    style: {
-                        enabled: true,
-                        line: {
-                            opacity: 0.4,
-                        },
-                    },
-                },
-                metadata: {
-                    name: "Min Cut - Non-Cut Edges",
-                    description: "Dims edges not in the minimum cut",
-                },
-            },
-            {
                 node: {
-                    selector: "",
+                    selector: 'algorithmResults.graphty."min-cut".partition != `null`',
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.min-cut.partition"],

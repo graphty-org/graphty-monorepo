@@ -17,7 +17,6 @@ export const Dijkstra: Story = createAlgorithmStory("graphty:dijkstra");
  * Bellman-Ford - shortest path with support for negative weights
  * Path edges are highlighted in blue with increased width
  * Path nodes have blue color and glow effect
- * Nodes fade based on distance from source
  */
 export const BellmanFord: Story = createAlgorithmStory("graphty:bellman-ford");
 

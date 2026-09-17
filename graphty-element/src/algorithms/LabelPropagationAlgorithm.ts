@@ -71,7 +71,7 @@ export class LabelPropagationAlgorithm extends Algorithm<LabelPropagationOptions
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: 'algorithmResults.graphty."label-propagation".communityId != `null`',
                     style: {
                         enabled: true,
                     },

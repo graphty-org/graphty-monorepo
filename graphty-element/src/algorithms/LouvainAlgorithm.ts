@@ -108,7 +108,7 @@ export class LouvainAlgorithm extends Algorithm<LouvainOptions> {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.louvain.communityId != `null`",
                     style: {
                         enabled: true,
                     },

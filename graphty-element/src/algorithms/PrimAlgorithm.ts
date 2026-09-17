@@ -82,21 +82,6 @@ export class PrimAlgorithm extends Algorithm<PrimOptions> {
                     description: "Highlights minimum spanning tree edges (green) - colorblind-safe",
                 },
             },
-            {
-                edge: {
-                    selector: "algorithmResults.graphty.prim.inMST == `false`",
-                    style: {
-                        enabled: true,
-                        line: {
-                            opacity: 0.3,
-                        },
-                    },
-                },
-                metadata: {
-                    name: "Prim - Non-MST Edges",
-                    description: "Dims edges not in minimum spanning tree",
-                },
-            },
         ],
         description: "Visualizes minimum spanning tree computed via Prim's algorithm",
         category: "path",

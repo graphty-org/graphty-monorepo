@@ -113,7 +113,7 @@ export class DFSAlgorithm extends Algorithm<DFSOptions> {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.dfs.discoveryTimePct != `null`",
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.dfs.discoveryTimePct"],

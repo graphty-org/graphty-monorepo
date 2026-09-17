@@ -11,11 +11,27 @@ export default meta;
  * MST edges are highlighted in green with increased width
  * Non-MST edges are dimmed (gray with reduced opacity)
  */
-export const Kruskal: Story = createAlgorithmStory("graphty:kruskal");
+export const Kruskal: Story = createAlgorithmStory("graphty:kruskal", [
+    {
+        edge: {
+            selector: "algorithmResults.graphty.kruskal.inMST == `false`",
+            style: { enabled: true, line: { opacity: 0.3 } },
+        },
+        metadata: { name: "Reader - dim non-MST edges" },
+    },
+]);
 
 /**
  * Prim's MST - highlights minimum spanning tree edges
  * Same visualization as Kruskal but uses Prim's algorithm
  * (grows tree from a starting node instead of sorting edges)
  */
-export const Prim: Story = createAlgorithmStory("graphty:prim");
+export const Prim: Story = createAlgorithmStory("graphty:prim", [
+    {
+        edge: {
+            selector: "algorithmResults.graphty.prim.inMST == `false`",
+            style: { enabled: true, line: { opacity: 0.3 } },
+        },
+        metadata: { name: "Reader - dim non-MST edges" },
+    },
+]);

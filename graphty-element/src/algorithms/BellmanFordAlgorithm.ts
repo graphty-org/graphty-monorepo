@@ -101,21 +101,6 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
                     description: "Highlights path nodes (blue) - colorblind-safe",
                 },
             },
-            {
-                node: {
-                    selector: "",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.bellman-ford.distancePct"],
-                        output: "style.opacity",
-                        expr: "{ return StyleHelpers.opacity.linear(1 - (arguments[0] ?? 0)) }",
-                    },
-                },
-                metadata: {
-                    name: "Bellman-Ford - Distance Fade",
-                    description: "Fades nodes by distance from source (closer = more visible)",
-                },
-            },
         ],
         description: "Visualizes shortest paths with support for negative edge weights",
         category: "path",

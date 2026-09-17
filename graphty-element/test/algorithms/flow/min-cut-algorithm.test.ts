@@ -172,23 +172,5 @@ describe("MinCutAlgorithm", () => {
             const hasCalculatedColor = edge.calculatedStyle.output.includes("color");
             assert.ok(hasCalculatedColor);
         });
-
-        it("non-cut edges have reduced visibility", () => {
-            const styles = MinCutAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const nonCutEdgeLayer = styles.layers.find((l) => {
-                const selector = l.edge?.selector;
-                return selector?.includes("inCut") && selector.includes("false");
-            });
-
-            if (nonCutEdgeLayer?.edge) {
-                assert.ok(nonCutEdgeLayer.edge.style);
-                // Should have reduced opacity
-                const { style } = nonCutEdgeLayer.edge;
-                const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
-                assert.ok(hasReducedOpacity, "Non-cut edges should have reduced opacity");
-            }
-        });
     });
 });

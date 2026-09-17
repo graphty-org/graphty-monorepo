@@ -40,23 +40,8 @@ export class BipartiteMatchingAlgorithm extends Algorithm {
                 },
             },
             {
-                edge: {
-                    selector: 'algorithmResults.graphty."bipartite-matching".inMatching == `false`',
-                    style: {
-                        enabled: true,
-                        line: {
-                            opacity: 0.3,
-                        },
-                    },
-                },
-                metadata: {
-                    name: "Matching - Non-Matched Edges",
-                    description: "Dims edges not in maximum matching",
-                },
-            },
-            {
                 node: {
-                    selector: "",
+                    selector: 'algorithmResults.graphty."bipartite-matching".partition != `null`',
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bipartite-matching.partition"],

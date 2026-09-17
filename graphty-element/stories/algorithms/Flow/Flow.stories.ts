@@ -73,6 +73,15 @@ export const BipartiteMatching: Story = {
                 },
             },
             algorithms: ["graphty:bipartite-matching"],
+            layers: [
+                {
+                    edge: {
+                        selector: 'algorithmResults.graphty."bipartite-matching".inMatching == `false`',
+                        style: { enabled: true, line: { opacity: 0.3 } },
+                    },
+                    metadata: { name: "Reader - dim non-matched edges" },
+                },
+            ],
         }),
         runAlgorithmsOnLoad: true,
     },
@@ -140,4 +149,12 @@ export const MaxFlow: Story = createAlgorithmStory("graphty:max-flow");
  * Partition 1 nodes are blue, partition 2 nodes are red
  * Non-cut edges are dimmed
  */
-export const MinCut: Story = createAlgorithmStory("graphty:min-cut");
+export const MinCut: Story = createAlgorithmStory("graphty:min-cut", [
+    {
+        edge: {
+            selector: 'algorithmResults.graphty."min-cut".inCut == `false`',
+            style: { enabled: true, line: { opacity: 0.4 } },
+        },
+        metadata: { name: "Reader - dim non-cut edges" },
+    },
+]);

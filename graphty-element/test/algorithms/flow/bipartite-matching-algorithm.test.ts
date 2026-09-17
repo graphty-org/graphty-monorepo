@@ -123,25 +123,6 @@ describe("BipartiteMatchingAlgorithm", () => {
             assert.ok(matchedEdgeLayer.edge.calculatedStyle);
             assert.ok(matchedEdgeLayer.edge.calculatedStyle.output.includes("color"));
         });
-
-        it("non-matched edges have reduced visibility", () => {
-            const styles = BipartiteMatchingAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            // Find the non-matching edge layer (already verified edge exists by first predicate)
-            const nonMatchedLayer = styles.layers.find((l) => {
-                const { selector } = l.edge ?? {};
-                return selector?.includes("inMatching") && selector.includes("false");
-            });
-
-            if (nonMatchedLayer?.edge?.style) {
-                // Should have reduced opacity
-                const { style } = nonMatchedLayer.edge;
-                const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
-
-                assert.ok(hasReducedOpacity, "Non-matched edges should have reduced opacity");
-            }
-        });
     });
 
     describe("Node Partition Styles", () => {

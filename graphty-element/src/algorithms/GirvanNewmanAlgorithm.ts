@@ -89,7 +89,7 @@ export class GirvanNewmanAlgorithm extends Algorithm<GirvanNewmanOptions> {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: 'algorithmResults.graphty."girvan-newman".communityId != `null`',
                     style: {
                         enabled: true,
                     },

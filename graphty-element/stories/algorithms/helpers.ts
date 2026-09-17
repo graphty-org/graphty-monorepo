@@ -3,6 +3,7 @@ import "../../src/algorithms";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import type { StyleLayerType } from "../../src/config";
 import type { Graphty } from "../../src/graphty-element";
 import { eventWaitingDecorator, templateCreator, waitForGraphSettled } from "../helpers";
 
@@ -43,11 +44,16 @@ export const algorithmMetaBase: Omit<Meta, "title"> = {
 /**
  * Helper function for algorithm stories
  * Creates a story that runs an algorithm and applies its suggested styles
+ *
+ * `readerLayers` are the story's OWN layers, sitting beneath the algorithm's. Muting what an
+ * algorithm did not select is a reader's choice and must not ship in suggestedStyles -- see
+ * CLAUDE.md "### Algorithm Styles" -- so a story that wants the rest dimmed asks for it here.
  */
-export const createAlgorithmStory = (algorithmId: string): Story => ({
+export const createAlgorithmStory = (algorithmId: string, readerLayers?: StyleLayerType[]): Story => ({
     args: {
         styleTemplate: templateCreator({
             algorithms: [algorithmId],
+            layers: readerLayers,
             behavior: {
                 layout: {
                     preSteps: 8000, // Extra preSteps for ngraph physics layout

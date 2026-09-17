@@ -111,7 +111,7 @@ export class LeidenAlgorithm extends Algorithm<LeidenOptions> {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: "algorithmResults.graphty.leiden.communityId != `null`",
                     style: {
                         enabled: true,
                     },

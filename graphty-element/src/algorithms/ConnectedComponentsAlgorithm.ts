@@ -15,7 +15,7 @@ export class ConnectedComponentsAlgorithm extends Algorithm {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: 'algorithmResults.graphty."connected-components".componentId != `null`',
                     style: {
                         enabled: true,
                     },

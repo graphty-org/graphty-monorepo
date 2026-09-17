@@ -26,7 +26,7 @@ describe("KruskalAlgorithm", () => {
             assert.ok(styles.description);
             assert.strictEqual(styles.category, "path");
             assert.ok(Array.isArray(styles.layers));
-            assert.strictEqual(styles.layers.length, 2); // MST edges and non-MST edges
+            assert.strictEqual(styles.layers.length, 1); // MST edges
         });
 
         it("first layer highlights MST edges with calculated color", () => {
@@ -49,39 +49,15 @@ describe("KruskalAlgorithm", () => {
             assert.ok(mstEdgeLayer.edge.style.enabled);
         });
 
-        it("second layer dims non-MST edges", () => {
-            const styles = KruskalAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const nonMstEdgeLayer = styles.layers[1];
-            assert.ok(nonMstEdgeLayer);
-            assert.ok(nonMstEdgeLayer.edge);
-
-            // Should have selector for inMST == false
-            assert.ok(nonMstEdgeLayer.edge.selector);
-            assert.ok(nonMstEdgeLayer.edge.selector.includes("inMST"));
-
-            // Should have reduced opacity for non-MST edges
-            assert.ok(nonMstEdgeLayer.edge.style);
-        });
-
         it("layers have metadata", () => {
             const styles = KruskalAlgorithm.getSuggestedStyles();
             assert.ok(styles);
 
-            // First layer
             const mstEdgeLayer = styles.layers[0];
             assert.ok(mstEdgeLayer);
             assert.ok(mstEdgeLayer.metadata);
             assert.ok(mstEdgeLayer.metadata.name);
             assert.ok(mstEdgeLayer.metadata.description);
-
-            // Second layer
-            const nonMstEdgeLayer = styles.layers[1];
-            assert.ok(nonMstEdgeLayer);
-            assert.ok(nonMstEdgeLayer.metadata);
-            assert.ok(nonMstEdgeLayer.metadata.name);
-            assert.ok(nonMstEdgeLayer.metadata.description);
         });
 
         it("description explains MST visualization", () => {
@@ -114,14 +90,14 @@ describe("KruskalAlgorithm", () => {
             assert.ok(input.includes("inMST"));
         });
 
-        it("selector uses correct algorithm result path for non-MST edges", () => {
+        it("selector uses correct algorithm result path for MST edges", () => {
             const styles = KruskalAlgorithm.getSuggestedStyles();
             assert.ok(styles);
 
-            const nonMstEdgeLayer = styles.layers[1];
-            assert.ok(nonMstEdgeLayer.edge);
+            const mstEdgeLayer = styles.layers[0];
+            assert.ok(mstEdgeLayer.edge);
 
-            const { selector } = nonMstEdgeLayer.edge;
+            const { selector } = mstEdgeLayer.edge;
             assert.ok(selector);
 
             // Should reference algorithmResults.graphty.kruskal.inMST
@@ -164,22 +140,6 @@ describe("KruskalAlgorithm", () => {
             // MST edges should use calculatedStyle for color
             assert.ok(mstEdgeLayer.edge.calculatedStyle);
             assert.ok(mstEdgeLayer.edge.calculatedStyle.output.includes("color"));
-        });
-
-        it("non-MST edges have reduced opacity", () => {
-            const styles = KruskalAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const nonMstEdgeLayer = styles.layers[1];
-            assert.ok(nonMstEdgeLayer);
-            assert.ok(nonMstEdgeLayer.edge);
-            assert.ok(nonMstEdgeLayer.edge.style);
-
-            // Should have reduced opacity
-            const { style } = nonMstEdgeLayer.edge;
-            const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
-
-            assert.ok(hasReducedOpacity, "Non-MST edges should have reduced opacity");
         });
     });
 });

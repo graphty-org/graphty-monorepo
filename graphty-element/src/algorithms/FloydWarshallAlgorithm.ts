@@ -16,7 +16,7 @@ export class FloydWarshallAlgorithm extends Algorithm {
         layers: [
             {
                 node: {
-                    selector: "",
+                    selector: 'algorithmResults.graphty."floyd-warshall".eccentricityPct != `null`',
                     style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.floyd-warshall.eccentricityPct"],

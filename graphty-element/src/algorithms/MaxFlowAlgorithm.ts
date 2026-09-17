@@ -112,7 +112,8 @@ export class MaxFlowAlgorithm extends Algorithm<MaxFlowOptions> {
             },
             {
                 node: {
-                    selector: "",
+                    selector:
+                        'algorithmResults.graphty."max-flow".isSource == `true` || algorithmResults.graphty."max-flow".isSink == `true`',
                     style: {
                         enabled: true,
                     },

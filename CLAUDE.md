@@ -18,6 +18,7 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
+| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -30,6 +31,7 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 |---------|----------|---------|-------------|
 | `@graphty/graph-format` | `graph-format/` | 0.1.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
 | `@graphty/graph-io` | `graph-io/` | 0.1.0 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.1.0 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
 | `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
 | `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -41,6 +43,7 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 graphty-monorepo/
 ├── graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
 ├── graph-io/             # @graphty/graph-io package (depends on graph-format)
+├── webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 ├── algorithms/           # @graphty/algorithms package
 ├── layout/               # @graphty/layout package
 ├── graphty-element/      # @graphty/graphty-element package
@@ -121,6 +124,7 @@ pnpm run coverage:preview:graphty-element  # Port 9053
 pnpm run coverage:preview:graphty          # Port 9054
 pnpm run coverage:preview:graph-format     # Port 9056
 pnpm run coverage:preview:graph-io         # Port 9057
+pnpm run coverage:preview:webgpu-graph-algorithms  # Port 9058
 ```
 
 ## Shared Configuration
@@ -157,8 +161,9 @@ All dev servers use ports 9000-9099:
 - graphty-element Storybook: 9025
 - graphty: 9050
 - graphty Storybook: 9035
-- gpu-3d-force-layout: 9060
-- Coverage previews: 9051-9054, graph-format 9056, graph-io 9057
+- compact-mantine Storybook: 9060
+- webgpu-graph-algorithms demo (vite): 9030
+- Coverage previews: 9051-9054, graph-format 9056, graph-io 9057, webgpu-graph-algorithms 9058
 
 ## Testing Infrastructure
 
@@ -176,6 +181,11 @@ All dev servers use ports 9000-9099:
 
 **graph-io:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+
+**webgpu-graph-algorithms:**
+- `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
+- `node-limits` - the GPU lane only (real device limits)
+- `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
 
 **graphty:**
 - Browser-based tests (Playwright)
@@ -208,16 +218,19 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (18 parallel jobs) |
+| `ci.yml` | Push/PR | Build, lint, sharded tests (20 parallel jobs) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
+| `gpu.yml` | Dispatch and labelled same-repo PRs; push and nightly once the `gpu-linux-t4` runner exists | The webgpu-graph-algorithms NVIDIA T4 lane; never a job of CI, never required |
+| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Informational host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows) |
 
 ### CI Test Shards
 
-The CI runs 18 parallel test jobs:
+The CI runs 20 parallel test jobs:
 - `graph-format`
 - `graph-io`
+- `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
 - `algorithms-default`, `algorithms-browser`
 - `layout`
 - `graphty`
@@ -298,12 +311,17 @@ AlgorithmRegistry.register("custom-algo", customAlgorithm);
 Each package has its own CLAUDE.md with package-specific guidance:
 - `graph-format/CLAUDE.md` - Snapshot invariants, freeze pipeline, adding a view / a dtype
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
+- `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
 - `algorithms/CLAUDE.md` - Algorithm-specific notes (e.g., floyd-warshall hang)
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
 - `graphty/CLAUDE.md` - React app specifics
 
 ## Important Development Notes
+
+### WebGPU
+
+- Never create fallbacks if WebGPU isn't supported. The GPU package throws (`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_TOO_LARGE`, ...) and never runs a CPU path; the CPU packages' dispatchers choose the CPU only when no accelerator was injected (`design/webgpu/webgpu-acceleration-plan.md` section 2.4).
 
 ### TypeScript
 
@@ -314,7 +332,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
   - `tsconfig.base.json` provides shared compiler options
   - Each package extends base config and sets `composite: true`
   - Dependent packages declare `references` array pointing to dependencies
-  - Build order enforced by TypeScript: `graph-format` → `graph-io` → `algorithms` → `layout` → `graphty-element` → `graphty`
+  - Build order enforced by TypeScript: `graph-format` → `graph-io` → `webgpu-graph-algorithms` → `algorithms` → `layout` → `graphty-element` → `graphty`
 
 ### UI Components
 
@@ -408,6 +426,8 @@ The `design/` directory contains architecture documentation:
 - `nx-semantic-release-guide.md` - Release strategy
 - `eslint-config.md` - Linting configuration
 - `ci-parity-plan.md` - CI/CD alignment plan
+- `graph-format/graph-format-design.md` - The shared graph data format and the consumer migration
+- `webgpu/webgpu-acceleration-plan.md` - WebGPU acceleration: the design, `webgpu/plans/` the contract, the phase plans and the monorepo integration plan
 
 ## Debugging Tips
 

@@ -46,6 +46,27 @@ const config: KnipConfig = {
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
+        // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
+        // setup files and the layout driver are standalone entries. @vitest/browser and
+        // playwright are resolved by knip's vitest plugin from vitest.config.ts. `webgpu` is an optional peer AND an
+        // exact devDependency, imported inside `await import("webgpu")` in src/node/index.ts (design 2.5); knip 5.77
+        // reports referenced optional peers, so it is ignored by name.
+        "webgpu-graph-algorithms": {
+            entry: [
+                "src/index.ts",
+                "src/browser/index.ts",
+                "src/node/index.ts",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                "test/setup/*.ts",
+                "benchmarks/layout-run.ts",
+                "scripts/**/*.{ts,js}",
+            ],
+            project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+            ignoreDependencies: ["webgpu"],
+        },
+
         // Algorithms package
         algorithms: {
             entry: ["src/index.ts", "test/**/*.test.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],

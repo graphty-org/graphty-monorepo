@@ -75,6 +75,16 @@ Importers and exporters for the graph-format snapshot: GEXF, GraphML, GML, DOT, 
 
 ---
 
+### @graphty/webgpu-graph-algorithms
+
+[![npm version](https://img.shields.io/npm/v/@graphty/webgpu-graph-algorithms.svg)](https://www.npmjs.com/package/@graphty/webgpu-graph-algorithms)
+
+WebGPU-accelerated graph algorithms and force-directed layouts over the graph-format snapshot, for Node (Google Dawn) and browsers: a GPU context with an explicit adapter policy, upload planning and readback over the CSR arena, a kernel layer with WGSL composition, and ForceAtlas2 as a steppable layout simulation. Throws when no WebGPU device exists; never falls back to the CPU.
+
+[View package](./webgpu-graph-algorithms)
+
+---
+
 ### @graphty/remote-logger
 
 [![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)

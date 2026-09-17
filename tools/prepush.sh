@@ -51,6 +51,10 @@ run_step() {
 # Build all packages (required for cross-package imports)
 run_step "Build" "pnpm -r run build"
 
+# webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
+# build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint
+run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
+
 # Lint all packages
 run_step "Lint" "pnpm -r run lint"
 
@@ -71,6 +75,13 @@ echo "  Testing graph-format..."
 # graph-io - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
 echo "  Testing graph-io..."
 (cd graph-io && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+
+# webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
+# LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the
+# browser project and the no-subgroups pass run in CI. GRAPHTY_GPU_REQUIRE=any: a machine with no adapter
+# fails up front instead of skipping every GPU test and reporting a vacuous pass
+echo "  Testing webgpu-graph-algorithms..."
+(cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
 
 # algorithms - has test:run that runs --project=default
 echo "  Testing algorithms..."

@@ -75,10 +75,12 @@ jobs:
                       nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
                       nx-${{ runner.os }}-build-
 
-            # PR: Build then lint (build first for type dependencies)
+            # PR: Build then lint (build first for type dependencies). The base is named explicitly: the checkout
+            # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
+            # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
             - name: Build affected (PR)
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx affected -t build --parallel=3
+              run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
             # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
             # migration of design/graph-format section 14 is pending), so a PR that touches only the
@@ -91,7 +93,7 @@ jobs:
 
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx affected -t lint --parallel=3
+              run: pnpm exec nx affected -t lint --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
             # Master: Build then lint (build first for type dependencies)
             # graphty build needs Sentry env vars for error tracking

@@ -4,12 +4,12 @@
 The committed JSON files next to this script are the reference the f64 oracle of
 test/oracle/forceatlas2.ts is checked against in compat "networkx"
 (test/oracle/forceatlas2-networkx.test.ts). The suite never runs Python: this
-script runs ONCE, by hand, from packages/webgpu-graph-algorithms with the
+script runs ONCE, by hand, from webgpu-graph-algorithms with the
 interpreter of the gitignored venv at the repository root:
 
-    python3 -m venv --without-pip ../../tmp/nx-venv
-    python3 -m pip --python ../../tmp/nx-venv/bin/python install "networkx>=3.4" numpy scipy
-    ../../tmp/nx-venv/bin/python test/fixtures/networkx/generate.py \
+    python3 -m venv --without-pip ../tmp/nx-venv
+    python3 -m pip --python ../tmp/nx-venv/bin/python install "networkx>=3.4" numpy scipy
+    ../tmp/nx-venv/bin/python test/fixtures/networkx/generate.py \
         --out test/fixtures/networkx/ --iters 1 5 50 --seed 7
 
 (--without-pip because the system Python 3.10 has no ensurepip; pip 25.3 in
@@ -51,7 +51,7 @@ Positions that violate the separation rule are redrawn (the RandomState is
 consumed deterministically, so the same seed always yields the same files).
 
 After writing, the script runs the workspace's prettier (`pnpm exec prettier
---write`, from packages/) on the files it wrote, so the committed fixtures pass
+--write`, from the monorepo root) on the files it wrote, so the committed fixtures pass
 `pnpm run format:check` exactly like the noise fixtures; dump() itself keeps the
 arrays compact and prettier does the 120-column wrapping.
 """
@@ -329,7 +329,7 @@ def generate(out_dir, names, iters, seed):
 
 
 def format_written(written):
-    """Runs the workspace's prettier on the written files (the format:check gate of packages/)."""
+    """Runs the workspace's prettier on the written files (the format:check gate of the monorepo root)."""
     workspace = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
     files = [os.path.abspath(path) for path in written]
     result = subprocess.run(

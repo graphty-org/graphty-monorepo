@@ -62,8 +62,8 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/graphty-org/webgpu-graph-algorithms.git",
-        "directory": "packages/webgpu-graph-algorithms"
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "webgpu-graph-algorithms"
     },
     "keywords": [
         "graph",
@@ -78,16 +78,16 @@
     ],
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/graphty-org/webgpu-graph-algorithms/issues"
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/webgpu-graph-algorithms/tree/master/packages/webgpu-graph-algorithms#readme",
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/webgpu-graph-algorithms#readme",
     "dependencies": {
         "@graphty/graph-format": "workspace:^",
         "@webgpu/types": "^0.1.72"
     },
     "peerDependencies": {
         "@graphty/algorithms": "^1.0.0",
-        "@graphty/graph-format": "^0.1.0",
+        "@graphty/graph-format": "^0.2.0",
         "@graphty/layout": "^1.0.0",
         "webgpu": ">=0.4.0 <1.0.0"
     },

@@ -170,7 +170,9 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
 
 export default defineConfig({
     test: {
-        reporters: ["verbose"],
+        // verbose prints a line per test: useful locally, needless noise in CI (and 6fc56c1b: the nx -> npm ->
+        // vitest pipe chain starved the worker RPC behind it in the sibling packages)
+        reporters: process.env.CI ? ["default"] : ["verbose"],
         coverage: {
             all: true,
             provider: "v8",

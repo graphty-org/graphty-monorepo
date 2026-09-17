@@ -3,7 +3,7 @@
  * bench:compare -- the benchmark regression check of the GPU lane (spec 10.4 T-13, 11.7; contract 6.8).
  *
  * Reads three files relative to the current directory (the package root under `pnpm run bench:compare`; gpu.yml runs
- * it with working-directory packages/webgpu-graph-algorithms):
+ * it with working-directory webgpu-graph-algorithms):
  *   gpu-report.json                  written by `node scripts/gpu-report.js > gpu-report.json` (6.6): the runner class
  *                                    (computed through scripts/runner-class.js, the ONE copy of the rule, so it names the
  *                                    same file the harness wrote) and the 10-second nvidia-smi sample

@@ -4,7 +4,7 @@
  * benchmarks/out/<runner-class>.json (6.4). The checked-in baseline is benchmarks/results/<runner-class>.json, written by the
  * owner's runs on the dev box (spec 12.1) and compared by scripts/bench-compare.js on the GPU lane.
  *
- * Usage (from packages/webgpu-graph-algorithms):
+ * Usage (from webgpu-graph-algorithms):
  *   pnpm run bench                                        # every group, 5 timed runs each after one warm-up, appended
  *   pnpm exec tsx benchmarks/run.ts upload roundtrip      # selected groups
  *   pnpm exec tsx benchmarks/run.ts layout-exact          # the T-4 ladder and the 10k frame rung (P3)

@@ -111,7 +111,7 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.files).toEqual(["dist/", "src/", "README.md", "LICENSE"]);
         expect(packageJson.publishConfig).toEqual({ access: "public", provenance: true });
         expect(packageJson.engines.node).toBe(">=18.19.0");
-        expect(packageJson.repository.directory).toBe("packages/webgpu-graph-algorithms");
+        expect(packageJson.repository.directory).toBe("webgpu-graph-algorithms");
         expect(packageJson.keywords).toContain("webgpu");
     });
 

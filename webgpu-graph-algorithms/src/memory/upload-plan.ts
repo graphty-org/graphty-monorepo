@@ -33,7 +33,12 @@ export interface PlannedArray {
     readonly buffers: readonly { readonly byteOffset: number; readonly byteLength: number }[];
 }
 
-/** The arena path: ONE buffer of `bytes`, one writeBuffer, per-segment bindings at `segment.byteOffset - arena.byteOffset`. */
+/**
+ * The arena path: ONE buffer of `bytes`, one writeBuffer, per-segment bindings at `segment.byteOffset - arena.byteOffset`.
+ * A member of the exported UploadPlan union (contract 3.8 exports the three plan shapes by name); nothing imports it
+ * by name, which knip 5.77 reports.
+ * @public
+ */
 export interface ArenaPlan {
     readonly kind: "arena";
     readonly bytes: number;
@@ -41,13 +46,23 @@ export interface ArenaPlan {
     readonly segments: Readonly<Record<CoreArrayName, { readonly offset: number; readonly size: number } | null>>;
 }
 
-/** The per-array path: one buffer per needed array, whole-buffer bindings. */
+/**
+ * The per-array path: one buffer per needed array, whole-buffer bindings.
+ * A member of the exported UploadPlan union (contract 3.8 exports the three plan shapes by name); nothing imports it
+ * by name, which knip 5.77 reports.
+ * @public
+ */
 export interface PerArrayPlan {
     readonly kind: "perArray";
     readonly arrays: readonly PlannedArray[];
 }
 
-/** The windowed path: per-array buffers plus the arc windows kernels iterate (P4 executes; P1-P3 only plan). */
+/**
+ * The windowed path: per-array buffers plus the arc windows kernels iterate (P4 executes; P1-P3 only plan).
+ * A member of the exported UploadPlan union (contract 3.8 exports the three plan shapes by name); nothing imports it
+ * by name, which knip 5.77 reports.
+ * @public
+ */
 export interface WindowedPlan {
     readonly kind: "windowed";
     readonly arrays: readonly PlannedArray[];

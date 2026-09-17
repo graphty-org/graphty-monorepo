@@ -5,7 +5,7 @@
  * verifies that every position is finite and that the run ended by settling or by reaching maxIter, and exits 1
  * otherwise.
  *
- * Usage (from packages/webgpu-graph-algorithms):
+ * Usage (from webgpu-graph-algorithms):
  *   pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000          # the P3 deliverable
  *   pnpm exec tsx benchmarks/layout-run.ts --nodes 1000 --edges 10000 --iterations 50 --batch 4 --seed 7 --dim 3 --compat networkx
  *   GRAPHTY_GPU_ADAPTER=llvmpipe pnpm exec tsx benchmarks/layout-run.ts --nodes 200 --edges 2000 --iterations 20

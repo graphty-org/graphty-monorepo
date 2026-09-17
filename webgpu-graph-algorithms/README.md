@@ -13,8 +13,8 @@ WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format`
 browser frame loop (`step()` once per frame) up to `exactMaxNodes` = 32768 nodes with the default
 `repulsion: "auto"`, and at any size with `repulsion: "exact"` (all pairs, O(n^2) per iteration: 18.971 ms per
 iteration at 100k nodes / 1M edges on an RTX 4070 SUPER). The grid tier for 10^5-10^6 nodes (P4),
-Fruchterman-Reingold (P5) and the algorithms (P7+) follow the phase plan of `design/webgpu-acceleration-plan.md`
-section 13 and the interface contract `docs/superpowers/plans/2026-09-14-webgpu-p0-p3-interfaces.md`; the gate
+Fruchterman-Reingold (P5) and the algorithms (P7+) follow the phase plan of `design/webgpu/webgpu-acceleration-plan.md` (monorepo root)
+section 13 and the interface contract `design/webgpu/plans/2026-09-14-webgpu-p0-p3-interfaces.md`; the gate
 record of this phase is `docs/decisions/G3.md`. There is no CPU fallback anywhere in this package: when no
 adapter or device exists it throws `WebGpuGraphError`.
 
@@ -318,7 +318,7 @@ GPU time per iteration in the last batch).
 ## Development
 
 ```bash
-cd packages && pnpm install                       # the pnpm workspace root
+pnpm install                                      # at the monorepo root
 cd webgpu-graph-algorithms
 pnpm run build:all                                # tsc + the vite bundle + the d.ts shims
 pnpm run lint                                     # eslint + tsc --noEmit + the strict-consumer compile

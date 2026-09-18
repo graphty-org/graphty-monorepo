@@ -418,8 +418,12 @@ candidate for confirmation by the owner; none contradicts an invariant.
 - Inconsistent identity flags / weights / permutation refs in a manifest are `E_BAD_SERIALIZATION`
   at every level; a header minor differing from `manifest.wire[1]` is `E_BAD_SERIALIZATION`; a newer
   minor is accepted and unknown fields ignored.
-- `producer` is the constant `WIRE_PRODUCER = "@graphty/graph-format@0.1.0"`, pinned to package.json by
-  `test/build-output.test.ts` (importing package.json into src would emit it under dist/).
+- `producer` is `WIRE_PRODUCER = "@graphty/graph-format@<commit>"`, the short commit the bundle was
+  built from, injected by `scripts/build-bundle.js` through a Vite `define` and falling back to
+  `dev` under tsc/vitest and `unknown` with no git. It is NOT the npm version and is deliberately
+  not pinned to package.json: CI builds the artifact and `nx release` versions it afterwards, so a
+  version baked in at build time is always the previous release's -- published 0.2.0 stamps
+  `@graphty/graph-format@0.1.0`. `test/build-output.test.ts` asserts the shape only.
 - Encoded dictionaries and json text are cached in wire-module WeakMaps and re-encoded when detached.
 - `manifest.copied` lists BUFFER indices.
 - The wire module and the snapshot module import each other (hoisted functions only, call-time use);

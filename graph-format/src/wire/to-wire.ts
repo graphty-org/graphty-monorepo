@@ -50,10 +50,31 @@ import { alignUp } from "../util/typed-array.js";
 // ============================================================ constants
 
 /**
- * The `producer` string written into every manifest (design section 9.1): the package name and its
- * npm version. Golden fixtures mask it when compared. Bumped together with package.json.
+ * The commit this bundle was built from. `scripts/build-bundle.js` replaces it through a Vite
+ * `define`, so it is a string literal in `dist/graph-format.js`, the only entry `exports` names.
+ * A plain `tsc` build and a test run leave it undeclared, which is why the read below is guarded
+ * by `typeof` -- reading an undeclared identifier directly would throw a ReferenceError.
  */
-export const WIRE_PRODUCER = "@graphty/graph-format@0.1.0";
+declare const __GRAPH_FORMAT_COMMIT__: string | undefined;
+
+/**
+ * The `producer` string written into every manifest (design section 9.1): the package name and the
+ * commit it was built from. Golden fixtures mask it when compared.
+ *
+ * It carries the commit rather than the npm version because the npm version is NOT KNOWABLE here.
+ * CI builds this artifact, `nx release` assigns the version afterwards, and the release publishes
+ * that same artifact -- so a version baked in at build time is always the previous release's. Every
+ * tarball up to and including 0.2.0 shipped exactly that: 0.2.0 stamps "@graphty/graph-format@0.1.0"
+ * into every file it writes. A hand-maintained constant could not fix it either, because it made the
+ * source tree right while the published bundle stayed a release behind.
+ *
+ * A commit is fixed when the build runs, so it cannot drift, needs no release-time bookkeeping, and
+ * identifies the exact source rather than a release label. Compatibility never depended on this
+ * string: `formatVersion` and `wire [major, minor]` carry it, and nothing reads `producer` back.
+ */
+export const WIRE_PRODUCER = `@graphty/graph-format@${
+    typeof __GRAPH_FORMAT_COMMIT__ === "string" ? __GRAPH_FORMAT_COMMIT__ : "dev"
+}`;
 
 /** The views the wire carries when named by includeViews; the scalar views are never carried. */
 const SCALAR_VIEWS: ReadonlySet<ViewName> = new Set<ViewName>(["totalWeight", "symmetric"]);

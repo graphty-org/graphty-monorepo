@@ -33,20 +33,29 @@ let sharedDecoder: Decoder | null = null;
 let fatalDecoder: Decoder | null = null;
 
 /**
+ * Both decoders set `ignoreBOM: true`. The option is named backwards: it means "do not treat a
+ * leading U+FEFF as a byte order mark", i.e. leave it in the output. Left at its default the
+ * decoder SILENTLY DROPS a leading U+FEFF, so a row whose id begins with one decodes a character
+ * short and `fromEncoded(source.offsets, source.utf8)` stops round tripping -- the encoder writes
+ * the three bytes and the decoder eats them. A row here is an arbitrary string, not a document,
+ * so it has no byte order mark to strip; U+FEFF is just a character it may contain.
+ */
+
+/**
  * The lazily created shared (replacing) decoder.
- * @returns a TextDecoder that replaces malformed sequences with U+FFFD
+ * @returns a TextDecoder that replaces malformed sequences with U+FFFD and preserves U+FEFF
  */
 function replacingDecoder(): Decoder {
-    sharedDecoder ??= new TextDecoder("utf-8");
+    sharedDecoder ??= new TextDecoder("utf-8", { ignoreBOM: true });
     return sharedDecoder;
 }
 
 /**
  * The lazily created fatal decoder used by validation.
- * @returns a TextDecoder that throws on a malformed sequence
+ * @returns a TextDecoder that throws on a malformed sequence and preserves U+FEFF
  */
 function strictDecoder(): Decoder {
-    fatalDecoder ??= new TextDecoder("utf-8", { fatal: true });
+    fatalDecoder ??= new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
     return fatalDecoder;
 }
 

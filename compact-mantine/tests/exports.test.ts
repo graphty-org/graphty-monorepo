@@ -299,9 +299,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "parseAlphaFromHexa",
     "parseHexaColor",
     "toHexaColor",
-
-    // The released version
-    "VERSION",
 ];
 
 describe("Package exports", () => {
@@ -334,11 +331,6 @@ describe("Package exports", () => {
 
         it("exports compactDarkColors", () => {
             expect(mainExports.compactDarkColors).toBeDefined();
-        });
-
-        it("exports VERSION", () => {
-            expect(mainExports.VERSION).toBeDefined();
-            expect(typeof mainExports.VERSION).toBe("string");
         });
 
         describe("Component exports", () => {

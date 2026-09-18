@@ -150,24 +150,45 @@ jobs:
               run: |
                   echo "npm version: $(npm --version)"
                   echo "node version: $(node --version)"
-                  pnpm exec nx release --yes --verbose
+                  # Version, changelog, commit, tag and push -- but do NOT publish:
+                  #
+                  #   shouldPublish        = !!args.yes && !args.skipPublish && hasNewVersion
+                  #   shouldPromptPublishing = !args.yes && !args.skipPublish && !args.dryRun && ...
+                  #
+                  # --skip-publish makes both false, so publishing happens exactly
+                  # once, in the separate command below. Without it nx publishes
+                  # here as well, and the second pass races npm's staged-publish
+                  # window: nx skips a package only when it can already see the
+                  # version in the registry, a just-published version is staged and
+                  # not yet visible, so nx publishes it again and npm answers
+                  # "409 Conflict - Cannot publish over previously staged version".
+                  # That reported a red build on every release that had in fact
+                  # published everything, and bailing on the first 409 left the
+                  # packages behind it unpublished.
+                  #
+                  # --yes is deliberately absent: nx rejects it alongside
+                  # --skip-publish as mutually exclusive, and it is not needed.
+                  # Those two lines are the only places nx reads args.yes -- it
+                  # exists solely to auto-answer the publish prompt, and skipping
+                  # publishing means there is no prompt to answer. Versioning,
+                  # changelog and the GitHub release never consult it.
+                  pnpm exec nx release --skip-publish --verbose
 
-                  # `nx release` publishes only when it versioned something in
-                  # the same run:
+                  # The only publish. It is a separate command because `nx release`
+                  # publishes only when it versioned something in the same run, so
+                  # a release whose publish step fails could never be retried. The
+                  # tags are already pushed, so the next run resolves the current
+                  # version from them, finds no new conventional commits, reports
+                  # "No changes were detected" and skips publishing. The packages
+                  # stay tagged and unpublished for good. That is exactly what
+                  # happened when npm 12 broke the publish command.
                   #
-                  #   shouldPublish = !!args.yes && !args.skipPublish && hasNewVersion
-                  #
-                  # so a release whose publish step fails can never be retried.
-                  # The tags are already pushed, so the next run resolves the
-                  # current version from them, finds no new conventional commits,
-                  # reports "No changes were detected" and skips publishing. The
-                  # packages stay tagged and unpublished for good. That is exactly
-                  # what happened when npm 12 broke the publish command.
-                  #
-                  # Publishing explicitly afterwards closes that hole and is
-                  # idempotent: nx queries the registry per package and skips any
-                  # version that is already there, so this is a no-op on a normal
-                  # release that published above.
+                  # `nx release publish` does not consult hasNewVersion: it
+                  # publishes the versions in the manifests and queries the registry
+                  # per package, skipping any version that is already there. The
+                  # checkout above takes the branch tip, so re-running this job
+                  # after a failed publish picks up the release commit and ships
+                  # whatever is still missing.
                   pnpm exec nx release publish
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

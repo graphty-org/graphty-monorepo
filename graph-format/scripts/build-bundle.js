@@ -19,11 +19,37 @@ import { build } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * The commit this bundle is built from, stamped into the wire `producer` string
+ * (src/wire/to-wire.ts explains why it is the commit and not the npm version).
+ *
+ * Never throws and never fails the build: a build from a published tarball, or from a source
+ * copy with no git, has no commit to report and gets "unknown". The dirty marker is scoped to
+ * this package, so unrelated edits elsewhere in the monorepo do not flag the bundle.
+ * @returns the short commit, optionally suffixed "-dirty", or "unknown"
+ */
+function buildCommit() {
+    const pkgDir = path.resolve(__dirname, "..");
+    const git = (args) => spawnSync("git", args, { cwd: pkgDir, encoding: "utf8" });
+
+    const head = git(["rev-parse", "--short=12", "HEAD"]);
+    if (head.error || head.status !== 0) {
+        return "unknown";
+    }
+
+    const dirty = git(["status", "--porcelain", "--", pkgDir]);
+    const isDirty = !dirty.error && dirty.status === 0 && dirty.stdout.trim() !== "";
+    return head.stdout.trim() + (isDirty ? "-dirty" : "");
+}
+
 async function buildBundle() {
     try {
         await build({
             configFile: false,
             logLevel: "warn",
+            define: {
+                __GRAPH_FORMAT_COMMIT__: JSON.stringify(buildCommit()),
+            },
             build: {
                 lib: {
                     entry: path.resolve(__dirname, "../src/index.ts"),

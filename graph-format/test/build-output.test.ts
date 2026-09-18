@@ -71,10 +71,16 @@ describe("Build Output Tests", () => {
         expect(packageJson.devDependencies["@webgpu/types"]).toBeTypeOf("string");
     });
 
-    it("should stamp the wire producer with the package name and version", () => {
-        // WIRE_PRODUCER is a constant (importing package.json into src would emit it under dist/);
-        // this pins it to package.json so the two cannot drift.
-        expect(WIRE_PRODUCER).toBe(`${packageJson.name}@${packageJson.version}`);
+    it("should stamp the wire producer with the package name and the build commit", () => {
+        // The producer carries the COMMIT, not the npm version, and is deliberately not pinned to
+        // package.json. It cannot be: CI builds the artifact and `nx release` versions it
+        // afterwards, so a version baked in here is always the previous release's -- published
+        // 0.2.0 stamps "@graphty/graph-format@0.1.0". Only the shape is fixed, because the value
+        // is a build stamp: a short commit from scripts/build-bundle.js, "dev" under tsc/vitest
+        // where the define does not run, or "unknown" when built with no git available.
+        expect(WIRE_PRODUCER).toMatch(
+            new RegExp(`^${packageJson.name}@(dev|unknown|[0-9a-f]{7,40}(-dirty)?)$`),
+        );
     });
 
     it("should have the standard script set", () => {

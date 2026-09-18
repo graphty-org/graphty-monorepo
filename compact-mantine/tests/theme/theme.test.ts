@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import pkg from "../../package.json";
-import { compactColors, compactDarkColors, compactTheme, VERSION } from "../../src";
+import { compactColors, compactDarkColors, compactTheme } from "../../src";
 
 describe("compactTheme", () => {
     it("exports a valid Mantine theme object", () => {
@@ -94,11 +93,5 @@ describe("compactColors exports", () => {
 
     it("compactColors.dark is the same as compactDarkColors", () => {
         expect(compactColors.dark).toBe(compactDarkColors);
-    });
-});
-
-describe("VERSION", () => {
-    it("matches the version this package publishes under", () => {
-        expect(VERSION).toBe(pkg.version);
     });
 });

@@ -2046,6 +2046,8 @@ Entry: Phase M3 landed. Everything here follows design 12.4 ("Provisioning the h
 - [ ] **Step 3: The spending limit** -- Settings > Billing > Spending limits: Actions $50 per month, alert at 75 percent. Record O6. The T4 bills $0.052 per minute even on public repositories; a 20-minute run is about $1.
 - [ ] **Step 4: Repository settings on graphty-monorepo** -- Settings > Actions > General: default workflow permissions "Read repository contents and packages permissions" (the repo's default is "write" today; every workflow that needs more declares it: `release.yml` `contents: write`, `gpu.yml`'s report job `issues: write`); "Require approval for all external contributors" (already set on the staging repository, check it here). Create the label `gpu` (Issues > Labels in the UI, or `gh api -X POST repos/graphty-org/graphty-monorepo/labels -f name=gpu -f color=76B900 -f description="run the NVIDIA T4 lane on this PR (same-repo PRs only)"` -- gh 2.4.0 has no `gh label`). Record O7-O9.
 
+Execution note (2026-09-18): steps 1-3 and the `gpu` label done by the owner (the Team plan, the runner, the group, the budget); step 4's default workflow permissions were still `write` by the API that day (open owner item). Two dispatches on the hosted runner failed to run (billing refusal, then 17 minutes queued with no runner -- the symptom of the group not admitting the public repository; the API needs `admin:org` to inspect it); the lane runs on machine.dev instead (D-15's alternative), see M4-T2.
+
 ### Task M4-T2: Enable the triggers and run the lane once
 
 **Files:**
@@ -2065,12 +2067,14 @@ on:
 
 - [ ] **Step 2: Commit and push (owner)**
 
-Through `tools/commit-changes.sh` with the message `ci: enable the GPU lane's push and nightly triggers now that gpu-linux-t4 exists` and a body naming the runner, the group and the spending limit. The push to master itself triggers the first run.
+Through `tools/commit-changes.sh` with the message `ci: enable the GPU lane's triggers and run it on a machine.dev T4 by default` and a body naming the runner, the hosted label kept as a dispatch option, the group and the budget. The push to master itself triggers the first run.
 
 - [ ] **Step 3: Watch the first run**
 
 Run: `cd /home/apowers/Projects/graphty-monorepo && gh run list --workflow GPU --limit 1 --json databaseId,status --jq '.[0]' && gh run watch <run-id> --exit-status; gh run view <run-id> --log > tmp/gpu-first-run.log`
 Expected: the job starts within minutes (no 24-hour queue); `Driver up` prints the T4 in `nvidia-smi`; the adapter report prints `vendor=nvidia architecture=turing ... software=false`; the canary greps `adapter vendor=nvidia`; the node and node-limits projects, the twins pass, the browser smoke on NVIDIA, the bench and `bench-compare` (`new (no baseline)`, exit 0) all green; the artifact `gpu-results-<run-id>` holds `gpu-report.json` and `benchmarks/out/gpu-linux-t4.json`. About 15-20 minutes.
+
+Execution note: run 35316416067 (2026-09-18, machine.dev T4) green, the T4 job in about 12.5 minutes (16 minutes from dispatch to conclusion, the provisioning included); every expectation of step 3 met; the browser smoke found the T4 without xvfb (G0 U1 not needed); step 4's image facts F1-F3, F6, F7, F9 were not printed by the workflow, so the Driver up step now prints them for the next run.
 
 - [ ] **Step 4: Record the image facts**
 
@@ -2137,6 +2141,20 @@ jammy path); the design's 12.5 diff is superseded by the shards as landed. Image
 **Step 0 of the phase (a fresh worktree has no `node_modules` and no `dist/`, both gitignored):** `cd LT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph-format:build`. Every later command reads `graph-format/dist/` (layout's `tsc` resolves `@graphty/graph-format` through graph-format's `types`, vitest through its `exports`).
 
 **What this phase builds** (design 9.3 verbatim, `design/webgpu/webgpu-acceleration-plan.md:2989-3064`): `layout/src/simulation/` exporting `LayoutSimulation`, `SimulationOptions`, `CommonLayoutOptions`, `ForceAtlas2Options`, `FruchtermanReingoldOptions`, `SpringElectricalOptions`, `LayoutAccelerator`, `SimulationType`, `createSimulation`, `ForceAtlas2Simulation`, `FruchtermanReingoldSimulation`, `resolveNodeVector`, `resolveWeights`, `seedPositions`; plus the minimal `toLayoutSnapshot` the legacy wrappers need. It does NOT port the other thirteen layouts to `indexed.*` (graph-format design 14.3's own work, which can proceed in parallel: the two share only `toLayoutSnapshot` and `CommonLayoutOptions`).
+
+**Execution note (2026-09-18, overnight):** the phase was PREPARED on `feat/layout-simulation` in
+`.worktrees/layout-simulation` before F2, as the entry criteria allow: Tasks M5-T1..M5-T9 implemented by staged
+agents from this plan's text, reviewed task by task (the findings applied: `resolveWeights` rejects dict / u8 / bool /
+string columns by name and dtype instead of returning dictionary codes; `toLayoutSnapshot` caches per (object, weight
+attribute); the legacy wrapper keeps the old `maxIter` tolerance, documents `nodeSize` as inert and coerces
+`getEdgeData`'s null / numeric-string results; `k: 0` means auto in Fruchterman-Reingold; test titles made true),
+then verified: layout build, lint, 35 files / 556 tests, coverage 97.04 / 95.07 / 97.24 / 97.04, the gh-pages bundle
+inlining graph-format (`dist/layout.js` keeps the import), knip clean from a clean path, graphty-element built against
+the new layout with its default shard green (162 files / 3105 tests), and the 2D / 3D ForceAtlas2 stories screenshot
+from the built storybook and checked by objective questions (nodes spread out, connected nodes closer, no overlapping
+circles: all yes). The owner's script `tmp/commit-m5-layout-seam.sh` makes the three signed commits (the seam, the
+legacy wrapper re-baseline, the docs), fills the `2026-09-DD` placeholders of M5-T9 with the commit date, pushes and
+opens a DRAFT PR that must not merge before F2. Phase M5b waits for those commits (it stacks on them).
 
 **The source of truth for the CPU ForceAtlas2:** `webgpu-graph-algorithms/test/oracle/forceatlas2.ts` (1162 lines): an index-based f64 transcription of the design's 7.2 formula table, checked against NetworkX trajectories (`test/oracle/forceatlas2-networkx.test.ts`, 76 committed JSON fixtures under `test/fixtures/networkx/`) and hand-computed values (`test/oracle/swing-mode.test.ts`). The design's P3 row calls it "the SPEC of the L1 `ForceAtlas2Simulation`". Task M5-T5 ports it; the oracle stays where it is (D-16).
 

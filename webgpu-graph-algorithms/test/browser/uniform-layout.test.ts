@@ -16,6 +16,13 @@
  * type struct and the current member be a multiple of 16 bytes" only under `--disable-dawn-features=allow_unsafe_apis`;
  * Chromium 145+ (builds 1208+) list the feature and accept the struct regardless of that toggle. The rejected leg
  * therefore needs BOTH a Chromium <= 143 and that toggle -- an owner decision recorded by P2-T3 (G2), not this file.
+ * MEASURED 2026-09-17 (the monorepo landing, PR #11: its Playwright 1.57.0 runs Chromium 143 -- headless shell 1200
+ * on Linux / SwiftShader and macOS / Metal, the full build 143.0.0.0 on Windows / WARP): the same four features, the
+ * feature unlisted, the struct ACCEPTED, because every BROWSER_FLAGS set carries `--enable-unsafe-webgpu`. The
+ * assertion therefore expects acceptance on Chromium < 145 whether or not the feature is listed (144 is unmeasured
+ * and sits on that side), requires the feature listed AND accepted on Chromium 145+ (measured 145, 153), and keeps
+ * `accepted === listed` on every other engine: WebKit 26.6 (Playwright 1.63, webkit build 2359) lists nothing of the
+ * kind and REJECTS the struct ("uniform address space requires ... at least 16 bytes"), the rejected leg of R-10.
  */
 
 import { UniformBlock } from "../../src/kernel/struct-block.js";
@@ -43,6 +50,23 @@ const GOOD_WGSL = `${GOOD.wgsl}
 fn main() {
     result[0] = P.v.x + P.b + P.tail.w;
 }`;
+
+/**
+ * The Chromium major in navigator.userAgent -- "HeadlessChrome/143.0.7499.4" on Playwright's headless shell,
+ * "HeadlessChrome/143.0.0.0" on the full build's reduced UA (the warp set) -- or null on any other engine (WebKit's
+ * UA carries no "Chrome/" token: "... Version/26.6 Safari/605.1.15").
+ */
+function chromiumMajorOf(userAgent: string): number | null {
+    const match = /(?:Headless)?Chrome\/(\d+)\./.exec(userAgent);
+    return match === null ? null : Number.parseInt(match[1], 10);
+}
+
+/**
+ * The first Chromium major that lists uniform_buffer_standard_layout (measured 2026-09-15: 145.0.7632.6 / build 1208
+ * and 153.0.8010.12 / build 1243 list it; 140 / 143 / builds 1186-1200 do not; 144 unmeasured). Below it, the
+ * `--enable-unsafe-webgpu` of every BROWSER_FLAGS set (Dawn's allow_unsafe_apis) makes Tint accept the struct unlisted.
+ */
+const CHROMIUM_LISTS_UNIFORM_LAYOUT_FROM = 145;
 
 interface CompileOutcome {
     readonly ok: boolean;
@@ -81,24 +105,35 @@ describe("uniform layout on Chromium: the hand-written misaligned struct follows
         expect(GOOD.byteLength).toBe(48);
     });
 
-    it("the hand-written struct is accepted iff uniform_buffer_standard_layout is exposed; the generated one always compiles", async (t) => {
+    it("the hand-written struct is accepted iff uniform_buffer_standard_layout is exposed (or Chromium < 145 under the unsafe flag); the generated one always compiles", async (t) => {
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser({ label: "browser-uniform-layout" });
         const relaxed = ctx.caps.wgslFeatures.has("uniform_buffer_standard_layout");
+        const chromiumMajor = chromiumMajorOf(navigator.userAgent);
+        // Chromium < 145 under --enable-unsafe-webgpu (every BROWSER_FLAGS set of vitest.config.ts) accepts the struct
+        // without listing the feature; the rejection there needs --disable-dawn-features=allow_unsafe_apis, which no
+        // flag set passes (this file cannot read the launch flags, so it encodes the config's invariant)
+        const unsafeChromium = chromiumMajor !== null && chromiumMajor < CHROMIUM_LISTS_UNIFORM_LAYOUT_FROM;
+        const expectAccepted = relaxed || unsafeChromium;
         const good = await compileRaw(ctx.device, GOOD_WGSL, "browser/uniform-layout/good");
         expect(good.messages).toEqual([]);
         expect(good.ok).toBe(true);
         const bad = await compileRaw(ctx.device, BAD_WGSL, "browser/uniform-layout/bad");
         console.warn(
-            `[uniform-layout] runtime=browser gpu=${browserGpu()} uniform_buffer_standard_layout=${relaxed} hand-written struct accepted=${bad.ok}${bad.ok ? "" : `: ${bad.messages.join(" | ")}`}`,
+            `[uniform-layout] runtime=browser gpu=${browserGpu()} chromiumMajor=${chromiumMajor ?? "none"} uniform_buffer_standard_layout=${relaxed} hand-written struct accepted=${bad.ok}${bad.ok ? "" : `: ${bad.messages.join(" | ")}`}`,
         );
         console.warn(
             `[uniform-layout] browser=${navigator.userAgent} wgslLanguageFeatures=${[...ctx.caps.wgslFeatures].sort().join(",")}`,
         );
+        if (chromiumMajor !== null && chromiumMajor >= CHROMIUM_LISTS_UNIFORM_LAYOUT_FROM) {
+            // 145+ lists the feature (measured 145, 153): a Chromium that stopped listing it is a finding, not a pass
+            expect(relaxed, `Chromium ${chromiumMajor} does not list uniform_buffer_standard_layout`).toBe(true);
+        }
         // the invariant of spec 5.3 / R-10: a strict-layout runtime rejects the 14.4.5 Invalid struct (with a message),
-        // a relaxed one accepts it, and the generated struct compiles on both
-        expect(bad.ok).toBe(relaxed);
-        if (!relaxed) {
+        // a relaxed one accepts it, and the generated struct compiles on both; Chromium < 145 under the unsafe flag is
+        // the measured exception (accepts, lists nothing)
+        expect(bad.ok).toBe(expectAccepted);
+        if (!expectAccepted) {
             expect(bad.messages.length).toBeGreaterThan(0);
         }
         // the pending-error drain of afterEach must see nothing: every error above was captured by the scope

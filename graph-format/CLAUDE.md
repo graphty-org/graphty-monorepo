@@ -223,5 +223,7 @@ npm run ready:commit
 - Main entry: `dist/graph-format.js` (bundled ES module); types: `dist/graph-format.d.ts`
   (a one-line re-export of `dist/src/index.d.ts`).
 - `files` ships `dist/`, `src/`, `README.md`, `LICENSE`; always run `npm run build:all` first.
-- `WIRE_PRODUCER` in `src/wire/to-wire.ts` must equal `<name>@<version>` of package.json
-  (`test/build-output.test.ts` enforces it); bump both together.
+- `WIRE_PRODUCER` in `src/wire/to-wire.ts` is `<name>@<build commit>`, never the npm version:
+  CI builds the artifact and `nx release` versions it afterwards, so a version baked in here is
+  always the previous release's. `test/build-output.test.ts` pins only the shape (a short commit,
+  `dev` under tsc/vitest, or `unknown` with no git). Do NOT bump it with package.json.

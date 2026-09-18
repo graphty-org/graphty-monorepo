@@ -37,7 +37,7 @@ import { type LayoutStatsBase, type ResolvedLayoutTuning } from "../../src/types
 import { type CommonLayoutOptions, type SimulationOptions } from "../../src/types/options.js";
 import { pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
-import { acquire, acquireRaw, requireGpu } from "../setup/gpu.js";
+import { acquire, acquireRaw, isSoftware, requireGpu } from "../setup/gpu.js";
 
 // ============================================================ the fake model
 
@@ -1151,6 +1151,20 @@ describe("ForceSimulation (fake model)", () => {
 });
 
 describe("ForceSimulation lifecycle on a raw device", () => {
+    // The device-loss case below keeps TWO heavy batches (about 4 GB of writes each) in flight and then waits for the
+    // destroyed device to settle them: about 30 ms on the RTX 4070 SUPER, seconds on lavapipe, and past the 30 s budget
+    // on WARP (Microsoft's software D3D12 rasterizer of the windows-latest host lane: hosts.yml runs 35301238295 and
+    // 35306389814 timed out at 30 s and passed on a re-run). A software adapter gets a budget that fits its slowest
+    // measured leg with margin; the hardware budget stays where it is, so a hang on a real GPU still fails fast.
+    beforeAll(() => {
+        if (isSoftware()) {
+            vi.setConfig({ testTimeout: 180_000 });
+        }
+    });
+    afterAll(() => {
+        vi.resetConfig();
+    });
+
     it("dispose leaves no simulation buffer behind (LeakCounter), and the context ends at 0 live buffers", async (t) => {
         requireGpu(t);
         const raw = await acquireRaw();

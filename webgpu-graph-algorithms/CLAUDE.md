@@ -295,7 +295,8 @@ or `GRAPHTY_RUNNER_CLASS`), `benchmarks/out/` the gitignored run output.
 A run whose `GRAPHTY_GPU_REQUIRE` demands an adapter that is absent (or the wrong vendor) fails ONCE, up front, from
 the node project's `globalSetup` (`test/setup/global.ts`) with the reason and the platform hints, instead of in every
 GPU test; the unset policy still skips each GPU test with the printed reason. `.github/workflows/hosts.yml` is the
-informational host matrix (never required): Dawn-node and Chromium on Metal on `macos-latest` (plus a WebKit spike),
+host matrix (never a job of CI; since 2026-09-18 `release.yml` waits for it and for the GPU lane and releases only
+when both are green): Dawn-node and Chromium on Metal on `macos-latest` (plus a WebKit spike),
 Dawn-node on D3D12 / WARP and Chromium on SwiftShader on `windows-latest` -- the other shader compilers, added after
 the WebKit pipeline-constants finding below.
 

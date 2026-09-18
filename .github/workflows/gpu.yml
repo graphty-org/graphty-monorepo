@@ -1,6 +1,7 @@
-# .github/workflows/gpu.yml -- the webgpu-graph-algorithms GPU lane: never required, never a job of CI
-# (release.yml and coverage.yml are workflow_run on CI's conclusion, and a job whose runner is offline queues for
-# 24 hours). design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
+# .github/workflows/gpu.yml -- the webgpu-graph-algorithms GPU lane: never a job of CI (a job whose runner is
+# offline would queue for 24 hours and stall every pull request), but REQUIRED for a release: release.yml's gate
+# job waits for this workflow's run on the released commit and refuses to publish unless it succeeded (owner
+# decision, 2026-09-18). design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
 # changes: paths without the packages/ prefix, its own install and nx build on the runner (no artifact download,
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).
 name: GPU

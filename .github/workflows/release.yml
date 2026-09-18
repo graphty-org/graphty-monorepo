@@ -12,10 +12,61 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+    # The release waits for every lane that ran on the released commit, not only CI (the owner's rule of
+    # 2026-09-18: no release while any lane is red). GPU (gpu.yml, a machine.dev T4) and Hosts (hosts.yml, Dawn on
+    # Metal and on D3D12/WARP, WebKit) are separate workflows so an offline runner can never stall a pull request,
+    # and this job is where they become required: it polls the runs of the same head commit until each has
+    # concluded and fails unless every one succeeded. Hosts is filtered by paths, so a commit that touched neither
+    # webgpu-graph-algorithms/ nor graph-format/ has no Hosts run, which counts as nothing to wait for; the GPU
+    # lane runs on every push to master and must exist. A lane that is still queued when the deadline passes fails
+    # the gate (the release can be re-run once the lane is green).
+    gate:
+        name: Wait for the GPU and Hosts lanes
+        runs-on: ubuntu-latest
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        permissions:
+            actions: read
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ github.event.workflow_run.head_sha }}
+        steps:
+            - name: Require GPU and Hosts to succeed on ${{ github.event.workflow_run.head_sha }}
+              run: |
+                  # runs of one workflow for this commit, newest first, as "id status conclusion" lines
+                  runs_of() {
+                      gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs?head_sha=${SHA}&per_page=10" \
+                          --jq '.workflow_runs[] | "\(.id) \(.status) \(.conclusion // "-")"'
+                  }
+                  deadline=$((SECONDS + 3000)) # 50 minutes; a T4 run takes about 15 from dispatch to conclusion
+                  # Hosts is created at push time when its paths matched; give the event a moment, then decide
+                  sleep 60
+                  hosts_required=1
+                  [ -n "$(runs_of hosts.yml)" ] || { echo "Hosts: no run for ${SHA} (its paths did not change): nothing to wait for"; hosts_required=0; }
+                  while :; do
+                      pending=0; failed=0
+                      for wf in gpu.yml hosts.yml; do
+                          [ "$wf" = hosts.yml ] && [ "$hosts_required" = 0 ] && continue
+                          latest=$(runs_of "$wf" | head -1)
+                          if [ -z "$latest" ]; then echo "$wf: no run yet for ${SHA}"; pending=1; continue; fi
+                          set -- $latest
+                          echo "$wf: run $1 $2 $3"
+                          case "$2 $3" in
+                              "completed success") ;;
+                              "completed "*) failed=1 ;;
+                              *) pending=1 ;;
+                          esac
+                      done
+                      [ "$failed" = 0 ] || { echo "::error::a lane failed on ${SHA}; no release"; exit 1; }
+                      [ "$pending" = 1 ] || { echo "every lane green on ${SHA}"; exit 0; }
+                      [ "$SECONDS" -lt "$deadline" ] || { echo "::error::a lane is still running after 50 minutes; re-run this workflow once it is green"; exit 1; }
+                      sleep 60
+                  done
+
     release:
         name: Release
         runs-on: ubuntu-latest
-        # Only run if CI workflow succeeded
+        needs: gate
+        # Only run if CI workflow succeeded (and the gate above passed)
         if: ${{ github.event.workflow_run.conclusion == 'success' }}
         permissions:
             contents: write

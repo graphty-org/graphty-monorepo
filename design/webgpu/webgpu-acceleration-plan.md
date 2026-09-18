@@ -4791,3 +4791,12 @@ the shards as landed. Image facts: driver 580.126.20 / CUDA 13.0, Tesla T4
 16 GB, subgroups 32, no xvfb needed for the browser smoke (adapter
 vendor=nvidia in headless Chromium 143); Ubuntu release, glibc, kernel and
 libegl1 are printed by the Driver up step from the next run on.
+
+Release gate (2026-09-18, owner decision): the GPU lane (`gpu.yml`) and the
+host matrix (`hosts.yml`) are no longer informational. They stay separate
+workflows outside CI -- 12.6's reason holds, an offline runner must never
+stall a pull request -- but `release.yml` gained a `gate` job that waits for
+both workflows' runs on the released commit (Hosts only when its paths
+changed, the GPU lane always) and publishes only when every one succeeded;
+a red or cancelled lane blocks the release until it is re-run green. 12.1's
+"the GPU lane is never a required check" is amended accordingly.

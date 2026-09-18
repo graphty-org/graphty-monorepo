@@ -222,8 +222,8 @@ All packages: 80% lines/functions/statements, 75% branches
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
-| `gpu.yml` | Dispatch and labelled same-repo PRs; push and nightly once the `gpu-linux-t4` runner exists | The webgpu-graph-algorithms NVIDIA T4 lane; never a job of CI, never required |
-| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Informational host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows) |
+| `gpu.yml` | Push to master, nightly, dispatch, labelled same-repo PRs | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
+| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
 
 ### CI Test Shards
 

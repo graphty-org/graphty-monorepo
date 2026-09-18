@@ -280,9 +280,12 @@ power of two; `benchmarks/layout-exact.bench.ts` `exactMaxNodesFromLadder`).
 
 ## Performance
 
-Regenerated from `benchmarks/results/nvidia-lovelace-driver580.json` (the last session) by the procedure
-recorded in `docs/decisions/G3.md` appendix A; the targets are the T-table of plan section 10.4. A missed target is re-fixed by a
-recorded owner decision in `docs/decisions/G<n>.md`, never relaxed silently.
+Regenerated from the last session of each baseline under `benchmarks/results/` (`nvidia-lovelace-driver580.json`, the
+dev box; `gpu-linux-t4.json`, the CI lane) by the procedure recorded in `docs/decisions/G3.md` appendix A; the targets
+are the T-table of plan section 10.4. A missed target is re-fixed by a recorded owner decision in
+`docs/decisions/G<n>.md`, never relaxed silently.
+
+### The dev box (nvidia-lovelace-driver580)
 
 Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 2026-09-16T02:07:45.933Z, medians of 5 runs; Chromium: nvidia / lovelace (nvidia-lovelace-driver0, the description is redacted by Chromium), session 2026-09-16T02:18:11.896Z.
 
@@ -314,6 +317,37 @@ The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simu
 The end-to-end run of `benchmarks/layout-run.ts --nodes 100000 --edges 1000000` (the exact tier at 100k, 100
 iterations, batches of 8) takes 18.971 ms per iteration on the same card, uploads and readbacks included (16.975 ms of
 GPU time per iteration in the last batch).
+
+### The CI lane (gpu-linux-t4)
+
+The first run of the GPU lane (`gpu.yml`, graphty-monorepo run 35316416067, 2026-09-18) on a machine.dev T4 -- one Tesla
+T4 (16 GB), 4 vCPU of a Xeon Platinum 8259CL, driver 580.126.20 -- wrote this baseline; `scripts/bench-compare.js` fails
+a later run of the lane whose median exceeds 3x these figures. The T-table targets were set on the dev box; the T4 meets
+T-4 and T-5 and misses T-1 (both uploads), T-2 and T-3, which is the class difference of a datacentre card behind a
+cloud vCPU (host-side copies and submit latency), not a regression: the exact tier's `ms / iteration` is 1.7x the
+RTX 4070 SUPER's at 10k and 3.0x at 65k.
+
+Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-18T07:03:17.146Z, medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-18T07:02:07.834Z.
+
+| Id  | What                                                                                         | Target              | Measured              |
+| --- | -------------------------------------------------------------------------------------------- | ------------------- | --------------------- |
+| T-1 | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                     | <= 10 ms; <= 100 ms | 14.458 ms; 257.954 ms |
+| T-2 | `degree` + 400 KB readback at 100k (core resident), Node                                     | <= 2 ms             | 2.298 ms              |
+| T-3 | Empty submit + 4-byte `readU32` round trip, Dawn                                             | <= 0.1 ms           | 0.171 ms              |
+| T-4 | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                     | <= 1 ms; <= 2 ms    | 0.977 ms; 1.879 ms    |
+| T-5 | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets) | <= 6 ms             | 2.600 ms (1.357 ms)   |
+
+The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
+
+| n     | ms / iteration | step(1) wall (ms) | pairs / s |
+| ----- | -------------- | ----------------- | --------- |
+| 1024  | 0.334          | 0.977             | 3.13e+9   |
+| 4096  | 0.426          | 0.881             | 3.93e+10  |
+| 8192  | 0.801          | 1.184             | 8.38e+10  |
+| 10000 | 0.977          | 1.357             | 1.02e+11  |
+| 16384 | 1.879          | 2.317             | 1.43e+11  |
+| 32768 | 6.534          | 7.241             | 1.64e+11  |
+| 65536 | 24.883         | 25.955            | 1.73e+11  |
 
 ## Development
 

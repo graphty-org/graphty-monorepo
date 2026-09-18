@@ -4775,6 +4775,23 @@ the shards as landed are in `.github/workflows/ci.yml` and the integration
 plan's Phase M3. DEP-C of the integration plan: the T4 baseline path is
 `benchmarks/results/gpu-linux-t4.json`, not `benchmarks/baselines/`.
 
+GPU lane live in graphty-monorepo (2026-09-18, integration plan Phase M4):
+runner: a machine.dev T4 (label
+`machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand`, the Machine Provisioner
+app; the GitHub-hosted `gpu-linux-t4` runner of Q-3 exists on the Team plan
+but never dequeued a job and stays a dispatch option), the `gpu` label,
+push + nightly triggers restored. Corrections to the body above, recorded
+here rather than edited in place: the P10 row's "self-hosted runner
+registered for the monorepo" and R-6's "dev-box runner now" mean the HOSTED
+runner of Q-3; the baseline path is `benchmarks/results/gpu-linux-t4.json`
+(12.1, 12.4 say `benchmarks/baselines/`); the lavapipe ICD on ubuntu-24.04
+is `/usr/share/vulkan/icd.d/lvp_icd.json`, discovered by `find` in ci.yml
+(12.2, 12.5 name the jammy path); the design's 12.5 diff is superseded by
+the shards as landed. Image facts: driver 580.126.20 / CUDA 13.0, Tesla T4
+16 GB, subgroups 32, no xvfb needed for the browser smoke (adapter
+vendor=nvidia in headless Chromium 143); Ubuntu release, glibc, kernel and
+libegl1 are printed by the Driver up step from the next run on.
+
 L1-sim landed 2026-09-18 (phase M5 of
 `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, branch
 `feat/layout-simulation`; the date is the Chromatic re-baseline commit's):

@@ -5,24 +5,23 @@
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).
 name: GPU
 on:
-    # push and the nightly schedule are OFF until the hosted gpu-linux-t4 runner exists (design 12.4, an owner item;
-    # integration plan Phase M4): a job whose runner does not exist queues for 24 h and is then cancelled, on every
-    # push. Restore both lines when the runner is registered and the monorepo is in runner group `gpu`:
-    #   push: { branches: [master] }
-    #   schedule: [{ cron: "17 6 * * *" }]          # nightly
+    push: { branches: [master] }
     pull_request: { types: [labeled, synchronize] }
+    schedule: [{ cron: "17 6 * * *" }] # nightly, skipped by the `changed` job when master has not moved (design 12.6)
     workflow_dispatch:
         inputs:
-            # which machine serves the T4 job: the GitHub-hosted runner of design 12.4 (runner group `gpu`, $0.052/min,
-            # queues until the group admits this public repository) or a machine.dev runner (the Machine Provisioner
-            # app is installed on the org; Ubuntu 22.04 with the NVIDIA driver and CUDA preinstalled, ~1 minute to
-            # provision, T4 4-vCPU on-demand $0.018/min, spot $0.0045/min). push / schedule / pull_request runs take
-            # the default. GRAPHTY_RUNNER_CLASS stays gpu-linux-t4 either way: the class names the hardware, and
+            # which machine serves the T4 job. The default is a machine.dev on-demand T4 (the Machine Provisioner app
+            # is installed on the org; Ubuntu 22.04 with the NVIDIA driver and CUDA preinstalled; T4 4-vCPU on-demand
+            # $0.018/min, spot $0.0045/min): on 2026-09-18 the GitHub-hosted gpu-linux-t4 runner of design 12.4 (runner
+            # group `gpu`, $0.052/min) never dequeued a job -- one dispatch was refused on billing, the next sat queued
+            # for 17 minutes with no runner -- while machine.dev provisioned in about a minute at a third of the price.
+            # The hosted label stays a dispatch option. push / schedule / pull_request runs take the default.
+            # GRAPHTY_RUNNER_CLASS stays gpu-linux-t4 either way: the class names the hardware, and
             # benchmarks/results/gpu-linux-t4.json is the T4 baseline whichever provider ran it.
             runner:
                 description: "runs-on label for the T4 job"
                 type: choice
-                default: gpu-linux-t4
+                default: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
                 options:
                     - gpu-linux-t4
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
@@ -45,25 +44,25 @@ jobs:
                   last=$(gh run list --workflow GPU --branch master --status success --limit 1 --json headSha --jq '.[0].headSha')
                   [ "$last" = "${{ github.sha }}" ] && echo run=false >> "$GITHUB_OUTPUT" || echo run=true >> "$GITHUB_OUTPUT"
     test-gpu:
-        name: Test (NVIDIA T4, GitHub-hosted)
+        name: Test (NVIDIA T4)
         needs: changed
         if: >-
             needs.changed.outputs.run == 'true' &&
             (github.event_name != 'pull_request' ||
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
-        runs-on: ${{ inputs.runner || 'gpu-linux-t4' }} # a dispatch may pick machine.dev (see the input); every other event: the hosted runner
+        runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
         timeout-minutes: 45
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
-            GRAPHTY_RUNNER_CLASS: gpu-linux-t4 # the benchmark runner class of the T4 lane is the runner name
+            GRAPHTY_RUNNER_CLASS: gpu-linux-t4 # the benchmark runner class names the hardware (the T4), not the provider that ran it
             XDG_RUNTIME_DIR: /tmp
         defaults: { run: { working-directory: webgpu-graph-algorithms, shell: bash } }
         steps:
             - uses: actions/checkout@v4
             - name: Driver up (the partner image may need the modules loaded; G0 records whether this step is a no-op)
-              run: sudo modprobe nvidia nvidia_uvm || true; nvidia-smi
+              run: before=$(lsmod | grep -c '^nvidia' || true); sudo modprobe nvidia nvidia_uvm && rc=0 || rc=$?; echo "modprobe exit=$rc nvidia modules before=$before after=$(lsmod | grep -c '^nvidia' || true)"; nvidia-smi; { cat /etc/os-release | head -2; ldd --version | head -1; uname -r; dpkg-query -W libegl1 mesa-vulkan-drivers libvulkan1 xvfb 2>&1 | head -5; ls /usr/share/vulkan/icd.d 2>&1 | head -12; echo DISPLAY=${DISPLAY:-unset}; } || true # the image facts of G0 rows F1-F3, F5, F6, F7, F9; the group never fails the step (under bash -eo pipefail a missing package, or head closing the pipe on ldd, would)
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
               with: { node-version: 22.x, cache: pnpm }

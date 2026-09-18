@@ -2,7 +2,8 @@
  * Build GitHub Pages Script
  *
  * Creates a static site for GitHub Pages that:
- * - Uses the same dist/layout.js bundle created by build-bundle.js
+ * - Builds a self-contained examples/layout.js (the same entry as dist/layout.js, with
+ *   @graphty/graph-format inlined so the raw browser modules of the examples can load it)
  * - Transforms example HTML files to work without Vite
  * - Creates a gh-pages directory ready for deployment
  */
@@ -11,8 +12,6 @@ import { build } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
-import { createReadStream, createWriteStream } from "fs";
-import { pipeline } from "stream/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,10 +22,6 @@ async function ensureDirectoryExists(dir) {
     } catch (error) {
         // Directory already exists
     }
-}
-
-async function copyFile(src, dest) {
-    await pipeline(createReadStream(src), createWriteStream(dest));
 }
 
 async function processExampleHtml(htmlPath, outputPath) {
@@ -69,9 +64,27 @@ async function buildGitHubPages() {
             process.exit(1);
         }
 
-        // 3. Copy dist/layout.js to gh-pages/examples
-        await copyFile(layoutJsPath, path.join(ghPagesExamplesDir, "layout.js"));
-        console.log("Copied dist/layout.js to examples/");
+        // 3. Build a self-contained gh-pages/examples/layout.js. dist/layout.js leaves
+        //    @graphty/graph-format external (scripts/build-bundle.js), and the example pages load
+        //    layout.js as a raw browser module, where a bare "@graphty/graph-format" specifier
+        //    cannot resolve; this second lib build inlines the dependency for the examples only.
+        await build({
+            configFile: false,
+            build: {
+                lib: {
+                    entry: path.resolve(__dirname, "../src/index.ts"),
+                    name: "GraphLayout",
+                    formats: ["es"],
+                    fileName: () => "layout.js",
+                },
+                outDir: ghPagesExamplesDir,
+                emptyOutDir: false,
+                rollupOptions: { external: [], output: { preserveModules: false, inlineDynamicImports: true } },
+                minify: false,
+                sourcemap: false,
+            },
+        });
+        console.log("Built the self-contained examples/layout.js");
 
         // 4. Copy and process example HTML files
         const files = await fs.readdir(examplesDir);

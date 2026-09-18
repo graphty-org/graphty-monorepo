@@ -693,6 +693,10 @@ importers:
         version: 1.6.4(@algolia/client-search@5.46.2)(@types/node@20.19.27)(@types/react@19.2.7)(axios@1.20.0)(jiti@2.6.1)(lightningcss@1.33.0)(postcss@8.5.28)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(search-insights@2.17.3)(terser@5.44.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
 
   layout:
+    dependencies:
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^4.0.0

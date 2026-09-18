@@ -61,7 +61,9 @@ describe("Build Output Tests", () => {
     });
 
     it("should depend on the format package as both dependency and peer", () => {
-        expect(packageJson.dependencies["@graphty/graph-format"]).toBe("workspace:*");
+        // workspace:^ publishes the caret range design 13.5 rule 3 describes; workspace:* would
+        // publish an EXACT pin, which beside the ^1.0.0 peer gives an application two format copies
+        expect(packageJson.dependencies["@graphty/graph-format"]).toBe("workspace:^");
         expect(packageJson.peerDependencies["@graphty/graph-format"]).toMatch(/^\^\d+\.\d+\.\d+$/);
         // the design section 8.2 end state: every parser is hand-written, so neither papaparse
         // (one shared CSV record reader) nor fast-xml-parser (one shared streaming XML tokenizer)

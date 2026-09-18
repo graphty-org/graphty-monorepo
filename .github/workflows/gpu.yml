@@ -12,6 +12,21 @@ on:
     #   schedule: [{ cron: "17 6 * * *" }]          # nightly
     pull_request: { types: [labeled, synchronize] }
     workflow_dispatch:
+        inputs:
+            # which machine serves the T4 job: the GitHub-hosted runner of design 12.4 (runner group `gpu`, $0.052/min,
+            # queues until the group admits this public repository) or a machine.dev runner (the Machine Provisioner
+            # app is installed on the org; Ubuntu 22.04 with the NVIDIA driver and CUDA preinstalled, ~1 minute to
+            # provision, T4 4-vCPU on-demand $0.018/min, spot $0.0045/min). push / schedule / pull_request runs take
+            # the default. GRAPHTY_RUNNER_CLASS stays gpu-linux-t4 either way: the class names the hardware, and
+            # benchmarks/results/gpu-linux-t4.json is the T4 baseline whichever provider ran it.
+            runner:
+                description: "runs-on label for the T4 job"
+                type: choice
+                default: gpu-linux-t4
+                options:
+                    - gpu-linux-t4
+                    - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
+                    - machine/gpu=t4/cpu=4/ram=16/tenancy=spot
 permissions: { contents: read }
 concurrency:
     group: gpu-lane-${{ github.event.pull_request.number || github.ref }}
@@ -37,7 +52,7 @@ jobs:
             (github.event_name != 'pull_request' ||
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
-        runs-on: gpu-linux-t4 # the hosted runner of design 12.4 (runner group `gpu`); machine.dev alternative: `machine/gpu=t4`
+        runs-on: ${{ inputs.runner || 'gpu-linux-t4' }} # a dispatch may pick machine.dev (see the input); every other event: the hosted runner
         timeout-minutes: 45
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job

@@ -10,16 +10,16 @@ travels with the code; the staging copy is historical. Paths of the form `packag
 older passages below mean `graph-format/` in this repository. The landing did not change either
 package's source.
 
-Last updated: 2026-09-16 (landed in graphty-monorepo; verification, benchmarks and the two resolved
-pre-1.0 gaps are in "F1 landing" at the end. Previously 2026-09-14: graph-io implemented and
-integrated, phase IO1; see the graph-io sections).
+Last updated: 2026-09-18 (F2: @graphty/graph-format is 1.0.0 and its invariants are frozen; see
+"F2: the 1.0.0 cut" at the end. Previously 2026-09-16: landed in graphty-monorepo, phase F1;
+verification, benchmarks and the two resolved pre-1.0 gaps are in "F1 landing").
 
 ## Summary
 
 | Package                                      | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph-format` (@graphty/graph-format 0.1.0) | IMPLEMENTED and AUDITED (round 1, verified). Every module of design section 13.1, the full 12.2 surface (126 exported names, checked mechanically against the design listing), 1309 tests (unit + audit suites), coverage 96 percent, lint / typecheck / strict-consumer / knip / build clean.                                                                                                                                                                         |
-| `graph-io` (@graphty/graph-io 0.1.0)         | IMPLEMENTED and AUDITED (round 1, verified). The 12.4 contract types, the eight importer / exporter pairs (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) under per-format subpath exports, the registry with `importGraph` / `exportGraph` / `sniff`, the `children` CSR helper; 4237 tests (unit suites over the full corpus plus the seven audit suites), coverage 97 percent statements / 95 branches, lint / typecheck / strict-consumer / knip / build clean. |
+| `graph-format` (@graphty/graph-format 1.0.0) | IMPLEMENTED and AUDITED (round 1, verified). Every module of design section 13.1, the full 12.2 surface (126 exported names, checked mechanically against the design listing), 1309 tests (unit + audit suites), coverage 96 percent, lint / typecheck / strict-consumer / knip / build clean.                                                                                                                                                                         |
+| `graph-io` (@graphty/graph-io 0.2.1)         | IMPLEMENTED and AUDITED (round 1, verified). The 12.4 contract types, the eight importer / exporter pairs (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) under per-format subpath exports, the registry with `importGraph` / `exportGraph` / `sniff`, the `children` CSR helper; 4237 tests (unit suites over the full corpus plus the seven audit suites), coverage 97 percent statements / 95 branches, lint / typecheck / strict-consumer / knip / build clean. |
 
 ## graph-format: what is implemented
 
@@ -1189,7 +1189,8 @@ graph-io (this pass):
 Both packages are workspace members of graphty-monorepo: `graph-format/` and `graph-io/`, installed,
 linted, built, tested, covered, and wired into CI, the pre-push hook, knip, commitlint and the root
 docs. Design section 14.6 phase F1 plus the IO1 package landing. Nothing after this phase was
-started: no `1.0.0`, no consumer migration.
+started: no `1.0.0`, no consumer migration. (Superseded on 2026-09-18 by F2, the 1.0.0 cut;
+this paragraph describes 2026-09-16.)
 
 The eleven items of "Owner decisions needed (consolidated)" were all answered "keep what is
 implemented". No code, test or document changed for them and every one stays on that list.
@@ -1308,3 +1309,33 @@ count and requires under 8x the time; linear is about 4x and the defect was abou
   code` failed once with ECONNRESET during a loaded pre-push run and passed 33/33 on three isolated
   reruns; a graph-io audit test failed once and passed on rerun, which the timing-noise caveat above
   already predicts. Both are flakes, neither is related to the landing.
+
+## F2: the 1.0.0 cut (2026-09-18)
+
+`@graphty/graph-format` is `1.0.0` and its invariants I1-I18 are frozen. The decision record is the
+design's section 17.7 (D-F2-GATE, D-PEER-1X, D-RULE5-CHECK).
+
+What moved, all in one push (the ordering is not optional -- `nx release` aborts when a dependent's
+declared range no longer admits the version being released, which is what stranded every release at
+0.1.0 -> 0.2.0 until `6b4777df`):
+
+| Change | Where |
+| --- | --- |
+| `0.2.1` -> `1.0.0`, by a `feat(graph-format)!:` commit | `graph-format/package.json` |
+| peer `^0.2.0` -> `^1.0.0` | `graph-io/package.json`, `webgpu-graph-algorithms/package.json` |
+| dependency `workspace:*` -> `workspace:^` (pnpm publishes `workspace:*` as an EXACT pin) | `graph-io/package.json`, its lockfile importer, `graph-io/test/build-output.test.ts` |
+| rule 3 corrected in place; 13.2's repetition with it; 17.7 appended | `design/graph-format/graph-format-design.md` |
+
+`FORMAT_VERSION` stays `1` and the wire stays `[1, 0]`. Nothing about the data model changed: 13.5's
+implication runs invariant change -> npm major, never the other way, so a major cut with no invariant
+change bumps neither. Every golden fixture, the `rich-v1.gsnp` file and the literal version types are
+untouched.
+
+The cut did NOT wait for the A1 branch that design 14.6 gates F2 on -- A1 has not started. It was cut
+on three consumer ports that already exercise the format instead: graph-io (released), the WebGPU
+package (released 0.2.0) and layout's L1-sim on PR #12. Rule 5 prices the residual risk: what those
+ports find later lands as a 1.x minor, or as the 2.0 already scheduled with the consumer majors.
+
+Consequence for the consumers: `@graphty/layout`'s L1-sim PR (#12) may now merge -- it was blocked
+because layout is a 1.x package and 13.5 rule 5 forbids a 1.x consumer pinning a 0.x format, and
+because its `^1.0.0` peer would have aborted the next release.

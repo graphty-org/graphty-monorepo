@@ -119,8 +119,8 @@ the two correctly.
   `report.finish()`, so an abort raised from the sink during a single in-memory chunk rejects.
 - Id coercion is an importer option (`ids`); the core never coerces. `sanitizeIds` defaults to
   `"error"`: an exporter never renames a node silently.
-- Declares `@graphty/graph-format` in BOTH `dependencies` (`workspace:*`) and `peerDependencies`;
-  no consumer PR that depends on the format may merge to master until the format is >= 1.0.0.
+- Declares `@graphty/graph-format` in BOTH `dependencies` (`workspace:^`, which pnpm publishes as
+  a caret range; `workspace:*` would publish an exact pin) and `peerDependencies` (`^1.0.0`).
 - Invalid UTF-8 is a `parse-error`, never a silent U+FFFD (`new TextDecoder("utf-8", { fatal: true })`).
 
 ## Adding a format

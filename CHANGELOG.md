@@ -1,3 +1,39 @@
+## 0.2.2 (2026-09-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.0
+
+# 1.0.0 (2026-09-18)
+
+### 🚀 Features
+
+- ⚠️  **graph-format:** freeze the invariants and cut 1.0.0 ([#12](https://github.com/graphty-org/graphty-monorepo/issues/12))
+
+### ⚠️  Breaking Changes
+
+- **graph-format:** freeze the invariants and cut 1.0.0  ([#12](https://github.com/graphty-org/graphty-monorepo/issues/12))
+  @graphty/graph-format is 1.0.0; invariants I1-I18 are frozen. FORMAT_VERSION stays
+  1 and the wire stays [1, 0].
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.1 (2026-09-18)
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** record the first T4 benchmark session as the gpu-linux-t4 baseline ([be6f89a6](https://github.com/graphty-org/graphty-monorepo/commit/be6f89a6))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.7.0 (2026-09-17)
 
 ### 🚀 Features

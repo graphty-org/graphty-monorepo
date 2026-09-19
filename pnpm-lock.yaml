@@ -553,13 +553,13 @@ importers:
         specifier: ^2.0.74
         version: 2.0.88(zod@3.25.76)
       '@graphty/algorithms':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../algorithms
       '@graphty/layout':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../layout
       '@graphty/remote-logger':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../remote-logger
       '@jsonhero/schema-infer':
         specifier: ^0.1.5
@@ -3753,7 +3753,7 @@ packages:
   '@storybook/test@8.6.14':
     resolution: {integrity: sha512-GkPNBbbZmz+XRdrhMtkxPotCLOQ1BaGNp/gFZYdGDk2KmUWBKmvc5JxxOhtoXM2703IzNFlQHSSNnhrDZYuLlw==}
     peerDependencies:
-      storybook: ^8.6.17
+      storybook: ^9.1.19
 
   '@storybook/test@8.6.18':
     resolution: {integrity: sha512-u/RwfWMyHcH0N2hqfMTw2CoZ58IXdeED3b8NmcHc8bmERB3byI5vVAkwYbcD7+WeRHIiym38ZHi0SRn+IpkO3Q==}

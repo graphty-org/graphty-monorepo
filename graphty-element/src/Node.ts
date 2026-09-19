@@ -1,4 +1,5 @@
 import { AbstractMesh } from "@babylonjs/core";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
 import _ from "lodash";
 
@@ -27,6 +28,28 @@ export class Node {
     parentGraph: Graph | GraphContext;
     opts: NodeOpts;
     id: NodeIdType;
+
+    /**
+     * This node's index in the element's current GraphSnapshot, assigned at add time as
+     * `builder.addNode(id)` and walked through `report.nodeRemap` on a renumbering freeze
+     * (graph-format design 14.4 rule 5). INVALID_INDEX until the node reaches the builder.
+     */
+    index: number = INVALID_INDEX;
+
+    /**
+     * Whether the user pinned this node. The element owns this, not the layout engine: an engine is
+     * constructed fresh on every setLayout (LayoutManager.ts), so engine-held pin state is lost at
+     * every layout change, and a simulation's fixed mask is rebuilt from this field after a load or
+     * a reload (WebGPU design 9.4 item 4).
+     *
+     * OPEN QUESTION FOR E1. Under `pinOnDrag`, NodeBehavior calls `pin()` from BOTH the drag-end
+     * path and the plain-click path, and NOTHING in `src/` calls `unpin()`. While the flag lived
+     * only in the engine that stickiness was discarded at every setLayout; now it persists, so a
+     * user who merely clicks around accumulates permanently fixed nodes. Whoever wires the fixed
+     * mask up owes an answer: either a click/deselect unpins again, or `applyPins()` has to
+     * distinguish a deliberate pin from a click-acquired one.
+     */
+    pinned = false;
     data: AdHocData<string | number>;
     algorithmResults: AdHocData;
     styleUpdates: AdHocData;
@@ -436,6 +459,7 @@ export class Node {
      * Pins the node in place, preventing the layout engine from moving it.
      */
     pin(): void {
+        this.pinned = true;
         this.context.getLayoutManager().layoutEngine?.pin(this);
     }
 
@@ -443,6 +467,7 @@ export class Node {
      * Unpins the node, allowing the layout engine to move it again.
      */
     unpin(): void {
+        this.pinned = false;
         this.context.getLayoutManager().layoutEngine?.unpin(this);
     }
 
@@ -611,8 +636,7 @@ export class Node {
      * @returns True if the node is pinned, false otherwise
      */
     isPinned(): boolean {
-        // For now, nodes are not pinned unless drag behavior is disabled
-        return false;
+        return this.pinned;
     }
 
     /**

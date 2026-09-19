@@ -1,4 +1,5 @@
 import { AbstractMesh, Mesh, Quaternion, Ray, Vector3 } from "@babylonjs/core";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import _ from "lodash";
 
@@ -41,6 +42,13 @@ export class Edge {
     srcId: NodeIdType;
     dstId: NodeIdType;
     id: string;
+
+    /**
+     * This edge's LOGICAL edge index in the element's current GraphSnapshot, assigned at add time
+     * and re-keyed through `report.edgeRemap` on a compacting freeze. INVALID_INDEX until the edge
+     * reaches the builder. `id` is unchanged and remains the `"src:dst"` pair string (DEP-M6-B).
+     */
+    index: number = INVALID_INDEX;
     dstNode: Node;
     srcNode: Node;
     data: AdHocData;
@@ -819,7 +827,7 @@ export class Edge {
             if (this.arrowMesh.metadata?.is2D) {
                 // 2D: Use quaternion to properly compose rotations
                 // The arrow geometry is in XZ plane with tip at origin pointing along +X
-                // We need to: 1) rotate to XY plane (90° around X), 2) rotate to point at edge direction
+                // We need to: 1) rotate to XY plane (90 deg around X), 2) rotate to point at edge direction
                 //
                 // With Euler angles (YXZ order), setting rotation.x then rotation.z doesn't work because
                 // after the X rotation, the local Z axis points toward world -Y, so Z rotation
@@ -828,7 +836,7 @@ export class Edge {
                 // Solution: Use quaternion composition with correct order
                 const angle = Math.atan2(direction.y, direction.x);
 
-                // Step 1: Rotation around X by 90° (brings arrow from XZ plane to XY plane)
+                // Step 1: Rotation around X by 90 deg (brings arrow from XZ plane to XY plane)
                 const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
                 // Step 2: Rotation around Z by angle (aligns arrow with edge direction in XY plane)
                 const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
@@ -1150,7 +1158,11 @@ export class Edge {
         textConfig: Record<string, unknown>,
         source: "arrowHead" | "arrowTail",
     ): { label: RichTextLabel; offset: number } {
-        // Extract text from config - either direct text or textPath
+        // Extract text from config - either direct text or textPath.
+        // The two arrow glyphs below are the only non-ASCII bytes in this file and they are
+        // DELIBERATE: this is the rendered default for an arrow label the caller declared but
+        // gave no text for, so it is UI content, not source punctuation. Replacing it with
+        // "->" / "<-" would change what the scene draws, which is not a formatting fix.
         let labelText: string = source === "arrowHead" ? "→" : "←";
 
         if (textConfig.text !== undefined && textConfig.text !== null) {

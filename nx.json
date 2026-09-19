@@ -8,16 +8,14 @@
         "version": {
             "conventionalCommits": true,
             "fallbackCurrentVersionResolver": "disk",
-            "generatorOptions": {
-                "updateDependents": "auto",
-                "preserveLocalDependencyProtocols": true
-            }
+            "updateDependents": "auto",
+            "preserveLocalDependencyProtocols": true
         },
         "changelog": {
             "automaticFromRef": true,
             "projectChangelogs": {
                 "createRelease": "github",
-                "file": "CHANGELOG.md",
+                "file": "{projectRoot}/CHANGELOG.md",
                 "renderOptions": {
                     "authors": true,
                     "commitReferences": true,

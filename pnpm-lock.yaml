@@ -416,7 +416,7 @@ importers:
   graph-io:
     dependencies:
       '@graphty/graph-format':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../graph-format
     devDependencies:
       '@vitest/coverage-v8':
@@ -3757,7 +3757,7 @@ packages:
   '@storybook/test@8.6.14':
     resolution: {integrity: sha512-GkPNBbbZmz+XRdrhMtkxPotCLOQ1BaGNp/gFZYdGDk2KmUWBKmvc5JxxOhtoXM2703IzNFlQHSSNnhrDZYuLlw==}
     peerDependencies:
-      storybook: ^9.1.19
+      storybook: ^8.6.17
 
   '@storybook/test@8.6.18':
     resolution: {integrity: sha512-u/RwfWMyHcH0N2hqfMTw2CoZ58IXdeED3b8NmcHc8bmERB3byI5vVAkwYbcD7+WeRHIiym38ZHi0SRn+IpkO3Q==}
@@ -5957,6 +5957,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

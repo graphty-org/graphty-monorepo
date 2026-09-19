@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the @graphty/graph-format snapshot",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -107,10 +107,10 @@
     },
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io#readme",
     "dependencies": {
-        "@graphty/graph-format": "workspace:*"
+        "@graphty/graph-format": "workspace:^"
     },
     "peerDependencies": {
-        "@graphty/graph-format": "^0.2.0"
+        "@graphty/graph-format": "^1.0.0"
     },
     "devDependencies": {
         "@vitest/coverage-v8": "^3.2.4",

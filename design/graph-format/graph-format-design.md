@@ -3581,7 +3581,7 @@ from graphty-element). Scripts: `build` (`tsc -p tsconfig.build.json`),
 tsconfig.json`), `typecheck`, `test`, `test:run`, `coverage`,
 `coverage:preview` (port 9056), `benchmark` (`tsx benchmarks/run.ts`),
 `ready:commit`. `@graphty/graph-io` adds `dependencies` on
-`@graphty/graph-format: workspace:*`, `fast-xml-parser` and `papaparse`,
+`@graphty/graph-format: workspace:^` only (the parsers are hand-written),
 and `peerDependencies` on the format.
 
 ### 13.3 Root touch points
@@ -3657,12 +3657,12 @@ Rules:
    a minor. Adding a required option or an id-map kind is a major.
 3. Consumers (`algorithms`, `layout`, `graphty-element`,
    `webgpu-graph-algorithms`, `graph-io`) declare `@graphty/graph-format`
-   in BOTH `dependencies` (`workspace:*`, published as a caret range and
-   kept in lock-step inside the monorepo by `updateDependents: "auto"`)
-   AND `peerDependencies` (`^<major>`), so an application that installs
-   several consumers gets one copy; `isGraphSnapshot()` is a structural
-   `Symbol.for` brand check plus `formatVersion`, never `instanceof`, so a
-   duplicated copy within one major still interoperates.
+   in BOTH `dependencies` (`workspace:^`, published as a caret range --
+   `workspace:*` publishes an EXACT pin) AND `peerDependencies` (`^<major>`
+   from `1.0.0` on, `^0.<minor>.0` during 0.x), so an application that
+   installs several consumers gets one copy; `isGraphSnapshot()` is a
+   structural `Symbol.for` brand check plus `formatVersion`, never
+   `instanceof`, so a duplicated copy within one major still interoperates.
 4. Because algorithms and layout re-export format types, a format major
    forces their majors; format majors are scheduled only at consumer major
    boundaries (2.0 in section 14.6).
@@ -4950,3 +4950,32 @@ positions (DEPARTURE-7).
 | D-PEER-0X | 13.5 rule 3 gives the peer range as `^<major>` and the dependency as `workspace:*` "published as a caret range"; rule 5 says every 0.x minor may break. `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS, so graph-io's `^0.1.0` blocked every release on master once the format reached 0.2.0. | During 0.x the peer range is the MINOR pin `^0.<minor>.0` -- a 0.x minor is a breaking change, so a consumer states compatibility with exactly the minor it was built against -- re-stated at every format minor (the owner's `6b4777df`: graph-io's peer `^0.2.0`; the GPU package mirrors it); `^<major>` applies from `1.0.0` on, and the F2 PR turns both peers into `^1.0.0`. The intended workspace protocol is `workspace:^`, not `workspace:*`: pnpm publishes `workspace:*` as an EXACT pin and only `workspace:^` publishes the caret range rule 3 describes; an exact pin beside a `^1` peer gives an application two format copies. The rule-3 text is corrected in the F2 PR, where the ranges change anyway (integration plan D-18, D-6, DEP-G, DEP-I; WebGPU design Q-31). | 13.5 rules 3 and 5 |
 | D-FA2-LAWS | 14.3 layout port 2 keeps "swing / traction / adaptive speed as today", i.e. the port's `1/d^2` repulsion and position-based swing / traction, which research note 01 section 2.1.9 shows are transcription deviations from NetworkX, Gephi and cuGraph. | The L1 `ForceAtlas2Simulation` (`layout/src/simulation/forceatlas2.ts`) adopts the WebGPU design's 7.2 reference formulas: the published ForceAtlas2 as Gephi implements it (`1/d` repulsion, force-based swing / traction, fresh global sums each iteration) as `compat: "paper"`, with `compat: "networkx"` reproducing NetworkX `forceatlas2_layout`; the port's own laws are dropped. The legacy `forceatlas2Layout` runs on the simulation and keeps its signature and rescaled output; the Chromatic re-baseline commit documents the change (WebGPU design DEPARTURE-3, D5, owner decision Q-1). | 14.3 |
 | D-GPU-VEC4 | 14.3 says `LayoutSimulation` "kernels take the position STRIDE (3) as a uniform and operate on the owner's stride-3 column directly, so no per-frame `withComponents` copy exists in either direction". | The GPU keeps its own `array<vec4f>` device positions (xyz + mass, 16 B per node): the owner's stride-3 array is read at `load()` / `setPosition` (repacked with the inverse unit scale) and written by every readback through the `toScene` kernel. The sentence's outcome holds -- no `withComponents` copy in either direction, the owner's array read AND written in place -- its mechanism does not (WebGPU design DEPARTURE-7, D23, 7.3). The `LayoutSimulation` interface of 14.3 is unchanged and now lives in `layout/src/simulation/types.ts`. | 14.3 |
+### 17.7 The 1.0.0 cut (F2, 2026-09-18)
+
+Section 17's decision log continues here, appended after section 18 so the
+log stays append-only. Section 17 numbers are reserved in the order the
+entries were WRITTEN, not the order they land: 17.6 belongs to the L1-sim
+amendments prepared on `feat/layout-simulation` and arrives with that
+branch; 17.8 is reserved for the WebGPU W1 amendments (integration plan
+Task M5b-T4). 13.5 rule 3 is the one place this document is edited IN
+PLACE rather than amended here, because rule 3 states a protocol the
+packages must obey and a wrong protocol cannot be left standing beside its
+own correction; 17.6's D-PEER-0X already directs that the rule-3 text is
+corrected in the F2 PR. The edit is held to the same eight lines, because
+this file is cited by line range from the WebGPU design and from two of the
+GPU package's research documents.
+
+17.7 (2026-09-18): `@graphty/graph-format` is `1.0.0` on master and the
+invariants I1-I18 are frozen; graph-io's and webgpu-graph-algorithms' peer
+ranges become `^1.0.0` and graph-io's `dependencies` entry becomes
+`workspace:^`; 13.5 rule 3 is corrected in place; and 14.6's F2 gate "A1
+branch green", with section 18 item 1's "validates the algorithms widening
+on a branch beforehand", is DEVIATED FROM -- A1 has not started.
+`FORMAT_VERSION` stays 1 and the wire stays `[1, 0]`: 13.5's implication
+runs invariant change -> npm major, never back.
+
+| Id | Conflict | Decision | Section |
+| --- | --- | --- | --- |
+| D-F2-GATE | 14.6 gates F2 on "A1 branch green" and section 18 item 1 confirms the branch-first mechanism. A1 has not started: `algorithms/package.json` declares no `@graphty/graph-format` and no `toSnapshot` exists in `algorithms/src`. | Cut `1.0.0` anyway, on three consumer ports that already exercise the format rather than the one 14.6 named: graph-io (released, the eight-format corpus through `GraphSink` and back out through the wire form), webgpu-graph-algorithms (released 0.2.0, the CSR arena and the section 10 GPU upload contract) and layout's L1-sim on PR #12 (the position column, role resolution and the stride-3 owner array of 14.3; its functional shards are green and its Chromatic baselines are accepted). Rule 5 already prices the residual risk: what the ports find later lands as a 1.x minor or the scheduled 2.0. A1 keeps its 14.6 content; only its ORDER relative to F2 changes. | 14.6, 18 item 1 |
+| D-PEER-1X | Rule 3 gave the dependency as `workspace:*` "published as a caret range", the peer as `^<major>`, and the lock-step mechanism as `updateDependents: "auto"`. All three are wrong: pnpm publishes `workspace:*` as an EXACT pin, so rule 3's own one-copy promise fails as written; during 0.x the owner's `6b4777df` installed the MINOR pin `^0.<minor>.0`, because `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS; and nx.json nests `updateDependents` under `version.generatorOptions`, a key nx 22 does not read (the effective value is the default `always`). | Rule 3 corrected in place to `workspace:^`, `^<major>` from 1.0.0 on and `^0.<minor>.0` during 0.x, with the dead mechanism claim dropped; 13.2's repetition corrected with it. The manifests follow at the same push: graph-io `workspace:*` -> `workspace:^` and peer `^0.2.0` -> `^1.0.0`, webgpu-graph-algorithms peer `^0.2.0` -> `^1.0.0`. This executes the branch entry 17.6's D-PEER-0X (integration plan D-6, D-18, DEP-G, DEP-I; WebGPU design Q-31). | 13.5 rule 3, 13.2 |
+| D-RULE5-CHECK | Rule 5 calls the pre-1.0 merge ban mechanical and attributes it to "a CI check compares the two `package.json` files"; 14.6's A1 gate, G8, section 18 item 1 and its DECIDED line all assert the same check. No such check exists in `.github/workflows/` or `tools/`. The ban was never enforced either: it was consciously departed from on both landings that put the format in a consumer's `dependencies` -- graph-io on 2026-09-16 and webgpu-graph-algorithms at 0.2.0 -- because both are themselves 0.x (integration plan D-5, DEP-H). It bound only the 1.x consumers. | The check is not written. With the format at `1.0.0` its condition is permanently true and the ban has no further work. The live hazard was never rule 5 but the `nx release` range abort, and both peers now state `^1.0.0`, which a caret satisfies for every 1.x minor; it recurs only at the deliberate 2.0 of rule 4. If a guard is wanted later it is a peer-range SATISFACTION check (every declared `@graphty/graph-format` range admits the version in `graph-format/package.json`), not rule 5's letter. The five assertions above stay as the record of how the 0.x window was meant to be policed. | 13.5 rule 5, 14.6, 18 item 1 |

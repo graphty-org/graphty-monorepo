@@ -4792,6 +4792,26 @@ the shards as landed. Image facts: driver 580.126.20 / CUDA 13.0, Tesla T4
 vendor=nvidia in headless Chromium 143); Ubuntu release, glibc, kernel and
 libegl1 are printed by the Driver up step from the next run on.
 
+Release gate (2026-09-18, owner decision): the GPU lane (`gpu.yml`) and the
+host matrix (`hosts.yml`) are no longer informational. They stay separate
+workflows outside CI -- 12.6's reason holds, an offline runner must never
+stall a pull request -- but `release.yml` gained a `gate` job that waits for
+both workflows' runs on the released commit (Hosts only when its paths
+changed, the GPU lane always) and publishes only when every one succeeded;
+a red or cancelled lane blocks the release until it is re-run green. 12.1's
+"the GPU lane is never a required check" is amended accordingly.
+
+Graph-format 1.0.0 (2026-09-18, phase F2 of the graph-format design's
+14.6): the format is `1.0.0` on master and its invariants are frozen, so
+this package's `@graphty/graph-format` peer range is `^1.0.0`, as 2.5, 3.1
+and 9.8 say it becomes at F2 -- the `^0.1.0` printed earlier in this
+document and the `^0.2.0` of the integration plan's DEP-G are both
+superseded. The `dependencies` entry stays `workspace:^` and graph-io's
+`workspace:*` is corrected to match, so Q-31 is now the rule: graph-format
+design 13.5 rule 3 was corrected in place and its decision log gained a
+17.7 entry (D-F2-GATE, D-PEER-1X, D-RULE5-CHECK). The cut did NOT wait for
+the A1 branch that 14.6 gates it on -- A1 has not started; it was cut on
+graph-io, this package and layout's L1-sim instead.
 L1-sim landed 2026-09-18 (phase M5 of
 `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, branch
 `feat/layout-simulation`; the date is the Chromatic re-baseline commit's):

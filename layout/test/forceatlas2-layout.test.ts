@@ -7,6 +7,7 @@ import {
     gridGraph,
     randomGraph,
     scaleFreeGraph,
+    rescaleLayout,
 } from "../src";
 
 describe("ForceAtlas2 Layout", () => {
@@ -166,6 +167,43 @@ describe("ForceAtlas2 Layout", () => {
 
             // Should be very close (allowing for floating point precision)
             assert.isBelow(maxDifference, 1e-10);
+        });
+
+        it("should tolerate the legacy maxIter values (0 runs nothing, 50.5 runs)", () => {
+            const graph = cycleGraph(6);
+
+            // maxIter 0: the legacy `for` loop ran no iteration and returned the rescaled seed; here the caller's
+            // positions seed every row, so the result is exactly rescaleLayout(pos) (integers survive the f32 array)
+            const initialPos = {};
+            graph.nodes().forEach((node, i) => {
+                initialPos[node] = [i * 2, i % 2 === 0 ? 3 : -3];
+            });
+            const seedOnly = forceatlas2Layout(graph, initialPos, 0);
+            const expected = rescaleLayout(structuredClone(initialPos));
+            assert.equal(Object.keys(seedOnly).length, 6);
+            graph.nodes().forEach((node) => {
+                assert.equal(seedOnly[node].length, 2);
+                assert.closeTo(seedOnly[node][0], expected[node][0], 1e-6);
+                assert.closeTo(seedOnly[node][1], expected[node][1], 1e-6);
+            });
+
+            // an unseeded run with maxIter 0, a negative count and NaN return finite positions without throwing
+            for (const count of [0, -3, Number.NaN]) {
+                const positions = forceatlas2Layout(graph, null, count);
+                assert.equal(Object.keys(positions).length, 6);
+                graph.nodes().forEach((node) => {
+                    assert.isTrue(Number.isFinite(positions[node][0]));
+                    assert.isTrue(Number.isFinite(positions[node][1]));
+                });
+            }
+
+            // a fractional count runs ceil(maxIter) iterations, as the legacy loop did
+            const fractional = forceatlas2Layout(graph, null, 50.5);
+            assert.equal(Object.keys(fractional).length, 6);
+            graph.nodes().forEach((node) => {
+                assert.isTrue(Number.isFinite(fractional[node][0]));
+                assert.isTrue(Number.isFinite(fractional[node][1]));
+            });
         });
 
         it("should handle different gravity settings", () => {
@@ -337,6 +375,80 @@ describe("ForceAtlas2 Layout", () => {
             assert.isAbove(d12, 0);
             assert.isAbove(d23, 0);
             assert.equal(Object.keys(positions).length, 4);
+        });
+
+        it("should read distinct edge weights through getEdgeData and differ from the unweighted layout", () => {
+            // the weight attribute NAME is consumed by toLayoutSnapshot (getEdgeData -> the snapshot's arc weights)
+            // and the snapshot of a duck graph is cached per graph OBJECT, so each run gets its own graph
+            const weightOf = {
+                "0-1": 1,
+                "1-2": 2,
+                "2-3": 3,
+                "3-4": 4,
+                "4-5": 5,
+                "5-0": 6,
+                "0-3": 7,
+            };
+            const makeGraph = () => ({
+                nodes: () => [0, 1, 2, 3, 4, 5],
+                edges: () => [
+                    [0, 1],
+                    [1, 2],
+                    [2, 3],
+                    [3, 4],
+                    [4, 5],
+                    [5, 0],
+                    [0, 3],
+                ],
+                getEdgeData: (u, v, attr) => (attr === "w" ? weightOf[`${u}-${v}`] : undefined),
+            });
+
+            const weighted = forceatlas2Layout(
+                makeGraph(),
+                null,
+                50,
+                1.0,
+                2.0,
+                1.0,
+                false,
+                false,
+                null,
+                null,
+                "w",
+                false,
+                false,
+                42,
+            );
+            const unweighted = forceatlas2Layout(
+                makeGraph(),
+                null,
+                50,
+                1.0,
+                2.0,
+                1.0,
+                false,
+                false,
+                null,
+                null,
+                null,
+                false,
+                false,
+                42,
+            );
+
+            assert.equal(Object.keys(weighted).length, 6);
+            assert.equal(Object.keys(unweighted).length, 6);
+
+            let totalDiff = 0;
+            for (const node of [0, 1, 2, 3, 4, 5]) {
+                assert.equal(weighted[node].length, 2);
+                assert.isFalse(Number.isNaN(weighted[node][0]));
+                assert.isFalse(Number.isNaN(weighted[node][1]));
+                totalDiff += Math.abs(weighted[node][0] - unweighted[node][0]);
+                totalDiff += Math.abs(weighted[node][1] - unweighted[node][1]);
+            }
+            // the same seed gives the same start; only the weights differ between the two runs
+            assert.isAbove(totalDiff, 1e-6);
         });
     });
 

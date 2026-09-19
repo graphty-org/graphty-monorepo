@@ -4812,3 +4812,38 @@ design 13.5 rule 3 was corrected in place and its decision log gained a
 17.7 entry (D-F2-GATE, D-PEER-1X, D-RULE5-CHECK). The cut did NOT wait for
 the A1 branch that 14.6 gates it on -- A1 has not started; it was cut on
 graph-io, this package and layout's L1-sim instead.
+L1-sim landed 2026-09-18 (phase M5 of
+`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, branch
+`feat/layout-simulation`; the date is the Chromatic re-baseline commit's):
+`layout/src/simulation/` per 9.3, re-exported from the layout barrel --
+`LayoutSimulation`, `SimulationOptions`, `CommonLayoutOptions`,
+`ForceAtlas2Options`, `FruchtermanReingoldOptions`, `SpringElectricalOptions`,
+`LayoutAccelerator`, `SimulationType`, `createSimulation`,
+`ForceAtlas2Simulation`, `FruchtermanReingoldSimulation`, `resolveNodeVector`,
+`resolveWeights`, `seedPositions` (with the `Lcg` it draws from) and the
+minimal `toLayoutSnapshot` the legacy wrappers need; the other thirteen
+layouts are not ported to `indexed.*` (graph-format design 14.3's own work).
+The CPU `ForceAtlas2Simulation` is a COPY of the oracle's formulas
+(`webgpu-graph-algorithms/test/oracle/forceatlas2.ts`, the SPEC of the class
+per 11.3 and the P3 row), not a move: the oracle stays in the GPU package as
+its independent reference (integration plan DEP-E, D-16; two transcriptions of
+table 7.2 remain the R-1 mitigation). The port keeps the oracle's K1-K5 stage
+order, `estimateFactor`, `kickDir`, the 256-lane fold order and the
+per-formula citations, drops the f32 mode, the trace and the inspection
+instrumentation, resolves its inputs by graph-format role (D28), and checks
+its `compat: "networkx"` mode against the NetworkX fixtures the GPU package
+pins (11.4 oracle independence). Both CPU simulations settle by the 7.17 rule
+-- `iterationsDone >= maxIter || settledCount >= settleWindow`, the counter
+fed by the mean free-node displacement against the RMS radius about the
+centroid, an empty graph settled at once and an all-fixed layout after
+`settleWindow` iterations (FR) or `settleWindow + 1` (FA2, whose K1 folds the
+previous integrate) -- follow 7.12 / D8 for pins, drags and `reheat()`
+(FA2's speed controller is reset by `load()` only; FR's `reheat()` restarts
+the temperature index at `floor(0.7 * iterations)`, 7.20), and run in layout
+units behind the owner's stride-3 scene-unit array (7.18). The dispatcher
+`createSimulation` is as 9.3 writes it: the accelerator's method when present,
+else the CPU class; `"spring-electrical"` throws without an accelerator; a
+thrown accelerator error propagates. The legacy `forceatlas2Layout` is a
+one-shot wrapper over the simulation (integration plan D-17). Graph-format
+design 14.3 is amended by its 17.6 entry (DEPARTURE-3 and DEPARTURE-7), as
+CHECK-R3 and REPAIR-1 scheduled for the L1 PR.

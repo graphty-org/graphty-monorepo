@@ -4931,6 +4931,25 @@ with the decision as it now binds the implementation.
 
     DECIDED: `fromWire` / `fromBytes` default to `unknownColumns: "error"`; graphty's IndexedDB cache reader passes `"skip"` and re-fetches.
 
+### 17.6 L1-sim amendments (2026-09-18)
+
+Section 17's decision log continues here, appended after section 18 so the
+log stays append-only; 13.5 and 14.3 are amended by this entry and are not
+edited in place. The date is the L1-sim re-baseline commit's (phase M5 of
+`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`).
+
+17.6 (2026-09-18): rule 3's peer range during 0.x is the minor pin
+(`^0.<minor>.0`, re-stated at every format minor: `6b4777df`) and the
+intended workspace protocol is `workspace:^` (D-18 and Q-31 via the
+integration plan); 14.3's ForceAtlas2 adopts the WebGPU design's 7.2
+reference formulas (DEPARTURE-3) and the GPU keeps its own vec4f device
+positions (DEPARTURE-7).
+
+| Id | Conflict | Decision | Section |
+| --- | --- | --- | --- |
+| D-PEER-0X | 13.5 rule 3 gives the peer range as `^<major>` and the dependency as `workspace:*` "published as a caret range"; rule 5 says every 0.x minor may break. `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS, so graph-io's `^0.1.0` blocked every release on master once the format reached 0.2.0. | During 0.x the peer range is the MINOR pin `^0.<minor>.0` -- a 0.x minor is a breaking change, so a consumer states compatibility with exactly the minor it was built against -- re-stated at every format minor (the owner's `6b4777df`: graph-io's peer `^0.2.0`; the GPU package mirrors it); `^<major>` applies from `1.0.0` on, and the F2 PR turns both peers into `^1.0.0`. The intended workspace protocol is `workspace:^`, not `workspace:*`: pnpm publishes `workspace:*` as an EXACT pin and only `workspace:^` publishes the caret range rule 3 describes; an exact pin beside a `^1` peer gives an application two format copies. The rule-3 text is corrected in the F2 PR, where the ranges change anyway (integration plan D-18, D-6, DEP-G, DEP-I; WebGPU design Q-31). | 13.5 rules 3 and 5 |
+| D-FA2-LAWS | 14.3 layout port 2 keeps "swing / traction / adaptive speed as today", i.e. the port's `1/d^2` repulsion and position-based swing / traction, which research note 01 section 2.1.9 shows are transcription deviations from NetworkX, Gephi and cuGraph. | The L1 `ForceAtlas2Simulation` (`layout/src/simulation/forceatlas2.ts`) adopts the WebGPU design's 7.2 reference formulas: the published ForceAtlas2 as Gephi implements it (`1/d` repulsion, force-based swing / traction, fresh global sums each iteration) as `compat: "paper"`, with `compat: "networkx"` reproducing NetworkX `forceatlas2_layout`; the port's own laws are dropped. The legacy `forceatlas2Layout` runs on the simulation and keeps its signature and rescaled output; the Chromatic re-baseline commit documents the change (WebGPU design DEPARTURE-3, D5, owner decision Q-1). | 14.3 |
+| D-GPU-VEC4 | 14.3 says `LayoutSimulation` "kernels take the position STRIDE (3) as a uniform and operate on the owner's stride-3 column directly, so no per-frame `withComponents` copy exists in either direction". | The GPU keeps its own `array<vec4f>` device positions (xyz + mass, 16 B per node): the owner's stride-3 array is read at `load()` / `setPosition` (repacked with the inverse unit scale) and written by every readback through the `toScene` kernel. The sentence's outcome holds -- no `withComponents` copy in either direction, the owner's array read AND written in place -- its mechanism does not (WebGPU design DEPARTURE-7, D23, 7.3). The `LayoutSimulation` interface of 14.3 is unchanged and now lives in `layout/src/simulation/types.ts`. | 14.3 |
 ### 17.7 The 1.0.0 cut (F2, 2026-09-18)
 
 Section 17's decision log continues here, appended after section 18 so the

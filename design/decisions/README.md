@@ -30,3 +30,4 @@ version of the code.
 | --- | --- |
 | [2026-09-19-no-nightly-gpu-lane.md](2026-09-19-no-nightly-gpu-lane.md) | The GPU lane has no nightly cron |
 | [2026-09-19-bench-compare-min-confirms-median.md](2026-09-19-bench-compare-min-confirms-median.md) | A benchmark regression needs the minimum to confirm the median |
+| [2026-09-19-graphty-element-owns-webgpu.md](2026-09-19-graphty-element-owns-webgpu.md) | graphty-element owns WebGPU detection; the GPU package is an optional peer |

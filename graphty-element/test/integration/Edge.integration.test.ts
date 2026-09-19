@@ -114,7 +114,10 @@ function createMinimalStyles(): Styles {
                 edgeDstIdPath: "target",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                positionScale: 1,
+                idCoercion: "canonical",
             },
+            directed: "auto",
         },
     });
 }
@@ -450,7 +453,7 @@ describe("Edge Integration", () => {
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
-            // Length = sqrt(3² + 4²) = 5
+            // Length = sqrt(3^2 + 4^2) = 5
             assert.closeTo(mesh.scaling.z, 5, 0.001);
         });
 
@@ -469,7 +472,7 @@ describe("Edge Integration", () => {
             assert.closeTo(mesh.position.y, 1, 0.001);
             assert.closeTo(mesh.position.z, 1, 0.001);
 
-            // Length = sqrt(1² + 2² + 2²) = 3
+            // Length = sqrt(1^2 + 2^2 + 2^2) = 3
             assert.closeTo(mesh.scaling.z, 3, 0.001);
         });
 
@@ -488,7 +491,7 @@ describe("Edge Integration", () => {
             assert.closeTo(mesh.position.y, 0, 0.001);
             assert.closeTo(mesh.position.z, 0, 0.001);
 
-            // Length = sqrt(10² + 10² + 10²) = sqrt(300)
+            // Length = sqrt(10^2 + 10^2 + 10^2) = sqrt(300)
             assert.closeTo(mesh.scaling.z, Math.sqrt(300), 0.001);
         });
 

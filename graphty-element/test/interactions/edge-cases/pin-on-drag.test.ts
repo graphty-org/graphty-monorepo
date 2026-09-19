@@ -30,7 +30,10 @@ function createStyleTemplate(pinOnDrag: boolean): StyleSchema {
                 edgeDstIdPath: "dst",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                positionScale: 1,
+                idCoercion: "canonical",
             },
+            directed: "auto",
         },
         behavior: {
             layout: { type: "ngraph", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },

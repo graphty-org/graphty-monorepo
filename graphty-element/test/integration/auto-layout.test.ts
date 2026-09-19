@@ -62,7 +62,10 @@ describe("Automatic Layout Updates", () => {
                     edgeDstIdPath: "target",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
         } satisfies StyleSchemaV1;
         styles = new Styles(minimalConfig);

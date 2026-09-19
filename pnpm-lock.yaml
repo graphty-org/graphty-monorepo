@@ -555,6 +555,9 @@ importers:
       '@graphty/algorithms':
         specifier: workspace:^
         version: link:../algorithms
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout

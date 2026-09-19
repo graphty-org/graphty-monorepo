@@ -44,7 +44,10 @@ describe("Camera Presets - 2D", () => {
                     edgeDstIdPath: "dst",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {

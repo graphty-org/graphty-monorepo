@@ -126,7 +126,10 @@ function edgeStyleTemplate(lineType: "solid" | "dot"): StyleSchemaV1 {
                 edgeDstIdPath: "dst",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                positionScale: 1,
+                idCoercion: "canonical",
             },
+            directed: "auto",
         },
     };
 }

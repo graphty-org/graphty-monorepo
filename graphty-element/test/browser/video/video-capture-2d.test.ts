@@ -49,7 +49,10 @@ describe("Video Capture - 2D Orthographic Camera", () => {
                     edgeDstIdPath: "dst",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {
@@ -159,7 +162,10 @@ describe("Video Capture - 2D Animated Camera", () => {
                     edgeDstIdPath: "dst",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {
@@ -336,7 +342,10 @@ describe("Video Capture - 2D Camera Preservation", () => {
                     edgeDstIdPath: "dst",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {

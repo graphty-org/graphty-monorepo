@@ -333,7 +333,10 @@ describe("SelectionManager integration with Graph", () => {
                     edgeDstIdPath: "target",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {

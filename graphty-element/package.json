@@ -142,6 +142,7 @@
     },
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
+        "@graphty/graph-format": "^1.0.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "lit": "^3.0.0"
     },
@@ -155,6 +156,7 @@
         "@ai-sdk/google": "^2.0.44",
         "@ai-sdk/openai": "^2.0.74",
         "@graphty/algorithms": "workspace:^",
+        "@graphty/graph-format": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",

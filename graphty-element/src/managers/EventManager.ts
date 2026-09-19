@@ -1,4 +1,5 @@
 import { Observable } from "@babylonjs/core";
+import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type {
     DataLoadingCompleteEvent,
@@ -15,6 +16,7 @@ import type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphSnapshotReplacedEvent,
     NodeEvent,
     SelectionChangedEvent,
 } from "../events";
@@ -165,6 +167,30 @@ export class EventManager implements Manager {
             count,
             shouldStartLayout,
             shouldZoomToFit,
+        };
+        this.graphObservable.notifyObservers(event);
+    }
+
+    /**
+     * Emit `snapshot-replaced` (graph-format design 14.4 rule 11).
+     * @param graph - the graph whose data changed; DataManager holds a GraphContext, so this takes
+     *     the same union emitGraphError takes and casts once, here
+     * @param previous - the superseded snapshot, or null on the first freeze
+     * @param next - the new snapshot, with the element position column already attached
+     * @param report - freezeWithReport's report
+     */
+    emitSnapshotReplaced(
+        graph: Graph | GraphContext,
+        previous: GraphSnapshot | null,
+        next: GraphSnapshot,
+        report: FreezeReport,
+    ): void {
+        const event: GraphSnapshotReplacedEvent = {
+            type: "snapshot-replaced",
+            graph: graph as Graph,
+            previous,
+            next,
+            report,
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -381,6 +407,7 @@ export class EventManager implements Manager {
             case "error":
             case "data-loaded":
             case "data-added":
+            case "snapshot-replaced":
             case "layout-initialized":
             case "skybox-loaded":
             case "operation-queue-active":

@@ -1,3 +1,5 @@
+import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
+
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { NodeIdType } from "./config";
@@ -19,6 +21,7 @@ export type GraphEvent =
     | GraphErrorEvent
     | GraphDataLoadedEvent
     | GraphDataAddedEvent
+    | GraphSnapshotReplacedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
     | GraphGenericEvent
@@ -56,6 +59,26 @@ export interface GraphDataAddedEvent {
     count: number;
     shouldStartLayout: boolean;
     shouldZoomToFit: boolean;
+}
+
+/**
+ * Emitted by DataManager after every freeze, once the element's position column is attached to the
+ * new snapshot (graph-format design 14.4 rule 11).
+ *
+ * Listeners release per-snapshot resources: at E1 `Graph` releases the accelerator's GPU buffers for
+ * `previous` and its derived views, and caches drop their entries. Nothing a WeakMap can do for
+ * them -- GPU memory is not garbage collected.
+ */
+export interface GraphSnapshotReplacedEvent {
+    type: "snapshot-replaced";
+    /** The graph whose data changed. */
+    graph: Graph;
+    /** The superseded snapshot; null on the first freeze. */
+    previous: GraphSnapshot | null;
+    /** The snapshot every consumer must switch to. */
+    next: GraphSnapshot;
+    /** freezeWithReport's report, relative to the PREVIOUS freeze of the same builder. */
+    report: FreezeReport;
 }
 
 export interface GraphLayoutInitializedEvent {

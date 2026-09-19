@@ -64,7 +64,7 @@ const config: KnipConfig = {
             ],
             project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
-            ignoreDependencies: ["webgpu"],
+            ignoreDependencies: ["@graphty/layout", "webgpu"],
         },
 
         // Algorithms package

@@ -12,7 +12,8 @@
             "@graphty/webgpu-graph-algorithms": ["./src/index.ts"],
             "@graphty/webgpu-graph-algorithms/browser": ["./src/browser/index.ts"],
             "@graphty/webgpu-graph-algorithms/node": ["./src/node/index.ts"],
-            "@graphty/graph-format": ["../graph-format/src/index.ts"]
+            "@graphty/graph-format": ["../graph-format/src/index.ts"],
+            "@graphty/layout": ["../layout/dist/layout.d.ts"]
         }
     },
     "include": [

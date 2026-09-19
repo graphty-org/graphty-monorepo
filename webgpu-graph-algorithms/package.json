@@ -103,6 +103,7 @@
         }
     },
     "devDependencies": {
+        "@graphty/layout": "workspace:^",
         "@vitest/browser": "^3.2.4",
         "@vitest/coverage-v8": "^3.2.4",
         "@vitest/ui": "^3.2.4",

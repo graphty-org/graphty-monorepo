@@ -2104,7 +2104,13 @@ Expected: the file parses and has the same top-level shape as `benchmarks/result
 
 - [ ] **Step 3: Commit (owner)** -- `perf(webgpu-graph-algorithms): record the first T4 benchmark session as the gpu-linux-t4 baseline` through `tools/commit-changes.sh` (the README change rides in the same commit). The next GPU run's `bench-compare` then compares (a median above 3x the baseline fails the lane; `SKIPPED: GPU not quiet` when `nvidia-smi` shows another process).
 
-### Task M4-T4: The nightly guard and the label path
+### Task M4-T4: The label path (the nightly guard is WITHDRAWN)
+
+> WITHDRAWN 2026-09-19 (owner): there is no nightly. `gpu.yml` lost its `schedule` trigger, the `changed`
+> cost-guard job and the `gpu-nightly-report` tracking-issue job; steps 2 and 3 below describe machinery that
+> no longer exists and are struck. The lane runs on every master push -- which `release.yml`'s gate already
+> requires green -- plus dispatch and `gpu`-labelled same-repo PRs, so a nightly only re-ran a commit the lane
+> had already judged, on a paid runner. Step 1 stands.
 
 - [ ] **Step 1: The labelled PR path** -- on any open same-repo PR, `gh pr edit <n> --add-label gpu`; expected: a `GPU` run starts for the PR (`pull_request: labeled`), and a push to the PR re-runs it (`synchronize`). Remove the label afterwards.
 - [ ] **Step 2: The nightly skip** -- after the 06:17 UTC cron on a day master did not move, `gh run list --workflow GPU --limit 10 --json databaseId,event,status,conclusion --jq '[.[] | select(.event=="schedule")][0]'` shows the run with the `test-gpu` job skipped (`changed` printed `run=false`). Record in G0.

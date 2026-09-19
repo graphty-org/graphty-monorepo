@@ -1,7 +1,9 @@
 # @graphty/webgpu-graph-algorithms -- implementation plan for WebGPU-accelerated algorithms and layouts
 
 Status: Approved by the owner on 2026-09-14 (plan of record; later changes
-are appended to the Review log)
+are appended to the Review log, and from 2026-09-19 new decisions get their
+own file under design/decisions/ instead -- see that directory's README for
+why. Decisions already in the Review log stay there.)
 Date: 2026-09-14
 Author: synthesis of three planning drafts (A performance-first, B integration-first,
 C verification-first) after a three-judge review; draft B is the base, every

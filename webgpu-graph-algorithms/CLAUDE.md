@@ -370,8 +370,9 @@ measured it):
 
 ## Adding an Algorithm / a Kernel
 
-1. Types: add the option / result types to `src/types/` (types only; structural mirrors of the CPU packages
-   until W1, D27).
+1. Types: add the option / result types to `src/types/` (types only). The LAYOUT types are imported from
+   `@graphty/layout` and re-exported since W1b; the `@graphty/algorithms` ones are still structural mirrors
+   until A2/M8a (D27).
 2. Body: `src/wgsl/<name>.wgsl.ts` exporting `<name>Wgsl` -- the body only, written to the uniformity and
    precedence rules; no `@group(`, no `override `, constants interpolated from `src/constants.ts`.
 3. Registry: one `WgslModuleSpec` entry in `src/kernels.ts` with its `bindings` (group 0 graph / 1 state /
@@ -400,9 +401,10 @@ trace, `run()`); a layout is a `ForceModel<Options, Stats>` it consumes by compo
 `ForceAtlas2Model` (`src/layouts/forceatlas2.ts`) is the reference; the FR model of P5 and the spring-electrical
 preset follow the same steps:
 
-1. Types: the option record in `src/types/options.ts` (the CPU package's names and defaults, every field
-   `?: T | undefined`; plus its `Resolved<Model>Options`), the stats record extending `LayoutStatsBase` in
-   `src/types/layout.ts`, and the method on the `LayoutAccelerator` mirror in `src/types/accelerator.ts`.
+1. Types: since W1b the option record and the `LayoutAccelerator` method are @graphty/layout's to add FIRST --
+   `layout/src/simulation/types.ts` -- and this package re-exports them from `src/types/options.ts` and
+   `src/types/accelerator.ts`; add only the package's own `Resolved<Model>Options` here, plus the stats record
+   extending `LayoutStatsBase` in `src/types/layout.ts`. test/types/conformance.test-d.ts is the cross-check.
 2. Kernels: the bodies in `src/wgsl/<model>-*.wgsl.ts` and their registry entries in `src/kernels.ts` (group 0
    the graph through `graphBindings` / `graphOverrides`, group 1 the model state, group 2 the params slot of the
    `UniformRing` with a dynamic offset; reuse `fill` for zeroing and `fa2-to-scene` for the scene unpack when

@@ -30,9 +30,11 @@ npm install webgpu@0.4.0
 `webgpu@0.6.x` needs glibc 2.38). The peer range `>=0.4.0 <1.0.0` admits the newer builds on a newer
 glibc; a Node consumer that forgets the package gets `E_NO_WEBGPU` with the message
 "install the optional peer dependency webgpu@0.4.0". `@graphty/algorithms` and `@graphty/layout` are
-optional peer dependencies too: the accelerator types mirror their interfaces (structurally until the
-package moves into the monorepo), so a consumer that type-checks against this package installs them; a
-consumer that never touches the accelerator types does not need them.
+optional peer dependencies too, on different footings since W1b: the layout interfaces and option types
+are `import type`d from `@graphty/layout` and re-exported, so they ARE its declarations, while the
+`@graphty/algorithms` accelerator types are still structural mirrors until A2. Either way a consumer that
+type-checks against the accelerator types (without `skipLibCheck`) installs the package it names; a
+consumer that never touches them does not need it.
 
 ## ForceAtlas2 from Node
 

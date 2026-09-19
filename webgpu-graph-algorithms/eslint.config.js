@@ -3,7 +3,8 @@
  * package needs (spec 2.4 / 3.2): the layer rule as `no-restricted-imports` zones (one block per layer
  * directory forbidding the relative specifiers of every HIGHER layer), the entry isolation (src/browser
  * and src/node are imported by nothing else in src/), the no-navigator / no-process rules, and the ban on
- * runtime imports of the CPU packages (type imports allowed in src/types/accelerator.ts only, D27).
+ * runtime imports of the CPU packages (type imports allowed in src/types/accelerator.ts and
+ * src/types/options.ts, D27).
  * test/layers.test.ts enforces the same rules plus cycle detection by walking the import graph.
  */
 
@@ -13,7 +14,8 @@ import root from "../eslint.config.js";
 
 const LAYER_MESSAGE = "layer rule (spec 3.2): a lower layer never imports a higher one";
 const ENTRY_MESSAGE = "src/browser and src/node are imported by nothing else in src/ (spec 2.4)";
-const CPU_MESSAGE = "no runtime import of the CPU packages (D3, D27); type imports only in src/types/accelerator.ts";
+const CPU_MESSAGE =
+    "no runtime import of the CPU packages (D3, D27); type imports only in src/types/accelerator.ts and src/types/options.ts";
 const TYPES_MESSAGE = "src/types imports values from nothing above errors.ts / constants.ts; type imports are allowed";
 
 // Flat config does NOT merge rule options: a later matching block that gives options REPLACES the earlier ones
@@ -154,13 +156,13 @@ export default tseslint.config(
     // the SAME options object also carries the CPU-package ban (one options object per rule id per file set, see the note above)
     {
         files: ["src/types/**/*.ts"],
-        ignores: ["src/types/accelerator.ts"],
+        ignores: ["src/types/accelerator.ts", "src/types/options.ts"],
         rules: {
             "@typescript-eslint/no-restricted-imports": ["error", { paths: CPU_PATHS, patterns: TYPES_PATTERNS }],
         },
     },
     {
-        files: ["src/types/accelerator.ts"],
+        files: ["src/types/accelerator.ts", "src/types/options.ts"],
         rules: {
             "@typescript-eslint/no-restricted-imports": [
                 "error",

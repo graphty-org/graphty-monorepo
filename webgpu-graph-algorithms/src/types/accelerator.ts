@@ -1,41 +1,23 @@
 /**
- * The structural mirrors of @graphty/layout's LayoutSimulation / LayoutAccelerator (spec 9.3) and of
- * the @graphty/algorithms AlgorithmAccelerator (spec 9.2), plus the package's own accelerator surface (spec 3.3).
- * Until W1 these ARE the mirrors (D27): from W1 the mirrors become `import type` of the real packages and
- * test/types/conformance.test-d.ts asserts mutual assignability. Types only.
+ * The layout half of spec 9.3 and the @graphty/algorithms AlgorithmAccelerator mirror (spec 9.2), plus the
+ * package's own accelerator surface (spec 3.3). D27's two halves are now on different footings: at W1b the LAYOUT
+ * mirrors became `import type` of the real `@graphty/layout` interfaces, re-exported here so this package's public
+ * surface is unchanged; the ALGORITHMS mirrors stay structural until A2/M8a gives them something real to point at.
+ * test/types/conformance.test-d.ts is the cross-compile that holds the layout half honest. Types only.
  */
 
-import type { F32, F64, GraphSnapshot, NodeMask, NumericVector, U32 } from "@graphty/graph-format";
+import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
+import type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout";
 
 import type { GpuContext } from "../context.js";
 import type { ForceAtlas2Stats, GpuLayoutSimulation, GpuLayoutTuning } from "./layout.js";
-import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "./options.js";
+import type { ForceAtlas2Options } from "./options.js";
 
-// ---- mirrors of @graphty/layout (spec 9.3)
+// ---- the real @graphty/layout interfaces (spec 9.3, D27): imported at W1b, re-exported so the package's public
+// surface is unchanged and src/types/layout.ts keeps resolving them from here. `export type`, never a bare
+// `export { ... }`: isolatedModules makes the bare form TS1205.
 
-/** Design 14.3 LayoutSimulation, verbatim. */
-export interface LayoutSimulation {
-    load(snapshot: GraphSnapshot, positions: F32): void;
-    step(iterations?: number): void | Promise<void>;
-    readonly settled: boolean;
-    setFixed(mask: NodeMask): void;
-    setPosition(index: number, x: number, y: number, z: number): void;
-    dispose(): void;
-}
-
-/**
- * Spec 9.3 LayoutAccelerator, verbatim.
- * Exported: published mirror (spec 3.3, D27); re-exported from src/index.ts at P3-T3.
- * @public
- */
-export interface LayoutAccelerator {
-    readonly kind: string;
-    forceAtlas2?(options?: ForceAtlas2Options): LayoutSimulation;
-    fruchtermanReingold?(options?: FruchtermanReingoldOptions): LayoutSimulation;
-    springElectrical?(options?: SpringElectricalOptions): LayoutSimulation;
-    release?(s: GraphSnapshot): void;
-    dispose?(): void;
-}
+export type { LayoutAccelerator, LayoutSimulation };
 
 // ---- mirrors of @graphty/algorithms (spec 9.2); the option types named there do not exist before A2, so they are
 // mirrored as empty-extensible records

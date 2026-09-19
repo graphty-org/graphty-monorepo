@@ -2,7 +2,9 @@
  * The CPU port's random number generator, bit for bit, and the NaN-row seeding both paths share (spec 7.2 "Initial
  * positions", 9.3 seedPositions, 7.14 `pos`, 7.19 topology change): a seed gives the same start on the CPU and the
  * GPU because both write the same f32 values in index order. The package carries its own copy of the LCG for its
- * whole life (D27: it cannot import @graphty/layout); W1 cross-tests it against the real RandomNumberGenerator.
+ * whole life (D27: it cannot import @graphty/layout at runtime). The CANONICAL copy is
+ * layout/src/simulation/seed.ts; this one is cross-tested against it, bit for bit, by
+ * test/layouts/seed-cross.test.ts (W1b, Task M5b-T3).
  */
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";

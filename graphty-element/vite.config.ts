@@ -36,6 +36,13 @@ export default defineConfig(({ mode }) => {
                 external: [
                     "@babylonjs/core",
                     "@babylonjs/inspector",
+                    // graph-format design 13.5 rule 3: declared a peerDependency so an app installing several
+                    // consumers gets ONE copy. A peer range alone does not achieve that -- anything absent from
+                    // this list is INLINED into dist/, so the element would ship a private copy and an app would
+                    // hold two GraphSnapshot classes. The Symbol.for brand check only rescues that within a major.
+                    // @graphty/algorithms and @graphty/layout are plain dependencies, not peers, and stay inlined:
+                    // only graph-format passes branded objects and typed arrays across a package boundary.
+                    "@graphty/graph-format",
                     "@mlc-ai/web-llm", // Dynamically loaded at runtime for in-browser LLM
                     "lit",
                     "lit/decorators.js",
@@ -46,6 +53,12 @@ export default defineConfig(({ mode }) => {
                     globals: {
                         "@babylonjs/core": "BABYLON",
                         "@babylonjs/inspector": "BABYLON",
+                        // Only read by a pure script-tag/IIFE consumer. graph-format publishes no UMD build
+                        // (ESM-only: its exports map has "import"/"default" and no "require"), so that consumer
+                        // cannot exist today. The name is here so the UMD wrapper is well formed; the real
+                        // consumers are the "import" path and the "require" path, and the latter resolves through
+                        // node_modules via Node 22's require(esm), verified against graph-format/dist.
+                        "@graphty/graph-format": "GraphtyGraphFormat",
                         lit: "Lit",
                         "lit/decorators.js": "Lit",
                         "lit/directives/class-map.js": "Lit",

@@ -4847,3 +4847,69 @@ thrown accelerator error propagates. The legacy `forceatlas2Layout` is a
 one-shot wrapper over the simulation (integration plan D-17). Graph-format
 design 14.3 is amended by its 17.6 entry (DEPARTURE-3 and DEPARTURE-7), as
 CHECK-R3 and REPAIR-1 scheduled for the L1 PR.
+
+W1b landed 2026-09-18 (phase M5b of
+`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`; the date is
+the commit's), the LAYOUT half of W1. The five amendments 1.5 declares against
+the graph-format design and 9.8's W1 row schedules here are now in that
+document's decision log as section 17.8 -- D-NODE-FIRST (DEPARTURE-1),
+D-ARENA-HOT (-2), D-RESIDENCY (-4), D-INJECT (-5), D-TOL-1E4 (-6) -- appended
+after section 18 like 17.6 and 17.7, with 10.3, 14.5, 14.6, 16.2 and 16.7 left
+untouched in place. DEPARTURE-3 and -7 were already recorded by 17.6 in the L1
+PR, so 1.5 is fully discharged. Three stale citations recorded here rather than
+edited in place: DEPARTURE-6 cites "16.2 line 4545" and the 1.3 table gives
+"16.2 (4535-4551)" and "16.6 (4622-4641)"; 15.6 was inserted at the F1 landing,
+so those are now 16.2 line 4594, 16.2 (4583-4599) and 16.6 (4670-4689). The
+integration plan's Task M5b-T4 calls the new section "17.6"; that number belongs
+to the L1-sim entry and 17.7 had already reserved 17.8, which is what landed.
+
+The mirrors are gone: `src/types/accelerator.ts` and `src/types/options.ts` now
+`import type` `LayoutAccelerator`, `LayoutSimulation`, `CommonLayoutOptions`,
+`ForceAtlas2Options`, `FruchtermanReingoldOptions`, `SimulationOptions` and
+`SpringElectricalOptions` from `@graphty/layout` and re-export them, as D27 says
+they do at W1; `ResolvedForceAtlas2Options` stays the package's own. The package
+gains `@graphty/layout` as a `workspace:^` devDependency, `project.json` loses
+the `!layout` negation because the project-graph edge is real now (integration
+plan D-19; Q-29's coupling accepted -- every layout release now patch-bumps this
+package), and both tsconfigs resolve `@graphty/layout` to
+`../layout/dist/layout.d.ts`, the BUILT declarations: layout compiles with
+`noUnusedLocals` / `noUnusedParameters` off, and under `composite: true` a source
+mapping would force 56 layout source files into `include` (55x TS6307 without
+it), while a `.d.ts` never triggers that check. `skipLibCheck` (tsconfig.base.json
+line 9) is what keeps layout's whole declaration tree clean under the
+strict-consumer flags it never compiles with itself. `test/types/conformance.test-d.ts`
+is CREATED here and STAYS: 9.8's W1 row, the P10 row and D27 all say it is
+"retired" at W1, but G10 requires its `expectTypeOf` cross-compile and nothing in
+`src/` carries an `implements LayoutAccelerator` clause to do the checking
+instead -- only `src/layouts/force-simulation.ts` implements the simulation
+(integration plan D-9). Its algorithms half waits for the first A2 commit (Phase
+M8a), which also removes the `!algorithms` negation and retires
+`CpuAlgorithmOptions`.
+
+Layout's `ForceAtlas2Simulation` is the SECOND FA2 REFERENCE, not an independent
+one: `layout/src/simulation/forceatlas2.ts` lines 2-6 call it "a PORT of the GPU
+package's f64 reference, webgpu-graph-algorithms/test/oracle/forceatlas2.ts ...
+the oracle's line for line", and lines 13-15 call the pair "the two f64
+transcriptions". `test/layouts/fa2-layout-oracle.test.ts` therefore catches
+transcription, shell, unit-conversion and option-resolution divergence between
+the two copies -- it holds the GPU within `fa2-trace-parity.f64` (5e-2) of it on
+karate / grid10 / random1k at `gpuScale()` after k = 1 and k = 5 from the same
+f32 seed in the same `compat` (and k = 10 in `networkx`), and at k = 50 asserts
+only run-to-run bitwise determinism and finiteness, printing the accuracy leg
+(G3-F3). The existing oracle tests are untouched and `test/oracle/forceatlas2.ts`
+stays as the independent reference R-1 and G10 rely on (integration plan DEP-E,
+D-16). `test/layouts/seed-cross.test.ts` pins the last shared piece:
+`seedPositions` and `Lcg` from `src/layouts/seed.ts` and from `@graphty/layout`
+write BIT-IDENTICAL `Float32Array`s over seeds 1 / 7 / 42 / 123456, dims 2 and 3,
+scale 1 and 5, a null and a non-null centre, both draw ranges, and an all-NaN and
+a half-finite input. The two copies are line-for-line identical except four
+argument-validation throw sites, where the GPU throws
+`WebGpuGraphError("E_INVALID_ARGUMENT")` and layout a `RangeError`
+(`src/layouts/seed.ts` lines 62, 105, 112, 123 against
+`layout/src/simulation/seed.ts` lines 62, 101, 104, 107); the cross-test pins
+that asymmetry so nobody "fixes" it. The layout copy is canonical from now on and
+the package's copy stays only for its own use (D27: it still imports nothing from
+layout at runtime). The P10 row's "`seedPositions` cross-test against the real
+`RandomNumberGenerator`" is wrong in the same way `src/layouts/seed.ts`'s header
+was: `RandomNumberGenerator` (`layout/src/utils/random.ts` line 10) is in no
+layout barrel; the cross-test is against `seedPositions` and `Lcg`.

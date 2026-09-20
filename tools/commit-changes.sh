@@ -122,49 +122,22 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-# The sixteen M8b commits landed on 2026-09-20; these are the lane follow-ups, then the script itself.
-STEPS=(pullfix t4 g7lane tools)
+# The M5b landing: the review fixes on top of the merge of master into feat/webgpu-layout-types,
+# then the script itself.
+STEPS=(peer prose ci tools)
 
 declare -A SUBJECTS=(
-    [tools]="chore(tools): point the commit script at the GPU-lane follow-up"
-    [pullfix]="fix(webgpu-graph-algorithms): sum each pull row in chunks that no shader compiler can fold away"
-    [t4]="perf(webgpu-graph-algorithms): baseline gpu-linux-t4 with the P7 groups from the first lane run"
-    [g7lane]="docs(webgpu-graph-algorithms): record the T4 lane run and the chunked fold in the G7 record"
-    [dispatch]="feat(webgpu-graph-algorithms): grid-stride dispatch and the P7 result types"
-    [residency]="feat(webgpu-graph-algorithms): upload the reverse and edge-list views, with packViews"
-    [kernels]="feat(webgpu-graph-algorithms): the P7 kernel registry, seven bodies and their budgets"
-    [spmv]="feat(webgpu-graph-algorithms): the spmvPull primitive over pre-scaled xNorm"
-    [pagerank]="feat(webgpu-graph-algorithms): run PageRank and personalized PageRank on the device"
-    [spectral]="feat(webgpu-graph-algorithms): run HITS, eigenvector and Katz on the same pull kernel"
-    [wcc]="feat(webgpu-graph-algorithms): label weakly connected components with Afforest"
-    [accelerator]="feat(webgpu-graph-algorithms): the accelerator algorithm members and the P7 barrel"
-    [bench]="perf(webgpu-graph-algorithms): the pagerank and wcc benchmark groups"
-    [baseline]="perf(webgpu-graph-algorithms): re-baseline both runner classes with the P7 groups"
-    [sabotage]="test(webgpu-graph-algorithms): the P7 sabotage set, browser smoke and first node-limits test"
-    [ci]="ci: run the no-subgroups twin over the algorithms tests too"
-    [decisions]="docs: record the M8b design decisions beside the WebGPU design"
-    [g7]="docs(webgpu-graph-algorithms): close the G7 gate record"
+    [peer]="fix(webgpu-graph-algorithms): require the layout release that ships the simulation seam"
+    [prose]="docs(webgpu-graph-algorithms): correct what the M5b review found stale after the merge"
+    [ci]="ci: say that the GPU lane builds layout through its real edge"
+    [tools]="chore(tools): point the commit script at the M5b landing fixes"
 )
 
 declare -A PATHS=(
+    [peer]="webgpu-graph-algorithms/package.json webgpu-graph-algorithms/test/build-output.test.ts"
+    [prose]="webgpu-graph-algorithms/src/accelerator.ts webgpu-graph-algorithms/src/index.ts webgpu-graph-algorithms/src/types/algorithms.ts webgpu-graph-algorithms/src/types/layout.ts webgpu-graph-algorithms/test/types/conformance.test-d.ts webgpu-graph-algorithms/test/layouts/seed-cross.test.ts webgpu-graph-algorithms/CLAUDE.md design/graph-format/graph-format-design.md design/webgpu/webgpu-acceleration-plan.md"
+    [ci]=".github/workflows/gpu.yml"
     [tools]="tools/commit-changes.sh"
-    [pullfix]="webgpu-graph-algorithms/src/wgsl/spmv-pull.wgsl.ts webgpu-graph-algorithms/benchmarks/results/noise-floor.json webgpu-graph-algorithms/test/fixtures/noise"
-    [t4]="webgpu-graph-algorithms/benchmarks/results/gpu-linux-t4.json webgpu-graph-algorithms/README.md"
-    [g7lane]="webgpu-graph-algorithms/docs/decisions/G7.md"
-    [dispatch]="webgpu-graph-algorithms/src/kernel/dispatch.ts webgpu-graph-algorithms/test/kernel/dispatch.test.ts webgpu-graph-algorithms/src/types/algorithms.ts"
-    [residency]="webgpu-graph-algorithms/src/memory/residency.ts webgpu-graph-algorithms/test/memory/residency.test.ts"
-    [kernels]="webgpu-graph-algorithms/src/wgsl/spmv-pull.wgsl.ts webgpu-graph-algorithms/src/wgsl/pr-scale.wgsl.ts webgpu-graph-algorithms/src/wgsl/pr-finalize.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-link-sample.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-link-edges.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-compress.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-sample.wgsl.ts webgpu-graph-algorithms/src/kernels.ts webgpu-graph-algorithms/test/kernel/registry.test.ts webgpu-graph-algorithms/test/kernel/bind-group-budget.test.ts webgpu-graph-algorithms/test/helpers/override-matrix.ts"
-    [spmv]="webgpu-graph-algorithms/src/primitives/core-shape.ts webgpu-graph-algorithms/src/primitives/spmv.ts webgpu-graph-algorithms/src/primitives/segmented-reduce.ts webgpu-graph-algorithms/src/algorithms/scope.ts webgpu-graph-algorithms/test/oracle/spmv.ts webgpu-graph-algorithms/test/helpers/spmv.ts webgpu-graph-algorithms/test/primitives/spmv.test.ts"
-    [pagerank]="webgpu-graph-algorithms/src/algorithms/pagerank.ts webgpu-graph-algorithms/test/oracle/pagerank.ts webgpu-graph-algorithms/test/algorithms/pagerank.test.ts webgpu-graph-algorithms/demo"
-    [spectral]="webgpu-graph-algorithms/src/algorithms/power-iteration.ts webgpu-graph-algorithms/src/algorithms/spectral.ts webgpu-graph-algorithms/test/oracle/spectral.ts webgpu-graph-algorithms/test/algorithms/spectral.test.ts"
-    [wcc]="webgpu-graph-algorithms/src/algorithms/components.ts webgpu-graph-algorithms/test/oracle/components.ts webgpu-graph-algorithms/test/algorithms/components.test.ts"
-    [accelerator]="webgpu-graph-algorithms/src/accelerator.ts webgpu-graph-algorithms/src/types/accelerator.ts webgpu-graph-algorithms/src/index.ts webgpu-graph-algorithms/test/index.test.ts webgpu-graph-algorithms/test/types/public-api.test-d.ts webgpu-graph-algorithms/test/types/accelerator.test-d.ts webgpu-graph-algorithms/test/accelerator.test.ts"
-    [bench]="webgpu-graph-algorithms/benchmarks/pagerank.bench.ts webgpu-graph-algorithms/benchmarks/wcc.bench.ts webgpu-graph-algorithms/benchmarks/run.ts"
-    [baseline]="webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json webgpu-graph-algorithms/benchmarks/results/gpu-linux-t4.json webgpu-graph-algorithms/README.md"
-    [sabotage]="webgpu-graph-algorithms/test/helpers/sabotage.ts webgpu-graph-algorithms/test/helpers/components.ts webgpu-graph-algorithms/test/sabotage webgpu-graph-algorithms/test/browser/algorithms.test.ts webgpu-graph-algorithms/test/limits"
-    [ci]=".github/workflows/ci.yml"
-    [decisions]="design/decisions design/README.md design/webgpu/README.md design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md"
-    [g7]="webgpu-graph-algorithms/docs/decisions/G7.md webgpu-graph-algorithms/CLAUDE.md webgpu-graph-algorithms/benchmarks/results/noise-floor.json webgpu-graph-algorithms/test/fixtures/noise"
 )
 
 # ---------------------------------------------------------------------------
@@ -175,47 +148,44 @@ declare -A PATHS=(
 
 body_tools() {
     cat <<'BODY'
-The sixteen commits of the M8b phase landed on 2026-09-20; the step list now
-names only the three follow-ups of the first GPU-lane run, then this script.
+The step list now names the three fixes the M5b landing review produced, on top
+of the merge of master into feat/webgpu-layout-types, then this script.
 BODY
 }
 
-body_pullfix() {
+body_peer() {
     cat <<'BODY'
-The hosts lane's macOS job failed eigenvectorCentrality and katzCentrality on
-hub10k at 2.07e-5 and 1.1e-5 relative against the 1e-5 gate: the naive f32 sum
-of a 10,000-arc row. The kernel used Kahan compensation kept alive by a select,
-which lavapipe and NVIDIA honoured and Metal's compiler folded away regardless.
-
-The row is now summed in chunks of 64 terms, each chunk folded into the row
-total: a two-level sum whose rounding grows with 64 + n / 64 steps instead of n,
-and which contains no identity a compiler can simplify. Every adapter holds the
-1e-5 gate on hub10k (lavapipe and the RTX 4070 measured here; Metal by the
-lane's re-run). The spmv-pull noise fixtures and rows are re-recorded for the
-new fold (oracle-f64 2.210e-7 NVIDIA, 2.389e-7 lavapipe; cross 2.663e-7) and
-the spmv-pull.cross tolerance is re-derived as 10x its basis row.
+The published declarations of this package now import LayoutAccelerator and
+LayoutSimulation from @graphty/layout, which only the layout release carrying
+the simulation seam ships. The optional peer range still said ^1.0.0, so a
+consumer holding any earlier layout would have met TS2305 inside node_modules.
+The range is now ^1.7.0, the version the seam's feat commits will cut from the
+published 1.6.2. The build-output test pins that range and the workspace:^
+devDependency, which is what gives the tests layout's src/simulation.
 BODY
 }
 
-body_t4() {
+body_prose() {
     cat <<'BODY'
-The first GPU-lane run of PR #13 (run 35483512705, a machine.dev Tesla T4,
-driver 580.126.20) appended session 2026-09-20T02:29:33.210Z with every group:
-T-8 45.461 ms at 100k / 1M and 1092.799 ms at 1M / 10M (both met), T-9 293.079
-ms at 1M / 10M (missed, as on the dev box: the 164 MB upload is inside the row
-and alone measures 256.418 ms on this card). The README's CI-lane table and
-exact curve are re-tabulated from the new session, which is now the lane's
-baseline for bench-compare.
+Comments and design text that the merge of master left describing a state that
+no longer exists: the layout types are real @graphty/layout declarations, not
+mirrors, since W1b (accelerator.ts, index.ts, types/layout.ts,
+types/algorithms.ts); the conformance type test is structural, so it catches a
+mirror that drifts, not one copied verbatim; the seed.ts throw sites moved two
+lines when its header grew; the graph-format design's 17.8 preamble and the
+W1b review-log entry claimed the integration plan still said 17.6 after the
+same commit corrected it; CLAUDE.md now says layout must be built before the
+tests, not only graph-format; the D-NODE-FIRST row cites ci.yml steps by name
+and records the widened no-subgroups pass; two missing blank lines separated
+review-log entries again.
 BODY
 }
 
-body_g7lane() {
+body_ci() {
     cat <<'BODY'
-Section 1 gains the T4 row with its run id and results, section 3's second
-table carries the lane's T-8 / T-9 numbers, section 6 records the new baseline
-session, section 4 describes the chunked fold that replaced the Kahan
-compensation Metal's compiler folded away, with the re-recorded noise rows, and
-finding G7-F2 is resolved by the run. Signing off remains the owner's.
+Since M5b removed the "!layout" negation, layout is a real dependency edge and
+nx's ^build builds it on the T4 lane. The build step's name said the negations
+kept layout out; the command was already right.
 BODY
 }
 

@@ -59,7 +59,7 @@ jobs:
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - name: Build the package and what it depends on (nx follows ^build; the negated implicit dependencies keep algorithms and layout out)
+            - name: Build the package and what it depends on (nx follows ^build, so layout builds through its real edge; the negated implicit dependency keeps algorithms out)
               run: pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms
               working-directory: .
             - name: Adapter report (fails loudly on a software adapter; samples GPU utilisation for 10 s)

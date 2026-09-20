@@ -148,9 +148,12 @@ exits 1 on a non-finite position or a run that neither settled nor reached `maxI
 but labels its timings as not representative. The measured numbers and the missed targets are in `docs/decisions/G1.md`
 (P1) and `docs/decisions/G3.md` (P3).
 
-@graphty/graph-format must be built before this package's tests or build run (pnpm's workspace symlink
-resolves its `exports` to `dist/`; tsc resolves its sources through `paths`). From the workspace root
-`pnpm -r run build:all` orders the packages correctly.
+@graphty/graph-format AND @graphty/layout must be built before this package's tests or build run: pnpm's
+workspace symlink resolves graph-format's `exports` to `dist/` and tsc resolves its sources through `paths`;
+both tsconfigs resolve `@graphty/layout` to `../layout/dist/layout.d.ts` (the BUILT declarations, W1b) and
+`test/layouts/seed-cross.test.ts` and `test/layouts/fa2-layout-oracle.test.ts` import its built barrel. From
+the workspace root `pnpm exec nx run-many -t build --projects=graph-format,layout` does it, and
+`pnpm -r run build:all` orders every package correctly.
 
 The dev box needs the extracted libEGL tree for BOTH Dawn-node and headless Chromium to see the NVIDIA GPU
 (`docs/HEADLESS_GPU_REPORT.md` appendix D): `LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu`

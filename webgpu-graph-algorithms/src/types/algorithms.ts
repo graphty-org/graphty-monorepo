@@ -1,8 +1,9 @@
 /**
  * The result and option records of the P7 algorithms (spec 3.3 lines 815-828, 9.7). The `Gpu*Result` shapes are the
  * design's verbatim; the option records are this package's own, spelled MEMBER FOR MEMBER as the CPU seam spells
- * them so one object literal satisfies both sides (the same D27 mirror rule src/types/options.ts follows for the
- * layout options). Types only: this file imports nothing at runtime.
+ * them so one object literal satisfies both sides (the D27 mirror rule src/types/options.ts followed for the
+ * layout options until W1b, when those became `import type` re-exports of `@graphty/layout`'s declarations).
+ * Types only: this file imports nothing at runtime.
  *
  * The CPU counterparts, when phase M8a lands them (plan 2026-09-19-webgpu-m8a-algorithms-seam, Task M8a-T8):
  * `PageRankOptions` here is `IndexedPageRankOptions` there (`{ dampingFactor?, maxIterations?, tolerance?,

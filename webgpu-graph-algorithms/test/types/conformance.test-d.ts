@@ -37,8 +37,9 @@ expectTypeOf(injected).toMatchTypeOf<LayoutAccelerator>();
 expectTypeOf<GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["forceAtlas2"]>>>().toEqualTypeOf<LayoutSimulation>();
 
-// ---- IDENTITY, not merely assignability: what this package re-exports IS layout's declaration (W1b: the D27
-// mirrors are deleted). These two lines are what a re-introduced structural copy would break.
+// ---- EQUALITY, not merely assignability: what this package re-exports IS layout's declaration (W1b: the D27
+// mirrors are deleted). expectTypeOf compares structurally, so a VERBATIM structural copy would still pass these
+// two lines; what they catch is a copy that has drifted from layout's declaration by so much as one member.
 expectTypeOf<ReExportedLayoutAccelerator>().toEqualTypeOf<LayoutAccelerator>();
 expectTypeOf<ReExportedLayoutSimulation>().toEqualTypeOf<LayoutSimulation>();
 

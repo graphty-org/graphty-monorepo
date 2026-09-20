@@ -4814,6 +4814,7 @@ design 13.5 rule 3 was corrected in place and its decision log gained a
 17.7 entry (D-F2-GATE, D-PEER-1X, D-RULE5-CHECK). The cut did NOT wait for
 the A1 branch that 14.6 gates it on -- A1 has not started; it was cut on
 graph-io, this package and layout's L1-sim instead.
+
 L1-sim landed 2026-09-18 (phase M5 of
 `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, branch
 `feat/layout-simulation`; the date is the Chromatic re-baseline commit's):
@@ -4862,8 +4863,12 @@ PR, so 1.5 is fully discharged. Three stale citations recorded here rather than
 edited in place: DEPARTURE-6 cites "16.2 line 4545" and the 1.3 table gives
 "16.2 (4535-4551)" and "16.6 (4622-4641)"; 15.6 was inserted at the F1 landing,
 so those are now 16.2 line 4594, 16.2 (4583-4599) and 16.6 (4670-4689). The
-integration plan's Task M5b-T4 calls the new section "17.6"; that number belongs
-to the L1-sim entry and 17.7 had already reserved 17.8, which is what landed.
+integration plan's Task M5b-T4 had called the new section "17.6"; that number
+belongs to the L1-sim entry and 17.7 had already reserved 17.8, which is what
+landed, and the plan was corrected to 17.8 in the same commit. The package's
+`@graphty/layout` peer range is `^1.7.0`, not D27's `^1.0.0`: the published
+d.ts now imports the seam's interfaces, which only the layout release carrying
+them ships.
 
 The mirrors are gone: `src/types/accelerator.ts` and `src/types/options.ts` now
 `import type` `LayoutAccelerator`, `LayoutSimulation`, `CommonLayoutOptions`,
@@ -4907,7 +4912,7 @@ scale 1 and 5, a null and a non-null centre, both draw ranges, and an all-NaN an
 a half-finite input. The two copies are line-for-line identical except four
 argument-validation throw sites, where the GPU throws
 `WebGpuGraphError("E_INVALID_ARGUMENT")` and layout a `RangeError`
-(`src/layouts/seed.ts` lines 62, 105, 112, 123 against
+(`src/layouts/seed.ts` lines 64, 107, 114, 125 against
 `layout/src/simulation/seed.ts` lines 62, 101, 104, 107); the cross-test pins
 that asymmetry so nobody "fixes" it. The layout copy is canonical from now on and
 the package's copy stays only for its own use (D27: it still imports nothing from

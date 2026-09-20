@@ -16,7 +16,7 @@
  *
  * Node-only: no GPU context, no requireGpu(t). The two copies are line for line identical EXCEPT four
  * argument-validation throw sites, where the GPU throws WebGpuGraphError("E_INVALID_ARGUMENT") and layout a
- * RangeError (src/layouts/seed.ts:62 / :105 / :112 / :123 against layout/src/simulation/seed.ts:62 / :101 / :104 /
+ * RangeError (src/layouts/seed.ts:64 / :107 / :114 / :125 against layout/src/simulation/seed.ts:62 / :101 / :104 /
  * :107). The last case pins that asymmetry -- both reject the SAME arguments and leave the array untouched -- so
  * nobody "fixes" one side into agreement with the other.
  */

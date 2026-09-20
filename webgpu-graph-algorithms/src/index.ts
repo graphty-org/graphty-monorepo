@@ -50,7 +50,8 @@ export { createAccelerator } from "./accelerator.js";
 export { createForceAtlas2 } from "./layouts/forceatlas2.js";
 export { seedPositions } from "./layouts/seed.js";
 
-// ==================== types: the accelerator surface and the CPU-package mirrors (spec 9.2, 9.3; D27)
+// ==================== types: the accelerator surface, layout's re-exported declarations (spec 9.3; W1b) and the
+// @graphty/algorithms mirrors (spec 9.2; D27, until M8a)
 export type {
     AcceleratorOptions,
     AlgorithmAccelerator,

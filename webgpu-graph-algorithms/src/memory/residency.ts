@@ -20,6 +20,7 @@ import {
     type TypedArrayData,
 } from "@graphty/graph-format";
 
+import { STORAGE_ALIGN } from "../constants.js";
 import { type AllocationTracker } from "../device/error-scope.js";
 import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
@@ -140,6 +141,16 @@ interface ResidencyRecord {
         readonly segments: Readonly<Record<CoreArrayName, ArenaSegmentBinding | null>>;
     } | null;
     readonly bindings: Map<CoreArrayName, Binding>;
+    /** Memo of the P7 views by `name` or `name + ":packed"`, so a second view() call uploads nothing (spec 4.3). */
+    readonly views: Map<string, ViewBinding>;
+    /**
+     * One fresh marker object per PACKED view, keyed the same way as `views`. It is the `key` argument of
+     * upload(): a packed view must never be keyed on one of the snapshot's own arrays, because upload()
+     * memoises on the key object and does NOT compare byte lengths, and `s.reverse()` is cached
+     * (graph-format `graph-snapshot.ts:600-601`) so the packed and the unpacked builder see the same
+     * `rev.rowPtr` object.
+     */
+    readonly packKeys: Map<string, object>;
     released: boolean;
 }
 
@@ -345,13 +356,15 @@ export class GraphResidency {
     }
 
     /**
-     * Uploads (or finds) a view; P1-P3 support outDegree / inDegree / degreeOrder / reverseDegreeOrder; the others
-     * -> E_UNSUPPORTED until P7. packViews is accepted and ignored until P7 (a `true` request is E_UNSUPPORTED
-     * { option: "packViews" }, PLAN DECISION 9).
+     * Uploads (or finds) a view: outDegree / inDegree / degreeOrder / reverseDegreeOrder upload one array each;
+     * reverse and edgeList (P7) upload their arrays perArray, never into the arena, and are memoised per record so
+     * a second call uploads nothing (spec 4.3). coo and mate -> E_UNSUPPORTED until P11. packViews concatenates a
+     * reverse or edgeList view into ONE buffer at STORAGE_ALIGN offsets; on any other view `true` is E_UNSUPPORTED
+     * { option: "packViews" }.
      * @param s - the snapshot
      * @param name - the view
      * @param options - view options
-     * @param options.packViews - P7's packed reverse upload; `true` is E_UNSUPPORTED until then
+     * @param options.packViews - pack the reverse / edgeList arrays into one buffer (a no-op on an undirected reverse)
      * @returns the view binding
      */
     view(
@@ -361,10 +374,25 @@ export class GraphResidency {
     ): ViewBinding {
         this.assertLive();
         assertAttached(s);
-        if (options?.packViews === true) {
-            throw new WebGpuGraphError("E_UNSUPPORTED", "packViews is not supported before the P7 view uploads", {
+        const packed = options?.packViews === true;
+        if (name === "reverse" || name === "edgeList") {
+            this.assertNotReleased(s);
+            this.assertNonEmpty(s);
+            const memoKey = packed ? `${name}:packed` : name;
+            const record = this.ensureRecord(s);
+            const memo = record.views.get(memoKey);
+            if (memo !== undefined) {
+                return memo;
+            }
+            const built =
+                name === "reverse" ? this.buildReverse(s, record, packed) : this.buildEdgeList(s, record, packed);
+            record.views.set(memoKey, built);
+            return built;
+        }
+        if (packed) {
+            throw new WebGpuGraphError("E_UNSUPPORTED", "packViews applies to the reverse and edgeList views only", {
                 option: "packViews",
-                hint: "omit packViews; the four reverse arrays are uploaded separately",
+                hint: `the ${name} view uploads one array`,
             });
         }
         let array: TypedArrayData;
@@ -401,13 +429,11 @@ export class GraphResidency {
                 scalars = { segmentOffsets: Array.from(order.segmentOffsets) };
                 break;
             }
-            case "reverse":
             case "coo":
-            case "edgeList":
             case "mate":
-                throw new WebGpuGraphError("E_UNSUPPORTED", `the ${name} view is not uploaded before P7`, {
+                throw new WebGpuGraphError("E_UNSUPPORTED", `the ${name} view is not uploaded before P11`, {
                     feature: `view:${name}`,
-                    hint: "P1-P3 upload outDegree, inDegree, degreeOrder and reverseDegreeOrder",
+                    hint: "outDegree, inDegree, degreeOrder, reverseDegreeOrder, reverse and edgeList are uploaded",
                 });
             default:
                 throw invalid("name", name, "a view name");
@@ -420,6 +446,165 @@ export class GraphResidency {
             bindings: Object.freeze({ [bindingName]: binding }),
             scalars: Object.freeze(scalars),
         });
+    }
+
+
+    /**
+     * The reverse adjacency's bindings. On an UNDIRECTED snapshot graph-format invariant I7 makes reverse() return
+     * the FORWARD arrays, so the core bindings ARE the reverse bindings and nothing is uploaded -- delegating to
+     * core() rather than re-uploading the arrays is what makes that true on the arena plan as well, where the
+     * per-array WeakMap key resolves to the whole-arena resident (spec 4.3 lines 1182-1186). `fwdArc` is never
+     * uploaded (spec 13 row P7). `packed` is ignored when undirected: there is nothing to pack.
+     * @param s - the snapshot
+     * @param record - its residency record
+     * @param packed - concatenate the arrays into one buffer (directed only)
+     * @returns the view binding
+     */
+    private buildReverse(s: GraphSnapshot, record: ResidencyRecord, packed: boolean): ViewBinding {
+        const rev = s.reverse();
+        if (!s.directed) {
+            const core = this.core(s, ["rowPtr", "colIdx", "weights"]);
+            const bindings: Record<string, Binding> = { rowPtr: core.rowPtr };
+            if (core.colIdx !== null) {
+                bindings.colIdx = core.colIdx;
+            }
+            if (core.weights !== null) {
+                bindings.weights = core.weights;
+            }
+            return Object.freeze({
+                view: "reverse",
+                bindings: Object.freeze(bindings),
+                scalars: Object.freeze({ arcCount: [rev.arcCount], directed: [0] }),
+            });
+        }
+        const arrays: [string, TypedArrayData][] = [
+            ["rowPtr", rev.rowPtr],
+            ["colIdx", rev.colIdx],
+        ];
+        if (rev.weights !== null) {
+            arrays.push(["weights", rev.weights]);
+        }
+        const bindings = packed
+            ? this.packArrays(
+                  record,
+                  arrays,
+                  this.packKey(record, "reverse:packed"),
+                  `residency:view:${record.serial}:reverse:packed`,
+              )
+            : this.separateArrays(record, arrays, `residency:view:${record.serial}:reverse`);
+        return Object.freeze({
+            view: "reverse",
+            bindings,
+            scalars: Object.freeze({ arcCount: [rev.arcCount], directed: [1] }),
+        });
+    }
+
+    /**
+     * The each-edge-once binding an edge-parallel kernel uses on directed and undirected snapshots alike (spec 8.1
+     * row 2); `arc` is not uploaded (no kernel of P7 reads it).
+     * @param s - the snapshot
+     * @param record - its residency record
+     * @param packed - concatenate into one buffer
+     * @returns the view binding
+     */
+    private buildEdgeList(s: GraphSnapshot, record: ResidencyRecord, packed: boolean): ViewBinding {
+        const list = s.edgeList();
+        const arrays: [string, TypedArrayData][] = [
+            ["src", list.src],
+            ["dst", list.dst],
+        ];
+        if (list.weights !== null) {
+            arrays.push(["weights", list.weights]);
+        }
+        const bindings = packed
+            ? this.packArrays(
+                  record,
+                  arrays,
+                  this.packKey(record, "edgeList:packed"),
+                  `residency:view:${record.serial}:edgeList:packed`,
+              )
+            : this.separateArrays(record, arrays, `residency:view:${record.serial}:edgeList`);
+        return Object.freeze({
+            view: "edgeList",
+            bindings,
+            scalars: Object.freeze({ edgeCount: [s.edgeCount] }),
+        });
+    }
+
+    /**
+     * One resident per array (spec 4.3: views upload in perArray mode, never into the arena).
+     * @param record - the owning record
+     * @param arrays - the named arrays
+     * @param label - the buffer label prefix
+     * @returns the bindings by name
+     */
+    private separateArrays(
+        record: ResidencyRecord,
+        arrays: readonly (readonly [string, TypedArrayData])[],
+        label: string,
+    ): Readonly<Record<string, Binding>> {
+        const bindings: Record<string, Binding> = {};
+        for (const [name, array] of arrays) {
+            const resident = this.upload(record, array, array, `${label}:${name}`);
+            bindings[name] = { buffer: resident.buffer, offset: 0, size: resident.byteLength, window: null };
+        }
+        return Object.freeze(bindings);
+    }
+
+    /**
+     * The arrays concatenated into ONE buffer at STORAGE_ALIGN-aligned offsets (spec 4.3 packViews): one
+     * createBuffer and one writeBuffer instead of three of each, which is what the option buys. The resident is
+     * keyed on `key`, a marker object owned by the record (packKey), NOT on one of the snapshot's arrays: upload()
+     * returns an existing resident whenever the key matches and the serial matches, without comparing byte
+     * lengths, so keying the packed buffer on `rev.rowPtr` would make the packed and the unpacked view of one
+     * snapshot collide -- whichever was built second would get the other's buffer. The record still owns the
+     * resident, so release(s) destroys it with the rest. Offsets are STORAGE_ALIGN-aligned because Kernel.bind
+     * rejects any other offset synchronously (E_INVALID_ARGUMENT { argument: "offset" }).
+     * @param record - the owning record
+     * @param arrays - the named arrays, in buffer order
+     * @param key - the marker object the resident is keyed on
+     * @param label - the buffer label
+     * @returns the bindings by name, all into the one buffer
+     */
+    private packArrays(
+        record: ResidencyRecord,
+        arrays: readonly (readonly [string, TypedArrayData])[],
+        key: object,
+        label: string,
+    ): Readonly<Record<string, Binding>> {
+        const offsets: number[] = [];
+        let total = 0;
+        for (const [, array] of arrays) {
+            offsets.push(total);
+            total += Math.ceil(array.byteLength / STORAGE_ALIGN) * STORAGE_ALIGN;
+        }
+        const staging = new Uint8Array(total);
+        arrays.forEach(([, array], i) => {
+            staging.set(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), offsets[i]);
+        });
+        const resident = this.upload(record, key, staging, label);
+        const bindings: Record<string, Binding> = {};
+        arrays.forEach(([name, array], i) => {
+            bindings[name] = { buffer: resident.buffer, offset: offsets[i], size: array.byteLength, window: null };
+        });
+        return Object.freeze(bindings);
+    }
+
+    /**
+     * The upload key of a packed view: a marker object allocated once per record and memo name, never one of the
+     * snapshot's arrays.
+     * @param record - the owning record
+     * @param memoKey - the `views` memo key of this packed view
+     * @returns the stable marker object
+     */
+    private packKey(record: ResidencyRecord, memoKey: string): object {
+        const existing = record.packKeys.get(memoKey);
+        if (existing !== undefined) {
+            return existing;
+        }
+        const created = {};
+        record.packKeys.set(memoKey, created);
+        return created;
     }
 
     /**
@@ -679,6 +864,8 @@ export class GraphResidency {
     private forget(record: ResidencyRecord): void {
         record.released = true;
         record.bindings.clear();
+        record.views.clear();
+        record.packKeys.clear();
         record.arena = null;
         record.plan = null;
         this.bySerial.delete(record.serial);
@@ -705,6 +892,8 @@ export class GraphResidency {
                 plan: null,
                 arena: null,
                 bindings: new Map<CoreArrayName, Binding>(),
+                views: new Map<string, ViewBinding>(),
+                packKeys: new Map<string, object>(),
                 released: false,
             };
             this.bySerial.set(s.serial, record);

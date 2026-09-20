@@ -29,3 +29,10 @@ version of the code.
 | Record | Decision |
 | --- | --- |
 | [2026-09-19-no-nightly-gpu-lane.md](2026-09-19-no-nightly-gpu-lane.md) | The GPU lane has no nightly cron |
+| [2026-09-19-bench-compare-min-confirms-median.md](2026-09-19-bench-compare-min-confirms-median.md) | A benchmark regression needs the minimum to confirm the median |
+| [2026-09-19-graphty-element-owns-webgpu.md](2026-09-19-graphty-element-owns-webgpu.md) | graphty-element owns WebGPU detection; the GPU package is an optional peer |
+| [2026-09-19-spmv-pull-is-its-own-kernel.md](2026-09-19-spmv-pull-is-its-own-kernel.md) | `spmvPull` is its own kernel, not a `segmentedReduce` snippet |
+| [2026-09-19-spmv-tier-zero-only.md](2026-09-19-spmv-tier-zero-only.md) | `spmvPull` ships the thread-per-row tier only |
+| [2026-09-19-afforest-needs-no-dedupe.md](2026-09-19-afforest-needs-no-dedupe.md) | Afforest WCC needs no `dedupe` |
+| [2026-09-19-outweightsum-is-call-scratch.md](2026-09-19-outweightsum-is-call-scratch.md) | PageRank's `outWeightSum` is per-call scratch, not a residency entry |
+| [2026-09-19-pagerank-ping-pong-is-two-buffers.md](2026-09-19-pagerank-ping-pong-is-two-buffers.md) | PageRank ping-pongs two buffers, not two ranges of one |

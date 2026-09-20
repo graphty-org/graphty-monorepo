@@ -8,6 +8,17 @@
 import type { F32, F64, GraphSnapshot, NodeMask, NumericVector, U32 } from "@graphty/graph-format";
 
 import type { GpuContext } from "../context.js";
+import type {
+    ComponentsOptions,
+    EigenvectorOptions,
+    GpuHitsResult,
+    GpuLabelResult,
+    GpuPageRankResult,
+    GpuScoresResult,
+    HitsOptions,
+    KatzOptions,
+    PageRankOptions,
+} from "./algorithms.js";
 import type { ForceAtlas2Stats, GpuLayoutSimulation, GpuLayoutTuning } from "./layout.js";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "./options.js";
 
@@ -221,8 +232,12 @@ export interface AcceleratorOptions {
 }
 
 /**
- * The injectable object (spec 3.3); at P3 it carries forceAtlas2, release and dispose -- the algorithm members
- * arrive with P7+.
+ * The injectable object (spec 3.3): P3's forceAtlas2, release and dispose, plus P7's seven algorithm members
+ * (spec 8.2, 8.3; M8b-T8), non-optional here and returning the `Gpu*Result` shapes, which satisfy the `*ResultLike`
+ * mirrors (spec 9.7: `precision` is an extra field, `F32` is a `NumericVector`). `connectedComponents` and
+ * `weaklyConnectedComponents` are the same algorithm (spec 3.3: WCC semantics on directed input) under both names
+ * the mirror declares; their options parameter stays OPTIONAL, because the mirror declares none and an extra
+ * REQUIRED parameter would stop the member satisfying it. Later phases add one member per shipped algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
  * @public
  */
@@ -231,6 +246,17 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     readonly ctx: GpuContext;
     readonly options: Readonly<AcceleratorOptions>;
     forceAtlas2(options?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+    pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<GpuPageRankResult>;
+    personalizedPageRank(
+        s: GraphSnapshot,
+        personalization: F32 | F64,
+        options?: PageRankOptions,
+    ): Promise<GpuPageRankResult>;
+    hits(s: GraphSnapshot, options?: HitsOptions): Promise<GpuHitsResult>;
+    eigenvectorCentrality(s: GraphSnapshot, options?: EigenvectorOptions): Promise<GpuScoresResult>;
+    katzCentrality(s: GraphSnapshot, options?: KatzOptions): Promise<GpuScoresResult>;
+    connectedComponents(s: GraphSnapshot, options?: ComponentsOptions): Promise<GpuLabelResult>;
+    weaklyConnectedComponents(s: GraphSnapshot, options?: ComponentsOptions): Promise<GpuLabelResult>;
     release(s: GraphSnapshot): void;
     dispose(): void;
 }

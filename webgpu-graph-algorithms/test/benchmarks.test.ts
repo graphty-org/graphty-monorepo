@@ -57,13 +57,13 @@ const GPU: GpuSessionInfo = {
     subgroupMaxSize: 32,
 };
 
-/** A result row. */
-function result(name: string, medianMs: number, group = "roundtrip"): BenchResult {
+/** A result row. `minMs` defaults to the median; pass it to separate the floor from the middle. */
+function result(name: string, medianMs: number, group = "roundtrip", minMs = medianMs): BenchResult {
     return {
         group,
         name,
         medianMs,
-        minMs: medianMs,
+        minMs,
         maxMs: medianMs,
         runs: 5,
         memoryDeltaBytes: 0,
@@ -380,6 +380,39 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
             "4",
         ]);
         expect(looser.status).toBe(0);
+    });
+
+    it("rule 4: the MINIMUM confirms the median -- a risen median over an intact floor is noisy, exit 0", () => {
+        const files = { "gpu-report.json": quiet, [`benchmarks/results/${CLASS}.json`]: out([result("a", 1)]) };
+
+        // The shape of run 35414639899: the median rose 8x while the fastest run stayed at the baseline. Interference
+        // can only make a sample slower, so a floor that did not move says the cost did not move.
+        const noisy = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.1)]) });
+        expect(noisy.status).toBe(0);
+        expect(noisy.out).toContain("noisy");
+        expect(noisy.out).not.toContain("REGRESSION");
+        expect(noisy.out).toContain("x1.10"); // the min ratio column carries the number the rule turned on
+
+        // The floor moved with the median: a real regression still fails.
+        const real = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 8)]) });
+        expect(real.status).toBe(1);
+        expect(real.out).toContain("REGRESSION");
+
+        // A minimum just under the threshold still confirms; just over it does not.
+        const edge = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 3)]) });
+        expect(edge.status).toBe(0);
+        const over = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 3.1)]) });
+        expect(over.status).toBe(1);
+
+        // A baseline written before minMs existed: the median alone decides, as it did before this rule.
+        const legacy = JSON.stringify([session([result("a", 1)])], (k, v) => (k === "minMs" ? undefined : v));
+        const fallback = run({
+            "gpu-report.json": quiet,
+            [`benchmarks/results/${CLASS}.json`]: legacy,
+            [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.1)]),
+        });
+        expect(fallback.status).toBe(1);
+        expect(fallback.out).toContain("REGRESSION");
     });
 
     it("compares the LAST session of each file and matches rows by group and name", () => {

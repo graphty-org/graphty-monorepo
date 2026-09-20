@@ -633,6 +633,10 @@ export class Edge {
             return;
         }
 
+        // The node meshes the intersection tests below will read. Collected in a set so a node
+        // shared by many edges is refreshed once per frame rather than once per incident edge.
+        const touched = new Set<AbstractMesh>();
+
         for (const e of layoutEngine.edges) {
             const srcMesh = e.srcNode.mesh;
             const dstMesh = e.dstNode.mesh;
@@ -649,11 +653,22 @@ export class Edge {
             // The ray starts at the source node and points toward the destination node
             e.ray.origin = srcMesh.position;
             e.ray.direction = dstMesh.position.subtract(srcMesh.position);
+            touched.add(srcMesh);
+            touched.add(dstMesh);
         }
 
-        // this sucks for performance, but we have to do a full render pass
-        // to update rays and intersections
-        context.getScene().render();
+        // getInterceptPoints() calls ray.intersectsMeshes(), which reads each mesh's world matrix.
+        // After the frame has moved a node, that matrix is stale until something recomputes it.
+        //
+        // This used to be `context.getScene().render()` -- a SECOND full render pass, every frame,
+        // for every graph, because the `needRays` flag that was meant to gate it is initialised
+        // true (Graph.ts) and never set false by anything. Rendering the scene does refresh world
+        // matrices, but it also redraws every mesh, so the whole application ran at half the frame
+        // rate it could. Computing the world matrix of exactly the meshes that get intersected is
+        // the same guarantee at a fraction of the cost, and touches nothing else in the scene.
+        for (const mesh of touched) {
+            mesh.computeWorldMatrix(true);
+        }
     }
 
     /**

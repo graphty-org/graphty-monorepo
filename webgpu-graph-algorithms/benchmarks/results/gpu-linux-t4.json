@@ -222,5 +222,284 @@
                 "rateUnit": "pairs/s"
             }
         ]
+    },
+    {
+        "date": "2026-09-20T02:29:33.210Z",
+        "host": "ip-10-0-127-96",
+        "node": "v22.23.2",
+        "cpu": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "turing",
+            "device": "tesla-t4",
+            "description": "NVIDIA: 580.126.20 580.126.20.0",
+            "driver": "580.126.20",
+            "limits": {
+                "maxBufferSize": 1099511627776,
+                "maxStorageBufferBindingSize": 2147483644,
+                "maxStorageBuffersPerShaderStage": 16,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "node",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "gpu-linux-t4",
+        "results": [
+            {
+                "group": "upload",
+                "name": "residency.core 100k/1M weighted hot prefix (16.4 MB, arena)",
+                "medianMs": 14.33782999999994,
+                "minMs": 14.010243000000173,
+                "maxMs": 24.319499000000178,
+                "runs": 5,
+                "memoryDeltaBytes": 7896,
+                "rate": 1143832504.6398284,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "upload",
+                "name": "residency.core 1M/10M weighted hot prefix (164.0 MB, arena)",
+                "medianMs": 256.41845699999976,
+                "minMs": 235.2639579999959,
+                "maxMs": 259.48978400000124,
+                "runs": 5,
+                "memoryDeltaBytes": 9257832,
+                "rate": 639580449.5461891,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "roundtrip",
+                "name": "degree + 400 KB readback at 100k (core resident)",
+                "medianMs": 2.9570289999974193,
+                "minMs": 2.2067440000028,
+                "maxMs": 7.227749000005133,
+                "runs": 5,
+                "memoryDeltaBytes": 735208,
+                "rate": 33817727.18498441,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "roundtrip",
+                "name": "empty submit + 4-byte readU32 round trip",
+                "medianMs": 1.2956639999974868,
+                "minMs": 0.26891299999988405,
+                "maxMs": 12.945803000002343,
+                "runs": 5,
+                "memoryDeltaBytes": 24692,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=1024 m=10240 2D [1k]",
+                "medianMs": 0.7109799999961979,
+                "minMs": 0.6935240000020713,
+                "maxMs": 0.7197999999989406,
+                "runs": 5,
+                "memoryDeltaBytes": 117088,
+                "rate": 1473391656.5945625,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=1024 [1k]",
+                "medianMs": 0.339584,
+                "minMs": 0.338496,
+                "maxMs": 0.341824,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 3084809649.4534492,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=4096 m=40960 2D [4k]",
+                "medianMs": 0.8141529999993509,
+                "minMs": 0.7870170000023791,
+                "maxMs": 0.8254820000001928,
+                "runs": 5,
+                "memoryDeltaBytes": 164088,
+                "rate": 20601926173.598053,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=4096 [4k]",
+                "medianMs": 0.430592,
+                "minMs": 0.43008,
+                "maxMs": 0.431104,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 38953626634.95839,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=8192 m=81920 2D [8k]",
+                "medianMs": 1.1716139999989537,
+                "minMs": 1.169608000003791,
+                "maxMs": 1.2160430000003544,
+                "runs": 5,
+                "memoryDeltaBytes": 277608,
+                "rate": 57271995725.605804,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=8192 [8k]",
+                "medianMs": 0.797056,
+                "minMs": 0.79552,
+                "maxMs": 0.799072,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 84185643166.85402,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=16384 m=163840 2D [16k]",
+                "medianMs": 2.382987000004505,
+                "minMs": 2.3768879999988712,
+                "maxMs": 2.399500999999873,
+                "runs": 5,
+                "memoryDeltaBytes": 582584,
+                "rate": 112639755063.49492,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=16384 [16k]",
+                "medianMs": 1.952544,
+                "minMs": 1.950816,
+                "maxMs": 1.953216,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 137471458773.78433,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=32768 m=327680 2D [32k]",
+                "medianMs": 7.394490000006044,
+                "minMs": 7.348009000001184,
+                "maxMs": 7.496061999998346,
+                "runs": 5,
+                "memoryDeltaBytes": 1630976,
+                "rate": 145203936444.45016,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=32768 [32k]",
+                "medianMs": 6.86064,
+                "minMs": 6.794016,
+                "maxMs": 6.947904,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 156502754261.99304,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=65536 m=655360 2D [65k]",
+                "medianMs": 26.366112999996403,
+                "minMs": 25.69159899999795,
+                "maxMs": 30.921793000001344,
+                "runs": 5,
+                "memoryDeltaBytes": 5183888,
+                "rate": 162894764199.81155,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=65536 [65k]",
+                "medianMs": 25.23552,
+                "minMs": 24.758176,
+                "maxMs": 25.523904,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 170192718834.40482,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "step(1) wall n=10000 m=100000 2D [10k]",
+                "medianMs": 1.3593709999986459,
+                "minMs": 1.3516769999987446,
+                "maxMs": 5.4207749999986845,
+                "runs": 5,
+                "memoryDeltaBytes": 327240,
+                "rate": 73556078509.91348,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=10000 [10k]",
+                "medianMs": 0.971776,
+                "minMs": 0.971712,
+                "maxMs": 0.97504,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 102894082586.93361,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "pagerank",
+                "name": "pagerank 100 iterations at 10k/100k",
+                "medianMs": 10.37781399999949,
+                "minMs": 9.69847899999877,
+                "maxMs": 12.959134999997332,
+                "runs": 5,
+                "memoryDeltaBytes": 2550688,
+                "rate": 963594.0671128324,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "pagerank",
+                "name": "pagerank 100 iterations at 100k/1M",
+                "medianMs": 45.46112600000197,
+                "minMs": 44.96349999999802,
+                "maxMs": 46.71581999999762,
+                "runs": 5,
+                "memoryDeltaBytes": 11400744,
+                "rate": 2199681.547702881,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "pagerank",
+                "name": "pagerank 100 iterations at 1M/10M",
+                "medianMs": 1092.7988369999948,
+                "minMs": 1090.2641660000008,
+                "maxMs": 1119.2203599999993,
+                "runs": 5,
+                "memoryDeltaBytes": 4046568,
+                "rate": 915081.5009514919,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "wcc",
+                "name": "wcc at 100k/1M",
+                "medianMs": 28.543562999999267,
+                "minMs": 27.986713999998756,
+                "maxMs": 29.951054999997723,
+                "runs": 5,
+                "memoryDeltaBytes": 1117016,
+                "rate": 3503416.8649513926,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "wcc",
+                "name": "wcc at 1M/10M",
+                "medianMs": 293.07945800000743,
+                "minMs": 289.18414099999063,
+                "maxMs": 432.6241369999916,
+                "runs": 5,
+                "memoryDeltaBytes": 11703112,
+                "rate": 3412043.978872019,
+                "rateUnit": "nodes/s"
+            }
+        ]
     }
 ]

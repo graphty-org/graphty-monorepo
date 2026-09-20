@@ -1,6 +1,7 @@
 /**
  * Dispatch planning (spec 5.2, contract 3.9; 5.5 row dispatch.test.ts): the 16,776,960 rule with wg 256 (NOT 2^24),
- * the empty plan, the 2D form, E_TOO_LARGE above 65,535^2 groups, the P1-P3 E_UNSUPPORTED stubs, and the same plans
+ * the empty plan, the 2D form, E_TOO_LARGE above 65,535^2 groups, the `planIndirect` E_UNSUPPORTED stub (the only one
+ * left after P7), the grid-stride cap of P7, and the same plans
  * from every capability table (no dependence on subgroup sizes). Pure: no device.
  */
 
@@ -159,20 +160,42 @@ describe("groupsOf", () => {
 });
 
 describe("the P1-P3 stubs", () => {
-    it("planGridStride throws E_UNSUPPORTED { feature: 'planGridStride' } (lead f)", () => {
-        const err = catchError(() => planGridStride(1000, WG, CAPS_SPEC_DEFAULT));
-        expect(err.code).toBe("E_UNSUPPORTED");
-        expect(err.details.feature).toBe("planGridStride");
-        expect(err.details.option).toBeUndefined();
-        expect(catchError(() => planGridStride(1000, WG, CAPS_SPEC_DEFAULT, 16)).details.feature).toBe(
-            "planGridStride",
-        );
-    });
-
     it("planIndirect throws E_UNSUPPORTED { feature: 'planIndirect' } (lead f)", () => {
         const err = catchError(() => planIndirect(1000, WG, CAPS_SPEC_DEFAULT));
         expect(err.code).toBe("E_UNSUPPORTED");
         expect(err.details.feature).toBe("planIndirect");
         expect(err.details.option).toBeUndefined();
+    });
+});
+
+describe("planGridStride (spec 5.2 lines 1418-1424)", () => {
+    it("caps the groups at 4096 on hardware and 64 on software, and reports the stride", () => {
+        const hw = planGridStride(100_000_000, 256, CAPS_SPEC_DEFAULT);
+        expect(hw).toEqual({ x: 4096, y: 1, z: 1, items: 100_000_000, stride: 4096 * 256 });
+        const sw = planGridStride(100_000_000, 256, { ...CAPS_SPEC_DEFAULT, software: true });
+        expect(sw).toEqual({ x: 64, y: 1, z: 1, items: 100_000_000, stride: 64 * 256 });
+    });
+
+    it("never plans more groups than the items need", () => {
+        const plan = planGridStride(1000, 256, CAPS_SPEC_DEFAULT);
+        expect(plan).toEqual({ x: 4, y: 1, z: 1, items: 1000, stride: 4 * 256 });
+    });
+
+    it("honours an explicit maxGroups and the per-dimension limit", () => {
+        expect(planGridStride(100_000_000, 256, CAPS_SPEC_DEFAULT, 7).x).toBe(7);
+        // Every checked-in caps table reports maxComputeWorkgroupsPerDimension 65,535 -- the same value as
+        // MAX_WORKGROUPS_PER_DIM -- so a real table cannot distinguish perDimension(caps) from the constant.
+        // fakeCaps lowers it (caps-tables.ts:137-141 copies the ten PlanLimits keys and overrides the named one).
+        const lowLimit = fakeCaps(CAPS_SPEC_DEFAULT, { maxComputeWorkgroupsPerDimension: 1024 });
+        expect(planGridStride(100_000_000, 256, lowLimit, 200_000).x).toBe(1024);
+    });
+
+    it("items 0 plans nothing and records a null stride", () => {
+        expect(planGridStride(0, 256, CAPS_SPEC_DEFAULT)).toEqual({ x: 0, y: 1, z: 1, items: 0, stride: null });
+    });
+
+    it("rejects a negative item count and a non-power-of-two workgroup size", () => {
+        expect(() => planGridStride(-1, 256, CAPS_SPEC_DEFAULT)).toThrow(/non-negative integer/);
+        expect(() => planGridStride(1000, 96, CAPS_SPEC_DEFAULT)).toThrow(/power of two/);
     });
 });

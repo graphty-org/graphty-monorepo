@@ -128,8 +128,20 @@ expectTypeOf(acc.forceAtlas2).returns.toEqualTypeOf<Fa2Sim>();
 expectTypeOf(acc.release).parameter(0).toEqualTypeOf<GraphSnapshot>();
 expectTypeOf(acc.release).returns.toBeVoid();
 expectTypeOf(acc.dispose).returns.toBeVoid();
-// members P3 does not implement keep the mirror's optional type -- the dispatchers read them as `undefined`
-expectTypeOf(acc.pageRank).toEqualTypeOf<AlgorithmAccelerator["pageRank"]>();
-expectTypeOf(acc.connectedComponents).toEqualTypeOf<AlgorithmAccelerator["connectedComponents"]>();
+// the P7 members (M8b-T8) are non-optional here and narrow the mirror's optional type (PD-19 clause 1)
+expectTypeOf(acc.pageRank).toMatchTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>();
+expectTypeOf(acc.personalizedPageRank).toMatchTypeOf<NonNullable<AlgorithmAccelerator["personalizedPageRank"]>>();
+expectTypeOf(acc.hits).toMatchTypeOf<NonNullable<AlgorithmAccelerator["hits"]>>();
+expectTypeOf(acc.eigenvectorCentrality).toMatchTypeOf<NonNullable<AlgorithmAccelerator["eigenvectorCentrality"]>>();
+expectTypeOf(acc.katzCentrality).toMatchTypeOf<NonNullable<AlgorithmAccelerator["katzCentrality"]>>();
+expectTypeOf(acc.connectedComponents).toMatchTypeOf<NonNullable<AlgorithmAccelerator["connectedComponents"]>>();
+expectTypeOf(acc.weaklyConnectedComponents).toMatchTypeOf<
+    NonNullable<AlgorithmAccelerator["weaklyConnectedComponents"]>
+>();
+expectTypeOf(acc.pageRank).not.toEqualTypeOf<undefined>();
+expectTypeOf(acc.connectedComponents).parameter(1).not.toBeNever(); // the extra option stays optional (PD-19 clause 3)
+// members P7 does not implement keep the mirror's optional type -- the dispatchers read them as `undefined`
+expectTypeOf(acc.breadthFirstSearch).toEqualTypeOf<AlgorithmAccelerator["breadthFirstSearch"]>();
+expectTypeOf(acc.betweennessCentrality).toEqualTypeOf<AlgorithmAccelerator["betweennessCentrality"]>();
 expectTypeOf(acc.fruchtermanReingold).toEqualTypeOf<LayoutAccelerator["fruchtermanReingold"]>();
 expectTypeOf(acc.springElectrical).toEqualTypeOf<LayoutAccelerator["springElectrical"]>();

@@ -1,13 +1,15 @@
 # G6 (algorithms slice) -- the first A2 commit (spec 13 row P6; plan 2026-09-19-webgpu-m8a-algorithms-seam)
 
-Recorded by: the owner, 2026-09-20. Commits: the nine of phase M8a (<short hashes once committed>), in the order of
-appendix 7.1's command sheet.
+Recorded by: the owner, 2026-09-20. Commits: the nine of phase M8a, in the order of appendix 7.1's
+command sheet: 061c9626 a7b909c1 629ab26b 1ff44991 ae609731 dd20d0e4 48a28adc 42f60d87 8bc1cda1, merged to
+master as pull request 15 (ffd6b329).
 Environment: Node 22.22.1, pnpm 10.0.0, vitest 3.2.4, TypeScript 5.9.3, `@graphty/graph-format` 1.0.0,
-`@graphty/algorithms` 1.7.2 in the tree (<version after release>), `@graphty/webgpu-graph-algorithms` 0.3.0 in the
-tree. Every command ran from the repository root or from `algorithms/`, on the dev box in the
-`feat/algorithms-indexed-seam` worktree at HEAD 90f1a520, before any of the phase's commits were made.
+`@graphty/algorithms` 1.7.2 in the tree (1.8.0 after the release of 2026-09-20), `@graphty/webgpu-graph-algorithms`
+0.3.0 in the tree (0.5.0 after that release). Every command ran from the repository root or from `algorithms/`, on
+the dev box in the `feat/algorithms-indexed-seam` worktree at HEAD 90f1a520, before any of the phase's commits were
+made.
 
-GATE STATUS: GREEN on the dev box, pending the owner's signature, the commit hashes and section 5. Every item of
+GATE STATUS: GREEN on the dev box and on pull request 15's three lanes (section 5), signed off. Every item of
 sections 1-4 passes, every command of the plan's final check exits 0, and `tools/prepush.sh` (the gate
 `.husky/pre-push` runs) passes every step but one case of one file: the frame-loop wall-clock race recorded in the
 row above, which passes alone and which this phase does not touch. Section 6 carries the findings; the two that needed a decision are closed
@@ -75,14 +77,14 @@ the plain tsc emit is rebuilt with `pnpm exec nx run algorithms:build`, exit 0):
 
 ## 5. Lanes
 
-Pending: nothing of this phase has been committed or pushed at the time of this record. The owner fills the three
-rows from the PR's checks after the push of appendix 7.1's last row.
+The three rows are the checks of pull request 15 (head 8bc1cda1, the last row of appendix 7.1's sheet) and the
+`gpu.yml` run on its merge commit ffd6b329; all green.
 
 | Lane | Run | Result |
 | --- | --- | --- |
-| `ci.yml` (20 shards) | <run id> | <...> |
-| `hosts.yml` (triggered by `pnpm-lock.yaml`) | <run id> | <...> |
-| `gpu.yml` on the merge commit (the release gate) | <run id> | <...> |
+| `ci.yml` (20 shards) | 35515822729 | success |
+| `hosts.yml` (triggered by `pnpm-lock.yaml`) | 35515822757 | success |
+| `gpu.yml` on the merge commit (the release gate) | 35519114142 | success |
 
 ## 6. Findings, owner decisions, re-fixed numbers
 
@@ -156,8 +158,8 @@ below:
 - G6-F8 (stale comments, from Task M8a-T13): `webgpu-graph-algorithms/src/accelerator.ts:4-5` and
   `src/types/algorithms.ts:8` still say the algorithms half is satisfied structurally "until M8a". One-line comment
   fixes for a later commit; T13 was told not to touch `src/accelerator.ts`.
-- Commit hashes and section 5 are filled by the owner after `tools/commit-changes.sh` and the push. The knip fix
+- Commit hashes and section 5 were filled at sign-off, after `tools/commit-changes.sh` and the push. The knip fix
   (root `package.json`, `knip.config.ts`) touches no package source and needs a commit of its own or a ride in the
   `fix(tools)` commit at the head of appendix 7.1's sheet; the owner picks.
 
-Signed off: <owner>, <date>.
+Signed off: the owner, 2026-09-20 (pull request 15's three lanes green, merged, released).

@@ -54,9 +54,9 @@ webgpu-graph-algorithms/
 |   +-- memory/                   # upload-plan.ts, residency.ts, buffer-pool.ts, readback.ts, lease.ts
 |   +-- kernel/                   # wgsl.ts (composeWgsl), prelude.ts, struct-block.ts, pipeline-cache.ts, kernel.ts, dispatch.ts, uniform-ring.ts, batch.ts, profiler.ts
 |   +-- kernels.ts                # THE registry of every WgslModuleSpec (the only importer of src/wgsl/**)
-|   +-- wgsl/                     # <name>.wgsl.ts: kernel BODIES only (no @group, no override lines)
-|   +-- primitives/               # reduce.ts (P1), segmented-reduce.ts (P2); the section 6 primitives each phase pulls in
-|   +-- algorithms/               # degree.ts (P1), the walking-skeleton diagnostic; the section 8 families from P7
+|   +-- wgsl/                     # <name>.wgsl.ts: kernel BODIES only (no @group, no override lines); seventeen: the P1-P3 ten plus the seven of P7 (spmv-pull, pr-scale, pr-finalize, wcc-link-sample, wcc-link-edges, wcc-compress, wcc-sample -- the package's first atomics)
+|   +-- primitives/               # reduce.ts (P1), segmented-reduce.ts (P2), core-shape.ts + spmv.ts (P7: prepareSpmvPull, thread-per-row tier only); the section 6 primitives each phase pulls in
+|   +-- algorithms/               # degree.ts (P1, the walking skeleton); from P7 no longer one file: scope.ts (the per-call scratch scope), pagerank.ts (pageRank, personalizedPageRank), power-iteration.ts (the shared driver), spectral.ts (hits, eigenvectorCentrality, katzCentrality), components.ts (connectedComponents, Afforest)
 |   +-- layouts/                  # repulsion-exact.ts (P1), seed.ts, inputs.ts, force-simulation.ts, forceatlas2.ts (P3)
 |   +-- accelerator.ts            # createAccelerator(ctx, options?)
 |   +-- browser/index.ts          # the ./browser entry: the ONLY directory that may reference navigator
@@ -68,10 +68,10 @@ webgpu-graph-algorithms/
 |   +-- setup/browser-commands.d.ts  # BrowserCommands augmentation + ImportMetaEnv keys (a MODULE: `export {}` first)
 |   +-- helpers/ oracle/ fixtures/   # test-side helpers, the f64 CPU references, committed fixtures
 |   +-- device/ memory/ kernel/ primitives/ algorithms/ layouts/ sabotage/   # the node project
-|   +-- limits/                   # the node-limits project (GPU lane only; P4)
+|   +-- limits/                   # the node-limits project (GPU lane only): pagerank-1m.test.ts, the T-8 fixture (P7)
 |   +-- browser/                  # the browser smoke project
 |   +-- types/*.test-d.ts  index.test.ts  build-output.test.ts  layers.test.ts  errors.test.ts
-+-- benchmarks/                   # run.ts (tsx), harness.ts, datasets.ts, upload / roundtrip / layout-exact .bench.ts, layout-run.ts (the end-to-end driver), results/<runner-class>.json and noise-floor.json (checked in), out/ (gitignored)
++-- benchmarks/                   # run.ts (tsx), harness.ts, datasets.ts, upload / roundtrip / layout-exact / pagerank / wcc .bench.ts, layout-run.ts (the end-to-end driver), results/<runner-class>.json and noise-floor.json (checked in), out/ (gitignored)
 +-- docs/                         # HEADLESS_GPU_REPORT.md, research/, decisions/G<n>.md
 ```
 
@@ -117,6 +117,8 @@ that `scripts/gpu-report.js` and `scripts/bench-compare.js` also use, so the fil
 | `upload`       | `residency.core` of the 100k / 1M and 1M / 10M weighted hot prefixes                                                                                                                                                                                                                                                                                                                                                                                                                                           | T-1                                                                                   |
 | `roundtrip`    | `degree` + 400 KB readback at 100k; an empty submit + 4-byte `readU32`                                                                                                                                                                                                                                                                                                                                                                                                                                         | T-2, T-3                                                                              |
 | `layout-exact` | one `createForceAtlas2` simulation per rung of the exact ladder 1k / 4k / 8k / 16k / 32k / 65k (E = 10n, 2D, `repulsion: "exact"`) plus the 10k frame rung; an untimed clock warm-up burst (>= 500 ms of back-to-back `step(1)`), then `step(1)` after an untimed `reheat()`; two rows per rung: `step(1) wall n=<n> ...` (one iteration + `toScene` + the 12n readback) and `ms/iteration (profiler\|wall) n=<n> ...` (`stats.msPerIteration`: the GPU time of the passes when `timestamp-query` was granted) | T-4 (the `ms/iteration` rows at 10k and 16k), the Node side of T-5 (the 10k wall row) |
+| `pagerank`     | `pageRank` with `{ maxIterations: 100, tolerance: 0 }` (all 100 iterations; at the NetworkX tolerance the seeded G(n, m) input converges in one to four), wall end to end including the upload, at 10k / 100k, 100k / 1M and 1M / 10M | T-8 (the 100k / 1M and 1M / 10M rows) |
+| `wcc`          | `connectedComponents` wall end to end including the upload and the label readback, at 100k / 1M and 1M / 10M | T-9 (the 1M / 10M row) |
 
 The checked-in baselines live in `benchmarks/results/<runner-class>.json` (the dev box: `nvidia-lovelace-driver580.json` --
 Dawn spells the RTX 4070 SUPER's architecture `lovelace`; the GPU lane: `gpu-linux-t4.json`, fixed by
@@ -245,7 +247,7 @@ reads an environment variable):
 | `GRAPHTY_GPU_REQUIRE`                     | `any`                                                       | `nvidia`                                                | unset (skip with reason) or `hardware`                                                                                                                                                       |
 | `GRAPHTY_BROWSER_GPU`                     | `swiftshader` (flag set)                                    | `nvidia` (flag set)                                     | `nvidia`; the host lane (hosts.yml) uses `metal` on macos-latest (Chromium on Dawn's Metal backend) and `warp` on windows-latest (the full Chromium build on Dawn's D3D12 backend over WARP) |
 | `GRAPHTY_BROWSER`                         | unset (chromium)                                            | unset                                                   | unset; `webkit` runs the browser project in Playwright's WebKit (the host lane's Safari proxy, a spike step until it is known to expose WebGPU)                                              |
-| `GRAPHTY_GPU_NO_SUBGROUPS`                | a second pass over `test/primitives test/layouts` with `1`  | a second pass over the whole `node` project with `1`    | unset (the twins are also tested in-process)                                                                                                                                                 |
+| `GRAPHTY_GPU_NO_SUBGROUPS`                | a second pass over `test/primitives test/layouts test/algorithms` with `1` | a second pass over the whole `node` project with `1`    | unset (the twins are also tested in-process)                                                                                                                                                 |
 | `GRAPHTY_DAWN_FEATURES`                   | unset                                                       | unset                                                   | optional Dawn toggles                                                                                                                                                                        |
 | `GRAPHTY_EGL_LIB_DIR` / `LD_LIBRARY_PATH` | --                                                          | unset (the partner image has `libegl1`; verified at G0) | the extracted tree (`docs/HEADLESS_GPU_REPORT.md` appendix D)                                                                                                                                |
 | `GRAPHTY_RUNNER_CLASS`                    | unset                                                       | `gpu-linux-t4`                                          | unset                                                                                                                                                                                        |

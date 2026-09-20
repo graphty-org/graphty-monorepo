@@ -646,6 +646,50 @@
             "maxRelError": 0.0943435236073985,
             "maxAbsError": 31976.37672999408,
             "samples": 2400
+        },
+        {
+            "id": "spmv-pull.oracle-f64.mesa-software-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "oracle-f64",
+            "a": "mesa-software-node",
+            "b": "oracle-f64",
+            "maxRelError": 1.874471776498781e-7,
+            "maxAbsError": 0.0000032706391124293077,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.cross.mesa-software-node--nvidia-lovelace-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 1.3968720124399834e-7,
+            "maxAbsError": 0.0000019073486328125,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.oracle-f64.nvidia-lovelace-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "oracle-f64",
+            "a": "nvidia-lovelace-node",
+            "b": "oracle-f64",
+            "maxRelError": 1.6986513014184254e-7,
+            "maxAbsError": 0.0000025545626414213984,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.cross.nvidia-lovelace-node--mesa-software-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "nvidia-lovelace-node",
+            "b": "mesa-software-node",
+            "maxRelError": 1.3968722075651525e-7,
+            "maxAbsError": 0.0000019073486328125,
+            "samples": 1000
         }
     ],
     "tolerances": {
@@ -823,6 +867,11 @@
             "value": 0.0001,
             "basis": "fa2-trace-parity.resync.oracle-f64",
             "factor": 9.572649545071272
+        },
+        "spmv-pull.cross": {
+            "value": 0.0000016986513014184254,
+            "basis": "spmv-pull.oracle-f64.nvidia-lovelace-node",
+            "factor": 10
         }
     }
 }

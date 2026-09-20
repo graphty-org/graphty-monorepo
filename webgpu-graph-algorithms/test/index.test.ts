@@ -1,6 +1,7 @@
 /**
  * The public barrel's VALUE list, pinned (contract 3.15, 5.5): P0's errors / constants / isSoftwareAdapter, P1's
- * GpuContext and degree, P3's layout factory, accelerator, default tables and seeder; each value is the same object
+ * GpuContext and degree, P3's layout factory, accelerator, default tables and seeder, P5's two layout factories and
+ * their default tables; each value is the same object
  * its module exports; no default export; the entries, the internal surface and the P4+ names never reach the root.
  * Types are pinned by test/types/public-api.test-d.ts under the strict-consumer compile.
  */
@@ -16,7 +17,9 @@ import * as acquire from "../src/device/acquire.js";
 import * as errors from "../src/errors.js";
 import * as api from "../src/index.js";
 import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
+import { createFruchtermanReingold } from "../src/layouts/fruchterman-reingold.js";
 import { seedPositions } from "../src/layouts/seed.js";
+import { createSpringElectrical } from "../src/layouts/spring-electrical.js";
 
 /**
  * The VALUE exports of contract 3.15 at the end of P3 (the P0, P1 and P3 lists; P2 added none). Types are pinned
@@ -44,6 +47,11 @@ const VALUE_EXPORTS = [
     "FA2_DEFAULTS",
     "LAYOUT_TUNING_DEFAULTS",
     "seedPositions",
+    // P5: the two layout factories and their default tables
+    "createFruchtermanReingold",
+    "createSpringElectrical",
+    "FR_DEFAULTS",
+    "SE_DEFAULTS",
     // P7: the SpMV family and WCC (spec 8.2, 8.3; M8b-T8)
     "pageRank",
     "personalizedPageRank",
@@ -89,17 +97,19 @@ const NEVER_EXPORTED = [
     "BufferUsage",
     "MapMode",
     "ShaderStage",
-    // P4+ / P5, and the P7 names that are accelerator members or internals, never barrel values
+    // P4+, the P5 internals, and the P7 names that are accelerator members or internals, never barrel values
     "calibrateLayout",
-    "createFruchtermanReingold",
-    "createSpringElectrical",
+    "FruchtermanReingoldModel",
+    "SpringElectricalModel",
+    "resolveFruchtermanReingoldOptions",
+    "resolveSpringElectricalOptions",
     "weaklyConnectedComponents",
     "runPowerIteration",
     "spmvPull",
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {
-    it("exports exactly the P3 + P7 value list and no default export", () => {
+    it("exports exactly the P3 + P5 + P7 value list and no default export", () => {
         expect(Object.keys(api).sort()).toEqual([...VALUE_EXPORTS].sort());
         expect((api as Record<string, unknown>).default).toBeUndefined();
     });
@@ -123,6 +133,10 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.createForceAtlas2).toBe(createForceAtlas2);
         expect(api.createAccelerator).toBe(createAccelerator);
         expect(api.seedPositions).toBe(seedPositions);
+        expect(api.createFruchtermanReingold).toBe(createFruchtermanReingold);
+        expect(api.createSpringElectrical).toBe(createSpringElectrical);
+        expect(api.FR_DEFAULTS).toBe(constants.FR_DEFAULTS);
+        expect(api.SE_DEFAULTS).toBe(constants.SE_DEFAULTS);
         expect(api.pageRank).toBe(pageRank);
         expect(api.personalizedPageRank).toBe(personalizedPageRank);
         expect(api.hits).toBe(hits);
@@ -174,6 +188,8 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         });
         expect(Object.isFrozen(api.FA2_DEFAULTS)).toBe(true);
         expect(Object.isFrozen(api.LAYOUT_TUNING_DEFAULTS)).toBe(true);
+        expect(Object.isFrozen(api.FR_DEFAULTS)).toBe(true);
+        expect(Object.isFrozen(api.SE_DEFAULTS)).toBe(true);
         expect(api.MAX_1D_ITEMS).toBe(16_776_960);
         expect(api.MAX_1D_ITEMS).toBe(api.MAX_WORKGROUPS_PER_DIM * api.WORKGROUP_SIZE);
     });

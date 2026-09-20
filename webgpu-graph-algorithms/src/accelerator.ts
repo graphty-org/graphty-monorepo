@@ -3,13 +3,13 @@
  * AlgorithmAccelerator and LayoutAccelerator interfaces (spec 9.2, 9.3). Both are the REAL declarations,
  * `LayoutAccelerator` from `@graphty/layout` (W1b, layout half) and `AlgorithmAccelerator` from
  * `@graphty/algorithms` (W1b, algorithms half), `import type`d by src/types/accelerator.ts, so the object built
- * here is checked against the CPU packages' own contracts. It carries P3's `forceAtlas2`, `release` and `dispose`
- * and P7's seven
- * algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and nothing else: the CPU-side dispatchers (`accelerated()`,
- * `createSimulation()`) test `acc.betweennessCentrality !== undefined` and route to the CPU when the member is
- * absent (spec 2.4 row "method missing"), so a method the GPU does not implement must not exist here -- never a
- * throwing stub. The remaining algorithm members arrive one per shipped algorithm from P8; `fruchtermanReingold` /
- * `springElectrical` with P5.
+ * here is checked against the CPU packages' own contracts. It carries P3's `forceAtlas2`, `release` and `dispose`,
+ * P5's `fruchtermanReingold` and `springElectrical` (the two other layout members of spec 9.3, landed together once
+ * both models were green, P5 PD-19) and P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and nothing
+ * else: the CPU-side dispatchers (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined`
+ * / `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
+ * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
+ * algorithm members arrive one per shipped algorithm from P8.
  */
 
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
@@ -19,6 +19,8 @@ import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 import { type GpuContext } from "./context.js";
 import { createForceAtlas2 } from "./layouts/forceatlas2.js";
+import { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
+import { createSpringElectrical } from "./layouts/spring-electrical.js";
 import { type AcceleratorOptions, type GpuAccelerator } from "./types/accelerator.js";
 import {
     type ComponentsOptions,
@@ -31,8 +33,18 @@ import {
     type KatzOptions,
     type PageRankOptions,
 } from "./types/algorithms.js";
-import { type ForceAtlas2Stats, type GpuLayoutSimulation, type GpuLayoutTuning } from "./types/layout.js";
-import { type ForceAtlas2Options } from "./types/options.js";
+import {
+    type ForceAtlas2Stats,
+    type FruchtermanReingoldStats,
+    type GpuLayoutSimulation,
+    type GpuLayoutTuning,
+    type SpringElectricalStats,
+} from "./types/layout.js";
+import {
+    type ForceAtlas2Options,
+    type FruchtermanReingoldOptions,
+    type SpringElectricalOptions,
+} from "./types/options.js";
 
 /** The `algorithms` record of AcceleratorOptions (spec 3.3), named for the copy helpers. */
 type AlgorithmDefaults = NonNullable<AcceleratorOptions["algorithms"]>;
@@ -91,7 +103,8 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
 
 /**
  * Spec 3.3 createAccelerator, verbatim: the object implementing AlgorithmAccelerator & LayoutAccelerator
- * structurally; P3's forceAtlas2, release and dispose plus P7's seven algorithm members, each a delegation to
+ * structurally; P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and springElectrical (the same
+ * `{ ...o, ...options.layout }` shape as forceAtlas2) plus P7's seven algorithm members, each a delegation to
  * its algorithm with `ctx.assertReady()` first. The accelerator's algorithm defaults are not consulted by any of
  * them: only `betweenness` has any, and it belongs to P9. One per call (the app creates one and injects
  * it, spec 2.4); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
@@ -101,8 +114,9 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
  * @param ctx - the context every simulation the accelerator creates runs on
  * @param options - GPU-only defaults inherited by every simulation (`layout`) and, from P9, the algorithm defaults
  * @returns the injectable accelerator
- * @throws E_DISPOSED / E_DEVICE_LOST from `ctx.assertReady()` (here and inside `forceAtlas2()`); `forceAtlas2()`
- *   also throws what createForceAtlas2 throws (E_UNSUPPORTED for `nodeSize`, E_INVALID_ARGUMENT for a bad range)
+ * @throws E_DISPOSED / E_DEVICE_LOST from `ctx.assertReady()` (here and inside every creating member); `forceAtlas2()`
+ *   also throws what createForceAtlas2 throws (E_UNSUPPORTED for `nodeSize`, E_INVALID_ARGUMENT for a bad range), and
+ *   `fruchtermanReingold()` / `springElectrical()` what their factories throw (E_INVALID_ARGUMENT for a bad range)
  */
 export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions): GpuAccelerator {
     ctx.assertReady();
@@ -119,6 +133,26 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         forceAtlas2(o?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats> {
             ctx.assertReady();
             return createForceAtlas2(ctx, { ...o, ...frozen.layout });
+        },
+        /**
+         * The Fruchterman-Reingold simulation with this accelerator's layout tuning (spec 3.3, 7.20; P5).
+         * @param o - the CPU option type (spec 9.3 FruchtermanReingoldOptions); GPU tuning keys come from `options.layout`
+         * @returns a fresh simulation in state "created"
+         */
+        fruchtermanReingold(
+            o?: FruchtermanReingoldOptions,
+        ): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats> {
+            ctx.assertReady();
+            return createFruchtermanReingold(ctx, { ...o, ...frozen.layout });
+        },
+        /**
+         * The spring-electrical preset with this accelerator's layout tuning (spec 3.3, 7.20; P5).
+         * @param o - the CPU option type (spec 9.3 SpringElectricalOptions, ngraph's names)
+         * @returns a fresh simulation in state "created"
+         */
+        springElectrical(o?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
+            ctx.assertReady();
+            return createSpringElectrical(ctx, { ...o, ...frozen.layout });
         },
         /**
          * PageRank on the device (spec 8.2; contract 3.14).

@@ -2,12 +2,24 @@ import { createAccelerator } from "../src/accelerator.js";
 import { connectedComponents } from "../src/algorithms/components.js";
 import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
-import { FA2_DEFAULTS, LAYOUT_TUNING_DEFAULTS } from "../src/constants.js";
+import { FA2_DEFAULTS, FR_DEFAULTS, LAYOUT_TUNING_DEFAULTS, SE_DEFAULTS } from "../src/constants.js";
 import { isWebGpuGraphError } from "../src/errors.js";
 import { ForceSimulation } from "../src/layouts/force-simulation.js";
 import { type AcceleratorOptions, type AlgorithmAccelerator } from "../src/types/accelerator.js";
-import { type ForceAtlas2Stats, type GpuLayoutTuning } from "../src/types/layout.js";
-import { type ForceAtlas2Options } from "../src/types/options.js";
+import {
+    type ForceAtlas2Stats,
+    type FruchtermanReingoldStats,
+    type GpuLayoutTuning,
+    type LayoutStatsBase,
+    type SpringElectricalStats,
+} from "../src/types/layout.js";
+import {
+    type CommonLayoutOptions,
+    type ForceAtlas2Options,
+    type FruchtermanReingoldOptions,
+    type SimulationOptions,
+    type SpringElectricalOptions,
+} from "../src/types/options.js";
 import { KARATE_EDGES, snapshotOf } from "./helpers/graphs.js";
 import { expectBitwiseEqual } from "./helpers/matchers.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
@@ -26,6 +38,9 @@ const ALGORITHM_MEMBERS = [
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
 type Fa2Simulation = ForceSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
 
+/** The two P5 layout members (spec 3.3 lines 892-893; PD-19), beside `forceAtlas2`. */
+const P5_LAYOUT_MEMBERS = ["fruchtermanReingold", "springElectrical"] as const;
+
 /** The WebGpuGraphError code `fn` throws synchronously, or null when it returns or throws something else. */
 function thrownCode(fn: () => unknown): string | null {
     try {
@@ -42,6 +57,14 @@ function asForceSimulation(sim: unknown): Fa2Simulation {
     return sim as Fa2Simulation;
 }
 
+/** The same narrowing for the P5 models, keeping the option and stats types the member declares. */
+function asModelSimulation<Options extends CommonLayoutOptions & SimulationOptions, Stats extends LayoutStatsBase>(
+    sim: unknown,
+): ForceSimulation<Options, Stats> {
+    expect(sim).toBeInstanceOf(ForceSimulation);
+    return sim as ForceSimulation<Options, Stats>;
+}
+
 describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
     it("carries kind, ctx and exactly the P3 + P7 members; a missing method is undefined for the dispatchers", async (t) => {
         requireGpu(t);
@@ -50,9 +73,20 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expect(acc.kind).toBe("webgpu");
         expect(acc.ctx).toBe(ctx);
         expect(Object.keys(acc).sort()).toEqual(
-            ["ctx", "dispose", "forceAtlas2", "kind", "options", "release", ...ALGORITHM_MEMBERS].sort(),
+            [
+                "ctx",
+                "dispose",
+                "forceAtlas2",
+                "kind",
+                "options",
+                "release",
+                ...P5_LAYOUT_MEMBERS,
+                ...ALGORITHM_MEMBERS,
+            ].sort(),
         );
         expect(typeof acc.forceAtlas2).toBe("function");
+        expect(typeof acc.fruchtermanReingold).toBe("function");
+        expect(typeof acc.springElectrical).toBe("function");
         expect(typeof acc.release).toBe("function");
         expect(typeof acc.dispose).toBe("function");
         // spec 2.4 row "method missing" / 9.2 `acc.betweennessCentrality === undefined -> CPU`: absent, never a
@@ -60,8 +94,6 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expect(acc.betweennessCentrality).toBeUndefined();
         expect("betweennessCentrality" in acc).toBe(false);
         expect(acc.breadthFirstSearch).toBeUndefined();
-        expect(acc.fruchtermanReingold).toBeUndefined();
-        expect(acc.springElectrical).toBeUndefined();
         const route = acc.betweennessCentrality !== undefined ? "gpu" : "cpu";
         expect(route).toBe("cpu");
         const p7Route = acc.pageRank !== undefined ? "gpu" : "cpu";
@@ -198,6 +230,134 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expect(thrownCode(() => acc.forceAtlas2({ gravity: -1 }))).toBe("E_INVALID_ARGUMENT");
     });
 
+    it("fruchtermanReingold inherits options.layout, passes the CPU options through and lays out karate (PD-19)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-fr" });
+        const acc = createAccelerator(ctx, { layout: { exactMaxNodes: 4096, compat: "networkx" } });
+        // (a) a fresh simulation in state "created" over the FR model
+        const sim = asModelSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>(
+            acc.fruchtermanReingold({ iterations: 30, k: 0.5, seed: 7 }),
+        );
+        expect(sim.ctx).toBe(ctx);
+        expect(sim.state).toBe("created");
+        expect(sim.model.kind).toBe("fruchtermanReingold");
+        // (b) the tuning given to createAccelerator reaches the simulation, the rest keeps LAYOUT_TUNING_DEFAULTS
+        expect(sim.tuning.exactMaxNodes).toBe(4096);
+        expect(sim.tuning.compat).toBe("networkx");
+        expect(sim.tuning.repulsion).toBe(LAYOUT_TUNING_DEFAULTS.repulsion);
+        expect(sim.tuning.deterministic).toBe(LAYOUT_TUNING_DEFAULTS.deterministic);
+        // (c) the CPU-typed record's fields reach the simulation with FR_DEFAULTS applied to the rest
+        expect(sim.options.iterations).toBe(30);
+        expect(sim.options.k).toBe(0.5);
+        expect(sim.options.seed).toBe(7);
+        expect(sim.options.dim).toBe(FR_DEFAULTS.dim);
+        expect(sim.options.settleWindow).toBe(FR_DEFAULTS.settleWindow);
+        expect(sim.options.iterationsPerStep).toBe(FR_DEFAULTS.iterationsPerStep);
+        sim.dispose();
+        const plain = asModelSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>(
+            createAccelerator(ctx).fruchtermanReingold(),
+        );
+        expect(plain.tuning).toEqual({ ...LAYOUT_TUNING_DEFAULTS });
+        expect(plain.options.iterations).toBe(FR_DEFAULTS.iterations);
+        expect(plain.options.k).toBe(FR_DEFAULTS.k);
+        plain.dispose();
+        // contract 3.14: `{ ...o, ...options.layout }` -- tuning keys smuggled through the CPU-typed argument lose
+        const smuggled: FruchtermanReingoldOptions & GpuLayoutTuning = {
+            iterations: 3,
+            compat: "paper",
+            exactMaxNodes: 64,
+        };
+        const overridden = asModelSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>(
+            acc.fruchtermanReingold(smuggled),
+        );
+        expect(overridden.tuning.compat).toBe("networkx");
+        expect(overridden.tuning.exactMaxNodes).toBe(4096);
+        expect(overridden.options.iterations).toBe(3);
+        overridden.dispose();
+        // what createFruchtermanReingold throws, the accelerator throws (a negative k; iterations 0 is legal: settled at load)
+        expect(thrownCode(() => acc.fruchtermanReingold({ k: -1 }))).toBe("E_INVALID_ARGUMENT");
+        expect(thrownCode(() => acc.fruchtermanReingold({ iterations: -1 }))).toBe("E_INVALID_ARGUMENT");
+        // (d) a 34-node karate run through the member lays out end to end
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const run = acc.fruchtermanReingold({ seed: 11 });
+        const positions = new Float32Array(3 * snapshot.nodeCount).fill(Number.NaN);
+        run.load(snapshot, positions);
+        const stats = await run.run({ maxIter: 20 });
+        expect(run.iterationsDone).toBe(20);
+        expect(run.inFlight).toBe(0);
+        expect(stats.repulsionTier).toBe("exact");
+        expect(stats.iteration).toBe(20);
+        expect(Number.isFinite(stats.temperature)).toBe(true);
+        expect(Array.from(positions).every((v) => Number.isFinite(v))).toBe(true);
+        run.dispose();
+        acc.release(snapshot);
+        expect(ctx.residency.stats().buffers).toBe(0);
+    });
+
+    it("springElectrical inherits options.layout, passes the CPU options through and lays out karate (PD-19)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-se" });
+        const acc = createAccelerator(ctx, { layout: { exactMaxNodes: 4096, compat: "networkx" } });
+        // (a) a fresh simulation in state "created" over the spring-electrical model
+        const sim = asModelSimulation<SpringElectricalOptions, SpringElectricalStats>(
+            acc.springElectrical({ springLength: 5, timeStep: 0.25, seed: 7 }),
+        );
+        expect(sim.ctx).toBe(ctx);
+        expect(sim.state).toBe("created");
+        expect(sim.model.kind).toBe("springElectrical");
+        // (b) the tuning given to createAccelerator reaches the simulation, the rest keeps LAYOUT_TUNING_DEFAULTS
+        expect(sim.tuning.exactMaxNodes).toBe(4096);
+        expect(sim.tuning.compat).toBe("networkx");
+        expect(sim.tuning.repulsion).toBe(LAYOUT_TUNING_DEFAULTS.repulsion);
+        expect(sim.tuning.deterministic).toBe(LAYOUT_TUNING_DEFAULTS.deterministic);
+        // (c) the CPU-typed record's fields reach the simulation with SE_DEFAULTS applied to the rest
+        expect(sim.options.springLength).toBe(5);
+        expect(sim.options.timeStep).toBe(0.25);
+        expect(sim.options.seed).toBe(7);
+        expect(sim.options.gravity, "left out: the size-scaled default").toBeNull();
+        expect(sim.options.springCoefficient, "left out: the size-scaled default").toBeNull();
+        expect(sim.options.dragCoefficient).toBe(SE_DEFAULTS.dragCoefficient);
+        expect(sim.options.dim).toBe(SE_DEFAULTS.dim);
+        sim.dispose();
+        const plain = asModelSimulation<SpringElectricalOptions, SpringElectricalStats>(
+            createAccelerator(ctx).springElectrical(),
+        );
+        expect(plain.tuning).toEqual({ ...LAYOUT_TUNING_DEFAULTS });
+        expect(plain.options.springLength).toBe(SE_DEFAULTS.springLength);
+        expect(plain.options.timeStep).toBe(SE_DEFAULTS.timeStep);
+        plain.dispose();
+        // contract 3.14: `{ ...o, ...options.layout }` -- tuning keys smuggled through the CPU-typed argument lose
+        const smuggled: SpringElectricalOptions & GpuLayoutTuning = {
+            springLength: 3,
+            compat: "paper",
+            exactMaxNodes: 64,
+        };
+        const overridden = asModelSimulation<SpringElectricalOptions, SpringElectricalStats>(
+            acc.springElectrical(smuggled),
+        );
+        expect(overridden.tuning.compat).toBe("networkx");
+        expect(overridden.tuning.exactMaxNodes).toBe(4096);
+        expect(overridden.options.springLength).toBe(3);
+        overridden.dispose();
+        // what createSpringElectrical throws, the accelerator throws
+        expect(thrownCode(() => acc.springElectrical({ springLength: 0 }))).toBe("E_INVALID_ARGUMENT");
+        // (d) a 34-node karate run through the member lays out end to end
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const run = acc.springElectrical({ seed: 11 });
+        const positions = new Float32Array(3 * snapshot.nodeCount).fill(Number.NaN);
+        run.load(snapshot, positions);
+        const stats = await run.run({ maxIter: 20 });
+        expect(run.iterationsDone).toBe(20);
+        expect(run.inFlight).toBe(0);
+        expect(stats.repulsionTier).toBe("exact");
+        expect(stats.iteration).toBe(20);
+        expect(Number.isFinite(stats.kineticEnergy)).toBe(true);
+        expect(Array.from(positions).every((v) => Number.isFinite(v))).toBe(true);
+        run.dispose();
+        acc.release(snapshot);
+        expect(ctx.residency.stats().buffers).toBe(0);
+    });
+
     it("carries the seven P7 algorithm members, each delegating to its algorithm (PD-14; spec 9.2, 9.7)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "accelerator-algorithms" });
@@ -287,6 +447,8 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         disposeSpy.mockRestore();
         // afterwards every creating call fails through assertReady (contract 3.14 throws line)
         expect(thrownCode(() => acc.forceAtlas2())).toBe("E_DISPOSED");
+        expect(thrownCode(() => acc.fruchtermanReingold())).toBe("E_DISPOSED");
+        expect(thrownCode(() => acc.springElectrical())).toBe("E_DISPOSED");
         expect(thrownCode(() => createAccelerator(ctx))).toBe("E_DISPOSED");
     });
 

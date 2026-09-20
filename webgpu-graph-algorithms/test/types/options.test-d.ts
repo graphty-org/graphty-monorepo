@@ -4,9 +4,12 @@ import {
     type CommonLayoutOptions,
     createAccelerator,
     createForceAtlas2,
+    createFruchtermanReingold,
+    createSpringElectrical,
     type ForceAtlas2Options,
     type ForceAtlas2Stats,
     type FruchtermanReingoldOptions,
+    type FruchtermanReingoldStats,
     type GpuContext,
     type GpuContextOptions,
     type GpuLayoutSimulation,
@@ -16,6 +19,7 @@ import {
     type RunOptions,
     type SimulationOptions,
     type SpringElectricalOptions,
+    type SpringElectricalStats,
 } from "@graphty/webgpu-graph-algorithms";
 import { expectTypeOf } from "vitest";
 
@@ -28,6 +32,8 @@ declare const ctx: GpuContext;
 declare const mass: F32;
 declare const mask: NodeMask;
 type Fa2Sim = GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+type FrSim = GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
+type SeSim = GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
 
 // ---- layouts (spec 9.3 mirrors; contract 3.3 src/types/options.ts and src/types/layout.ts)
 const common: CommonLayoutOptions = { dim: undefined, scale: undefined, center: undefined, seed: undefined };
@@ -145,7 +151,7 @@ expectTypeOf<keyof ForceAtlas2Options>().toEqualTypeOf<
     | "dissuadeHubs"
 >();
 expectTypeOf<keyof FruchtermanReingoldOptions>().toEqualTypeOf<
-    keyof CommonLayoutOptions | keyof SimulationOptions | "k" | "iterations" | "fixed"
+    keyof CommonLayoutOptions | keyof SimulationOptions | "k" | "iterations" | "fixed" | "cooling"
 >();
 expectTypeOf<keyof SpringElectricalOptions>().toEqualTypeOf<
     | keyof CommonLayoutOptions
@@ -173,6 +179,27 @@ expectTypeOf(createForceAtlas2(ctx).setParams).parameter(0).toEqualTypeOf<Partia
 expectTypeOf(createForceAtlas2(ctx).run).parameter(0).toEqualTypeOf<RunOptions | undefined>();
 expectTypeOf(createForceAtlas2(ctx).run(run)).resolves.toEqualTypeOf<ForceAtlas2Stats>();
 
+// ---- the P5 factories take the same shape (spec 3.3 lines 873-874): the CPU option type & GpuLayoutTuning
+expectTypeOf(createFruchtermanReingold)
+    .parameter(1)
+    .toEqualTypeOf<(FruchtermanReingoldOptions & GpuLayoutTuning) | undefined>();
+expectTypeOf(createFruchtermanReingold(ctx, { ...fr, repulsion: "exact" })).toEqualTypeOf<FrSim>();
+expectTypeOf(createFruchtermanReingold(ctx, frFull)).toEqualTypeOf<FrSim>();
+expectTypeOf(createFruchtermanReingold(ctx, tuning)).toEqualTypeOf<FrSim>();
+expectTypeOf(createFruchtermanReingold(ctx)).toEqualTypeOf<FrSim>();
+expectTypeOf(createFruchtermanReingold(ctx).setParams)
+    .parameter(0)
+    .toEqualTypeOf<Partial<FruchtermanReingoldOptions>>();
+expectTypeOf(createFruchtermanReingold(ctx).run(run)).resolves.toEqualTypeOf<FruchtermanReingoldStats>();
+expectTypeOf(createSpringElectrical)
+    .parameter(1)
+    .toEqualTypeOf<(SpringElectricalOptions & GpuLayoutTuning) | undefined>();
+expectTypeOf(createSpringElectrical(ctx, spring)).toEqualTypeOf<SeSim>();
+expectTypeOf(createSpringElectrical(ctx, { ...spring, ...tuning })).toEqualTypeOf<SeSim>();
+expectTypeOf(createSpringElectrical(ctx)).toEqualTypeOf<SeSim>();
+expectTypeOf(createSpringElectrical(ctx).setParams).parameter(0).toEqualTypeOf<Partial<SpringElectricalOptions>>();
+expectTypeOf(createSpringElectrical(ctx).run(run)).resolves.toEqualTypeOf<SpringElectricalStats>();
+
 // ---- the accelerator and context option records
 const accelerator: AcceleratorOptions = { layout: undefined, algorithms: undefined };
 const acceleratorDeep: AcceleratorOptions = {
@@ -188,6 +215,12 @@ expectTypeOf(createAccelerator).parameter(1).toEqualTypeOf<AcceleratorOptions | 
 expectTypeOf(createAccelerator(ctx, acceleratorDeep).forceAtlas2)
     .parameter(0)
     .toEqualTypeOf<ForceAtlas2Options | undefined>();
+expectTypeOf(createAccelerator(ctx, acceleratorDeep).fruchtermanReingold)
+    .parameter(0)
+    .toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
+expectTypeOf(createAccelerator(ctx, acceleratorDeep).springElectrical)
+    .parameter(0)
+    .toEqualTypeOf<SpringElectricalOptions | undefined>();
 
 const gpuRun: GpuRunOptions = { dest: undefined, signal: undefined, onProgress: undefined };
 expectTypeOf(gpuRun.dest).toEqualTypeOf<Float32Array | Uint32Array | undefined>();

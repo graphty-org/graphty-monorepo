@@ -1,9 +1,10 @@
 /**
  * createAccelerator (spec 3.3, 9; contract 3.14): the injectable object that satisfies the CPU packages'
- * AlgorithmAccelerator and LayoutAccelerator interfaces (spec 9.2, 9.3; D27). Since W1b `LayoutAccelerator` is
- * the REAL `@graphty/layout` declaration, `import type`d by src/types/accelerator.ts; the AlgorithmAccelerator half
- * is still satisfied STRUCTURALLY against that file's mirror until M8a gives it something real. It carries P3's
- * `forceAtlas2`, `release` and `dispose` and P7's seven
+ * AlgorithmAccelerator and LayoutAccelerator interfaces (spec 9.2, 9.3). Both are the REAL declarations,
+ * `LayoutAccelerator` from `@graphty/layout` (W1b, layout half) and `AlgorithmAccelerator` from
+ * `@graphty/algorithms` (W1b, algorithms half), `import type`d by src/types/accelerator.ts, so the object built
+ * here is checked against the CPU packages' own contracts. It carries P3's `forceAtlas2`, `release` and `dispose`
+ * and P7's seven
  * algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and nothing else: the CPU-side dispatchers (`accelerated()`,
  * `createSimulation()`) test `acc.betweennessCentrality !== undefined` and route to the CPU when the member is
  * absent (spec 2.4 row "method missing"), so a method the GPU does not implement must not exist here -- never a

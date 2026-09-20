@@ -21,50 +21,18 @@ function bundleTypes() {
     }
 
     try {
-        // For now, we'll create a simple declaration file that re-exports everything
-        // from the proper location. This works because all exports go through index.ts
+        // One star re-export rather than a hand-copied mirror of src/index.ts: the mirror went
+        // stale every time the barrel changed (it had no `indexed` namespace, no `toSnapshot`, no
+        // `accelerated`), and a stale dist/algorithms.d.ts is what every consumer that resolves the
+        // package's "types" entry after `npm run build:bundle` compiles against. `export *` carries
+        // the namespace export and every type through unchanged.
         const content = `/**
  * TypeScript declarations for @graphty/algorithms
- * 
+ *
  * This file provides type information for the bundled dist/algorithms.js module.
  */
 
-// Core exports
-export { Graph } from './src/core/graph';
-
-// Type exports
-export type {
-    BellmanFordResult,
-    CentralityOptions,
-    CentralityResult,
-    CommunityResult,
-    ComponentResult,
-    DijkstraOptions,
-    Edge,
-    FloydWarshallResult,
-    GirvanNewmanOptions,
-    GraphConfig,
-    LouvainOptions,
-    MSTResult,
-    Node,
-    NodeId,
-    PageRankOptions,
-    ShortestPathResult,
-    TraversalOptions,
-    TraversalResult,
-} from './src/types/index';
-
-// Algorithm exports
-export * from './src/algorithms/index';
-
-// Research algorithms exports
-export * from './src/research/index';
-
-// Data structure exports
-export * from './src/data-structures/index';
-
-// Optimized algorithm exports
-export * from './src/optimized/index';
+export * from './src/index';
 `;
 
         const outputPath = path.resolve(__dirname, "../dist/algorithms.d.ts");

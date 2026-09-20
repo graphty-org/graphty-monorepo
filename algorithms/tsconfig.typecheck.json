@@ -1,0 +1,9 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "composite": false,
+        "noEmit": true
+    },
+    "include": ["src/**/*.ts", "algorithms.ts", "test/types/**/*.test-d.ts"],
+    "exclude": ["node_modules", "dist", "coverage", "tmp"]
+}

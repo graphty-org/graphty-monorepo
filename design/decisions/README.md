@@ -36,3 +36,5 @@ version of the code.
 | [2026-09-19-afforest-needs-no-dedupe.md](2026-09-19-afforest-needs-no-dedupe.md) | Afforest WCC needs no `dedupe` |
 | [2026-09-19-outweightsum-is-call-scratch.md](2026-09-19-outweightsum-is-call-scratch.md) | PageRank's `outWeightSum` is per-call scratch, not a residency entry |
 | [2026-09-19-pagerank-ping-pong-is-two-buffers.md](2026-09-19-pagerank-ping-pong-is-two-buffers.md) | PageRank ping-pongs two buffers, not two ranges of one |
+| [2026-09-19-a1-lands-inside-m8a.md](2026-09-19-a1-lands-inside-m8a.md) | A1 lands inside phase M8a, together with the first six indexed ports |
+| [2026-09-19-pagerank-options-shadowing.md](2026-09-19-pagerank-options-shadowing.md) | The shadowed PageRankOptions stays until 2.0 |

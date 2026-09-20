@@ -4,7 +4,6 @@
     "sourceRoot": "webgpu-graph-algorithms/src",
     "projectType": "library",
     "tags": [],
-    "implicitDependencies": ["!algorithms"],
     "targets": {
         "build": {
             "executor": "nx:run-commands",

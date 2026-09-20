@@ -22,14 +22,21 @@ import { type GpuContext } from "../src/context.js";
 import { createNodeGpuContext } from "../src/node/index.js";
 import { appendSession, type BenchResult, gpuSessionInfo, printTable, runnerClass, setBenchRuns } from "./harness.js";
 import { LAYOUT_EXACT_GROUP, runLayoutExactBenchmarks } from "./layout-exact.bench.js";
+import { runPagerankBenchmarks } from "./pagerank.bench.js";
 import { runRoundtripBenchmarks } from "./roundtrip.bench.js";
 import { runUploadBenchmarks } from "./upload.bench.js";
+import { runWccBenchmarks } from "./wcc.bench.js";
 
-/** The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side of T-5. */
+/**
+ * The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side
+ * of T-5, `pagerank` T-8, `wcc` T-9.
+ */
 const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]>>> = {
     upload: runUploadBenchmarks,
     roundtrip: runRoundtripBenchmarks,
     [LAYOUT_EXACT_GROUP]: runLayoutExactBenchmarks,
+    pagerank: runPagerankBenchmarks,
+    wcc: runWccBenchmarks,
 };
 
 /** The parsed command line. */
@@ -52,6 +59,9 @@ function parseArgs(argv: readonly string[]): Args {
     let runs = 5;
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
+        if (a === "--") {
+            continue; // pnpm run bench -- <group> forwards the separator itself
+        }
         if (a === "--no-save") {
             save = false;
         } else if (a === "--allow-software") {

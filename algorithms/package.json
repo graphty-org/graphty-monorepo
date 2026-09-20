@@ -46,7 +46,7 @@
         "benchmark:validation": "tsx src/optimized/benchmark-validation.ts",
         "benchmark:comprehensive": "tsx src/optimized/benchmark-comprehensive.ts",
         "memory:profile": "tsx test/helpers/memory-profiler.ts",
-        "lint": "eslint && tsc --noEmit",
+        "lint": "eslint && tsc --noEmit && tsc -p tsconfig.typecheck.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace algorithms",
         "typecheck": "tsc --noEmit",
@@ -138,6 +138,10 @@
         "vitest": "^3.2.4"
     },
     "dependencies": {
+        "@graphty/graph-format": "workspace:^",
         "typedfastbitset": "^0.6.1"
+    },
+    "peerDependencies": {
+        "@graphty/graph-format": "^1.0.0"
     }
 }

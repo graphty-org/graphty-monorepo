@@ -29,10 +29,10 @@ export function algorithmsRedirectPlugin() {
         load(id) {
             // Serve the content of dist/algorithms.js for our virtual module
             if (id === "\0virtual:algorithms.js") {
-                const distAlgorithmsPath = path.resolve(process.cwd(), "dist/algorithms.js");
+                const distAlgorithmsPath = path.resolve(process.cwd(), "dist/algorithms.standalone.js");
 
                 if (!fs.existsSync(distAlgorithmsPath)) {
-                    throw new Error('dist/algorithms.js not found. Run "npm run build:bundle" first.');
+                    throw new Error('dist/algorithms.standalone.js not found. Run "npm run build:bundle" first.');
                 }
 
                 return fs.readFileSync(distAlgorithmsPath, "utf-8");

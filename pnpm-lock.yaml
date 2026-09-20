@@ -203,6 +203,9 @@ importers:
 
   algorithms:
     dependencies:
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
       typedfastbitset:
         specifier: ^0.6.1
         version: 0.6.1
@@ -804,9 +807,6 @@ importers:
 
   webgpu-graph-algorithms:
     dependencies:
-      '@graphty/algorithms':
-        specifier: ^1.0.0
-        version: 1.7.2
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
@@ -814,6 +814,9 @@ importers:
         specifier: ^0.1.72
         version: 0.1.72
     devDependencies:
+      '@graphty/algorithms':
+        specifier: workspace:^
+        version: link:../algorithms
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout
@@ -2215,10 +2218,6 @@ packages:
 
   '@github/catalyst@1.7.0':
     resolution: {integrity: sha512-qOAxrDdRZz9+v4y2WoAfh11rpRY/x4FRofPNmJyZFzAjubtzE3sCa/tAycWWufmQGoYiwwzL/qJBBgyg7avxPw==}
-
-  '@graphty/algorithms@1.7.2':
-    resolution: {integrity: sha512-MfDm350ugiSYfVn+DhM91tlX7+BPvi7u6F6CxN5DbPVP/Ve68lzwZdBOP78dL3fZEdM5Fhgn66ftmalw1gSQrQ==}
-    engines: {node: '>=18.19.0'}
 
   '@hono/node-server@1.19.17':
     resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
@@ -11898,10 +11897,6 @@ snapshots:
       '@shikijs/vscode-textmate': 10.0.2
 
   '@github/catalyst@1.7.0': {}
-
-  '@graphty/algorithms@1.7.2':
-    dependencies:
-      typedfastbitset: 0.6.1
 
   '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:

@@ -1,3 +1,33 @@
+## 0.5.0 (2026-09-20)
+
+### 🚀 Features
+
+- ⚠️  **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
+
+### ⚠️  Breaking Changes
+
+- **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions  ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
+  CpuAlgorithmOptions is no longer exported. The accelerator
+  methods' option parameters are now the CPU package's own types
+  (IndexedPageRankOptions, HitsOptionsLike, BetweennessAcceleratorOptions).
+  test/types/conformance.test-d.ts gains the reverse compile design G10 names:
+  createAccelerator(ctx) satisfies the REAL AlgorithmAccelerator, the re-exports
+  are the algorithms declarations by identity, and the CPU dispatcher accepts this
+  package's accelerator. public-api.test-d.ts pins the two new re-exports.
+  @graphty/algorithms becomes a workspace:^ devDependency (the optional peer stays
+  as it is), both tsconfigs map it to algorithms/dist/algorithms.d.ts, and the
+  last implicitDependencies negation goes from project.json: nx now sees the
+  algorithms edge, and nx release will patch-bump this package on every
+  algorithms release.
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 1.8.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.4.1 (2026-09-20)
 
 ### 🩹 Fixes

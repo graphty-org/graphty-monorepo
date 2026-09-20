@@ -1,3 +1,9 @@
+## 1.10.3 (2026-09-20)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 1.8.0
+
 ## 1.10.2 (2026-09-20)
 
 ### 🧱 Updated Dependencies

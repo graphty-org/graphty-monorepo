@@ -122,10 +122,14 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(dispatch residency kernels spmv pagerank spectral wcc accelerator bench baseline sabotage ci decisions g7 tools)
+# The sixteen M8b commits landed on 2026-09-20; these are the lane follow-ups, then the script itself.
+STEPS=(pullfix t4 g7lane tools)
 
 declare -A SUBJECTS=(
-    [tools]="chore(tools): lowercase the three commit subjects the commit-msg hook rejected"
+    [tools]="chore(tools): point the commit script at the GPU-lane follow-up"
+    [pullfix]="fix(webgpu-graph-algorithms): sum each pull row in chunks that no shader compiler can fold away"
+    [t4]="perf(webgpu-graph-algorithms): baseline gpu-linux-t4 with the P7 groups from the first lane run"
+    [g7lane]="docs(webgpu-graph-algorithms): record the T4 lane run and the chunked fold in the G7 record"
     [dispatch]="feat(webgpu-graph-algorithms): grid-stride dispatch and the P7 result types"
     [residency]="feat(webgpu-graph-algorithms): upload the reverse and edge-list views, with packViews"
     [kernels]="feat(webgpu-graph-algorithms): the P7 kernel registry, seven bodies and their budgets"
@@ -144,6 +148,9 @@ declare -A SUBJECTS=(
 
 declare -A PATHS=(
     [tools]="tools/commit-changes.sh"
+    [pullfix]="webgpu-graph-algorithms/src/wgsl/spmv-pull.wgsl.ts webgpu-graph-algorithms/benchmarks/results/noise-floor.json webgpu-graph-algorithms/test/fixtures/noise"
+    [t4]="webgpu-graph-algorithms/benchmarks/results/gpu-linux-t4.json webgpu-graph-algorithms/README.md"
+    [g7lane]="webgpu-graph-algorithms/docs/decisions/G7.md"
     [dispatch]="webgpu-graph-algorithms/src/kernel/dispatch.ts webgpu-graph-algorithms/test/kernel/dispatch.test.ts webgpu-graph-algorithms/src/types/algorithms.ts"
     [residency]="webgpu-graph-algorithms/src/memory/residency.ts webgpu-graph-algorithms/test/memory/residency.test.ts"
     [kernels]="webgpu-graph-algorithms/src/wgsl/spmv-pull.wgsl.ts webgpu-graph-algorithms/src/wgsl/pr-scale.wgsl.ts webgpu-graph-algorithms/src/wgsl/pr-finalize.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-link-sample.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-link-edges.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-compress.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-sample.wgsl.ts webgpu-graph-algorithms/src/kernels.ts webgpu-graph-algorithms/test/kernel/registry.test.ts webgpu-graph-algorithms/test/kernel/bind-group-budget.test.ts webgpu-graph-algorithms/test/helpers/override-matrix.ts"
@@ -168,12 +175,47 @@ declare -A PATHS=(
 
 body_tools() {
     cat <<'BODY'
-commitlint's subject-case rule rejects a subject that starts with a capital
-letter, and three of this change set's subjects did (PageRank, HITS, Afforest).
-The script's own pre-check passed them, so the first real run stopped at the
-PageRank step with five commits made. The three subjects now start lowercase,
-and this step moved to the end of the list so the earlier scope fix, already
-committed, is not repeated.
+The sixteen commits of the M8b phase landed on 2026-09-20; the step list now
+names only the three follow-ups of the first GPU-lane run, then this script.
+BODY
+}
+
+body_pullfix() {
+    cat <<'BODY'
+The hosts lane's macOS job failed eigenvectorCentrality and katzCentrality on
+hub10k at 2.07e-5 and 1.1e-5 relative against the 1e-5 gate: the naive f32 sum
+of a 10,000-arc row. The kernel used Kahan compensation kept alive by a select,
+which lavapipe and NVIDIA honoured and Metal's compiler folded away regardless.
+
+The row is now summed in chunks of 64 terms, each chunk folded into the row
+total: a two-level sum whose rounding grows with 64 + n / 64 steps instead of n,
+and which contains no identity a compiler can simplify. Every adapter holds the
+1e-5 gate on hub10k (lavapipe and the RTX 4070 measured here; Metal by the
+lane's re-run). The spmv-pull noise fixtures and rows are re-recorded for the
+new fold (oracle-f64 2.210e-7 NVIDIA, 2.389e-7 lavapipe; cross 2.663e-7) and
+the spmv-pull.cross tolerance is re-derived as 10x its basis row.
+BODY
+}
+
+body_t4() {
+    cat <<'BODY'
+The first GPU-lane run of PR #13 (run 35483512705, a machine.dev Tesla T4,
+driver 580.126.20) appended session 2026-09-20T02:29:33.210Z with every group:
+T-8 45.461 ms at 100k / 1M and 1092.799 ms at 1M / 10M (both met), T-9 293.079
+ms at 1M / 10M (missed, as on the dev box: the 164 MB upload is inside the row
+and alone measures 256.418 ms on this card). The README's CI-lane table and
+exact curve are re-tabulated from the new session, which is now the lane's
+baseline for bench-compare.
+BODY
+}
+
+body_g7lane() {
+    cat <<'BODY'
+Section 1 gains the T4 row with its run id and results, section 3's second
+table carries the lane's T-8 / T-9 numbers, section 6 records the new baseline
+session, section 4 describes the chunked fold that replaced the Kahan
+compensation Metal's compiler folded away, with the re-recorded noise rows, and
+finding G7-F2 is resolved by the run. Signing off remains the owner's.
 BODY
 }
 

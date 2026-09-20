@@ -135,8 +135,10 @@ describe("Spectral Layout", () => {
     describe("Parameter variations", () => {
         it("should respect scale parameter", () => {
             const graph = cycleGraph(6);
-            const positions1 = spectralLayout(graph, 1);
-            const positions2 = spectralLayout(graph, 2);
+            // The same seed for both runs: the power iteration starts from a random vector, so two unseeded
+            // runs land on different eigenvector estimates and the size ratio wanders outside 2 +/- 0.5.
+            const positions1 = spectralLayout(graph, 1, null, 2, 7);
+            const positions2 = spectralLayout(graph, 2, null, 2, 7);
 
             // Calculate bounding box for each
             const bounds1 = getBounds(positions1);

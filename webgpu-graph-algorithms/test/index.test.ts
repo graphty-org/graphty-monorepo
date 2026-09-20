@@ -6,7 +6,10 @@
  */
 
 import { createAccelerator } from "../src/accelerator.js";
+import { connectedComponents } from "../src/algorithms/components.js";
 import { degree } from "../src/algorithms/degree.js";
+import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
+import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
 import * as constants from "../src/constants.js";
 import { GpuContext } from "../src/context.js";
 import * as acquire from "../src/device/acquire.js";
@@ -41,6 +44,13 @@ const VALUE_EXPORTS = [
     "FA2_DEFAULTS",
     "LAYOUT_TUNING_DEFAULTS",
     "seedPositions",
+    // P7: the SpMV family and WCC (spec 8.2, 8.3; M8b-T8)
+    "pageRank",
+    "personalizedPageRank",
+    "hits",
+    "eigenvectorCentrality",
+    "katzCentrality",
+    "connectedComponents",
 ];
 
 /**
@@ -79,16 +89,17 @@ const NEVER_EXPORTED = [
     "BufferUsage",
     "MapMode",
     "ShaderStage",
-    // P4+ / P5 / P7+
+    // P4+ / P5, and the P7 names that are accelerator members or internals, never barrel values
     "calibrateLayout",
     "createFruchtermanReingold",
     "createSpringElectrical",
-    "pageRank",
-    "connectedComponents",
+    "weaklyConnectedComponents",
+    "runPowerIteration",
+    "spmvPull",
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {
-    it("exports exactly the P3 value list and no default export", () => {
+    it("exports exactly the P3 + P7 value list and no default export", () => {
         expect(Object.keys(api).sort()).toEqual([...VALUE_EXPORTS].sort());
         expect((api as Record<string, unknown>).default).toBeUndefined();
     });
@@ -112,6 +123,12 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.createForceAtlas2).toBe(createForceAtlas2);
         expect(api.createAccelerator).toBe(createAccelerator);
         expect(api.seedPositions).toBe(seedPositions);
+        expect(api.pageRank).toBe(pageRank);
+        expect(api.personalizedPageRank).toBe(personalizedPageRank);
+        expect(api.hits).toBe(hits);
+        expect(api.eigenvectorCentrality).toBe(eigenvectorCentrality);
+        expect(api.katzCentrality).toBe(katzCentrality);
+        expect(api.connectedComponents).toBe(connectedComponents);
         expect(typeof api.WebGpuGraphError).toBe("function");
         expect(typeof api.isWebGpuGraphError).toBe("function");
         expect(typeof api.hasErrorCode).toBe("function");

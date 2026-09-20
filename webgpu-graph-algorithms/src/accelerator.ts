@@ -1,18 +1,33 @@
 /**
  * createAccelerator (spec 3.3, 9; contract 3.14): the injectable object that satisfies the CPU packages'
  * AlgorithmAccelerator and LayoutAccelerator interfaces STRUCTURALLY (spec 9.2, 9.3; the mirrors of
- * src/types/accelerator.ts until W1, D27). At P3 it carries `forceAtlas2`, `release` and `dispose` and nothing
- * else: the CPU-side dispatchers (`accelerated()`, `createSimulation()`) test `acc.pageRank !== undefined` and
- * route to the CPU when the member is absent (spec 2.4 row "method missing"), so a method the GPU does not
- * implement must not exist here -- never a throwing stub. The algorithm members arrive one per shipped algorithm
- * from P7; `fruchtermanReingold` / `springElectrical` with P5.
+ * src/types/accelerator.ts until W1, D27). It carries P3's `forceAtlas2`, `release` and `dispose` and P7's seven
+ * algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and nothing else: the CPU-side dispatchers (`accelerated()`,
+ * `createSimulation()`) test `acc.betweennessCentrality !== undefined` and route to the CPU when the member is
+ * absent (spec 2.4 row "method missing"), so a method the GPU does not implement must not exist here -- never a
+ * throwing stub. The remaining algorithm members arrive one per shipped algorithm from P8; `fruchtermanReingold` /
+ * `springElectrical` with P5.
  */
 
-import { type GraphSnapshot } from "@graphty/graph-format";
+import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
+import { connectedComponents } from "./algorithms/components.js";
+import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
+import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 import { type GpuContext } from "./context.js";
 import { createForceAtlas2 } from "./layouts/forceatlas2.js";
 import { type AcceleratorOptions, type GpuAccelerator } from "./types/accelerator.js";
+import {
+    type ComponentsOptions,
+    type EigenvectorOptions,
+    type GpuHitsResult,
+    type GpuLabelResult,
+    type GpuPageRankResult,
+    type GpuScoresResult,
+    type HitsOptions,
+    type KatzOptions,
+    type PageRankOptions,
+} from "./types/algorithms.js";
 import { type ForceAtlas2Stats, type GpuLayoutSimulation, type GpuLayoutTuning } from "./types/layout.js";
 import { type ForceAtlas2Options } from "./types/options.js";
 
@@ -73,7 +88,9 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
 
 /**
  * Spec 3.3 createAccelerator, verbatim: the object implementing AlgorithmAccelerator & LayoutAccelerator
- * structurally; at P3 it carries forceAtlas2, release and dispose. One per call (the app creates one and injects
+ * structurally; P3's forceAtlas2, release and dispose plus P7's seven algorithm members, each a delegation to
+ * its algorithm with `ctx.assertReady()` first. The accelerator's algorithm defaults are not consulted by any of
+ * them: only `betweenness` has any, and it belongs to P9. One per call (the app creates one and injects
  * it, spec 2.4); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
  * `createForceAtlas2(ctx, { ...o, ...options.layout })`, so the GPU tuning given here wins over anything the
  * CPU-typed option object carries (spec 3.3: tuning never comes from the caller of the accelerator method);
@@ -99,6 +116,83 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         forceAtlas2(o?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats> {
             ctx.assertReady();
             return createForceAtlas2(ctx, { ...o, ...frozen.layout });
+        },
+        /**
+         * PageRank on the device (spec 8.2; contract 3.14).
+         * @param gs - the snapshot
+         * @param o - the CPU option record (spec 9.2 PageRankOptions)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         */
+        async pageRank(gs: GraphSnapshot, o?: PageRankOptions): Promise<GpuPageRankResult> {
+            ctx.assertReady();
+            return await pageRank(ctx, gs, o);
+        },
+        /**
+         * Personalized PageRank on the device (spec 8.2; contract 3.14). The mirror admits an f64 personalization
+         * (spec 9.2 `F32 | F64`); the kernel reads f32, so an f64 vector is narrowed on the host first.
+         * @param gs - the snapshot
+         * @param personalization - one finite non-negative mass per node, not all zero
+         * @param o - the CPU option record (spec 9.2 PageRankOptions)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         */
+        async personalizedPageRank(
+            gs: GraphSnapshot,
+            personalization: F32 | F64,
+            o?: PageRankOptions,
+        ): Promise<GpuPageRankResult> {
+            ctx.assertReady();
+            const mass = personalization instanceof Float32Array ? personalization : Float32Array.from(personalization);
+            return await personalizedPageRank(ctx, gs, mass, o);
+        },
+        /**
+         * HITS hubs and authorities on the device (spec 8.2; contract 3.14).
+         * @param gs - the snapshot
+         * @param o - the CPU option record (spec 9.2 HitsOptions)
+         * @returns hubs and authorities with `precision: "f32"` (spec 9.7)
+         */
+        async hits(gs: GraphSnapshot, o?: HitsOptions): Promise<GpuHitsResult> {
+            ctx.assertReady();
+            return await hits(ctx, gs, o);
+        },
+        /**
+         * Eigenvector centrality on the device (spec 8.2; contract 3.14).
+         * @param gs - the snapshot
+         * @param o - the CPU option record (spec 9.2 EigenvectorOptions)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         */
+        async eigenvectorCentrality(gs: GraphSnapshot, o?: EigenvectorOptions): Promise<GpuScoresResult> {
+            ctx.assertReady();
+            return await eigenvectorCentrality(ctx, gs, o);
+        },
+        /**
+         * Katz centrality on the device (spec 8.2; contract 3.14).
+         * @param gs - the snapshot
+         * @param o - the CPU option record (spec 9.2 KatzOptions)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         */
+        async katzCentrality(gs: GraphSnapshot, o?: KatzOptions): Promise<GpuScoresResult> {
+            ctx.assertReady();
+            return await katzCentrality(ctx, gs, o);
+        },
+        /**
+         * Weakly connected components on the device (spec 8.3; contract 3.14): WCC semantics on directed input.
+         * @param gs - the snapshot
+         * @param o - `renumber` (default true); the mirror passes none
+         * @returns the labels, the count and groups() (spec 9.7 LabelResultLike)
+         */
+        async connectedComponents(gs: GraphSnapshot, o?: ComponentsOptions): Promise<GpuLabelResult> {
+            ctx.assertReady();
+            return await connectedComponents(ctx, gs, o);
+        },
+        /**
+         * The same algorithm as `connectedComponents` under the mirror's other name (spec 3.3, 9.2).
+         * @param gs - the snapshot
+         * @param o - `renumber` (default true); the mirror passes none
+         * @returns the labels, the count and groups() (spec 9.7 LabelResultLike)
+         */
+        async weaklyConnectedComponents(gs: GraphSnapshot, o?: ComponentsOptions): Promise<GpuLabelResult> {
+            ctx.assertReady();
+            return await connectedComponents(ctx, gs, o);
         },
         /**
          * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.

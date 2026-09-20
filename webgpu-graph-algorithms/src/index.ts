@@ -40,6 +40,11 @@ export type { PassTiming, Profiler } from "./kernel/profiler.js";
 // ==================== algorithms (P1: the walking-skeleton diagnostic, spec 3.3)
 export { degree } from "./algorithms/degree.js";
 
+// ==================== algorithms (P7: the SpMV family and WCC, spec 8.2, 8.3)
+export { connectedComponents } from "./algorithms/components.js";
+export { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
+export { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
+
 // ==================== layouts and the accelerator (P3)
 export { createAccelerator } from "./accelerator.js";
 export { createForceAtlas2 } from "./layouts/forceatlas2.js";
@@ -66,6 +71,19 @@ export type {
     ScoresResultLike,
     SsspResultLike,
 } from "./types/accelerator.js";
+
+// ==================== types: the P7 algorithm results and option records (spec 3.3 lines 815-828, 9.7)
+export type {
+    ComponentsOptions,
+    EigenvectorOptions,
+    GpuHitsResult,
+    GpuLabelResult,
+    GpuPageRankResult,
+    GpuScoresResult,
+    HitsOptions,
+    KatzOptions,
+    PageRankOptions,
+} from "./types/algorithms.js";
 
 // ==================== types: context and capabilities (P0 / P1)
 export type {

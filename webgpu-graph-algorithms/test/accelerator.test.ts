@@ -1,12 +1,27 @@
 import { createAccelerator } from "../src/accelerator.js";
+import { connectedComponents } from "../src/algorithms/components.js";
+import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
+import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
 import { FA2_DEFAULTS, LAYOUT_TUNING_DEFAULTS } from "../src/constants.js";
 import { isWebGpuGraphError } from "../src/errors.js";
 import { ForceSimulation } from "../src/layouts/force-simulation.js";
-import { type AcceleratorOptions } from "../src/types/accelerator.js";
+import { type AcceleratorOptions, type AlgorithmAccelerator } from "../src/types/accelerator.js";
 import { type ForceAtlas2Stats, type GpuLayoutTuning } from "../src/types/layout.js";
 import { type ForceAtlas2Options } from "../src/types/options.js";
 import { KARATE_EDGES, snapshotOf } from "./helpers/graphs.js";
+import { expectBitwiseEqual } from "./helpers/matchers.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
+
+/** The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14), in the order AlgorithmAccelerator declares them. */
+const ALGORITHM_MEMBERS = [
+    "pageRank",
+    "personalizedPageRank",
+    "hits",
+    "eigenvectorCentrality",
+    "katzCentrality",
+    "connectedComponents",
+    "weaklyConnectedComponents",
+] as const;
 
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
 type Fa2Simulation = ForceSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
@@ -28,24 +43,29 @@ function asForceSimulation(sim: unknown): Fa2Simulation {
 }
 
 describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
-    it("carries kind, ctx and exactly the P3 members; a missing method is undefined for the dispatchers", async (t) => {
+    it("carries kind, ctx and exactly the P3 + P7 members; a missing method is undefined for the dispatchers", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "accelerator-members" });
         const acc = createAccelerator(ctx);
         expect(acc.kind).toBe("webgpu");
         expect(acc.ctx).toBe(ctx);
-        expect(Object.keys(acc).sort()).toEqual(["ctx", "dispose", "forceAtlas2", "kind", "options", "release"]);
+        expect(Object.keys(acc).sort()).toEqual(
+            ["ctx", "dispose", "forceAtlas2", "kind", "options", "release", ...ALGORITHM_MEMBERS].sort(),
+        );
         expect(typeof acc.forceAtlas2).toBe("function");
         expect(typeof acc.release).toBe("function");
         expect(typeof acc.dispose).toBe("function");
-        // spec 2.4 row "method missing" / 9.2 `acc.pageRank === undefined -> CPU`: absent, never a throwing stub
-        expect(acc.pageRank).toBeUndefined();
-        expect("pageRank" in acc).toBe(false);
-        expect(acc.connectedComponents).toBeUndefined();
+        // spec 2.4 row "method missing" / 9.2 `acc.betweennessCentrality === undefined -> CPU`: absent, never a
+        // throwing stub (P9's member); the P7 members are present and route to the GPU
+        expect(acc.betweennessCentrality).toBeUndefined();
+        expect("betweennessCentrality" in acc).toBe(false);
+        expect(acc.breadthFirstSearch).toBeUndefined();
         expect(acc.fruchtermanReingold).toBeUndefined();
         expect(acc.springElectrical).toBeUndefined();
-        const route = acc.pageRank !== undefined ? "gpu" : "cpu";
+        const route = acc.betweennessCentrality !== undefined ? "gpu" : "cpu";
         expect(route).toBe("cpu");
+        const p7Route = acc.pageRank !== undefined ? "gpu" : "cpu";
+        expect(p7Route).toBe("gpu");
         // one per call (spec 3.3): two accelerators over one context are distinct objects
         const second = createAccelerator(ctx);
         expect(second).not.toBe(acc);
@@ -176,6 +196,68 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         // what createForceAtlas2 throws, the accelerator throws (contract 3.13: nodeSize -> E_UNSUPPORTED at creation)
         expect(thrownCode(() => acc.forceAtlas2({ nodeSize: "radius" }))).toBe("E_UNSUPPORTED");
         expect(thrownCode(() => acc.forceAtlas2({ gravity: -1 }))).toBe("E_INVALID_ARGUMENT");
+    });
+
+    it("carries the seven P7 algorithm members, each delegating to its algorithm (PD-14; spec 9.2, 9.7)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-algorithms" });
+        const acc = createAccelerator(ctx);
+        const snapshot = snapshotOf(KARATE_EDGES);
+        // structurally an AlgorithmAccelerator (spec 9.2): what the CPU dispatchers receive
+        const injected: AlgorithmAccelerator = acc;
+        for (const member of ALGORITHM_MEMBERS) {
+            expect(typeof acc[member], member).toBe("function");
+            expect(injected[member], member).toBe(acc[member]);
+        }
+        const pr = await acc.pageRank(snapshot, { dampingFactor: 0.9 });
+        const prDirect = await pageRank(ctx, snapshot, { dampingFactor: 0.9 });
+        expectBitwiseEqual(pr.scores, prDirect.scores, "pageRank");
+        expect(pr.iterations).toBe(prDirect.iterations);
+        expect(pr.converged).toBe(prDirect.converged);
+        expect(pr.danglingMass).toBe(prDirect.danglingMass);
+        expect(pr.precision).toBe("f32");
+        const mass = new Float32Array(snapshot.nodeCount);
+        mass[0] = 1;
+        const ppr = await acc.personalizedPageRank(snapshot, mass);
+        const pprDirect = await personalizedPageRank(ctx, snapshot, mass);
+        expectBitwiseEqual(ppr.scores, pprDirect.scores, "personalizedPageRank");
+        expect(ppr.iterations).toBe(pprDirect.iterations);
+        // the CPU seam may hand an f64 personalization (spec 9.2 `F32 | F64`); it is narrowed to f32, not rejected
+        const ppr64 = await acc.personalizedPageRank(snapshot, Float64Array.from(mass));
+        expectBitwiseEqual(ppr64.scores, pprDirect.scores, "personalizedPageRank (f64)");
+        const h = await acc.hits(snapshot, { maxIterations: 20 });
+        const hDirect = await hits(ctx, snapshot, { maxIterations: 20 });
+        expectBitwiseEqual(h.hubs, hDirect.hubs, "hits.hubs");
+        expectBitwiseEqual(h.authorities, hDirect.authorities, "hits.authorities");
+        expect(h.iterations).toBe(hDirect.iterations);
+        const ev = await acc.eigenvectorCentrality(snapshot, { tolerance: 1e-5 });
+        const evDirect = await eigenvectorCentrality(ctx, snapshot, { tolerance: 1e-5 });
+        expectBitwiseEqual(ev.scores, evDirect.scores, "eigenvectorCentrality");
+        expect(ev.converged).toBe(evDirect.converged);
+        const katz = await acc.katzCentrality(snapshot, { alpha: 0.05, beta: 2 });
+        const katzDirect = await katzCentrality(ctx, snapshot, { alpha: 0.05, beta: 2 });
+        expectBitwiseEqual(katz.scores, katzDirect.scores, "katzCentrality");
+        expect(katz.iterations).toBe(katzDirect.iterations);
+        const cc = await acc.connectedComponents(snapshot);
+        const wcc = await acc.weaklyConnectedComponents(snapshot);
+        const ccDirect = await connectedComponents(ctx, snapshot);
+        expectBitwiseEqual(cc.labels, wcc.labels, "connectedComponents vs weaklyConnectedComponents");
+        expectBitwiseEqual(cc.labels, ccDirect.labels, "connectedComponents");
+        expect(cc.count).toBe(ccDirect.count);
+        expect(wcc.count).toBe(ccDirect.count);
+        expect(cc.groups().length).toBe(cc.count);
+        // renumber: false reaches the algorithm through both names (the option stays OPTIONAL, PD-19 clause 3)
+        const raw = await acc.weaklyConnectedComponents(snapshot, { renumber: false });
+        const rawDirect = await connectedComponents(ctx, snapshot, { renumber: false });
+        expectBitwiseEqual(raw.labels, rawDirect.labels, "weaklyConnectedComponents raw roots");
+        acc.release(snapshot);
+        // after dispose every member rejects through assertReady (contract 3.14 throws line), never a hang
+        acc.dispose();
+        for (const member of ALGORITHM_MEMBERS) {
+            const call =
+                member === "personalizedPageRank" ? acc.personalizedPageRank(snapshot, mass) : acc[member](snapshot);
+            await expect(call, member).rejects.toMatchObject({ code: "E_DISPOSED" });
+        }
     });
 
     it("release and dispose delegate to the context", async (t) => {

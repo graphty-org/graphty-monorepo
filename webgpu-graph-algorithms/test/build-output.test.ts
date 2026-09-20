@@ -134,6 +134,10 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.peerDependenciesMeta.webgpu).toEqual({ optional: true });
         expect(packageJson.peerDependenciesMeta["@graphty/algorithms"]).toEqual({ optional: true });
         expect(packageJson.peerDependenciesMeta["@graphty/layout"]).toEqual({ optional: true });
+        // W1b: the published d.ts imports LayoutAccelerator / LayoutSimulation from @graphty/layout, which only the
+        // layout release carrying the simulation seam (1.7.0) ships; the workspace devDependency is what tsc compiles against
+        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0");
+        expect(packageJson.devDependencies["@graphty/layout"]).toBe("workspace:^");
         expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
         expect(packageJson.devDependencies["@vitest/browser"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");

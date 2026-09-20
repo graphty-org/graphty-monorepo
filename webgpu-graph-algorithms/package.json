@@ -88,7 +88,7 @@
     "peerDependencies": {
         "@graphty/algorithms": "^1.0.0",
         "@graphty/graph-format": "^1.0.0",
-        "@graphty/layout": "^1.0.0",
+        "@graphty/layout": "^1.7.0",
         "webgpu": ">=0.4.0 <1.0.0"
     },
     "peerDependenciesMeta": {

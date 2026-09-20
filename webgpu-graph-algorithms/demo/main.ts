@@ -1,13 +1,17 @@
 /**
- * Standalone browser demo of the exact-tier GPU ForceAtlas2 (P3): a canvas 2D renderer over the simulation's own
- * stride-3 position array, stepped once per animation frame exactly the way graphty-element's frame loop will
- * (fire-and-forget step(), at most maxInFlight batches in flight), with drag / pin through setPosition / setFixed.
+ * Standalone browser demo of the exact-tier GPU ForceAtlas2 (P3) and GPU PageRank (P7): a canvas 2D renderer over
+ * the simulation's own stride-3 position array, stepped once per animation frame exactly the way graphty-element's
+ * frame loop will (fire-and-forget step(), at most maxInFlight batches in flight), with drag / pin through
+ * setPosition / setFixed; a "Run PageRank" button runs the device PageRank over the same resident snapshot, checks
+ * the f32 scores against the test suite's f64 oracle, and colours and sizes the nodes by score.
  * Served by `pnpm exec vite demo --host --port <9000-9099>`; not part of the package build, the tests or the lint set.
  */
 
 import { installRemoteLog } from "./remote-log.js";
 import { fromEdgeArrays, type GraphSnapshot, makeMask, maskSet, maskTest, type U32 } from "@graphty/graph-format";
 
+import { pageRankOracle } from "../test/oracle/pagerank.js";
+import { pageRank } from "../src/algorithms/pagerank.js";
 import { requestGpuContext } from "../src/browser/index.js";
 import type { GpuContext } from "../src/context.js";
 import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
@@ -248,6 +252,11 @@ const edgesInput = el<HTMLInputElement>("edges");
 const playButton = el<HTMLButtonElement>("play");
 const restartButton = el<HTMLButtonElement>("restart");
 const unpinButton = el<HTMLButtonElement>("unpin");
+const zoomInButton = el<HTMLButtonElement>("zoomin");
+const zoomOutButton = el<HTMLButtonElement>("zoomout");
+const colourSelect = el<HTMLSelectElement>("colour");
+const pagerankButton = el<HTMLButtonElement>("pagerank");
+const prStatsBox = el<HTMLDivElement>("prstats");
 const statusBox = el<HTMLDivElement>("status");
 const statsBox = el<HTMLDivElement>("stats");
 
@@ -270,6 +279,8 @@ interface Demo {
     readonly positions: Float32Array;
     readonly degree: Uint32Array;
     readonly fixed: U32;
+    /** The last PageRank scores over this snapshot, or null before the first run. */
+    scores: Float32Array | null;
     running: boolean;
     pending: Promise<void> | null;
     frames: number;
@@ -330,6 +341,7 @@ async function createDemo(): Promise<void> {
         positions,
         degree: degreesOf(edges),
         fixed: makeMask(n),
+        scores: null,
         running: true,
         pending: null,
         frames: 0,
@@ -337,6 +349,8 @@ async function createDemo(): Promise<void> {
     };
     view.fitted = false;
     view.zoom = 1;
+    prStatsBox.textContent = "";
+    colourSelect.value = "degree";
     playButton.textContent = "Pause";
     setStatus(
         `${kind}: ${n.toLocaleString()} nodes, ${edges.src.length.toLocaleString()} edges; ${ctx.caps.vendor} / ${ctx.caps.architecture}${ctx.caps.software ? " (software adapter)" : ""}`,
@@ -421,19 +435,93 @@ function draw(d: Demo): void {
         g.stroke();
     }
     const radius = n <= 100 ? 6 : n <= 2_000 ? 3.5 : n <= 12_000 ? 2.2 : 1.4;
-    let maxDegree = 1;
-    for (let i = 0; i < n; i++) {
-        if (d.degree[i] > maxDegree) maxDegree = d.degree[i];
+    const byScore = colourSelect.value === "pagerank" && d.scores !== null ? d.scores : null;
+    // t in [0, 1]: log-scaled degree, or log-scaled PageRank score between the graph's min and max.
+    let lo = 0;
+    let hi = 1;
+    if (byScore !== null) {
+        lo = Number.POSITIVE_INFINITY;
+        hi = 0;
+        for (let i = 0; i < n; i++) {
+            if (byScore[i] < lo) lo = byScore[i];
+            if (byScore[i] > hi) hi = byScore[i];
+        }
+        lo = Math.log(Math.max(lo, 1e-12));
+        hi = Math.max(Math.log(Math.max(hi, 1e-12)), lo + 1e-9);
+    } else {
+        for (let i = 0; i < n; i++) {
+            if (d.degree[i] > hi) hi = d.degree[i];
+        }
+        hi = Math.log1p(hi);
     }
     for (let i = 0; i < n; i++) {
         const [x, y] = toScreen(p[3 * i], p[3 * i + 1]);
-        const t = Math.log1p(d.degree[i]) / Math.log1p(maxDegree);
+        const t =
+            byScore !== null
+                ? (Math.log(Math.max(byScore[i], 1e-12)) - lo) / (hi - lo)
+                : Math.log1p(d.degree[i]) / hi;
         const hue = 210 - 170 * t;
         const pinned = maskTest(d.fixed, i);
+        const r = byScore !== null ? radius * (0.6 + 1.8 * t) : radius;
         g.fillStyle = pinned ? "#ffd166" : `hsl(${hue.toFixed(0)} 85% ${(55 + 15 * t).toFixed(0)}%)`;
         g.beginPath();
-        g.arc(x, y, pinned ? radius * 1.8 : radius, 0, Math.PI * 2);
+        g.arc(x, y, pinned ? r * 1.8 : r, 0, Math.PI * 2);
         g.fill();
+    }
+}
+
+// ------------------------------------------------------------------ PageRank
+
+const PAGERANK = { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-6 } as const;
+
+async function runPageRank(): Promise<void> {
+    const d = demo;
+    if (ctx === null || d === null) {
+        return;
+    }
+    pagerankButton.disabled = true;
+    prStatsBox.textContent = "running on the GPU...";
+    try {
+        const t0 = performance.now();
+        const gpu = await pageRank(ctx, d.snapshot, PAGERANK);
+        const gpuMs = performance.now() - t0;
+        if (d !== demo) {
+            return; // the graph changed while the run was in flight
+        }
+        const t1 = performance.now();
+        const ref = pageRankOracle(d.snapshot, { alpha: PAGERANK.dampingFactor, ...PAGERANK, weighted: true });
+        const cpuMs = performance.now() - t1;
+        const n = d.snapshot.nodeCount;
+        let maxAbs = 0;
+        let sum = 0;
+        for (let i = 0; i < n; i++) {
+            maxAbs = Math.max(maxAbs, Math.abs(gpu.scores[i] - ref.scores[i]));
+            sum += gpu.scores[i];
+        }
+        const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => gpu.scores[b] - gpu.scores[a]);
+        const top = order.slice(0, 10).map((i, rank) => {
+            const s = gpu.scores[i];
+            return `${String(rank + 1).padStart(2)}  node ${String(i).padEnd(6)} ${s.toExponential(3)}  deg ${d.degree[i]}`;
+        });
+        d.scores = gpu.scores;
+        colourSelect.value = "pagerank";
+        prStatsBox.textContent = [
+            `GPU ms        ${gpuMs.toFixed(1)}  (${ctx.caps.vendor})`,
+            `iterations    ${gpu.iterations}  converged ${gpu.converged}`,
+            `dangling mass ${gpu.danglingMass.toExponential(2)}`,
+            `sum of scores ${sum.toFixed(6)}`,
+            `CPU f64 ms    ${cpuMs.toFixed(1)}  (${ref.iterations} iterations)`,
+            `max |gpu-f64| ${maxAbs.toExponential(2)}`,
+            "",
+            "top 10 by score",
+            ...top,
+        ].join("\n");
+        setStatus(`PageRank: ${gpu.iterations} iterations in ${gpuMs.toFixed(1)} ms on the GPU; max error vs f64 ${maxAbs.toExponential(2)}`);
+    } catch (error) {
+        prStatsBox.textContent = "";
+        setStatus(`PageRank failed: ${error instanceof Error ? error.message : String(error)}`, true);
+    } finally {
+        pagerankButton.disabled = false;
     }
 }
 
@@ -608,6 +696,17 @@ unpinButton.addEventListener("click", () => {
     }
     d.fixed.fill(0);
     d.sim.setFixed(d.fixed);
+});
+
+zoomInButton.addEventListener("click", () => {
+    view.zoom = Math.min(20, view.zoom * 1.25);
+});
+zoomOutButton.addEventListener("click", () => {
+    view.zoom = Math.max(0.2, view.zoom / 1.25);
+});
+
+pagerankButton.addEventListener("click", () => {
+    void runPageRank();
 });
 
 for (const input of [graphSelect, compatSelect, linlogInput, strongInput]) {

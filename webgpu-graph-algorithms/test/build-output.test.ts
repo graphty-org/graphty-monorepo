@@ -134,12 +134,12 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.peerDependenciesMeta.webgpu).toEqual({ optional: true });
         expect(packageJson.peerDependenciesMeta["@graphty/algorithms"]).toEqual({ optional: true });
         expect(packageJson.peerDependenciesMeta["@graphty/layout"]).toEqual({ optional: true });
-        // W1b: the published d.ts imports LayoutAccelerator / LayoutSimulation from @graphty/layout, which only the
-        // layout release carrying the simulation seam (1.7.0) ships; the workspace devDependency is what tsc compiles
-        // against. The range is narrowed to ^1.7.0 in the release AFTER 1.7.0 is published: nx release checks every
-        // dependent's range against the dependency's CURRENT version before bumping it, and refuses a range that
+        // W1b: the published d.ts imports LayoutAccelerator / LayoutSimulation from @graphty/layout, which the layout
+        // release carrying the simulation seam (1.7.0) is the first to ship; the workspace devDependency is what tsc
+        // compiles against. The range was narrowed to ^1.7.0 only once 1.7.0 was published: nx release checks every
+        // dependent's range against the dependency's CURRENT version before bumping it and refuses a range that
         // excludes it, so ^1.7.0 committed alongside the seam failed the release that would have cut 1.7.0.
-        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.6.2");
+        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0");
         expect(packageJson.devDependencies["@graphty/layout"]).toBe("workspace:^");
         expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
         expect(packageJson.devDependencies["@vitest/browser"]).toBeTypeOf("string");

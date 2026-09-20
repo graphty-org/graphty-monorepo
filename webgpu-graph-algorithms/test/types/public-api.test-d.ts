@@ -1,3 +1,4 @@
+import { type IndexedPageRankOptions } from "@graphty/algorithms";
 import { type F32, type F64, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
 import {
     type AcceleratorOptions,
@@ -7,13 +8,13 @@ import {
     type ApspResultLike,
     ARC_WINDOW_ALIGN,
     type BellmanFordResultLike,
+    type BetweennessAcceleratorOptions,
     type BfsResultLike,
     type CommonLayoutOptions,
     type CommunityResultLike,
     type ComponentsOptions,
     connectedComponents,
     type CorenessResultLike,
-    type CpuAlgorithmOptions,
     createAccelerator,
     createForceAtlas2,
     degree,
@@ -40,6 +41,7 @@ import {
     hasErrorCode,
     hits,
     type HitsOptions,
+    type HitsOptionsLike,
     type HitsResultLike,
     isSoftwareAdapter,
     isWebGpuGraphError,
@@ -298,7 +300,7 @@ expectTypeOf<LayoutStatsBase["msPerIteration"]>().toEqualTypeOf<number | null>()
 expectTypeOf<RunOptions["signal"]>().toEqualTypeOf<AbortSignal | undefined>();
 expectTypeOf<GpuLayoutTuning["exactMaxNodes"]>().toEqualTypeOf<number | undefined>();
 
-// ---- the accelerator (P3; contract 3.14) and the CPU-package mirrors (spec 9.2, 9.3)
+// ---- the accelerator (P3; contract 3.14) and the CPU packages' re-exported declarations (spec 9.2, 9.3; W1b)
 expectTypeOf(createAccelerator).parameter(0).toEqualTypeOf<GpuContext>();
 expectTypeOf(createAccelerator).parameter(1).toEqualTypeOf<AcceleratorOptions | undefined>();
 expectTypeOf(createAccelerator).returns.toEqualTypeOf<GpuAccelerator>();
@@ -319,7 +321,6 @@ expectTypeOf<GpuAccelerator["connectedComponents"]>().returns.resolves.toEqualTy
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().parameter(1).toEqualTypeOf<ComponentsOptions | undefined>();
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 expectTypeOf<AcceleratorOptions["layout"]>().toEqualTypeOf<GpuLayoutTuning | undefined>();
-expectTypeOf<CpuAlgorithmOptions>().toEqualTypeOf<Readonly<Record<string, unknown>>>();
 expectTypeOf<ScoresResultLike["scores"]>().toEqualTypeOf<NumericVector>();
 expectTypeOf<PageRankResultLike>().toMatchTypeOf<ScoresResultLike>();
 expectTypeOf<PageRankResultLike["danglingMass"]>().toEqualTypeOf<number | undefined>();
@@ -344,7 +345,9 @@ expectTypeOf<CommunityResultLike["modularity"]>().toBeNumber();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().parameter(0).toEqualTypeOf<GraphSnapshot>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>()
     .parameter(1)
-    .toEqualTypeOf<CpuAlgorithmOptions | undefined>();
+    .toEqualTypeOf<IndexedPageRankOptions | undefined>();
+expectTypeOf<HitsOptions>().toEqualTypeOf<HitsOptionsLike>(); // M8b's record IS the CPU seam's shape
+expectTypeOf<BetweennessAcceleratorOptions["sources"]>().toEqualTypeOf<readonly number[] | undefined>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().returns.resolves.toEqualTypeOf<PageRankResultLike>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["triangleCount"]>>().returns.resolves.toEqualTypeOf<{
     readonly perNode: U32;

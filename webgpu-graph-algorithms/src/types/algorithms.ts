@@ -5,7 +5,7 @@
  * layout options until W1b, when those became `import type` re-exports of `@graphty/layout`'s declarations).
  * Types only: this file imports nothing at runtime.
  *
- * The CPU counterparts, when phase M8a lands them (plan 2026-09-19-webgpu-m8a-algorithms-seam, Task M8a-T8):
+ * The CPU counterparts, in `@graphty/algorithms`' `indexed/accelerator.ts` since the seam landed:
  * `PageRankOptions` here is `IndexedPageRankOptions` there (`{ dampingFactor?, maxIterations?, tolerance?,
  * weighted? }`); `HitsOptions`, `EigenvectorOptions` and `KatzOptions` here all correspond to the ONE
  * `HitsOptionsLike` there (`{ maxIterations?, tolerance?, weighted? }`), which is why every one of them carries

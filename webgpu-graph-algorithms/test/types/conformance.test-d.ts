@@ -1,5 +1,13 @@
+import type {
+    AcceleratedAlgorithms,
+    AlgorithmAccelerator,
+    IndexedPageRankOptions,
+    PageRankResultLike,
+    ScoresResultLike,
+} from "@graphty/algorithms";
 import type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout";
 import {
+    type AlgorithmAccelerator as ReExportedAlgorithmAccelerator,
     createAccelerator,
     type ForceAtlas2Options,
     type ForceAtlas2Stats,
@@ -8,6 +16,8 @@ import {
     type GpuLayoutSimulation,
     type LayoutAccelerator as ReExportedLayoutAccelerator,
     type LayoutSimulation as ReExportedLayoutSimulation,
+    type PageRankResultLike as ReExportedPageRankResultLike,
+    type ScoresResultLike as ReExportedScoresResultLike,
 } from "@graphty/webgpu-graph-algorithms";
 import { expectTypeOf } from "vitest";
 
@@ -48,4 +58,25 @@ expectTypeOf<ReExportedLayoutSimulation>().toEqualTypeOf<LayoutSimulation>();
 // assertion has to name -- measured, not assumed: the bare form is a TS2344 against expectTypeOf's constraint.
 expectTypeOf<ForceAtlas2Options | undefined>().toEqualTypeOf<
     Parameters<NonNullable<LayoutAccelerator["forceAtlas2"]>>[0]
+>();
+
+// ---- the algorithms half of W1b (design 9.8's W1 row, G10). Forward: the GPU accelerator satisfies
+// the REAL @graphty/algorithms interface, not a mirror of it.
+expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator>();
+expectTypeOf<GpuAccelerator>().toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>();
+const injectedAlgorithms: AlgorithmAccelerator = createAccelerator(ctx);
+expectTypeOf(injectedAlgorithms).toMatchTypeOf<AlgorithmAccelerator>();
+
+// ---- IDENTITY, not merely assignability: what this package re-exports IS the algorithms
+// declaration. These lines are what a re-introduced structural copy would break.
+expectTypeOf<ReExportedAlgorithmAccelerator>().toEqualTypeOf<AlgorithmAccelerator>();
+expectTypeOf<ReExportedScoresResultLike>().toEqualTypeOf<ScoresResultLike>();
+expectTypeOf<ReExportedPageRankResultLike>().toEqualTypeOf<PageRankResultLike>();
+
+// ---- the REVERSE compile G10 names: the CPU dispatcher accepts this package's accelerator, and the
+// option type it hands the method is the CPU package's own.
+declare const dispatch: (acc: AlgorithmAccelerator | null | undefined) => AcceleratedAlgorithms;
+expectTypeOf(dispatch(createAccelerator(ctx))).toEqualTypeOf<AcceleratedAlgorithms>();
+expectTypeOf<IndexedPageRankOptions | undefined>().toEqualTypeOf<
+    Parameters<NonNullable<AlgorithmAccelerator["pageRank"]>>[1]
 >();

@@ -10,6 +10,7 @@
             "@graphty/webgpu-graph-algorithms": ["./dist/webgpu-graph-algorithms.d.ts"],
             "@graphty/webgpu-graph-algorithms/*": ["./dist/*.d.ts"],
             "@graphty/graph-format": ["../graph-format/dist/graph-format.d.ts"],
+            "@graphty/algorithms": ["../algorithms/dist/algorithms.d.ts"],
             "@graphty/layout": ["../layout/dist/layout.d.ts"]
         }
     },

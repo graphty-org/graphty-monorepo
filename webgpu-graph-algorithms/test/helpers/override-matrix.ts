@@ -58,17 +58,21 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
     TIER: [0],
     SWING_MODE: [0, 1],
     GRAVITY_CENTER: [0, 1],
+    NORM_MODE: [0, 1, 2, 3, 4],
 });
 
 /**
  * The case count of each phase's kernels under the rule above, pinned by test/kernel/wgsl-compile.test.ts:
  * P1 = degree 5 + reduce 19 + fill 1 + K3 9 + K4 3; P2 = segmented-reduce 52 (4 snippets x (1 + 3 OP x 1 TIER x 4
- * pairs)); P3 = K1 1 + K2 17 + K5 3 + toScene 1.
+ * pairs)); P3 = K1 1 + K2 17 + K5 3 + toScene 1; P7 = spmv-pull 17 (defaults + USE_PERM x HAS_WEIGHTS x
+ * HAS_PERSONALIZATION x USE_DANGLING) + pr-scale 6 + pr-finalize 6 (defaults + 5 NORM_MODE values each) +
+ * wcc-link-sample 5 + wcc-link-edges 1 + wcc-compress 1 + wcc-sample 1.
  */
-export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3", number>> = Object.freeze({
+export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P7", number>> = Object.freeze({
     P1: 37,
     P2: 52,
     P3: 22,
+    P7: 37,
 });
 
 /** The standard overrides the composer fills from the device; never part of a variant's identity. */

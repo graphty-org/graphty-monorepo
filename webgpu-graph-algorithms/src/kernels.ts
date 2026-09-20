@@ -6,7 +6,9 @@
  * test and PipelineCache.warm() iterate this table. P1-T4 lands degree, reduce, fill, fa2-repulsion-exact (K3)
  * and fa2-speed-finalize (K4) together with every generated block of contract 3.10.2; P2-T2 lands
  * segmented-reduce; P3-T2 adds fa2-stats-finalize (K1), fa2-attraction (K2), fa2-integrate (K5) and
- * fa2-to-scene. This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
+ * fa2-to-scene; M8b-T3 adds the seven P7 entries: spmv-pull, pr-scale, pr-finalize, wcc-link-sample,
+ * wcc-link-edges, wcc-compress and wcc-sample. This file is the only importer of src/wgsl/** (spec 3.2;
+ * test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -23,10 +25,17 @@ import { fa2SpeedFinalizeWgsl } from "./wgsl/fa2-speed-finalize.wgsl.js";
 import { fa2StatsFinalizeWgsl } from "./wgsl/fa2-stats-finalize.wgsl.js";
 import { fa2ToSceneWgsl } from "./wgsl/fa2-to-scene.wgsl.js";
 import { fillWgsl } from "./wgsl/fill.wgsl.js";
+import { prFinalizeWgsl } from "./wgsl/pr-finalize.wgsl.js";
+import { prScaleWgsl } from "./wgsl/pr-scale.wgsl.js";
 import { reduceWgsl } from "./wgsl/reduce.wgsl.js";
 import { segmentedReduceWgsl } from "./wgsl/segmented-reduce.wgsl.js";
+import { spmvPullWgsl } from "./wgsl/spmv-pull.wgsl.js";
+import { wccCompressWgsl } from "./wgsl/wcc-compress.wgsl.js";
+import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
+import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
+import { wccSampleWgsl } from "./wgsl/wcc-sample.wgsl.js";
 
-/** Every module id of P1-P3 (P4+ ids are appended, never renamed). */
+/** Every module id of P1-P3 and P7 (later ids are appended, never renamed). */
 export type KernelId =
     | "degree"
     | "reduce"
@@ -37,7 +46,14 @@ export type KernelId =
     | "fa2-repulsion-exact"
     | "fa2-speed-finalize"
     | "fa2-integrate"
-    | "fa2-to-scene";
+    | "fa2-to-scene"
+    | "spmv-pull"
+    | "pr-scale"
+    | "pr-finalize"
+    | "wcc-link-sample"
+    | "wcc-link-edges"
+    | "wcc-compress"
+    | "wcc-sample";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -52,7 +68,7 @@ export interface KernelEntry {
     /** The snippet marker names the body carries (segmented-reduce: ["VALUE"]). */
     readonly snippetSlots: readonly string[];
     /** The phase the entry landed in (documentation and the compile-matrix filter). */
-    readonly phase: "P1" | "P2" | "P3";
+    readonly phase: "P1" | "P2" | "P3" | "P7";
 }
 
 // ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
@@ -168,6 +184,64 @@ export const FA2_PARTIAL: UniformBlock = UniformBlock.define(
     ],
     { layout: "storage" },
 );
+
+/** `SpmvParams` (uniform, 32 B; spec 8.2): `n` @0 rows of the pull, the bound arc window `[arcBase, arcEnd)` @4 / @8 (0 and arcCount when not windowed), the grid-stride step `stride` @12, `alpha` @16, `beta` @20 (the `1 - alpha` term), `uniformP` @24 (the uniform personalization mass `1 / n`, 0 for a pure SpMV), `pad0` @28. */
+export const SPMV_PARAMS: UniformBlock = UniformBlock.define("SpmvParams", [
+    ["n", "u32"],
+    ["arcBase", "u32"],
+    ["arcEnd", "u32"],
+    ["stride", "u32"],
+    ["alpha", "f32"],
+    ["beta", "f32"],
+    ["uniformP", "f32"],
+    ["pad0", "u32"],
+]);
+
+/** `PrParams` (uniform, 32 B; spec 8.2): `n` @0, `groups` @4 (the per-workgroup partial count the finalize folds), `iteration` @8 (1-based), `trackConvergence` @12 (1 records firstConverged), `convergeThreshold` @16 (`tolerance * n`, the design's `delta < tol * n`), `pad0` @20, `pad1` @24, `pad2` @28. */
+export const PR_PARAMS: UniformBlock = UniformBlock.define("PrParams", [
+    ["n", "u32"],
+    ["groups", "u32"],
+    ["iteration", "u32"],
+    ["trackConvergence", "u32"],
+    ["convergeThreshold", "f32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
+    ["pad2", "u32"],
+]);
+
+/**
+ * `PrPartial` (storage record, 32 B; spec 8.2). Element 0 is the HEADER, whose first 16 bytes are exactly the four
+ * fields the design names -- `danglingMass` @0, `delta` @4, `firstConvergedIteration` @8, `iteration` @12 -- plus
+ * `norm` @16, which M8b adds so HITS / eigenvector / Katz keep their normaliser on the device (PD-10). Element
+ * `1 + g` is workgroup g's partial: it uses `danglingMass`, `delta` and `norm` as three sums and leaves the two u32
+ * fields zero.
+ */
+export const PR_PARTIAL: UniformBlock = UniformBlock.define(
+    "PrPartial",
+    [
+        ["danglingMass", "f32"],
+        ["delta", "f32"],
+        ["firstConverged", "u32"],
+        ["iteration", "u32"],
+        ["norm", "f32"],
+        ["pad0", "f32"],
+        ["pad1", "f32"],
+        ["pad2", "f32"],
+    ],
+    { layout: "storage" },
+);
+
+/** `WccParams` (uniform, 32 B; spec 8.3): `n` @0, `items` @4 (rows for a sample round, edges for an edge round, 1024 for the sampler), `stride` @8, `r` @12 (the neighbour index of the sampled round, and the sampler's seed), `flagIndex` @16 (the changed word inside `comp`, PD-4), `giant` @20 (`U32_MAX` before the sample), `maxSteps` @24, `pad0` @28. */
+export const WCC_PARAMS: UniformBlock = UniformBlock.define("WccParams", [
+    ["n", "u32"],
+    ["items", "u32"],
+    ["stride", "u32"],
+    ["r", "u32"],
+    ["flagIndex", "u32"],
+    ["giant", "u32"],
+    ["maxSteps", "u32"],
+    ["pad0", "u32"],
+]);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
 
@@ -381,13 +455,133 @@ const FA2_TO_SCENE: KernelEntry = {
     phase: "P3",
 };
 
+/** `spmv-pull` (spec 8.10): the grid-stride pull SpMV over the reverse adjacency; HAS_PERSONALIZATION / USE_DANGLING plus the standard USE_PERM / HAS_WEIGHTS; 8 storage bindings (the design's count). */
+const SPMV_PULL: KernelEntry = {
+    id: "spmv-pull",
+    body: spmvPullWgsl,
+    entryPoint: "spmv_pull",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "xNorm", "storage-ro", "array<f32>"),
+        decl(1, 1, "rankOut", "storage", "array<f32>"),
+        decl(1, 2, "personalization", "storage-ro", "array<f32>"),
+        decl(1, 3, "partials", "storage-ro", "array<PrPartial>"),
+        decl(2, 0, "P", "uniform", "SpmvParams"),
+    ),
+    overrideDecls: [
+        { name: "HAS_PERSONALIZATION", type: "bool", default: false },
+        { name: "USE_DANGLING", type: "bool", default: false },
+    ],
+    uniforms: [SPMV_PARAMS, PR_PARTIAL],
+    needs: [],
+    snippetSlots: [],
+    phase: "P7",
+};
+
+/** `pr-scale` (spec 8.2 dispatch (a), 8.10): the per-node normaliser and the per-workgroup partials; NORM_MODE 0 PageRank / 1 L1 pass / 2 L2 pass / 3 scale / 4 identity; 5 storage bindings; calls the reduction helpers. */
+const PR_SCALE: KernelEntry = {
+    id: "pr-scale",
+    body: prScaleWgsl,
+    entryPoint: "pr_scale",
+    bindings: [
+        decl(1, 0, "rankIn", "storage-ro", "array<f32>"),
+        decl(1, 1, "rankPrev", "storage-ro", "array<f32>"),
+        decl(1, 2, "outWeightSum", "storage-ro", "array<f32>"),
+        decl(1, 3, "xNorm", "storage", "array<f32>"),
+        decl(1, 4, "partials", "storage", "array<PrPartial>"),
+        decl(2, 0, "P", "uniform", "PrParams"),
+    ],
+    overrideDecls: [{ name: "NORM_MODE", type: "u32", default: 0 }],
+    uniforms: [PR_PARAMS, PR_PARTIAL],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P7",
+};
+
+/** `pr-finalize` (spec 8.2 dispatch (b), 8.10): the one-workgroup fold of the partials into the header at partials[0] and the firstConverged record; NORM_MODE 2 takes the square root; 1 storage binding; calls the reduction helpers. */
+const PR_FINALIZE: KernelEntry = {
+    id: "pr-finalize",
+    body: prFinalizeWgsl,
+    entryPoint: "pr_finalize",
+    bindings: [decl(1, 0, "partials", "storage", "array<PrPartial>"), decl(2, 0, "P", "uniform", "PrParams")],
+    overrideDecls: [{ name: "NORM_MODE", type: "u32", default: 0 }],
+    uniforms: [PR_PARAMS, PR_PARTIAL],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P7",
+};
+
+/** `wcc-link-sample` (spec 8.3): Afforest's sampled link round over the CSR rows (every vertex links its r-th neighbour); the standard USE_PERM / HAS_WEIGHTS only; 5 storage bindings (the four graph slots and the atomic `comp`, whose word at P.flagIndex is the changed flag, PD-4). */
+const WCC_LINK_SAMPLE: KernelEntry = {
+    id: "wcc-link-sample",
+    body: wccLinkSampleWgsl,
+    entryPoint: "wcc_link_sample",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "comp", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "WccParams"),
+    ),
+    overrideDecls: [],
+    uniforms: [WCC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P7",
+};
+
+/** `wcc-link-edges` (spec 8.3, 8.10): Afforest's each-edge-once link round over the edge list; no overrides; 3 storage bindings (the design's count: edgeSrc, edgeDst and the atomic `comp` carrying the changed flag). */
+const WCC_LINK_EDGES: KernelEntry = {
+    id: "wcc-link-edges",
+    body: wccLinkEdgesWgsl,
+    entryPoint: "wcc_link_edges",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "comp", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "WccParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [WCC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P7",
+};
+
+/** `wcc-compress` (spec 8.3, 8.10): Afforest's bounded pointer-jumping compress; no overrides; 1 storage binding. */
+const WCC_COMPRESS: KernelEntry = {
+    id: "wcc-compress",
+    body: wccCompressWgsl,
+    entryPoint: "wcc_compress",
+    bindings: [decl(1, 0, "comp", "storage", "array<atomic<u32>>"), decl(2, 0, "P", "uniform", "WccParams")],
+    overrideDecls: [],
+    uniforms: [WCC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P7",
+};
+
+/** `wcc-sample` (spec 8.3, 8.10): the component-label sample of P.items pseudo-random vertices the host takes the mode of (PD-12); no overrides; 2 storage bindings. */
+const WCC_SAMPLE: KernelEntry = {
+    id: "wcc-sample",
+    body: wccSampleWgsl,
+    entryPoint: "wcc_sample",
+    bindings: [
+        decl(1, 0, "comp", "storage", "array<atomic<u32>>"),
+        decl(1, 1, "hist", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "WccParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [WCC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P7",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
  * contract's `Readonly<Record<KernelId, KernelEntry>>` type by one assertion; the runtime membership check of
  * `entryOf` is the E_INVALID_ARGUMENT the contract documents for a JS caller's unknown id. P1-T4 landed the five
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
- * and `"fa2-to-scene"`, so every member of `KernelId` is present and the assertion is exact.
+ * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries, so every member of `KernelId` is present and the
+ * assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -400,6 +594,13 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "fa2-speed-finalize": FA2_SPEED_FINALIZE,
     "fa2-integrate": FA2_INTEGRATE,
     "fa2-to-scene": FA2_TO_SCENE,
+    "spmv-pull": SPMV_PULL,
+    "pr-scale": PR_SCALE,
+    "pr-finalize": PR_FINALIZE,
+    "wcc-link-sample": WCC_LINK_SAMPLE,
+    "wcc-link-edges": WCC_LINK_EDGES,
+    "wcc-compress": WCC_COMPRESS,
+    "wcc-sample": WCC_SAMPLE,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

@@ -334,27 +334,29 @@ T-4 and T-5 and misses T-1 (both uploads), T-2 and T-3, which is the class diffe
 cloud vCPU (host-side copies and submit latency), not a regression: the exact tier's `ms / iteration` is 1.7x the
 RTX 4070 SUPER's at 10k and 3.0x at 65k.
 
-Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-18T07:03:17.146Z, medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-18T07:02:07.834Z.
+Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-20T02:29:33.210Z (run 35483512705), medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-20T02:28:10.676Z.
 
-| Id  | What                                                                                         | Target              | Measured              |
-| --- | -------------------------------------------------------------------------------------------- | ------------------- | --------------------- |
-| T-1 | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                     | <= 10 ms; <= 100 ms | 14.458 ms; 257.954 ms |
-| T-2 | `degree` + 400 KB readback at 100k (core resident), Node                                     | <= 2 ms             | 2.298 ms              |
-| T-3 | Empty submit + 4-byte `readU32` round trip, Dawn                                             | <= 0.1 ms           | 0.171 ms              |
-| T-4 | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                     | <= 1 ms; <= 2 ms    | 0.977 ms; 1.879 ms    |
-| T-5 | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets) | <= 6 ms             | 2.600 ms (1.357 ms)   |
+| Id  | What                                                                                                                                     | Target              | Measured               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- |
+| T-1 | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms | 14.338 ms; 256.418 ms  |
+| T-2 | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms             | 2.957 ms               |
+| T-3 | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms           | 1.296 ms               |
+| T-4 | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms    | 0.972 ms; 1.953 ms     |
+| T-5 | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms             | 2.600 ms (1.359 ms)    |
+| T-8 | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s | 45.461 ms; 1092.799 ms |
+| T-9 | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms           | 293.079 ms (28.544 ms) |
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 
 | n     | ms / iteration | step(1) wall (ms) | pairs / s |
 | ----- | -------------- | ----------------- | --------- |
-| 1024  | 0.334          | 0.977             | 3.13e+9   |
-| 4096  | 0.426          | 0.881             | 3.93e+10  |
-| 8192  | 0.801          | 1.184             | 8.38e+10  |
-| 10000 | 0.977          | 1.357             | 1.02e+11  |
-| 16384 | 1.879          | 2.317             | 1.43e+11  |
-| 32768 | 6.534          | 7.241             | 1.64e+11  |
-| 65536 | 24.883         | 25.955            | 1.73e+11  |
+| 1024  | 0.340          | 0.711             | 3.08e+9   |
+| 4096  | 0.431          | 0.814             | 3.90e+10  |
+| 8192  | 0.797          | 1.172             | 8.42e+10  |
+| 10000 | 0.972          | 1.359             | 1.03e+11  |
+| 16384 | 1.953          | 2.383             | 1.37e+11  |
+| 32768 | 6.861          | 7.394             | 1.57e+11  |
+| 65536 | 25.236         | 26.366            | 1.70e+11  |
 
 ## Development
 

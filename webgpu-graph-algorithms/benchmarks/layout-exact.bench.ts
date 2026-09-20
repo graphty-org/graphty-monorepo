@@ -189,7 +189,9 @@ function median(values: readonly number[]): number {
 
 /**
  * A BenchResult built from values the simulation reported (stats.msPerIteration) rather than from the harness's timer:
- * the LAST `runs` samples (the first one is the warm-up run's), median / min / max over them, no memory column.
+ * the LAST `runs` samples (the first one is the warm-up run's), median / min / max over them, no memory column. Shared
+ * with the other layout groups (layout-fr.bench.ts), hence the group parameter.
+ * @param group - the benchmark group of the row
  * @param name - the row name
  * @param samples - one sample per run, the warm-up's first
  * @param runs - the measured run count (the harness's BenchResult.runs)
@@ -197,7 +199,14 @@ function median(values: readonly number[]): number {
  * @param unit - what `items` counts
  * @returns the row
  */
-function reportedRow(name: string, samples: readonly number[], runs: number, items: number, unit: string): BenchResult {
+export function reportedRow(
+    group: string,
+    name: string,
+    samples: readonly number[],
+    runs: number,
+    items: number,
+    unit: string,
+): BenchResult {
     if (samples.length < runs + 1) {
         throw new Error(`${name}: expected ${runs + 1} samples (warm-up + runs), got ${samples.length}`);
     }
@@ -211,7 +220,7 @@ function reportedRow(name: string, samples: readonly number[], runs: number, ite
     }
     const medianMs = median(measured);
     return {
-        group: LAYOUT_EXACT_GROUP,
+        group,
         name,
         medianMs,
         minMs: Math.min(...measured),
@@ -226,13 +235,14 @@ function reportedRow(name: string, samples: readonly number[], runs: number, ite
 /**
  * The clock warm-up burst of a rung (the header's PLAN DECISION, G3-F1): back-to-back step(1) calls, reheat() before
  * each, for at least `minMs` of wall time and at least one step, so the SM clock is at its working state when the timed
- * runs start. Untimed; nothing of it enters the rows.
+ * runs start. Untimed; nothing of it enters the rows. Shared with the other layout groups (layout-fr.bench.ts): any
+ * loaded simulation with reheat() and step() qualifies.
  * @param sim - the rung's loaded simulation
  * @param minMs - the least wall time of the burst
  * @returns the steps run and the wall time spent
  */
-async function warmClock(
-    sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>,
+export async function warmClock(
+    sim: { reheat(): void; step(k: number): Promise<void> },
     minMs: number,
 ): Promise<{ readonly steps: number; readonly ms: number }> {
     const start = performance.now();
@@ -282,6 +292,7 @@ export async function runLayoutExactBenchmarks(ctx: GpuContext): Promise<BenchRe
             results.push(wall);
             results.push(
                 reportedRow(
+                    LAYOUT_EXACT_GROUP,
                     `ms/iteration (${source}) n=${rung.nodes} [${rung.label}]`,
                     samples,
                     wall.runs,

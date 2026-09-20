@@ -7,6 +7,7 @@
         "releaseTagPattern": "{projectName}@{version}",
         "version": {
             "conventionalCommits": true,
+            "adjustSemverBumpsForZeroMajorVersion": true,
             "fallbackCurrentVersionResolver": "disk",
             "updateDependents": "auto",
             "preserveLocalDependencyProtocols": true

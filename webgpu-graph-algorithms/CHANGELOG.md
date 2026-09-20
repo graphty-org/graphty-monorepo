@@ -1,3 +1,13 @@
+## 0.4.1 (2026-09-20)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** require the layout release that ships the simulation seam ([e6ceb3d5](https://github.com/graphty-org/graphty-monorepo/commit/e6ceb3d5))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.4.0 (2026-09-20)
 
 ### 🚀 Features

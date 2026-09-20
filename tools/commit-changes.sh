@@ -122,17 +122,17 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(tools dispatch residency kernels spmv pagerank spectral wcc accelerator bench baseline sabotage ci decisions g7)
+STEPS=(dispatch residency kernels spmv pagerank spectral wcc accelerator bench baseline sabotage ci decisions g7 tools)
 
 declare -A SUBJECTS=(
-    [tools]="fix(tools): let commit-changes.sh accept the three format and GPU scopes"
+    [tools]="chore(tools): lowercase the three commit subjects the commit-msg hook rejected"
     [dispatch]="feat(webgpu-graph-algorithms): grid-stride dispatch and the P7 result types"
     [residency]="feat(webgpu-graph-algorithms): upload the reverse and edge-list views, with packViews"
     [kernels]="feat(webgpu-graph-algorithms): the P7 kernel registry, seven bodies and their budgets"
     [spmv]="feat(webgpu-graph-algorithms): the spmvPull primitive over pre-scaled xNorm"
-    [pagerank]="feat(webgpu-graph-algorithms): PageRank and personalized PageRank on the device"
-    [spectral]="feat(webgpu-graph-algorithms): HITS, eigenvector and Katz on the same pull kernel"
-    [wcc]="feat(webgpu-graph-algorithms): Afforest weakly connected components"
+    [pagerank]="feat(webgpu-graph-algorithms): run PageRank and personalized PageRank on the device"
+    [spectral]="feat(webgpu-graph-algorithms): run HITS, eigenvector and Katz on the same pull kernel"
+    [wcc]="feat(webgpu-graph-algorithms): label weakly connected components with Afforest"
     [accelerator]="feat(webgpu-graph-algorithms): the accelerator algorithm members and the P7 barrel"
     [bench]="perf(webgpu-graph-algorithms): the pagerank and wcc benchmark groups"
     [baseline]="perf(webgpu-graph-algorithms): re-baseline both runner classes with the P7 groups"
@@ -168,13 +168,12 @@ declare -A PATHS=(
 
 body_tools() {
     cat <<'BODY'
-VALID_SCOPES is a mirror of commitlint.config.js's scope-enum and had drifted: it
-omitted graph-format, graph-io and webgpu-graph-algorithms, so the script refused
-a scope the commit-msg hook accepts. Every commit of the M8b phase is scoped
-webgpu-graph-algorithms, which made this the first thing to land.
-
-The step list, subjects and paths now describe the M8b change set (fifteen
-commits) rather than the app shell work before it. The machinery is unchanged.
+commitlint's subject-case rule rejects a subject that starts with a capital
+letter, and three of this change set's subjects did (PageRank, HITS, Afforest).
+The script's own pre-check passed them, so the first real run stopped at the
+PageRank step with five commits made. The three subjects now start lowercase,
+and this step moved to the end of the list so the earlier scope fix, already
+committed, is not repeated.
 BODY
 }
 

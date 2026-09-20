@@ -101,7 +101,7 @@ export const FILL_PARAMS: UniformBlock = UniformBlock.define("FillParams", [
     ["pad0", "u32"],
 ]);
 
-/** `Fa2Params` (uniform, 96 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `pad` @80 (reserved for the P4 GridSpec). */
+/** `Fa2Params` (uniform, 128 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `pad` @80 (reserved for the P4 GridSpec); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120, `pad1` @124; 128 B. */
 export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["n", "u32"],
     ["dim", "u32"],
@@ -121,9 +121,17 @@ export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["gridMax", "u32"],
     ["levels", "u32"],
     ["pad", "vec4f"],
+    ["frK", "f32"],
+    ["temperature", "f32"],
+    ["springLength", "f32"],
+    ["springCoefficient", "f32"],
+    ["coulomb", "f32"],
+    ["dragCoefficient", "f32"],
+    ["timeStep", "f32"],
+    ["pad1", "f32"],
 ]);
 
-/** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256; spec 7.3): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (P4), `eps` @96 (P4), `settledCount` @100, `outsideGrid` @104 (P4), `maxCellOccupancy` @108 (P4), `reserved0` .. `reserved8` @112 .. @240. */
+/** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256; spec 7.3): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (P4), `eps` @96 (P4), `settledCount` @100, `outsideGrid` @104 (P4), `maxCellOccupancy` @108 (P4), `temperature` @112 (FR, written by K1 under STATS_MODE 1), `kineticEnergy` @116 (the preset, K1 under STATS_MODE 2), `reserved0` @120 (vec2f), `reserved1` .. `reserved8` @128 .. @240. */
 export const FA2_STATE: UniformBlock = UniformBlock.define(
     "Fa2State",
     [
@@ -143,7 +151,10 @@ export const FA2_STATE: UniformBlock = UniformBlock.define(
         ["settledCount", "u32"],
         ["outsideGrid", "u32"],
         ["maxCellOccupancy", "u32"],
-        ["reserved0", "vec4f"],
+        ["temperature", "f32"],
+        ["kineticEnergy", "f32"],
+        ["frEnergy", "f32"],
+        ["frProgress", "u32"],
         ["reserved1", "vec4f"],
         ["reserved2", "vec4f"],
         ["reserved3", "vec4f"],
@@ -156,7 +167,7 @@ export const FA2_STATE: UniformBlock = UniformBlock.define(
     { layout: "storage", padTo: STATE_HEADER_BYTES },
 );
 
-/** `Fa2Trace` (storage record, 32 B; spec 7.3): one per-iteration trace record -- `swing` @0, `traction` @4, `speed` @8, `speedEfficiency` @12 (written by K4), `meanDisplacement` @16, `settledCount` @20, `iteration` @24 (written by K1), `pad0` @28; the trace region is `array<Fa2Trace>` at byte offset STATE_HEADER_BYTES of the state buffer. */
+/** `Fa2Trace` (storage record, 32 B; spec 7.3): one per-iteration trace record -- `swing` @0, `traction` @4, `speed` @8, `speedEfficiency` @12 (written by K4), `meanDisplacement` @16, `settledCount` @20, `iteration` @24 (written by K1), `modelScalar` @28 (K1: the temperature under STATS_MODE 1, the kinetic energy under 2, 0 under 0); the trace region is `array<Fa2Trace>` at byte offset STATE_HEADER_BYTES of the state buffer. */
 export const FA2_TRACE: UniformBlock = UniformBlock.define(
     "Fa2Trace",
     [
@@ -167,7 +178,7 @@ export const FA2_TRACE: UniformBlock = UniformBlock.define(
         ["meanDisplacement", "f32"],
         ["settledCount", "u32"],
         ["iteration", "u32"],
-        ["pad0", "u32"],
+        ["modelScalar", "f32"],
     ],
     { layout: "storage" },
 );
@@ -335,7 +346,7 @@ const SEGMENTED_REDUCE: KernelEntry = {
     phase: "P2",
 };
 
-/** `fa2-stats-finalize` (K1, 3.10.1): the one-workgroup fold of the previous integrate's partials into the state block and the K1 half of the trace record; 3 storage bindings; calls the reduction helpers. */
+/** `fa2-stats-finalize` (K1, 3.10.1): the one-workgroup fold of the previous integrate's partials into the state block and the K1 half of the trace record; STATS_MODE 0 FA2 / 1 FR temperature / 2 kinetic energy (P5); 3 storage bindings; calls the reduction helpers. */
 const FA2_STATS_FINALIZE: KernelEntry = {
     id: "fa2-stats-finalize",
     body: fa2StatsFinalizeWgsl,
@@ -346,14 +357,14 @@ const FA2_STATS_FINALIZE: KernelEntry = {
         decl(1, 2, "T", "storage", "array<Fa2Trace>"),
         decl(2, 0, "P", "uniform", "Fa2Params"),
     ],
-    overrideDecls: [],
+    overrideDecls: [{ name: "STATS_MODE", type: "u32", default: 0 }],
     uniforms: [FA2_PARAMS, FA2_STATE, FA2_TRACE, FA2_PARTIAL],
     needs: ["subgroups"],
     snippetSlots: [],
     phase: "P3",
 };
 
-/** `fa2-attraction` (K2, 3.10.1): the thread-per-row attraction gather over the CSR rows (the first writer of `force` each iteration); LINLOG / DISTRIBUTED / TIER 0 plus the standard USE_PERM / HAS_WEIGHTS; 6 storage bindings. */
+/** `fa2-attraction` (K2, 3.10.1): the thread-per-row attraction gather over the CSR rows (the first writer of `force` each iteration); LINLOG / DISTRIBUTED / TIER 0 plus the standard USE_PERM / HAS_WEIGHTS; LAW 0 FA2 / 1 FR / 2 spring (P5); 6 storage bindings. */
 const FA2_ATTRACTION: KernelEntry = {
     id: "fa2-attraction",
     body: fa2AttractionWgsl,
@@ -367,6 +378,7 @@ const FA2_ATTRACTION: KernelEntry = {
         { name: "LINLOG", type: "bool", default: false },
         { name: "DISTRIBUTED", type: "bool", default: false },
         { name: "TIER", type: "u32", default: 0 },
+        { name: "LAW", type: "u32", default: 0 },
     ],
     uniforms: [FA2_PARAMS],
     needs: [],
@@ -374,7 +386,7 @@ const FA2_ATTRACTION: KernelEntry = {
     phase: "P3",
 };
 
-/** `fa2-repulsion-exact` (K3, 3.10.1): the tiled all-pairs repulsion with the gravity and swing / traction epilogue; 6 storage bindings (`oldForce` read-only: it only calls load_old); calls the reduction helpers. */
+/** `fa2-repulsion-exact` (K3, 3.10.1): the tiled all-pairs repulsion with the gravity and swing / traction epilogue; LAW 0 FA2 / 1 FR / 2 coulomb (P5); 6 storage bindings (`oldForce` read-only: it only calls load_old); calls the reduction helpers. */
 const FA2_REPULSION_EXACT: KernelEntry = {
     id: "fa2-repulsion-exact",
     body: fa2RepulsionExactWgsl,
@@ -392,6 +404,7 @@ const FA2_REPULSION_EXACT: KernelEntry = {
         { name: "SWING_MODE", type: "u32", default: 0 },
         { name: "STRONG_GRAVITY", type: "bool", default: false },
         { name: "GRAVITY_CENTER", type: "u32", default: 0 },
+        { name: "LAW", type: "u32", default: 0 },
     ],
     uniforms: [FA2_PARAMS, FA2_STATE, FA2_PARTIAL],
     needs: ["subgroups"],
@@ -417,7 +430,7 @@ const FA2_SPEED_FINALIZE: KernelEntry = {
     phase: "P1",
 };
 
-/** `fa2-integrate` (K5, 3.10.1): the per-node speed factor and position update (no clamp, D25), `oldForce` stored in SWING_MODE 0, and the partials A / C of the next K1; 6 storage bindings; calls the reduction helpers. */
+/** `fa2-integrate` (K5, 3.10.1): the per-node speed factor and position update (no clamp, D25), `oldForce` stored in SWING_MODE 0, and the partials A / C of the next K1; APPLY 0 FA2 / 1 FR temperature cap / 2 ngraph Euler (P5); 6 storage bindings; calls the reduction helpers. */
 const FA2_INTEGRATE: KernelEntry = {
     id: "fa2-integrate",
     body: fa2IntegrateWgsl,
@@ -431,7 +444,10 @@ const FA2_INTEGRATE: KernelEntry = {
         decl(1, 5, "partials", "storage", "array<Fa2Partial>"),
         decl(2, 0, "P", "uniform", "Fa2Params"),
     ],
-    overrideDecls: [{ name: "SWING_MODE", type: "u32", default: 0 }],
+    overrideDecls: [
+        { name: "SWING_MODE", type: "u32", default: 0 },
+        { name: "APPLY", type: "u32", default: 0 },
+    ],
     uniforms: [FA2_PARAMS, FA2_STATE, FA2_PARTIAL],
     needs: ["subgroups"],
     snippetSlots: [],

@@ -1,7 +1,9 @@
 /**
  * The `spmv-pull` kernel body (spec 6 row 9, 8.2; PD-1 of the M8b plan): one invocation per row of the REVERSE
- * adjacency, grid-stride over `[0, P.n)`, folding `weight * xNorm[nbr]` over the row's in-arcs with Kahan
- * compensation (kept alive by a select the shader compiler cannot see through) and writing
+ * adjacency, grid-stride over `[0, P.n)`, folding `weight * xNorm[nbr]` over the row's in-arcs in chunks of 64
+ * terms (a two-level f32 sum: the chunk absorbs the rounding of 64 terms, the row total the rounding of the chunk
+ * count, so a 10,000-arc hub row loses about 200 rounding steps instead of 10,000; Kahan compensation is not used
+ * because Metal's shader compiler folds `((acc + term) - acc) - term` to zero whatever hides it) and writing
  * `rankOut[v] = beta * pv + alpha * (sum + danglingMass * pv)`, where `pv` is `personalization[v]` when
  * HAS_PERSONALIZATION and the uniform `P.uniformP` otherwise. PageRank sets alpha to the
  * damping factor, beta to `1 - alpha` and USE_DANGLING; HITS and eigenvector set alpha 1, beta 0, uniformP 0; Katz
@@ -21,18 +23,22 @@ fn spmv_pull(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id
         let a0 = max(rowPtr[v], P.arcBase);
         let a1 = min(rowPtr[v + 1u], P.arcEnd);
         var acc = 0.0;
-        var resid = 0.0;
+        var chunk = 0.0;
+        var inChunk = 0u;
         for (var arc = a0; arc < a1; arc = arc + 1u) {
             let nbr = colIdx[arc - P.arcBase];               // \`target\` is a WGSL reserved word (spec 16.2)
             var weight = 1.0;
             if (HAS_WEIGHTS) { weight = weights[arc - P.arcBase]; }
-            let term = (weight * xNorm[nbr]) - resid;
-            // the select hides nextAcc's provenance: given \`acc + term\` in plain sight, lavapipe and NVIDIA both
-            // fold ((acc + term) - acc) - term to 0 and delete the compensation (the sum came back naive f32)
-            let nextAcc = select(acc + term, 0.0, P.n == U32_MAX);
-            resid = (nextAcc - acc) - term;
-            acc = nextAcc;
+            // two-level sum: 64 terms into chunk, chunk into acc (see the header; no compensation, no select)
+            chunk = chunk + (weight * xNorm[nbr]);
+            inChunk = inChunk + 1u;
+            if (inChunk == 64u) {
+                acc = acc + chunk;
+                chunk = 0.0;
+                inChunk = 0u;
+            }
         }
+        acc = acc + chunk;
         var pv = P.uniformP;
         if (HAS_PERSONALIZATION) { pv = personalization[v]; }
         rankOut[v] = (P.beta * pv) + (P.alpha * (acc + (dangling * pv)));

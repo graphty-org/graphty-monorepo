@@ -27,8 +27,9 @@
 # hook (.husky/pre-push -> pnpm run prepush:fast -> tools/prepush.sh) runs the
 # validation then.
 #
-# The plan below is tailored to one specific change set: the app shell work of
-# 2026-09. It is data, not machinery -- STEPS, SUBJECTS, PATHS and one body_*
+# The plan below is tailored to one specific change set: the M8b phase of the
+# WebGPU work (the GPU SpMV family and Afforest WCC, branch feat/webgpu-spmv-wcc,
+# fifteen commits). It is data, not machinery -- STEPS, SUBJECTS, PATHS and one body_*
 # function each. Re-point it at the next change set rather than reusing the
 # messages, and read the diff before you write a message, not a summary of it.
 #
@@ -121,40 +122,42 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(repaint meshes shapes lines theme metrics loaddata results legend panels inspector canvas spec tooling)
+STEPS=(tools dispatch residency kernels spmv pagerank spectral wcc accelerator bench baseline sabotage ci decisions g7)
 
 declare -A SUBJECTS=(
-    [repaint]="fix(graphty-element): make load mean load, so a removed layer stops painting"
-    [meshes]="fix(graphty-element): reattach edges on a shape change and dispose what a dataset leaves"
-    [shapes]="feat(graphty-element): export the shape enum, add the torus it already builds, paint gradients"
-    [lines]="perf(graphty-element): bound the patterned-line mesh count and restore culling"
-    [theme]="feat(compact-mantine): disabled reasons, bound toggles, and one colour change per gesture"
-    [metrics]="feat(graphty): rank nodes by degree, PageRank and betweenness, and read the result back"
-    [loaddata]="fix(graphty): surface a load that failed instead of reporting success"
-    [results]="feat(graphty): give the Analyze Results tab a body"
-    [legend]="fix(graphty): stop offering a legend that cannot draw"
-    [panels]="feat(graphty): one sidebar switch, no latch, no autohide, no narrow layout"
-    [inspector]="feat(graphty): rebuild the style inspector and show computed channels"
-    [canvas]="fix(graphty): inset the canvas overlays so the data table and legend are visible"
-    [spec]="docs(workspace): record the panel model that replaced the latch"
-    [tooling]="chore(tools): re-point the commit script at this change set"
+    [tools]="fix(tools): let commit-changes.sh accept the three format and GPU scopes"
+    [dispatch]="feat(webgpu-graph-algorithms): grid-stride dispatch and the P7 result types"
+    [residency]="feat(webgpu-graph-algorithms): upload the reverse and edge-list views, with packViews"
+    [kernels]="feat(webgpu-graph-algorithms): the P7 kernel registry, seven bodies and their budgets"
+    [spmv]="feat(webgpu-graph-algorithms): the spmvPull primitive over pre-scaled xNorm"
+    [pagerank]="feat(webgpu-graph-algorithms): PageRank and personalized PageRank on the device"
+    [spectral]="feat(webgpu-graph-algorithms): HITS, eigenvector and Katz on the same pull kernel"
+    [wcc]="feat(webgpu-graph-algorithms): Afforest weakly connected components"
+    [accelerator]="feat(webgpu-graph-algorithms): the accelerator algorithm members and the P7 barrel"
+    [bench]="perf(webgpu-graph-algorithms): the pagerank and wcc benchmark groups"
+    [baseline]="perf(webgpu-graph-algorithms): re-baseline both runner classes with the P7 groups"
+    [sabotage]="test(webgpu-graph-algorithms): the P7 sabotage set, browser smoke and first node-limits test"
+    [ci]="ci: run the no-subgroups twin over the algorithms tests too"
+    [decisions]="docs: record the M8b design decisions beside the WebGPU design"
+    [g7]="docs(webgpu-graph-algorithms): close the G7 gate record"
 )
 
 declare -A PATHS=(
-    [repaint]="graphty-element/src/ChangeManager.ts graphty-element/src/Styles.ts graphty-element/test/change-manager.test.ts graphty-element/test/calculated-style.test.ts graphty-element/test/style-helpers/edge-calculated-styles.test.ts"
-    [meshes]="graphty-element/src/Node.ts graphty-element/src/Edge.ts graphty-element/src/managers/DataManager.ts graphty-element/src/meshes/NodeEffects.ts graphty-element/test/node-shape-edge-reattach.test.ts graphty-element/test/browser/scene-teardown.test.ts"
-    [shapes]="graphty-element/src/config/NodeStyle.ts graphty-element/src/config/index.ts graphty-element/index.ts graphty-element/src/meshes/NodeMesh.ts graphty-element/test/node-mesh-gradient.test.ts graphty-element/test/browser/node-mesh-gradient.test.ts graphty/src/constants/style-options.ts graphty/src/constants/__tests__/style-options.test.ts graphty/src/utils/styleBridge.ts graphty/src/utils/__tests__/styleBridge.test.ts"
-    [lines]="graphty-element/src/meshes/PatternedLineMesh.ts graphty-element/src/meshes/PatternedLineRenderer.ts graphty-element/src/meshes/FilledArrowRenderer.ts graphty-element/src/constants/meshConstants.ts graphty-element/test/patterned-line-mesh-count.test.ts graphty-element/test/meshes/FilledArrowRenderer.test.ts"
-    [theme]="compact-mantine/src compact-mantine/tests"
-    [metrics]="graphty/src/components/shell/insights graphty/src/components/shell/analysis graphty/src/components/shell/readings/nodeMetricReading.ts graphty/src/components/shell/readings/__tests__/nodeMetricReading.test.ts graphty/src/components/shell/defaults/nodeMetricStyle.ts graphty/src/components/shell/defaults/__tests__/nodeMetricStyle.test.ts graphty/src/components/shell/inspector/ResultInspector.tsx graphty/src/components/shell/inspector/__tests__/ResultInspector.test.tsx"
-    [loaddata]="graphty/src/components/LoadDataModal.tsx graphty/src/components/__tests__/LoadDataModal.test.tsx"
-    [results]="graphty/src/components/shell/panel/AnalyzePanel.tsx graphty/src/components/shell/panel/AnalyzeResultCard.tsx graphty/src/components/shell/panel/__tests__/AnalyzePanel.test.tsx graphty/src/components/shell/readings"
-    [legend]="graphty/src/components/shell/canvas/legendAvailability.ts graphty/src/components/shell/canvas/__tests__/legendAvailability.test.ts graphty/src/components/shell/toolbar graphty/src/components/shell/panel/StylePanel.tsx graphty/src/components/shell/panel/__tests__/StylePanel.test.tsx"
-    [panels]="graphty/src/components/shell/AppShell.tsx graphty/src/components/shell/__tests__/ShellContext.test.tsx graphty/src/components/shell/ShellContext.tsx graphty/src/components/shell/types.ts graphty/src/components/shell/constants.ts graphty/src/components/shell/bindings.ts graphty/src/components/shell/useShellKeyBindings.ts graphty/src/components/shell/graphCommands.ts graphty/src/components/shell/CommandPalette.tsx graphty/src/components/shell/topbar graphty/src/components/shell/rail graphty/src/components/shell/statusbar graphty/src/components/shell/panel graphty/src/components/shell/__tests__ graphty/src/components/shell/defaults graphty/src/App.tsx graphty/src/App.test.tsx"
-    [inspector]="graphty/src/components/sidebar graphty/src/components/layout graphty/src/hooks graphty/src/components/__tests__ graphty/src/components/shell/inspector"
-    [canvas]="graphty/src/components/shell/canvas"
-    [spec]="design/ui"
-    [tooling]="tools/commit-changes.sh design/graph-format"
+    [tools]="tools/commit-changes.sh"
+    [dispatch]="webgpu-graph-algorithms/src/kernel/dispatch.ts webgpu-graph-algorithms/test/kernel/dispatch.test.ts webgpu-graph-algorithms/src/types/algorithms.ts"
+    [residency]="webgpu-graph-algorithms/src/memory/residency.ts webgpu-graph-algorithms/test/memory/residency.test.ts"
+    [kernels]="webgpu-graph-algorithms/src/wgsl/spmv-pull.wgsl.ts webgpu-graph-algorithms/src/wgsl/pr-scale.wgsl.ts webgpu-graph-algorithms/src/wgsl/pr-finalize.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-link-sample.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-link-edges.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-compress.wgsl.ts webgpu-graph-algorithms/src/wgsl/wcc-sample.wgsl.ts webgpu-graph-algorithms/src/kernels.ts webgpu-graph-algorithms/test/kernel/registry.test.ts webgpu-graph-algorithms/test/kernel/bind-group-budget.test.ts webgpu-graph-algorithms/test/helpers/override-matrix.ts"
+    [spmv]="webgpu-graph-algorithms/src/primitives/core-shape.ts webgpu-graph-algorithms/src/primitives/spmv.ts webgpu-graph-algorithms/src/primitives/segmented-reduce.ts webgpu-graph-algorithms/src/algorithms/scope.ts webgpu-graph-algorithms/test/oracle/spmv.ts webgpu-graph-algorithms/test/helpers/spmv.ts webgpu-graph-algorithms/test/primitives/spmv.test.ts"
+    [pagerank]="webgpu-graph-algorithms/src/algorithms/pagerank.ts webgpu-graph-algorithms/test/oracle/pagerank.ts webgpu-graph-algorithms/test/algorithms/pagerank.test.ts webgpu-graph-algorithms/demo"
+    [spectral]="webgpu-graph-algorithms/src/algorithms/power-iteration.ts webgpu-graph-algorithms/src/algorithms/spectral.ts webgpu-graph-algorithms/test/oracle/spectral.ts webgpu-graph-algorithms/test/algorithms/spectral.test.ts"
+    [wcc]="webgpu-graph-algorithms/src/algorithms/components.ts webgpu-graph-algorithms/test/oracle/components.ts webgpu-graph-algorithms/test/algorithms/components.test.ts"
+    [accelerator]="webgpu-graph-algorithms/src/accelerator.ts webgpu-graph-algorithms/src/types/accelerator.ts webgpu-graph-algorithms/src/index.ts webgpu-graph-algorithms/test/index.test.ts webgpu-graph-algorithms/test/types/public-api.test-d.ts webgpu-graph-algorithms/test/types/accelerator.test-d.ts webgpu-graph-algorithms/test/accelerator.test.ts"
+    [bench]="webgpu-graph-algorithms/benchmarks/pagerank.bench.ts webgpu-graph-algorithms/benchmarks/wcc.bench.ts webgpu-graph-algorithms/benchmarks/run.ts"
+    [baseline]="webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json webgpu-graph-algorithms/benchmarks/results/gpu-linux-t4.json webgpu-graph-algorithms/README.md"
+    [sabotage]="webgpu-graph-algorithms/test/helpers/sabotage.ts webgpu-graph-algorithms/test/helpers/components.ts webgpu-graph-algorithms/test/sabotage webgpu-graph-algorithms/test/browser/algorithms.test.ts webgpu-graph-algorithms/test/limits"
+    [ci]=".github/workflows/ci.yml"
+    [decisions]="design/decisions design/README.md design/webgpu/README.md design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md"
+    [g7]="webgpu-graph-algorithms/docs/decisions/G7.md webgpu-graph-algorithms/CLAUDE.md webgpu-graph-algorithms/benchmarks/results/noise-floor.json webgpu-graph-algorithms/test/fixtures/noise"
 )
 
 # ---------------------------------------------------------------------------
@@ -163,217 +166,271 @@ declare -A PATHS=(
 # that is commitlint's body-max-line-length, and it is checked before staging.
 # ---------------------------------------------------------------------------
 
-body_repaint() {
+body_tools() {
     cat <<'BODY'
-loadCalculatedValues cleared watchedInputs and not calculatedValues, so the set
-only ever grew. A layer removed from the StyleManager kept its calculated value
-registered, runAllCalculatedValues re-ran it on every repaint, and Node.update
-merges styleUpdates OVER the base style -- so a deleted layer's colour beat the
-layer that replaced it, for the life of the loaded graph.
+VALID_SCOPES is a mirror of commitlint.config.js's scope-enum and had drifted: it
+omitted graph-format, graph-io and webgpu-graph-algorithms, so the script refused
+a scope the commit-msg hook accepts. Every commit of the M8b phase is scoped
+webgpu-graph-algorithms, which made this the first thing to land.
 
-Running Groups after Most connected was the visible case: the layer list, the
-reading and the legend all switched to groups while every node pixel stayed the
-degree ramp's viridis. Measured against the built app, 10 of 10 sampled node
-pixels were byte-identical across the two runs; 187 of 187 now change.
-
-Styles pushes calculated values in layer order rather than unshifting, so the
-last to run is the top layer -- the precedence the static merge already had.
+The step list, subjects and paths now describe the M8b change set (fifteen
+commits) rather than the app shell work before it. The machinery is unchanged.
 BODY
 }
 
-body_meshes() {
+body_dispatch() {
     cat <<'BODY'
-Edge.update kept a position dirty check and returned before re-shooting its ray,
-so an edge only reattached when an endpoint MOVED. A shape change at constant
-size moved nothing, and the edge stayed anchored to geometry that was gone.
+planGridStride was a throwing stub. It now plans
+groups = min(ceil(items / wg), cap, the per-dimension limit), where cap is
+maxGroups when given and otherwise 64 on a software adapter or 4096 on hardware,
+and the kernel loops by stride = groups * wg. Zero items plan x: 0 with a null
+stride. The cap is the one performance default in src/ that reads caps.software:
+a grid-stride map is order-independent, so the result never depends on it.
 
-This was a regression, not a gap: 973f1d96 (2025-11-11) added the check, and
-before it update() called transformArrowCap unconditionally every frame. The one
-invalidation hook that existed, a2cb98c5, keys off size, because it was written
-for selection.
-
-Glow was never drawn: inclusion has to name the instance's SOURCE mesh, because
-Babylon's effect layer asks hasMesh(subMesh.getRenderingMesh()). The layer is
-created with excludeByDefault, since an empty inclusion list means every mesh.
-
-Arrowheads, patterned-line segments and labels are parented to graph-root, which
-outlives a dataset, so a replacing load left orphans where old edges converged.
+src/types/algorithms.ts carries the P7 result types (GpuPageRankResult,
+GpuScoresResult, GpuHitsResult, GpuLabelResult) and the GPU-side option records,
+spelled member for member against the CPU seam types so M8a's import swap is
+source-compatible. Nothing exports it yet; the barrel commit does.
 BODY
 }
 
-body_shapes() {
+body_residency() {
     cat <<'BODY'
-The editor offered Plane and Disc, which the element cannot build, and hid
-twelve shapes it can. Selecting Plane silently drew a box.
+view(s, "reverse") uploads the reverse CSR (rowPtr, colIdx, weights when the
+snapshot has them) and view(s, "edgeList") the src / dst pair, both memoised on
+the record like the degree views. packViews: true concatenates a view's arrays
+into one buffer at 256-byte offsets, so a kernel binds one buffer three ways.
 
-Plane and Disc are removed rather than implemented: CreatePlane makes a
-zero-thickness single-sided quad, so half the graph would face away and vanish,
-it disappears edge-on, and edge attachment is ray-vs-bounding-sphere, so every
-edge touching one would detach.
+On an undirected snapshot the reverse view IS the forward core: the arena plan's
+WeakMap key is the whole arena, so the case delegates to core() and uploads
+nothing rather than copying the arrays under a second key.
 
-Torus is added to the enum instead of removed from the editor, because NodeMesh
-already registers a working CreateTorus and only the zod enum omitted it.
-
-The editor's option list is DERIVED from the element's exported enum, with a
-round-trip assertion, so the next drift is a build failure rather than a control
-that lies about what it will draw.
+A packed view is keyed on a record-owned object (packKeys), never on rev.rowPtr:
+upload() memoises on the key without comparing byte lengths, so keying the packed
+buffer on the same array as the plain view would hand back the wrong size.
 BODY
 }
 
-body_lines() {
+body_kernels() {
     cat <<'BODY'
-A dotted line built one mesh per dash with no cap, so the segment count scaled
-with edge length over dash pitch: narrowing the width to 1 shrank the pitch and
-the mesh count went UP. Each dash also took its own ShaderMaterial, and culling
-was switched off wholesale with alwaysSelectAsActiveMesh.
+Seven kernel entries with their WGSL bodies: spmv-pull, pr-scale, pr-finalize,
+wcc-link-sample, wcc-link-edges, wcc-compress and wcc-sample, plus the four
+uniform blocks they read (SPMV_PARAMS, PR_PARAMS, PR_PARTIAL, WCC_PARAMS). They
+widen the closed unions the registry tests pin: KernelId, KernelEntry.phase
+(P7), the registry test's TABLE, the bind-group budget's STORAGE_COUNTS and the
+override matrix (NORM_MODE, an expected-cases row for P7).
 
-The count is bounded, materials are released with the meshes that own them, and
-culling stays on -- the arrowhead path sizes its bounding volume to what the
-shader actually draws instead of opting out of the frustum test.
+Storage-binding counts against design 8.10: spmv-pull 8, pr-scale 5,
+pr-finalize 1, wcc-link-edges 3, wcc-compress 1, wcc-sample 2; wcc-link-sample,
+absent from 8.10, is the four graph slots plus comp (5). The WCC changed flag is
+the word at comp[flagIndex], so the link kernels bind three buffers and no
+separate flag buffer is reset between rounds.
+
+These are the package's first atomics: array<atomic<u32>>, atomicLoad,
+atomicStore and atomicCompareExchangeWeak in a bounded link loop.
+
+The pull kernel keeps its Kahan compensation across the sentinel branch with a
+select() rather than an assignment inside the branch: both Tint and the NVIDIA
+compiler folded the assigned form to a plain f32 sum. Measured on hub10k, one
+pull gives 5028.3833 (the f32 Kahan emulation, bitwise) on both adapters where
+the folded form gave 5028.3872.
 BODY
 }
 
-body_theme() {
+body_spmv() {
     cat <<'BODY'
-The style inspector needs three things no compact control could express: a
-disabled control that states its reason, a control bound to a computed value
-that says so rather than showing an editable default, and a colour change that
-arrives as one gesture instead of a stream of partial values.
+prepareSpmvPull plans and records y = A^T xNorm over a reverse core, one thread
+per row, xNorm pre-scaled by the caller (PageRank divides by the out-weight sum
+before the pull, so the kernel never divides). The perm slot is bound and
+USE_PERM is false: the in-degree tiers remain a P4 deliverable, and
+segmentedReduce still throws E_UNSUPPORTED for any non-null tiers.
 
-They land in the library rather than at the call site, so every caller gets them
-and the app can delete its forked colour input.
+It is its own kernel rather than a segmentedReduce VALUE snippet: the snippet
+vocabulary is row, arc, nbr, weight, v, checked textually before compose, so a
+snippet can never read xNorm[nbr]; and design 8.10 already gives spmvPull an
+eight-binding row that a five-binding snippet variant cannot have.
+
+core-shape.ts lifts rowCountOf and assertNotWindowed out of segmented-reduce.ts
+(every existing error detail stays byte-identical), adds arcCountOf, and
+coreOfView, the one ViewBinding -> CoreBinding adapter of the phase, which
+rejects an arcCount that disagrees with the colIdx binding's size.
+
+scope.ts is the per-call scratch scope: a Lease and a UniformRing over a context
+that one dispose() releases.
+
+The f64 oracle and the differential suite land here; the cross-adapter leg reads
+noise fixtures that arrive with the gate record.
 BODY
 }
 
-body_metrics() {
+body_pagerank() {
     cat <<'BODY'
-Three capabilities the Analyze panel drew but could not run: Most connected
-(degree), Influence (PageRank) and Bridges (betweenness). Each now runs, ranks
-every node, writes a plain-language reading and a one-line run record, and
-applies a viridis colour layer once on first completion.
+pageRank and personalizedPageRank run pr-scale, spmv-pull and pr-finalize in
+batches of eight iterations with one readback per batch, on NetworkX semantics
+against an f64 oracle of the same semantics.
 
-The ranking carries the element's own node id rather than a printed copy.
-Karate Club and College football are GML, whose ids are numbers, so comparing a
-printed id against a real one selected nothing at all on two of three samples.
+The ping-pong is two buffers through two cached bind groups, never one buffer
+with two ranges: Kernel.bind caches by buffer, offset and size, so two buffers
+alternate exactly as two halves would, and the pool's size classes make the
+one-buffer form never smaller. The out-weight sum is per-call Lease scratch
+rather than a residency entry: GraphResidency.array keys on a CPU typed array
+and a device-computed sum has none.
 
-Betweenness ships exact-only behind a size gate: the algorithms package exposes
-no k-source parameter, so a sampled caveat would claim a sample never taken.
+Convergence of iteration i - 1 is observed during dispatch i, so
+firstConvergedIteration is recorded one late and reported as iteration - 1.
+When the oracle converges exactly at maxIterations the device reports
+converged: false; iterations agree within the one the design allows.
+
+Every batch reads the iterate back with its header, so a second mapAsync after
+the loop is not needed. The browser demo gains a Run PageRank control that runs
+the device PageRank over the resident snapshot, checks the f32 scores against
+the f64 oracle, and colours and sizes the nodes by score.
 BODY
 }
 
-body_loaddata() {
+body_spectral() {
     cat <<'BODY'
-handleLoad ended its promise chain in console.error, so a malformed file, a 404
-or unparsable pasted text produced nothing visible on any route.
+power-iteration.ts is the shared driver: pull, normalise on the device through a
+reduce into partials[0].norm, batch, read back. hits, eigenvectorCentrality and
+katzCentrality are three configurations of it over the same spmv-pull kernel,
+so the three stay batchable and no norm is computed on the host.
 
-Fixing the catch alone would not have been enough: graphty-element reports a
-parse failure out of band through data-loading-error and does not reject, so the
-promise had already resolved and the dialog had already closed and cleared the
-reader's input. The shell now waits for the element's own report before
-settling.
+HITS runs two interleaved chains over a three-buffer ring (the config's
+alternate flag and the run's previous slot): the design's single-adjacency form
+iterates the dominant eigenvector of A, not the A A^T vector HITS defines, and
+the CPU package updates both vectors from the previous iterate. Two runs and two
+mapAsync remain.
 
-The failure names the file, keeps the dialog open with its input, and clears the
-element -- without which the retry the message invites loaded nothing and then
-reported success.
+The batch loop is the one duplicated loop between pagerank.ts and this driver;
+PageRank's finalize step differs enough that sharing it would cost a third
+abstraction.
 BODY
 }
 
-body_results() {
+body_wcc() {
     cat <<'BODY'
-The Results tab was a real tab with a real count that switched real state, and
-the panel body never branched on it -- so selecting Results kept rendering the
-Run tab's Suggested list, and a completed analysis became unreachable the moment
-anything else was selected.
+connectedComponents runs Afforest on the device: two link-sample rounds over
+the first neighbours, a compress, a 1,024-word sample read back to find the
+giant component on the host, then one link round over every edge that skips the
+giant, and a final compress. The host loop stops when the changed flag reads 0.
 
-It now draws the result as a card collapsed to title, headline and primary
-action while the same result is open in the inspector, which is the
-one-body-on-screen rule the result shapes already ask for.
+The labels come back through renumberPartition, so the result is a dense
+partition in first-seen order. E_PARTITION is not added to the pass-through
+codes: a label that is still INVALID_INDEX after the last compress means the
+kernel left a node unlabelled, which is E_VALIDATION, not a caller error.
+
+No dedupe is built. Design 8.3 describes Afforest with a CAS link, a
+pointer-jumping compress and an each-edge-once link round, and the link is
+idempotent, so nothing needs deduplicating.
 BODY
 }
 
-body_legend() {
+body_accelerator() {
     cat <<'BODY'
-The Legend control reported a state the legend was not in: it could be checked
-while nothing was encoded, and a legend with no encoded channel draws nothing,
-so the reader ticked a box and nothing appeared.
+createAccelerator returns seven algorithm members (pageRank,
+personalizedPageRank, hits, eigenvectorCentrality, katzCentrality,
+connectedComponents and its alias weaklyConnectedComponents), each
+ctx.assertReady() then a delegation. GpuAccelerator declares them non-optional.
+Never a throwing stub: the CPU dispatchers test `acc.method !== undefined` and
+route to the CPU when a member is absent, so a stub would be a silent wrong
+answer.
 
-The control is disabled with its reason when there is nothing to draw, rather
-than the legend rendering an empty box.
+The barrel exports the six functions and the nine P7 types; test/index.test.ts
+moves them out of NEVER_EXPORTED in the same commit, because the barrel test
+fails otherwise.
+
+AlgorithmAccelerator stays a structural mirror of the CPU seam, so M8b lands
+before M8a and M8a's import type swap is source-compatible.
 BODY
 }
 
-body_panels() {
+body_bench() {
     cat <<'BODY'
-Five mechanisms decided whether a sidebar was on screen: a per-surface latch, a
-per-surface close control, a rail click that closed the active panel, a
-width-aware first-visit default, and a narrow layout in which only one overlay
-could be open and a canvas tap dismissed it.
+Two groups: pagerank (T-8, 100 iterations at 100k / 1M and 1M / 10M) and wcc
+(T-9, wall end to end including the upload and the label readback). run.ts
+registers both and skips the bare `--` pnpm forwards ahead of the group names.
 
-All five are gone. There is one persisted boolean and one control that hides and
-shows both sidebars together. Nothing else opens or closes them.
-
-Below 1280 the shell no longer lays out -- it says the screen is too small and
-names the width it needs. The old narrow layout put 109px of the Welcome sheet
-under each overlay at 1024, leaving the heading reading "aph to get started".
-
-The too-small state is drawn as an overlay OVER the still-mounted shell rather
-than instead of it. Returning early unmounted graphty-element, and widening back
-past 1280 remounted a fresh scene with no data while the shell still believed a
-graph was loaded: measured against the built app, a resize to 1100 and back left
-the canvas empty under a status bar still reading 20 nodes 29 edges.
-
-Also here: the node inspector reported 0 neighbours for a node the result card
-said had 17 links, because it read an edge endpoint spelling getData never
-writes.
+pagerank runs with tolerance: 0 so all 100 iterations run with the convergence
+readback every eight: at the NetworkX tolerance of 1e-6 the seeded G(n, m) input
+converges from the uniform start in one to four iterations, which would time one
+pull and call it a hundred.
 BODY
 }
 
-body_inspector() {
+body_baseline() {
     cat <<'BODY'
-The style inspector was the old left-sidebar panel re-homed whole. It drew its
-own local controls, so it was the one inspector surface with no left margin, and
-it read only the static style -- so a layer whose whole encoding is a calculated
-value showed the element's defaults as though the layer had set them. "Top
-degree labels", whose only job is drawing labels, showed Label as disabled.
+nvidia-lovelace-driver580 gains one session carrying the five groups. Measured
+on the RTX 4070 SUPER, medians of five runs:
 
-It is rebuilt on the shared controls, and a computed channel is drawn in its own
-row: what it encodes, what it reads, the expression behind a disclosure, and one
-explicit verb to convert it to a fixed value. The control it would otherwise
-contradict is disabled with that reason, because a calculated value is applied
-after the static style and merged over it -- an editable control there would
-silently lose the reader's edit on the next repaint.
+T-8 PageRank 100 iterations, 100k / 1M: 17.204 ms (target 150 ms, met);
+1M / 10M: 198.645 ms (target 1.5 s, met).
+
+T-9 WCC 1M / 10M: 145.970 ms against a 100 ms target, MISSED. The row is wall
+end to end from a released core, so it carries the 164 MB upload that T-1 alone
+times at 125.7 ms; with the core resident the same call takes 11-16 ms. The
+target is below the upload it includes, an owner decision recorded in G7.
+
+The gpu-linux-t4 session is appended once the labelled PR's GPU lane has run;
+the README's Performance table carries the new rows.
 BODY
 }
 
-body_canvas() {
+body_sabotage() {
     cat <<'BODY'
-The data table, the legend, the minimap and the time slider positioned against
-the canvas element's rect, which spans the full width under the sidebars, so all
-four were drawn partly or wholly behind them.
+Eighteen mutations, three per P7 kernel except wcc-sample, which is
+SABOTAGE_EXEMPT: its readback is a host-side mode over a 1,024-word sample and
+the WCC result is identical whichever component the sample nominates, so no
+mutation of it can change a label. SABOTAGE_PHASES gains P7 and the coverage
+test asserts the exempt set.
 
-They now inset against the live canvas strip. Insetting rather than raising the
-z-order, because the drawer is specified never to cover the panel or the
-inspector -- raising it would trade one contradiction for another.
+Two check-set helpers (spmvWorstFactor / pageRankWorstFactor, wccWorstFactor)
+measure each mutant against the oracle; the two suites assert every mutant is
+caught. The browser smoke runs pageRank and connectedComponents on karate under
+Playwright against the same oracles.
+test/limits/pagerank-1m.test.ts is the first node-limits test: the T-8 fixture
+at 1M nodes, which the GPU lane runs and the default lane never selects.
 BODY
 }
 
-body_spec() {
+body_ci() {
     cat <<'BODY'
-Section 6.12's latch is deleted, with the dismissal guarantee's latch clauses,
-the memory rule's two latch entries, the narrow-screen section, and the rail
-click that closed the active panel. What replaces them is one switch and one
-remembered boolean.
-
-Below 1280 is stated as unsupported rather than specified as a second layout.
-The acceptance scenario that tested the width-aware default is rewritten for the
-model that shipped.
+pr-scale and pr-finalize declare needs: ["subgroups"] (they call wg_reduce_vec4)
+and their tests live under test/algorithms, so without that path the twin pass
+never exercised the PageRank reduction on a device without the feature.
 BODY
 }
 
-body_tooling() {
+body_decisions() {
     cat <<'BODY'
-The step list, the subjects and the paths describe this change set rather than
-the one before it. The machinery is unchanged.
+Five records for the departures the M8b plan takes from the WebGPU design:
+spmvPull is its own kernel (the snippet vocabulary cannot read xNorm[nbr]);
+it ships the thread-per-row tier only (the tiers are P4's); Afforest needs no
+dedupe (its link is idempotent); outWeightSum is per-call scratch (the
+residency keys on a CPU array); and the PageRank ping-pong is two buffers
+(bindable either way; the one-buffer form saves nothing and costs an offset).
+
+The decisions index gains the five rows, design/README.md the file counts, and
+the webgpu index a row for the plan. The plan's DEP-M8B-G row and PD-7 block
+are corrected in place: HEAD said Kernel.bind rejects rankIn / rankOut on one
+buffer, but those slots are never on the same kernel, so the argument rests on
+the size classes and the offset cost instead.
+BODY
+}
+
+body_g7() {
+    cat <<'BODY'
+docs/decisions/G7.md records the gate measured on the dev box: every item green
+on NVIDIA-Dawn, lavapipe and Chromium, with two items open for the owner -- the
+gpu-linux-t4 rows, which need the labelled PR's GPU lane, and the T-9 target,
+which the 1M / 10M row misses because it includes the 164 MB upload.
+
+The noise-floor row for spmv-pull lands with the two random1k fixtures (mesa
+software and NVIDIA Lovelace, Node) in the same commit: noiseFloorFor throws on
+an unknown id, so a fixture without its tolerance row turns the cross-adapter
+leg red on every adapter.
+
+CLAUDE.md's kernel list and "what exists" section gain the seven P7 kernels,
+the six algorithms and the widened no-subgroups twin.
 BODY
 }
 
@@ -465,8 +522,8 @@ fi
 CONVENTIONAL_TYPES='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'
 # Kept in step with commitlint.config.js's scope-enum, which is enforced at level 2:
 # a scope outside this list is rejected by the commit-msg hook, mid-run.
-VALID_SCOPES="algorithms layout graphty-element compact-mantine remote-logger graphty
-              gpu-3d-force-layout deps release ci docs tools workspace"
+VALID_SCOPES="graph-format graph-io webgpu-graph-algorithms algorithms layout graphty-element
+              compact-mantine remote-logger graphty gpu-3d-force-layout deps release ci docs tools workspace"
 # commitlint's body-max-line-length, from @commitlint/config-conventional.
 BODY_MAX_LINE=100
 SUBJECT_MAX=100

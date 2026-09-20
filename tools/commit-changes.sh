@@ -27,9 +27,9 @@
 # hook (.husky/pre-push -> pnpm run prepush:fast -> tools/prepush.sh) runs the
 # validation then.
 #
-# The plan below is tailored to one specific change set: the M8a phase of the
-# WebGPU work (the graph-format bridge, the indexed ports and the accelerator seam,
-# branch feat/algorithms-indexed-seam, nine commits). It is data, not machinery --
+# The plan below is tailored to one specific change set: the P5 phase of the
+# WebGPU work (Fruchterman-Reingold and the spring-electrical preset, branch
+# feat/gpu-p5-p4, seventeen commits). It is data, not machinery --
 # STEPS, SUBJECTS, PATHS and one body_*
 # function each. Re-point it at the next change set rather than reusing the
 # messages, and read the diff before you write a message, not a summary of it.
@@ -123,31 +123,48 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-# The M8a phase: the graph-format bridge (A1), the first six indexed ports, the accelerator seam,
-# the GPU package's W1b algorithms half, the records, then the script itself.
-STEPS=(deps bridge ports betweenness seam decisions w1b gate tools)
+# The P5 phase: the two prior-phase docs commits (the G6 sign-off, the P5 / P4 plans, the design
+# amendments), then one commit per P5 task in the plan's execution order (T4 after T5, because the
+# parity suite covers both models), then the script itself.
+STEPS=(g6 plans amendments seams laws fr spring parity accelerator sabotage bench smoke cooling demo decisions gate tools)
 
 declare -A SUBJECTS=(
-    [deps]="build(algorithms): take @graphty/graph-format as a workspace dependency and a caret peer"
-    [bridge]="feat(algorithms): convert a legacy Graph to a graph-format snapshot with a mutation counter"
-    [ports]="feat(algorithms): port six algorithms to graph-format snapshots under the indexed namespace"
-    [betweenness]="feat(algorithms): express sampled betweenness on the shared option type"
-    [seam]="feat(algorithms): add the accelerator seam and the accelerated() dispatcher"
-    [decisions]="docs: record the A1 ordering and the PageRankOptions shadowing"
-    [w1b]="feat(webgpu-graph-algorithms)!: import the real AlgorithmAccelerator and retire CpuAlgorithmOptions"
-    [gate]="docs(webgpu-graph-algorithms): record the algorithms slice of the G6 gate"
-    [tools]="chore(tools): point the commit script at the M8a phase"
+    [g6]="docs(webgpu-graph-algorithms): sign off the G6 algorithms gate record"
+    [plans]="docs(webgpu-graph-algorithms): add the P5 and P4 phase plans"
+    [amendments]="docs(webgpu-graph-algorithms): record the frontier, Louvain and mask amendments and future work"
+    [seams]="feat(webgpu-graph-algorithms): add the option, stats and fixed-mask seams of the P5 layout models"
+    [laws]="feat(webgpu-graph-algorithms): add the FR, coulomb and spring laws and integrators to the kernels"
+    [fr]="feat(webgpu-graph-algorithms): add the Fruchterman-Reingold model, its factory and its f64 oracle"
+    [spring]="feat(webgpu-graph-algorithms): add the spring-electrical preset and its ngraph-checked oracle"
+    [parity]="test(webgpu-graph-algorithms): add the P5 parity suites and record their noise floors"
+    [accelerator]="feat(webgpu-graph-algorithms): expose fruchtermanReingold and springElectrical on the accelerator"
+    [sabotage]="test(webgpu-graph-algorithms): add the P5 sabotage rows and suites"
+    [bench]="feat(webgpu-graph-algorithms): add the layout-fr benchmark group and record T-14 on the dev box"
+    [smoke]="test(webgpu-graph-algorithms): add the FR and spring browser smoke and the FR frame loop"
+    [cooling]="feat(layout): add the cooling option and the nullable spring constants to the layout option types"
+    [demo]="feat(webgpu-graph-algorithms): add the P5 models and four SNAP networks to the browser demo"
+    [decisions]="docs: record the P5 design decisions beside the WebGPU design"
+    [gate]="docs(webgpu-graph-algorithms): close the G5 gate record"
+    [tools]="chore(tools): point the commit script at the P5 phase"
 )
 
 declare -A PATHS=(
-    [deps]="algorithms/package.json algorithms/scripts/build-bundle.js algorithms/scripts/build-gh-pages.js algorithms/vite-plugin-algorithms-redirect.js pnpm-lock.yaml algorithms/test/unit/indexed/package-wiring.test.ts"
-    [bridge]="algorithms/src/core/graph.ts algorithms/src/indexed/to-snapshot.ts algorithms/test/unit/indexed/to-snapshot.test.ts algorithms/test/helpers/snapshot-differential.ts algorithms/test/unit/indexed/to-snapshot-differential.test.ts"
-    [ports]="algorithms/src/indexed/structures algorithms/src/indexed/bfs.ts algorithms/src/indexed/dijkstra.ts algorithms/src/indexed/pagerank.ts algorithms/src/indexed/components.ts algorithms/src/indexed/mst.ts algorithms/src/indexed/common-neighbors.ts algorithms/src/indexed/index.ts algorithms/test/unit/indexed/structures.test.ts algorithms/test/unit/indexed/bfs.test.ts algorithms/test/unit/indexed/dijkstra.test.ts algorithms/test/unit/indexed/pagerank.test.ts algorithms/test/unit/indexed/components.test.ts algorithms/test/unit/indexed/mst.test.ts algorithms/test/unit/indexed/common-neighbors.test.ts"
-    [betweenness]="algorithms/src/algorithms/centrality/betweenness.ts algorithms/test/unit/indexed/betweenness-options.test.ts"
-    [seam]="algorithms/src/indexed/accelerator.ts algorithms/src/index.ts algorithms/project.json algorithms/tsconfig.typecheck.json algorithms/test/types algorithms/test/unit/indexed/accelerated.test.ts algorithms/scripts/bundle-types.js knip.config.ts package.json"
-    [decisions]="design/decisions/2026-09-19-a1-lands-inside-m8a.md design/decisions/2026-09-19-pagerank-options-shadowing.md design/decisions/README.md design/webgpu/README.md design/README.md"
-    [w1b]="webgpu-graph-algorithms/package.json webgpu-graph-algorithms/project.json webgpu-graph-algorithms/src/index.ts webgpu-graph-algorithms/src/accelerator.ts webgpu-graph-algorithms/src/types/algorithms.ts webgpu-graph-algorithms/src/types/accelerator.ts webgpu-graph-algorithms/test/types/conformance.test-d.ts webgpu-graph-algorithms/test/types/public-api.test-d.ts webgpu-graph-algorithms/tsconfig.json webgpu-graph-algorithms/tsconfig.strict-consumer.json"
-    [gate]="webgpu-graph-algorithms/docs/decisions/G6-algorithms.md"
+    [g6]="webgpu-graph-algorithms/docs/decisions/G6-algorithms.md"
+    [plans]="design/webgpu/plans/2026-09-20-webgpu-p5-fruchterman-reingold.md design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md design/webgpu/README.md"
+    [amendments]="design/webgpu/webgpu-acceleration-plan.md"
+    [seams]="webgpu-graph-algorithms/src/layouts/model-common.ts webgpu-graph-algorithms/src/constants.ts webgpu-graph-algorithms/src/types/options.ts webgpu-graph-algorithms/src/types/layout.ts webgpu-graph-algorithms/src/layouts/force-simulation.ts webgpu-graph-algorithms/test/layouts/force-simulation.test.ts webgpu-graph-algorithms/test/device/constants.test.ts"
+    [laws]="webgpu-graph-algorithms/src/kernels.ts webgpu-graph-algorithms/src/wgsl/fa2-stats-finalize.wgsl.ts webgpu-graph-algorithms/src/wgsl/fa2-attraction.wgsl.ts webgpu-graph-algorithms/src/wgsl/fa2-repulsion-exact.wgsl.ts webgpu-graph-algorithms/src/wgsl/fa2-integrate.wgsl.ts webgpu-graph-algorithms/src/layouts/forceatlas2.ts webgpu-graph-algorithms/test/helpers/override-matrix.ts webgpu-graph-algorithms/test/kernel/wgsl-compile.test.ts webgpu-graph-algorithms/test/kernel/registry.test.ts webgpu-graph-algorithms/test/kernel/state-roundtrip.test.ts webgpu-graph-algorithms/test/browser/state-roundtrip.test.ts webgpu-graph-algorithms/test/layouts/fa2-options.test.ts"
+    [fr]="webgpu-graph-algorithms/src/layouts/fruchterman-reingold.ts webgpu-graph-algorithms/test/oracle/fruchterman-reingold.ts webgpu-graph-algorithms/test/layouts/fr-options.test.ts webgpu-graph-algorithms/test/layouts/fr-behaviour.test.ts webgpu-graph-algorithms/test/layouts/fr-properties.test.ts webgpu-graph-algorithms/test/oracle/oracles.test.ts"
+    [spring]="webgpu-graph-algorithms/package.json pnpm-lock.yaml webgpu-graph-algorithms/src/layouts/spring-electrical.ts webgpu-graph-algorithms/test/oracle/spring-electrical.ts webgpu-graph-algorithms/test/oracle/spring-electrical-ngraph.test.ts webgpu-graph-algorithms/test/helpers/story-graph.ts webgpu-graph-algorithms/test/layouts/se-options.test.ts webgpu-graph-algorithms/test/layouts/se-behaviour.test.ts webgpu-graph-algorithms/test/layouts/se-properties.test.ts webgpu-graph-algorithms/test/layouts/se-settle.test.ts"
+    [parity]="webgpu-graph-algorithms/test/helpers/fr-parity.ts webgpu-graph-algorithms/test/helpers/se-parity.ts webgpu-graph-algorithms/test/layouts/fr-inspect.test.ts webgpu-graph-algorithms/test/layouts/fr-trace.test.ts webgpu-graph-algorithms/test/layouts/fr-twins.test.ts webgpu-graph-algorithms/test/layouts/fr-layout-oracle.test.ts webgpu-graph-algorithms/test/layouts/fr-lifecycle.test.ts webgpu-graph-algorithms/test/layouts/fr-force-sum.test.ts webgpu-graph-algorithms/test/layouts/fr-distributional.test.ts webgpu-graph-algorithms/test/layouts/se-inspect.test.ts webgpu-graph-algorithms/test/layouts/se-trace.test.ts webgpu-graph-algorithms/test/layouts/se-force-sum.test.ts webgpu-graph-algorithms/test/layouts/se-distributional.test.ts webgpu-graph-algorithms/test/helpers/fa2-parity.ts webgpu-graph-algorithms/test/noise-floor.test.ts webgpu-graph-algorithms/benchmarks/results/noise-floor.json webgpu-graph-algorithms/test/fixtures/noise"
+    [accelerator]="webgpu-graph-algorithms/src/types/accelerator.ts webgpu-graph-algorithms/src/accelerator.ts webgpu-graph-algorithms/src/index.ts webgpu-graph-algorithms/test/index.test.ts webgpu-graph-algorithms/test/accelerator.test.ts webgpu-graph-algorithms/test/types/public-api.test-d.ts webgpu-graph-algorithms/test/types/accelerator.test-d.ts webgpu-graph-algorithms/test/types/options.test-d.ts webgpu-graph-algorithms/test/types/conformance.test-d.ts"
+    [sabotage]="webgpu-graph-algorithms/test/helpers/sabotage.ts webgpu-graph-algorithms/test/sabotage/fr.test.ts webgpu-graph-algorithms/test/sabotage/se.test.ts"
+    [bench]="webgpu-graph-algorithms/benchmarks/layout-fr.bench.ts webgpu-graph-algorithms/benchmarks/layout-exact.bench.ts webgpu-graph-algorithms/benchmarks/run.ts webgpu-graph-algorithms/test/benchmarks.test.ts webgpu-graph-algorithms/README.md webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json"
+    [smoke]="webgpu-graph-algorithms/test/helpers/frame-loop.ts webgpu-graph-algorithms/test/layouts/fr-frame-loop.test.ts webgpu-graph-algorithms/test/browser/spring-layouts.test.ts"
+    [cooling]="layout/src/simulation/types.ts webgpu-graph-algorithms/test/layouts/fr-adaptive.test.ts"
+    [demo]="webgpu-graph-algorithms/demo/main.ts webgpu-graph-algorithms/demo/index.html"
+    [decisions]="design/decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md design/decisions/2026-09-20-spring-electrical-integrates-like-ngraph.md design/decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md design/decisions/README.md design/README.md"
+    [gate]="webgpu-graph-algorithms/docs/decisions/G5.md webgpu-graph-algorithms/CLAUDE.md"
     [tools]="tools/commit-changes.sh"
 )
 
@@ -157,188 +174,320 @@ declare -A PATHS=(
 # that is commitlint's body-max-line-length, and it is checked before staging.
 # ---------------------------------------------------------------------------
 
-body_deps() {
+body_g6() {
     cat <<'BODY'
-algorithms enters the format's consumer closure: @graphty/graph-format is a
-workspace:^ dependency and a ^1.0.0 peer, so nx affected now builds graph-format
-on every algorithms-touching PR, and hosts.yml runs because pnpm-lock.yaml
-changed. Resolution goes through node_modules to graph-format/dist, as layout's
-does: algorithms' tsc EMITS, and a sources paths entry would move its inferred
-rootDir.
-
-dist/algorithms.js now carries a bare @graphty/graph-format specifier, which is
-right for the npm entry (an app installing the format directly must not ship it
-twice) and wrong for a browser. The examples and the gh-pages build therefore
-move to a second, self-contained dist/algorithms.standalone.js; nothing under
-examples/ changes because the copied file keeps its name.
-
-The lockfile also carries the GPU package's side of this phase: its
-@graphty/algorithms entry moves from an auto-installed ^1.0.0 registry peer to
-the workspace:^ devDependency that the W1b commit below declares. One file, one
-commit; pnpm install --frozen-lockfile is consistent again at that commit.
+The G6 algorithms record was written before any of the M8a commits existed and
+carried placeholders for the hashes, the released versions, the lane runs and
+the signature. They are filled: the nine commits 061c9626 .. 8bc1cda1 merged to
+master as pull request 15 (ffd6b329); algorithms 1.7.2 became 1.8.0 and
+webgpu-graph-algorithms 0.3.0 became 0.5.0 in the release of 2026-09-20; ci.yml
+35515822729, hosts.yml 35515822757 and the gpu.yml run on the merge commit
+35519114142 are all green. No measured number changed.
 BODY
 }
 
-body_bridge() {
+body_plans() {
     cat <<'BODY'
-Graph gains mutationCount, a monotone counter bumped by addNode (of a new id),
-removeNode, addEdge, removeEdge and clear, and never reset: a reset could hand a
-stale cache entry a matching key. toSnapshot(graph) freezes a legacy Graph into
-a graph-format snapshot with weightDtype "f64", memoised on
-(graph, mutationCount) in a WeakMap, so a mutation replaces the cached snapshot
-and a read never rebuilds it. No existing signature or result shape moves.
+Two implementation plans for the WebGPU package's layout phases. The P5 plan
+lands Fruchterman-Reingold and the spring-electrical preset on the exact tier
+that P3 built: three pair laws, two integrators and two statistics as override
+axes on the four existing FA2 kernels, two f64 oracles (the second checked
+against ngraph.forcelayout), the accelerator members, the parity, sabotage and
+noise-floor rows of every branch, the layout-fr benchmark group and the G5
+record. Its section 0 records why it runs before P4 (the tree has no grid
+kernel, and the LAW override reaches the grid's near-field kernel as one more
+declaration) and its four departures from the design, three of which carry a
+decision record.
 
-The differential harness (test/helpers/snapshot-differential.ts) converts every
-fixture of the corpus and compares neighbour sets and the edge multiset against
-the legacy Graph. It deliberately does NOT compare algorithm results: that
-waits for A2's widening, when the ports have something to differ from.
+The P4 plan is the scale layer that follows on the same branch: the grid
+primitives, the degree tiers, windowed execution, the grid pyramid under all
+three layout models, calibrateLayout, and the G4 record.
 
-Graph.edges() also stops yielding an undirected edge twice when its ids mix
-strings and numbers. The old mirror skip was `source > target`, and a string
-never compares greater than a number, so both sides were yielded and toSnapshot
-froze duplicate arcs for two corpus fixtures. Ids of one type still compare by
-value; ids of different types compare by type name. The A1 decision record
-carries the departure and its reversal.
+design/webgpu/README.md indexes both.
 BODY
 }
 
-body_ports() {
+body_amendments() {
     cat <<'BODY'
-The six ports graph-format design 14.2 names, under src/indexed/ and exported as
-the `indexed` namespace: breadthFirstSearch, dijkstra (with the walkPredArcs /
-walkPredEdges predecessor walk), pageRank, connectedComponents, kruskalMST and
-commonNeighborsScore. Four are transcribed from the design's own code; Ports 4
-and 5 (components, MST) are specified there in prose and designed in the plan
-(DEP-8A-D, DEP-8A-H). Each takes a GraphSnapshot or an AdjacencyView first and
-returns typed arrays; each test checks the port against its legacy counterpart
-at the stated tolerance.
+Section 16 amends the P8 / P11 algorithm phases in four parts: the visited
+pre-check before the frontier claim in BFS, SSSP and betweenness's forward
+pass; contraction by bitmap when the emitted frontier is dense; the Louvain
+gain floor; and edge / node masks that run an algorithm on a filtered graph
+without a new snapshot. The mask binding is for the algorithm kernels only:
+16.4's item 5 puts the layouts out of its scope, so no layout kernel's binding
+table changes.
 
-src/indexed/structures/ holds their index-keyed helpers: IntUnionFind,
-IndexedMinHeap and arcSourceIn. The legacy NodeId-keyed union-find and
-priority-queue stay exactly as they are until 2.0.
+Section 17 is the future-work register: every algorithm the design does not
+schedule, with the GPU case for each, so a later phase starts from a written
+argument rather than a blank page.
 
-The departures from the design's text: DEP-8A-C, DEP-8A-D and DEP-8A-H, each
-recorded in the plan's section 0.5. No legacy function's first parameter has
-widened: the widening is A2's and waits.
+No review-log entry: that practice was retired on 2026-09-19
+(design/decisions/README.md), and the amendments are dated in their headings.
 BODY
 }
 
-body_betweenness() {
+body_seams() {
     cat <<'BODY'
-BetweennessCentralityOptions gains `sources` (node indices to sample from) and
-`k` (how many to draw). They are node INDICES and only mean something against a
-snapshot, so the three legacy Graph-taking entry points throw when either is
-set rather than silently running the exact all-sources computation a thousand
-times too slowly. No code that compiled before could reach the guard.
+The shared ground the two P5 models stand on, before either exists.
+src/layouts/model-common.ts holds the twelve option / value helpers, the
+Overrides alias, U32_MODULUS and the two buffer constants that were private to
+forceatlas2.ts; this commit copies them and the next one deletes the originals
+and imports them, so no FA2 line moves here. constants.ts gains FR_DEFAULTS,
+FR_START_TEMPERATURE, FR_REHEAT_FRACTION and SE_DEFAULTS (ngraph.forcelayout
+3.3.1's values); options.ts the two resolved option records; layout.ts the two
+stats records and their per-iteration trace records.
 
-The whole interface moves to one `readonly ... | undefined` style because the
-GPU package compiles it a second time under exactOptionalPropertyTypes, where
-`sources?: T` and `sources?: T | undefined` are different types. No existing
-member's meaning changed.
+ModelInputs gains an optional `fixed` mask (the FR option), validated against
+ceil(n / 32) words in load()'s check phase and applied after the resize block,
+before any submit; a throwing load leaves the mask as it was. No reheat is
+triggered by it. force-simulation.test.ts pins that; constants.test.ts pins
+the two tables. model-common.ts is imported by nothing until the next commit.
 BODY
 }
 
-body_seam() {
+body_laws() {
     cat <<'BODY'
-accelerated(acc) is the ONE injection spelling (design 9.2, restated in the M8a
-deliverables cell of the integration plan): a dispatcher object owned by this
-package whose every method is
-`acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))`.
-It carries the six methods whose indexed.* ports exist and grows with each later
-port. sssp is decorated with pathTo / pathEdges because the GPU package cannot
-attach them itself. There is no try/catch: a throwing accelerator method
-propagates unchanged, and acc === null runs the CPU port.
+The three pair laws, the two integrators and the two extra statistics become
+override axes on the FA2 kernels rather than new kernel ids: LAW on K2 / K3
+(0 FA2, 1 Fruchterman-Reingold, 2 Coulomb / Hooke), APPLY on K5 (0 FA2, 1 the
+temperature-capped FR step, 2 ngraph's semi-implicit Euler with the unit speed
+clamp) and STATS_MODE on K1 (0 FA2, 1 folds the temperature, 2 the kinetic
+energy). The binding tables are unchanged; the spring velocity lives in the
+oldForce slot, which the FR / spring models free by compiling K5 with
+SWING_MODE 1. Kinetic energy rides partials B, overwritten by K5 under APPLY 2.
 
-src/indexed/accelerator.ts declares the *ResultLike shapes, AlgorithmAccelerator
-(every method optional, GraphSnapshot in) and AcceleratedAlgorithms. The root
-barrel exports them flat, so the GPU package can write
-`import type { AlgorithmAccelerator } from "@graphty/algorithms"`, and exports
-the ports as the `indexed` namespace because five of them collide by name with
-the legacy functions. The indexed PageRankOptions is aliased
-IndexedPageRankOptions: the flat name is taken twice already, and the shadowing
-comment in the barrel says which one pageRank() actually takes.
+Fa2Params grows from 96 to 128 bytes with seven f32 model fields after `pad`
+(frK, temperature, springLength, springCoefficient, coulomb, dragCoefficient,
+timeStep) and pad1; Fa2State.reserved0 becomes temperature, kineticEnergy and
+a vec2f reserve; Fa2Trace.pad0 becomes modelScalar. FA2's paramsFor is
+untouched because UniformBlock.write zeroes absent fields. Coincident pairs
+under LAW 1 / 2 take the FA2 antisymmetric kick with the law evaluated at the
+distance floor.
 
-The fake-accelerator tests cover delegation, the CPU path, the decoration and
-the propagated throw. The lint script gains `tsc -p tsconfig.typecheck.json`,
-which compiles test/types/accelerator.test-d.ts; project.json's lint target
-delegates to the npm script so the two cannot drift.
+The FA2 paths (LAW 0, APPLY 0, STATS_MODE 0) are the existing text plus one
+reduction K5 and one accumulator K1 never read under mode 0; the FA2 suites
+stay bitwise identical to their committed noise fixtures. The compile-matrix
+pins move (P1 37 -> 53, P3 22 -> 61) and the four tests that pin the exact
+block layouts and override lists follow: registry, the two state round trips
+and fa2-options.
+BODY
+}
 
-scripts/bundle-types.js wrote a hand-copied mirror of src/index.ts that lacked
-the whole new surface, and `npm run build:bundle` overwrote the package's types
-entry with it. It is now a single `export * from './src/index'`.
+body_fr() {
+    cat <<'BODY'
+createFruchtermanReingold(ctx, snapshot, options?) over ForceSimulation with
+LAW 1 / APPLY 1 / STATS_MODE 1: k defaults to 1 / sqrt(n), the temperature
+schedule is 0.1 - dt * index clamped at 0 with dt = 0.1 / (iterations + 1),
+`fixed` resolves at load through the seam of the previous commit, mass is 1
+and weights none, and reheat() re-arms the temperature at floor(0.7 *
+iterations) while the iteration budget restarts at 0 (the decision record of
+the next docs commit says why). setParams({ fixed }) is E_INVALID_ARGUMENT
+with a hint naming setFixed; iterations 0 is accepted and means settled at
+load, as the resolver documents.
 
-knip: the algorithms entry list gains the type tests, and the root lint:knip
-runs with --no-gitignore. knip stops reading ancestor .gitignore files only at a
-.git DIRECTORY, and a worktree's .git is a file, so from a worktree under
-.worktrees/ it also read the main checkout's unanchored `.worktrees/` pattern,
-dropped every package.json-derived entry and reported the tree as dead code.
-The scratch directories that .gitignore hid are listed in the config instead.
+test/oracle/fruchterman-reingold.ts is the f64 oracle with an f32 variant and
+per-stage capture, hand-checked by three cases in oracles.test.ts. The three
+suites are the option resolution and error branches, the behaviour pins
+(temperature trace, reheat, fixed nodes, a failed load leaving the simulation
+unloaded) and the fast-check properties (fixed nodes never move, setPosition
+lands, settle within the budget, the displacement bound with its f32
+rounding term stated in the file). The oracle carries its own copies of the
+reduction helpers that are module-private to the FA2 oracle.
+BODY
+}
+
+body_spring() {
+    cat <<'BODY'
+createSpringElectrical(ctx, snapshot, options?) is the ngraph.forcelayout
+preset over the same simulation with LAW 2 / APPLY 2 / STATS_MODE 2: Coulomb
+repulsion with ngraph's `gravity` (-12) as the constant, Hooke springs at
+springLength 10 / springCoefficient 0.8, drag 0.9, timeStep 0.5, mass
+1 + degree / 3, semi-implicit Euler with the unit speed clamp, seeds in
+[-1, 1). It settles by the shared rule of design 7.17 and reports the kinetic
+energy per iteration; FA2's centre gravity is 0 for it.
+
+ngraph.forcelayout ^3.3.1 and ngraph.graph ^20.0.1 become devDependencies,
+imported by the oracle cross-check and the story-graph helper only. The oracle
+(test/oracle/spring-electrical.ts) is checked against ngraph itself: one
+iteration with theta 0 and explicit positions agrees to 1e-9 in f64, and a
+1,000-step run on the 150-node story graph (deduped on the unordered pair, so
+both sides see the same 249 springs) agrees on the edge-length distribution.
+The suites pin the options, the behaviour (the kineticEnergy trace under both
+step patterns), the fast-check properties (the speed clamp with the f32
+division margin measured on the RTX 4070) and the settle within 1,000 steps
+under both rules.
+
+pnpm-lock.yaml carries the two entries; pnpm 10 also normalised unrelated
+peer-resolution keys in the same write.
+BODY
+}
+
+body_parity() {
+    cat <<'BODY'
+The parity suites of both models and the one recording run that derives every
+P5 tolerance. fr-parity.ts and se-parity.ts hold the stage readers and the
+caps tables (every cap's basis is a noise row id); fa2-parity.ts exports three
+readers they share. Per model: inspect() stage comparison per kernel branch,
+the trace against the f32 / f64 oracles, the subgroup twins, the layout oracle
+at the admitted horizons, lifecycle, the force-sum invariant where the law is
+antisymmetric, and distributional parity over 100 iterations. The FR layout
+member at horizon 10 is recorded on karate with the fixed mask, the only
+configuration the file's own admission rule accepts there.
+
+noise-floor.test.ts gains 42 P5 members (10 FR, 10 spring, 22 widening) and
+46 fr- / se- tolerances, 20 of them .cross; noise-floor.json gains 44 rows and
+test/fixtures/noise 158 files, all written by the recording run on the RTX
+4070 and lavapipe and never by hand.
+BODY
+}
+
+body_accelerator() {
+    cat <<'BODY'
+GpuAccelerator gains fruchtermanReingold(snapshot, options?) and
+springElectrical(snapshot, options?), the two optional members of the layout
+package's LayoutAccelerator, each returning the simulation the factories of
+the two previous feat commits build; createAccelerator wires them and its
+header stops saying they arrive with P5. The barrel exports the two factories,
+FR_DEFAULTS / SE_DEFAULTS and the four stats / trace record types.
+
+The pinned lists follow: index.test.ts's value list and its never-exported
+list (now the two model classes and the two resolvers, as it already names
+ForceAtlas2Model), accelerator.test.ts's member checks and the error cases
+(`k: -1` and `iterations: -1` are E_INVALID_ARGUMENT; iterations 0 is not),
+and the four type tests: public-api pins the eight new names, conformance
+compiles this accelerator against the real LayoutAccelerator.
+BODY
+}
+
+body_sabotage() {
+    cat <<'BODY'
+SABOTAGE_P5 is a separate table of 25 mutations over the LAW / APPLY /
+STATS_MODE branches of K1, K2, K3 and K5, measured only by the two P5 suites,
+so coverage.test.ts's row-name pins and fa2.test.ts's FA2 checks are
+untouched. fr.test.ts and se.test.ts run every row in check mode against the
+stage and trace comparisons of the parity commit and assert each one is
+caught at its derived tolerance. Every FA2 `find` string the rows anchor on is
+kept intact.
+
+One K5 row, the ignored Euler mass, is caught by the trajectory check rather
+than the one-iteration stage check: from v = 0 the first step saturates the
+unit speed clamp on every karate node, so the mass reaches the output only
+once |dt F / m| falls under 1. The row says so.
+BODY
+}
+
+body_bench() {
+    cat <<'BODY'
+The layout-fr group times step(1) of createFruchtermanReingold and
+createSpringElectrical on the exact tier at 10k and 100k, through warmClock
+and reportedRow, now exported from layout-exact.bench.ts in a model-agnostic
+shape with a group parameter. run.ts registers it; benchmarks.test.ts covers
+it.
+
+T-14 on the dev box (RTX 4070 SUPER, session 2026-09-20T19:25:37Z):
+0.617 ms per FR iteration at 10k and 16.367 ms at 100k, the spring preset
+1.11x FR at 100k. The README's dev-box table carries the row; its T4 row is an
+OPEN marker until the gpu-linux-t4 lane runs on the labelled PR, which is the
+one number this phase cannot capture locally.
+BODY
+}
+
+body_smoke() {
+    cat <<'BODY'
+test/helpers/frame-loop.ts takes two generic parameters so any model runs
+under it; its body reads no FA2 field. fr-frame-loop.test.ts is the FR frame
+loop: 600 ticks on karate under the default budget with settled reported, the
+setPosition-during-flight override and the pause run on random1k, whose
+temperature trace is bitwise the unpaused run's (no reheat on resume).
+test/browser/spring-layouts.test.ts is the Chromium smoke of both models:
+load, step, settle within the calibrated batches, dispose leaving the pool
+empty, and the same in-flight override.
+BODY
+}
+
+body_cooling() {
+    cat <<'BODY'
+FruchtermanReingoldOptions gains `cooling`: "linear" (the default, today's
+schedule) or "adaptive", Yifan Hu's step control -- the temperature grows by
+1 / 0.9 after five consecutive iterations whose free force energy fell and
+shrinks by 0.9 when it rose, so the run settles on its own instead of
+spending its whole budget; `iterations` is then only a cap, 10,000 when not
+given. The GPU package implements it as a flag bit in the params (no new
+pipeline key): K5 folds sum |F|^2 over the free nodes into the partials slot
+the spring preset already uses and K1 updates the temperature in the state
+block, which K5 reads back in place of the uniform's. Measured on the SNAP
+Brightkite graph (58k nodes): the linear schedule settles only when its
+2,000-iteration budget ends; adaptive settles at 200.
+
+SpringElectricalOptions.gravity and .springCoefficient accept null, and null
+(or absent) now means ngraph's constant times min(1, 300 / n). ngraph's values
+were tuned for a few hundred nodes; on tens of thousands every node moved at
+the unit speed clamp for thousands of iterations (3,350 on Brightkite, the
+kinetic energy never decaying). With the size rule Brightkite settles at
+1,200 with the energy decayed 4x, Gnutella at 800. The 150-node ngraph parity
+fixtures pass their constants explicitly and are unchanged.
+
+fr-adaptive.test.ts pins the option, the trace against the f32 oracle, the
+trace's structure (every step x0.9, x1/0.9 or unchanged), the reheat restart
+and the settle on random1k. The FR and spring commits carry the model, kernel
+and oracle sides of both changes.
+BODY
+}
+
+body_demo() {
+    cat <<'BODY'
+A "Layout model" select runs the resident snapshot under createForceAtlas2,
+createFruchtermanReingold or createSpringElectrical with the same seed, settle
+rule and iterations-per-frame; the stats box prints whatever numeric field a
+model's stats record adds beyond LayoutStatsBase, so it needs no per-model
+code. Four SNAP edge lists join the graph list (ca-CondMat, email-Enron,
+Brightkite, Gnutella31: 23k to 63k nodes, all under the 65,536-node exact
+tier the demo pins), fetched gzipped from the gitignored tmp/datasets/ through
+vite's /@fs route and inflated by the browser's DecompressionStream; ids are
+renumbered densely and each unordered pair is kept once. A dataset load that
+is superseded by a newer selection is dropped rather than installed. An
+"adaptive cooling" switch runs Fruchterman-Reingold under the adaptive
+schedule (the default) or the linear one with a 2,000-iteration budget.
 BODY
 }
 
 body_decisions() {
     cat <<'BODY'
-Two decision records. A1 lands inside phase M8a together with the first six
-indexed ports rather than as its own branch, as graph-format design 14.6 had it:
-the harness commit precedes every port, so a bisect still separates a
-conversion bug from a port bug, and the alternative was that M6 and M7 both
-wait behind a branch nothing consumes. The record also carries the Graph.edges()
-mirror-skip departure and how to reverse it.
+Three decision records for the P5 departures from the WebGPU design. The
+spring-electrical preset settles by the shared rule of 7.17 and reports the
+kinetic energy, rather than by ngraph's absolute per-body test, so the element
+has one settle semantics. It integrates like ngraph (semi-implicit Euler, unit
+speed clamp) rather than by the velocity-Verlet variant 7.20 names, because
+the gate compares its layout with ngraph's. A Fruchterman-Reingold reheat
+restarts the temperature index at 70% of the budget but the iteration budget
+at 0, because ForceSimulation.reheat() resets the count for every model and
+the hook carries no iteration argument.
 
-The root barrel's explicit PageRankOptions re-export shadows the one pageRank()
-actually takes (`alpha` there, `dampingFactor` here); neither changes during
-the dual-API window, the indexed one is exported as IndexedPageRankOptions, and
-the shadow goes at 2.0.
-
-The three indexes gain their rows: design/decisions/README.md, the webgpu
-directory's README (the M8a plan file) and design/README.md's file counts.
-BODY
-}
-
-body_w1b() {
-    cat <<'BODY'
-The D27 mirrors of the algorithms half are deleted now that A2's first commit
-exists: src/types/accelerator.ts imports AlgorithmAccelerator, the *ResultLike
-shapes, BetweennessAcceleratorOptions and HitsOptionsLike from
-@graphty/algorithms by `import type` and re-exports them, so the public surface
-is unchanged except for CpuAlgorithmOptions, which is gone.
-
-BREAKING CHANGE: CpuAlgorithmOptions is no longer exported. The accelerator
-methods' option parameters are now the CPU package's own types
-(IndexedPageRankOptions, HitsOptionsLike, BetweennessAcceleratorOptions).
-
-test/types/conformance.test-d.ts gains the reverse compile design G10 names:
-createAccelerator(ctx) satisfies the REAL AlgorithmAccelerator, the re-exports
-are the algorithms declarations by identity, and the CPU dispatcher accepts this
-package's accelerator. public-api.test-d.ts pins the two new re-exports.
-
-@graphty/algorithms becomes a workspace:^ devDependency (the optional peer stays
-as it is), both tsconfigs map it to algorithms/dist/algorithms.d.ts, and the
-last implicitDependencies negation goes from project.json: nx now sees the
-algorithms edge, and nx release will patch-bump this package on every
-algorithms release.
+design/decisions/README.md indexes the three; design/README.md's counts move
+to 13 decisions and 13 webgpu documents.
 BODY
 }
 
 body_gate() {
     cat <<'BODY'
-docs/decisions/G6-algorithms.md records the algorithms slice of the G6 gate as
-measured on the dev box: the 9.2 deliverables mapped to their evidence, the A1
-gate of graph-format design 14.6, the six ports against their legacy
-counterparts, the coverage table, and the findings. Two findings needed a
-decision and both are closed: the Graph.edges() departure is in the A1 decision
-record, and the knip report from a nested worktree was a false positive with a
-root cause and a fix in the tree. The lanes, the commit hashes and the
-sign-off are the owner's.
+docs/decisions/G5.md records the P5 gate as measured on the dev box: the
+deliverables of spec 13 row P5 mapped to their evidence, the adapters
+exercised, T-14, the cross-adapter noise floors, coverage over the thresholds,
+the baselines committed, and the findings. The T4 lane rows and the commit
+list are OPEN markers until the branch runs on the labelled PR.
+
+CLAUDE.md names the four kernels' P5 branches in the wgsl inventory, the three
+model files under layouts, the layout-fr benchmark group, the two models as
+landed in "Adding a Layout Model", and a Settled-at-G5 table with the measured
+wall times of the four gate runs.
 BODY
 }
 
 body_tools() {
     cat <<'BODY'
-The step list now names the nine commits of phase M8a: the graph-format
-dependency, the A1 bridge, the six ports, the betweenness options, the
-accelerator seam, the two decision records, the GPU package's W1b algorithms
-half, the G6 gate record, then this script.
+The step list now names the seventeen commits of the P5 phase: the G6 sign-off,
+the two phase plans, the design amendments, the eleven P5 tasks in the plan's
+execution order, the cooling option, the demo, then this script.
 BODY
 }
 

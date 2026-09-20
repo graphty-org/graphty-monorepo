@@ -1,3 +1,18 @@
+## 1.7.0 (2026-09-20)
+
+### 🚀 Features
+
+- **layout:** forceatlas2Layout runs on the steppable simulation with the published laws ([19ad32ac](https://github.com/graphty-org/graphty-monorepo/commit/19ad32ac))
+- **layout:** the simulation seam of the WebGPU design and the steppable ForceAtlas2 ([97373947](https://github.com/graphty-org/graphty-monorepo/commit/97373947))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## [1.2.9](https://github.com/graphty-org/layout/compare/v1.2.8...v1.2.9) (2025-07-25)
 
 ### Bug Fixes

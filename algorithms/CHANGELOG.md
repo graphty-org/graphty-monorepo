@@ -1,3 +1,7 @@
+## 1.7.3 (2026-09-20)
+
+This was a version bump only for algorithms to align it with other projects, there were no code changes.
+
 ## [1.3.1](https://github.com/graphty-org/algorithms/compare/v1.3.0...v1.3.1) (2025-12-16)
 
 ### Bug Fixes

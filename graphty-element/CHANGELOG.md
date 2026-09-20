@@ -1,3 +1,11 @@
+## 1.10.2 (2026-09-20)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.2
+- Updated algorithms to 1.7.3
+- Updated layout to 1.7.0
+
 ## 1.10.1 (2026-09-20)
 
 ### 🩹 Fixes

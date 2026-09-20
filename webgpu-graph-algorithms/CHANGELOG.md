@@ -1,3 +1,23 @@
+## 0.4.0 (2026-09-20)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** adopt the real @graphty/layout simulation types ([7bc9ed5f](https://github.com/graphty-org/graphty-monorepo/commit/7bc9ed5f))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** widen the layout peer range until 1.7.0 is published ([442bc98b](https://github.com/graphty-org/graphty-monorepo/commit/442bc98b))
+- **webgpu-graph-algorithms:** require the layout release that ships the simulation seam ([b3ef69e7](https://github.com/graphty-org/graphty-monorepo/commit/b3ef69e7))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.1
+- Updated layout to 1.7.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.0 (2026-09-20)
 
 ### 🚀 Features

@@ -1,15 +1,13 @@
 /**
- * The CPU port's random number generator, bit for bit, and the NaN-row seeding both paths share (spec 7.2 "Initial
- * positions", 9.3 seedPositions, 7.14 `pos`, 7.19 topology change): a seed gives the same start on the CPU and the
- * GPU because both write the same f32 values in index order. The package carries its own copy of the LCG for its
- * whole life (D27: it cannot import @graphty/layout at runtime). The CANONICAL copy is
- * layout/src/simulation/seed.ts; this one is cross-tested against it, bit for bit, by
- * test/layouts/seed-cross.test.ts (W1b, Task M5b-T3).
+ * The CANONICAL random number generator and NaN-row seeding of the WebGPU design (design 9.3 seedPositions, 7.2
+ * "Initial positions", 7.14 `pos`, 7.19 topology change): a seed gives the same start on the CPU and the GPU
+ * because both write the same f32 values in index order. Design 9.3 gives this copy to @graphty/layout; the GPU
+ * package (@graphty/webgpu-graph-algorithms, src/layouts/seed.ts) keeps its own copy for its whole life (D27: it
+ * cannot import @graphty/layout), cross-tested against this one at W1b. The Lcg is the package's own
+ * RandomNumberGenerator (src/utils/random.ts) bit for bit; test/simulation/seed.test.ts is the W1 cross-test.
  */
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
-
-import { WebGpuGraphError } from "../errors.js";
 
 /** The CPU port's LCG constants (layout/src/utils/random.ts): m = 2^35 - 31, a = 185852, c = 1. */
 export const LCG_M = 34359738337;
@@ -51,7 +49,7 @@ export class Lcg {
 /**
  * The three center components of a CommonLayoutOptions.center (missing components are 0).
  * @param center - the caller's center, or null
- * @returns [x, y, z]; E_INVALID_ARGUMENT when a component is not finite
+ * @returns [x, y, z]; RangeError when a component is not finite
  */
 function resolveCenter(center: ArrayLike<number> | null): [number, number, number] {
     const out: [number, number, number] = [0, 0, 0];
@@ -61,11 +59,7 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
     for (let axis = 0; axis < 3 && axis < center.length; axis++) {
         const v = center[axis];
         if (!Number.isFinite(v)) {
-            throw new WebGpuGraphError("E_INVALID_ARGUMENT", `center[${axis}] is not finite`, {
-                argument: "center",
-                value: v,
-                expected: "finite components",
-            });
+            throw new RangeError(`center[${axis}] is not finite`);
         }
         out[axis] = v;
     }
@@ -83,8 +77,8 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
  * fully finite row is never touched. No random number is drawn when nothing needs seeding.
  * PLAN DECISION 12 (P3-T1): the box is taken over every finite COMPONENT (the port's rule), not over the fully
  * finite ROWS only; the two differ only when a partially finite row's finite axis lies outside the fully finite
- * rows' box (pinned by test/layouts/seed.test.ts). PLAN DECISION 13: a 2D row whose x and y are finite is seeded
- * whatever its z holds.
+ * rows' box (pinned by webgpu-graph-algorithms/test/layouts/seed.test.ts). PLAN DECISION 13: a 2D row whose x and y
+ * are finite is seeded whatever its z holds.
  * @param s - the snapshot (nodeCount rows)
  * @param positions - the owner's stride-3 scene-unit array, length 3 * nodeCount, modified in place
  * @param seed - the LCG seed (0 / null = unseeded, the port's quirk)
@@ -104,29 +98,13 @@ export function seedPositions(
 ): void {
     const n = s.nodeCount;
     if (dim !== 2 && dim !== 3) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `dim must be 2 or 3, got ${String(dim)}`, {
-            argument: "dim",
-            value: dim,
-            expected: "2 or 3",
-        });
+        throw new RangeError(`dim must be 2 or 3, got ${String(dim)}`);
     }
     if (positions.length !== 3 * n) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `positions has ${positions.length} entries, expected ${3 * n}`,
-            {
-                argument: "positions",
-                value: positions.length,
-                expected: 3 * n,
-            },
-        );
+        throw new RangeError(`positions has ${positions.length} entries, expected ${3 * n}`);
     }
     if (!Number.isFinite(scale) || scale <= 0) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `scale must be a finite number > 0, got ${scale}`, {
-            argument: "scale",
-            value: scale,
-            expected: "a finite number > 0",
-        });
+        throw new RangeError(`scale must be a finite number > 0, got ${scale}`);
     }
     const c = resolveCenter(center);
 

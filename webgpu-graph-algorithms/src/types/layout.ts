@@ -1,6 +1,6 @@
 /**
  * The layout-facing public types (spec 3.3, 7.19): the stats records, the GPU simulation interface that extends the
- * design-14.3 LayoutSimulation mirror, the run options and the GPU-only tuning knobs. Types only.
+ * real `@graphty/layout` LayoutSimulation (design 14.3), the run options and the GPU-only tuning knobs. Types only.
  */
 
 import type { F32, GraphSnapshot, NodeMask } from "@graphty/graph-format";
@@ -50,7 +50,7 @@ export interface RunOptions {
     readonly signal?: AbortSignal | undefined;
 }
 
-/** Spec 3.3 GpuLayoutSimulation, verbatim (LayoutSimulation is the design-14.3 mirror of accelerator.ts). */
+/** Spec 3.3 GpuLayoutSimulation, verbatim (LayoutSimulation is `@graphty/layout`'s, via accelerator.ts). */
 export interface GpuLayoutSimulation<Options, Stats extends LayoutStatsBase> extends LayoutSimulation {
     load(snapshot: GraphSnapshot, positions: F32): void;
     /**

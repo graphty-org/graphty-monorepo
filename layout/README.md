@@ -523,6 +523,44 @@ import { rescaleLayout } from "./layout.js";
 const scaledPositions = rescaleLayout(positions, 2.0, [10, 10]);
 ```
 
+## Steppable simulations
+
+Besides the one-shot layout functions, the package exports steppable force simulations that run over a
+[`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) snapshot and a `Float32Array` you own:
+three floats per node (`x, y, z` in your scene units), read once at `load()` and updated in place by every `step()`.
+That is the contract a host needs to animate a layout frame by frame, pin nodes and drag them while the forces keep
+running (graphty-element adopts it in design 9.4).
+
+```typescript
+import { createSimulation, seedPositions, toLayoutSnapshot } from "@graphty/layout";
+
+const s = toLayoutSnapshot(graph); // a nodes()/edges() graph, a node list or a GraphSnapshot -> undirected snapshot
+const positions = new Float32Array(3 * s.nodeCount).fill(NaN); // the array you own: stride 3, scene units
+seedPositions(s, positions, 42, 2, 100, null, "fa2"); // draws every NaN row from seed 42 into [-100, 100)
+const sim = createSimulation("forceatlas2", { scale: 100, maxIter: 300 });
+sim.load(s, positions);
+while (!sim.settled) {
+    sim.step(); // one iteration; positions holds the new scene coordinates after every call
+}
+sim.dispose();
+```
+
+- **Types**: `"forceatlas2"` runs `ForceAtlas2Simulation` (the published ForceAtlas2 laws;
+  `new ForceAtlas2Simulation({ compat: "networkx" })` reproduces NetworkX's variant); `"fruchtermanReingold"` and its alias `"spring"` run `FruchtermanReingoldSimulation`;
+  `"spring-electrical"` has no CPU simulation and needs an accelerator.
+- **Options**: the layout's own parameters (`maxIter`, `gravity`, `linlog`, ... for ForceAtlas2; `k`, `iterations`,
+  `fixed` for Fruchterman-Reingold) plus `dim`, `scale`, `center` and the settle rule `settleThreshold` /
+  `settleWindow`: `settled` becomes true at the iteration budget or once the mean free-node displacement has stayed
+  at or below `settleThreshold` times the layout's RMS radius for `settleWindow` iterations.
+- **Units**: the simulation runs in layout units and maps them to your array with `scale` and `center`, so pass the same
+  `scale` / `center` to `seedPositions` and to the simulation. Nothing is rescaled per step: a pinned or dragged node
+  stays where you put it.
+- **Pins and drags**: `setFixed(mask)` takes a bitmask in graph-format's `NodeMask` layout (one bit per node index);
+  `setPosition(index, x, y, z)` writes a node's scene position immediately and reheats the simulation.
+- **Accelerators**: `createSimulation(type, options, accelerator)` returns the accelerator's simulation when it
+  implements the type (`@graphty/webgpu-graph-algorithms` provides one) and the CPU class otherwise. A GPU
+  simulation's `step()` returns a `Promise`, so `await sim.step()` when the simulation may come from either.
+
 ## Available Algorithms
 
 ### Force-Directed Layouts
@@ -531,6 +569,7 @@ const scaledPositions = rescaleLayout(positions, 2.0, [10, 10]);
 - `forceatlas2Layout()` - Advanced algorithm with many configuration options
 - `arfLayout()` - Attractive and repulsive forces
 - `kamadaKawaiLayout()` - Based on shortest-path distances
+- `createSimulation()` / `ForceAtlas2Simulation` / `FruchtermanReingoldSimulation` - Steppable simulations over a graph-format snapshot (see [Steppable simulations](#steppable-simulations))
 
 ### Geometric Layouts
 

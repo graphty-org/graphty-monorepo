@@ -16,3 +16,6 @@ export * from "./layouts";
 
 // Re-export all graph generation functions
 export * from "./generators";
+
+// Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
+export * from "./simulation";

@@ -5,6 +5,7 @@
         "./src/types/index.ts",
         "./src/layouts/index.ts",
         "./src/generators/index.ts",
+        "./src/simulation/index.ts",
         "./src/utils/rescale.ts"
     ],
     "entryPointStrategy": "expand",

@@ -693,6 +693,10 @@ importers:
         version: 1.6.4(@algolia/client-search@5.46.2)(@types/node@20.19.27)(@types/react@19.2.7)(axios@1.20.0)(jiti@2.6.1)(lightningcss@1.33.0)(postcss@8.5.28)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(search-insights@2.17.3)(terser@5.44.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
 
   layout:
+    dependencies:
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^4.0.0
@@ -806,13 +810,13 @@ importers:
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
-      '@graphty/layout':
-        specifier: ^1.0.0
-        version: 1.6.2
       '@webgpu/types':
         specifier: ^0.1.72
         version: 0.1.72
     devDependencies:
+      '@graphty/layout':
+        specifier: workspace:^
+        version: link:../layout
       '@vitest/browser':
         specifier: ^3.2.7
         version: 3.2.7(playwright@1.57.0)(vite@7.3.6(@types/node@20.19.27)(jiti@2.6.1)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@3.2.7)
@@ -2215,9 +2219,6 @@ packages:
   '@graphty/algorithms@1.7.2':
     resolution: {integrity: sha512-MfDm350ugiSYfVn+DhM91tlX7+BPvi7u6F6CxN5DbPVP/Ve68lzwZdBOP78dL3fZEdM5Fhgn66ftmalw1gSQrQ==}
     engines: {node: '>=18.19.0'}
-
-  '@graphty/layout@1.6.2':
-    resolution: {integrity: sha512-1HaMYlK6KiqbGmSDN0iUA+VUuHGZoi2JF3+xS/aoa2cHRdF1wwlD9FTuZREny/fSXDJ8hD6pDul3LD3e6fL6Fg==}
 
   '@hono/node-server@1.19.17':
     resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
@@ -11901,8 +11902,6 @@ snapshots:
   '@graphty/algorithms@1.7.2':
     dependencies:
       typedfastbitset: 0.6.1
-
-  '@graphty/layout@1.6.2': {}
 
   '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:

@@ -1,60 +1,29 @@
 /**
- * The option records of the layouts (spec 9.3, 7.14): structural mirrors of @graphty/layout's option types (D27),
- * copied field for field so a `ForceAtlas2Options` object the element parses is accepted here without a cast. Types
- * only: this file imports nothing at runtime.
+ * The option records of the layouts (spec 9.3, 7.14). The five layout-owned records come from `@graphty/layout` by
+ * `import type` and are re-exported here, so a `ForceAtlas2Options` object the element parses is not merely
+ * shaped like the one this package takes -- it IS the same declaration (W1b; the D27 mirrors are gone).
+ * `ResolvedForceAtlas2Options` below is this package's own and stays local. Types only: nothing here is a runtime
+ * import.
  */
 
-import type { F32, NodeId, NodeMask } from "@graphty/graph-format";
+import type { F32, NodeId } from "@graphty/graph-format";
+import type {
+    CommonLayoutOptions,
+    ForceAtlas2Options,
+    FruchtermanReingoldOptions,
+    SimulationOptions,
+    SpringElectricalOptions,
+} from "@graphty/layout";
 
-/** Design 14.3 CommonLayoutOptions, mirrored verbatim. */
-export interface CommonLayoutOptions {
-    readonly dim?: 2 | 3 | undefined;
-    readonly scale?: number | undefined;
-    readonly center?: ArrayLike<number> | undefined;
-    readonly seed?: number | null | undefined;
-}
-
-/** Spec 9.3 SimulationOptions, mirrored verbatim (layout-owned; the CPU simulations ignore maxInFlight). */
-export interface SimulationOptions {
-    readonly settleThreshold?: number | undefined;
-    readonly settleWindow?: number | undefined;
-    readonly iterationsPerStep?: number | undefined;
-    readonly maxInFlight?: number | undefined;
-}
-
-/**
- * Spec 9.3 ForceAtlas2Options, mirrored verbatim (same names and defaults as
- * layout/src/layouts/force-directed/forceatlas2.ts lines 26-42).
- */
-export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptions {
-    readonly maxIter?: number | undefined;
-    readonly jitterTolerance?: number | undefined;
-    readonly scalingRatio?: number | undefined;
-    readonly gravity?: number | undefined;
-    readonly strongGravity?: boolean | undefined;
-    readonly distributedAction?: boolean | undefined;
-    readonly linlog?: boolean | undefined;
-    readonly nodeMass?: F32 | string | Readonly<Record<NodeId, number>> | null | undefined;
-    readonly nodeSize?: F32 | string | Readonly<Record<NodeId, number>> | null | undefined;
-    readonly weight?: boolean | string | null | undefined;
-    readonly dissuadeHubs?: boolean | undefined;
-}
-
-/** Spec 9.3 FruchtermanReingoldOptions, mirrored for the LayoutAccelerator mirror's method signature (P5 implements it). */
-export interface FruchtermanReingoldOptions extends CommonLayoutOptions, SimulationOptions {
-    readonly k?: number | null | undefined;
-    readonly iterations?: number | undefined;
-    readonly fixed?: NodeMask | string | null | undefined;
-}
-
-/** Spec 9.3 SpringElectricalOptions, mirrored for the LayoutAccelerator mirror's method signature (P5 implements it). */
-export interface SpringElectricalOptions extends CommonLayoutOptions, SimulationOptions {
-    readonly springLength?: number | undefined;
-    readonly springCoefficient?: number | undefined;
-    readonly gravity?: number | undefined;
-    readonly dragCoefficient?: number | undefined;
-    readonly timeStep?: number | undefined;
-}
+// The five layout-owned option records are @graphty/layout's declarations, re-exported so src/index.ts's barrel
+// and the option type tests keep resolving them from here (W1b, Task M5b-T2).
+export type {
+    CommonLayoutOptions,
+    ForceAtlas2Options,
+    FruchtermanReingoldOptions,
+    SimulationOptions,
+    SpringElectricalOptions,
+};
 
 /**
  * The resolved (defaults applied) ForceAtlas2 option record the simulation keeps; every field present.

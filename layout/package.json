@@ -76,6 +76,12 @@
             "path": "./node_modules/cz-conventional-changelog"
         }
     },
+    "dependencies": {
+        "@graphty/graph-format": "workspace:^"
+    },
+    "peerDependencies": {
+        "@graphty/graph-format": "^1.0.0"
+    },
     "devDependencies": {
         "@chromatic-com/storybook": "^4.0.0",
         "@semantic-release/changelog": "^6.0.3",

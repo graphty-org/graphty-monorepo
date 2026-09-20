@@ -38,6 +38,9 @@ export { rescaleLayout, rescaleLayoutDict } from './src/utils/rescale';
 // Re-export all layout algorithms
 export * from './src/layouts/index';
 
+// Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
+export * from './src/simulation/index';
+
 // Re-export all graph generation functions
 export * from './src/generators/index';
 `;

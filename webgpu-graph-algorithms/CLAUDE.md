@@ -148,9 +148,12 @@ exits 1 on a non-finite position or a run that neither settled nor reached `maxI
 but labels its timings as not representative. The measured numbers and the missed targets are in `docs/decisions/G1.md`
 (P1) and `docs/decisions/G3.md` (P3).
 
-@graphty/graph-format must be built before this package's tests or build run (pnpm's workspace symlink
-resolves its `exports` to `dist/`; tsc resolves its sources through `paths`). From the workspace root
-`pnpm -r run build:all` orders the packages correctly.
+@graphty/graph-format AND @graphty/layout must be built before this package's tests or build run: pnpm's
+workspace symlink resolves graph-format's `exports` to `dist/` and tsc resolves its sources through `paths`;
+both tsconfigs resolve `@graphty/layout` to `../layout/dist/layout.d.ts` (the BUILT declarations, W1b) and
+`test/layouts/seed-cross.test.ts` and `test/layouts/fa2-layout-oracle.test.ts` import its built barrel. From
+the workspace root `pnpm exec nx run-many -t build --projects=graph-format,layout` does it, and
+`pnpm -r run build:all` orders every package correctly.
 
 The dev box needs the extracted libEGL tree for BOTH Dawn-node and headless Chromium to see the NVIDIA GPU
 (`docs/HEADLESS_GPU_REPORT.md` appendix D): `LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu`
@@ -375,8 +378,9 @@ measured it):
 
 ## Adding an Algorithm / a Kernel
 
-1. Types: add the option / result types to `src/types/` (types only; structural mirrors of the CPU packages
-   until W1, D27).
+1. Types: add the option / result types to `src/types/` (types only). The LAYOUT types are imported from
+   `@graphty/layout` and re-exported since W1b; the `@graphty/algorithms` ones are still structural mirrors
+   until A2/M8a (D27).
 2. Body: `src/wgsl/<name>.wgsl.ts` exporting `<name>Wgsl` -- the body only, written to the uniformity and
    precedence rules; no `@group(`, no `override `, constants interpolated from `src/constants.ts`.
 3. Registry: one `WgslModuleSpec` entry in `src/kernels.ts` with its `bindings` (group 0 graph / 1 state /
@@ -405,9 +409,10 @@ trace, `run()`); a layout is a `ForceModel<Options, Stats>` it consumes by compo
 `ForceAtlas2Model` (`src/layouts/forceatlas2.ts`) is the reference; the FR model of P5 and the spring-electrical
 preset follow the same steps:
 
-1. Types: the option record in `src/types/options.ts` (the CPU package's names and defaults, every field
-   `?: T | undefined`; plus its `Resolved<Model>Options`), the stats record extending `LayoutStatsBase` in
-   `src/types/layout.ts`, and the method on the `LayoutAccelerator` mirror in `src/types/accelerator.ts`.
+1. Types: since W1b the option record and the `LayoutAccelerator` method are @graphty/layout's to add FIRST --
+   `layout/src/simulation/types.ts` -- and this package re-exports them from `src/types/options.ts` and
+   `src/types/accelerator.ts`; add only the package's own `Resolved<Model>Options` here, plus the stats record
+   extending `LayoutStatsBase` in `src/types/layout.ts`. test/types/conformance.test-d.ts is the cross-check.
 2. Kernels: the bodies in `src/wgsl/<model>-*.wgsl.ts` and their registry entries in `src/kernels.ts` (group 0
    the graph through `graphBindings` / `graphOverrides`, group 1 the model state, group 2 the params slot of the
    `UniformRing` with a dynamic offset; reuse `fill` for zeroing and `fa2-to-scene` for the scene unpack when

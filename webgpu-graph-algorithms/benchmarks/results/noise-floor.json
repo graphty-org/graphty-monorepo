@@ -116,7 +116,7 @@
             "a": "google-swiftshader-browser",
             "b": "oracle-f64",
             "maxRelError": 1.7834327718913287e-7,
-            "maxAbsError": 0.000006079673767089844,
+            "maxAbsError": 6.079673767089844e-6,
             "samples": 1000
         },
         {
@@ -127,7 +127,7 @@
             "a": "nvidia-lovelace-browser",
             "b": "oracle-f64",
             "maxRelError": 1.7834327718913287e-7,
-            "maxAbsError": 0.000006079673767089844,
+            "maxAbsError": 6.079673767089844e-6,
             "samples": 1000
         },
         {
@@ -138,7 +138,7 @@
             "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
             "maxRelError": 1.7834327718913287e-7,
-            "maxAbsError": 0.000006079673767089844,
+            "maxAbsError": 6.079673767089844e-6,
             "samples": 1000
         },
         {
@@ -182,7 +182,7 @@
             "a": "mesa-software-node",
             "b": "oracle-f64",
             "maxRelError": 1.7834327718913287e-7,
-            "maxAbsError": 0.000006079673767089844,
+            "maxAbsError": 6.079673767089844e-6,
             "samples": 1000
         },
         {
@@ -303,7 +303,7 @@
             "a": "mesa-software-node",
             "b": "oracle-f64",
             "maxRelError": 8.604289133958256e-7,
-            "maxAbsError": 0.0000017285346984863281,
+            "maxAbsError": 1.7285346984863281e-6,
             "samples": 3000
         },
         {
@@ -335,7 +335,7 @@
             "comparison": "oracle-f64",
             "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.000002868705574215935,
+            "maxRelError": 2.868705574215935e-6,
             "maxAbsError": 0.12052967556519434,
             "samples": 3000
         },
@@ -402,7 +402,7 @@
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
             "maxRelError": 4.876500302187037e-7,
-            "maxAbsError": 0.000030517578125,
+            "maxAbsError": 3.0517578125e-5,
             "samples": 3000
         },
         {
@@ -423,7 +423,7 @@
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.0000016234196187657021,
+            "maxRelError": 1.6234196187657021e-6,
             "maxAbsError": 0.00010226507461652545,
             "samples": 3000
         },
@@ -445,7 +445,7 @@
             "comparison": "oracle-f64",
             "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.0000014042464693045417,
+            "maxRelError": 1.4042464693045417e-6,
             "maxAbsError": 0.18168552592396736,
             "samples": 13
         },
@@ -457,7 +457,7 @@
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
             "maxRelError": 4.876500302187037e-7,
-            "maxAbsError": 0.000030517578125,
+            "maxAbsError": 3.0517578125e-5,
             "samples": 3000
         },
         {
@@ -467,8 +467,8 @@
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.0000016399847018441745,
-            "maxAbsError": 0.00009918212890625,
+            "maxRelError": 1.6399847018441745e-6,
+            "maxAbsError": 9.918212890625e-5,
             "samples": 3000
         },
         {
@@ -479,7 +479,7 @@
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
             "maxRelError": 6.284303130483709e-7,
-            "maxAbsError": 0.0000152587890625,
+            "maxAbsError": 1.52587890625e-5,
             "samples": 8
         },
         {
@@ -489,8 +489,8 @@
             "comparison": "oracle-f64",
             "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.0000015031196537844087,
-            "maxAbsError": 0.000006406036703765494,
+            "maxRelError": 1.5031196537844087e-6,
+            "maxAbsError": 6.406036703765494e-6,
             "samples": 8
         },
         {
@@ -500,7 +500,7 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.0000019493985387308555,
+            "maxRelError": 1.9493985387308555e-6,
             "maxAbsError": 16,
             "samples": 60
         },
@@ -511,7 +511,7 @@
             "comparison": "oracle-f64",
             "a": "nvidia-lovelace-node",
             "b": "oracle-f32",
-            "maxRelError": 0.000002051994251132906,
+            "maxRelError": 2.051994251132906e-6,
             "maxAbsError": 16,
             "samples": 60
         },
@@ -544,7 +544,7 @@
             "comparison": "oracle-f64",
             "a": "nvidia-lovelace-node",
             "b": "oracle-f64/nvidia-lovelace-node",
-            "maxRelError": 0.000010446428601524185,
+            "maxRelError": 1.0446428601524185e-5,
             "maxAbsError": 0.024725931754801422,
             "samples": 500
         },
@@ -555,7 +555,7 @@
             "comparison": "oracle-f64",
             "a": "nvidia-lovelace-node-no-subgroups",
             "b": "oracle-f32/nvidia-lovelace-node-no-subgroups",
-            "maxRelError": 0.000006774902199719397,
+            "maxRelError": 6.774902199719397e-6,
             "maxAbsError": 0.03125,
             "samples": 500
         },
@@ -588,7 +588,7 @@
             "comparison": "oracle-f64",
             "a": "oracle-f32",
             "b": "oracle-f64",
-            "maxRelError": 0.000001965365476591335,
+            "maxRelError": 1.965365476591335e-6,
             "maxAbsError": 0.0025645640989750973,
             "samples": 480
         },
@@ -610,7 +610,7 @@
             "comparison": "oracle-f64",
             "a": "oracle-f32",
             "b": "oracle-f64",
-            "maxRelError": 0.00005501187544369047,
+            "maxRelError": 5.501187544369047e-5,
             "maxAbsError": 0.31846021342789754,
             "samples": 480
         },
@@ -632,7 +632,7 @@
             "comparison": "oracle-f64",
             "a": "oracle-f32",
             "b": "oracle-f64",
-            "maxRelError": 0.000054354404189076314,
+            "maxRelError": 5.4354404189076314e-5,
             "maxAbsError": 20.676505090901628,
             "samples": 480
         },
@@ -646,16 +646,60 @@
             "maxRelError": 0.0943435236073985,
             "maxAbsError": 31976.37672999408,
             "samples": 2400
+        },
+        {
+            "id": "spmv-pull.oracle-f64.mesa-software-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "oracle-f64",
+            "a": "mesa-software-node",
+            "b": "oracle-f64",
+            "maxRelError": 2.3894086227815794e-7,
+            "maxAbsError": 3.676361302495934e-6,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.cross.mesa-software-node--nvidia-lovelace-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 2.662669349098939e-7,
+            "maxAbsError": 1.9073486328125e-6,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.oracle-f64.nvidia-lovelace-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "oracle-f64",
+            "a": "nvidia-lovelace-node",
+            "b": "oracle-f64",
+            "maxRelError": 2.2098131992670379e-7,
+            "maxAbsError": 3.2706391124293077e-6,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.cross.nvidia-lovelace-node--mesa-software-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "nvidia-lovelace-node",
+            "b": "mesa-software-node",
+            "maxRelError": 2.6626686401183217e-7,
+            "maxAbsError": 1.9073486328125e-6,
+            "samples": 1000
         }
     ],
     "tolerances": {
         "fa2-skeleton.force": {
-            "value": 0.0000034133277617534847,
+            "value": 3.4133277617534847e-6,
             "basis": "fa2-skeleton.force.oracle-f64",
             "factor": 10
         },
         "fa2-skeleton.trace": {
-            "value": 0.000001276516551369616,
+            "value": 1.276516551369616e-6,
             "basis": "fa2-skeleton.trace.oracle-f64",
             "factor": 10
         },
@@ -670,7 +714,7 @@
             "factor": 10
         },
         "fa2-skeleton.force.cross": {
-            "value": 0.000003294984290255799,
+            "value": 3.294984290255799e-6,
             "basis": "fa2-skeleton.force.cross",
             "factor": 10
         },
@@ -680,27 +724,27 @@
             "factor": 10
         },
         "segmented-reduce.cross": {
-            "value": 0.000001,
+            "value": 1e-6,
             "basis": "segmented-reduce.sum.oracle-f64.nvidia-lovelace-node",
             "factor": 5.607163980392157
         },
         "fa2-force-parity": {
-            "value": 0.000028687055742159347,
+            "value": 2.8687055742159347e-5,
             "basis": "fa2-force-parity.oracle-f64",
             "factor": 10
         },
         "fa2-force-parity.cross": {
-            "value": 0.00000836365607834118,
+            "value": 8.36365607834118e-6,
             "basis": "fa2-force-parity.cross",
             "factor": 10
         },
         "fa2-force-sum": {
-            "value": 0.000028687055742159347,
+            "value": 2.8687055742159347e-5,
             "basis": "fa2-force-parity.oracle-f64",
             "factor": 10
         },
         "fa2-inspect.attraction": {
-            "value": 0.000008604289133958255,
+            "value": 8.604289133958255e-6,
             "basis": "fa2-inspect.attraction.oracle-f64",
             "factor": 10
         },
@@ -720,62 +764,62 @@
             "factor": 10
         },
         "fa2-inspect.state": {
-            "value": 0.000003805473985430599,
+            "value": 3.805473985430599e-6,
             "basis": "fa2-inspect.state.oracle-f64",
             "factor": 10
         },
         "fa2-inspect.state.cross": {
-            "value": 0.000004449364056844719,
+            "value": 4.449364056844719e-6,
             "basis": "fa2-inspect.state.cross",
             "factor": 10
         },
         "fa2-inspect.positions": {
-            "value": 0.000016234196187657022,
+            "value": 1.6234196187657022e-5,
             "basis": "fa2-inspect.positions.oracle-f64",
             "factor": 10
         },
         "fa2-inspect.positions.cross": {
-            "value": 0.000004876500302187037,
+            "value": 4.876500302187037e-6,
             "basis": "fa2-inspect.positions.cross",
             "factor": 10
         },
         "fa2-inspect.partials": {
-            "value": 0.000014042464693045418,
+            "value": 1.4042464693045418e-5,
             "basis": "fa2-inspect.partials.oracle-f64",
             "factor": 10
         },
         "fa2-inspect.partials.cross": {
-            "value": 0.000005094475574818393,
+            "value": 5.094475574818393e-6,
             "basis": "fa2-inspect.partials.cross",
             "factor": 10
         },
         "fa2-inspect.scene": {
-            "value": 0.000016399847018441744,
+            "value": 1.6399847018441744e-5,
             "basis": "fa2-inspect.scene.oracle-f64",
             "factor": 10
         },
         "fa2-inspect.scene.cross": {
-            "value": 0.000004876500302187037,
+            "value": 4.876500302187037e-6,
             "basis": "fa2-inspect.scene.cross",
             "factor": 10
         },
         "fa2-inspect.k1": {
-            "value": 0.000015031196537844087,
+            "value": 1.5031196537844087e-5,
             "basis": "fa2-inspect.k1.oracle-f64",
             "factor": 10
         },
         "fa2-inspect.k1.cross": {
-            "value": 0.0000062843031304837094,
+            "value": 6.2843031304837094e-6,
             "basis": "fa2-inspect.k1.cross",
             "factor": 10
         },
         "fa2-trace-parity.f32": {
-            "value": 0.000020519942511329058,
+            "value": 2.0519942511329058e-5,
             "basis": "fa2-trace-parity.oracle-f32",
             "factor": 10
         },
         "fa2-trace-parity.cross10": {
-            "value": 0.000019493985387308555,
+            "value": 1.9493985387308555e-5,
             "basis": "fa2-trace-parity.cross10",
             "factor": 10
         },
@@ -805,7 +849,7 @@
             "factor": 10
         },
         "fa2-twins.trace": {
-            "value": 0.000001,
+            "value": 1e-6,
             "basis": "fa2-twins.trace.twin",
             "factor": 2.526557
         },
@@ -815,7 +859,7 @@
             "factor": 10
         },
         "fa2-trace-parity.resync.f32": {
-            "value": 0.00006774902199719397,
+            "value": 6.774902199719397e-5,
             "basis": "fa2-trace-parity.resync.oracle-f32",
             "factor": 10
         },
@@ -823,6 +867,11 @@
             "value": 0.0001,
             "basis": "fa2-trace-parity.resync.oracle-f64",
             "factor": 9.572649545071272
+        },
+        "spmv-pull.cross": {
+            "value": 2.209813199267038e-6,
+            "basis": "spmv-pull.oracle-f64.nvidia-lovelace-node",
+            "factor": 10
         }
     }
 }

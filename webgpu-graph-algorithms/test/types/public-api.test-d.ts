@@ -1,4 +1,4 @@
-import { type F32, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
+import { type F32, type F64, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
 import {
     type AcceleratorOptions,
     type AdapterInfoLike,
@@ -10,12 +10,16 @@ import {
     type BfsResultLike,
     type CommonLayoutOptions,
     type CommunityResultLike,
+    type ComponentsOptions,
+    connectedComponents,
     type CorenessResultLike,
     type CpuAlgorithmOptions,
     createAccelerator,
     createForceAtlas2,
     degree,
     type EdgeScoresResultLike,
+    eigenvectorCentrality,
+    type EigenvectorOptions,
     EXACT_MAX_NODES,
     FA2_DEFAULTS,
     type ForceAtlas2Options,
@@ -26,13 +30,21 @@ import {
     type GpuCaps,
     GpuContext,
     type GpuContextOptions,
+    type GpuHitsResult,
+    type GpuLabelResult,
     type GpuLayoutSimulation,
     type GpuLayoutTuning,
+    type GpuPageRankResult,
     type GpuRunOptions,
+    type GpuScoresResult,
     hasErrorCode,
+    hits,
+    type HitsOptions,
     type HitsResultLike,
     isSoftwareAdapter,
     isWebGpuGraphError,
+    katzCentrality,
+    type KatzOptions,
     type LabelResultLike,
     LAYOUT_TUNING_DEFAULTS,
     type LayoutAccelerator,
@@ -42,9 +54,12 @@ import {
     MAX_1D_ITEMS,
     MAX_WORKGROUPS_PER_DIM,
     type MstResultLike,
+    pageRank,
+    type PageRankOptions,
     type PageRankResultLike,
     PASSTHROUGH_FORMAT_CODES,
     type PassTiming,
+    personalizedPageRank,
     type PlanCaps,
     type PlanLimits,
     type ProbeOptions,
@@ -221,6 +236,43 @@ expectTypeOf(degree).returns.resolves.toEqualTypeOf<U32>();
 expectTypeOf<GpuRunOptions["dest"]>().toEqualTypeOf<Float32Array | Uint32Array | undefined>();
 expectTypeOf<GpuRunOptions["onProgress"]>().toEqualTypeOf<((done: number, total: number) => void) | undefined>();
 
+// ---- the P7 algorithms (spec 3.3 lines 815-828, 8.2, 8.3; contract 3.12): the six functions and their records
+expectTypeOf(pageRank).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(pageRank).parameter(2).toEqualTypeOf<(PageRankOptions & GpuRunOptions) | undefined>();
+expectTypeOf(pageRank).returns.resolves.toEqualTypeOf<GpuPageRankResult>();
+expectTypeOf(personalizedPageRank).parameter(2).toEqualTypeOf<F32>();
+expectTypeOf(personalizedPageRank).parameter(3).toEqualTypeOf<(PageRankOptions & GpuRunOptions) | undefined>();
+expectTypeOf(personalizedPageRank).returns.resolves.toEqualTypeOf<GpuPageRankResult>();
+expectTypeOf(hits).parameter(2).toEqualTypeOf<(HitsOptions & GpuRunOptions) | undefined>();
+expectTypeOf(hits).returns.resolves.toEqualTypeOf<GpuHitsResult>();
+expectTypeOf(eigenvectorCentrality).parameter(2).toEqualTypeOf<(EigenvectorOptions & GpuRunOptions) | undefined>();
+expectTypeOf(eigenvectorCentrality).returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf(katzCentrality).parameter(2).toEqualTypeOf<(KatzOptions & GpuRunOptions) | undefined>();
+expectTypeOf(katzCentrality).returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf(connectedComponents).parameter(2).toEqualTypeOf<(ComponentsOptions & GpuRunOptions) | undefined>();
+expectTypeOf(connectedComponents).returns.resolves.toEqualTypeOf<GpuLabelResult>();
+expectTypeOf<GpuScoresResult["scores"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuScoresResult["precision"]>().toEqualTypeOf<"f32">();
+expectTypeOf<GpuPageRankResult>().toMatchTypeOf<GpuScoresResult>();
+expectTypeOf<GpuPageRankResult["danglingMass"]>().toBeNumber();
+expectTypeOf<GpuHitsResult["hubs"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuHitsResult["authorities"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuLabelResult["labels"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuLabelResult["count"]>().toBeNumber();
+expectTypeOf<GpuLabelResult["groups"]>().returns.toEqualTypeOf<U32[]>();
+expectTypeOf<PageRankOptions["dampingFactor"]>().toEqualTypeOf<number | undefined>();
+expectTypeOf<PageRankOptions["weighted"]>().toEqualTypeOf<boolean | undefined>();
+expectTypeOf<HitsOptions>().toEqualTypeOf<EigenvectorOptions>(); // both are the CPU seam's HitsOptionsLike
+expectTypeOf<KatzOptions>().toMatchTypeOf<HitsOptions>();
+expectTypeOf<KatzOptions["alpha"]>().toEqualTypeOf<number | undefined>();
+expectTypeOf<KatzOptions["beta"]>().toEqualTypeOf<number | undefined>();
+expectTypeOf<ComponentsOptions["renumber"]>().toEqualTypeOf<boolean | undefined>();
+// spec 9.7: every GPU result satisfies the CPU mirror it is handed back through
+expectTypeOf<GpuPageRankResult>().toMatchTypeOf<PageRankResultLike>();
+expectTypeOf<GpuScoresResult>().toMatchTypeOf<ScoresResultLike>();
+expectTypeOf<GpuHitsResult>().toMatchTypeOf<HitsResultLike>();
+expectTypeOf<GpuLabelResult>().toMatchTypeOf<LabelResultLike>();
+
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();
 expectTypeOf(seedPositions).parameter(3).toEqualTypeOf<2 | 3>();
@@ -251,6 +303,21 @@ expectTypeOf(createAccelerator).parameter(0).toEqualTypeOf<GpuContext>();
 expectTypeOf(createAccelerator).parameter(1).toEqualTypeOf<AcceleratorOptions | undefined>();
 expectTypeOf(createAccelerator).returns.toEqualTypeOf<GpuAccelerator>();
 expectTypeOf<GpuAccelerator>().toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>();
+// the seven P7 members (spec 9.2; M8b-T8 PD-14 / PD-19): non-optional on the GPU side, Gpu* results, the CPU records
+expectTypeOf<GpuAccelerator["pageRank"]>().parameter(1).toEqualTypeOf<PageRankOptions | undefined>();
+expectTypeOf<GpuAccelerator["pageRank"]>().returns.resolves.toEqualTypeOf<GpuPageRankResult>();
+expectTypeOf<GpuAccelerator["personalizedPageRank"]>().parameter(1).toEqualTypeOf<F32 | F64>();
+expectTypeOf<GpuAccelerator["personalizedPageRank"]>().returns.resolves.toEqualTypeOf<GpuPageRankResult>();
+expectTypeOf<GpuAccelerator["hits"]>().parameter(1).toEqualTypeOf<HitsOptions | undefined>();
+expectTypeOf<GpuAccelerator["hits"]>().returns.resolves.toEqualTypeOf<GpuHitsResult>();
+expectTypeOf<GpuAccelerator["eigenvectorCentrality"]>().parameter(1).toEqualTypeOf<EigenvectorOptions | undefined>();
+expectTypeOf<GpuAccelerator["eigenvectorCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf<GpuAccelerator["katzCentrality"]>().parameter(1).toEqualTypeOf<KatzOptions | undefined>();
+expectTypeOf<GpuAccelerator["katzCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf<GpuAccelerator["connectedComponents"]>().parameter(1).toEqualTypeOf<ComponentsOptions | undefined>();
+expectTypeOf<GpuAccelerator["connectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
+expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().parameter(1).toEqualTypeOf<ComponentsOptions | undefined>();
+expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 expectTypeOf<AcceleratorOptions["layout"]>().toEqualTypeOf<GpuLayoutTuning | undefined>();
 expectTypeOf<CpuAlgorithmOptions>().toEqualTypeOf<Readonly<Record<string, unknown>>>();
 expectTypeOf<ScoresResultLike["scores"]>().toEqualTypeOf<NumericVector>();
@@ -347,9 +414,14 @@ async function consumerSample(gpu: GPU | undefined): Promise<number> {
     const swing: number = last === undefined ? stats.swing : last.swing;
     const degrees: U32 = await degree(context, snapshot, { signal: undefined });
     const first: number | undefined = degrees[0];
+    // the P7 members through the CPU-shaped seam (spec 9.2): optional on the mirror, so guarded
+    const ranks: PageRankResultLike | undefined = await injected.pageRank?.(snapshot, { dampingFactor: 0.9 });
+    const top: number | undefined = ranks?.scores[0];
+    const parts: LabelResultLike | undefined = await injected.weaklyConnectedComponents?.(snapshot);
+    const count: number = parts?.count ?? 0;
     sim.dispose();
     injected.release?.(snapshot);
     accelerator.dispose();
-    return swing + (first ?? 0);
+    return swing + (first ?? 0) + (top ?? 0) + count;
 }
 expectTypeOf(consumerSample).returns.resolves.toBeNumber();

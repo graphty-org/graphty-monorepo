@@ -1,14 +1,16 @@
 # .github/workflows/gpu.yml -- the webgpu-graph-algorithms GPU lane: never a job of CI (a job whose runner is
 # offline would queue for 24 hours and stall every pull request), but REQUIRED for a release: release.yml's gate
 # job waits for this workflow's run on the released commit and refuses to publish unless it succeeded (owner
-# decision, 2026-09-18). design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
+# decision, 2026-09-18). The lane runs on every master push, and on a pull request of this repository labelled
+# `gpu`; there is NO nightly cron (owner decision, 2026-09-19 -- the gate already runs it on everything that
+# reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner).
+# design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
 # changes: paths without the packages/ prefix, its own install and nx build on the runner (no artifact download,
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).
 name: GPU
 on:
     push: { branches: [master] }
     pull_request: { types: [labeled, synchronize] }
-    schedule: [{ cron: "17 6 * * *" }] # nightly, skipped by the `changed` job when master has not moved (design 12.6)
     workflow_dispatch:
         inputs:
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (the Machine Provisioner app
@@ -16,7 +18,7 @@ on:
             # $0.018/min, spot $0.0045/min): on 2026-09-18 the GitHub-hosted gpu-linux-t4 runner of design 12.4 (runner
             # group `gpu`, $0.052/min) never dequeued a job -- one dispatch was refused on billing, the next sat queued
             # for 17 minutes with no runner -- while machine.dev provisioned in about a minute at a third of the price.
-            # The hosted label stays a dispatch option. push / schedule / pull_request runs take the default.
+            # The hosted label stays a dispatch option. push / pull_request runs take the default.
             # GRAPHTY_RUNNER_CLASS stays gpu-linux-t4 either way: the class names the hardware, and
             # benchmarks/results/gpu-linux-t4.json is the T4 baseline whichever provider ran it.
             runner:
@@ -33,22 +35,9 @@ concurrency:
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-    changed: # nightly cost guard: skip when master has not moved since the last green GPU run (design 12.6)
-        runs-on: ubuntu-latest
-        outputs:
-            run: ${{ steps.check.outputs.run }}
-        steps:
-            - id: check
-              env: { GH_TOKEN: "${{ github.token }}" }
-              run: |
-                  if [ "${{ github.event_name }}" != "schedule" ]; then echo run=true >> "$GITHUB_OUTPUT"; exit 0; fi
-                  last=$(gh run list --workflow GPU --branch master --status success --limit 1 --json headSha --jq '.[0].headSha')
-                  [ "$last" = "${{ github.sha }}" ] && echo run=false >> "$GITHUB_OUTPUT" || echo run=true >> "$GITHUB_OUTPUT"
     test-gpu:
         name: Test (NVIDIA T4)
-        needs: changed
         if: >-
-            needs.changed.outputs.run == 'true' &&
             (github.event_name != 'pull_request' ||
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
@@ -103,45 +92,3 @@ jobs:
                       retention-days: 90,
                       overwrite: true,
                   }
-
-    gpu-nightly-report: # the only job with a write permission; runs on a standard runner, never on the paid one
-        needs: test-gpu
-        if: always() && github.event_name == 'schedule' && needs.test-gpu.result != 'success'
-        runs-on: ubuntu-latest
-        permissions: { issues: write, actions: read } # actions: read for listWorkflowRuns (the previous night's conclusion)
-        steps:
-            - uses: actions/github-script@v7
-              with:
-                  script: |
-                      // Open or refresh the "GPU lane nightly" tracking issue, only after two consecutive
-                      // nightly failures (design 12.6). The previous night's result is read from the workflow
-                      // runs themselves rather than from the issue body: it needs no state to be kept in an
-                      // issue and it is right even when the issue was closed by hand in between.
-                      const { owner, repo } = context.repo;
-                      const title = "GPU lane nightly";
-                      const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-                      const runs = await github.rest.actions.listWorkflowRuns({
-                          owner, repo, workflow_id: "gpu.yml", event: "schedule", per_page: 5,
-                      });
-                      const previous = runs.data.workflow_runs
-                          .filter((r) => r.id !== context.runId && r.status === "completed")
-                          .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
-                      const twoInARow = previous !== undefined && previous.conclusion !== "success";
-                      const { data: open } = await github.rest.issues.listForRepo({ owner, repo, state: "open", per_page: 100 });
-                      const existing = open.find((i) => i.title === title);
-                      if (!twoInARow && existing === undefined) {
-                          core.info(`first nightly failure (${runUrl}); no issue yet -- a second consecutive failure opens one`);
-                          return;
-                      }
-                      const line = `- ${new Date().toISOString()}: nightly GPU lane failed: ${runUrl}` +
-                          (previous === undefined ? "" : ` (previous night: ${previous.conclusion}, ${previous.html_url})`);
-                      if (existing !== undefined) {
-                          await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: line });
-                          core.info(`refreshed #${existing.number}`);
-                      } else {
-                          const body = "The nightly GPU lane (gpu.yml, the gpu-linux-t4 runner) has failed on two consecutive " +
-                              "nights. Close this issue once a nightly run is green again; the job comments here on " +
-                              "every further failure while it stays open (design/webgpu/webgpu-acceleration-plan.md 12.6).\n\n" + line;
-                          const created = await github.rest.issues.create({ owner, repo, title, body });
-                          core.info(`opened #${created.data.number}`);
-                      }

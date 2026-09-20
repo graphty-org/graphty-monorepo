@@ -123,7 +123,9 @@ export function plan2d(groups: number, caps: PlanCaps): DispatchPlan {
 }
 
 /**
- * P7 (spec 5.2): groups = min(groups, maxGroups ?? (caps.software ? 64 : 4096)) with the kernel looping by stride. P1-P3: throws E_UNSUPPORTED { feature: "planGridStride" } (lead f).
+ * P7 (spec 5.2): groups = min(ceil(items / wg), maxGroups ?? (caps.software ? 64 : 4096), the per-dimension limit) with the kernel looping by `stride = groups * wg`; items 0 -> { x: 0, stride: null }.
+ * The cap is the ONE performance default in src/ that may read `caps.software` (spec 2.4, 5.2): a grid-stride map is
+ * order-independent, so the result never depends on it and the same body serves both adapters.
  * PLAN DECISION: `maxGroups?` is spelled `?: number` rather than the contract's `?: number | undefined` because the
  * root ESLint rule no-duplicate-type-constituents rejects the explicit undefined on an optional parameter (the call
  * signature is identical).
@@ -131,12 +133,17 @@ export function plan2d(groups: number, caps: PlanCaps): DispatchPlan {
  * @param wg - the workgroup size
  * @param caps - the capability table
  * @param maxGroups - the group cap
+ * @returns the plan
  */
 export function planGridStride(items: number, wg: number, caps: PlanCaps, maxGroups?: number): DispatchPlan {
-    throw new WebGpuGraphError("E_UNSUPPORTED", "planGridStride lands with the grid-stride kernels of P7 (spec 5.2)", {
-        feature: "planGridStride",
-        hint: `items ${items}, wg ${wg}, maxGroups ${maxGroups ?? (caps.software ? 64 : 4096)}`,
-    });
+    assertCount("items", items);
+    assertWorkgroupSize(wg);
+    if (items === 0) {
+        return { x: 0, y: 1, z: 1, items, stride: null };
+    }
+    const cap = Math.min(maxGroups ?? (caps.software ? 64 : 4096), perDimension(caps));
+    const groups = Math.min(Math.ceil(items / wg), cap);
+    return { x: groups, y: 1, z: 1, items, stride: groups * wg };
 }
 
 /**

@@ -2,9 +2,13 @@
 
 Tests that need limits or time above lavapipe's run here (spec 11.1), selected by
 `pnpm exec vitest run --project=node-limits` on the GPU lane only; the default lane
-never selects this project. No test file exists before P4 (spec 13 rule (b): P2
-adds only what P3 needs). Planned files and the gate that lands each:
+never selects this project. The first file, `pagerank-1m.test.ts`, landed at G7
+(the P7 phase; spec 13 rule (b) kept the directory empty until a phase needed it).
+Files, planned and landed, and the gate that lands each:
 
+- `pagerank-1m.test.ts` (G7, landed): PageRank over a 1M-node / 10M-arc random
+  snapshot completes within 100 iterations, returns 1M finite scores summing to 1
+  within `1e-3`, and reports a boolean `converged`.
 - `binding-2gib.test.ts` (G4): a real 2 GiB `maxStorageBufferBindingSize` request
   succeeds on the RTX 4070 SUPER and a binding above 128 MiB is created and read.
 - `windowed-200mb.test.ts` (G4): a 200 MB per-array upload is bound windowed at the

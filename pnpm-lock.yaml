@@ -553,13 +553,13 @@ importers:
         specifier: ^2.0.74
         version: 2.0.88(zod@3.25.76)
       '@graphty/algorithms':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../algorithms
       '@graphty/layout':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../layout
       '@graphty/remote-logger':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../remote-logger
       '@jsonhero/schema-infer':
         specifier: ^0.1.5

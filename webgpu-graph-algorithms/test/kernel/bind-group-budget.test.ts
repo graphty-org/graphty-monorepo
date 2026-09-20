@@ -15,7 +15,7 @@ import { planUpload } from "../../src/memory/upload-plan.js";
 import { CAPS_INTEL_XE, CAPS_SPEC_DEFAULT } from "../helpers/caps-tables.js";
 import { fixture } from "../helpers/graphs.js";
 
-/** The storage-buffer counts of contract 3.10.1 (read-only and read-write together); P3 ids are listed ahead of their entries. */
+/** The storage-buffer counts of contract 3.10.1 and design 8.10 (read-only and read-write together); the P7 rows are the design's 8.10 counts (wcc-link-sample, absent from 8.10, is the four graph slots plus `comp`). */
 const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     degree: 5,
     reduce: 2,
@@ -27,6 +27,13 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "fa2-speed-finalize": 3,
     "fa2-integrate": 6,
     "fa2-to-scene": 2,
+    "spmv-pull": 8,
+    "pr-scale": 5,
+    "pr-finalize": 1,
+    "wcc-link-sample": 5,
+    "wcc-link-edges": 3,
+    "wcc-compress": 1,
+    "wcc-sample": 2,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

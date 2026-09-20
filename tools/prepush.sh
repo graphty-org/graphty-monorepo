@@ -48,8 +48,12 @@ run_step() {
     fi
 }
 
-# Build all packages (required for cross-package imports)
-run_step "Build" "pnpm -r run build"
+# Build all packages (required for cross-package imports).
+# nx, not `pnpm -r run build`: for graph-format and layout the nx build TARGET is `npm run build:all`,
+# while their `build` SCRIPT is a plain tsc that never writes the bundled dist/<pkg>.d.ts the strict-consumer
+# compiles resolve through. On a clean tree the script form left those missing and the gate failed at Lint.
+# It is also what CI runs (.github/workflows/ci.yml), which is the parity CLAUDE.md asks for.
+run_step "Build" "pnpm exec nx run-many -t build --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint

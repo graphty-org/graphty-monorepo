@@ -310,9 +310,12 @@ jobs:
                     # pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
                     # nx -> npm -> vitest pipe chain starved the worker RPC for graph-format and graph-io (6fc56c1b).
                     # needs-lavapipe gates the apt install and the ICD lookup that export the lane's environment.
+                    # The twin pass covers test/algorithms as well: pr-scale and pr-finalize declare
+                    # needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
+                    # path the twin would never exercise the PageRank reduction on a device without the feature.
                     - shard: webgpu-graph-algorithms-node
                       package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts --passWithNoTests
+                      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms --passWithNoTests
                       needs-browser: false
                       needs-storybook: false
                       needs-lavapipe: true

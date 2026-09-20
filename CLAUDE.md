@@ -6,6 +6,97 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Graphty is a modular graph visualization ecosystem built as a TypeScript monorepo managed by **pnpm** and **Nx**.
 
+## Architectural Principles
+
+These govern every design decision in this repository. A plan or a design document that
+contradicts them is wrong and must be changed, not followed.
+
+### graphty-element is a standalone, self-sufficient web component
+
+**graphty-element is intended to be consumed directly by third parties.** It is a standalone web
+component for rendering graphs, and it MUST contain all graph functionality on its own:
+
+- rendering
+- configuration
+- styling
+- algorithms
+- layout
+- WebGPU acceleration
+- and any other feature or functionality related to creating and using a graph
+
+Self-sufficient means a consumer who installs `@graphty/graphty-element` and nothing else gets a
+working graph, and a consumer who wants an optional capability gets it by installing the optional
+package -- never by writing the integration themselves. If using a capability requires a consumer
+to write detection, construction, lifecycle or error-handling code, that code belongs INSIDE
+graphty-element. Shipping that work to the consumer is the defect.
+
+**Its API and its documentation must be easy to understand and use.** A third party reading the
+docs should reach a working graph without reading this repository's source or its design
+documents. Treat a capability that only the graphty app knows how to switch on as unfinished.
+
+### The graphty app is only HTML around graphty-element
+
+`@graphty/graphty` is presentation and application chrome: layout, panels, settings UI, routing,
+persistence of the reader's own preferences. It MUST NOT contain graph-specific functionality of
+any kind other than consuming graphty-element.
+
+Concretely, the app must not: detect or construct graph capabilities, own graph state, implement
+or wrap algorithms or layouts, compute anything about a graph, or hold logic that a third-party
+consumer of graphty-element would also need. Anything in the app that another consumer would have
+to reimplement is in the wrong package.
+
+Reading a property the element exposes and rendering it (a status chip, a settings control that
+writes element config) IS consuming the element and is allowed. Deciding, probing, constructing or
+recovering is not.
+
+### The app MUST NOT work around graphty-element
+
+**If graphty-element's API is hard to use, has a bug, or is missing something the app needs, the
+fix goes in graphty-element.** Not in the app. Every consumer of graphty-element gets the fix, and
+the app gets it by being a consumer like any other.
+
+This is not a preference about where code sits. A workaround in the app is strictly worse than the
+same effort spent in the element, because it fixes the problem for exactly one consumer and leaves
+it broken for everyone else -- while also hiding the defect, so it is never reported and never
+fixed. The app is the only consumer today, which means the app is currently the only thing that
+can DISCOVER these defects. A workaround throws that information away.
+
+These all count as working around the element, and all of them are forbidden:
+
+- reimplementing something the element does, or should do (computing over nodes and edges,
+  format sniffing, neighbour lookups, component counts, cost estimates)
+- wrapping the element's API to paper over an awkward shape, instead of fixing the shape
+- copying the element's constants, enums, palettes, option schemas or types into the app because
+  importing them is impossible or drags in too much
+- duck-typing or re-declaring the element's types because it does not export usable ones
+- avoiding an element API that is broken and doing it another way
+- defining a private subset of a shared schema because round-tripping the real one is lossy
+- translating between two spellings or two unit conventions the element never settled
+
+**The tell is a comment.** If a file in the app explains why the element could not be used here,
+that comment is a bug report that was never filed. Every one found in the 2026-09-19 audit was
+accurate, well reasoned, and pointed at a real element defect: suggested-style layers that
+overwrite the whole graph, a calculated value that throws on an unmeasured node and aborts the
+repaint loop, `StyleManager.addLayer` not repainting at all, and an entry point that drags in
+Babylon.js so a constants import is impossible. The app was right every time, and every defect
+survived because being right in the app fixed nothing.
+
+When the element fix genuinely cannot land first -- a release is in flight, the change is large --
+the workaround is temporary and must say so: a comment naming the element defect, and a tracking
+record. It is not done until the element is fixed and the workaround is deleted.
+
+### Why
+
+The failure mode this prevents is silent and expensive: a capability lands "in the product"
+because the app wires it up, the element ships without it, and every third-party consumer either
+reimplements the wiring or never discovers the feature exists. By the time that is noticed, the
+wiring is public API in the wrong package and moving it is a breaking change.
+
+The workaround rule closes the same trap from the other side. Without it, the element's defects
+become invisible: the app absorbs each one, the element's API never improves because nothing
+pushes back on it, and the first third-party consumer meets every unfixed problem at once with no
+workarounds available to them and no way to know they are not alone.
+
 ## Naming Conventions
 
 **IMPORTANT**: Always use the full package name to avoid confusion:
@@ -222,7 +313,7 @@ All packages: 80% lines/functions/statements, 75% branches
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
-| `gpu.yml` | Push to master, nightly, dispatch, labelled same-repo PRs | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
+| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
 | `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
 
 ### CI Test Shards
@@ -322,6 +413,9 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### WebGPU
 
 - Never create fallbacks if WebGPU isn't supported. The GPU package throws (`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_TOO_LARGE`, ...) and never runs a CPU path; the CPU packages' dispatchers choose the CPU only when no accelerator was injected (`design/webgpu/webgpu-acceleration-plan.md` section 2.4).
+- **graphty-element owns WebGPU detection, construction and lifecycle**, per the Architectural Principles above. `@graphty/webgpu-graph-algorithms` is an OPTIONAL peer dependency of graphty-element: present, the element uses it; absent, the element runs the CPU path and says so. A consumer never writes probe, construct, inject or device-loss code, and the graphty app gets no special privileges here -- whatever the app can do, a third-party consumer can do the same way.
+- This OVERRULES design 9.1 (`design/webgpu/webgpu-acceleration-plan.md:2870-2899`), whose dependency diagram ends at the app and makes the app the only importer of the GPU package. That section is superseded, not deleted; the decision record is `design/decisions/`.
+- "Never create fallbacks" is about SILENT DEGRADATION, not about capability detection. Detecting that WebGPU is unavailable and running the CPU implementation is correct and required. Catching a GPU error mid-run and quietly finishing on the CPU is not: that hides a real failure and makes a benchmark meaningless.
 
 ### TypeScript
 

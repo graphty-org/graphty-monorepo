@@ -15,8 +15,18 @@
  *   2. nvidiaSmi.available and (maxUtilization > 10 or memory     -> "SKIPPED: GPU not quiet", exit 0 (T-13: the card may be
  *      in use by other processes > 0) during the sample              an interactive dev GPU; busy medians mean nothing)
  *   3. no baseline file                                           -> every result printed as "new (no baseline)", exit 0
- *   4. every result present in both sessions (matched by group + name): medianMs > threshold x baseline.medianMs is a
- *      REGRESSION; any regression -> the table and exit 1, else the table and exit 0. Rows without a baseline are "new".
+ *   4. every result present in both sessions (matched by group + name): a REGRESSION needs BOTH medianMs > threshold x
+ *      the baseline median AND minMs > threshold x the baseline min. Any regression -> the table and exit 1, else the
+ *      table and exit 0. Rows without a baseline are "new"; a row whose median rose while its floor held is "noisy".
+ *
+ * Why the minimum has to confirm the median (2026-09-19): interference -- another process, a driver hiccup, a clock
+ * drop -- can only make a sample SLOWER, never faster. The fastest of the runs is therefore the one estimator of the
+ * true cost that interference cannot inflate: if the floor has not moved, the code's cost has not moved. With `runs`
+ * at 5 the median of a sub-millisecond row is dragged by three unlucky samples, and that is what run 35414639899 hit:
+ * roundtrip/empty submit + 4-byte readU32 round trip reported a median of 1.344 ms against a 0.171 ms baseline
+ * (x7.84) while its own minimum was 0.169 ms -- the floor was intact, and the commit under test changed no GPU code.
+ * A real regression raises the floor with the median, so it still fails. A row whose minMs is missing on either side
+ * (a baseline written before the field existed) falls back to the median alone.
  *
  * "Memory in use by other processes" is maxMemoryUsedMiB minus the report's own footprint estimate, which is the sample's
  * MINIMUM memoryUsedMiB: the report process holds one device for the whole sample, so its footprint is the floor of the
@@ -62,7 +72,7 @@ function parseArgs(argv) {
 /**
  * The last session of a sessions file, or null when the file is absent or empty.
  * @param {string} file - the path
- * @returns {{ results: readonly { group: string, name: string, medianMs: number }[] } | null} the last session
+ * @returns {{ results: readonly { group: string, name: string, medianMs: number, minMs?: number }[] } | null} the last session
  */
 function lastSession(file) {
     if (!existsSync(file)) {
@@ -106,16 +116,24 @@ function notQuiet(smi) {
 }
 
 /**
- * Formats one table row.
- * @param {string} status - REGRESSION / ok / new (no baseline)
- * @param {{ group: string, name: string, medianMs: number }} r - the current result
- * @param {number | null} baseline - the baseline median, or null
+ * Formats one table row. The min ratio is the column that decides a REGRESSION from a noisy median.
+ * @param {string} status - REGRESSION / noisy / ok / new (no baseline)
+ * @param {{ group: string, name: string, medianMs: number, minMs?: number }} r - the current result
+ * @param {{ medianMs: number, minMs?: number } | null} baseline - the baseline row, or null
  * @returns {string} the row
  */
 function row(status, r, baseline) {
-    const ratio = baseline === null || baseline === 0 ? "" : `x${(r.medianMs / baseline).toFixed(2)}`;
-    const base = baseline === null ? "-" : `${baseline.toFixed(3)} ms`;
-    return `${status.padEnd(18)} ${`${r.group}/${r.name}`.padEnd(70)} ${`${r.medianMs.toFixed(3)} ms`.padStart(14)} ${base.padStart(14)} ${ratio.padStart(8)}`;
+    const ratio =
+        baseline === null || baseline.medianMs === 0 ? "" : `x${(r.medianMs / baseline.medianMs).toFixed(2)}`;
+    const base = baseline === null ? "-" : `${baseline.medianMs.toFixed(3)} ms`;
+    const minRatio =
+        baseline === null ||
+        typeof baseline.minMs !== "number" ||
+        baseline.minMs === 0 ||
+        typeof r.minMs !== "number"
+            ? ""
+            : `x${(r.minMs / baseline.minMs).toFixed(2)}`;
+    return `${status.padEnd(18)} ${`${r.group}/${r.name}`.padEnd(70)} ${`${r.medianMs.toFixed(3)} ms`.padStart(14)} ${base.padStart(14)} ${ratio.padStart(8)} ${minRatio.padStart(10)}`;
 }
 
 /**
@@ -147,7 +165,7 @@ function main() {
     }
     const baseline = lastSession(resolve("benchmarks/results", `${cls}.json`));
     console.log(
-        `${"status".padEnd(18)} ${"benchmark".padEnd(70)} ${"median".padStart(14)} ${"baseline".padStart(14)} ${"ratio".padStart(8)}`,
+        `${"status".padEnd(18)} ${"benchmark".padEnd(70)} ${"median".padStart(14)} ${"baseline".padStart(14)} ${"ratio".padStart(8)} ${"min ratio".padStart(10)}`,
     );
     if (baseline === null) {
         for (const r of current.results) {
@@ -156,24 +174,38 @@ function main() {
         console.log(`no baseline benchmarks/results/${cls}.json: every result is new`);
         return 0;
     }
-    const baselines = new Map(baseline.results.map((r) => [`${r.group}/${r.name}`, r.medianMs]));
+    const baselines = new Map(baseline.results.map((r) => [`${r.group}/${r.name}`, r]));
     let regressions = 0;
+    let noisy = 0;
     for (const r of current.results) {
         const base = baselines.get(`${r.group}/${r.name}`);
         if (base === undefined) {
             console.log(row("new (no baseline)", r, null));
-        } else if (r.medianMs > threshold * base) {
-            regressions += 1;
-            console.log(row("REGRESSION", r, base));
-        } else {
-            console.log(row("ok", r, base));
+            continue;
         }
+        if (r.medianMs <= threshold * base.medianMs) {
+            console.log(row("ok", r, base));
+            continue;
+        }
+        // The median rose. The floor decides: interference inflates a median, it cannot lower a minimum.
+        if (typeof r.minMs === "number" && typeof base.minMs === "number" && r.minMs <= threshold * base.minMs) {
+            noisy += 1;
+            console.log(row("noisy", r, base));
+            continue;
+        }
+        regressions += 1;
+        console.log(row("REGRESSION", r, base));
     }
     if (regressions > 0) {
         console.log(
-            `${String(regressions)} regression(s): a median above ${String(threshold)}x the baseline of class ${cls}`,
+            `${String(regressions)} regression(s): a median AND a minimum above ${String(threshold)}x the baseline of class ${cls}`,
         );
         return 1;
+    }
+    if (noisy > 0) {
+        console.log(
+            `${String(noisy)} noisy row(s): the median rose above ${String(threshold)}x but the minimum did not, so the cost floor is intact (not a regression)`,
+        );
     }
     console.log(`no regression above ${String(threshold)}x the baseline of class ${cls}`);
     return 0;

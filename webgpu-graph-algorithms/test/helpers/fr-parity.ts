@@ -30,6 +30,7 @@ import {
     stageError,
     type StageIo,
     xyzOf,
+    yieldToEventLoop,
 } from "./fa2-parity.js";
 import { noiseFloorFor } from "./noise-floor.js";
 import { type CheckReport, ratioOf } from "./sabotage.js";
@@ -366,13 +367,13 @@ interface TrajectorySensitivity {
  * @param horizons - the iteration counts to measure at
  * @returns the two errors per horizon
  */
-export function frTrajectorySensitivity(
+export async function frTrajectorySensitivity(
     s: GraphSnapshot,
     start: F32,
     options: FruchtermanReingoldOptions,
     mask: NodeMask | null,
     horizons: readonly number[],
-): ReadonlyMap<number, TrajectorySensitivity> {
+): Promise<ReadonlyMap<number, TrajectorySensitivity>> {
     assertUnitStart(options);
     const n = s.nodeCount;
     const dim = options.dim ?? FR_DEFAULTS.dim;
@@ -384,6 +385,7 @@ export function frTrajectorySensitivity(
     const out = new Map<number, TrajectorySensitivity>();
     const last = Math.max(...horizons);
     for (let t = 1; t <= last; t++) {
+        await yieldToEventLoop(); // the ensemble runs for tens of seconds on random1k
         base.step();
         f32.step();
         for (const o of nudged) {

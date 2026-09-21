@@ -896,6 +896,21 @@ function stageResult(
 }
 
 /**
+ * Hands the worker's event loop back for one macrotask. A vitest worker that computes synchronously for more than
+ * 60 s cannot answer the main process's `onTaskUpdate` RPC in time and vitest reports an unhandled
+ * `[vitest-worker]: Timeout calling "onTaskUpdate"` error with every test green (exit code 1: the T4 lane runs
+ * 35547623119 and 35548431052 of pull request 16, docs/decisions/G5.md finding G5-F2). Every loop that runs the
+ * f64 oracles for tens of seconds -- the trajectory-sensitivity ensembles, the distributional admission layouts,
+ * the FA2 free-running traces on random1k -- awaits this between iterations.
+ * @returns resolves on the next macrotask
+ */
+export function yieldToEventLoop(): Promise<void> {
+    return new Promise((resolve) => {
+        setImmediate(resolve);
+    });
+}
+
+/**
  * Asserts the unit-identity precondition of a stage capture (scale 1, zero center).
  * @param options - the case options
  */

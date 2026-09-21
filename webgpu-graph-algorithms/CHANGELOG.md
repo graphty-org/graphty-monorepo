@@ -1,3 +1,32 @@
+## 0.5.1 (2026-09-21)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** record the layout-fr T4 lane baseline ([769c4792](https://github.com/graphty-org/graphty-monorepo/commit/769c4792))
+- **webgpu-graph-algorithms:** add the P5 models and four SNAP networks to the browser demo ([b6fbe123](https://github.com/graphty-org/graphty-monorepo/commit/b6fbe123))
+- **layout:** add the cooling option and the nullable spring constants to the layout option types ([bcb2bbdf](https://github.com/graphty-org/graphty-monorepo/commit/bcb2bbdf))
+- **webgpu-graph-algorithms:** add the layout-fr benchmark group and record T-14 on the dev box ([a05e23ec](https://github.com/graphty-org/graphty-monorepo/commit/a05e23ec))
+- **webgpu-graph-algorithms:** expose fruchtermanReingold and springElectrical on the accelerator ([e9bd808a](https://github.com/graphty-org/graphty-monorepo/commit/e9bd808a))
+- **webgpu-graph-algorithms:** add the spring-electrical preset and its ngraph-checked oracle ([b99ada38](https://github.com/graphty-org/graphty-monorepo/commit/b99ada38))
+- **webgpu-graph-algorithms:** add the Fruchterman-Reingold model, its factory and its f64 oracle ([0635266f](https://github.com/graphty-org/graphty-monorepo/commit/0635266f))
+- **webgpu-graph-algorithms:** add the FR, coulomb and spring laws and integrators to the kernels ([0fffdf1c](https://github.com/graphty-org/graphty-monorepo/commit/0fffdf1c))
+- **webgpu-graph-algorithms:** add the option, stats and fixed-mask seams of the P5 layout models ([ca955def](https://github.com/graphty-org/graphty-monorepo/commit/ca955def))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** leave one core to vitest's main process in the node projects ([542b095d](https://github.com/graphty-org/graphty-monorepo/commit/542b095d))
+- **webgpu-graph-algorithms:** declare the adaptive-cooling constants in the WGSL prelude ([da33fa61](https://github.com/graphty-org/graphty-monorepo/commit/da33fa61))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.2
+- Updated algorithms to 1.8.1
+- Updated layout to 1.8.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.5.0 (2026-09-20)
 
 ### 🚀 Features

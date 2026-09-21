@@ -1,5 +1,6 @@
 /// <reference types="@vitest/browser/providers/playwright" />
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
@@ -168,6 +169,15 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
     return file;
 }
 
+/**
+ * The fork count of the two node projects: one core is left to the main process. Every fork runs Dawn and the
+ * adapter's own threads, and a saturated main process misses a worker's 60 s `onTaskUpdate` RPC deadline, which
+ * vitest reports as an unhandled error and an exit code 1 with every test green (docs/decisions/G5.md finding
+ * G5-F2: the 32-core dev box under `--coverage`; then the 4-core T4 lane on 2026-09-21, run 35547623119, three
+ * timeouts without coverage). `--maxWorkers=<n>` on the command line still overrides it.
+ */
+const nodeForks = Math.max(1, availableParallelism() - 1);
+
 export default defineConfig({
     test: {
         // verbose prints a line per test: useful locally, needless noise in CI (and 6fc56c1b: the nx -> npm ->
@@ -191,6 +201,7 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
+                    maxWorkers: nodeForks,
                     testTimeout: 30_000,
                     hookTimeout: 60_000,
                     include: [
@@ -208,6 +219,7 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
+                    maxWorkers: nodeForks,
                     testTimeout: 600_000,
                     hookTimeout: 120_000,
                     include: ["test/limits/**/*.test.ts"],

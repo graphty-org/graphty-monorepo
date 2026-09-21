@@ -1,4 +1,7 @@
+import { resolveOptionValues } from "../catalog/options";
+import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { Edge } from "../Edge";
+import { GraphtyError, isGraphtyError } from "../errors";
 import { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
@@ -8,18 +11,51 @@ import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 
-// Type guard for layout engines with optional dispose method
-type LayoutEngineWithDispose = LayoutEngine & { dispose(): void };
+/**
+ * Check the consumer's layout options against what the layout declares, and fill in its defaults.
+ *
+ * ONE OPTIONS MECHANISM. A layout that declares a descriptor declares its options as the same
+ * plain `OptionDescriptor[]` the catalogue publishes and a picker renders, so the form a reader
+ * fills in, the list the catalogue hands out and the values the element validates are one
+ * declaration rather than three that can disagree. An unknown name is `E_UNKNOWN_OPTION` with the
+ * declared names and the nearest few; a value outside the declared range is `E_OPTION_RANGE`.
+ *
+ * The element's own sixteen engines declare no descriptor -- their arrangements are authored in
+ * the layout catalogue -- and keep validating with their own Zod schemas, so their options pass
+ * through untouched.
+ * @param type - The layout name, for the failure message.
+ * @param descriptor - What the class declares about itself, when it declares anything.
+ * @param passed - The options the consumer asked for.
+ * @returns The options to build the engine with.
+ * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` or `E_OPTION_RANGE`.
+ */
+function resolveLayoutOptions(
+    type: string,
+    descriptor: AuthoredLayoutDescriptor | undefined,
+    passed: object,
+): Record<string, unknown> {
+    if (descriptor === undefined) {
+        return { ...(passed as Record<string, unknown>) };
+    }
 
-function hasDispose(engine: LayoutEngine): engine is LayoutEngineWithDispose {
-    return "dispose" in engine;
+    return resolveOptionValues(descriptor.options, passed as Record<string, unknown>, { kind: "layout", id: type });
 }
 
-// Type guard for layout engines with optional getEdgePath method
-type LayoutEngineWithEdgePath = LayoutEngine & { getEdgePath(edge: Edge): [number, number, number][] };
-
-function hasGetEdgePath(engine: LayoutEngine): engine is LayoutEngineWithEdgePath {
-    return "getEdgePath" in engine;
+/**
+ * The refusal for a layout name nothing answers to.
+ *
+ * It used to be a bare `TypeError` whose message a consumer had to read to find out what had gone
+ * wrong, and which said nothing about what could have been asked for instead.
+ * @param type - The name that was asked for.
+ * @returns The error to throw.
+ */
+function unknownLayout(type: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_UNKNOWN_LAYOUT",
+        message: `no layout named "${type}" is registered`,
+        source: "layout",
+        details: { layout: type, available: LayoutEngine.getRegisteredTypes() },
+    });
 }
 
 /**
@@ -90,10 +126,9 @@ export class LayoutManager implements Manager {
      * Disposes of the layout manager and cleans up resources
      */
     dispose(): void {
-        // Dispose current layout engine if any
-        if (this.layoutEngine && hasDispose(this.layoutEngine)) {
-            this.layoutEngine.dispose();
-        }
+        // `dispose` is declared on the base class with a do-nothing default, so every engine has
+        // one and the element no longer has to duck-type for it.
+        this.layoutEngine?.dispose();
 
         this.layoutEngine = undefined;
         this.running = false;
@@ -108,120 +143,200 @@ export class LayoutManager implements Manager {
     private async _setLayoutInternal(type: string, opts: object = {}): Promise<void> {
         this.logger.info("Setting layout", { type, options: opts });
 
-        try {
-            // Auto-sync layout dimension with graph's 2D/3D mode if not explicitly set
-            const layoutOpts = { ...opts };
-
-            // Get dimension-specific options from the layout if not already provided
-            // Support both new viewMode and deprecated twoD for backward compatibility
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
-            const is2D = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
-            const dimension = is2D ? 2 : 3;
-            const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(type, dimension);
-
-            if (dimensionOpts) {
-                // Merge dimension options, but don't override user-provided options
-                Object.keys(dimensionOpts).forEach((key) => {
-                    if (!(key in layoutOpts)) {
-                        (layoutOpts as Record<string, unknown>)[key] = (dimensionOpts as Record<string, unknown>)[key];
-                    }
-                });
-            }
-
-            const engine = LayoutEngine.get(type, layoutOpts);
-
-            if (!engine) {
-                throw new TypeError(`No layout named: ${type}`);
-            }
-
-            // Store the current layout options for change detection
-            this.currentLayoutOptions = layoutOpts;
-
-            // Store previous layout engine for cleanup if init fails
-            const previousEngine = this.layoutEngine;
-
-            try {
-                // Add all existing nodes and edges to the new engine
-                const nodeArray = [...this.dataManager.nodes.values()];
-                const edgeArray = [...this.dataManager.edges.values()];
-                engine.addNodes(nodeArray);
-                engine.addEdges(edgeArray);
-
-                this.layoutEngine = engine;
-                await engine.init();
-
-                // Update DataManager with new layout engine
-                this.dataManager.setLayoutEngine(engine);
-
-                // run layout presteps
-                const { preSteps } = this.styles.config.behavior.layout;
-                for (let i = 0; i < preSteps; i++) {
-                    // Stop if layout has settled
-                    if (this.layoutEngine.isSettled) {
-                        break;
-                    }
-
-                    this.layoutEngine.step();
-                }
-
-                this.running = true;
-
-                this.logger.debug("Layout initialized", {
-                    type,
-                    nodeCount: nodeArray.length,
-                    edgeCount: edgeArray.length,
-                });
-
-                // Request zoom to fit when layout changes
-                this.eventManager.emitLayoutInitialized(type, true);
-
-                // Dispose previous engine after successful init
-                if (previousEngine && hasDispose(previousEngine)) {
-                    previousEngine.dispose();
-                }
-
-                // Emit layout changed event
-                this.eventManager.emitGraphEvent("layout-changed", {
-                    layoutType: type,
-                    options: layoutOpts,
-                });
-            } catch (error) {
-                // Log the failure
-                this.logger.error(
-                    "Layout initialization failed",
-                    error instanceof Error ? error : new Error(String(error)),
-                    { layoutType: type },
-                );
-
-                // Restore previous layout engine if initialization failed
-                this.layoutEngine = previousEngine;
-                this.dataManager.setLayoutEngine(previousEngine);
-
-                // Emit error event
-                if (this.graphContext) {
-                    this.eventManager.emitGraphError(
-                        this.graphContext,
-                        error instanceof Error ? error : new Error(String(error)),
-                        "layout",
-                        { layoutType: type },
-                    );
-                }
-
-                throw new Error(
-                    `Failed to initialize layout '${type}': ${error instanceof Error ? error.message : String(error)}`,
-                );
-            }
-        } catch (error) {
-            // Re-throw if already a processed error
-            if (error instanceof Error && error.message.includes("Failed to initialize layout")) {
-                throw error;
-            }
-
-            // Otherwise wrap and throw
-            throw new Error(
-                `Error setting layout '${type}': ${error instanceof Error ? error.message : String(error)}`,
-            );
+        const engineClass = LayoutEngine.getClass(type);
+        if (!engineClass) {
+            throw unknownLayout(type);
         }
+
+        // The CONSUMER'S options are checked on their own, before the element adds anything: the
+        // dimension options below are the element's to add and are not the layout's to declare,
+        // so validating after the merge would refuse the element's own key.
+        const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
+        const layoutOpts: Record<string, unknown> = { ...callerOpts };
+
+        // Auto-sync layout dimension with graph's 2D/3D mode if not explicitly set.
+        // Support both new viewMode and deprecated twoD for backward compatibility
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        const is2D = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
+        const dimension = is2D ? 2 : 3;
+        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(type, dimension);
+
+        if (dimensionOpts) {
+            // Merge dimension options, but don't override user-provided options
+            for (const [key, value] of Object.entries(dimensionOpts)) {
+                if (!(key in layoutOpts)) {
+                    layoutOpts[key] = value;
+                }
+            }
+        }
+
+        let engine: LayoutEngine | null;
+        try {
+            engine = LayoutEngine.get(type, layoutOpts);
+        } catch (error) {
+            throw this.reportLayoutFailure(type, error, "built");
+        }
+
+        if (!engine) {
+            // The class was in the registry a moment ago and building it produced nothing, which
+            // only a host that has replaced `LayoutEngine.get` can arrange. Treated as the name
+            // not answering, because from the caller's side that is what happened.
+            throw unknownLayout(type);
+        }
+
+        // Kept so that a failure during set-up leaves the element exactly as it found it: the
+        // engine that was working is still the one working, and it is still configured the way the
+        // consumer configured it.
+        const previousEngine = this.layoutEngine;
+        const previousOptions = this.currentLayoutOptions;
+
+        // THE CONSUMER'S OPTIONS, not the merged ones: a 2D/3D switch rebuilds the engine from
+        // these, and the element re-derives the dimension options for the new mode itself.
+        this.currentLayoutOptions = callerOpts;
+
+        try {
+            // Add all existing nodes and edges to the new engine
+            const nodeArray = [...this.dataManager.nodes.values()];
+            const edgeArray = [...this.dataManager.edges.values()];
+            engine.addNodes(nodeArray);
+            engine.addEdges(edgeArray);
+
+            this.layoutEngine = engine;
+            await engine.init();
+
+            // AFTER init(), and before any step runs. See `replayPins`.
+            this.replayPins(engine, nodeArray);
+
+            // Update DataManager with new layout engine
+            this.dataManager.setLayoutEngine(engine);
+
+            // run layout presteps
+            const { preSteps } = this.styles.config.behavior.layout;
+            for (let i = 0; i < preSteps; i++) {
+                // Stop if layout has settled
+                if (engine.isSettled) {
+                    break;
+                }
+
+                engine.step();
+            }
+
+            // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach `session.positions`
+            // -- the array a drag writes, a re-freeze preserves and an accelerator reads -- only
+            // through this call, and an engine that never made it rendered perfectly while
+            // leaving every node unplaced. Making it the element's makes it unforgettable.
+            engine.publishPositions();
+
+            this.running = true;
+
+            this.logger.debug("Layout initialized", {
+                type,
+                nodeCount: nodeArray.length,
+                edgeCount: edgeArray.length,
+            });
+
+            // Request zoom to fit when layout changes
+            this.eventManager.emitLayoutInitialized(type, true);
+
+            // Dispose previous engine after successful init
+            previousEngine?.dispose();
+
+            // Emit layout changed event
+            this.eventManager.emitGraphEvent("layout-changed", {
+                layoutType: type,
+                options: layoutOpts,
+            });
+        } catch (error) {
+            // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
+            // again, and it never became the running layout, so no later switch will reach it --
+            // this is its only moment. The element's own sixteen hold nothing and do nothing
+            // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
+            // constructor would otherwise leak one per failed attempt.
+            engine.dispose();
+
+            // Restore previous layout engine if initialization failed
+            this.layoutEngine = previousEngine;
+            this.currentLayoutOptions = previousOptions;
+            this.dataManager.setLayoutEngine(previousEngine);
+
+            throw this.reportLayoutFailure(type, error, "initialised");
+        }
+    }
+
+    /**
+     * Tell a freshly built engine where every pinned node is, and that it is pinned.
+     *
+     * THIS IS WHY A PIN SURVIVES A LAYOUT CHANGE. The element owns the pin -- it is a byte beside
+     * the node's coordinates -- but a live simulation also has to know, or it keeps spending force
+     * on a body the element will then refuse to move, and d3 in particular would fix the node at
+     * whatever coordinates its own initialisation happened to invent.
+     *
+     * This one method covers all three rebuild paths, because `_setLayoutInternal` is the single
+     * funnel for `setLayout`, the 2D/3D view-mode switch and a style template's layout.
+     *
+     * BOTH HALVES OF THE ORDERING ARE LOAD-BEARING. It runs after `addNodes` and after `init()`,
+     * because `NGraphLayoutEngine` throws for a node it has not been told about. And it PLACES
+     * BEFORE IT PINS, because `D3GraphLayoutEngine.pin` copies the node's CURRENT simulated
+     * position into the fixed-position fields: a bare pin replayed into a fresh engine would nail
+     * the node to d3's arbitrary starting coordinates instead of where the reader put it.
+     * @param engine - the engine that is about to become current
+     * @param nodes - every node in the graph, which is what was just added to that engine
+     */
+    private replayPins(engine: LayoutEngine, nodes: readonly Node[]): void {
+        const { positions } = this.dataManager;
+        const placed = { x: 0, y: 0, z: 0 };
+
+        for (const node of nodes) {
+            if (!positions.isPinned(node.index)) {
+                continue;
+            }
+
+            if (positions.isPlaced(node.index)) {
+                positions.read(node.index, placed);
+                engine.setNodePosition(node, { x: placed.x, y: placed.y, z: placed.z });
+            }
+
+            engine.pin(node);
+        }
+    }
+
+    /**
+     * Log a layout failure, tell the consumer about it, and say what to throw.
+     *
+     * A `GraphtyError` COMES BACK UNCHANGED, which is the whole point: an engine that refused an
+     * option or a graph it cannot arrange says so with a code, and that code has to survive the
+     * trip to the caller. The element used to wrap every failure in a plain `Error` and then
+     * decide whether to wrap it a second time by looking for a phrase in the message, so a
+     * plugin's code was lost either way and a failure in the constructor never reached the error
+     * event at all.
+     * @param type - The layout that failed.
+     * @param error - Whatever was thrown.
+     * @param phase - What the element was doing, in a word that fits "the layout could not be ...".
+     * @returns The error to throw.
+     */
+    private reportLayoutFailure(type: string, error: unknown, phase: "built" | "initialised"): GraphtyError {
+        const thrown = error instanceof Error ? error : new Error(String(error));
+
+        this.logger.error(`Layout could not be ${phase}`, thrown, { layoutType: type });
+
+        if (this.graphContext) {
+            this.eventManager.emitGraphError(this.graphContext, thrown, "layout", { layoutType: type, phase });
+        }
+
+        if (isGraphtyError(thrown)) {
+            return thrown;
+        }
+
+        // An uncoded throw from an engine has no better code in the union than this one, and
+        // inventing a code is not allowed. An engine that wants a consumer to be able to switch on
+        // its failure throws a `GraphtyError`, and the branch above hands that back untouched.
+        return new GraphtyError({
+            code: "E_INTERNAL",
+            message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
+            source: "layout",
+            details: { layout: type, phase },
+            cause: thrown,
+        });
     }
 
     /**
@@ -241,6 +356,8 @@ export class LayoutManager implements Manager {
     step(): void {
         if (this.layoutEngine && this.running && !this.layoutEngine.isSettled) {
             this.layoutEngine.step();
+            // See the note in `_setLayoutInternal`: the element publishes, not the engine.
+            this.layoutEngine.publishPositions();
         }
     }
 
@@ -256,19 +373,6 @@ export class LayoutManager implements Manager {
         }
 
         return [position.x, position.y, position.z ?? 0];
-    }
-
-    /**
-     * Get edge path from layout engine
-     * @param edge - Edge to get path for
-     * @returns Edge path as array of [x, y, z] points or undefined if not available
-     */
-    getEdgePath(edge: Edge): [number, number, number][] | undefined {
-        if (this.layoutEngine && hasGetEdgePath(this.layoutEngine)) {
-            return this.layoutEngine.getEdgePath(edge);
-        }
-
-        return undefined;
     }
 
     /**
@@ -319,41 +423,35 @@ export class LayoutManager implements Manager {
      * @param twoD - Whether to use 2D mode
      */
     async updateLayoutDimension(twoD: boolean): Promise<void> {
+        if (!this.layoutEngine) {
+            return;
+        }
+
+        const layoutType = this.layoutEngine.type;
+        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(layoutType, twoD ? 2 : 3);
+
+        // Only rebuild for a layout that draws differently in two dimensions than in three. One
+        // that answers with nothing to merge draws the same picture either way.
+        if (!dimensionOpts || Object.keys(dimensionOpts).length === 0) {
+            return;
+        }
+
+        // REBUILT FROM THE CONSUMER'S OWN OPTIONS. The element used to rebuild from
+        // `engine.config`, a slot nothing declared and nothing required an engine to assign -- so
+        // a view-mode switch silently threw away every option on any engine that did not, which
+        // included the element's own two force engines. The manager already holds what the
+        // consumer asked for, and it is the only copy that is always right.
         try {
-            if (this.layoutEngine) {
-                const currentDimension = twoD ? 2 : 3;
-                const currentDimensionOpts = LayoutEngine.getOptionsForDimensionByType(
-                    this.layoutEngine.type,
-                    currentDimension,
-                );
-
-                // Only recreate if the layout supports dimension configuration
-                if (currentDimensionOpts && Object.keys(currentDimensionOpts).length > 0) {
-                    // Check if we need to recreate the layout
-                    // This is a bit tricky since we don't know what property name is used for dimensions
-                    // The safest approach is to always recreate when switching between 2D/3D modes
-                    const layoutType = this.layoutEngine.type;
-                    const layoutOpts = this.layoutEngine.config ? { ...this.layoutEngine.config } : {};
-
-                    // Remove any dimension-related options that might conflict
-                    // We'll let getOptionsForDimensionByType add the correct ones
-                    const previousDimensionOpts2D = LayoutEngine.getOptionsForDimensionByType(layoutType, 2);
-                    const previousDimensionOpts3D = LayoutEngine.getOptionsForDimensionByType(layoutType, 3);
-                    const allDimensionKeys = new Set([
-                        ...Object.keys(previousDimensionOpts2D ?? {}),
-                        ...Object.keys(previousDimensionOpts3D ?? {}),
-                    ]);
-
-                    allDimensionKeys.forEach((key) => {
-                        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-                        delete (layoutOpts as Record<string, unknown>)[key];
-                    });
-
-                    await this._setLayoutInternal(layoutType, layoutOpts);
-                }
-            }
-        } catch {
-            // Layout engine not yet initialized - will be set with correct dimension when initialized
+            await this._setLayoutInternal(layoutType, this.currentLayoutOptions ?? {});
+        } catch (error) {
+            // A view-mode switch must not leave the element half-changed, so the rebuild's
+            // failure is reported rather than thrown: `_setLayoutInternal` has already restored
+            // the engine that was running and told the consumer through the error event.
+            this.logger.error(
+                "Layout could not be rebuilt for the new view mode",
+                error instanceof Error ? error : new Error(String(error)),
+                { layoutType, twoD },
+            );
         }
     }
 
@@ -364,7 +462,7 @@ export class LayoutManager implements Manager {
      */
     async applyTemplateLayout(layoutType?: string, layoutOptions?: object): Promise<void> {
         if (layoutType) {
-            const options = layoutOptions ?? {};
+            const options = (layoutOptions ?? {}) as Record<string, unknown>;
 
             // Check if we need to update the layout
             const needsUpdate = this.layoutEngine?.type !== layoutType || this.hasOptionsChanged(options);
@@ -376,16 +474,17 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Track current layout options to detect changes
+     * What the consumer last asked this layout for, with the element's own dimension options left
+     * out. It is what a 2D/3D rebuild starts from, and what a template's options are compared to.
      */
-    private currentLayoutOptions?: object;
+    private currentLayoutOptions?: Record<string, unknown>;
 
     /**
      * Check if layout options have changed
      * @param newOptions - New layout options to compare
      * @returns True if options have changed, false otherwise
      */
-    private hasOptionsChanged(newOptions: object): boolean {
+    private hasOptionsChanged(newOptions: Record<string, unknown>): boolean {
         // If no previous options, consider it changed
         if (!this.currentLayoutOptions) {
             this.currentLayoutOptions = newOptions;
@@ -436,40 +535,34 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Update positions for newly added nodes
-     * This is called when nodes are added to an existing layout
-     * @param nodes - Array of nodes to update positions for
+     * Settle nodes that reached the graph after this layout was already running.
+     *
+     * Still hands back a promise, because a plugin that has to fetch or recompute something to
+     * place a newcomer will need one and the element's callers already await it; the work the
+     * engines here do is synchronous.
+     * @param nodes - The nodes that have just arrived.
+     * @returns A promise that resolves once the newcomers have been placed.
      */
-    async updatePositions(nodes: Node[]): Promise<void> {
+    updatePositions(nodes: Node[]): Promise<void> {
         if (!this.layoutEngine || nodes.length === 0) {
-            return;
+            return Promise.resolve();
         }
 
         // Mark layout as running again (it may have been settled with no nodes)
         this.running = true;
 
-        // If the layout engine has an updatePositions method, use it
-        if ("updatePositions" in this.layoutEngine && typeof this.layoutEngine.updatePositions === "function") {
-            const engineWithUpdate = this.layoutEngine as LayoutEngine & {
-                updatePositions: (nodes: Node[]) => Promise<void>;
-            };
-            await engineWithUpdate.updatePositions(nodes);
-        } else {
-            // Otherwise, just run a few steps to position new nodes
-            const updateSteps = 10; // Run a few steps to position new nodes
-            for (let i = 0; i < updateSteps; i++) {
-                if (this.layoutEngine.isSettled) {
-                    break;
-                }
-
-                this.layoutEngine.step();
-            }
-        }
+        // `updatePositions` is declared on the base class and the element's ten blind steps are
+        // its default, so the manager no longer has to tell "did not implement it" from
+        // "implemented it as a deliberate no-op" by looking for a property.
+        this.layoutEngine.updatePositions(nodes);
+        this.layoutEngine.publishPositions();
 
         // Emit event that layout was updated
         this.eventManager.emitGraphEvent("layout-updated", {
             nodeCount: nodes.length,
             type: "incremental",
         });
+
+        return Promise.resolve();
     }
 }

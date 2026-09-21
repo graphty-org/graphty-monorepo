@@ -228,7 +228,13 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
-     * Advance the D3 simulation by one tick, and publish where it moved every node to
+     * Advance the D3 simulation by one tick, and publish where it moved every node to.
+     *
+     * `LayoutManager` publishes after every step batch as well, so this copy is a duplicate when
+     * the element is driving. It is kept because this engine is also driven directly, with no
+     * manager, by `test/layout/layout-positions.test.ts` -- which is what pins that a
+     * simulation's own coordinates reach the shared array at all. An engine that never publishes
+     * is still correct; that is what the layout extension test pins from the other side.
      */
     step(): void {
         this.refresh();
@@ -333,8 +339,11 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.y = newPos.y;
         d3node.z = newPos.z ?? 0;
         // A drag is a placement like any other, so it lands in the shared array immediately rather
-        // than waiting for a tick that a settled simulation may never run.
-        this.writeNodePosition(n, d3node.x, d3node.y, d3node.z);
+        // than waiting for a tick that a settled simulation may never run. It is a PLACEMENT and
+        // not a layout step, so it writes even onto a pinned row: a reader must be able to move a
+        // node they have pinned, and the layout-step guard would otherwise make a pin mean
+        // "undraggable".
+        this.writeNodePosition(n, d3node.x, d3node.y, d3node.z, "placement");
         this.reheat = true;
     }
 
@@ -386,6 +395,57 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.fy = undefined;
         d3node.fz = undefined;
         this.reheat = true; // TODO: is this necessary?
+    }
+
+    /**
+     * Take a node out of the simulation.
+     *
+     * The re-push is what makes it real: d3 keeps its own arrays of nodes and links, so deleting
+     * the mapping alone would leave the simulation stepping a node the element has disposed --
+     * and every link that referenced it, whose `source` and `target` are those very objects.
+     * `refresh()` rebuilds both arrays from the mappings, and `reheat` is what makes it run.
+     *
+     * The incident links go too, and not only because the element's own removal already takes
+     * them out first: d3's link force RESOLVES a link's endpoints against the node list on every
+     * re-push and throws for an endpoint it cannot find, so one link left behind would take the
+     * next tick down rather than merely draw wrong. An engine has to survive a caller that removes
+     * a node without removing its edges.
+     * @param n - the node leaving the graph
+     */
+    override removeNode(n: Node): void {
+        for (const edge of this.nodeEdges(n)) {
+            this.removeEdge(edge);
+        }
+
+        this.nodeMapping.delete(n);
+        this.newNodeMap.delete(n);
+        this.reheat = true;
+    }
+
+    /**
+     * Every edge this engine holds that touches one node.
+     * @param n - the node
+     * @returns the incident edges, as a fresh array so the caller may delete while it walks
+     */
+    private nodeEdges(n: Node): Edge[] {
+        const incident: Edge[] = [];
+        for (const edge of [...this.edgeMapping.keys(), ...this.newEdgeMap.keys()]) {
+            if (edge.srcId === n.id || edge.dstId === n.id) {
+                incident.push(edge);
+            }
+        }
+
+        return incident;
+    }
+
+    /**
+     * Take an edge out of the simulation. See {@link D3GraphEngine.removeNode}.
+     * @param e - the edge leaving the graph
+     */
+    override removeEdge(e: Edge): void {
+        this.edgeMapping.delete(e);
+        this.newEdgeMap.delete(e);
+        this.reheat = true;
     }
 
     private _getMappedNode(n: Node): D3Node {

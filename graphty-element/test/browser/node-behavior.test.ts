@@ -190,6 +190,57 @@ describe("Node Behavior Tests", () => {
         assert.equal(addEdgesSpy.mock.calls.length, 1);
     });
 
+    test("double-click expansion reads the endpoints a canonical fetchEdges returns", () => {
+        // The handler used to read `e.src` and `e.dst` off whatever `fetchEdges` returned, so a
+        // consumer following the guides -- which teach `source`/`target` everywhere -- collected a
+        // set of `undefined` neighbours, fetched nothing, and left the edges pending for ever.
+        const fetchNodes = vi.fn().mockReturnValue([
+            { id: "node2", data: {} },
+            { id: "node3", data: {} },
+        ]);
+        const fetchEdges = vi.fn().mockReturnValue(
+            new Set([
+                { source: "test-node-7", target: "node2" },
+                { source: "test-node-7", target: "node3" },
+            ]),
+        );
+
+        graph.fetchNodes = fetchNodes;
+        graph.fetchEdges = fetchEdges;
+
+        const dataManager = graph.getDataManager();
+        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as AdHocData);
+
+        const node = dataManager.getNode("test-node-7");
+        assert.isDefined(node);
+
+        const addNodesSpy = vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
+        const addEdgesSpy = vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
+
+        const { actions } = node.mesh.actionManager ?? { actions: [] };
+        const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
+
+        assert.isDefined(doubleClickAction);
+        if ("execute" in doubleClickAction) {
+            doubleClickAction.execute?.();
+        } else {
+            doubleClickAction._executionCallback?.();
+        }
+
+        const nodeIds = fetchNodes.mock.calls[0][0];
+        assert.deepStrictEqual([...nodeIds].sort(), ["node2", "node3"], "the handler found the neighbours to fetch");
+        assert.equal(addNodesSpy.mock.calls.length, 1);
+        assert.equal(addEdgesSpy.mock.calls.length, 1);
+
+        // The spelling the handler resolved is passed on, so `addEdges` reads the same columns
+        // rather than probing the batch a second time and possibly answering differently.
+        assert.deepStrictEqual(addEdgesSpy.mock.calls[0][1], {
+            repeated: "first",
+            source: "source",
+            target: "target",
+        });
+    });
+
     test("double-click expansion does nothing when fetchNodes/fetchEdges don't exist", () => {
         // Add a node using DataManager (no fetch functions on graph)
         const dataManager = graph.getDataManager();

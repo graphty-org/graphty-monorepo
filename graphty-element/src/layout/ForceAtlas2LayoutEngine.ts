@@ -1,8 +1,19 @@
-import { Edge as LayoutEdge, forceatlas2Layout, Node as LayoutNode } from "@graphty/layout";
+import { Edge as LayoutEdge, forceatlas2Layout, Graph as LayoutGraph, Node as LayoutNode } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { pairWeightKey, SimpleLayoutConfig, SimpleLayoutEngine, WEIGHT_EPSILON } from "./LayoutEngine";
+
+/**
+ * The attribute name handed to `forceatlas2Layout`.
+ *
+ * That function gates its whole weight branch on this parameter being truthy -- it defaults to
+ * null -- so a name has to be passed for weights to be read at all. It then reaches the element's
+ * own `getEdgeData` callback and is ignored there: which record key carries the weight was
+ * settled one layer up, at ingest, by `config.data.knownFields.edgeWeightPath`, for every engine
+ * at once.
+ */
+const WEIGHT_ATTRIBUTE = "weight";
 
 /**
  * Zod-based options schema for ForceAtlas2 Layout
@@ -94,6 +105,13 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
             description: "Layout dimensionality (2D or 3D)",
         },
     },
+    weighted: {
+        schema: z.boolean().default(true),
+        meta: {
+            label: "Use Edge Weights",
+            description: "Pull strongly connected nodes closer together",
+        },
+    },
 });
 
 const ForceAtlas2LayoutConfig = z.strictObject({
@@ -107,7 +125,7 @@ const ForceAtlas2LayoutConfig = z.strictObject({
     strongGravity: z.boolean().default(false),
     nodeMass: z.record(z.number(), z.number()).or(z.null()).default(null),
     nodeSize: z.record(z.number(), z.number()).or(z.null()).default(null),
-    weightPath: z.string().or(z.null()).default(null),
+    weighted: z.boolean().default(true),
     dissuadeHubs: z.boolean().default(false),
     linlog: z.boolean().default(false),
     seed: z.number().or(z.null()).default(null),
@@ -122,6 +140,7 @@ type ForceAtlas2LayoutOpts = Partial<ForceAtlas2LayoutConfigType>;
 export class ForceAtlas2Layout extends SimpleLayoutEngine {
     static type = "forceatlas2";
     static maxDimensions = 3;
+    static override honoursWeights = true;
     static zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
     scalingFactor = 100;
     config: ForceAtlas2LayoutConfigType;
@@ -146,14 +165,35 @@ export class ForceAtlas2Layout extends SimpleLayoutEngine {
 
     /**
      * Compute node positions using the ForceAtlas2 algorithm
+     *
+     * A WEIGHT IS PASSED THROUGH AS IT IS STORED. ForceAtlas2 reads a weight as an attraction
+     * STRENGTH -- it becomes the adjacency matrix entry the attraction force is scaled by -- which
+     * is already what a weight means everywhere else in the element, so a heavier edge pulls its
+     * two nodes closer and nothing has to be inverted. Kamada-Kawai reads the very same number as
+     * a distance and therefore does invert it; the two engines disagree about the arithmetic so
+     * that they agree about the meaning.
      */
     doLayout(): void {
         this.stale = false;
         const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+        const graph: LayoutGraph = { nodes, edges };
+
+        const weights = this.config.weighted ? this.pairWeights(this._edges) : null;
+        if (weights !== null) {
+            this.reportClampedWeights("forceatlas2", weights);
+            graph.getEdgeData = (source: LayoutNode, target: LayoutNode): number | undefined => {
+                const weight = weights.get(pairWeightKey(source, target));
+                if (weight === undefined) {
+                    return undefined;
+                }
+
+                return Math.max(weight, WEIGHT_EPSILON);
+            };
+        }
 
         this.positions = forceatlas2Layout(
-            { nodes, edges },
+            graph,
             this.config.pos,
             this.config.maxIter,
             this.config.jitterTolerance,
@@ -163,7 +203,7 @@ export class ForceAtlas2Layout extends SimpleLayoutEngine {
             this.config.strongGravity,
             this.config.nodeMass,
             this.config.nodeSize,
-            this.config.weightPath,
+            weights === null ? null : WEIGHT_ATTRIBUTE,
             this.config.dissuadeHubs,
             this.config.linlog,
             this.config.seed,

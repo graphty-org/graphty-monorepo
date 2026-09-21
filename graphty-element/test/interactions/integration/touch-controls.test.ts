@@ -9,53 +9,8 @@ import { PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babyl
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type { StyleSchema } from "../../../src/config";
 import { Graph } from "../../../src/Graph";
-
-/**
- * Create a minimal style template for testing
- */
-function createStyleTemplate(twoD: boolean): StyleSchema {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            twoD,
-            layout: "circular",
-            layoutOptions: {
-                dim: twoD ? 2 : 3,
-            },
-        },
-        layers: [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-                positionScale: 1,
-                idCoercion: "canonical",
-            },
-            directed: "auto",
-        },
-        behavior: {
-            layout: {
-                type: "circular",
-                preSteps: 0,
-                stepMultiplier: 1,
-                minDelta: 0.001,
-                zoomStepInterval: 5,
-            },
-            node: {
-                pinOnDrag: true,
-            },
-        },
-    } as unknown as StyleSchema;
-}
+import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
@@ -79,7 +34,7 @@ describe("Touch Controls Integration", () => {
             await graph.init();
 
             // Set up 2D mode
-            await graph.setStyleTemplate(createStyleTemplate(true));
+            await configureGraph(graph, { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.operationQueue.waitForCompletion();
@@ -226,7 +181,7 @@ describe("Touch Controls Integration", () => {
             await graph.init();
 
             // Set up 3D mode
-            await graph.setStyleTemplate(createStyleTemplate(false));
+            await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.operationQueue.waitForCompletion();

@@ -7,40 +7,8 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type { StyleSchema } from "../../../src/config";
 import { Graph } from "../../../src/Graph";
-
-function createStyleTemplate(pinOnDrag: boolean): StyleSchema {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            twoD: false,
-            layout: "ngraph",
-            layoutOptions: { dim: 3 },
-        },
-        layers: [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-                positionScale: 1,
-                idCoercion: "canonical",
-            },
-            directed: "auto",
-        },
-        behavior: {
-            layout: { type: "ngraph", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
-            node: { pinOnDrag },
-        },
-    } as unknown as StyleSchema;
-}
+import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: "node1" }, { id: "node2" }, { id: "node3" }];
 const TEST_EDGES = [
@@ -61,7 +29,7 @@ describe("pinOnDrag Behavior", () => {
 
             graph = new Graph(container);
             await graph.init();
-            await graph.setStyleTemplate(createStyleTemplate(true));
+            await configureGraph(graph, { viewMode: "3d", layout: "ngraph", layoutOptions: { dim: 3 }, pinOnDrag: true });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.operationQueue.waitForCompletion();
@@ -134,7 +102,7 @@ describe("pinOnDrag Behavior", () => {
 
             graph = new Graph(container);
             await graph.init();
-            await graph.setStyleTemplate(createStyleTemplate(false));
+            await configureGraph(graph, { viewMode: "3d", layout: "ngraph", layoutOptions: { dim: 3 }, pinOnDrag: false });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.operationQueue.waitForCompletion();

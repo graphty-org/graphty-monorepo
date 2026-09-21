@@ -188,6 +188,12 @@ export class NGraphEngine extends LayoutEngine {
         const maxSteps = 1000; // Force settling after 1000 steps
 
         this._settled = ngraphSettled || avgMovement <= customThreshold || this._stepCount >= maxSteps;
+        // KEPT DELIBERATELY, even though `LayoutManager` publishes after every step batch as
+        // well. This engine is driven directly, with no manager, by
+        // `test/layout/layout-positions.test.ts`, which is what pins that a simulation's own
+        // coordinates reach the shared array. The duplicate copy is the price of that being
+        // testable without a renderer; an engine that never publishes is still correct, which is
+        // what the layout extension test pins from the other side.
         this.publishPositions();
     }
 
@@ -231,7 +237,10 @@ export class NGraphEngine extends LayoutEngine {
      * @param e - The edge to add
      */
     addEdge(e: Edge): void {
-        const ngraphEdge = this.ngraph.addLink(e.srcId, e.dstId, { parentEdge: this });
+        // `parentEdge: e`, not `this`. It used to hand ngraph the ENGINE under a key named for an
+        // edge; nothing read it, which is why it survived, and anything that started carrying
+        // per-link data would have landed in that slot and found the wrong object.
+        const ngraphEdge = this.ngraph.addLink(e.srcId, e.dstId, { parentEdge: e });
         this.edgeMapping.set(e, ngraphEdge);
         this._settled = false;
         this._stepCount = 0;
@@ -272,8 +281,10 @@ export class NGraphEngine extends LayoutEngine {
         currPos.y = newPos.y;
         currPos.z = newPos.z;
         // A drag is a placement like any other, so it lands in the shared array immediately rather
-        // than waiting for a step that a settled simulation may never run.
-        this.writeNodePosition(n, newPos.x, newPos.y, newPos.z ?? 0);
+        // than waiting for a step that a settled simulation may never run. It is a PLACEMENT and
+        // not a layout step, so it writes even onto a pinned row: a reader must be able to move a
+        // node they have pinned.
+        this.writeNodePosition(n, newPos.x, newPos.y, newPos.z ?? 0, "placement");
     }
 
     /**
@@ -331,6 +342,46 @@ export class NGraphEngine extends LayoutEngine {
     unpin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
         this.ngraphLayout.pinNode(ngraphNode, false);
+    }
+
+    /**
+     * Take a node out of the simulation, and the links ngraph drops with it.
+     *
+     * `ngraph.removeNode` removes the node's links too, so the element's own edge mapping is
+     * swept for links that no longer belong to any graph -- otherwise `getEdgePosition` would ask
+     * ngraph for the position of a link it has already forgotten.
+     * @param n - the node leaving the graph
+     */
+    override removeNode(n: Node): void {
+        const ngraphNode = this.nodeMapping.get(n);
+        if (!ngraphNode) {
+            return;
+        }
+
+        for (const [edge, link] of this.edgeMapping) {
+            if (link.fromId === ngraphNode.id || link.toId === ngraphNode.id) {
+                this.edgeMapping.delete(edge);
+            }
+        }
+
+        this.ngraph.removeNode(ngraphNode.id);
+        this.nodeMapping.delete(n);
+        this._settled = false;
+    }
+
+    /**
+     * Take an edge out of the simulation. See {@link NGraphEngine.removeNode}.
+     * @param e - the edge leaving the graph
+     */
+    override removeEdge(e: Edge): void {
+        const link = this.edgeMapping.get(e);
+        if (!link) {
+            return;
+        }
+
+        this.ngraph.removeLink(link);
+        this.edgeMapping.delete(e);
+        this._settled = false;
     }
 
     private _getMappedNode(n: Node): NGraphNode {

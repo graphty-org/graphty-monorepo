@@ -9,7 +9,7 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 
 import type { AdHocData } from "../../../src/config";
 import { Graph } from "../../../src/Graph";
-import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
+import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
 import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
 
 /**
@@ -157,46 +157,11 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
     // Use real WebGL engine for interaction tests - NullEngine doesn't support picking
     const graph = await createTestGraph({ useRealEngine: true });
 
-    // Configure the graph with a style template
-    await graph.setStyleTemplate({
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            twoD: mode === "2d",
-            viewMode: mode,
-            background: { backgroundType: "color", color: "#2D2D2D" },
-            addDefaultStyle: true,
-            startingCameraDistance: 30,
-            layout,
-        },
-        layers: [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-                positionScale: 1,
-                idCoercion: "canonical",
-            },
-            directed: "auto",
-        },
-        behavior: {
-            layout: {
-                type: layout,
-                preSteps: 0,
-                stepMultiplier: 1,
-                minDelta: 0.001,
-                zoomStepInterval: 5,
-            },
-            node: {
-                pinOnDrag,
-            },
-        },
-    });
+    // Configure the graph, one setting at a time
+    graph.setBackground({ backgroundType: "color", color: "#2D2D2D" });
+    setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 }, node: { pinOnDrag } });
+    await graph.setViewMode(mode);
+    await graph.setLayout(layout);
 
     // Add initial nodes and edges if provided
     for (const nodeData of nodes) {

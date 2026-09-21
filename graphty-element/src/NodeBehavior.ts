@@ -10,6 +10,7 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
+import { readEndpoint, resolveEndpoints } from "./data/endpoints";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
@@ -120,6 +121,10 @@ export class NodeDragHandler {
             eventManager.emitNodeEvent("node-drag-start", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
+                // As it was when the drag BEGAN. A pin now survives a layout change, so "was this
+                // node already fixed before I touched it?" is a question a consumer can act on --
+                // an inspector showing a Pinned badge, a handler that refuses to move one.
+                pinned: this.node.isPinned(),
             });
         }
     }
@@ -206,6 +211,9 @@ export class NodeDragHandler {
             eventManager.emitNodeEvent("node-drag-end", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
+                // Read AFTER the pin above, so this reports what `pinOnDrag` actually did rather
+                // than what it was about to do.
+                pinned: this.node.isPinned(),
             });
         }
 
@@ -567,11 +575,20 @@ export class NodeBehavior {
                         const edgeSet = fetchEdges(node, graph as unknown as Graph);
                         const edges = Array.from(edgeSet);
 
-                        // create set of unique node ids
+                        // Which keys name this batch's endpoints is decided ONCE, by the same
+                        // resolver the data manager uses, and the answer is then passed to
+                        // `addEdges` so both halves of the expansion read the same columns.
+                        //
+                        // Reading `e.src` and `e.dst` here, as this handler used to, made the
+                        // expansion work for exactly one spelling -- and not the canonical one. A
+                        // `fetchEdges` written the way every guide teaches, returning
+                        // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
+                        // fetched, and the edges queued as pending for ever.
+                        const endpoints = resolveEndpoints(edges, { source: null, target: null });
                         const nodeIds = new Set<NodeIdType>();
                         edges.forEach((e) => {
-                            nodeIds.add(e.src);
-                            nodeIds.add(e.dst);
+                            nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
+                            nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
                         });
                         nodeIds.delete(node.id);
 
@@ -579,9 +596,21 @@ export class NodeBehavior {
                         const nodes = fetchNodes(nodeIds, graph);
 
                         // add all the nodes and edges we collected
+                        //
+                        // `repeated: "first"` because expanding a node's neighbourhood
+                        // LEGITIMATELY re-supplies edges the graph already holds -- the edge the
+                        // reader followed to get here is in every one of its endpoints'
+                        // neighbourhoods. The element defaults to keeping a repeated edge, which
+                        // is right for a file that really does carry two, and would double every
+                        // known edge on every expand. Only the call site knows which of the two
+                        // this is, and this one knows.
                         const dataManager = context.getDataManager();
                         dataManager.addNodes([...nodes]);
-                        dataManager.addEdges([...edges]);
+                        dataManager.addEdges([...edges], {
+                            repeated: "first",
+                            source: endpoints.source,
+                            target: endpoints.target,
+                        });
 
                         // TODO: fetch and add secondary edges
                     },

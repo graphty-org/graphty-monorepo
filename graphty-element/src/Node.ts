@@ -14,15 +14,15 @@ import _ from "lodash";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, NodeStyleConfig } from "./config";
+import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
-import type { LayoutEngine } from "./layout/LayoutEngine";
+import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
-import type { NodePaint } from "./managers/StylePainter";
+import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
-import { NodeStyleId, Styles } from "./Styles";
 
 export type NodeIdType = string | number;
 
@@ -36,6 +36,8 @@ export type NodeIdType = string | number;
  * set -- so nothing about this state changes what "visible" means.
  */
 export type NodeRenderState = "visible" | "hidden" | "context";
+
+const logger = GraphtyLogger.getLogger(["graphty", "node"]);
 
 /** The cached source mesh every selection halo is an instance of. */
 const SELECTION_HALO_MESH = "graphty-selection-halo";
@@ -89,15 +91,14 @@ export class Node {
     label?: RichTextLabel;
     dragHandler?: NodeDragHandler;
     dragging = false;
-    styleId: NodeStyleId;
     pinOnDrag!: boolean;
     size!: number;
 
     /**
      * The shape type of the mesh currently on screen, cached beside {@link Node.size}.
      *
-     * It exists ONLY so that {@link Node.updateStyle} can tell a geometry change from a colour
-     * change; see the invalidation block there for the defect it fixes. It is read from
+     * It exists ONLY so that the repaint can tell a geometry change from a colour change; see the
+     * invalidation block in `paintFrom` for the defect it fixes. It is read from
      * `style.shape.type`, so it is `undefined` for a style that names no shape.
      */
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -125,21 +126,19 @@ export class Node {
     /**
      * The source mesh this node is currently drawn from.
      *
-     * A KEY, NOT A STYLE, and that is the whole reason it is a string rather than a `NodeStyleId`.
-     * Under the legacy stack it is the style id, because a legacy style id keys a source mesh.
-     * Under the session's stack it is the key the style interner minted -- built from the shape
-     * and the size and deliberately NOT from the colour, because a colour is per-instance GPU
-     * state and folding it in is what turns a continuous ramp into one source mesh per node.
+     * A KEY, NOT A STYLE. It is the key the style interner minted -- built from the shape and the
+     * size and deliberately NOT from the colour, because a colour is per-instance GPU state and
+     * folding it in is what turns a continuous ramp into one source mesh per node.
      */
     private meshKey: string;
 
     /**
-     * What the session's style stack resolved for this node, or null while the legacy stack owns
-     * its paint.
+     * What the session's style stack resolved for this node, or null while no pass has resolved
+     * one and the element's own defaults are what is drawn.
      *
      * Held rather than re-read because the renderer rebuilds a mesh at moments the style stack
-     * knows nothing about -- a 2D/3D switch disposes every mesh -- and rebuilding from the legacy
-     * style id at one of those moments would silently hand the node back to the other system.
+     * knows nothing about -- a 2D/3D switch disposes every mesh -- and asking the stack again at
+     * one of those moments costs a resolve for an answer that has not changed.
      */
     private sessionPaint: NodePaint | null = null;
 
@@ -157,23 +156,6 @@ export class Node {
     private disposed = false;
 
     /**
-     * The layout engine this node's pin was handed to, or undefined when the node is not pinned.
-     *
-     * A pin is the engine's to hold -- ngraph's `pinNode`, d3's `fx`/`fy`/`fz` -- and LayoutManager
-     * constructs a fresh engine on every `setLayout` and re-adds the nodes to it, so a pin does not
-     * survive a layout change. Holding the engine rather than a bare boolean is what lets
-     * {@link Node.isPinned} say so: the answer is "yes" only while the engine that was told about
-     * the pin is still the current one.
-     *
-     * The element does NOT own pin state yet. When the pinning surface lands -- `pin`, `unpin`,
-     * `pinnedMask()` and `isPinned(id)` on the element's own position column -- a pin becomes
-     * session state that outlives a layout change, and this field goes away with the engines'
-     * copies becoming a projection of it. Until then an element-owned flag would only make a pin
-     * permanent with nothing in the element able to release it.
-     */
-    private pinnedIn: LayoutEngine | undefined;
-
-    /**
      * Helper to check if we're using GraphContext
      * @returns The GraphContext instance from the parent graph
      */
@@ -189,16 +171,21 @@ export class Node {
 
     /**
      * Creates a new Node instance with mesh, label, and behaviors.
+     *
+     * THE PAINT IS HANDED IN RATHER THAN ASKED FOR, because at this moment there is nothing to
+     * ask. The session's paint is addressed by the dense row index the store assigns AFTER the
+     * node is constructed, so a node builds its first mesh from `bootstrapNodePaint()` and the
+     * first style pass replaces it.
      * @param graph - The parent graph or graph context that owns this node
      * @param nodeId - Unique identifier for this node
-     * @param styleId - Style identifier determining the node's visual appearance
+     * @param paint - The source mesh, the style behind it and the per-instance colour to draw
      * @param data - Custom data associated with this node
      * @param opts - Optional configuration options for the node
      */
     constructor(
         graph: Graph | GraphContext,
         nodeId: NodeIdType,
-        styleId: NodeStyleId,
+        paint: NodePaint,
         data: AdHocData<string | number>,
         opts: NodeOpts = {},
     ) {
@@ -207,21 +194,19 @@ export class Node {
         this.opts = opts;
         this.data = data;
 
-        // copy nodeMeshOpts
-        this.styleId = styleId;
-        this.meshKey = String(styleId);
+        this.meshKey = paint.meshKey;
 
         // create graph node
         // TODO: Node is added to layout engine by DataManager, not here
 
         // create mesh
-        const o = Styles.getStyleForNodeStyleId(styleId);
+        const o = paint.style;
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            { styleId: String(styleId), is2D: this.context.is2D(), size: this.size },
+            { styleId: paint.meshKey, is2D: this.context.is2D(), size: this.size },
             { shape: o.shape, texture: o.texture, effect: o.effect },
             this.context.getScene(),
         );
@@ -237,7 +222,7 @@ export class Node {
         // IMPORTANT: For InstancedMesh, we must set metadata on the INSTANCE, not spread from source
         this.mesh.metadata = {
             graphNode: this,
-            styleId: String(styleId),
+            styleId: paint.meshKey,
             nodeId: this.id,
         };
 
@@ -249,6 +234,10 @@ export class Node {
         if (o.label?.enabled) {
             this.label = this.createLabel(o);
         }
+
+        // The colour lives beside the style rather than in the source mesh's material, so the
+        // instance this node was just given has to be told what it is. See applyInstanceColor.
+        this.applyInstanceColor(paint.color);
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
     }
@@ -272,11 +261,8 @@ export class Node {
         this.context.getStatsManager().startMeasurement("Node.update");
 
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it.
-        // Rebuilt from whichever stack owns this node's paint: a 2D/3D switch happens at a moment
-        // the style stack knows nothing about, and rebuilding from the legacy style id while the
-        // session owns the paint would hand the node to the other system without saying so.
         if (this.mesh.isDisposed()) {
-            this.updateStyle(this.styleId);
+            this.updateStyle();
         }
 
         if (this.dragging) {
@@ -301,70 +287,44 @@ export class Node {
     }
 
     /**
-     * Updates the node's visual style by recreating the mesh with the specified style.
-     * Preserves the node's position and reattaches behaviors and labels.
-     * @param styleId - The new style identifier to apply to the node
+     * Rebuild this node's mesh, its label and its effects from the paint it is currently drawn
+     * from, preserving its position and reattaching its behaviours.
+     *
+     * A REBUILD REQUEST, NOT A STYLE CHANGE. The 2D/3D switch calls this for exactly one reason
+     * -- every mesh has just been disposed -- and `update()` calls it when it finds a mesh that
+     * has gone. What to draw is the style stack's answer; WHETHER to draw is the caller's.
      */
-    updateStyle(styleId: NodeStyleId): void {
+    updateStyle(): void {
         // See update(): a disposed node is still reachable from the layout engine and from
         // SelectionManager, and this method builds a mesh. Refuse rather than resurrect.
         if (this.disposed) {
             return;
         }
 
-        this.styleId = styleId;
+        const paint = this.currentPaint();
 
-        // THE OWNERSHIP RULE, AT THE WRITE. While the session's style stack owns this graph's
-        // paint, the legacy stack does not draw: it still resolves a style id, and that id is
-        // still kept above so that everything reading `node.styleId` keeps its answer, but the
-        // paint belongs to the other system and a second writer here would make the picture
-        // last-writer-wins. See StylePainter for which system owns what, and when.
-        //
-        // IT IS STILL A REBUILD REQUEST, and that is why this answers rather than refusing. The
-        // 2D/3D switch calls this method for exactly one reason -- every mesh has just been
-        // disposed -- and a refusal there would leave the graph with no meshes at all. What the
-        // owner draws is the owner's answer; WHETHER to draw is still the caller's.
-        const paint = this.ownedPaint();
-
-        if (paint !== null) {
-            this.sessionPaint = paint;
-            this.paintFrom(paint.meshKey, paint.style, paint.color);
-
-            return;
-        }
-
-        // Ownership has moved back, so the paint the session resolved is no longer this node's.
-        // Dropped rather than kept, because a kept one would be drawn again at the next rebuild
-        // and the two systems would take turns.
-        this.sessionPaint = null;
-        this.paintFrom(String(styleId), Styles.getStyleForNodeStyleId(styleId), null);
+        this.sessionPaint = paint;
+        this.paintFrom(paint.meshKey, paint.style, paint.color);
     }
 
     /**
-     * What the session's style stack says this node looks like, when it is the owner.
+     * What this node looks like right now.
      *
-     * Asked of the painter rather than only read off the field, because the two do not become
-     * true at the same moment: the session owns the paint from the instant it is bound, and the
-     * field is filled by the first frame that drains the dirty set. A rebuild in between -- a
-     * 2D/3D switch immediately after a load -- would otherwise find nothing and draw nothing.
-     * @returns The paint, or null when the legacy stack owns this node.
+     * The painter is asked rather than only the field read, because the two do not become true
+     * at the same moment: a session's paint exists from the instant it is bound, and the field is
+     * filled by the first frame that drains the dirty set. A rebuild in between -- a 2D/3D switch
+     * immediately after a load -- would otherwise find nothing and draw nothing.
+     * @returns The session's paint when one is bound, and the element's own defaults otherwise.
      */
-    private ownedPaint(): NodePaint | null {
+    private currentPaint(): NodePaint {
         const painter = this.context.getStylePainter?.();
+        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.nodePaint(this.index)) : null;
 
-        if (painter?.owns !== true) {
-            return null;
-        }
-
-        return this.sessionPaint ?? painter.nodePaint(this.index);
+        return painted ?? bootstrapNodePaint();
     }
 
     /**
      * Draw this node as the session's style stack resolved it.
-     *
-     * The session's half of the door {@link Node.updateStyle} is the legacy half of. Only one of
-     * the two is the owner at a time, and the owner is the whole graph's rather than this node's,
-     * so the two can never be applying to one element at once.
      * @param paint - The source mesh, the style behind it and the per-instance colour.
      */
     applySessionPaint(paint: NodePaint): void {
@@ -482,11 +442,10 @@ export class Node {
         //   (which grows a node). It restored the behaviour for size only. Shape was never
         //   covered, which is why the regression survived it.
         //
-        // Both style routes -- Graph.ts's style-changed handler and
-        // DataManager.applyStylesToExistingNodes, which is what the shell repaints through --
-        // converge on this same method and this same guard, so no route bypassed a recalculation
-        // that another route performed. The old shell saw it work because it predates 973f1d96,
-        // not because it called anything different.
+        // Every route into a repaint -- a style pass draining its dirty set, a 2D/3D switch, a
+        // selection growing a node -- converges on this same method and this same guard, so no
+        // route bypasses a recalculation another route performs. The old shell saw it work
+        // because it predates 973f1d96, not because it called anything different.
         //
         // THIS STAYS A CONDITION, never an unconditional invalidation: the loop is O(E) per node
         // because a Node holds no incident-edge index, and a colour-only repaint reaches this
@@ -761,7 +720,8 @@ export class Node {
             this.contextPoint = overlay;
         }
 
-        const scale = Math.max(this.size, MIN_OVERLAY_SIZE) * (kind === "halo" ? SELECTION_HALO_SCALE : CONTEXT_POINT_SCALE);
+        const scale =
+            Math.max(this.size, MIN_OVERLAY_SIZE) * (kind === "halo" ? SELECTION_HALO_SCALE : CONTEXT_POINT_SCALE);
         overlay.scaling.setAll(scale);
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
@@ -781,7 +741,9 @@ export class Node {
         const name = kind === "halo" ? SELECTION_HALO_MESH : CONTEXT_POINT_MESH;
         const color = kind === "halo" ? SELECTION_HALO_COLOR : CONTEXT_POINT_COLOR;
         const alpha = kind === "halo" ? SELECTION_HALO_ALPHA : CONTEXT_POINT_ALPHA;
-        const overlay = this.context.getMeshCache().get(name, () => Node.createOverlaySource(name, color, alpha, scene));
+        const overlay = this.context
+            .getMeshCache()
+            .get(name, () => Node.createOverlaySource(name, color, alpha, scene));
 
         // Never pickable: the halo sits OVER the node it rings, so a pickable halo would take
         // every click meant for the node underneath it and selection would stop working.
@@ -839,24 +801,82 @@ export class Node {
     }
 
     /**
-     * Pins the node in place, preventing the layout engine from moving it.
+     * Pins the node in place, so that no layout moves it again until it is released.
      *
-     * A static layout has nothing to pin, so `SimpleLayoutEngine.pin` is a no-op and the node does
-     * not report itself pinned there either -- the pin exists exactly as long as the engine holding
-     * it does.
+     * THE ELEMENT OWNS THE PIN, in the byte beside this node's coordinates. It used to be owned by
+     * whichever layout engine happened to be current, which meant every pin was lost the moment
+     * the reader changed arrangement or switched between 2D and 3D -- and meant nothing at all
+     * under fourteen of the sixteen engines, whose `pin()` does nothing. Recorded here it is one
+     * fact that survives a layout change, a re-freeze and a renumbering, and the shared position
+     * array refuses a layout step onto a pinned row whatever engine is running.
+     *
+     * THE ENGINE IS STILL TOLD, because a live simulation that knows a body is fixed stops
+     * spending force on it -- ngraph's `pinNode`, d3's `fx`/`fy`/`fz`. That copy is a projection
+     * of the element's bit and never a second source of truth. The order is load-bearing: the bit
+     * is recorded FIRST, so an engine that calls back into {@link Node.isPinned} while being told
+     * sees the pin.
      */
     pin(): void {
-        const engine = this.context.getLayoutManager().layoutEngine;
-        this.pinnedIn = engine;
-        engine?.pin(this);
+        if (!this.positionsLane?.setPinned(this.index, true)) {
+            // A node the graph builder never took has no row to pin, and pinning happens from a
+            // pointer gesture, so this says so rather than throwing inside the frame that reports
+            // the drop.
+            logger.debug("A node with no row in the graph cannot be pinned", { nodeId: this.id });
+            return;
+        }
+
+        this.tellEngine("pin");
     }
 
     /**
      * Unpins the node, allowing the layout engine to move it again.
+     *
+     * The element's bit is cleared FIRST and the forward is guarded, so this cannot throw. It used
+     * to: a node pinned under one engine and released after a layout change forwarded the release
+     * to a DIFFERENT engine, which threw "Internal error: Node not found" for a node it had never
+     * been told about.
      */
     unpin(): void {
-        this.pinnedIn = undefined;
-        this.context.getLayoutManager().layoutEngine?.unpin(this);
+        this.positionsLane?.setPinned(this.index, false);
+        this.tellEngine("unpin");
+    }
+
+    /**
+     * Tell the current layout engine about a pin the element has already recorded.
+     *
+     * GUARDED, and this is the whole reason it exists as a method. An engine may refuse a node it
+     * has not been told about -- `NGraphLayoutEngine` and `D3GraphLayoutEngine` both throw for
+     * one -- and the element's pin is already recorded by the time this runs, so a throw here
+     * would abort the caller's gesture while leaving the pin in force with no way back out.
+     * @param verb - which half of the projection to forward
+     */
+    private tellEngine(verb: "pin" | "unpin"): void {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (!engine) {
+            return;
+        }
+
+        try {
+            engine[verb](this);
+        } catch (error) {
+            logger.debug("The layout engine did not accept the pin change", {
+                nodeId: this.id,
+                verb,
+                reason: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    /**
+     * The element's position array, when this node belongs to a graph that keeps one.
+     *
+     * Resolved on every read rather than cached, for the same reason `LayoutEngine.positionsFor`
+     * resolves on every call: the element REPLACES the array when a dataset is discarded, and a
+     * cached reference would go on answering for a graph that no longer exists.
+     * @returns the array, or undefined for a node built outside a graph
+     */
+    private get positionsLane(): ElementPositions | undefined {
+        return this.context.getDataManager?.()?.positions;
     }
 
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
@@ -1022,12 +1042,11 @@ export class Node {
     /**
      * Checks whether the node is currently pinned in place.
      *
-     * Answers from the layout engine that holds the pin: a `setLayout` builds a new engine and the
-     * old one's pins go with it, so a node pinned under the previous layout reports itself free
-     * again, which is what the engine underneath actually does.
-     * @returns True if the node is pinned in the current layout, false otherwise
+     * Answers from the element's own position array, so the answer does not change because the
+     * reader switched arrangement, switched between 2D and 3D, or applied a style template.
+     * @returns True if the node is pinned, false otherwise
      */
     isPinned(): boolean {
-        return this.pinnedIn !== undefined && this.pinnedIn === this.context.getLayoutManager().layoutEngine;
+        return this.positionsLane?.isPinned(this.index) ?? false;
     }
 }

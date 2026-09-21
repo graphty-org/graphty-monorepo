@@ -12,33 +12,69 @@ export enum LogLevel {
 }
 
 /**
- * A log record containing all information about a single log entry.
+ * One thing that happened, as every destination receives it.
+ *
+ * The same object is handed to every destination in turn, so it is frozen before the first one
+ * sees it, and so is `data`. A destination that needs to change a record copies it; one that
+ * changed it in place would change what every destination after it sees, and the destination it
+ * broke would be somebody else's.
  */
 export interface LogRecord {
-    /** Timestamp when the log entry was created */
-    timestamp: Date;
-    /** Severity level of the log entry */
-    level: LogLevel;
-    /** Hierarchical category path, e.g., ["graphty", "layout", "ngraph"] */
-    category: string[];
-    /** The log message */
-    message: string;
-    /** Optional structured data to include with the log */
-    data?: Record<string, unknown>;
-    /** Optional error object for error logs */
-    error?: Error;
+    /** When the entry was made. */
+    readonly timestamp: Date;
+    /** How severe it is. TRACE arrives as TRACE, not collapsed onto DEBUG. */
+    readonly level: LogLevel;
+    /** Who said it, as a hierarchical path, e.g. ["graphty", "layout", "ngraph"]. */
+    readonly category: readonly string[];
+    /** What they said, unformatted. {@link formatLogRecord} is the element's own rendering of it. */
+    readonly message: string;
+    /** The facts attached to it, with every lazy value already computed. */
+    readonly data?: Readonly<Record<string, unknown>>;
+    /** The failure itself, on an error record: the `Error` object, not a stack string. */
+    readonly error?: Error;
 }
 
 /**
- * A sink is a destination for log records (console, remote server, etc.).
+ * A destination log records are delivered to: the console, a log server, a panel in a page.
+ *
+ * A plain object, not a class to extend. The element's own two destinations are exactly this
+ * shape, so what a third party writes is what the element writes.
+ *
+ * `write` is synchronous and fire-and-forget: a promise it returns is neither awaited nor
+ * caught, so an `async write` that rejects becomes an unhandled rejection rather than the
+ * caught, reported failure a synchronous throw gets. A destination that talks to a network
+ * buffers inside `write` and does the talking in `flush`, which is what the element's own remote
+ * destination does.
  */
 export interface Sink {
-    /** Unique name for this sink */
+    /** The name it is filed under, and the name `removeSink` takes. */
     name: string;
-    /** Write a log record to this sink */
+    /** Deliver one record. Anything thrown here is caught and reported, and the other destinations still get the record. */
     write(record: LogRecord): void;
-    /** Optional method to flush any buffered logs */
+    /** Send anything buffered, when there is any. One destination's rejection does not stop another's. */
     flush?(): Promise<void>;
+    /**
+     * Take less than the global settings allow: records above this level are not delivered here.
+     *
+     * It NARROWS and cannot widen -- a destination cannot see what the global level already
+     * dropped, because the element's own destinations are behind that same gate.
+     */
+    level?: LogLevel;
+    /**
+     * Take only records whose category contains one of these segments, e.g. ["layout"].
+     *
+     * Matched the way the global module filter is matched: by segment, so "layout" takes
+     * ["graphty", "layout", "ngraph"] as well as ["graphty", "layout"].
+     */
+    categories?: readonly string[];
+    /**
+     * Let go of whatever the destination is holding -- a timer, a socket, a queue.
+     *
+     * Called when the destination is removed and when another one replaces its name. The
+     * element's own remote destination needs it: its client holds a batch timer that nothing
+     * stopped before this existed.
+     */
+    dispose?(): void | Promise<void>;
 }
 
 /**
@@ -51,6 +87,14 @@ export interface LoggerConfig {
     level: LogLevel;
     /** Modules to enable: array of module names or "*" for all */
     modules: string[] | "*";
+    /**
+     * A level for one module that is not the global level, e.g. `{ layout: LogLevel.TRACE }`.
+     *
+     * Keyed by a category segment and matched the way `modules` is matched, so "layout" covers
+     * ["graphty", "layout", "ngraph"]. The most specific segment of a category wins. This is
+     * what the documented `?graphty-element-logging=layout:debug,xr:info` URL syntax means.
+     */
+    moduleLevels?: Readonly<Record<string, LogLevel>>;
     /** Formatting options */
     format: {
         /** Include timestamp in output */

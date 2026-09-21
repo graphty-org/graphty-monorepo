@@ -2,14 +2,17 @@
  * Logging module for graphty-element.
  *
  * Provides a structured logging system with:
- * - URL parameter-based enable/disable and module filtering
  * - Hierarchical module categories matching the codebase structure
  * - Configurable log levels (silent, error, warn, info, debug, trace)
- * - Console and remote sinks for output
+ * - Console and remote sinks for output, plus any destination a consumer registers
  * - TypeScript-first design with full type safety
+ *
+ * This module is published as `@graphty/graphty-element/logging`. Import from that subpath
+ * rather than from the root: the root barrel defines the custom element and pulls in Babylon.js
+ * and Lit on import, and a logger has no use for either.
  * @example
  * ```typescript
- * import { GraphtyLogger, LogLevel } from "graphty-element";
+ * import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
  *
  * // Configure logging
  * await GraphtyLogger.configure({
@@ -23,28 +26,13 @@
  * const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
  * logger.info("Layout started", { nodeCount: 100 });
  * ```
- * @example URL Parameters
- * ```
- * // Enable all logging
- * ?graphty-element-logging=true
- *
- * // Enable specific modules
- * ?graphty-element-logging=layout,xr,camera
- *
- * // Set log level
- * ?graphty-element-logging=true&graphty-element-log-level=debug
- *
- * // Module-specific levels
- * ?graphty-element-logging=layout:debug,xr:info
- *
- * // Enable remote logging to a server
- * ?graphty-element-logging=true&graphty-element-remote-log=https://localhost:9080
- * ```
  * @module logging
  */
 
 // Core exports
-export { GraphtyLogger, type GraphtyLoggerConfig, type Logger } from "./GraphtyLogger.js";
+export { type LogFormatOptions } from "./format.js";
+export { formatLogRecord, GraphtyLogger, type GraphtyLoggerConfig, type Logger, type LogSinkReference } from "./GraphtyLogger.js";
+export { lazy } from "./LazyEval.js";
 export {
     configureLogging,
     getLoggingConfig,

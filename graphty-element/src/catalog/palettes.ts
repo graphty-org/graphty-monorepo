@@ -41,13 +41,22 @@ import {
     PLASMA_COLORS,
     VIRIDIS_COLORS,
 } from "../config/palettes/sequential";
+import { registeredPaletteById, registeredPaletteDescriptors } from "./paletteRegistry";
 import type { PaletteDescriptor, PaletteId } from "./types";
 
 /** Safe for every form of colour blindness a descriptor can name. */
 const ALL_TYPES = ["deuteranopia", "protanopia", "tritanopia"] as const;
 
-/** Every palette the element can paint with. */
-export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = [
+/**
+ * Every palette the element itself ships.
+ *
+ * FROZEN, AND IT NEVER GROWS. A palette a third party registers does not land here: this table
+ * answers "what does the element ship", which has to stay a different question from "what can
+ * this page paint with" -- a consumer reading it is reading the element's own list, and a plugin
+ * appended to it would silently change what that list means. The two are joined at the lookups
+ * below and at the catalogue door, never in the table.
+ */
+export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     {
         id: "viridis",
         plainName: "Purple to Yellow",
@@ -184,23 +193,56 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = [
         capacity: 2,
         colorblindSafe: ALL_TYPES,
     },
-];
+]);
 
 /**
  * Find one palette by its name.
+ *
+ * THE BUILT-IN TABLE IS SEARCHED FIRST AND THE REGISTRY SECOND, which is what makes a registered
+ * palette reachable by everything that already asks this question -- the ramp a layer paints
+ * through, the legend, and the check a saved document is read against -- without a plugin ever
+ * being able to change what a built-in name means. Nothing can take a built-in id anyway, because
+ * registration refuses one, so the order costs nothing and says the rule out loud.
+ *
+ * A lookup that missed the registry would leave the extension point half-built in the worst
+ * shape there is: the palette visible in a picker, chosen by a reader, and then refused by the
+ * repaint that tried to paint with it.
  * @param id - The palette name, such as "viridis".
- * @returns The descriptor, or undefined when the element does not know that palette.
+ * @returns The descriptor, or undefined when neither the element nor a plugin has that palette.
  */
 export function paletteDescriptor(id: PaletteId): PaletteDescriptor | undefined {
-    return PALETTE_DESCRIPTORS.find((descriptor) => descriptor.id === id);
+    return PALETTE_DESCRIPTORS.find((descriptor) => descriptor.id === id) ?? registeredPaletteById(id);
 }
 
 /**
  * The palettes of one kind, which is what a palette picker offers once the encoding has decided
  * whether it is ranking values, dividing them around a midpoint, or naming groups.
+ *
+ * The element's own first, then the registered ones in registration order, so a picker's list
+ * does not reshuffle when a page imports one more plugin.
  * @param kind - The kind of palette wanted.
  * @returns Every palette of that kind, in catalogue order.
  */
 export function palettesOfKind(kind: PaletteDescriptor["kind"]): readonly PaletteDescriptor[] {
-    return PALETTE_DESCRIPTORS.filter((descriptor) => descriptor.kind === kind);
+    const builtIn = PALETTE_DESCRIPTORS.filter((descriptor) => descriptor.kind === kind);
+    const registered = registeredPaletteDescriptors().filter((descriptor) => descriptor.kind === kind);
+
+    return registered.length === 0 ? builtIn : [...builtIn, ...registered];
+}
+
+/**
+ * Every palette that can be named right now: the element's own, then the registered ones.
+ *
+ * THE REGISTERED ONES ARE IN IT, which is the whole reason this is a function rather than a
+ * literal list of seventeen names. A reader who registered a palette, misspelled it in a layer,
+ * and was then shown a list their own palette is missing from would conclude the registration had
+ * not taken -- and go and debug the wrong thing.
+ *
+ * Here rather than beside one of its callers because both of them -- the check a layer is
+ * accepted through and the ramp a repaint prepares -- have to answer the same question with the
+ * same list, and two copies would drift the first time a registry changed.
+ * @returns The ids, the element's own first.
+ */
+export function knownPaletteIds(): readonly string[] {
+    return [...PALETTE_DESCRIPTORS, ...registeredPaletteDescriptors()].map((descriptor) => String(descriptor.id));
 }

@@ -11,6 +11,7 @@ import { GraphStyle } from "../../src/config/GraphStyle";
 import { NodeStyle } from "../../src/config/NodeStyle";
 import type { OptionsSchema } from "../../src/config/OptionsSchema";
 import { BipartiteLayout } from "../../src/layout/BipartiteLayoutEngine";
+import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SpringLayout } from "../../src/layout/SpringLayoutEngine";
@@ -127,12 +128,21 @@ describe("optionsFromZod", () => {
             assert.isUndefined(scale.max);
         });
 
-        it("emits an optional string with no default", () => {
-            const weightProperty = byName(optionsFromZod(schemaOf(KamadaKawaiLayout)), "weightProperty");
+        it("publishes 'use edge weights' as a boolean that is on by default, for both engines that read weights", () => {
+            // The two engines used to name an attribute instead -- Kamada-Kawai's `weightProperty`
+            // and ForceAtlas2's `weightPath` -- and neither did anything: no weight ever reached
+            // either layout function. Naming an attribute was the wrong question anyway, because
+            // which record key carries the weight is settled one layer up by
+            // `knownFields.edgeWeightPath`, for every engine at once. What is left for a reader to
+            // decide is whether to arrange by the weights at all, which is one boolean, published
+            // under one name, for both engines -- so a picker can offer it and a reader can say no.
+            for (const engine of [KamadaKawaiLayout, ForceAtlas2Layout]) {
+                const weighted = byName(optionsFromZod(schemaOf(engine)), "weighted");
 
-            assert.strictEqual(weightProperty.type, "string");
-            assert.isFalse("default" in weightProperty);
-            assert.isTrue(weightProperty.advanced);
+                assert.strictEqual(weighted.type, "boolean", `${engine.type}: weights are on or off`);
+                assert.strictEqual(weighted.default, true, `${engine.type}: a weighted graph is arranged by its weights`);
+                assert.isNotTrue(weighted.advanced, `${engine.type}: a reader should not have to go looking for it`);
+            }
         });
 
         it("keeps a nullable positive integer an integer", () => {

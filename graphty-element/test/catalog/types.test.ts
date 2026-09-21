@@ -80,6 +80,7 @@ const circular: LayoutDescriptor = {
     structuralInputs: ["ordering"],
     options: [],
     engine: "@graphty/layout",
+    honoursWeights: false,
 };
 
 describe("catalogue descriptors", () => {

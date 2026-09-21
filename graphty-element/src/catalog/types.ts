@@ -18,6 +18,7 @@
  * the consumer's preference.
  */
 
+import type { DrawingMode } from "../camera/types";
 import type { GraphtyErrorCode } from "../errors/codes";
 
 /**
@@ -27,6 +28,15 @@ import type { GraphtyErrorCode } from "../errors/codes";
  * and another to the error that carries it.
  */
 export type { GraphtyErrorCode };
+
+/**
+ * Which way the element is drawing: flat, or in three dimensions.
+ *
+ * Declared in the camera module, where a view reads it, and re-exported here so
+ * {@link CameraDescriptor.modes} is nameable from `./catalog` without a consumer reaching into
+ * a second module for one word.
+ */
+export type { DrawingMode };
 
 
 // ---------------------------------------------------------------------------------------------
@@ -123,11 +133,48 @@ export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot",
 /** A format id: a built-in name, or a plugin's. */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
-/** The built-in palettes. */
-export const KNOWN_PALETTE_IDS = ["viridis", "plasma", "okabe-ito", "blue-orange"] as const;
+/**
+ * The built-in palettes: six sequential ramps, five categorical sets, three diverging ramps and
+ * three highlight pairs, in the order `PALETTE_DESCRIPTORS` lists them.
+ *
+ * All seventeen are here because this list is what autocomplete offers. Four of them used to be,
+ * so a consumer typing a palette name was shown a quarter of the element's own palettes and had
+ * to read the catalogue table to find the rest.
+ */
+export const KNOWN_PALETTE_IDS = [
+    "viridis",
+    "plasma",
+    "inferno",
+    "blues",
+    "greens",
+    "oranges",
+    "okabe-ito",
+    "tol-vibrant",
+    "tol-muted",
+    "pastel",
+    "carbon",
+    "purple-green",
+    "blue-orange",
+    "red-blue",
+    "blue-highlight",
+    "green-highlight",
+    "orange-highlight",
+] as const;
 
 /** A palette id: a built-in name, or a plugin's. */
 export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
+
+/** The built-in camera views. */
+export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric"] as const;
+
+/** A camera view id: a built-in name, or a plugin's. */
+export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
+
+/** The built-in log destinations. */
+export const KNOWN_LOG_SINK_IDS = ["console", "remote"] as const;
+
+/** A log destination id: a built-in name, or a plugin's. */
+export type LogSinkId = (typeof KNOWN_LOG_SINK_IDS)[number] | (string & {});
 
 // ---------------------------------------------------------------------------------------------
 // Value classification
@@ -421,6 +468,15 @@ export interface AlgorithmDescriptor {
     options: readonly OptionDescriptor[];
     costClass: CostClass;
     complexity: string;
+    /**
+     * A cost model in seconds over a graph of n nodes and m edges.
+     *
+     * SUPERSEDED BY `RegisteredAlgorithm.cost`, and not to be set by a plugin. A function is not
+     * plain JSON, so a descriptor carrying one stops surviving `JSON.stringify` and a
+     * `postMessage` -- which is why no built-in sets it and a test pins that. Declare
+     * `static cost` on the algorithm class instead, where the registry holds it beside the class
+     * reference and a function belongs.
+     */
     cost?: (n: number, m: number) => number;
     approximable?: {
         method: string;
@@ -450,7 +506,25 @@ export interface LayoutDescriptor {
     options: readonly OptionDescriptor[];
     /** The implementation behind this layout. */
     engine: string;
+    /**
+     * Whether the default engine arranges this graph differently when its edges carry weights.
+     *
+     * A picker reads it to know which arrangements the `weighted` option actually does something
+     * for. Of the element's own sixteen engines only Kamada-Kawai and ForceAtlas2 answer true;
+     * offering a weight control on the other fourteen would advertise a setting that changes
+     * nothing.
+     */
+    honoursWeights: boolean;
 }
+
+/**
+ * A layout descriptor as a third party's engine class authors it.
+ *
+ * `honoursWeights` is missing from it because the engine class already declares that fact as a
+ * static, and a fact written in two places is a fact that can disagree with itself.
+ * `LayoutEngine.register` reads the static and publishes the complete descriptor.
+ */
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights">;
 
 /** One file format the element can read, write, or both. */
 export interface FormatDescriptor {
@@ -472,6 +546,38 @@ export interface PaletteDescriptor {
     /** How many distinct values the palette can carry, or null when it is continuous. */
     capacity: number | null;
     colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
+}
+
+/**
+ * One camera view: a named way of deciding where the viewer stands and what they look at.
+ *
+ * `modes` is how a view says where it can be used. The five built-in views used to express that
+ * by throwing from inside a switch, and a picker cannot read a throw -- so a view unusable in 2D
+ * was offered in 2D and failed when chosen. With the modes declared, the element refuses before
+ * calling with `E_UNSUPPORTED` and a picker offers only what will work.
+ */
+export interface CameraDescriptor {
+    id: CameraId;
+    plainName: string;
+    description: string;
+    /** The drawing modes this view can be computed in. The element refuses the others. */
+    modes: readonly DrawingMode[];
+    options: readonly OptionDescriptor[];
+}
+
+/**
+ * One destination log records can be delivered to.
+ *
+ * A destination has a descriptor so that it can be named in a configuration and listed by a
+ * settings panel. That is the whole difference between the element's own remote destination,
+ * which a string in a config object turns on, and a third party's, which used to be reachable
+ * only by holding a live JavaScript object.
+ */
+export interface LogSinkDescriptor {
+    id: LogSinkId;
+    plainName: string;
+    description: string;
+    options: readonly OptionDescriptor[];
 }
 
 /** One scale, mapping a domain of values onto a channel's range. */
@@ -573,6 +679,8 @@ export interface CatalogApi {
     layouts(): readonly LayoutDescriptor[];
     formats(): readonly FormatDescriptor[];
     palettes(): readonly PaletteDescriptor[];
+    cameras(): readonly CameraDescriptor[];
+    logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
     themes(): readonly ThemeDescriptor[];
     functions(): readonly FunctionDescriptor[];

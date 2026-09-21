@@ -12,6 +12,7 @@
  */
 
 import type { CSVVariant } from "../data/csv-variant-detection";
+import { registeredFormatById, registeredFormatDescriptors } from "./formatRegistry";
 import type { FormatDescriptor, KNOWN_FORMAT_IDS, OptionDescriptor } from "./types";
 
 /** A built-in format name no registered data source reads. */
@@ -59,19 +60,35 @@ const csvOptions: readonly OptionDescriptor[] = [
         type: "string",
         description: "The column holding each node's identity, when the file lists nodes.",
     },
+];
+
+/**
+ * The endpoint options EVERY format accepts, under one pair of names.
+ *
+ * The catalogue used to publish `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/
+ * `targetColumn` for CSV, and nothing at all for the other five -- three names for one fact, and
+ * five formats whose endpoints a reader could not name from a picker even though the element was
+ * perfectly able to read them. Unset means the element decides for itself: it reads
+ * `source`/`target`, then `src`/`dst`, then `from`/`to`, once per batch of edge records.
+ */
+const endpointOptions: readonly OptionDescriptor[] = [
     {
-        name: "sourceColumn",
-        plainName: "Edge Start Column",
-        technicalName: "sourceColumn",
+        name: "edgeSource",
+        plainName: "Edge Start Field",
+        technicalName: "edgeSource",
         type: "string",
-        description: "The column holding the node an edge starts at.",
+        description:
+            "Where to find the node an edge starts at. Left unset, the element looks for " +
+            "source, then src, then from.",
     },
     {
-        name: "targetColumn",
-        plainName: "Edge End Column",
-        technicalName: "targetColumn",
+        name: "edgeTarget",
+        plainName: "Edge End Field",
+        technicalName: "edgeTarget",
         type: "string",
-        description: "The column holding the node an edge ends at.",
+        description:
+            "Where to find the node an edge ends at. Left unset, the element looks for " +
+            "target, then dst, then to.",
     },
 ];
 
@@ -82,20 +99,6 @@ const jsonOptions: readonly OptionDescriptor[] = [
         technicalName: "nodeIdPath",
         type: "string",
         description: "An expression selecting each node's identity out of the node record.",
-    },
-    {
-        name: "edgeSrcIdPath",
-        plainName: "Edge Start Field",
-        technicalName: "edgeSrcIdPath",
-        type: "string",
-        description: "An expression selecting the node an edge starts at, out of the edge record.",
-    },
-    {
-        name: "edgeDstIdPath",
-        plainName: "Edge End Field",
-        technicalName: "edgeDstIdPath",
-        type: "string",
-        description: "An expression selecting the node an edge ends at, out of the edge record.",
     },
 ];
 
@@ -108,7 +111,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         mimeTypes: ["application/json"],
         canImport: true,
         canExport: false,
-        options: jsonOptions,
+        options: [...jsonOptions, ...endpointOptions],
     },
     {
         id: "csv",
@@ -117,7 +120,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         mimeTypes: ["text/csv", "text/plain"],
         canImport: true,
         canExport: false,
-        options: csvOptions,
+        options: [...csvOptions, ...endpointOptions],
     },
     {
         id: "graphml",
@@ -126,16 +129,21 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         mimeTypes: ["application/graphml+xml", "application/xml", "text/xml"],
         canImport: true,
         canExport: false,
-        options: [],
+        options: endpointOptions,
     },
     {
         id: "gexf",
         plainName: "GEXF",
-        extensions: [".gexf"],
+        // ".xml" is claimed here as well as by GraphML because both formats are XML and both are
+        // routinely saved under the generic extension. Two claimants is what lets detection ask
+        // each one's content sniffer which of them the file actually is, instead of a private
+        // branch inside the detector hard-coding the two namespace strings -- which is the same
+        // route a third party's XML dialect now takes.
+        extensions: [".gexf", ".xml"],
         mimeTypes: ["application/gexf+xml", "application/xml", "text/xml"],
         canImport: true,
         canExport: false,
-        options: [],
+        options: endpointOptions,
     },
     {
         id: "gml",
@@ -144,7 +152,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         mimeTypes: ["text/plain"],
         canImport: true,
         canExport: false,
-        options: [],
+        options: endpointOptions,
     },
     {
         id: "dot",
@@ -153,7 +161,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         mimeTypes: ["text/vnd.graphviz", "text/plain"],
         canImport: true,
         canExport: false,
-        options: [],
+        options: endpointOptions,
     },
     {
         id: "pajek",
@@ -162,7 +170,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         mimeTypes: ["text/plain"],
         canImport: true,
         canExport: false,
-        options: [],
+        options: endpointOptions,
     },
 ];
 
@@ -177,21 +185,31 @@ export const UNSERVED_FORMAT_IDS: readonly UnservedFormat[] = [
 
 /**
  * Find one format's descriptor by its name.
+ *
+ * The element's own table is searched first and the registrations second, so a built-in name
+ * always means what it has always meant and a registered format is still found by the name a
+ * consumer typed or a saved document recorded. A lookup that missed registrations would leave the
+ * extension point half-built: the format would appear in a picker and then fail when it was
+ * chosen.
  * @param id - The format name, such as "graphml".
- * @returns The descriptor, or undefined when the element does not know that format.
+ * @returns The descriptor, or undefined when neither the element nor a registration knows that
+ * format.
  */
 export function formatDescriptor(id: string): FormatDescriptor | undefined {
-    return FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === id);
+    return FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === id) ?? registeredFormatById(id)?.descriptor;
 }
 
 /**
  * Find the formats whose files carry a given extension, which is what a drop target asks after
  * reading a file name.
  * @param extension - The extension to look for, with its leading dot, in any case.
- * @returns Every descriptor that claims the extension, in catalogue order.
+ * @returns Every descriptor that claims the extension, the element's own first and registrations
+ * after them in registration order.
  */
 export function formatsForExtension(extension: string): readonly FormatDescriptor[] {
     const wanted = extension.toLowerCase();
 
-    return FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.extensions.includes(wanted));
+    return [...FORMAT_DESCRIPTORS, ...registeredFormatDescriptors()].filter((descriptor) =>
+        descriptor.extensions.includes(wanted),
+    );
 }

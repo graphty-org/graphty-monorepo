@@ -121,6 +121,13 @@ interface MetricValue {
     technicalName: string;
     /** The value's type. Defaults to "number". */
     type?: "number" | "integer";
+    /**
+     * What the number counts, when it counts something.
+     *
+     * Omitted is a real answer rather than a gap: most centrality scores are dimensionless, and
+     * naming a unit for one would be inventing a measurement.
+     */
+    unit?: string;
 }
 
 /**
@@ -140,6 +147,7 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
             technicalName: value.technicalName,
             kind,
             type: value.type ?? "number",
+            ...(value.unit === undefined ? {} : { unit: value.unit }),
         }),
         field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
         field({ name: "percentile", plainName: "Percentile", technicalName: "percentile", kind, type: "number" }),
@@ -342,7 +350,7 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "Connections", technicalName: "degree", type: "integer" }),
+            ...metricFields("node", { plainName: "Connections", technicalName: "degree", type: "integer", unit: "links" }),
             field({
                 name: "inDegree",
                 plainName: "Incoming connections",

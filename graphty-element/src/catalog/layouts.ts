@@ -40,6 +40,7 @@ import { ShellLayout } from "../layout/ShellLayoutEngine";
 import { SpectralLayout } from "../layout/SpectralLayoutEngine";
 import { SpiralLayout } from "../layout/SpiralLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
+import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
 import type { KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, OptionDescriptor } from "./types";
 
@@ -63,6 +64,13 @@ export interface LayoutImplementation {
     /** Why this engine is the default, or what choosing it over the default buys. */
     reason: string;
     options: readonly OptionDescriptor[];
+    /**
+     * Whether this engine arranges a graph differently when its edges carry weights.
+     *
+     * Read off the engine class's own `static honoursWeights` rather than written here, so the
+     * catalogue cannot claim a weight channel an engine does not have.
+     */
+    honoursWeights: boolean;
 }
 
 /** An implementation as it is authored here. Which one is the default is decided by position. */
@@ -116,12 +124,17 @@ function engineOptions(
  * @returns The finished entry.
  */
 function entry(
-    base: Omit<LayoutDescriptor, "engine" | "options">,
+    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights">,
     primary: LayoutImplementationSpec,
     alternates: readonly LayoutImplementationSpec[] = [],
 ): LayoutCatalogEntry {
     return {
-        descriptor: { ...base, engine: primary.engine, options: primary.options },
+        descriptor: {
+            ...base,
+            engine: primary.engine,
+            options: primary.options,
+            honoursWeights: primary.honoursWeights,
+        },
         implementations: [
             { ...primary, isDefault: true },
             ...alternates.map((alternate) => ({ ...alternate, isDefault: false })),
@@ -143,6 +156,7 @@ const ngraph: LayoutImplementationSpec = {
         "The default: a Barnes-Hut simulation that runs live, accepts nodes and edges added " +
         "while it is running, and stays interactive on graphs of a hundred thousand nodes.",
     options: engineOptions(NGraphEngine.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: NGraphEngine.honoursWeights,
 };
 
 const d3: LayoutImplementationSpec = {
@@ -155,6 +169,7 @@ const d3: LayoutImplementationSpec = {
         "Choose it for d3's own tuning vocabulary -- alpha, alpha decay, velocity decay -- when " +
         "the arrangement has to match a d3 drawing elsewhere in the product.",
     options: engineOptions(D3GraphEngine.zodOptionsSchema),
+    honoursWeights: D3GraphEngine.honoursWeights,
 };
 
 const forceAtlas2: LayoutImplementationSpec = {
@@ -167,6 +182,7 @@ const forceAtlas2: LayoutImplementationSpec = {
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
         "It runs a fixed number of iterations and stops rather than staying live.",
     options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: ForceAtlas2Layout.honoursWeights,
 };
 
 const spring: LayoutImplementationSpec = {
@@ -179,6 +195,7 @@ const spring: LayoutImplementationSpec = {
         "Choose it when the arrangement must be reproducible from a seed: a fixed number of " +
         "iterations from a seeded start, then done.",
     options: engineOptions(SpringLayout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: SpringLayout.honoursWeights,
 };
 
 const kamadaKawai: LayoutImplementationSpec = {
@@ -191,6 +208,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
+    honoursWeights: KamadaKawaiLayout.honoursWeights,
 };
 
 const arf: LayoutImplementationSpec = {
@@ -203,6 +221,7 @@ const arf: LayoutImplementationSpec = {
         "The only registered force engine that is two-dimensional by nature, so a flat result " +
         "is what it computes rather than what it is flattened into afterwards.",
     options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: ArfLayout.honoursWeights,
 };
 
 const circular: LayoutImplementationSpec = {
@@ -213,6 +232,7 @@ const circular: LayoutImplementationSpec = {
     maxDimensions: 3,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(CircularLayout.zodOptionsSchema),
+    honoursWeights: CircularLayout.honoursWeights,
 };
 
 const shell: LayoutImplementationSpec = {
@@ -223,6 +243,7 @@ const shell: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(ShellLayout.zodOptionsSchema),
+    honoursWeights: ShellLayout.honoursWeights,
 };
 
 const spiral: LayoutImplementationSpec = {
@@ -233,6 +254,7 @@ const spiral: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(SpiralLayout.zodOptionsSchema),
+    honoursWeights: SpiralLayout.honoursWeights,
 };
 
 const spectral: LayoutImplementationSpec = {
@@ -243,6 +265,7 @@ const spectral: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(SpectralLayout.zodOptionsSchema),
+    honoursWeights: SpectralLayout.honoursWeights,
 };
 
 const planar: LayoutImplementationSpec = {
@@ -253,6 +276,7 @@ const planar: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: PlanarLayout.honoursWeights,
 };
 
 const bfs: LayoutImplementationSpec = {
@@ -265,6 +289,7 @@ const bfs: LayoutImplementationSpec = {
         "The only engine that draws this arrangement. It orders each row by breadth-first " +
         "arrival and does not reduce edge crossings between rows.",
     options: engineOptions(BfsLayout.zodOptionsSchema),
+    honoursWeights: BfsLayout.honoursWeights,
 };
 
 const bipartite: LayoutImplementationSpec = {
@@ -275,6 +300,7 @@ const bipartite: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(BipartiteLayout.zodOptionsSchema),
+    honoursWeights: BipartiteLayout.honoursWeights,
 };
 
 const multipartite: LayoutImplementationSpec = {
@@ -285,6 +311,7 @@ const multipartite: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(MultipartiteLayout.zodOptionsSchema),
+    honoursWeights: MultipartiteLayout.honoursWeights,
 };
 
 const fixed: LayoutImplementationSpec = {
@@ -295,6 +322,7 @@ const fixed: LayoutImplementationSpec = {
     maxDimensions: 3,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(FixedLayout.zodOptionsSchema),
+    honoursWeights: FixedLayout.honoursWeights,
 };
 
 const random: LayoutImplementationSpec = {
@@ -305,6 +333,7 @@ const random: LayoutImplementationSpec = {
     maxDimensions: 3,
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: RandomLayout.honoursWeights,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -521,11 +550,16 @@ export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [
 
 /**
  * Find one layout's descriptor by its public name.
+ *
+ * The element's own arrangements first, then whatever a third party registered. A lookup that
+ * missed registered layouts would leave the extension point half built: the entry would be
+ * visible in a picker -- `catalog.layouts()` composes both halves -- and then be unrecognised the
+ * moment a reader chose it.
  * @param id - The layout name.
- * @returns The descriptor, or undefined when nothing in the catalogue answers to that name.
+ * @returns The descriptor, or undefined when nothing answers to that name.
  */
 export function layoutDescriptor(id: LayoutId): LayoutDescriptor | undefined {
-    return LAYOUT_DESCRIPTORS.find((descriptor) => descriptor.id === id);
+    return LAYOUT_DESCRIPTORS.find((descriptor) => descriptor.id === id) ?? registeredLayoutById(id)?.descriptor;
 }
 
 /**
@@ -548,5 +582,12 @@ export function layoutIdForEngine(engine: string): LayoutId | undefined {
         candidate.implementations.some((implementation) => implementation.engine === engine),
     );
 
-    return found?.descriptor.id;
+    if (found !== undefined) {
+        return found.descriptor.id;
+    }
+
+    // A plugin declares ONE key: its descriptor's id IS the name `setLayout` takes, so the
+    // question this function answers for the element's own engines -- which public arrangement
+    // does this implementation serve -- answers itself for a registered one.
+    return registeredLayoutById(engine)?.descriptor.id;
 }

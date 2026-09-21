@@ -280,7 +280,11 @@ describe("format catalogue", () => {
 
     it("finds a format from a file name's extension", () => {
         assert.deepEqual(formatsForExtension(".GRAPHML").map((descriptor) => descriptor.id), ["graphml"]);
-        assert.deepEqual(formatsForExtension(".xml").map((descriptor) => descriptor.id), ["graphml"]);
+        // Both XML formats claim ".xml", and a real ambiguity being answered with two entries is
+        // the point: a drop target offers the reader both, and detection asks each format's own
+        // content sniffer which of them the file is instead of a private branch comparing two
+        // hard-coded namespace strings.
+        assert.deepEqual(formatsForExtension(".xml").map((descriptor) => descriptor.id), ["graphml", "gexf"]);
         assert.deepEqual(formatsForExtension(".nope"), []);
     });
 
@@ -292,11 +296,23 @@ describe("format catalogue", () => {
             "delimiter",
             "variant",
             "idColumn",
-            "sourceColumn",
-            "targetColumn",
+            "edgeSource",
+            "edgeTarget",
         ]);
         assert.strictEqual(variant?.type, "enum");
         assert.include(variant?.values?.map((choice) => choice.value) ?? [], "edge-list");
+    });
+
+    it("offers the endpoint options for every format, under one pair of names", () => {
+        // They used to be `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/`targetColumn`
+        // for CSV, and absent for the other five -- so a reader could not name the endpoint
+        // columns of a GraphML or a DOT file from a picker at all, even though the element could
+        // perfectly well read them.
+        for (const id of ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek"]) {
+            const names = formatDescriptor(id)?.options.map((option) => option.name) ?? [];
+            assert.include(names, "edgeSource", `${id} lets a reader name the edge start field`);
+            assert.include(names, "edgeTarget", `${id} lets a reader name the edge end field`);
+        }
     });
 
     it("answers nothing for a format it does not know", () => {

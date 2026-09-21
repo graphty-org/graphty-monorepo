@@ -64,6 +64,7 @@ import {
     traceReports,
     traceValues,
     withSim,
+    yieldToEventLoop,
 } from "../helpers/fa2-parity.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, type NoiseRow, recordNoiseRow, writeNoiseFixture } from "../helpers/noise-floor.js";
@@ -82,20 +83,27 @@ const SWEEP_SEEDS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
 const SWEEP_GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10"];
 
 /** The two free-running oracle trajectories of one start. */
-function oracleTraces(
+async function oracleTraces(
     s: GraphSnapshot,
     start: ArrayLike<number>,
     options: ForceAtlas2Options,
     tuning: GpuLayoutTuning,
-): { readonly f32: readonly OracleTraceRecord[]; readonly f64: readonly OracleTraceRecord[] } {
-    const run = (precision: "f32" | "f64"): readonly OracleTraceRecord[] =>
-        forceAtlas2Oracle(
+): Promise<{ readonly f32: readonly OracleTraceRecord[]; readonly f64: readonly OracleTraceRecord[] }> {
+    const run = async (precision: "f32" | "f64"): Promise<readonly OracleTraceRecord[]> => {
+        // one oracle iteration at a time, yielding between them: 50 iterations on random1k are tens of seconds
+        const { oracle } = forceAtlas2Oracle(
             s,
             Float32Array.from(start),
             oracleOptionsFor(s, options, tuning, null, precision),
-            ITERATIONS,
-        ).trace;
-    return { f32: run("f32"), f64: run("f64") };
+            0,
+        );
+        for (let k = 0; k < ITERATIONS; k++) {
+            await yieldToEventLoop();
+            oracle.step();
+        }
+        return oracle.trace;
+    };
+    return { f32: await run("f32"), f64: await run("f64") };
 }
 
 /** The GPU's free-running trace of `iterations` x step(1) from `start` (no oracle, no re-synchronisation). */
@@ -159,7 +167,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
                         assertCheckPasses(resync.f32);
                         assertCheckPasses(resync.f64);
                         // the free-running legs of spec 11.4
-                        const { f32, f64 } = oracleTraces(s, start, BASE_OPTIONS, tuning);
+                        const { f32, f64 } = await oracleTraces(s, start, BASE_OPTIONS, tuning);
                         expect(f32).toHaveLength(ITERATIONS);
                         expect(f64).toHaveLength(ITERATIONS);
                         const reports = traceReports(a.trace, f32, f64, label);
@@ -210,7 +218,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
             const { s, start, options, tuning } = noiseInputs(NETWORKX, "karate");
             try {
                 const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
-                const { f64 } = oracleTraces(s, start, options, tuning);
+                const { f64 } = await oracleTraces(s, start, options, tuning);
                 const through50 = {
                     worst: ratioOf(traceError(run.trace, f64, 0, ITERATIONS), toleranceOf("fa2-trace-parity.f64")),
                     worstLabel: `noise/karate/networkx: iterations 1-${ITERATIONS} vs f64`,
@@ -249,7 +257,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
             const { s, start, options, tuning } = noiseInputs(NETWORKX);
             try {
                 const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
-                const { f32, f64 } = oracleTraces(s, start, options, tuning);
+                const { f32, f64 } = await oracleTraces(s, start, options, tuning);
                 const reports = traceReports(run.trace, f32, f64, "noise/random1k/networkx");
                 // the fixtures are the RAW outputs (never hand-written, spec 11.9 item 3) and are written BEFORE the
                 // check so that test/noise-floor.test.ts can measure the basis rows even when the check fails: a
@@ -355,7 +363,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
                     for (const seed of SWEEP_SEEDS) {
                         const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed };
                         const start = startPositions(s, options, false);
-                        const { f32, f64 } = oracleTraces(s, start, options, NETWORKX);
+                        const { f32, f64 } = await oracleTraces(s, start, options, NETWORKX);
                         const gpu = await freeRunningTrace(ctx, s, start, options, NETWORKX, ITERATIONS);
                         expect(gpu, `${graph} seed ${seed}: one record per step`).toHaveLength(ITERATIONS);
                         // the oracle pair: the f32 oracle's own free-running divergence from the f64 oracle

@@ -127,9 +127,10 @@ jobs:
             - name: Build Storybook (layout)
               run: pnpm exec nx run layout:build-storybook
 
-            # Build unified documentation (only on master, for deploy-pages)
+            # Build unified documentation on every run, so a pull request that breaks the docs
+            # fails here rather than on master. Only master uploads the result (see
+            # "Upload unified docs" below).
             - name: Build docs
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: npm run docs:build
 
             - name: Build algorithms gh-pages
@@ -361,9 +362,13 @@ jobs:
                       needs-browser: true
                       needs-storybook: false
                     # graphty-element default tests (Node.js, no browser)
+                    # The bench project runs in the same shard but WITHOUT --coverage: it asserts
+                    # the repaint's timing budget, and v8 coverage instruments this package's own
+                    # source while leaving node_modules alone, so an instrumented run measures the
+                    # instrumentation rather than the repaint.
                     - shard: graphty-element-default
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --reporter=default --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --reporter=default --coverage && pnpm exec vitest run --project=bench --reporter=default
                       needs-browser: false
                       needs-storybook: false
                     # graphty-element browser tests (5 shards)

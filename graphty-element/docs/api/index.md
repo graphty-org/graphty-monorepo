@@ -164,24 +164,24 @@ For complete type definitions auto-generated from TypeScript source:
 
 **Web Component**
 
-- [Graphty Class](/api/generated/graphty-element/classes/Graphty.md)
+- [Graphty Class](/api/generated/index/classes/Graphty.md)
 
 **JavaScript API**
 
-- [Graph Class](/api/generated/Graph/classes/Graph.md)
-- [Node Class](/api/generated/Node/classes/Node.md)
-- [Edge Class](/api/generated/Edge/classes/Edge.md)
+- [Graph Class](/api/generated/index/classes/Graph.md)
+- [Node Class](/api/generated/index/classes/Node.md)
+- [Edge Class](/api/generated/index/classes/Edge.md)
 
 **Configuration Types**
 
-- [Config Module](/api/generated/config/)
-- [Managers Module](/api/generated/managers/)
+- [Config Module](/api/generated/index/)
+- [Managers Module](/api/generated/index/)
 
 **Extension Base Classes**
 
-- [LayoutEngine](/api/generated/layout/LayoutEngine/classes/LayoutEngine.md)
-- [Algorithm](/api/generated/algorithms/Algorithm/classes/Algorithm.md)
-- [DataSource](/api/generated/data/DataSource/classes/DataSource.md)
+- [LayoutEngine](/api/generated/index/classes/LayoutEngine.md)
+- [Algorithm](/api/generated/index/classes/Algorithm.md)
+- [DataSource](/api/generated/index/classes/DataSource.md)
 
 ## Related Guides
 

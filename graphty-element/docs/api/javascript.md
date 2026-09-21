@@ -170,18 +170,18 @@ interface StyleLayer {
 
 For complete type definitions and detailed API documentation:
 
-- [Graph Class](/api/generated/Graph/classes/Graph.md) - Full TypeDoc reference
-- [Node Class](/api/generated/Node/classes/Node.md) - Node type reference
-- [Edge Class](/api/generated/Edge/classes/Edge.md) - Edge type reference
-- [Managers](/api/generated/managers/) - Manager class references
+- [Graph Class](/api/generated/index/classes/Graph.md) - Full TypeDoc reference
+- [Node Class](/api/generated/index/classes/Node.md) - Node type reference
+- [Edge Class](/api/generated/index/classes/Edge.md) - Edge type reference
+- [Managers](/api/generated/index/) - Manager class references
 
 ## Extension Classes
 
 For creating custom extensions:
 
-- [LayoutEngine](/api/generated/layout/LayoutEngine/classes/LayoutEngine.md) - Custom layout base class
-- [Algorithm](/api/generated/algorithms/Algorithm/classes/Algorithm.md) - Custom algorithm base class
-- [DataSource](/api/generated/data/DataSource/classes/DataSource.md) - Custom data source base class
+- [LayoutEngine](/api/generated/index/classes/LayoutEngine.md) - Custom layout base class
+- [Algorithm](/api/generated/index/classes/Algorithm.md) - Custom algorithm base class
+- [DataSource](/api/generated/index/classes/DataSource.md) - Custom data source base class
 
 ## Related
 

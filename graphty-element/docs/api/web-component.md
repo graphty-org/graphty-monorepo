@@ -130,8 +130,8 @@ See the [Events Guide](/guide/events) for the complete event reference.
 
 For complete type definitions and detailed API documentation:
 
-- [Graphty Class](/api/generated/graphty-element/classes/Graphty.md) - Full TypeDoc reference
-- [GraphtyElement Type](/api/generated/graphty-element/type-aliases/GraphtyElement.md) - Type alias
+- [Graphty Class](/api/generated/index/classes/Graphty.md) - Full TypeDoc reference. `Graphty` is
+  the class of the `<graphty-element>` element, and what `document.querySelector` returns.
 
 ## Related
 

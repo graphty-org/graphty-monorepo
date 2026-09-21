@@ -488,9 +488,6 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.3(react@19.2.3)
-      zod:
-        specifier: ^3.25.28
-        version: 3.25.76
     devDependencies:
       '@sentry/vite-plugin':
         specifier: ^4.6.1
@@ -555,12 +552,18 @@ importers:
       '@graphty/algorithms':
         specifier: workspace:^
         version: link:../algorithms
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
       '@graphty/layout':
         specifier: workspace:^
         version: link:../layout
       '@graphty/remote-logger':
         specifier: workspace:^
         version: link:../remote-logger
+      '@graphty/webgpu-graph-algorithms':
+        specifier: ^0.2.0
+        version: 0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)
       '@jsonhero/schema-infer':
         specifier: ^0.1.5
         version: 0.1.5
@@ -682,6 +685,9 @@ importers:
       typedoc-vitepress-theme:
         specifier: ^1.1.2
         version: 1.1.2(typedoc-plugin-markdown@4.9.0(typedoc@0.28.15(typescript@5.9.3)))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
       vite-plugin-cem:
         specifier: ^0.8.2
         version: 0.8.4(vite@8.3.0(@types/node@20.19.27)(esbuild@0.27.2)(jiti@2.6.1)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))
@@ -691,6 +697,9 @@ importers:
       vitepress:
         specifier: ^1.6.3
         version: 1.6.4(@algolia/client-search@5.46.2)(@types/node@20.19.27)(@types/react@19.2.7)(axios@1.20.0)(jiti@2.6.1)(lightningcss@1.33.0)(postcss@8.5.28)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(search-insights@2.17.3)(terser@5.44.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.7(@types/node@20.19.27)(@vitest/browser@3.2.7)(@vitest/ui@3.2.4)(happy-dom@20.14.3)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
 
   layout:
     devDependencies:
@@ -2218,6 +2227,22 @@ packages:
 
   '@graphty/layout@1.6.2':
     resolution: {integrity: sha512-1HaMYlK6KiqbGmSDN0iUA+VUuHGZoi2JF3+xS/aoa2cHRdF1wwlD9FTuZREny/fSXDJ8hD6pDul3LD3e6fL6Fg==}
+
+  '@graphty/webgpu-graph-algorithms@0.2.1':
+    resolution: {integrity: sha512-+gdNUn9q4PwdAyvaDROTUE3cbU/3fcmv8rOOyA6OjPIvNeiiZTC8Xpr7kE0gZHR/ung8cZPpdlBjEmD/uDRUkQ==}
+    engines: {node: '>=18.19.0'}
+    peerDependencies:
+      '@graphty/algorithms': ^1.0.0
+      '@graphty/graph-format': ^1.0.0
+      '@graphty/layout': ^1.0.0
+      webgpu: '>=0.4.0 <1.0.0'
+    peerDependenciesMeta:
+      '@graphty/algorithms':
+        optional: true
+      '@graphty/layout':
+        optional: true
+      webgpu:
+        optional: true
 
   '@hono/node-server@1.19.17':
     resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
@@ -11903,6 +11928,15 @@ snapshots:
       typedfastbitset: 0.6.1
 
   '@graphty/layout@1.6.2': {}
+
+  '@graphty/webgpu-graph-algorithms@0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)':
+    dependencies:
+      '@graphty/graph-format': link:graph-format
+      '@webgpu/types': 0.1.72
+    optionalDependencies:
+      '@graphty/algorithms': link:algorithms
+      '@graphty/layout': link:layout
+      webgpu: 0.4.0
 
   '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:

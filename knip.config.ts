@@ -114,6 +114,20 @@ const config: KnipConfig = {
         // graphty-element package
         "graphty-element": {
             entry: [
+                // The published entry points. Each has a subpath in package.json's exports map,
+                // so each is a door a consumer comes through and nothing reachable from one is
+                // dead. Listing only src/graphty-element.ts here made all ten invisible to
+                // dead-code analysis -- neither entry nor project -- while they were public API.
+                "index.ts",
+                "ai.ts",
+                "catalog.ts",
+                "commands.ts",
+                "extend.ts",
+                "format.ts",
+                "react.ts",
+                "schema.ts",
+                "session.ts",
+                "webgpu.ts",
                 "src/graphty-element.ts",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
@@ -121,11 +135,12 @@ const config: KnipConfig = {
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
             ],
-            project: ["src/**/*.ts", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["*.ts", "src/**/*.ts", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
+                "@graphty/webgpu-graph-algorithms",
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",

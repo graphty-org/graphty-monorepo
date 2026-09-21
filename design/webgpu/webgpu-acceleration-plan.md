@@ -99,11 +99,12 @@ default runner for other tests."
   Fruchterman-Reingold on the same kernels.
 - Plug-in: `@graphty/algorithms` and `@graphty/layout` OWN structural
   `AlgorithmAccelerator` / `LayoutAccelerator` interfaces plus one async
-  dispatcher each; graphty-element exposes an `accelerator` property and a
-  bridge from its synchronous frame loop to the asynchronous `step()`; the
-  graphty app probes and injects. The GPU package never falls back; the only
-  branch that selects the CPU is "no accelerator method", evaluated before any
-  GPU work.
+  dispatcher each; graphty-element attaches the accelerator and bridges its
+  synchronous frame loop to the asynchronous `step()`; graphty-element also
+  probes and constructs, through its `@graphty/graphty-element/webgpu` entry
+  point, which is the only place the GPU package is imported. The GPU package
+  never falls back; the only branch that selects the CPU is "no accelerator
+  method", evaluated before any GPU work.
 - Algorithms follow the layout, grouped by the primitive family they need:
   PageRank family (pull SpMV), connected components (Afforest), the frontier
   family (BFS, direction-optimizing BFS, SSSP near-far, closeness, sampled
@@ -131,7 +132,7 @@ default runner for other tests."
 | GOAL-2 | One code base under Node (Dawn via the `webgpu` npm package) and in browsers; the package never touches `navigator` and never imports the native module from its root entry. | owner request; note 05 section 1; note 02 finding 5 |
 | GOAL-3 | Consume `@graphty/graph-format` snapshots exactly as implemented: arena hot prefix, per-array and windowed uploads, `override USE_PERM`, `gpuView()`, `foldArcs`, `renumberPartition`, `INVALID_INDEX`. | design 10; note 07 sections 1-3 |
 | GOAL-4 | High performance at 10^5-10^6 nodes is a design driver: batched iterations per submit, no per-iteration readback, approximate repulsion above a measured crossover, degree-tier load balancing, every kernel designed for the core default limits. | owner request; design 15.3 |
-| GOAL-5 | Optional / detected acceleration for the EXISTING algorithm and layout packages: the GPU package is injected by the caller, detection is the app's job, and the GPU package itself never falls back. | owner request; design lines 2324-2325 and 4243-4244; `/home/apowers/Projects/webgpu-graph-algorithms/CLAUDE.md` |
+| GOAL-5 | Optional / detected acceleration for the EXISTING algorithm and layout packages: the GPU package is injected by the caller, detection belongs to whoever injects it -- graphty-element for the browser product -- and the GPU package itself never falls back. | owner request; design lines 2324-2325 and 4243-4244; `/home/apowers/Projects/webgpu-graph-algorithms/CLAUDE.md` |
 | GOAL-6 | Tests primarily in Node (Dawn), a light browser suite (Playwright Chromium) to prove the browser path, both on the real GPU locally and on software adapters on hosted CI. | owner request; note 05 section 9 |
 | GOAL-7 | CI with a default lane (no GPU) and a GPU lane on a paid GitHub-hosted GPU runner (NVIDIA T4; the owner declined a self-hosted runner, 2026-09-14), designed to slot into the monorepo's `ci.yml` shard matrix later as "one runner for GPU and a default runner for other tests". | owner request; note 06 |
 | GOAL-8 | A GPU algorithm library grouped by primitive family, with the NVIDIA / cuGraph / Gunrock / GAP techniques translated to WGSL's constraints. | owner request; note 04 |
@@ -198,7 +199,7 @@ default runner for other tests."
 | D1 | Node (Dawn) is the PRIMARY test project; the browser project is a light smoke suite (DEPARTURE-1). | 11, 12 |
 | D2 | Runtime model: the core takes a `GPU` / `GPUAdapter` / `GPUDevice` from the caller; `./browser` and `./node` subpath entries do acquisition; `webgpu` (Dawn) is an optional peer loaded only by dynamic import inside `./node`. | 2 |
 | D3 | Plug-in contract: `@graphty/algorithms` and `@graphty/layout` OWN structural `AlgorithmAccelerator` / `LayoutAccelerator` interfaces plus one async dispatcher each; the GPU package implements them with no runtime import of the CPU packages; no registry, no global state. | 9 |
-| D4 | Detection lives in the graphty APP (probe + create + `element.setAccelerator(gpu)`); graphty-element only exposes the property and the bridges; an element-level `"auto"` loader is a later convenience using the web-llm isolation pattern. | 9.4-9.5 |
+| D4 | Detection lives in graphty-element: the optional `@graphty/graphty-element/webgpu` entry point registers an accelerator factory, and the element probes, constructs, attaches, applies `acceleration.minNodes` and recovers from device loss. The app sets the `acceleration` attribute and renders the state the element publishes; it imports nothing from the GPU package. `setAccelerator()` remains the internal seam, for tests and for a third party supplying its own accelerator. | 9.4-9.5 |
 | D5 | ForceAtlas2 reference formulas for BOTH the CPU rewrite and the GPU kernel are the published algorithm as Gephi and cuGraph implement it (`1/d` repulsion magnitude, force-based swing / traction, fresh global sums each iteration) -- the DEFAULT, `compat: "paper"`; a `compat: "networkx"` option reproduces NetworkX `forceatlas2_layout` (its position-mixed per-node swing / traction accumulated across iterations from 1) so NetworkX trajectories are an external oracle and a migration target. The current port's own laws (`1/d^2`, reset position-based swing) are NOT preserved (DEPARTURE-3; owner decision Q-1, 2026-09-14). | 7.2 |
 | D6 | Async step bridge: fire-and-forget, at most `maxInFlight` (default 2) batches in flight, positions copied into the owner's array when each batch's readback resolves; `settled` reflects the last completed batch. | 7.19 |
 | D7 | Two repulsion back-ends selected by node count: exact tiled all-pairs (`n <= exactMaxNodes`, default 16,384 -- conservative until the G3 measurement; the 7.8 numbers predict 32,768 -- re-fixed by a mechanical rule, Q-6) and a cell-sorted grid pyramid (cosmos P3M re-expressed as compute kernels) above; a Hilbert-sorted cluster tree (GraphWaGu style) is the documented second experiment, not v1. `calibrateLayout(ctx)` suggests `exactMaxNodes` on the actual device (graft: A 7.8). | 7.6-7.8 |
@@ -432,12 +433,12 @@ The rule is enforced by WHERE decisions are made, not by discipline:
 
 | Question | Who answers | How |
 | --- | --- | --- |
-| Is WebGPU present, is the adapter hardware, is it worth using? | The APP (graphty) at start-up, or a Node script | `probe*()` then `create*()`; the app sets `element.setAccelerator(gpu)` or leaves it `null`. A node-count threshold for "use the GPU layout only above N nodes" is the element's `behavior.layout.gpuMinNodes` setting, evaluated by `LayoutManager` at engine creation and again on every `load` / `reload` (9.4 item 7), not package logic (note 02 section 7.1, L3). |
+| Is WebGPU present, is the adapter hardware, is it worth using? | graphty-element's `./webgpu` entry point when the consumer imports it, or a Node script | `probe*()` then `create*()`; the element attaches what comes back or stays on the CPU path and says why through `capabilities.acceleration`. A node-count threshold for "use the GPU layout only above N nodes" is the element's `acceleration.minNodes` config key, evaluated by `LayoutManager` at engine creation and again on every `load` / `reload` (9.4 item 7), not package logic (note 02 section 7.1, L3). |
 | No accelerator injected | The CPU packages' dispatcher (`accelerated(null)`) | runs the CPU implementation. This is the ONLY branch that chooses CPU, evaluated BEFORE any GPU work. |
 | Accelerator injected, method missing (not yet implemented on the GPU) | The dispatcher | `acc.pageRank === undefined` -> CPU. Also evaluated before any GPU work; the GPU package declares only the methods it implements. |
-| Accelerator injected, method throws (`E_DEVICE_LOST`, `E_OUT_OF_MEMORY`, `E_VALIDATION`, `E_UNSUPPORTED`, `E_TOO_LARGE`) | The caller (graphty-element's operation queue reports a failed run; a Node script sees the rejection) | the error propagates. The element MAY offer "disable GPU acceleration" as a user action; that is a user decision, not a fallback. |
+| Accelerator injected, method throws (`E_DEVICE_LOST`, `E_OUT_OF_MEMORY`, `E_VALIDATION`, `E_UNSUPPORTED`, `E_TOO_LARGE`) | The caller (graphty-element's operation queue reports a failed run; a Node script sees the rejection) | the error propagates. The element offers `acceleration = "off"` as a user action; that is a user decision, not a fallback. |
 | Graph too large for the device (needs windowing the algorithm does not support yet) | The GPU package | throws `E_TOO_LARGE` with `details { needed, limit, path, algorithm }` BEFORE allocating; never silently degrades. |
-| Software adapter (lavapipe / SwiftShader) | The GPU package runs on it (correctness); the APP decides whether to inject it (`rejectSoftware`) | see 2.2. |
+| Software adapter (lavapipe / SwiftShader) | The GPU package runs on it (correctness); graphty-element decides whether to attach it (`rejectSoftware`) | see 2.2. |
 
 Consequences written into the code: `src/` contains no `try { gpu } catch { cpu
 }`, no RUNTIME import of `@graphty/algorithms` or `@graphty/layout` (`import
@@ -576,10 +577,10 @@ Nothing is freed by garbage collection (design 14.4 line 4123: "which no
 
 ### Review notes (section 2)
 
-- Judge integration-feasibility (drafts A and C): the app detection sketch
+- Judge integration-feasibility (drafts A and C): the detection sketch
   called `GpuContext.probe` before importing the module that exports it. Here
-  the app imports `./browser` statically (9.5); a code-split is the app's
-  choice and must import first.
+  the element's `./webgpu` entry point imports `./browser` statically (9.5); a
+  code-split is the consumer's choice and must import first.
 - Judge verifiability (draft C): `GpuCaps.runtime: "browser" | "node"` had no
   value for `GpuContext.from(device)`; `"unknown"` is added.
 - The env-variable naming defect (A 11.1, C 11.2 / 12.2: `GRAPHTY_REQUIRE_GPU`
@@ -772,7 +773,7 @@ export declare class GpuContext {                   // src/context.ts (D26)
     dispose(): void;
 }
 export function isSoftwareAdapter(info: GPUAdapterInfo & { isFallbackAdapter?: boolean }): boolean;
-export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions): GpuAccelerator;   // src/accelerator.ts; one per call -- the app creates one and injects it
+export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions): GpuAccelerator;   // src/accelerator.ts; one per call -- graphty-element's `./webgpu` entry point creates one and returns it from the accelerator factory
 export function calibrateLayout(ctx: GpuContext, options?: CalibrateOptions): Promise<GpuCalibration>;   // src/layouts/calibrate.ts; section 2.2
 export interface AcceleratorOptions {
     readonly layout?: GpuLayoutTuning | undefined;      // defaults inherited by every simulation the accelerator creates (exactMaxNodes from calibrateLayout, nearMax, gridMax2D / 3D, deterministic, compat, repulsion)
@@ -1514,7 +1515,7 @@ is no work. The FA2 attraction dispatch is skipped when `arcCount === 0`.
 | Validation error during pipeline / bind-group creation | `pushErrorScope("validation")` around creation | thrown from the awaiting call as `E_VALIDATION { label, message }`; the message includes the buffer / pipeline label (every object is labelled) |
 | Validation error at submit time (a kernel bug) | `uncapturederror` listener | routed to `options.onError`; otherwise stored in the context's pending-error slot. Under Dawn-node the event is delivered BEFORE `queue.submit()` returns [M], so `CommandBatch` checks the slot right after `submit()` and rejects ITS OWN readback with `E_VALIDATION { batchId, label }` (an invalid command buffer is a no-op submit, so the readback would otherwise resolve with stale staging bytes); in browsers delivery is asynchronous and the stored error is thrown from the NEXT public call, so a silent stderr block cannot pass a test (note 05 section 2.2); the browser test project drains the slot in `afterEach` after `onSubmittedWorkDone()` |
 | Out of memory | `pushErrorScope("out-of-memory")` around every `createBuffer` above 16 MiB | `E_OUT_OF_MEMORY { requested, resident }`; the layout / algorithm releases what it allocated in the failing call |
-| Device lost | `device.lost` | `ctx.state = "lost"`, all pending promises reject with `E_DEVICE_LOST { reason, message }`, residency cleared, every simulation enters `disposed`; the CALLER decides whether to create a new context -- always from a fresh `gpu.requestAdapter()`, the old adapter being consumed (2.2 step 1) -- and `load()` again (note 05 section 7.4); in the element the app's `setAccelerator(null)` re-creates the running layout on the CPU (9.4 item 1). A test destroys the device mid-batch on both runtimes. |
+| Device lost | `device.lost` | `ctx.state = "lost"`, all pending promises reject with `E_DEVICE_LOST { reason, message }`, residency cleared, every simulation enters `disposed`; the CALLER decides whether to create a new context -- always from a fresh `gpu.requestAdapter()`, the old adapter being consumed (2.2 step 1) -- and `load()` again (note 05 section 7.4); in the element the `./webgpu` entry point's device-loss handler detaches the accelerator, which re-creates the running layout on the CPU (9.4 item 1) and publishes `acceleration.state = "error"` with `E_DEVICE_LOST`. A test destroys the device mid-batch on both runtimes. |
 | An unused adapter passed to `create({ adapter })` has already created a device | `requestDevice` rejects | `E_NO_DEVICE { reason: "consumed" }` (2.2 step 1) |
 | A graph-format accessor the package calls on the caller's behalf throws | `gpuView()` on a string / list / json column, `nodes.get(name)` on a column name that does not exist (`nodeMass: "<name>"`, 7.14) | the `GraphFormatError` (`E_GPU_INELIGIBLE`, `E_UNKNOWN_NODE`) propagates UNCHANGED (D12); these are the only non-`WebGpuGraphError` errors a public call can raise, and the JSDoc of every affected entry names them |
 | `AbortSignal` (`GpuRunOptions.signal`) | checked between batches | the algorithm stops recording, releases its lease and rejects with `E_ABORTED`; `GpuLayoutSimulation.run()` honours the same signal; a batch already submitted completes on the device and its readback is discarded once its staging slot is returned (4.4; Q-15) |
@@ -2048,10 +2049,10 @@ ladder, the same one `calibrateLayout` walks by default from 8k); `exactMaxNodes
 grid tier at the same n, rounded down to a power of two, written into
 `constants.ts` with the benchmark session cited; the P4 gate re-checks that
 the grid is not faster below it. Integrated GPUs are 10-17x slower on the
-compute-bound exact tile (7.21), so their crossover is ~8k: the app calls
-`calibrateLayout(ctx)` (2.2) and passes `exactMaxNodes` through
-`createAccelerator(ctx, { layout })`; the package never guesses from adapter
-strings (judge finding on draft C 7.5).
+compute-bound exact tile (7.21), so their crossover is ~8k: the element's
+`./webgpu` entry point calls `calibrateLayout(ctx)` (2.2) and passes
+`exactMaxNodes` through `createAccelerator(ctx, { layout })`; the package never
+guesses from adapter strings (judge finding on draft C 7.5).
 
 The exact kernel is also the ORACLE: `test/layouts/repulsion-grid.test.ts`
 asserts the grid forces agree with the exact forces within the tolerances of
@@ -2869,6 +2870,13 @@ of PageRank share `partials`.
 
 ### 9.1 The seam is async, and the dependency direction
 
+Ownership of WebGPU detection is governed by
+`design/decisions/2026-09-19-graphty-element-owns-webgpu.md` and by the
+Architectural Principles in the root `CLAUDE.md`: `@graphty/webgpu-graph-algorithms`
+is an OPTIONAL peer dependency of graphty-element, and the app imports nothing
+from it. The async seam is unchanged; the dependency direction and the importer
+are as stated here.
+
 Every public CPU algorithm is synchronous (`pageRank` at
 `algorithms/src/algorithms/centrality/pagerank.ts:83`); WebGPU results need
 `mapAsync`. GPU acceleration can therefore never be spliced into the sync entry
@@ -2880,23 +2888,26 @@ void | Promise<void>` (note 02 finding 1).
 ```
 @graphty/graph-format  <---- runtime dependency ----  @graphty/webgpu-graph-algorithms   (types only, dev: @graphty/algorithms, @graphty/layout)
         ^                                                        ^
-        |                                                        | injected object (no import)
+        |                                                        | optional peer, imported ONLY by @graphty/graphty-element/webgpu
 @graphty/algorithms, @graphty/layout  <---- runtime ----  @graphty/graphty-element  <---- runtime ----  @graphty/graphty (the app)
-   (own the accelerator interfaces)                          (owns the `accelerator` property, the bridges)      (imports the GPU package, probes, injects)
+   (own the accelerator interfaces)                          (probes, constructs, attaches; owns the bridges)      (sets the `acceleration` attribute, renders capabilities)
 ```
 
 Acyclic: the GPU package imports the CPU packages ONLY as devDependencies,
 ONLY in `test/types/conformance.test-d.ts`, for type conformance
 (`expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator &
 LayoutAccelerator>()` and the reverse direction; D27); the CPU packages import
-nothing new; graphty-element imports nothing new AT RUNTIME (it types the
-property against interfaces exported by packages it already depends on) and
-gains no devDependency either, because the real-GPU stories live in the app
-(9.4 item 8); the app is the only importer of the GPU package (note 02 section
-4.5, mechanism (a) + (d)). The registry mechanism (self-registration through a side-effect module)
-is rejected: inverted dependency, global state that breaks with duplicate
-package copies, tree-shaking defeated, and it puts the "GPU threw, what now?"
-decision in the CPU package (note 02 section 4.2).
+nothing new; graphty-element's CORE entry imports nothing new AT RUNTIME (it
+types the accelerator against interfaces exported by packages it already
+depends on), and the GPU package is reached only from the separate
+`@graphty/graphty-element/webgpu` entry point, so a consumer who does not
+install the optional peer never resolves it and needs no bundler
+configuration. The app imports the GPU package nowhere. Self-registration is
+confined to that one side-effect entry point: it registers an accelerator
+factory with the element's own registry, which keeps the "GPU threw, what now?"
+decision in graphty-element and out of the CPU packages (note 02 section 4.2),
+and the duplicate-copy and tree-shaking objections do not apply to a module the
+consumer imports by name.
 
 ### 9.2 @graphty/algorithms (lands with A2; can land as the FIRST A2 commit)
 
@@ -3073,7 +3084,11 @@ element-owned position column and the `load` / `reload` engine shape -- which
 is a precondition of this list, 9.8):
 
 1. `Graph` gains `accelerator: GraphAccelerator | null` (default `null`) with
-   `setAccelerator(acc)` and an `accelerator-changed` event, where
+   `setAccelerator(acc)` and an `accelerator-changed` event. `setAccelerator`
+   is the seam every accelerator arrives through -- the one the `./webgpu`
+   entry point builds (9.5), a test's fake, a third party's own -- and it is
+   not what a consumer reaches for to switch acceleration on; that is the
+   `acceleration` attribute. The accelerator type:
 
    ```ts
    export type GraphAccelerator = AlgorithmAccelerator & LayoutAccelerator & { release(s: GraphSnapshot): void; dispose?(): void };
@@ -3087,20 +3102,20 @@ is a precondition of this list, 9.8):
    graph.accelerator)`, calls `load(dm.undirected(dm.getSnapshot()).snapshot,
    positions)` on the element's own array (coordinates survive because the
    array is element-owned, design 4067-4077) and re-applies the pin mask; so
-   an accelerator injected AFTER the layout was set (the app's
-   `attachAccelerator` is async; a declarative layout attribute may run first)
-   engages without a layout change, and `setAccelerator(null)` after a GPU
-   failure -- the user's "disable acceleration" action, which the element
-   never takes by itself -- moves the RUNNING layout onto the CPU simulation
-   instead of leaving it stopped. Algorithm runs are unaffected: they read
+   an accelerator attached AFTER the layout was set (probing is async; a
+   declarative layout attribute may run first) engages without a layout
+   change, and `setAccelerator(null)` after a GPU failure -- device loss, or
+   the reader setting `acceleration = "off"` -- moves the RUNNING layout onto
+   the CPU simulation instead of leaving it stopped, and the element publishes
+   the new `acceleration.state`. Algorithm runs are unaffected: they read
    `graph.accelerator` per call.
 2. `DataManager`'s `snapshot-replaced` listener list (design 14.4 line 4155)
    gets the release list of 4.5: `graph.accelerator?.release(previous)` when
    `previous !== null`, `release(dm.undirected(previous).snapshot)` when that is
    a distinct snapshot, and the `visible(previous)` cache's induced and
    undirected snapshots. `Graph.dispose()` releases the same list for the
-   current snapshot but does NOT call `dispose()` (the app owns the
-   accelerator's lifetime; two elements may share one).
+   current snapshot but does NOT call `dispose()` (the `./webgpu` entry point
+   owns the accelerator's lifetime; two elements may share one).
 3. Algorithm adapters (`graphty-element/src/algorithms/*Algorithm.ts`, the
    `async run()` of `Algorithm.ts:217`): the body of design 14.4 M7 becomes
    `const s = dm.getSnapshot(); const r = await accelerated(this.graph.accelerator)
@@ -3111,8 +3126,9 @@ is a precondition of this list, 9.8):
    attaches it (9.2). Adapters whose algorithm is not a GPU target call
    `indexed.x(s)` directly. Undirected adapters pass `dm.undirected(s).snapshot`
    exactly as for the CPU (design 14.4 lines 4189-4197), so the GPU never sees
-   a graph the CPU would not. A GPU result carries `precision: "f32"` (3.3);
-   the adapter labels it.
+   a graph the CPU would not. A GPU result carries `precision: "f32"` (3.3),
+   and the adapter copies it onto the run's caveats, where `precision` is
+   `"f32" | "f64"`; it never becomes a graph-level result.
 4. `LayoutManager._setLayoutInternal` (note 01 section 4.2): for
    `SimulationType` layouts it creates `new SimulationLayoutEngine(type, opts,
    createSimulation(type, opts, graph.accelerator))`, a bridge implementing the
@@ -3150,16 +3166,16 @@ is a precondition of this list, 9.8):
    ```
 
    `onError` routes the error to the element's error channel and stops the
-   layout; `E_DEVICE_LOST` is then followed by the app's `setAccelerator(null)`
-   (9.5), whose `accelerator-changed` re-creates the engine on the CPU (item
-   1). `UpdateManager.updateLayout()` (lines 203-214) keeps its
-   `stepMultiplier` loop for engines that are not simulations and calls
+   layout; `E_DEVICE_LOST` is then followed by the element's own
+   `setAccelerator(null)` (9.5), whose `accelerator-changed` re-creates the
+   engine on the CPU (item 1). `UpdateManager.updateLayout()` (lines 203-214)
+   keeps its `stepMultiplier` loop for engines that are not simulations and calls
    `LayoutManager.step()` ONCE for a `SimulationLayoutEngine`, passing
    `stepMultiplier` as `iterationsPerStep` (a one-line branch): a GPU
    simulation's `step()` returns the same in-flight promise when saturated
    (7.19 item 3), so calling it `stepMultiplier` times would coalesce anyway,
    and a CPU simulation runs `stepMultiplier` iterations synchronously in one
-   call. `behavior.layout.gpuMinNodes` (item 7) is evaluated here against
+   call. `acceleration.minNodes` (item 7) is evaluated here against
    `snapshot.nodeCount` at engine creation AND on every `load` / `reload`
    (`_setLayoutInternal` runs before the first `load`, so creation alone cannot
    decide): when the count crosses the threshold the engine is re-created on
@@ -3179,25 +3195,27 @@ is a precondition of this list, 9.8):
    `nonnegative()`; `weightPath` becomes live; `scalingFactor` becomes the
    simulation's `scale` option.
 7. Config: `behavior.layout.iterationsPerStep` (default = `stepMultiplier`),
-   `behavior.layout.maxInFlight` (default 2) and `behavior.layout.gpuMinNodes`
-   (default 0: whenever an accelerator is injected) are the product knobs; the
-   first two travel as the layout-owned `SimulationOptions` of 9.3 (a typed
-   path through `LayoutAccelerator.forceAtlas2(options)`), the third is
-   evaluated by `LayoutManager` (item 4). GPU-only tuning (`GpuLayoutTuning`)
-   has NO element-level knob in v1: it reaches the element's simulations only
-   as the defaults the app gave `createAccelerator(ctx, { layout })` (9.5); no
-   `"auto"` acquisition in v1. A later `accelerator: "auto"` element option
-   would use the `@mlc-ai/web-llm` isolation pattern (`vite.config.ts:39`
-   external, a loader module never imported from the barrel,
-   `peerDependenciesMeta` optional; note 02 section 4.3) -- not on the critical
-   path (Q-19).
+   `behavior.layout.maxInFlight` (default 2) and the `acceleration.minNodes`
+   key on `ConfigValues` (default 0: whenever an accelerator is attached) are
+   the product knobs; the first two travel as the layout-owned
+   `SimulationOptions` of 9.3 (a typed path through
+   `LayoutAccelerator.forceAtlas2(options)`), the third is evaluated by
+   `LayoutManager` (item 4). `acceleration.minNodes` decides WHERE a
+   computation runs and is a different number from `Limits.largeGraphThreshold`,
+   which decides how much visual detail to draw. GPU-only tuning
+   (`GpuLayoutTuning`) has NO element-level knob in v1: it reaches the
+   element's simulations as the defaults the `./webgpu` entry point gave
+   `createAccelerator(ctx, { layout })` (9.5), with `exactMaxNodes` handed to
+   the accelerator factory by the element. Acquisition is the element's, and
+   the reader's switch for it is the `acceleration` attribute
+   (`auto` / `off` / `required`), a session setting the element never persists.
 8. Stories: "Layout/ForceAtlas2 (GPU)" and "Layout/Spring (GPU)" in
    graphty-element with a FAKE accelerator for Chromatic (a `LayoutSimulation`
-   that moves nodes deterministically) -- the element gains NO dependency on
-   the GPU package, not even a devDependency (9.1); the stories that use the
-   REAL accelerator behind a `navigator.gpu` check live in the graphty app,
-   which already imports `@graphty/webgpu-graph-algorithms/browser` (W2, 9.8),
-   one story per GPU algorithm under a `gpu` tag.
+   that moves nodes deterministically), so the Chromatic lane never needs a
+   real adapter; the stories that use the REAL accelerator behind a
+   `navigator.gpu` check also live in graphty-element, which declares the GPU
+   package as an optional peer and imports it from `./webgpu` (9.1), one story
+   per GPU algorithm under a `gpu` tag.
 
 9. Public play / pause API: the element exposes `setRunning(running:
    boolean)` (delegating to `Graph.setRunning`, which exists at `Graph.ts`
@@ -3221,7 +3239,7 @@ E1 element tests: a fake accelerator injected AFTER `setLayout` engages the
 GPU simulation on the running layout; the accelerator removed mid-run hands
 the layout to the CPU simulation with the positions and pins preserved; pin
 node A, remove node B < A, freeze, `reload` -> A is still fixed (also an 11.3
-property in the GPU package); a `gpuMinNodes` above the
+property in the GPU package); an `acceleration.minNodes` above the
 node count keeps the CPU engine until a `reload` crosses it; `setRunning(false)`
 with fake batches in flight lands exactly those batches and submits nothing
 until `setRunning(true)`, which reheats a settled simulation.
@@ -3229,28 +3247,55 @@ until `setRunning(true)`, which reheats a settled simulation.
 Settlement, screenshots and label animation (note 01 section 4.3) work
 unchanged because `isSettled` is truthful and bounded (7.17).
 
-### 9.5 The graphty app: detection
+### 9.5 Detection: graphty-element's `./webgpu` entry point
 
-```ts
-// graphty/src/gpu/accelerator.ts (sketch)
-import { probeBrowserWebGpu, requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser";   // static import: the app owns its bundle; a code-split import() must complete BEFORE probe is called
-import { createAccelerator, calibrateLayout } from "@graphty/webgpu-graph-algorithms";
-export async function attachAccelerator(element: GraphtyElement, prefs: { gpu: "auto" | "off" | "required"; exactMaxNodes?: number; calibrate?: boolean }): Promise<void> {
-    if (prefs.gpu === "off") { return; }
-    const probe = await probeBrowserWebGpu({ rejectSoftware: prefs.gpu === "auto" });
-    if (!probe.ok) { if (prefs.gpu === "required") { throw new Error(probe.reason ?? probe.code); } return; }   // "auto": stay on the CPU path; nothing was created
-    const ctx = await requestGpuContext({ adapter: probe.adapter ?? undefined, limits: "raise" });   // the PROBED adapter (unused so far): no second requestAdapter() that could return a different one; `?? undefined` narrows the probe's `GPUAdapter | null` to the option's `GPUAdapter | undefined` (`ok` is a plain boolean, not a discriminant)
-    const exactMaxNodes = prefs.exactMaxNodes ?? (prefs.calibrate ? (await calibrateLayout(ctx)).suggestedExactMaxNodes : undefined);
-    element.setAccelerator(createAccelerator(ctx, { layout: { exactMaxNodes } }));   // accelerator-changed: a layout already running moves onto the GPU (9.4 item 1)
-    ctx.lost.then((info) => { element.setAccelerator(null); showToast(`GPU device lost: ${info.message}`); });   // accelerator-changed again: the running layout continues on the CPU; nothing in flight is retried; a new context needs a fresh requestAdapter() (2.2)
-}
+This section is governed by
+`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`: probing,
+construction, device-loss recovery and the policy deciding when to use a GPU
+belong to graphty-element, and a consumer's entire integration is one import.
+
+```js
+import "@graphty/graphty-element";
+import "@graphty/graphty-element/webgpu";   // the optional peer; this is all of it
 ```
 
-The app surfaces "GPU acceleration: on (NVIDIA lovelace) / off" from
-`ctx.caps`; `calibrateLayout` is called at most once, off the critical path,
-and its suggestion reaches every simulation the element creates through the
-accelerator's defaults (3.3). Node consumers (a CLI, a benchmark, a test of
-the element) do the same with `createNodeGpuContext()` from `./node`.
+```ts
+// graphty-element/src/webgpu/index.ts (sketch): a side-effect module that registers a factory
+import { probeBrowserWebGpu, requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser";   // static import, reachable only through this entry point, so a consumer without the optional peer never resolves it
+import { createAccelerator, calibrateLayout } from "@graphty/webgpu-graph-algorithms";
+registry.register({ kind: "accelerator", factory: async (options) => {   // AcceleratorFactory: (options?: { exactMaxNodes?: number }) => Promise<GraphAccelerator | null>
+    const probe = await probeBrowserWebGpu({ rejectSoftware: true });
+    if (!probe.ok) { return null; }   // the element turns this into acceleration.state "unavailable" with probe.reason and a code (E_NO_WEBGPU / E_NO_ADAPTER / E_SOFTWARE_ONLY), or into E_NO_ACCELERATOR when acceleration = "required"
+    const ctx = await requestGpuContext({ adapter: probe.adapter ?? undefined, limits: "raise" });   // the PROBED adapter (unused so far): no second requestAdapter() that could return a different one; `?? undefined` narrows the probe's `GPUAdapter | null` to the option's `GPUAdapter | undefined` (`ok` is a plain boolean, not a discriminant)
+    const exactMaxNodes = options?.exactMaxNodes ?? (await calibrateLayout(ctx)).suggestedExactMaxNodes;
+    const acc = createAccelerator(ctx, { layout: { exactMaxNodes } });
+    ctx.lost.then(() => { /* the element detaches, publishes acceleration.state "error" with E_DEVICE_LOST, and the running layout continues on the CPU; nothing in flight is retried; a new context needs a fresh requestAdapter() (2.2) */ });
+    return acc;
+} });
+```
+
+The element calls the factory with the ceiling it must respect, attaches what
+comes back through `setAccelerator()` (9.4 item 1), applies
+`acceleration.minNodes` and publishes what happened as
+`capabilities.acceleration.state`: `"probing"` while the answer is not known,
+then `"active"`, `"idle"`, `"unavailable"`, `"error"` or `"off"`. Every
+transition emits `capabilities:changed` on the session and
+`graphty-capabilities-change` on every bound view, so an acceleration status
+chip is written once against the element, needs no GPU type, and can be built
+from markup alone. `calibrateLayout` is called at most once, off the critical
+path, and its suggestion reaches every simulation the element creates through
+the accelerator's defaults (3.3).
+
+What the app keeps is presentation: a Settings control that writes the
+`acceleration` attribute (`auto` / `off` / `required`), a chip that renders the
+six states, and its own storage of the reader's choice, written back as the
+attribute when it mounts the element. `acceleration` is not a `ConfigValues`
+key, so `config.toDocument()` does not carry it and the element persists
+nothing on a reader's behalf.
+
+Node consumers (a CLI, a benchmark, a test of the element) build a context with
+`createNodeGpuContext()` from `./node` and hand the accelerator to
+`setAccelerator()` themselves.
 
 ### 9.6 Detection in Node
 
@@ -3290,9 +3335,9 @@ nothing keyed by id leaves the GPU package; `Float32Array` scores satisfy
 | W0 (now, this repo) | webgpu-graph-algorithms | standalone development against `@graphty/graph-format` only; structural copies of `AlgorithmAccelerator` / `LayoutAccelerator` / `LayoutSimulation` in `src/types/accelerator.ts` (the published contract, D27; "verified at W1"); CPU reference implementations in `test/oracle/<name>.ts` written from design Ports 1-6 and the 7.2 table; two CI lanes (section 12) | F1 done (it is) |
 | A2 (first commit) | algorithms | `indexed/accelerator.ts` (9.2) + `accelerated()` dispatcher with the methods whose `indexed.*` port exists + fake-accelerator tests; ADDITIVE, so it can be the first A2 PR and does not wait for all 95 ports (each port PR adds its dispatcher method); `sources` / `k` on `BetweennessCentralityOptions` | A1 merged AND F2 cut (design 13.5 rule 5: no consumer PR with the format in `dependencies` merges before 1.0.0); may be PREPARED on a branch after A1 |
 | L1 | layout | `LayoutSimulation`, `LayoutAccelerator`, `SimulationOptions`, `createSimulation` and the 9.3 type table, steppable CPU FA2 / FR with the 7.2 formulas (including the free-node swing / traction sums and the conditional `estimateFactor`), `resolveNodeVector` / `resolveWeights` / `seedPositions`, Chromatic re-baseline | A1 merged AND F2 cut |
-| E1 | graphty-element | `accelerator` property with its `LayoutManager` consumer, `snapshot-replaced -> release` list, adapter dispatch through `accelerated()`, `SimulationLayoutEngine` bridge, drag hooks, schema changes, config knobs, fake-accelerator stories (9.4) | A2 first commit + L1 + the design's E1 `DataManager` / position-column refactor (14.4: `getSnapshot()`, `snapshot-replaced`, `dm.undirected(s)`, `engine.load` / `reload`) merged or on the same branch -- none of it exists in `graphty-element/src` today |
+| E1 | graphty-element | `accelerator` property with its `LayoutManager` consumer, `snapshot-replaced -> release` list, adapter dispatch through `accelerated()`, `SimulationLayoutEngine` bridge, drag hooks, schema changes, config knobs, fake-accelerator stories (9.4), plus the `./webgpu` entry point that probes, constructs and registers the accelerator factory, the `acceleration` attribute and the capabilities the element publishes (9.5) | A2 first commit + L1 + the design's E1 `DataManager` / position-column refactor (14.4: `getSnapshot()`, `snapshot-replaced`, `dm.undirected(s)`, `engine.load` / `reload`) merged or on the same branch -- none of it exists in `graphty-element/src` today |
 | W1 | webgpu-graph-algorithms | move-in; the structural mirrors are DELETED and `src/types/accelerator.ts` switches to `import type` from `@graphty/algorithms` / `@graphty/layout` (optional peers, D27; `test/types/conformance.test-d.ts` is retired with them); `indexed.*` is ADDED as a second oracle next to `test/oracle/` (the independent references stay); `seedPositions` cross-test; two software shards join `ci.yml` and the GPU job gets its own `gpu.yml` (section 12.5); design 10.3 / 14.5 / 14.6 / 16.2 / 16.7 amendments (DEPARTURE-1, -2, -4, -5, -6; DEPARTURE-3 and -7 amend 14.3 in the L1 PR) | A2 complete, L1, E1 |
-| W2 (new) | graphty (app) | `attachAccelerator` with `createAccelerator` / `calibrateLayout` wiring (9.5), the "GPU: on / off" indicator, the real-GPU stories under a `gpu` tag in the APP (skipped on Chromatic's software renderer), the `gpuMinNodes` default measured from 7.21 | W1 |
+| W2 (new) | graphty (app) | the Settings control that writes the `acceleration` attribute, the acceleration status chip rendered from `graphty-capabilities-change`, and the app's own storage of the reader's choice; the GPU package itself is imported by graphty-element, never by the app (9.5) | W1 |
 | D1 / 2.0 | -- | no GPU-specific content; the dispatcher's CPU branch calls the promoted top-level functions | |
 
 Versioning: the GPU package is an independent nx project
@@ -4210,13 +4255,13 @@ P7 / P8 infrastructure ahead of P3.
 | P-ENV Environment move (one change) | the dev container and the runner image move to Ubuntu 24.04 (glibc 2.39, Mesa 25.x lavapipe, `libegl1` present); `webgpu` bumped from 0.4.0 to the current 0.6.x in both lanes, in graph-format's devDependencies and in this package's devDependency and `E_NO_WEBGPU` install hint (the peer range `>=0.4.0 <1.0.0` already admits it, 2.5); the `LD_LIBRARY_PATH` workaround removed; the 0.6.x unmap-on-destroy shim noted as redundant with `Readback`'s own `unmap` | one environment change between the exact and grid phases (draft C's question Q-10; here Q-4) | G-ENV: G1-G3 re-run green on both lanes with the new image; `gpu-report.json` shows the new driver / Mesa versions; benchmark baselines re-recorded for the new runner class | 1-2 ed (+ owner time on the host) |
 | P4 Scale: grid pyramid + degree tiers | `scan`, `compact`, `histogram` / counting sort, `radixSort` (digit-major histograms), the indirect `finalize` kernel and `planIndirect`, windowed upload EXECUTION for row-walking kernels (`ArcWindow`, rebase uniform, row clamping) and the `node-limits` project, the grid kernels G1-G7 with G4a / G4b (7.7) in 2D and 3D with the robust extent, the outside pseudo-cell, `state.eps`, the sorted-order dispatch (D24), `repulsion: "auto"` crossover, `calibrateLayout()`, the mid / high attraction and `segmentedReduce` tiers over `degreeOrder()` (7.5, 6 row 3), `nearMax` / `gridMax` / `extentFactor` options, `stats.maxCellOccupancy` / `outsideGrid`, the exact-vs-approximate fixtures and tests (11.4), `layout-grid` benchmarks on the grid ladder in 2D and 3D, hub-heavy and isolated-node fixtures | FA2 usable at 10^5-10^6 nodes | G4: 11.4 exact-vs-grid in full at 20k / 100k / 262k (RMS <= 5%, p99 <= 25% on uniform, clumpy and isolated-node fixtures with the floored denominator; unbiasedness; distributional 15% over 200 iterations; EXPANSION PARITY within 25% at 50 and 200 iterations; an isolated node's force equals gravity; bitwise determinism with `deterministic: true`; pyramid <= 40 MB in 3D) and the one-iteration + unbiasedness checks at 1M in `node-limits`; the settle test on the isolated-node fixture; `radixSort` equals a stable `Array.sort` on 8 / 16 / 24 / 32-bit keys with values, sizes 0..2^22 (scaled), all-equal keys; `histogram` / counting sort equal their oracles with one hot bucket; `cellStart` correct with empty cells and a 1M-entry hub cell dispatched through G4b; windowed `degree` with a FAKED 1 MiB binding limit (>= 8 windows) and a hub row longer than a window equals `outDegree()`; `node-limits`: a real 2 GiB binding request succeeds on the 4070, a 200 MB per-array upload is bound windowed at defaults, a real 2D dispatch on 100M items; the upper `segmentedReduce` tiers equal their oracles with the 10k-degree hub, twin in-process; T-6 and T-7 met; T-5 at 100k in Chromium; the crossover re-checked and `exactMaxNodes` adjusted if the grid is faster below it; a decision record on: option B (cluster tree) -- default no; `gridMax2D` in {512, 1024, 2048} at 1M and `extentFactor` (Q-32); a near-field force bound (D25) and adaptive `nearMax` (R-24) -- default neither; the position permutation of note 03 8.3 item 5 -- default no; lavapipe runs the grid suite at `gpuScale` sizes in <= 4 min; the 11.9 sabotage matrix for G1-G7 (dropped pseudo-cell, plain store for the histogram atomic, off-by-one cell bound, wrong level offset) and stage-by-stage `inspect()` parity of `cellKey` / `sortedIdx` / `cellStart` / every pyramid level / the far-field and near-field forces against the oracle's stages | 10-14 ed |
 | P5 Fruchterman-Reingold + the spring-electrical preset | `createFruchtermanReingold` (7.20: `LAW = FR`, temperature slots, `FR_APPLY`, `fixed`, the `\|\| 0.1` guard, `reheat` at 0.7, `FruchtermanReingoldStats`), `createSpringElectrical` (the preset of 7.20 with the velocity integrator, ngraph's option names and settle rule, `SpringElectricalStats`), FR oracle, browser smoke, `layout-fr` benchmarks; `GpuAccelerator.fruchtermanReingold` / `springElectrical` | second and third layouts; the element can route `spring` (FR) and offer `spring-electrical`; routing `ngraph` to the preset stays a product decision (Q-9) | G5: one-iteration displacement parity with the CPU FR oracle (<= 1e-4), fixed nodes immobile, output NOT rescaled when `fixed` is given; the preset settles within 1,000 steps on the 150-node / 250-edge "Performance/Large Graph" story graph to an edge-length distribution within 25% of ngraph's (ngraph run on the CPU in the test, devDependency of the test only); T-14 recorded | 4-5 ed |
-| P6 Integration PRs (monorepo) | `algorithms`: 9.2 interfaces + `accelerated()` with the ported methods + `pathTo` / `pathEdges` decoration + `sources` / `k` + fake tests (first A2 commit); `layout`: 9.3 `LayoutSimulation`, `LayoutAccelerator`, `SimulationOptions`, `createSimulation` with the type table, steppable CPU FA2 / FR with the 7.2 formulas, `resolveNodeVector` / `resolveWeights` / `seedPositions`, Chromatic re-baseline; `graphty-element`: 9.4 items 1-9 incl. the `accelerator-changed` consumer, the release list, the pin re-application and the `gpuMinNodes` evaluation, with the E1 element tests; app: 9.5 `attachAccelerator` | the GPU layout "detected" in the app; a Storybook story the owner can open on the dev box to see the GPU FA2 animate with drag and pins | G6: element tests + stories green with a fake accelerator (incl. late injection, mid-run removal, pin survival across a remap); the story on the real GPU locally settles, drags and pins (screenshot checked with the Playwright + nanobanana routine the owner's rules require for visual work); the GPU package's structural mirrors match the real interfaces (type test run manually against the monorepo checkout until W1); the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics) | 8-10 ed (across three packages, on top of the design's E1 refactor, which is a precondition and NOT sized here); PREPARED on branches after A1 merges, MERGED only after F2 (design 13.5 rule 5) |
+| P6 Integration PRs (monorepo) | `algorithms`: 9.2 interfaces + `accelerated()` with the ported methods + `pathTo` / `pathEdges` decoration + `sources` / `k` + fake tests (first A2 commit); `layout`: 9.3 `LayoutSimulation`, `LayoutAccelerator`, `SimulationOptions`, `createSimulation` with the type table, steppable CPU FA2 / FR with the 7.2 formulas, `resolveNodeVector` / `resolveWeights` / `seedPositions`, Chromatic re-baseline; `graphty-element`: 9.4 items 1-9 incl. the `accelerator-changed` consumer, the release list, the pin re-application and the `acceleration.minNodes` evaluation, with the E1 element tests, plus the 9.5 `./webgpu` entry point | the GPU layout "detected" by graphty-element; a Storybook story the owner can open on the dev box to see the GPU FA2 animate with drag and pins | G6: element tests + stories green with a fake accelerator (incl. late injection, mid-run removal, pin survival across a remap); the story on the real GPU locally settles, drags and pins (screenshot checked with the Playwright + nanobanana routine the owner's rules require for visual work); the GPU package's structural mirrors match the real interfaces (type test run manually against the monorepo checkout until W1); the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics) | 8-10 ed (across three packages, on top of the design's E1 refactor, which is a precondition and NOT sized here); PREPARED on branches after A1 merges, MERGED only after F2 (design 13.5 rule 5) |
 | P7 SpMV family + WCC + the algorithm accelerator surface | grid-stride dispatch, `packViews`, `spmvPull` over pre-scaled `xNorm`, the device out-weight normaliser, PageRank (+ personalized) with `pr-scale` / `pr-finalize` and `firstConvergedIteration`, HITS, eigenvector, Katz, Afforest WCC (with the two-dispatch atomic dedupe), `renumberPartition` on readback, `reverse()` residency (identity when undirected; `fwdArc` never touched), `degreeOrder({ of: "reverse" })` tiers, the `AlgorithmAccelerator` structural interface and `GpuAccelerator` methods, oracles (NetworkX-semantics PageRank matching `pagerank.ts`, union-find), `pagerank` / `wcc` benchmarks | first algorithms through the accelerator interface | G7: 9.7 parity on all fixtures (<= 1e-5, top-k, `iterations` +-1 through `firstConvergedIteration`, `converged` identical; weighted with zero-weight arcs and dangling nodes; directed and undirected; personalization one-hot and uniform); the PageRank pull kernel binds exactly the 8 of 8.2 and every 8.10 kernel matches its count (descriptor test); no host readback inside a batch of 8 iterations (`mapAsync` count through the leak counter); SpMV twin identical in-process; WCC partition equality after renumbering incl. directed inputs treated weakly, singletons, giant component + dust, `arcCount === 0`; T-8 and T-9 recorded; browser smoke (4) green | 8-10 ed (may start after P2 in parallel with P3-P5; coordinate on `segmentedReduce`) |
 | P8 Frontier family | `Frontier` with the sized / chunked edge queue, `advance` (block_mapped + workgroup tier + subgroup variant), `dedupe`, bitset, the multi-candidate indirect args and the device-side `finalizeArgs` selector (5.4); BFS (+ direction-optimizing, `switches` as a device counter, `atomicMin` claims), closeness / harmonic / eccentricity, SSSP near-far with the two-pass predecessor, Bellman-Ford, window-aware advance (lifting the `E_TOO_LARGE`), oracles (FIFO BFS, binary-heap Dijkstra, Bellman-Ford), `bfs` benchmarks | BFS, closeness, SSSP, Bellman-Ford | G8: BFS `depth` exact and parent / order level-consistent on all fixtures incl. the 1000 x 1000 grid and a 10k-degree star; the fused and two-phase kernels agree and the device-side selection picks each at least once on an RMAT fixture; the direction-optimizing path agrees with top-down and `switches > 0` on an RMAT fixture; a level whose degree sum exceeds a FAKED 4,096-entry edge-frontier capacity gives exact depths (the chunked overflow rule); SSSP `dist` within 1e-5 incl. zero weights, `predArc` attains `dist`, `E_UNSUPPORTED` on negative weights, `flags.allWeightsOne` routes to BFS; Bellman-Ford detects a planted negative cycle; `mapAsync` count <= levels / 32 + 1 on the grid fixture; the indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe); subgroup tier identical on / off at sizes 4 / 8 / 32; T-10 recorded | 10-14 ed |
 | P9 Betweenness + APSP | McLaughlin-Bader forward pass (u32 sigma with `sigmaOverflow`, `S` / `ends`), successor-pull backward pass writing `n x k` deltas, the per-batch `bc` gather (no float races), tagged multi-source batching planned from `maxBufferSize`, the online work-efficient / edge-parallel switch, sampling (`sources` / `k`), edge BC via `foldArcs(..., "first")` halved on undirected, normalisation identical to the CPU, `onProgress` / `signal`; blocked Floyd-Warshall and BFS-based APSP with the binding-size bound of 8.7; Brandes oracle | BC (sampled and exact for small n), APSP | G9: exact BC on karate, path, star, cycle, grid, random 2k <= 1e-4 relative and top-k; analytic sums on path and star; edge BC folded correctly (both arcs equal before folding, asserted); sampled BC (256 sources) on a 100k-node RMAT has Spearman >= 0.9 with exact BC on a 10k subgraph and equals the CPU's sampled result on the same `sources` list; the overflow flag fires on a constructed small-world graph; batch planning honours a faked `maxBufferSize` (k shrinks; results equal); APSP exact unweighted / 1e-5 weighted in `node-limits`, `E_TOO_LARGE` above the 8.7 bound; T-11 recorded | 5-7 ed |
 | P10 Move-in (W1) | `packages/README.md` checklist verbatim; the 12.5 `ci.yml` diff, the monorepo `gpu.yml` and the root touch points; the structural mirrors are deleted for `import type` from the optional peers `@graphty/algorithms` / `@graphty/layout` (D27) and `test/types/conformance.test-d.ts` is retired; `indexed.*` ADDED as a second oracle beside `test/oracle/`; `seedPositions` cross-test against the real `RandomNumberGenerator`; the self-hosted runner registered for the monorepo; design 10.3 / 14.5 / 14.6 / 16.2 / 16.7 amendments (DEPARTURE-1, -2, -4, -5, -6; DEPARTURE-3 and -7 amend 14.3 in the L1 PR); README performance table regenerated from `benchmarks/results/` | the package in the monorepo, both CI lanes live, first release `0.1.0` with provenance | G10: monorepo default shards green on lavapipe + SwiftShader with the strict-consumer compile inside `lint`; the `test-gpu` job of `gpu.yml` green on a labelled PR and on master with `ci.yml`'s `on:` untouched; `all-checks` unchanged; coverage merged by `tools/merge-coverage.sh --ci` with the new package in PACKAGES; `nx release` dry run versions the package independently; `expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>()` and the reverse compile; every differential test passes against BOTH oracles with the 9.7 tolerances (a mismatch is a bug in one of the two packages and blocks W1) | 3-4 ed |
 | P11 Structure + community | k-core, triangle counting / k-truss, label propagation, Boruvka MST (two-pass min), `cooToCsr`, per-row group-by-key (workgroup sort / global hash), Louvain (move phase with `up_down`, reduce-by-key cluster weights, device contraction), Leiden refinement if time allows; oracles for each; the 8.10 binding counts asserted | the long tail, each merged separately | G11: `radixSort` on 32-bit keys with values and `cooToCsr` output passing `fromCsr(...).validate({ level: "full" })`; k-core exact; triangles exact per node and total; k-truss support exact; LPA recovers planted partitions (ARI >= 0.9) on 10 seeds; Boruvka `totalWeight` within 1e-5 and edge set identical on distinct weights; Louvain modularity within 0.02 of the CPU on karate / planted partitions and never below the CPU's by more than 0.05 on random fixtures; every level's contraction preserves `totalWeight`; no mixed atomic / non-atomic access (the compile matrix on both runtimes); T-15 recorded | 12-16 ed |
-| P12 Element polish (W2) | `gpuMinNodes` default from measurements, `iterationsPerStep` auto-raise above 250k nodes, `calibrateLayout()` + `createAccelerator` defaults wiring in the app, the real-GPU stories under a `gpu` tag in the app, device-loss UX (toast + the CPU simulation taking over the running layout), docs (README with the Node and browser recipes) | the "GPU: on / off" indicator and stories | G12: stories green; nightly GPU lane green for a week; README numbers regenerated from `benchmarks/results/` | 4-6 ed |
+| P12 Element polish (W2) | `acceleration.minNodes` default from measurements, `iterationsPerStep` auto-raise above 250k nodes, `calibrateLayout()` + `createAccelerator` defaults wiring in the element's `./webgpu` entry point, the real-GPU stories under a `gpu` tag in graphty-element, device-loss UX (`acceleration.state = "error"` published to every bound view + the CPU simulation taking over the running layout), docs (README with the one-import browser recipe and the Node recipe) | the acceleration status chip and stories | G12: stories green; nightly GPU lane green for a week; README numbers regenerated from `benchmarks/results/` | 4-6 ed |
 
 Phase order and parallelism:
 
@@ -4231,8 +4276,8 @@ P12 (W2): after P10
 Critical path to the owner's first need: P0 -> P1 -> P2 -> P3 (18-25 ed)
 gives an interactive GPU ForceAtlas2 usable from Node and from a
 graphty-element story with an injected accelerator; P-ENV + P4 (11-16 ed)
-takes it to 10^5-10^6 nodes; P6 makes it "detected" in the app -- but
-"detected in graphty" additionally waits for F2, the first A2 commit, L1 and
+takes it to 10^5-10^6 nodes; P6 makes it "detected" by graphty-element -- but
+"detected" additionally waits for F2, the first A2 commit, L1 and
 the design's E1 element port (`DataManager` owning the builder,
 `snapshot-replaced`, the position column) to land in the monorepo, none of
 which this plan sizes or schedules; until then the layout is usable from Node
@@ -4258,7 +4303,7 @@ coordination at A2 / L1 / E1.
 | Id | Risk | Likelihood / impact | Mitigation | Default |
 | --- | --- | --- | --- | --- |
 | R-1 | FA2 semantics: if the CPU rewrite keeps the port's `1/d^2` while the GPU uses `1/d`, the two never agree and every parity test is meaningless; and the WGSL and the f64 oracle are two transcriptions of one table by one author, so a shared misreading would pass every parity test | high / high | ONE table (7.2) for both; G0 requires owner sign-off before any WGSL implementing a 7.2 row merges (D21); G3 cross-checks the oracle against committed NetworkX trajectory fixtures in `compat: "networkx"` (11.4); the layout tests assert no exact coordinates, so adopting the published law does not break them; the old port variants are dropped, not kept behind a switch | published laws by default, `"networkx"` option (Q-1, decided 2026-09-14) |
-| R-2 | The exact-tier crossover is wrong for other GPUs (integrated, Apple, T4) | medium / low | `exactMaxNodes` is an option; `calibrateLayout()` measures it on the actual device and the app passes it through `createAccelerator(ctx, { layout })` (the only route to a simulation the element creates, 9.5); the grid tier is correct at any n so a wrong crossover only costs time | 16,384 on discrete GPUs (conservative), re-fixed at G3 (Q-6); the app calls `calibrateLayout()` |
+| R-2 | The exact-tier crossover is wrong for other GPUs (integrated, Apple, T4) | medium / low | `exactMaxNodes` is an option; `calibrateLayout()` measures it on the actual device and the element's `./webgpu` entry point passes it through `createAccelerator(ctx, { layout })` (the only route to a simulation the element creates, 9.5); the grid tier is correct at any n so a wrong crossover only costs time | 16,384 on discrete GPUs (conservative), re-fixed at G3 (Q-6); graphty-element calls `calibrateLayout()` |
 | R-3 | Grid pyramid quality on clumpy layouts (hub cells, empty space) is worse than Barnes-Hut; cosmos reports shimmer on a 163-node graph before its fixes; and the NORMAL case of a giant component with 1% isolated nodes and small components puts the strays at `k M / g` (7.7), which collapses a bbox-derived grid | high / medium | the robust extent (`min(bbox, extentFactor * rmsRadius)`) and the outside pseudo-cell; exact tier below the crossover; `nearMax` cap with Horvitz-Thompson weighting; the hub-cell workgroup tier; P4 fixtures include cosmos's failure cases AND the isolated-node fixture (RMS <= 5%, p99 <= 25%); the Hilbert cluster tree is the documented escape hatch sharing `radixSort` | grid first, tree only if G4 fails (Q-5); `extentFactor` and `gridMax2D` re-checked at G4 (Q-32) |
 | R-4 | Chromium per-frame readback (2.65 ms per MiB [M]) caps interactive n well below the compute limit | high / medium | `iterationsPerStep` auto-raise; positions stay GPU-authoritative; at 1M nodes the renderer cannot draw per-node meshes anyway (note 01 section 6); a Babylon `WebGPUEngine` device share removes the copy (`GpuContext.from(device)` exists; R-23) | per-frame readback up to ~250k nodes, then every 2-4 frames (Q-7) |
 | R-5 | lavapipe is ~350x slower on O(n^2) kernels; the default lane could exceed its budget as the suite grows | medium / medium | `gpuScale` fixture scaling; per-file budget (~2 min); shard the node project; heavy sizes only in the benchmarks / `node-limits` on the GPU lane; the 1M 200-iteration exact-vs-grid run only in the nightly benchmark job | 15-minute lane target (T-12) |
@@ -4295,7 +4340,7 @@ coordination at A2 / L1 / E1.
 | Q-6 | `exactMaxNodes` default fixed now at 16,384 or re-fixed by measurement? (cited from D7, 3.1, 7.8, 7.14) | Keep 16,384 as a conservative default until G3 (the measured curve predicts 32,768); re-fixed at G3 by the 7.8 rule; `calibrateLayout()` for other devices |
 | Q-7 | Readback at 1M nodes in the browser (~30 ms per batch) is frame-limiting. (cited from 7.19, R-4) | `iterationsPerStep` auto-raise above 250k nodes; the structural fix (sharing the Babylon `WebGPUEngine` device, R-23) is not scheduled; the rendering-side notes are in 14.3 |
 | Q-8 | Settlement threshold for FA2: relative `1e-3` of the RMS layout radius over 10 iterations (7.17), with `maxIter` as the hard stop? (cited from 7.14, 7.17) | Yes; tune from stories |
-| Q-9 | The `spring-electrical` preset (7.20) is BUILT in P5 as its own `SimulationType`; should the element also ROUTE its default `ngraph` layout to it above a node-count threshold? (cited from 7.20, 9.3) | Build the preset (P5); do not route `ngraph` to it in v1 -- the GPU layout is selected by type (`forceatlas2` / `spring` / `spring-electrical`); the app decides any threshold later |
+| Q-9 | The `spring-electrical` preset (7.20) is BUILT in P5 as its own `SimulationType`; should the element also ROUTE its default `ngraph` layout to it above a node-count threshold? (cited from 7.20, 9.3) | Build the preset (P5); do not route `ngraph` to it in v1 -- the GPU layout is selected by type (`forceatlas2` / `spring` / `spring-electrical`); graphty-element decides any threshold later |
 | Q-10 | `weight` becomes LIVE for FA2 through the snapshot (inert in the element today). | Accept the documented behaviour change at L1 / E1 |
 | Q-11 | Directed snapshots passed directly to a GPU layout in Node. (cited from 7.1 through `load()`'s argument checks, 5.7) | `E_SNAPSHOT` ("pass `toUndirected().snapshot`"), matching `toLayoutSnapshot`; graphty-element always passes the undirected copy and releases it (4.5) |
 | Q-12 | Labels renumbered on the CPU in first-seen order (identical `groups()`) cost O(n) per CC readback. | Do it (parity is worth ~1 ms at 1M nodes); `renumber: false` returns raw roots |
@@ -4305,12 +4350,12 @@ coordination at A2 / L1 / E1.
 | Q-16 | Unverified platform facts (R-22; the seven settled by the review probes are struck). (cited from 2.6, R-22) | P0 / P1 verify each remaining item and record the answer in the package `CLAUDE.md` |
 | Q-17 | Performance numbers in 7.21 and 10 are extrapolations except the cited probes (the exact-tile curve and the sorted-order grid kernels are now measured). (cited from 7.21, 10.3) | The T-table gates are the real targets; the tables are revised from `benchmarks/results/` |
 | Q-18 | Where do the plan and the research live? `tmp/` is not gitignored at the root today (note 07 section 5). (cited from 3.1) | This plan stays at `design/webgpu-acceleration-plan.md` and moves to `graphty-monorepo/design/webgpu/` at W1; the seven notes AND the three drafts (the "(graft: ...)" citations point at them) are committed under `packages/webgpu-graph-algorithms/docs/research/`; the review probes and their logs under `docs/research/review/`; cloned repos stay under a gitignored `tmp/`. On acceptance the "Review notes" subsections, the "(graft: ...)" and "judge" annotations and the Review log move into `docs/research/review-log.md` and the plan keeps only decisions |
-| Q-19 | Should graphty-element get an `accelerator: "auto"` convenience (optional peer + isolated dynamic import) in E1, or only the injected property with app-side detection? | Property + app detection first; "auto" later |
+| Q-19 | Should graphty-element get an `accelerator: "auto"` convenience (optional peer + isolated dynamic import) in E1, or only the injected property with app-side detection? | DECIDED 2026-09-19 (`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`): graphty-element owns detection. The GPU package is an optional peer of the element, the `@graphty/graphty-element/webgpu` entry point registers the accelerator factory, and the reader's switch is the `acceleration` attribute (`auto` / `off` / `required`). App-side detection is gone |
 | Q-20 | Package manager for the staging repo: pnpm (`packages/` already uses it) or the root scaffold's npm? (cited from 12.3, P0) | pnpm; the root scaffold is deleted at P0; `pnpm/action-setup` reads `packages/package.json` |
 | Q-21 | 3D grid cap 128^3 (38 MB pyramid) versus 160^3 (75 MB); lower to 64^3 on integrated GPUs? (cited from 7.7, 7.14, 3.3) | 128^3; `gridMax3D` is an option; `calibrateLayout()` may suggest 64 |
 | Q-22 | Should the browser smoke include a Firefox or WebKit instance later? (cited from 11.6, R-22) | Not until those ship the needed features on Linux CI; Chromium only; no claims about mobile / Safari until someone runs the story on a Mac |
 | Q-23 | Interactive topology change with a live simulation: where do new nodes appear? | `load(next, positions)` seeds NaN rows randomly inside the current bounding box; "place at the neighbours' centroid" is a later element option |
-| Q-24 | f32 versus f64: GPU scores are f32 (PageRank parity 1e-5; BC and the one-iteration force parity 1e-4, DEPARTURE-6); sigma path counts are u32 with an overflow flag. | Document the tolerances in the accelerator interface docs and amend design 16.2 at W1; EVERY score result carries `precision: "f32"` (3.3) so the element can label it; no f64 on the device (WGSL has none) |
+| Q-24 | f32 versus f64: GPU scores are f32 (PageRank parity 1e-5; BC and the one-iteration force parity 1e-4, DEPARTURE-6); sigma path counts are u32 with an overflow flag. | Document the tolerances in the accelerator interface docs and amend design 16.2 at W1; EVERY score result carries `precision: "f32"` (3.3) so the element can put it on the run's caveats, where `precision` is `"f32"` or `"f64"`; no f64 on the device (WGSL has none) |
 | Q-25 | `nodeSize` / `adjustSizes` in v1? | No: `E_UNSUPPORTED` at runtime when set (the type stays the CPU's); add after the CPU rewrite fixes the sign |
 | Q-26 | DECIDED 2026-09-14: optional peer dependencies on `@graphty/algorithms` / `@graphty/layout` with `import type` of the real interfaces (D27). Accepted consequence: the published d.ts references the two packages, so a type-checking consumer installs them (optional peers; documented in the README's Node recipe); mirrors only until W1. | -- |
 | Q-27 | Residency semantics for `withColumns()` siblings, which share the core and the serial: one residency unit (releasing any sibling releases the core; a live sibling gets `E_RELEASED`), or count distinct snapshot objects per record and destroy at zero? | One unit (4.1): the element never releases a sibling of a live snapshot, and object counting would keep buffers alive for a sibling nobody can enumerate; a Node script that wants per-sibling lifetimes keeps distinct snapshots |
@@ -4583,7 +4628,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | INTEG-18 | 1.3, 2.5, 3.1, 9.8, Q-31 | `workspace:^`; the design rule flagged |
 | INTEG-19 | 2.2, 3.4, 9.5 | `ProbeResult.adapter` reused; `create()` honours `rejectSoftware` |
 | INTEG-20 | 1.2, R-23, 7.19 | the `useWebGPU` branch described as present and unwired; risk row |
-| INTEG-21 | 9.1, 9.4, 9.8 | real-GPU stories in the app; the element gains no devDependency |
+| INTEG-21 | 9.1, 9.4, 9.8 | real-GPU stories in graphty-element; the GPU package is the element's optional peer |
 | INTEG-22 | 9.4, 9.8, P6 | the design-E1 refactor named as a precondition |
 | INTEG-23 | 2.5, P-ENV | `webgpu` peer range `>=0.4.0 <1.0.0`; P-ENV re-pins the devDependency and hint |
 | INTEG-M-1 | 9.4, 9.5, 7.19, 5.7 | `LayoutManager` consumes `accelerator-changed`; running layouts move between paths |
@@ -4619,7 +4664,7 @@ follows the per-finding verdicts, which are the ones that were applied).
 | VERIFY-MISSED-5 | 11.7 | async `bench()` |
 | COMPLETE-1 | 8.2, 3.5, Summary | as PERF-4 |
 | COMPLETE-2 | 3.3, 9.4, 9.5, P12 | as MAINT-M2 / INTEG-3 |
-| COMPLETE-3 | 9.4, 2.4, 7.19 | `accelerator-changed` consumer; `gpuMinNodes` evaluated on load / reload; `.catch` once per promise; device-loss re-creation |
+| COMPLETE-3 | 9.4, 2.4, 7.19 | `accelerator-changed` consumer; `acceleration.minNodes` evaluated on load / reload; `.catch` once per promise; device-loss re-creation |
 | COMPLETE-4 | D7, 3.1, 7.8, 7.21, Q-6 | 16,384 labelled conservative; `calibrateLayout` ladder aligned with T-4; 32k row "exact or grid" |
 | COMPLETE-5 | 13 (P2, P4, P7, P8), 7.5, 6 row 3 | P2 rescoped to what P3 needs; tiers and primitives moved to the phases that need them |
 | COMPLETE-6 | 7.20, Q-9, P5 | the preset is BUILT in P5; routing stays a product decision |

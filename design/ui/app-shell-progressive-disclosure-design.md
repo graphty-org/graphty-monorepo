@@ -49,8 +49,9 @@ six-field rule for placing any new capability.
   attributes table build on these components. `ViewDataModal` was deleted
   2026-09-12 with the rest of the old shell -- the Data table drawer supersedes
   it; `DataGrid`, `DataAccordion` and `pathUtils` survive and are still what the
-  inspector's attributes table is built on. Schema inference:
-  `graphty-element/src/ai/schema/` (SchemaExtractor, SchemaManager).
+  inspector's attributes table is built on. Attribute types, ranges,
+  completeness and distinct counts come from the session's own attribute
+  descriptors.
 - Prior research: `design/ui/progressive-disclosure-design.md`,
   `design/ui/figma-style-sidebar.md`, `design/ui/compact-ui-design.md`.
 
@@ -69,9 +70,9 @@ six-field rule for placing any new capability.
 | Onboarding wizard | Dropped. Replaced by the Insights strip and plain-language readings. |
 | Project save | Not in this pass. The top bar carries no dirty indicator, and adding save verbs to the individual saved things (5.3, Saved things) does not add one: a style template is how to draw a graph, a project file is the graph. See sections 11 and 12. |
 | Data export | One home: Present. Data holds import only. This rule is about the graph. Export of a saved thing -- a style, a recipe, a filter, a set, a subgraph, a bookmark, a report configuration, an import mapping -- is export of settings that name attributes, and it travels with its kind's own library section (5.3, Saved things). |
-| Selection model | Multi-select, one set for nodes and one for edges. Click selects one, Shift+click adds, Cmd/Ctrl+click toggles, Alt+click removes, Shift+drag on empty canvas draws a marquee, click on empty canvas or Escape clears. Edges are selectable. Bindings are owned by section 5.6. Requires a graphty-element change (section 5.8). |
-| Undo | Application-level history, one store, 50 deep, scope defined in 5.1. Not in graphty-element. |
-| Expression language | JMESPath for anything that selects nodes or edges. Computed-attribute formulas keep the [name] grammar and resolve names against the same paths (section 6.6). |
+| Selection model | Multi-select, one set for nodes and one for edges. Click selects one, Shift+click adds, Cmd/Ctrl+click toggles, Alt+click removes, Shift+drag on empty canvas draws a marquee, click on empty canvas or Escape clears. Edges are selectable. Bindings are owned by section 5.6. The element owns one selection per session -- a node set and an edge set with set algebra, a cap, and a flag saying when the cap truncated a result -- and every surface reads and writes that one pair. |
+| Undo | Application-level history, one store, 50 deep, scope defined in 5.1. The element supplies the inverse of every undoable operation as a replayable command, and the coalescing key that keeps a dragged slider from evicting the store; the depth, the redo rule and the binding are the app's. |
+| Expression language | JMESPath for anything that selects nodes or edges. Computed-attribute formulas keep the [name] grammar and resolve names against the same paths. Appearance is never a language: a style layer binds a channel to a path declaratively (section 6.6). |
 | Data table drawer | A canvas bottom drawer with home Data (section 5.3, Data). Not a modal and not a panel section. Row selection is the canvas selection. |
 | Second file while data is loaded | The Import options dialog offers Replace current graph, Add to current graph, Add attributes from a table, or Compare with current graph. No collections, workspaces or project files. |
 | Data cleaning record | Every data-changing operation is an entry in the one history store; Data tier 2 shows them as Cleaning steps. Undo walks the same list. |
@@ -359,9 +360,10 @@ Regions:
   Stop", "Positions from file", "Quick grid (Performance mode)", "Radial on 37
   of 200 nodes", "Computing Kamada-Kawai... Cancel") and a caret opening the
   layout menu below, algorithm progress while one runs (mirrors the Analyze
-  card's progress row, with Cancel; until algorithms report progress the slot
-  shows elapsed time and an indeterminate spinner, never a percentage, and
-  Cancel is disabled with the tooltip "Cannot cancel this run"; while the
+  card's progress row, with Cancel; a run reporting indeterminate progress
+  shows elapsed time and a spinner, never a fabricated percentage, and a run
+  that declares itself uncancellable disables Cancel with the tooltip
+  "Cannot cancel this run"; while the
   Analyze panel is open with the running card in view the slot shows the
   spinner and the percentage only, so one Cancel is on screen per run, and the
   full slot returns when the card scrolls away), "Viewing:" date, window or
@@ -375,7 +377,12 @@ Regions:
   hidden while Explore is open with the Notes section expanded), a
   "Performance mode" chip when the graph is above the large-graph threshold,
   naming the label cap only with the full rule list in its tooltip and in
-  Settings, AI status, rendered only when a provider is configured or a call
+  Settings, an acceleration chip drawn only while acceleration is off,
+  unavailable or in error -- it reads the state the element reports, names the
+  reason in its tooltip, opens Settings > Performance on click, and draws
+  nothing at all while the element is still looking, because a pending answer
+  rendered as "no GPU" flickers a false state onto every page that then gets
+  one, AI status, rendered only when a provider is configured or a call
   is in flight, and selection count when non-zero, showing the last set
   operation ("12 selected (+8)").
   - Layout menu. The layout chip's caret opens a menu mirroring Style's four
@@ -415,7 +422,7 @@ Regions:
     "Force directed - settled", "Force directed - stopped after 1,000 steps";
     settled is never shown when the step cap, not convergence, stopped the
     layout. When the bar overflows, slots drop from right to left
-    in this order: AI status, layout name, zoom, Viewing; counts, progress
+    in this order: AI status, acceleration, layout name, zoom, Viewing; counts, progress
     with Cancel, the issues chip and the Performance mode chip never drop.
     Zoom moved one place later now that it is the only camera fact in the bar
     and the toolbar shows four zoom controls with no readout of their own.
@@ -1317,9 +1324,10 @@ only place a second graph appears; it loads through the same Import options
 dialog.
 
 Schema. Attribute types, ranges, category counts, percentiles and
-completeness come from graphty-element's schema extraction (SchemaExtractor,
-cached by SchemaManager, invalidated on every Cleaning step) and one
-attribute index computed in the background at load. The Import options grid,
+completeness come from the session's attribute descriptors -- one per node and
+edge attribute, carrying its type, its completeness, its distinct count and its
+range, maintained by the element and refreshed by every Cleaning step. That set
+is the one attribute index this document refers to. The Import options grid,
 Columns, the table header tooltips, the inspector attribute summary, the
 Present attribute lines, the legend, the Analyze histograms and the Explore
 filter builder all read it; nothing infers types twice; controls show
@@ -1379,9 +1387,11 @@ Explore
   the same whole-element rule. "between" renders a
   dual-handle quantile slider over the attribute's histogram, on a log axis
   when values span more than three orders of magnitude; while dragging, the
-  match count is estimated from a 10,000-node sample ("about 412k would
-  match") and replaced by the exact count on release. Categorical values
-  with more than 50 distinct entries switch from a checkbox list to a
+  match count comes from the session's preview of the filter that would be
+  applied, which says whether its number is exact and how much it sampled
+  ("about 412k would match"), and the exact count replaces it on release.
+  Categorical values with more than 50 distinct entries switch from a checkbox
+  list to a
   typeahead listing the top values by frequency with counts. A filter set has
   an "Also include neighbors (1 step)" checkbox. A Result toggle at the top
   of the section reads Hide others (default) / Select matches; under Select
@@ -1597,7 +1607,12 @@ disabled -- "Step through time" is absent until a Time role exists -- and a
 section the data supports but that holds nothing is one 32 px row: dimmed
 name, one + in the trailing slot, no empty-state sentence (Rule 7c, RT-8).
 
-Filter semantics. A filter defines the render set. Above the threshold
+Filter semantics. A filter defines the visible set, which is the data scope
+and never the render set -- above the render ceiling fewer elements are drawn
+than are visible, and "run on the visible graph" must not quietly mean "the
+50,000 we happened to draw". A filter and the time window are two producers of
+one visibility mask on the session, so they compose instead of fighting and
+neither re-layouts. Above the threshold
 filtered-out nodes are hidden, not dimmed, and their edges dropped; a "Show
 context" toggle on the filter strip draws them as a low-alpha point layer
 only when their count is under the render ceiling. While a filter applies
@@ -1709,8 +1724,11 @@ Analyze
   statistics block is not drawn there, because it is a character-for-character
   copy of the inspector Counts section rendered at the same moment 900 px to
   the right. On iPad the block stays, since 5.2 allows one overlay at a time.
-  - Graph statistics summary, two groups. Instant rows (from the loader or
-    one background pass after load): nodes, edges, direction, weighted with
+  - Graph statistics summary, two groups. Instant rows, read from the
+    session's maintained graph statistics and never counted in the app -- the
+    component count and its size distribution included, so no part of the shell
+    walks the graph to answer "are the small parts mostly single nodes?":
+    nodes, edges, direction, weighted with
     the weight attribute name, average links per node (technical: mean
     degree), density, connected parts as "3,412 (largest holds 91%)",
     self-loops and parallel edges when non-zero (repeated edges are counted,
@@ -1937,9 +1955,10 @@ icon rule and keeping its sentences. The AI panel and the console remain
 principle 3's free-form route. Nothing leaves the palette index because it
 left the resting panel.
 
-Cost classes are an internal cost model: they select each card's estimate and
-its ask, warn, sampling and time-box behaviour, and they gate which cards the
-Insights strip may offer (7.3). No class name ever appears in the interface:
+Cost classes are catalogue data, declared by the element beside each
+algorithm's plain and technical names: they select each card's ask, warn,
+sampling and time-box behaviour, and they gate which cards the Insights strip
+may offer (7.3). No class name ever appears in the interface:
 not on a group header, not on a card, not in a tooltip, not in the palette,
 not in a caveats line. A group's class is a range in any case, so "3 cards,
 instant to cubic" says nothing, and every heavy card finishes instantly at
@@ -2018,13 +2037,16 @@ the Use selected rule applies); node set (tier 2, "Use selection (N nodes)"
 button); attribute picker (tier 2, lists edge or node attributes of the
 required type, defaults from Import); method select (tier 2, exactly one
 choice, replacing any pair of exclusive booleans); bounded integer (tier 2,
-bounds computed from the data, for example k up to the maximum core); seed,
-tolerance, max iterations, endpoint inclusion, iteration counts and any
-option flagged advanced in the algorithm's option schema (tier 3 Advanced
-block). Implementation toggles (optimized, delta, bidirectional, recursive)
-are never shown; the size-aware rule sets them. The option schema's advanced
-flag means tier 3 and its group names the tier 2 section, so the tier for an
-option is derived, not chosen (6.2).
+bounds resolved against this graph, for example k up to the largest core in
+it); seed, tolerance, max iterations, endpoint inclusion, iteration counts and
+any option the catalogue flags advanced (tier 3 Advanced block). Every one of
+these is read from the catalogue's option descriptors, which are plain JSON --
+a type, a default, bounds, allowed values, a plain name, a technical name, a
+category and an advanced flag -- so the app holds no algorithm metadata of its
+own and parses no schema. Implementation toggles (optimized, delta,
+bidirectional, recursive) are never shown; the size-aware rule sets them. The
+advanced flag means tier 3 and the descriptor's category names the tier 2
+section, so the tier for an option is derived, not chosen (6.2).
 
 Link prediction tier 2 parameters: Method (Common neighbors, Adamic-Adar,
 Jaccard, Preferential attachment, Resource allocation; the last three carry
@@ -2057,12 +2079,15 @@ about, s, min and h; never a tilde. The estimate never appears twice on one
 card, and the scope line never carries it. The picker row and the List view row
 carry the estimate in the same bands, so neither is the cheaper way to hide
 cost.
-The estimate itself ("about 40 s") comes
-from a per-card cost model in nodes and edges (Bridges, Every route and
-Likely missing links as a function of edges; Every route warns above the
-threshold with "Slow at this size; filter to a subnetwork first" and keeps
-Run anyway), calibrated once per device
-by a short probe run and stored; above the ask limit (Settings > Performance,
+The estimate itself ("about 40 s") is the session's own answer for the command
+that button would run, asked synchronously before the click so it can decide
+how the button behaves, and never modelled in the app (Every route warns above
+the threshold with "Slow at this size; filter to a subnetwork first" and keeps
+Run anyway). It carries the basis it was computed from and how it was arrived
+at -- measured, calibrated on this machine, or modelled -- and an algorithm
+that cannot run on this graph at all comes back unavailable with its reason
+instead of a number, which is what the disabled card's tooltip prints; above
+the ask limit (Settings > Performance,
 default 10 s) Run reads "Run (about 4 min)" and confirms; above the warn
 limit the card warns and confirms as in the question groups table. Instant and
 iterative classes run at once, the caveats line saying converged or not. A
@@ -2072,9 +2097,13 @@ the whole graph, and keeps it verbatim whenever the run was sampled,
 restricted to a component, filtered or windowed; sample size and seed are
 stated once on the card, not once per line. While a load is in progress the
 partial-data caveat is carried by the sticky panel scope line, not repeated on
-every card. A control is never shown that does nothing: if a run
-cannot be cancelled in this build, Cancel is hidden and the row says the app
-will pause. Sampled betweenness and the Louvain seed are new work
+every card. A control is never shown that does nothing, and Cancel always does
+something: every run reports progress and takes a cancel signal, so a
+Cancel beside a running algorithm is a resident control rather than one the app
+hides. A run says whether it can be cancelled, and the rare one that says it
+cannot is drawn disabled carrying that reason. Cancelling a queued sweep keeps
+the members that already finished, with the caveat naming how many ran.
+Sampled betweenness and the Louvain seed are new work
 (5.8); the mockups draw them with the Coming tag, and until they ship the
 size-aware default for Bridges is the estimate-and-confirm path and the
 "Approximate (sample of N)" caveat does not appear.
@@ -2138,9 +2167,10 @@ edges, groups). Positions: matched nodes take A's positions; unmatched B
 nodes get a short force pass pinned to their matched neighbours; a "Same
 positions" toggle sits beside Link views, and Swap's menu offers "Copy
 positions A to B". In Compare mode every Analyze card gains "Run on: A / B /
-both" at tier 2 (default both), recorded in the run record; results are
-namespaced algorithmResults.A.<type>.<field> and algorithmResults.B.<type>.
-<field>, the Custom score picker lists "Bridges in A" and "Bridges in B" so
+both" at tier 2 (default both), recorded in the run record; each half is its
+own session with its own results root, so the same run id on the two sides
+names two different results and a layer bound to one carries the side it
+reads, the Custom score picker lists "Bridges in A" and "Bridges in B" so
 [betweenness.B] - [betweenness.A] is unambiguous (6.6), and side B metrics
 appear as columns in the Data table drawer. Every paired result carries a
 "Biggest differences" block (node, A, B, delta, the Temporal shape's Biggest
@@ -2155,7 +2185,7 @@ outlines cover it visually in this pass.
 The run is the object; the result and the style layer are two faces of it. A
 run is what the run record already describes: an algorithm, its parameters, its
 seed, its scope, its timestamp and duration, the engine version, and the fields
-it wrote into `algorithmResults.<namespace>.<type>.<field>`. Every route makes
+it wrote into `results.<runId>.<field>`. Every route makes
 one and only one, and History has held one row per run since 5.1. This revision
 makes the run addressable and gives it two faces.
 
@@ -2171,10 +2201,13 @@ Compare with..., Copy as command, Copy methods text, the Data table column, the
 Explore attribute entry and the History row all address the run rather than a
 face. Three lists ask three questions with no overlap: Analyze Run is what to
 compute, Analyze Results is what has been computed, Style Layers is what is
-drawn. This is needed because a layer's binding reads a path that names the
-algorithm but not its parameters, its seed or its scope, so MCL at granularity
-2.5 and MCL at 3.0 are the same path today and the layer cannot say which one
-it is drawing.
+drawn. This is needed because a binding that reads a path naming only the algorithm
+carries neither its parameters, its seed nor its scope: MCL at granularity 2.5
+and MCL at 3.0 would be one path and the layer could not say which it draws.
+The run id is the whole of the answer. It is minted when the run starts, the
+path is `results.<runId>.<field>`, re-running the same run keeps the id so no
+layer ever dangles, and nobody types one by hand -- every copy-path action,
+autocomplete list and encoding helper writes it.
 
 One string names a run everywhere -- result card title, layer row, legend
 block, History row, Compare label chip, and every string that leaves the app.
@@ -2631,17 +2664,14 @@ What this changes about a style layer, and how each break is closed. A style
 layer has meant one thing since revision 1.0 -- a selector plus encodings,
 authored by a person, portable -- and some layers now carry a run.
 
-1. Export stops round-tripping, and already fails today: a calculatedStyle's
-   inputs name `algorithmResults.<ns>.<type>.<field>` and carry no parameters,
-   so an exported analysis-backed layer imported onto another dataset binds to
-   whatever run shares that path, or to nothing, and paints silently wrong
-   either way. The fix is a `source` object -- algorithm key, parameters, seed,
-   scope descriptor -- carried under `metadata.source` on the layer, because
-   `StyleLayer` is a strict object an older element would reject outright while
-   `StyleLayerMetadata` is loose and passes unknown keys through, and
-   `TemplateMetadata` is strict too, so a template-level source is not an
-   option. Import has three defined outcomes: the run exists and the layer
-   binds; the run does not exist but can be run, and the layer imports with its
+1. Export round-trips, because every layer names its source and an
+   analysis-backed one names the run: its id, its algorithm key and its
+   parameters, as a required member of the layer rather than an optional
+   metadata block a later schema could reject. An exported layer can therefore
+   never bind to whatever run happens to share a path, which is the failure a
+   parameterless path guarantees. Import has three defined outcomes: the run
+   exists and the layer binds; the run does not exist but can be run, and the
+   layer imports with its
    Source gate showing the estimate under the same three bands; it cannot run
    on this data, and the layer imports disabled with the reason in its tooltip
    rather than being dropped, because a silently missing layer is worse than a
@@ -2661,27 +2691,31 @@ authored by a person, portable -- and some layers now carry a run.
 6. A generated name over a typed one: a renamed layer never re-derives, and the
    run name then survives in the run record line, which is where floor item 3
    puts it.
-7. Compare. Runs in Compare are namespaced `algorithmResults.A.*` and
-   `algorithmResults.B.*`; a layer whose source is one half carries the half in
-   its name ("Groups (A)") and, when Compare exits, is disabled with its reason
-   rather than repainting the merged view.
+7. Compare. Each half of Compare is its own session with its own results root,
+   so a layer's source names the side it reads; a layer bound to one half
+   carries the half in its name ("Groups (A)") and, when Compare exits, is
+   disabled with its reason rather than repainting the merged view.
 
-What a style carries, and what it deliberately does not. The app writes and
-reads a named subset of graphty-element's `StyleTemplate` rather than
-round-tripping the element's format whole, because a naive round trip would
-let applying a colleague's style silently rewrite this graph's column roles
-(`DataConfig.knownFields`), spend compute without an ask against principle 6
-(`DataConfig.algorithms`), override a view mode section 3 made cross-cutting
-and canvas-owned (`GraphStyle.viewMode`), and ship a multi-megabyte image
-inside a settings file (the skybox member's inline `ImageData`). The two
-genuinely useful cross-cutting blocks become explicit checkboxes in the Save
-dialog, both off by default, each with its consequence in an info circle:
-"Also save the column roles (id, source, target, weight, time)" and "Also save
-which analyses to run on open". The skybox field is dropped on write with a
-one-line note. On apply, an unticked `knownFields` or `algorithms` block in an
-imported file is ignored and reported. A style template is how to draw a
-graph; it holds no nodes, no edges, no attribute values, no computed results
-and no positions (section 11).
+What a style carries, and what it deliberately does not. A style is its own
+document and carries layers and encodings only, because everything a style used
+to travel with has a different owner and a different lifetime: column roles
+belong to a data source, the analyses to run on open are a recipe, the view
+mode and camera are a view preset, and notes belong to a reader. Each of those
+is its own document, and any subset of them travels together inside one
+envelope file, every member binding independently so that one unbindable layer
+never costs a reader their camera and their annotations. The app therefore
+defines no private subset of its own: applying a colleague's style cannot
+rewrite this graph's column roles, cannot spend compute without an ask against
+principle 6, cannot override a view mode section 3 made cross-cutting and
+canvas-owned, and cannot ship a multi-megabyte image inside a settings file,
+because none of those are in a style document at all. The two genuinely useful
+cross-cutting blocks become explicit checkboxes in the Save dialog, both off by
+default, each with its consequence in an info circle: "Also save the column
+roles (id, source, target, weight, time)" and "Also save which analyses to run
+on open"; ticking either adds that member to the envelope, and on apply a
+member the reader did not ask for is reported and skipped. A style is how to
+draw a graph; it holds no nodes, no edges, no attribute values, no computed
+results and no positions (section 11).
 
 Legend (legend-display). The canvas legend renders one block per encoded
 channel with the attribute's plain and technical name: a gradient bar with
@@ -2752,8 +2786,10 @@ Grouped by family:
 
 The dimension option (dim) of every engine is never a raw field: it follows
 the view mode control (5.6), and 2D-only engines carry the 2D only badge and
-the switch rule above. Option rendering is generated from the active
-engine's option schema: options not flagged advanced render inline here,
+the switch rule above. Option rendering is generated from the catalogue's
+option descriptors for the active engine, resolved against this graph so a
+bound reads "up to the largest core in this graph" rather than a guess:
+options not flagged advanced render inline here,
 advanced options behind the tier 3 gear; a number with bounds is a slider,
 an unbounded number a field, a boolean a switch, an enum a segmented
 control, a nullable seed a field with Auto and Randomize, a weight property
@@ -3245,22 +3281,18 @@ Settings (rail, bottom)
     subset load.
     - Machine calibration. The large-graph threshold and the render ceiling
       are properties of this machine, not of the graph or of taste, so they
-      are measured rather than typed. A first-run offscreen probe reads the
-      browser's facts (device memory, hardware concurrency, WebGL renderer
-      string, device pixel ratio) and runs a 512 by 512 instanced render at
-      1,000, 8,000 and 64,000 nodes, hard-capped at 2.5 s in total and
-      abandoned the moment a file is opened. A line is fitted through the
-      three frame times: the large-graph threshold is the node count at 16.7
-      ms per frame, floored at 2,000 and capped at 100,000; the render ceiling
-      is the lesser of the count at 100 ms per frame and 60 per cent of the
-      memory budget. Both round down to one significant figure, which is what
-      stops thermal jitter from changing the displayed value between runs. The
-      result is stored with a machine fingerprint and shared with the Analyze
-      estimate probe -- one record, two consumers. An iPad produces its own
-      numbers from the same probe, so there is no separate iPad ceiling. The
-      probe re-runs on Recalibrate and whenever the machine fingerprint
-      changes. If it fails for any reason the built-in defaults apply
-      silently: never a modal, never a blocked start.
+      are measured rather than typed -- and the element measures them. Its
+      first-run probe reads the browser's facts and renders at three node
+      counts, capped at a couple of seconds in total and abandoned the moment
+      a file is opened; one record serves both the render ceiling and the run
+      estimate, so there is no second probe in the app and no cost model in
+      the app for a probe to calibrate. An iPad produces its own numbers from
+      the same probe, so there is no separate iPad ceiling. The probe re-runs
+      on Recalibrate and whenever the machine changes. If it fails for any
+      reason the built-in defaults apply silently: never a modal, never a
+      blocked start. Settings reads the record -- when it was taken, on what
+      machine, and whether the numbers came from the probe or from the
+      built-in defaults -- and renders it. It never runs a probe of its own.
     - What Settings shows. One detected block replaces the threshold and
       ceiling rows: a headline sentence ("This machine draws about 40,000
       nodes smoothly and about 200,000 at all"), the measurement provenance
@@ -3278,13 +3310,16 @@ Settings (rail, bottom)
       naming the current dataset ("This graph: 1.1M", "Off for this graph").
       Rows whose control spends more than the ask limit keep their sentence
       inline under the three carve-outs of 6.7.
-    - Config keys. The storage keys behind these controls (largeThreshold,
-      ceiling.desktop, exactCap, labelCap, preSteps and the rest) are hidden
-      behind one header switch, "Show config keys", off by default and
-      remembered under 6.5; on, every key returns in place. The exported
-      configuration file always carries them. A storage key is not a
-      vocabulary pair (6.3); the eight layout engine names on this screen are,
-      and stay visible.
+    - Config keys. Every number on this screen is a key in the element's
+      configuration document, which publishes each key with a plain name, a
+      technical name, a unit and a range, so a row's label, its bounds and its
+      rejection message are read rather than written here. The technical keys
+      are hidden behind one header switch, "Show config keys", off by default
+      and remembered under 6.5; on, every key returns in place. "Export
+      settings" and "Apply a profile" are one call each over that document,
+      and a key a profile cannot apply comes back with its reason instead of
+      being dropped. A config key is not a vocabulary pair (6.3); the eight
+      layout engine names on this screen are, and stay visible.
   - AI providers and keys; two switches, "Assistant can read notes" and
     "Assistant can add notes", both default on and both disabled when no
     provider is configured.
@@ -3315,6 +3350,7 @@ Settings (rail, bottom)
 | Render ceiling | measured on this machine; 200,000 nodes or 1,000,000 edges as the fallback | Above it the Import options dialog defaults to a subset load and warns; Import everything anyway stays available (5.3 Data). Compare mode halves the ceiling |
 | Exact-computation cap | 2,000 nodes | Above it cubic cards and cubic layouts warn and confirm (5.3 Analyze, Layouts) |
 | Layout size ratings | any size, 10k, 2k, 500 per engine | Drive the warnings in the All layouts list; benchmarked before release |
+| Acceleration | Auto, Off, Required | Whether the element puts work on a GPU accelerator when one is present. Auto uses it when it is there, Off never looks, Required refuses to start rather than run without it, which is the setting a benchmark wants. The row states what the element currently reports and why, and it is the only acceleration control in the product. The app writes the reader's choice to the element and remembers it for the next visit; the element stores nothing on a reader's behalf, so this preference never travels inside an exported settings file, where it would demand a GPU of a machine that may not have one |
 | Performance mode | Auto, Always on, Off | Checklist of what it changes: labels capped at 20, uniform node size, edges as 1 px lines, edges hidden above the edge cap until zoomed, hover and tooltips off, animation off, force layout not started, note markers clustered (5.7); and it is always on in a headset regardless of this setting (5.9) |
 | Label the most connected nodes | on | Whether a load adds 7.2's top-degree label layer at all. Off means no label layer and no labels from the shell, and it disables the `Labels on canvas` row above, which is the same number and not a second one (6.4a(d)); the reader's own layers are untouched. Remembered under `graphty.shell.labels.v1` (6.5). The product owner's 2026-09-13 requirement that the feature carry a setting that can disable it |
 | Labels on canvas | 50 below the threshold, 20 in Performance mode, max 500 | Label cap; the readout, the Performance mode chip and the status bar show the value in force (7.2) |
@@ -3445,11 +3481,11 @@ function of the selection.
 
 | Selection | Inspector shows |
 |---|---|
-| Nothing | Graph summary: the plain-language reading (section 7.5) first, with Copy reading in its header row, which copies the reading plus the caveats line plus the Counts rows plus the legend's channel lines, so one click produces a paragraph a user can paste to a colleague. No count line sits above the reading; the status bar owns node and edge totals (5.1). Then Counts as a tier 2 section, collapsed by default and remembered per 6.5, holding one Type row ("Directed (from file), weighted (amount), timed (opened)"), average links per node, density in its plain form with the scientific notation on hover, connected parts as "3,412", and self-loops and parallel edges when non-zero; isolated nodes and the largest part's share are in the reading and are not repeated as rows. Most connected: top 5 by degree with "See all N ranked" opening the Data table drawer, the repeated unit word on the column header rather than on every row, and a hover-revealed download icon on the section header whose menu holds "Export top 20 (CSV)" and "Export ranked list (CSV)"; plus a 50 px degree histogram (log scale above the threshold). Schema section, which expands in place: open, it draws the node-type rows with their counts and the edge-type rows with their counts as the short two-column tables, capped at five with an "N more" row, and Filter to type / Select all of type as one RT-7 verb row beneath them, because of the readers who open Schema the type names and their counts are what they came for (6.11); closed, the header keeps its summary ("4 node types, 3 edge types") as its state mark and carries "measuring..." until SchemaExtractor is ready, and that summary is deleted the moment the type rows are drawn, because the rows say it. Its gear takes the rare remainder into a 480 pop-out to the left of the inspector: per-type completeness, and the type-pair list drawn as a matrix with node types on both axes and edge counts in the cells. Export schema JSON stays in the trailing slot. The matrix is a two-dimensional relationship and is drawn honestly only as a matrix, which is the width-driven case that justifies having 480 in 6.11's ladder, and it is now opened from a gear on an expanded section rather than being the section. One collapsed Attributes section with Nodes and Edges tabs (the first 20 with a filter box and "N more", distinct counts computed lazily on expansion from a 50,000-row sample above the threshold, the sampling caveat stated once inside the section rather than on both tabs, capped at "1,000+ values", id-like attributes marked "unique"). Case notes render as one affordance: "Add a case note" at zero, "N case notes" above it. One link, "More in Analyze", replaces the several pointers into that panel. Diameter and average path length are not in the inspector; they live in Analyze tier 2. Counts read as shown of loaded of total while a filter, window or subset is active, and as a plain number when shown, loaded and total are equal. Rows show "Computing..." until their background pass finishes. |
-| One node | Label with a copy-id icon and a Locate icon (centers and zooms to the node at a scale where its neighbors resolve), a Pinned badge with Unpin when the node has been dragged, subtitle "Selected 1 of 120,000 visible (1,000,000 total)" while a filter, window or subset is active; attributes section (the existing DataAccordion grid: per-cell Copy value and Copy path, where the path is the JMESPath the Style By attribute select and the Explore filter builder accept, or a [name] token for formulas, chosen from a two-item menu; Copy all; a filter box above 10 attributes; collapsible groups from the "::" namespace prefix or the source table ("Joined from expression.tsv"); a pinned group of the attributes currently encoded or filtered, separated from the rest by a hairline rule rather than by a "Key attributes" sub-header inside a section already titled Attributes; the node's type is not repeated as a row when the header badge shows it, the id row is dropped when the displayed label equals the id (the id-type annotation moving to the copy-id tooltip), and a long text value renders as its shape ("sequence  393 aa, MEEPQSDPSV...") with a copy icon rather than 390 inline characters; the first 10 rows (label, type, then alphabetical) with the count on the link and not on the header ("Attributes" plus "Show all 52"); numeric formatting of 3 significant digits with scientific notation below 1e-3; a small type glyph; list values as chips; text over 100 characters truncated with Show more; "Not set" for missing values; cells edit on double-click, undoable); computed metrics (any results that include this node, each under its plain name with the technical field name muted, dual results showing both columns, the raw value and a percentile "4,212, top 0.4%" with the normalized value in the tooltip, and no rank sub-row where the reading already states the rank; the percentile row carries its explanation in an info circle, 6.7); notes: an "Add a note..." input (one line, grows to a text area on focus; cmd-Enter saves, Escape cancels), then existing notes newest first, each with author, relative time (full timestamp on hover), color chip, tag chips, text and a Done checkbox; hover shows Edit and Delete; done notes collapse under "N done"; neighbors: the count with a breakdown by edge type capped at the top 5 types plus "N more types" ("12,412: 9,100 logon, 3,380 process") and, when a Groups result exists, a per-group breakdown beside it ("in 4 groups: group 3 holds 71%"), a sortable list (neighbor, edge type, weight, recency) with the per-type counts as filter chips, In, Out and All tabs on directed graphs, which carry their own counts, so there is no separate directional degree breakdown row and no "Both N" line duplicating the section header count; the neighbour-type prose line is dropped wherever the type filter chips already carry the same numbers, and Neighbors-in-group and Share-of-neighbors render as one row, the top 10 by edge weight then neighbor degree, 20 rows then "Show all in data table" and Select these, "See all 12,412" opening a virtualized list paged at 100 with a filter box, and per neighbor row "Note this relationship" (a stopgap until edge selection ships, 5.8); actions: Expand neighbors as a split button (main action uses the last node and edge type filter, the arrow opens the type checkboxes, each carrying the "Adds about N" that box alone would add; reads "Expand 37 neighbors" below 500, "Expand top 50 of 12,412 by weight (Choose which)" above 500 where Choose which opens the Explore expansion section. Every estimate binds to the path that spends it and never to the capped default, which is floor item 4 read forwards -- the cost estimate goes with its control: the line under the button opens with that button's own cost, "Adds 50 nodes", and the warning, its consequence and its "anyway" belong to expanding all of them, "All 12,412 may slow the canvas down. Expand all anyway". A capped default is never warned about a cost it does not incur; pairing "Expand top 50" with "Adds about 12,412 nodes" made one control quote two sizes for one tap, and on a touch screen there is no hover to tell a reader which of them it meant), Select neighbors (same depth control; confirms above the selection cap), Ego network (applies the radial layout with this node as focus; Hops 1 to 5 beside Max nodes, default 1, changeable from the canvas chip's steppers), Frame this node (camera only), Radial layout around this node, Use as root or focus (fills the active layout's node input), Pin or Unpin (live layouts), Find path from here (opens Analyze > Find a path with From filled and focus in To; a canvas click also fills To), Distance from here (opens Analyze > Distance from here with From filled), Likely missing links from here, Simulate removing, Merge with..., Tag... (writes a multi-value tags attribute; tags are data, notes are not), Bookmark this node, Show in table (opens the Data table drawer on this row), and under More: Copy as JSON (attributes and metrics only), Copy neighbor ids (warns above 1,000). Computed metrics, neighbors and the actions block never move below the first screen of the inspector; the content scrolls and the action block is pinned at the bottom. |
+| Nothing | Graph summary: the plain-language reading (section 7.5) first, with Copy reading in its header row, which copies the reading plus the caveats line plus the Counts rows plus the legend's channel lines, so one click produces a paragraph a user can paste to a colleague. No count line sits above the reading; the status bar owns node and edge totals (5.1). Then Counts as a tier 2 section, collapsed by default and remembered per 6.5, holding one Type row ("Directed (from file), weighted (amount), timed (opened)"), average links per node, density in its plain form with the scientific notation on hover, connected parts as "3,412", and self-loops and parallel edges when non-zero; isolated nodes and the largest part's share are in the reading and are not repeated as rows. Most connected: top 5 by degree with "See all N ranked" opening the Data table drawer, the repeated unit word on the column header rather than on every row, and a hover-revealed download icon on the section header whose menu holds "Export top 20 (CSV)" and "Export ranked list (CSV)"; plus a 50 px degree histogram (log scale above the threshold). Schema section, which expands in place: open, it draws the node-type rows with their counts and the edge-type rows with their counts as the short two-column tables, capped at five with an "N more" row, and Filter to type / Select all of type as one RT-7 verb row beneath them, because of the readers who open Schema the type names and their counts are what they came for (6.11); closed, the header keeps its summary ("4 node types, 3 edge types") as its state mark and carries "measuring..." until the attribute descriptors are ready, and that summary is deleted the moment the type rows are drawn, because the rows say it. Its gear takes the rare remainder into a 480 pop-out to the left of the inspector: per-type completeness, and the type-pair list drawn as a matrix with node types on both axes and edge counts in the cells. Export schema JSON stays in the trailing slot. The matrix is a two-dimensional relationship and is drawn honestly only as a matrix, which is the width-driven case that justifies having 480 in 6.11's ladder, and it is now opened from a gear on an expanded section rather than being the section. One collapsed Attributes section with Nodes and Edges tabs (the first 20 with a filter box and "N more", distinct counts computed lazily on expansion from a 50,000-row sample above the threshold, the sampling caveat stated once inside the section rather than on both tabs, capped at "1,000+ values", id-like attributes marked "unique"). Case notes render as one affordance: "Add a case note" at zero, "N case notes" above it. One link, "More in Analyze", replaces the several pointers into that panel. Diameter and average path length are not in the inspector; they live in Analyze tier 2. Counts read as shown of loaded of total while a filter, window or subset is active, and as a plain number when shown, loaded and total are equal. Rows show "Computing..." until their background pass finishes. |
+| One node | Label with a copy-id icon and a Locate icon (centers and zooms to the node at a scale where its neighbors resolve), a Pinned badge with Unpin when the node has been dragged, subtitle "Selected 1 of 120,000 visible (1,000,000 total)" while a filter, window or subset is active; attributes section (the existing DataAccordion grid: per-cell Copy value and Copy path, where the path is the JMESPath the Style By attribute select and the Explore filter builder accept, or a [name] token for formulas, chosen from a two-item menu; Copy all; a filter box above 10 attributes; collapsible groups from the "::" namespace prefix or the source table ("Joined from expression.tsv"); a pinned group of the attributes currently encoded or filtered, separated from the rest by a hairline rule rather than by a "Key attributes" sub-header inside a section already titled Attributes; the node's type is not repeated as a row when the header badge shows it, the id row is dropped when the displayed label equals the id (the id-type annotation moving to the copy-id tooltip), and a long text value renders as its shape ("sequence  393 aa, MEEPQSDPSV...") with a copy icon rather than 390 inline characters; the first 10 rows (label, type, then alphabetical) with the count on the link and not on the header ("Attributes" plus "Show all 52"); numeric formatting of 3 significant digits with scientific notation below 1e-3; a small type glyph; list values as chips; text over 100 characters truncated with Show more; "Not set" for missing values; cells edit on double-click, undoable); computed metrics (any results that include this node, each under its plain name with the technical field name muted, dual results showing both columns, the raw value and a percentile "4,212, top 0.4%" with the normalized value in the tooltip, and no rank sub-row where the reading already states the rank; the percentile row carries its explanation in an info circle, 6.7); notes: an "Add a note..." input (one line, grows to a text area on focus; cmd-Enter saves, Escape cancels), then existing notes newest first, each with author, relative time (full timestamp on hover), color chip, tag chips, text and a Done checkbox; hover shows Edit and Delete; done notes collapse under "N done"; neighbors: the count with a breakdown by edge type capped at the top 5 types plus "N more types" ("12,412: 9,100 logon, 3,380 process") and, when a Groups result exists, a per-group breakdown beside it ("in 4 groups: group 3 holds 71%"), a sortable list (neighbor, edge type, weight, recency) with the per-type counts as filter chips, In, Out and All tabs on directed graphs, which carry their own counts, so there is no separate directional degree breakdown row and no "Both N" line duplicating the section header count; the neighbour-type prose line is dropped wherever the type filter chips already carry the same numbers, and Neighbors-in-group and Share-of-neighbors render as one row, the top 10 by edge weight then neighbor degree, 20 rows then "Show all in data table" and Select these, "See all 12,412" opening a virtualized list paged at 100 with a filter box, and per neighbor row "Note this relationship", which writes a note targeting that edge; actions: Expand neighbors as a split button (main action uses the last node and edge type filter, the arrow opens the type checkboxes, each carrying the "Adds about N" that box alone would add; reads "Expand 37 neighbors" below 500, "Expand top 50 of 12,412 by weight (Choose which)" above 500 where Choose which opens the Explore expansion section. Every estimate binds to the path that spends it and never to the capped default, which is floor item 4 read forwards -- the cost estimate goes with its control: the line under the button opens with that button's own cost, "Adds 50 nodes", and the warning, its consequence and its "anyway" belong to expanding all of them, "All 12,412 may slow the canvas down. Expand all anyway". A capped default is never warned about a cost it does not incur; pairing "Expand top 50" with "Adds about 12,412 nodes" made one control quote two sizes for one tap, and on a touch screen there is no hover to tell a reader which of them it meant), Select neighbors (same depth control; confirms above the selection cap), Ego network (applies the radial layout with this node as focus; Hops 1 to 5 beside Max nodes, default 1, changeable from the canvas chip's steppers), Frame this node (camera only), Radial layout around this node, Use as root or focus (fills the active layout's node input), Pin or Unpin (live layouts), Find path from here (opens Analyze > Find a path with From filled and focus in To; a canvas click also fills To), Distance from here (opens Analyze > Distance from here with From filled), Likely missing links from here, Simulate removing, Merge with..., Tag... (writes a multi-value tags attribute; tags are data, notes are not), Bookmark this node, Show in table (opens the Data table drawer on this row), and under More: Copy as JSON (attributes and metrics only), Copy neighbor ids (warns above 1,000). Computed metrics, neighbors and the actions block never move below the first screen of the inspector; the content scrolls and the action block is pinned at the bottom. |
 | One edge | Endpoints as "source -> target" (each a link that selects that node), attributes table as for a node, weight and time when present, notes (as for a node); actions: Select endpoints, Simulate removing this edge, Filter to this edge type, Find alternate route (Every route with this edge excluded), Show in table, Delete edge (undoable), Copy as JSON. |
 | Multiple nodes and edges | Count reads "3 nodes, 2 edges"; the status bar shows N selected. Selection statistics: count, shared attributes (above 10 selected nodes an Attribute profile: top three values per categorical attribute with percentages, five attributes shown, "Show all" -- inline at every density, because nine rows of the user's own attribute names and top values is a scan surface made of floor-7 data and a reader comparing five attributes cannot open five doors), and each aggregate beside its whole-graph value with an above or below marker; the section expands in place onto the two-column Selection and Graph form -- Nodes 7 against 200, Edges 4 against 612, Average links per node 9.4 against 6.1 -- which the Data table drawer already draws at four rows and the Explore panel at seven in the same 256 px band, and both regions that draw this section take that same resident form; when a pin is active or above the selection cap the third column (A, B, Graph and Delta) does not fit the band, so a gear on that section opens a 360 pop-out carrying the three columns, the "inside the selection" split, the per-attribute means and the Export CSV of attribute, A, B, graph and difference, and only the pinned-A case needs the 360; notes: "Add a note to these N nodes" creates one note targeting the set; notes on any member are listed grouped by target with a "Show on canvas" link. Actions: Zoom to selection (becomes "Filter to selection" when the selection's bounding box covers more than 60% of the graph), Filter to selection, Save as subgraph (name, counts; "Disease module, 66 nodes"; appears in Explore > Saved filters), Save as set, Style selection (creates a layer selecting on a per-node flag, not an id list), Select neighbors (depth), Expand neighbors of all, Invert, Copy ids, Pin as A (the next selection shows as B beside A and the whole-graph column, with Export CSV of attribute, A, B, graph, difference), "Merge N nodes" with two to five selected, naming the survivor and merging immediately with the default conflict rules (one Cleaning step, and the toast "Merged 2 nodes into acct-4471" with Undo and Review conflicts beside it), and "Merge selected nodes" above five, which opens the Data merge dialog pre-filled (warns above 100 with the reason shown and confirms), "Export selection..." (lands in Present with Scope preset), Find path between (exactly two nodes), Simulate removing (N) (one scenario; warns above the selection cap and runs anyway), Remove selected (undoable, toast with Undo), Tag..., Set attribute on selection..., Pin selected positions, Layout selected nodes only, Pin to report, Show in table (opens the drawer in Show: Selected), Clear selection. Above the selection cap (default 5,000) the inspector switches to summary form: count, type breakdown, a categorical profile (the top three values of the group id and of up to five categorical attributes, with percentages, from the attribute index, so joined demographic columns and group membership survive the cap), and the five numeric attributes with the largest difference from the whole-graph value, then "Show all 38"; whole-graph aggregates come from the attribute index, selection aggregates are computed in the background behind a "Computing..." skeleton. |
-| Style layer | The existing StyleLayerPropertiesPanel, plus the Source section at tier 1 when the layer was created by a run (5.3, Style, Analysis-backed layers): the reading in full, the caveats line when there is a departure, the one-line run record with its Details chevron, the deviating parameters as live rows whose change re-runs the algorithm under Analyze's three cost bands, and "Open result". Then: Which nodes or Which edges: the Explore attribute, operator, value builder compiling to JMESPath (6.6), with a tier 3 Expression toggle showing the raw string; the selector applies on Enter or blur, not per keystroke; the helper line reads "Matches 41,200 nodes" (names only when 5 or fewer match) and "Matches about 41k (sampled), counting..." above the threshold until the exact pass finishes, with a Preview matches link that selects them on the canvas; Use as filter. Every encodable row -- Color, Size, Opacity, Shape, Label text, Edge width, Edge color, Line style, Edge opacity -- is one field row whose mode is what the field contains (Rule 6, 6.9); there is no Fixed / By attribute segmented pair, because binding a row is choosing an attribute in it, from a select whose last group is "Not computed yet": the node metrics this graph supports that have not been run, each a 12 px play glyph, the plain name, the technical name dimmed, and a trailing hint reading "not run" under 2 s and the estimate otherwise. A metric that has not been computed is still an encoding you can pick: choosing one runs it and applies the selection the user was making, as one undoable pair, under the same estimate-and-confirm gate the Insights strip and the palette use. The row shows a spinner while it runs, the type-default scale or palette is already editable, and a helper line reads "Computing Bridges (betweenness)... 42%  Cancel", mirrored in the status bar. On completion: one result card in Analyze, one Data table column, one entry in Explore's attribute list and no duplicate; the encoding applies; the legend updates; and one history entry, "Ran Bridges (betweenness) and encoded it as node size", which one undo takes back in full. Metrics that cannot run on this graph are listed disabled with the reason in the tooltip; cubic and unbounded metrics are never listed. The search input at the top of the popover is required, not optional, and not-run metrics sort last inside Metrics, never above a file attribute. Analyze's "Encode as style" is unchanged and remains the other way in; a run started from an attribute list is an ordinary run with the same queue, progress row, result card and history entry. The select also shows the distinct-value count beside each categorical attribute; above the palette size the top values by frequency are colored and the rest painted Other, and the helper says "Top 9 of 3,412 values colored"), a Palette select for color (grouped Categorical, Sequential, Diverging with swatches, defaulting by attribute type: text to Okabe-Ito, number to Viridis, signed number to Blue-Orange) or a Scale select for numbers (Linear, Square root default, Log, -log10, Bins, Five tiers) with min and max clipped at the 99th percentile by default ("Degree 1 to 812 (99th percentile) maps to sizes 1.0 to 2.0; 1,040 nodes above are capped. Change"), the Range and Categories sub-modes of 5.3 Style; a tier 3 Expression mode per row exposes inputs and expression with inline validation. Effects: Glow with Color and Strength when on, Outline with Color and Width, Wireframe, Flat shaded; Glow and Outline warn for layers matching more than the effects cap (default 5,000 nodes) with "Effects on 41,200 nodes will slow rendering. Narrow the selector, or turn on anyway" and stay available Label adds a "Show on" control (All matched, Top N by degree with N default 50, Selected only, Hovered only) whose default above the threshold is Top N. Edge properties (shown when the layer has an edge selector): Line (Type across the 9 patterns, Width, Color, Opacity, Curved), Arrow head (Type with icons, Size, Color), Arrow tail under More, Label and Tooltip popouts, Animation speed under More; above the threshold Color, Width and Opacity only, with dashed, dotted and arrow styles off by default with the note "Line styles are off in Performance mode. Turn on anyway" and a switch to enable them. Rich text popout tiers: text source, font, size, color, location inline; background, outline and shadow, depth fade as sections; badge, pointer callout, borders, margins, billboard and resolution under Advanced. The legend names the palette in use. Attribute ranges, percentiles and distinct counts come from the one attribute index (5.3 Data, Schema); controls show "measuring..." until it is ready. |
+| Style layer | The existing StyleLayerPropertiesPanel, plus the Source section at tier 1 when the layer was created by a run (5.3, Style, Analysis-backed layers): the reading in full, the caveats line when there is a departure, the one-line run record with its Details chevron, the deviating parameters as live rows whose change re-runs the algorithm under Analyze's three cost bands, and "Open result". Then: Which nodes or Which edges: the Explore attribute, operator, value builder compiling to JMESPath (6.6), with a tier 3 Expression toggle showing the raw string; the selector applies on Enter or blur, not per keystroke; the helper line reads "Matches 41,200 nodes" (names only when 5 or fewer match) and "Matches about 41k (sampled), counting..." above the threshold until the exact pass finishes, with a Preview matches link that selects them on the canvas; Use as filter. Every encodable row -- Color, Size, Opacity, Shape, Label text, Edge width, Edge color, Line style, Edge opacity -- is one field row whose mode is what the field contains (Rule 6, 6.9); there is no Fixed / By attribute segmented pair, because binding a row is choosing an attribute in it, from a select whose last group is "Not computed yet": the node metrics this graph supports that have not been run, each a 12 px play glyph, the plain name, the technical name dimmed, and a trailing hint reading "not run" under 2 s and the estimate otherwise. A metric that has not been computed is still an encoding you can pick: choosing one runs it and applies the selection the user was making, as one undoable pair, under the same estimate-and-confirm gate the Insights strip and the palette use. The row shows a spinner while it runs, the type-default scale or palette is already editable, and a helper line reads "Computing Bridges (betweenness)... 42%  Cancel", mirrored in the status bar. On completion: one result card in Analyze, one Data table column, one entry in Explore's attribute list and no duplicate; the encoding applies; the legend updates; and one history entry, "Ran Bridges (betweenness) and encoded it as node size", which one undo takes back in full. Metrics that cannot run on this graph are listed disabled with the reason in the tooltip; cubic and unbounded metrics are never listed. The search input at the top of the popover is required, not optional, and not-run metrics sort last inside Metrics, never above a file attribute. Analyze's "Encode as style" is unchanged and remains the other way in; a run started from an attribute list is an ordinary run with the same queue, progress row, result card and history entry. The select also shows the distinct-value count beside each categorical attribute; above the palette size the top values by frequency are colored and the rest painted Other, and the helper says "Top 9 of 3,412 values colored"), a Palette select for color (grouped Categorical, Sequential, Diverging with swatches, defaulting by attribute type: text to Okabe-Ito, number to Viridis, signed number to Blue-Orange) or a Scale select for numbers (Linear, Square root default, Log, -log10, Bins, Five tiers) with min and max clipped at the 99th percentile by default ("Degree 1 to 812 (99th percentile) maps to sizes 1.0 to 2.0; 1,040 nodes above are capped. Change"), the Range and Categories sub-modes of 5.3 Style; a tier 3 Advanced mode per row exposes the rest of the binding -- the domain, the percentile clamp, what happens to an element the encoding has no value for, reverse, and any scale an extension has registered by name -- with inline validation. A row is never an expression: the channels a layer can drive are a closed set the element publishes, and each is bound to a path through a named scale, which is what lets a binding be validated before it paints, diffed, pointed at another dataset and read back as a legend. Effects: Glow with Color and Strength when on, Outline with Color and Width, Wireframe, Flat shaded; Glow and Outline warn for layers matching more than the effects cap (default 5,000 nodes) with "Effects on 41,200 nodes will slow rendering. Narrow the selector, or turn on anyway" and stay available Label adds a "Show on" control (All matched, Top N by degree with N default 50, Selected only, Hovered only) whose default above the threshold is Top N. Edge properties (shown when the layer has an edge selector): Line (Type across the 9 patterns, Width, Color, Opacity, Curved), Arrow head (Type with icons, Size, Color), Arrow tail under More, Label and Tooltip popouts, Animation speed under More; above the threshold Color, Width and Opacity only, with dashed, dotted and arrow styles off by default with the note "Line styles are off in Performance mode. Turn on anyway" and a switch to enable them. Rich text popout tiers: text source, font, size, color, location inline; background, outline and shadow, depth fade as sections; badge, pointer callout, borders, margins, billboard and resolution under Advanced. The legend names the palette in use. Attribute ranges, percentiles and distinct counts come from the one attribute index (5.3 Data, Schema); controls show "measuring..." until it is ready. |
 | Algorithm result | Reading, caveats line, the one-line run record with its Details chevron (section 5.3, Result shapes), then the body for its shape, then the resident state swatch and layer name with "Change encoding" where the run painted, "Delete layer" and "Remove result" (both undoable by toast; Remove result names the layer count before it acts). The card in the Analyze Results list is collapsed to title, state and headline while this view is open, so one body is on screen at a time. |
 | Pattern match | Match count, the ranked match list, the matched nodes of the current match, Center on match, Select match. |
 | Cleaning step | Before and after of the selected step (section 5.3, Data). |
@@ -3472,10 +3508,14 @@ deleted outright (Rule 8). Attribute rows keep their left-hand text labels at
 every density: they are the user's own strings, floor item 7. The reading
 stays first and in full, never circled and never shortened (floor item 1).
 
-Edge and multi-selection do not exist in graphty-element yet (SelectionManager
-is single-node; 5.8); until they do, the neighbor row's "Note this
-relationship" keeps per-link evidence from being blocked, and mockups mark
-edge and multi-selection controls "Coming".
+Selection is one node set and one edge set on the session, with set algebra, a
+cap, and a flag saying when the cap truncated a result, and the canvas, the
+Data table drawer, the inspector, the palette and a headset all read and write
+that one pair. Nothing in the inspector assumes a single selected node: the
+one-node view is the case where the node set holds exactly one, and every
+selection-scoped action addresses the set. The neighbour list, its total and
+its per-edge-type counts are the session's own paged neighbour lookup, so the
+inspector never walks edges to count them.
 
 The same actions are available from a canvas context menu (right-click,
 long-press or two-finger tap on iPad, Shift+F10) on nodes, edges,
@@ -3906,18 +3946,22 @@ re-layout, camera moves and 2D/3D switches. The nodes target replaces free
 canvas placement and is what a multi-selection produces; its marker sits at
 the on-screen centroid of the members.
 
-Storage: notes are an app-level collection, a sibling of bookmarks, filters
-and results, and never live in imported attributes, a style layer or a
-template (the inspector's Tag... action is different: tags are data written
-to an attribute). Until project files exist they persist in browser local
-storage keyed by a dataset fingerprint (file name, node and edge counts,
-hash of the first 100 ids), as bookmarks do, with Export notes and Import
-notes (JSON) in the Explore Notes section for hand-off. Add, edit, done and
-delete are entries in the top bar undo stack. A node merge (5.3 Data)
-retargets notes to the surviving node and adds the tag "merged from <id>"
-in the same undo entry. A note whose target is missing after a removal or
-re-import is kept and listed under "Target not in graph"; notes are never
-dropped silently.
+Storage: notes live on the session and never in imported attributes, a style
+layer or a template (the inspector's Tag... action is different: tags are data
+written to an attribute). They serialise as an annotation document, which
+travels on its own or inside the envelope a style, a recipe and a view preset
+also travel in, so a note is portable between two applications instead of
+trapped in one browser's storage; Export notes and Import notes (JSON) in the
+Explore Notes section read and write that document, and the session's own
+dataset fingerprint is what keys a set of notes to a dataset. The fields this
+design adds beyond text, tags, author and time -- the colour, the done flag and
+the author kind -- ride in the note's consumer bag and round-trip untouched.
+What stays with the app is presentation: the hover card, the editor, the tag
+picker and the author's identity. Add, edit, done and delete are entries in the
+top bar undo stack. A node merge (5.3 Data) retargets notes to the surviving
+node and adds the tag "merged from <id>" in the same undo entry. A note whose
+target is no longer in the graph is kept, stamped as orphaned and listed under
+"Target not in graph"; notes are never dropped silently.
 
 Canvas: a marker glyph on each element with an open note, tinted by the note
 color; hovering shows the newest note and "N more"; clicking the marker
@@ -3946,13 +3990,12 @@ chip is drawn. "Flag this" writes a note with empty text whose body reads
 session: Edit, Delete and Done do not exist there, and all three work normally
 at the desk.
 
-Implementation dependencies on graphty-element, recorded in 5.8 so the
-mockups do not assume them: edge selection and multi-selection; a reserved,
-non-deletable style layer whose selector reads a synthetic per-node note
-count written through Graph.updateNodes, driving the existing badge support
-so markers are in-scene and appear in screenshots; the hover card is DOM
-positioned with worldToScreen because the element's tooltip style is not
-rendered.
+What the element supplies, recorded in 5.8 so the mockups do not assume the app
+builds it: the reserved marker channel and the locked layer that drives it from
+a synthetic per-element note count, so markers are in-scene and appear in
+screenshots; the screen-space clustering of markers above the threshold, which
+needs a screen position every frame; and the world-to-screen projection the DOM
+hover card is positioned with.
 
 ### 5.8 Implementation status
 
@@ -3972,8 +4015,8 @@ confidence, which is a W14 criterion. An unshipped row carries no key chip
 loading is the case -- is never tagged Coming: if its path has not shipped it
 is drawn disabled with its reason in the tooltip. Until each item
 exists, the corresponding control degrades as its section states
-(indeterminate progress, hidden Cancel, a warning with Continue anyway, a
-subset default) rather
+(indeterminate progress, a Cancel drawn disabled with its reason, a warning
+with Continue anyway, a subset default) rather
 than showing a control that does nothing. The mockups draw the target state.
 This is the one dependency register; section 11 points here.
 
@@ -3984,18 +4027,18 @@ This is the one dependency register; section 11 points here.
 | Sampled betweenness and closeness (k sources with a seed), Louvain seed (betweenness.ts options are normalized, endpoints, optimized; louvain.ts has no seed; leiden.ts has one), label propagation as the large-graph Groups default | new work, algorithms | 5.3 Analyze seed and sample fields, caveats line |
 | Weight attribute and direction on every algorithm (knownFields.edgeWeightPath must feed toAlgorithmGraph; only PageRank has a weight option today), articulation points and bridges, progress and cancellation per run, algorithms hosted off the main thread | new work, algorithms and element | 5.3 Analyze running and scope, 7.5 |
 | Ego-centric radial engine, Sugiyama hierarchical, selection-scoped layout, pinned-node state, disconnected-graph handling in bfs, attribute-driven multipartite, a layout host off the main thread | new work, layouts | 5.3 Style, Layouts |
-| Node and edge visibility layer (id-set visibility mask), time attribute detection, Weight, Time and Label roles (knownFields) honoured by the time slider, Analyze defaults and labels | new work, element | 5.3 Explore, Data |
-| Multi-select and edge selection (a selection set with Shift and Cmd/Ctrl semantics and marquee; SelectionManager is single-node today), node, edge and canvas contextmenu and dblclick events with the browser menu suppressed, Cmd handling in InputManager, removal of the built-in W/A/S/D and Q/E keys and of canvas focus on camera enable, keyboard event emission beyond ctrl-z, ctrl-y and ctrl-a | new work, element | 3, 5.4, 5.6 |
+| One visibility mask over nodes and edges, with filters and the time window as two producers of that single mask so moving the window re-layouts nothing, time attribute detection, and the Weight, Time and Label column roles honoured by the time slider, Analyze defaults and labels | new work, element | 5.3 Explore, Data |
+| Multi-select and edge selection (one node set and one edge set with set algebra, Shift and Cmd/Ctrl gesture semantics, and a marquee that works in 3D in screen space), node, edge and canvas contextmenu and dblclick events with the browser menu suppressed, Cmd handling in InputManager, removal of the built-in W/A/S/D and Q/E keys and of canvas focus on camera enable, keyboard event emission beyond ctrl-z, ctrl-y and ctrl-a | new work, element | 3, 5.4, 5.6 |
 | Wheel zoom and pan in 3D, cursor-anchored zoom in both views, a zoomToNodes(ids) API (used by the cluster, Explore, the inspector, double-click and the AI zoomToNodes tool), honoring the 2D rotationEnabled flag, a zoom percentage on camera-state-changed, a followNode(id) helper, Views menu presets from the existing built-in camera presets | new work, element | 5.6 |
 | Streaming parsers with edges chunked alongside their nodes, a yield to the render loop between chunks, an AbortSignal through data loading, loads through the operation queue so Cancel works and progress is by node count | new work, element | 5.1 status bar, 6.1 Loading |
 | Count repeated edges at import so the combine policy and the validation report see them (storing them as parallel edges is a future phase, section 11), report edges whose endpoints are unknown at the end of a load instead of buffering them silently, count self-loops and isolated nodes | new work, element | 5.3 Data import policies and validation |
 | A mutation API (update attributes, remove node with its edges, merge nodes, column operations) that returns an inverse for undo | new work, element | 5.3 Data Cleaning steps, 5.1 undo |
 | Bulk style write (per-instance color and scale) instead of per-node mesh recreation, thin-instance or point rendering for nodes, one batched line buffer for edges, a single scene-level pick per pointer move, viewport culling and a label budget, a bulk positions buffer and an in/out adjacency index | new work, element | 5.1 canvas, 7.2, Settings > Performance |
-| A reserved note-marker style layer driven by a synthetic note count through Graph.updateNodes; a DOM hover card positioned with worldToScreen | new work, element | 5.7 |
+| Notes on the session: the reserved marker channel and its locked layer driven by a synthetic per-element note count, the orphaned stamp when a target leaves the graph, screen-space marker clustering, and the annotation document they serialise as; a DOM hover card positioned with the element's world-to-screen projection | new work, element | 5.7 |
 | SVG and PDF export, GraphML, GEXF and CX2 writers, SIF and CX2 parsers (CX2 flattens v.* into node attributes, uses v.name as the label and keeps x, y, z as initial positions), DOT and Pajek parsers where missing | new work, element | 5.3 Data, Present |
 | A composed legend block written into the export at export scale, in the PNG, JPEG, WebP, SVG and PDF paths, emitted as vector text in the SVG and PDF ones. The export path is `CreateScreenshotAsync` over the Babylon scene and the legend is a DOM overlay in the shell, outside that scene, so an exported image carries no legend today and cannot carry the DOM one; the block is composed from the encoding model and written into the existing 2D-canvas stage of `ScreenshotCapture.ts` | new work, element | 5.1 Legend, 5.3 Present, 6.10 item 5 |
-| The layer source binding and its Source section, `metadata.source` in StyleTemplate v1 with the three import outcomes, re-run from a layer under the shared cost gate, highlight layers in the Layers list, and the FloydWarshall category mismatch (it declares category `path` while colouring a per-node eccentricity, against a spec shape of Fact: Farthest apart stays a Fact whose supporting nodes are the centers, and the per-node eccentricity is exposed as an ordinary node metric in the Not computed yet group) | new work, app and element | 5.3 Analyze, 5.3 Style, 5.4 |
-| A documented app subset of `StyleTemplate` with a strict-mode-safe partial read, and the two off-by-default Save dialog checkboxes over `knownFields` and `algorithms` | new work, app and element | 5.3 Style |
+| The layer source binding and its Source section -- a required source on every layer, naming the run, its algorithm and its parameters, with the three import outcomes -- re-run from a layer under the shared cost gate, highlight layers in the Layers list, and the FloydWarshall category mismatch (it declares category `path` while colouring a per-node eccentricity, against a spec shape of Fact: Farthest apart stays a Fact whose supporting nodes are the centers, and the per-node eccentricity is exposed as an ordinary node metric in the Not computed yet group) | new work, app and element | 5.3 Analyze, 5.3 Style, 5.4 |
+| The separate style, data-plan, recipe, view-preset and annotation documents, the envelope that carries any subset of them with each member binding independently, and the two off-by-default Save dialog checkboxes that add the column-roles and run-on-open members | new work, element | 5.3 Style |
 | Library storage for every saved kind (5.3, Saved things) with per-kind import and export, the dimmed unbindable-row state, and Settings > Data management > Saved items over the same entries | new work, app | 5.3, 5.6 |
 | Tier 3a pop-out surfaces (6.11): the shell, the pin, the anchor and flip rules, the one-per-region limit and the narrow-screen sheet form | new work, app | 6.11, 5.2, 5.3, 5.4 |
 | The canvas toolbar (5.6): the bar at both sizes, the four bottom offsets, the two-line minimap and legend state, the 520 px canvas clamp, and the Views menu opening upward | new work, app | 5.1, 5.2, 5.6 |
@@ -4130,7 +4173,7 @@ is within a panel.
 | Loading | A large file is being loaded progressively | Rail as Loaded, except that Analyze cards in the heavy, sampled, cubic and unbounded cost classes are disabled with "Available when loading finishes"; instant cards carry a "Partial data (24% loaded)" note. Status bar shows the three loading phases with Cancel. The canvas shows loaded nodes at their file positions or on the quick grid; no force layout runs. The Data table drawer appends rows as chunks arrive. The Insights strip appears on load complete, on "Cancelled at 24%" and on subset loaded alike, with the subset caveat on its readings. |
 | Loaded | Data loaded | Full rail enabled. Canvas renders the graph with default styling (7.2). Inspector shows graph summary. Insights strip appears (7.3). If validation produced warnings, the Data rail icon carries the issue-type badge and the status bar shows the "N data issues" chip, which opens Data with the validation report expanded. If the dataset has open notes, the status bar shows the "N notes" chip, which opens Explore with the Notes section expanded. The Loaded data section lists the applied import policies. The completion toast names any role that was guessed or changed and its Details link opens Data with the mapping line highlighted for two seconds; on the session's first load the panel switches to Explore, the one exception to 6.5's last-active-activity memory (5.1). The Data table drawer is available from this state on. |
 | Loaded, subset | Loaded with a subset drawn | The filter strip reads "Showing a sample: 50,000 of 1,000,000 nodes. Change", the status bar carries "Sample: 50,000 of 1,000,000", every scope line names the sample, and the graph summary reading opens with "Showing a sample." |
-| Selected | Selection says something on the canvas, not only in the inspector: a single-node selection draws its incident edges in the selection colour at full opacity and outlines its immediate neighbours, and nothing is dimmed. Below the large-graph threshold every incident edge is drawn and the top ten neighbours by weight are labelled regardless of the label cap, capped further where one node's degree alone would exceed the hover-highlight cap of 500; above the threshold the rule matches hover-highlight exactly. A multi-node selection highlights edges between selected nodes only. One or more nodes or edges selected. Click selects one, Shift+click adds, Cmd/Ctrl+click toggles, Alt+click removes, Shift+drag on empty canvas draws a marquee, click on empty canvas or Escape clears; the Data table drawer and result tables select the same way (5.6). | Inspector switches to the selection (the Enter route is unshipped: inspectSelection; 5.8, 6.4a(c) -- a pointer selection switches it today) and shows the Notes section for it with an "Add a note" input; N focuses it. Status bar shows "3 nodes, 2 edges selected". Explore and Analyze panels add selection-scoped actions (ego network, paths from here, filter to selection, select neighbors of selection, save as set, merge selected). Exactly two selected nodes add Find path between. Selection is one store for nodes and one for edges, shared by the canvas, the Data table drawer, the inspector, Explore's Select all visible and Analyze's Select top N; the table keeps no selection of its own. Rules: a row click selects that node or edge and the inspector shows it; Shift+click extends a range; Cmd/Ctrl+click toggles; Cmd/Ctrl+A in the table equals Select all visible; canvas selection highlights the matching rows and, in Show: All, scrolls the first one into view; Show: Selected filters the table to the selection and is the mode the drawer opens in when the selection count is non-zero; Escape clears the selection everywhere; the Nodes tab and the Edges tab selections are independent. Multi-select in graphty-element's SelectionManager is an implementation dependency (5.8). |
+| Selected | Selection says something on the canvas, not only in the inspector: a single-node selection draws its incident edges in the selection colour at full opacity and outlines its immediate neighbours, and nothing is dimmed. Below the large-graph threshold every incident edge is drawn and the top ten neighbours by weight are labelled regardless of the label cap, capped further where one node's degree alone would exceed the hover-highlight cap of 500; above the threshold the rule matches hover-highlight exactly. A multi-node selection highlights edges between selected nodes only. One or more nodes or edges selected. Click selects one, Shift+click adds, Cmd/Ctrl+click toggles, Alt+click removes, Shift+drag on empty canvas draws a marquee, click on empty canvas or Escape clears; the Data table drawer and result tables select the same way (5.6). | Inspector switches to the selection (the Enter route is unshipped: inspectSelection; 5.8, 6.4a(c) -- a pointer selection switches it today) and shows the Notes section for it with an "Add a note" input; N focuses it. Status bar shows "3 nodes, 2 edges selected". Explore and Analyze panels add selection-scoped actions (ego network, paths from here, filter to selection, select neighbors of selection, save as set, merge selected). Exactly two selected nodes add Find path between. Selection is one store for nodes and one for edges, shared by the canvas, the Data table drawer, the inspector, Explore's Select all visible and Analyze's Select top N; the table keeps no selection of its own. Rules: a row click selects that node or edge and the inspector shows it; Shift+click extends a range; Cmd/Ctrl+click toggles; Cmd/Ctrl+A in the table equals Select all visible; canvas selection highlights the matching rows and, in Show: All, scrolls the first one into view; Show: Selected filters the table to the selection and is the mode the drawer opens in when the selection count is non-zero; Escape clears the selection everywhere; the Nodes tab and the Edges tab selections are independent. One selection per session, owned by the element, is what makes that one store possible: a node set and an edge set with set algebra, a cap, and a flag saying when the cap truncated a result. |
 | Result | An algorithm has completed | Analyze panel shows a result card in the Results tab. Inspector offers the result when clicked. On first completion the result applies its shape's primary action as a style layer automatically, identically from every route (5.3 Analyze, Result shapes), unless a user-authored style layer already drives that channel; the legend updates and the application is one undoable step separate from the result. While an algorithm is still running, its card shows the progress row and the status bar mirrors it. |
 
 States are cumulative. Selected implies Loaded. Result implies Loaded.
@@ -4188,11 +4231,12 @@ engines, 5 families", "4 results", "2 views", "2 saved", "Actions 20" -- are
 not drawn at all. A header count never carries a unit word the section name
 already supplies.
 
-For controls generated from an option schema the tier is derived: options
-not flagged advanced are tier 2 inline under the card or layout, options
-flagged advanced are tier 3 behind the gear, and the schema group names the
-tier 2 section. A schema group of more than four rows renders as a 3a pop-out
-opened from a gear on the row it belongs to; four rows or fewer render inline.
+For controls generated from the catalogue's option descriptors the tier is
+derived: options not flagged advanced are tier 2 inline under the card or
+layout, options flagged advanced are tier 3 behind the gear, and the
+descriptor's category names the tier 2 section. A category of more than four
+rows renders as a 3a pop-out opened from a gear on the row it belongs to; four
+rows or fewer render inline.
 Force directed's three visible parameters therefore stay inline and the rule
 visibly does not fire, which is the point of stating it as a number rather
 than as a judgement. Structured inputs (node, node set, partition, ordering)
@@ -4475,7 +4519,7 @@ this clause names, and four of the inspector's eight kinds are that defect today
 | Inspector, algorithm result | a completed run picked in Analyze | the same memo | built |
 | Inspector, style layer | a layer row picked in Style's Layers list | the same memo | built, and UAT-10 is its test |
 | Inspector, edge | an edge selection | none | HANDLED, NEVER CONSTRUCTED. It waits on edge selection in graphty-element (5.8), so the kind is a promise the shell cannot keep yet and the row asserting it says Coming |
-| Inspector, multiple | a multi-node selection | none | HANDLED, NEVER CONSTRUCTED. It waits on multi-select in `SelectionManager` (5.8) |
+| Inspector, multiple | a multi-node selection | none | HANDLED, NEVER CONSTRUCTED. The selection model carries it; the shell has not wired the multi-node branch (5.8) |
 | Inspector, cleaning step | a cleaning step picked in Data | none | HANDLED, NEVER CONSTRUCTED, and no dependency blocks it: this is the style-layer defect not yet repaired |
 | Inspector, pattern match | a pattern-match result picked | none | HANDLED, NEVER CONSTRUCTED, and no dependency blocks it |
 | Activity panel, per activity | the rail, the switch, the binding or a palette row (6.12) | `AppShell.tsx`, the panel body switch | built, eight activities |
@@ -4640,23 +4684,47 @@ it is read at. Width-dependent MEMORY does not exist in this shell -- and since
 
 ### 6.6 Expression rule
 
-JMESPath is the one query language for anything that selects nodes or
-edges: style layer selectors, filter Expression mode, select-by-expression,
-pattern node constraints, the palette's = prefix. All of them evaluate
-against the same root: data.<attribute> for imported, joined and computed
-attributes, algorithmResults.<namespace>.<type>.<field> for result metrics.
-Computed-attribute formulas use the [name] grammar required by the
-computed-attributes capability; a bracketed name resolves first to
-data.<name>, then to the result metric whose technical name matches. In
-Compare mode results carry the A or B namespace (algorithmResults.A.*,
-algorithmResults.B.*) and formulas address them as [name.A] and [name.B];
-an unqualified [name] resolves to side A. Copy-path actions (data table cells, inspector rows) copy the form the
+Two languages, and any field that takes one says which: one selects, one
+computes.
+
+JMESPath is the one query language for anything that selects nodes or edges:
+style layer selectors, filter Expression mode, select-by-expression, pattern
+node constraints, and the palette's = prefix. All of them evaluate against the
+same published root: data.<attribute> for imported, joined and computed
+attributes, results.<runId>.<field> for the fields a run produced. A run id is
+minted when the run starts and survives a re-run, which is what lets a path
+name one run's parameters rather than only its algorithm; nobody types one,
+because every copy-path action and every autocomplete list writes it.
+
+Computed-attribute formulas use the [name] grammar, which is arithmetic and
+therefore not JMESPath -- JMESPath has no arithmetic, and pretending one
+language does both is worse than carrying two. A bracketed name resolves first
+to data.<name>, then to the result field whose technical name matches. In
+Compare each half is its own session with its own results root, and formulas
+address the two as [name.A] and [name.B]; an unqualified [name] resolves to
+side A. Copy-path actions (data table cells, inspector rows) copy the form the
 destination expects: a JMESPath path for selectors and filters, a [name]
 token for formulas, chosen from a two-item menu. The cell renders one copy
 control carrying that menu, not a copy control beside a separate chain
 control (6.8), which frees the chain glyph for the Compare split's "Link
-views" toggle. The calculatedStyle expr of
-graphty-element is not a user-facing language and never appears in the UI.
+views" toggle.
+
+Appearance is not a third language. A style layer binds a channel to a path
+through a named scale and a palette; the channels are a closed set the element
+publishes, and no layer anywhere holds an expression, a function body or an
+evaluated string. That is what lets a layer be checked before it paints,
+diffed, pointed at a second dataset and read back as a legend, and it is why a
+style survives a page that forbids evaluated code. A transformation the named
+scales cannot express is a scale an extension registers by name (Settings >
+Extensions), never a formula typed into a style row.
+
+Whatever the reader does type is checked against what this session actually
+holds, not only against the grammar: a path that parses but names a run or an
+attribute that is not there is reported with the nearest candidates, because a
+selector that matches nothing silently reads exactly like a correct answer of
+zero. A selector is never empty and never means "everything" by omission;
+matching every element is a choice written out in the layer.
+
 The console (5.3, AI) is the scripting route; the AI panel is the free-form
 route.
 
@@ -6933,7 +7001,9 @@ Applied, four clauses, each checkable by reading one signature:
   a discriminated kind; never a heuristic over the argument's shape.
 - An id is stable and is not a position. `layer-${index}` cannot survive a
   reorder, a rename or an insert, and every diff built over positional ids is
-  guessing.
+  guessing. Layer ids are minted by the element and are the only way a layer is
+  addressed: the app never computes one, never derives one from a name, and
+  never passes a position where an id belongs.
 - An editor re-seeds from the state the application believes, every time it opens,
   so a rejected edit is never re-offered as though it had been accepted.
 - A surface that draws a value writes THROUGH the state it reads. The style-layer
@@ -6964,9 +7034,13 @@ phrased as an absolute became the one with no rule and no test.
 
 What it governs. Every visual property of the GRAPH -- a node's colour, size, shape,
 opacity, label, and an edge's colour, width, line style and opacity -- is expressed as
-a style layer in graphty-element's StyleManager and reaches the canvas by no other
-route. There is exactly one write path into graph appearance, layers are ordered and
-named, and each is visible in Style's Layers list.
+a style layer on the session and reaches the canvas by no other route. There is exactly
+one write path into graph appearance, layers are ordered and named, each is visible in
+Style's Layers list, and each is addressed by the id the element minted for it and
+never by its position in that list. A layer write validates and repaints, or it is
+rejected with a reason naming what was wrong; there is no third outcome in which a
+write is accepted and the canvas does not change, and therefore no repaint the app has
+to force afterwards.
 
 Three consequences, and each is the reason the rule is worth an absolute.
 
@@ -7000,15 +7074,23 @@ The checks, and all three are greppable or watchable rather than argued.
    names. The check is a grep over `graphty/src` for an appearance write that is not a
    layer operation -- `material`, `thinInstance`, `albedoColor`, `emissiveColor`,
    `.scaling`, `setNodeStyle`, `setEdgeStyle` -- which returns nothing, against the
-   allowed set, which is the layer helpers of `defaults/styleDescriptors.ts`, the layer
-   channel of the Style panel, and `addStyleLayers`.
+   allowed set, which is the session's own layer verbs: the single encode call that
+   turns a result into a layer, and the add, update, move and remove verbs behind the
+   Style panel's layer channel. Turning an analysis into a picture is that one encode
+   call on every route -- the Insights card, the panel Run, the palette, the console and
+   an assistant's tool call -- because a capability that produces two different pictures
+   depending on which route the reader took is the defect the single path exists to
+   prevent.
 2. EVERY ENCODING HAS A ROW. Load a graph, read what the canvas encodes, and find a
    layer in Style's Layers list for each. A visual with no row fails this rule at the
    surface where the reader would go looking for it.
-3. EVERY LAYER NAMES ITS SOURCE. `metadata.algorithmSource` says which code path or
-   which run produced the layer -- `shell:load-defaults` for 7.2's layers -- so a
-   layer the reader did not write can be told from one they did, in the list and in
-   the inspector.
+3. EVERY LAYER NAMES ITS SOURCE. Every layer carries a required source saying who
+   made it -- the element, a run with its algorithm and parameters, a template, an
+   extension, or the reader -- so a layer the reader did not write can be told from one
+   they did, in the list and in the inspector. The shell stamps the layers it adds on
+   its own behalf (7.2) in the layer's consumer bag, which round-trips untouched. No
+   layer is ever identified by matching its name: an element-owned layer is locked by
+   the element, so a reader who names their own layer "default" takes nothing with it.
 
 ### 6.17 The default component rule
 
@@ -7182,37 +7264,37 @@ behalf is applied the way 6.16 requires everything to be.
 
 | Part | What it is |
 |---|---|
-| The layer | one style layer, `Top degree labels`, added once per dataset at load complete, `metadata.algorithmSource` = `shell:load-defaults` (6.16 check 3) |
-| The selector | every node (`""`). The layer does not pick nodes by id; the calculated half decides per node |
-| The calculated node style | inputs `algorithmResults.graphty.degree.degree`; output `style.label.enabled`; expression `typeof arguments[0] === "number" && arguments[0] >= T`, where T is the budget-th degree from the degree pass. `calculatedStyle` is a SIBLING of `style` and never nested inside it, because `Styles.getCalculatedStylesForNode` reads only the sibling and drops a nested one in silence |
-| The text | the element's own default label text, which is the node id, unless a Label role or a label attribute is set, in which case `style.label.textPath` names it. The shell supplies no text of its own |
+| The layer | one style layer, `Top degree labels`, added once per dataset at load complete, stamped `shell:load-defaults` in the layer's consumer bag (6.16 check 3) |
+| The selector | the nodes the degree run ranked inside the budget, `results.degree.rank <= N` where N is the budget. It selects by rank rather than by id, so it survives a load, a filter and an added edge, and it is checked against the run when the layer is added rather than silently matching nothing |
+| The style | the label channel turned on, as a literal value behind that selector. Nothing outside the selector is visited, so no node the degree run did not measure is painted |
+| The text | the element's own default label text, which is the node id, unless a Label role or a label attribute is set, in which case the label channel is bound to that attribute's path. The shell supplies no text of its own |
 | The budget | `clamp(round(sqrt(n)), 5, 50)` below the large-graph threshold, 20 in Performance mode, or the reader's own number where they have set one. The reader's number is the EXISTING `Labels on canvas` row of Settings > Performance and not a second control beside it: two controls for one number is 6.4a(d)'s defect, and only one of them could be the one 6.4's routes point at |
 | The setting | Settings > Performance: one new switch, `Label the most connected nodes`, default ON, which governs whether a LOAD adds the layer. The budget is the `Labels on canvas` row that section already carries, disabled while the switch is off |
 | The memory | both, under `graphty.shell.labels.v1`, a separate key from the layout record so a shape change in one cannot corrupt the other (6.5, 6.5a) |
 
 Three things the definition has to say, because each was a trap.
 
-Why CALCULATED rather than a list of ids. A degree comparison alone keeps every node
-tied at the cut degree, which on the cat fixture labelled 15 of 20 nodes against a
-budget of 5; a list of ids spends the budget exactly but is a set of facts about one
-graph, so it cannot survive a load, a filter or an added edge, and it is the positional-
-id defect of 6.15's commit rule wearing different clothes. The calculated form keeps the
-RULE in the layer and lets the threshold carry the budget. Where the budget must be
-exact and the cut ties, the tie is broken in the degree pass's own stable id order and
-the threshold is set from the budget-th reading.
+Why a RULE rather than a list of ids. A list of ids spends the budget exactly but is a
+set of facts about one graph, so it cannot survive a load, a filter or an added edge,
+and it is the positional-id defect of 6.15's commit rule wearing different clothes. A
+bare degree comparison has the opposite fault: every node tied at the cut degree
+qualifies, which on the cat fixture labelled 15 of 20 nodes against a budget of 5.
+Selecting on rank answers both. A rank is a field the degree run publishes per node
+alongside its value and its percentile, assigned in the run's own stable order, so the
+ties are already broken where they were measured and the budget is spent exactly --
+and the rule, not its answer, is what the layer stores.
 
 The element was FIXED rather than worked around, which is 6.17 applied to a dependency.
-A calculated style whose output path is `style.label.*` used to throw in
-graphty-element's ChangeManager: `NodeStyle.label` is a
-`RichTextStyle.prefault({...}).optional()` and `getSchemaItemFromPath` stopped at the
-first wrapper with "don't know how to retreive path for: enabled", which is why the
-first shipped label layer was a static style behind a selector. `unwrapSchema` in
-`graphty-element/src/ChangeManager.ts` now unwraps optional, prefault, default,
-nullable, non-optional, readonly and catch before descending, and the leaf is still
-validated -- `style.label.enabled` is parsed against `RichTextStyle`'s own
-`z.boolean()` -- so a calculated value of the wrong type is still rejected. The obstacle
-is recorded here because a reader who does not know it existed will re-derive the static
-form and call it the design.
+The label is an ordinary channel in the element's published channel set, so turning it
+on is a literal value on a layer: no evaluated expression, no schema-path walk, no
+per-node function, and nothing that breaks on a page which forbids evaluated code. What
+makes the rule expressible is that a selector may name a result field, so the run's
+per-node rank reads like any other path and the layer states which nodes it labels in
+the same dialect the filter builder and the Explore search field already speak. The
+general form of the ruling matters more than this layer: where the element cannot
+express something the shell needs, the element is what changes, because a shell-side
+workaround leaves the same gap in front of every other consumer and hides it from the
+one place it would have been reported.
 
 The layer sets NO `textColor`, and this is a standing prohibition rather than an
 omission. It set `PANEL_INK.VALUE` (`#d5d7da`) for one revision on the reasoning that
@@ -7848,12 +7930,15 @@ pro tool, 5 a tutorial), down from an average of 2.8 in the second pass.
   and network collections (section 11) are designed together in the next
   phase; the top bar dataset name becomes a switcher when more than one
   network exists.
-- Dataset fingerprint for local-storage notes: file name plus counts plus a
-  hash of the first 100 ids is the default; confirm it distinguishes
-  re-exports of the same dataset.
+- Notes key to the session's own dataset fingerprint rather than to one the app
+  invents, and they travel as a document rather than as browser storage. What is
+  left to decide is only how long a reader expects a note to outlive its
+  dataset: the tab, the file, or nothing at all until project files exist.
 - Whether computed-attribute formulas should eventually drop the [name]
-  grammar for the same JMESPath paths used elsewhere. The capability
-  requires [name] today, so 6.6 maps rather than replaces.
+  grammar for the same JMESPath paths used elsewhere. They should not, and
+  this is settled: JMESPath has no arithmetic, so one language selects and the
+  other computes, and the honest course is to say which a field takes wherever
+  either is typed (6.6).
 - The large-graph threshold and the render ceiling are no longer open: they
   are measured on the machine by the first-run probe in 5.3 Settings >
   Performance, and the numbers in the defaults table are the fallback for a
@@ -7883,19 +7968,21 @@ pro tool, 5 a tutorial), down from an average of 2.8 in the second pass.
   against the fit distance for the 200-node dataset.
 - Hubs and authorities: Advanced group (default, adopted in this revision)
   or Find important nodes on directed graphs?
-- Is `metadata.source` on a style layer the right home for a run, or is an
-  analysis-backed layer a one-step recipe wearing a style's clothes? A layer
-  that carries an algorithm and its parameters and a recipe that carries an
-  ordered history are now two artifacts holding the same kind of thing, and
-  the next phase's project file carries both. Default: keep source as an
-  optional metadata block on the layer, and let the recipe stay the
-  ordered-history artifact.
+- Is a layer's source the right home for a run, or is an analysis-backed layer
+  a one-step recipe wearing a style's clothes? A layer that names an algorithm
+  and its parameters and a recipe that carries an ordered history are two
+  artifacts holding the same kind of thing, and the next phase's project file
+  carries both. The layer half is settled -- every layer carries a source, and
+  it is a required member rather than an optional block -- so what is left open
+  is only whether the recipe stays the ordered-history artifact. Default: it
+  does.
 - A whole-library bundle -- "Export all saved items (JSON)" with its
   collision-resolution UI -- was declined for this revision as one step from a
   project file. It is recorded here as an input to the project-file question
   above, not as a separate question.
-- A saved formula makes the [name] grammar an exported artifact, which raises
-  the cost of the JMESPath-versus-[name] decision still open above.
+- A saved formula makes the [name] grammar an exported artifact. With the two
+  languages permanent and separate, the remaining cost is only that every field
+  taking one must say which it takes.
 - The header signature (sorted column names plus delimiter) is a weaker key
   than the notes fingerprint, and two unrelated exports with identical column
   names collide into one import mapping. Naming the mapping after its
@@ -7988,10 +8075,10 @@ a check that decides whether the mitigation held.
   menu's Toolbar row is the escape, and its way back is a palette row a user
   must know exists. That is a real, small, permanent cost, accepted knowingly.
   Check: the palette row is indexed under both "toolbar" and "show".
-- `metadata.source` is a forward-compatibility bet. It is verified against the
-  current schema -- `StyleLayer` is strict and `StyleLayerMetadata` is loose --
-  but a future tightening of that metadata object would break every exported
-  analysis-backed layer. 5.8 records the dependency, not just the feature.
+- A layer's source is no longer a forward-compatibility bet. It is a required,
+  typed member of the layer rather than a loose bag a later tightening could
+  reject, so an exported analysis-backed layer cannot be broken by a schema
+  that grows. 5.8 records the dependency, not just the feature.
 - Making the import mappings visible makes their collisions visible too. That
   is the point, but it converts a silent wrong mapping into a user-facing
   question the app cannot yet answer; the open question above is where it is

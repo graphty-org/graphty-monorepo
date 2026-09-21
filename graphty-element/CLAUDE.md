@@ -17,45 +17,113 @@ The main component `<graphty-element>` provides interactive graph visualizations
 
 ```
 graphty-element/
-├── src/
-│   ├── Graph.ts              # Central orchestrator
-│   ├── graphty-element.ts    # Web Component entry point
-│   ├── Node.ts / Edge.ts     # Graph element classes
-│   ├── ai/                   # AI/LLM integration
-│   │   ├── commands/         # Natural language command handlers
-│   │   ├── providers/        # LLM provider adapters
-│   │   ├── schema/           # Schema extraction for AI
-│   │   └── keys/             # API key management
-│   ├── algorithms/           # Algorithm wrappers and registry
-│   ├── cameras/              # Camera implementations
-│   ├── config/               # Configuration types and palettes
-│   ├── data/                 # Data source implementations
-│   ├── input/                # Input handling (keyboard, mouse, touch)
-│   ├── layout/               # Layout engine wrappers
-│   ├── logging/              # Logging infrastructure
-│   ├── meshes/               # Babylon.js mesh factories
-│   ├── screenshot/           # Screenshot capture utilities
-│   ├── shaders/              # Custom GLSL shaders
-│   ├── ui/                   # UI overlay components
-│   ├── utils/                # Utility functions
-│   ├── video/                # Video export functionality
-│   └── xr/                   # VR/AR support
-├── test/
-│   ├── ai/                   # AI feature tests
-│   ├── algorithms/           # Algorithm tests
-│   ├── interactions/         # User interaction tests
-│   ├── meshes/               # Mesh rendering tests
-│   └── ...
-├── stories/                  # Storybook stories
-└── docs/                     # VitePress documentation
+|-- index.ts                  # Entry point: "." (the custom element; pulls in Babylon + Lit)
+|-- schema.ts                 # Entry point: "./schema"
+|-- catalog.ts                # Entry point: "./catalog"
+|-- extend.ts                 # Entry point: "./extend"
+|-- format.ts                 # Entry point: "./format"
+|-- session.ts                # Entry point: "./session"
+|-- commands.ts               # Entry point: "./commands" (reserved, exports nothing yet)
+|-- react.ts                  # Entry point: "./react" (reserved, exports nothing yet)
+|-- webgpu.ts                 # Entry point: "./webgpu" (side-effect: registers the accelerator)
+|-- ai.ts                     # Entry point: "./ai"
+|-- src/
+|   |-- Graph.ts              # Central orchestrator
+|   |-- graphty-element.ts    # Web Component entry point
+|   |-- Node.ts / Edge.ts     # Graph element classes
+|   |-- Styles.ts             # Style resolution
+|   |-- acceleration/         # AccelerationController, accelerator registry, Capabilities, Limits
+|   |-- ai/                   # AI/LLM integration
+|   |   |-- commands/         # Natural language command handlers
+|   |   |-- providers/        # LLM provider adapters
+|   |   |-- schema/           # Schema extraction for AI
+|   |   |-- prompt/           # System prompt construction
+|   |   |-- input/            # Voice input
+|   |   `-- keys/             # API key management
+|   |-- algorithms/           # Algorithm wrappers and registry
+|   |-- camera/               # Camera presets
+|   |-- cameras/              # Camera implementations
+|   |-- catalog/              # Plain-JSON descriptors: algorithms, layouts, formats,
+|   |                         #   palettes, scales, optionsFromZod, descriptor + style types
+|   |-- config/               # Configuration types and palettes
+|   |-- constants/            # Mesh constants, obsolescence rules
+|   |-- data/                 # Data source implementations
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (38 codes), isGraphtyError
+|   |-- input/                # Input handling (keyboard, mouse, touch)
+|   |-- layout/               # Layout engine wrappers
+|   |-- logging/              # Logging infrastructure
+|   |-- managers/             # Style, Data, Layout, Algorithm, Selection, Render, ... managers
+|   |-- meshes/               # Babylon.js mesh factories
+|   |-- screenshot/           # Screenshot capture utilities
+|   |-- shaders/              # Custom GLSL shaders
+|   |-- types/                # Shared type declarations
+|   |-- ui/                   # UI overlay components
+|   |-- utils/                # Utility functions (incl. styleHelpers)
+|   |-- video/                # Video export functionality
+|   `-- xr/                   # VR/AR support
+|-- test/
+|   |-- acceleration/         # Accelerator registry, controller, webgpu entry tests
+|   |-- ai/                   # AI feature tests
+|   |-- algorithms/           # Algorithm tests
+|   |-- catalog/              # Descriptor table tests
+|   |-- errors/               # Error model tests
+|   |-- interactions/         # User interaction tests
+|   |-- meshes/               # Mesh rendering tests
+|   |-- packaging/            # Exports map + Node-safe entry point enforcement
+|   `-- ...
+|-- stories/                  # Storybook stories
+`-- docs/                     # VitePress documentation
 ```
+
+## Entry Points
+
+This package is not one barrel. `package.json` publishes an exports map, and each subpath has a
+source file of the same name at the package root:
+
+| Subpath | Source | What it carries | Node-safe |
+|---------|--------|-----------------|-----------|
+| `.` | `index.ts` | The custom element; defines the tag; pulls in Babylon.js and Lit | No |
+| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
+| `./catalog` | `catalog.ts` | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types | Yes |
+| `./extend` | `extend.ts` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError` | Yes |
+| `./format` | `format.ts` | The graph-format decode vocabulary (read-only half; no brand, no version) | Yes |
+| `./session` | `session.ts` | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model | Yes |
+| `./commands` | `commands.ts` | Nothing yet; the name is reserved for the serialisable command union | Yes (empty) |
+| `./react` | `react.ts` | Nothing yet; the name is reserved for typed React wrappers | Yes (empty) |
+| `./webgpu` | `webgpu.ts` | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer | No |
+| `./ai` | `ai.ts` | The natural-language layer and its LLM SDKs; needs a DOM | No |
+| `./bundle` | `index.ts` via `vite.bundle.config.ts` | One self-contained file for a `<script>` tag (replaced the UMD build) | No |
+
+**Node-safe means the module resolves with no Babylon.js, no Lit and no DOM anywhere in its
+run-time import graph.** `test/packaging/node-safe-entries.test.ts` enforces it for `session.ts`,
+`schema.ts`, `catalog.ts`, `commands.ts`, `extend.ts`, `format.ts` and `react.ts`: it transpiles
+each one and everything it reaches (so `import type` is correctly erased), fails if
+`@babylonjs/*`, `lit`, `@lit/*` or `@mlc-ai/*` appears, checks that `index.ts` does reach Babylon
+and Lit so a walker that resolved nothing cannot pass, and then imports `session`, `schema`,
+`catalog`, `extend` and `format` in plain Node. `test/packaging/exports-map.test.ts` checks the
+exports map, the `sideEffects` list and the peer dependency declarations against the build.
+
+So: **adding an import to a module a Node-safe entry point reaches will fail the build**, in a
+test far away from the file you edited. Before importing something into `src/catalog/`,
+`src/errors/`, `src/acceleration/`, `src/config/`, `src/utils/styleHelpers/` or anything else
+those entry points reach, check what that import drags in. A type-only import is free -- write
+`import type` and the emitter deletes the statement. A value import of anything that touches a
+mesh, a material, a scene, a `LitElement` or `document` is not.
+
+`@graphty/webgpu-graph-algorithms` is an optional peer dependency and `webgpu.ts` is the only
+file in the package allowed to import it. A consumer who never imports `./webgpu` never resolves
+the peer, which is why activation is an entry point rather than a dynamic import from the core.
+
+The build runs Vite twice: the library build (`vite.config.ts`, every dependency external, one
+output file per entry point) and the self-contained bundle (`vite.bundle.config.ts`, nothing
+external, one file, `emptyOutDir: false` so it adds to `dist/` rather than replacing it).
 
 ## Essential Commands
 
 ```bash
 # Development
-npm run dev              # Start Vite dev server (port 9020)
-npm run storybook        # Start Storybook (port 9025)
+npm run dev              # Start Vite dev server (HOST/PORT from the monorepo root .env)
+npm run storybook        # Start Storybook (HOST/PORT from graphty-element/.env)
 npm run dev:xr           # Start XR demo server
 
 # Testing
@@ -65,6 +133,7 @@ npm run test:browser     # Run browser tests (Playwright)
 npm run test:storybook   # Run Storybook component tests
 npm run test:interactions # Run interaction tests
 npm run test:llm-regression # Run LLM regression tests
+npm run test:mesh        # Run mesh tests (separate vitest config)
 
 # Coverage
 npm run coverage         # Full coverage with shards
@@ -74,16 +143,19 @@ npm run coverage:preview # Serve coverage report on port 9053
 # Linting
 npm run lint             # ESLint + TypeScript check
 npm run lint:fix         # Auto-fix lint issues
-npm run lint:pkg         # Check for unused deps (knip)
+npm run lint:knip        # Check for unused deps (knip, run from the monorepo root)
 
 # Building
-npm run build            # Vite build + TypeScript declarations
+npm run build            # Vite library build + the ./bundle build + TypeScript declarations
 npm run build-storybook  # Build Storybook for deployment
 
 # Documentation
 npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
+
+The monorepo assigns this package port 9020 for the dev server and 9025 for Storybook; both are
+read from `PORT`, so without an `.env` you get Vite's and Storybook's own defaults.
 
 ## Architecture
 
@@ -96,10 +168,29 @@ npm run docs:build       # Build documentation
 
 ### Key Design Patterns
 
-- **Registry Pattern**: Layouts, data sources, algorithms are dynamically registered
+- **Registry Pattern**: Layouts, data sources, algorithms and accelerators are dynamically registered
 - **Manager Pattern**: Side effects handled through managers (always use manager methods, not direct manipulation)
 - **Observable Pattern**: Events via graphObservable, nodeObservable, edgeObservable
 - **Stateless Design**: APIs work regardless of call order
+
+### Error Model
+
+Every failure the element reports is a `GraphtyError` carrying a `GraphtyErrorCode` from
+`src/errors/codes.ts`. The code is the contract a consumer switches on; the message is for
+people and may be reworded in any release. Sibling packages throw their own error classes, and
+the element re-reports them as one of these codes with the original attached as `cause`. There
+is deliberately no `E_NOT_READY`: every method is safe to call before the element is ready, and
+work queues until it is.
+
+### Acceleration
+
+`src/acceleration/` owns hardware acceleration end to end: a registry an accelerator factory
+registers into, an `AccelerationController` that probes, builds, attaches, watches for device
+loss and applies the `acceleration.minNodes` threshold, and the `Capabilities` document a host
+reads. The element exposes the `acceleration` attribute (`auto` | `off` | `required`, reflecting)
+and emits `graphty-capabilities-change` on every transition. A consumer writes no probe, no
+construction and no device-loss code -- that is the point. Nothing here names a GPU type; WebGPU
+arrives only through the `./webgpu` entry point.
 
 ### Test Projects
 
@@ -113,9 +204,32 @@ npm run docs:build       # Build documentation
 
 ## Common Pitfalls
 
+**Entry point contamination**: Five published entry points carry exports that must resolve in
+Node with no renderer (two more are checked but still empty). Importing a value from a module
+that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`, `extend.ts`,
+`format.ts` or `session.ts` reaches fails `test/packaging/node-safe-entries.test.ts`, not the
+file you edited. Use `import type` when you only need the type -- it is erased and costs
+nothing. See "Entry Points" above.
+
+**The colour helpers are total, and do not throw**: in
+`src/utils/styleHelpers/color/interpolation.ts`, `hexToRgb` returns `null` for anything that is
+not a six-digit hex string, and `interpolatePalette` returns `MISSING_DATA_COLOR` (`#ff00ff`)
+for a value that is `undefined`, `null`, `NaN` or infinite, and for a palette anchor that does
+not parse. They run once per node inside a repaint loop with no try/catch, so a throw would
+abort the frame and silently leave every later node unstyled. Only an EMPTY palette throws --
+that is a programmer error in the palette definition, caught before anything is painted.
+
+Several older call sites were written around the previous throwing behaviour: a try/catch around
+an interpolation call, or a pre-check for `undefined` before one, is now dead weight and should
+be deleted rather than copied.
+
+Seeing the magenta on screen is a bug report, not a design: it means a style layer asked a ramp
+for an element the algorithm never measured. Fix the layer's selector so the unmeasured element
+is never visited; do not pick a prettier colour.
+
 **Manager Pattern**: Always use manager methods instead of direct manipulation:
-- ✅ `styleManager.addLayer(layer)` - uses manager
-- ❌ `graph.styles.layers.push(layer)` - bypasses cache invalidation
+- Right: `styleManager.addLayer(layer)` - uses manager
+- Wrong: `graph.styles.layers.push(layer)` - bypasses cache invalidation
 
 **Algorithm Registration**: All algorithm classes must auto-register:
 ```typescript
@@ -128,7 +242,9 @@ Algorithm.register(MyAlgorithm);
 
 ## Testing Guidelines
 
-- Use `assert` instead of `expect` for assertions
+- `assert` is the house style and is what the overwhelming majority of tests use: `import { assert, describe, it } from "vitest"`. Prefer it for new assertions.
+- `expect` is used where it earns its place -- `expect.each`, `toEqual` on a whole array, and the async matchers -- mostly in the browser, packaging, catalog and acceleration tests. It is not a violation to find it; it is a violation to reach for it out of habit.
+- `globals: true` is set, so `assert` and `expect` are available without an import, but every test file imports them explicitly anyway. Match that.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Store temporary files (screenshots, debug scripts) in `./tmp`
 - Don't create `__screenshots__` directories under `./test` unless intended for commit
@@ -159,6 +275,12 @@ The `src/ai/` directory provides LLM-powered features:
 - Multiple provider support (OpenAI, Anthropic, Google)
 - Secure API key management
 
+It is published from `@graphty/graphty-element/ai`, not from the root barrel, so an application
+that only draws a graph does not ship three LLM provider SDKs and an encrypted key store. What a
+coding agent needs in order to drive the element -- the algorithms, layouts, formats, palettes
+and scales, with every option each accepts -- is published as plain JSON by
+`@graphty/graphty-element/catalog` instead.
+
 ## XR Support
 
 The `src/xr/` directory provides VR/AR support:
@@ -172,12 +294,9 @@ The `src/xr/` directory provides VR/AR support:
 ```bash
 # Multi-angle 3D screenshots
 npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id> [--axes]
-```
 
-### Layout Position Capture
-```bash
-# Capture settled layout positions
-npx tsx scripts/capture-with-actual-engine.ts
+# 2D screenshots, optionally at several zoom levels
+npx tsx test/helpers/capture-2d-screenshots.ts <story-id> [--zoom-levels]
 ```
 
 ## Configuration Stability

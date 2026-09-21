@@ -508,7 +508,11 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - ES modules are the default format
 - Bundled distributions: `dist/{package}.js`
-- UMD builds available for graphty-element
+- graphty-element is ESM-only. It publishes a map of entry points rather than one barrel, and
+  five of them -- `./session`, `./schema`, `./catalog`, `./extend` and `./format` -- must stay
+  free of Babylon.js, Lit and the DOM so they run in Node. A test fails the build if one of
+  them stops being. A consumer with no bundler loads `./bundle`, a single self-contained file
+  built by `vite.bundle.config.ts`; that replaced the UMD build, which is gone
 
 ## Design Documents
 

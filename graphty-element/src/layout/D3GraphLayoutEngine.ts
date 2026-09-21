@@ -228,11 +228,26 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
-     * Advance the D3 simulation by one tick
+     * Advance the D3 simulation by one tick, and publish where it moved every node to
      */
     step(): void {
         this.refresh();
         this.d3ForceLayout.tick();
+        this.publishPositions();
+    }
+
+    /**
+     * Copy the simulation's node coordinates into the shared position array.
+     *
+     * d3 keeps x, y and z as plain numbers on its own node objects, so this reads them in place and
+     * allocates nothing -- which is the point of overriding the base, whose default would build one
+     * object per node per tick.
+     */
+    override publishPositions(): void {
+        this.refresh();
+        for (const [node, d3node] of this.nodeMapping) {
+            this.writeNodePosition(node, d3node.x, d3node.y, d3node.z);
+        }
     }
 
     /**
@@ -290,9 +305,15 @@ export class D3GraphEngine extends LayoutEngine {
      */
     getNodePosition(n: Node): Position {
         const d3node = this._getMappedNode(n);
-        // if (d3node.x === undefined || d3node.y === undefined || d3node.z === undefined) {
-        //     throw new Error("Internal error: Node not initialized in D3GraphEngine");
-        // }
+
+        // Publish first, then answer from the array, so a caller reading one node at a time sees
+        // the same coordinates as a caller reading the array in bulk. A node with no row in the
+        // graph falls through to the simulation's own numbers.
+        const out = { x: 0, y: 0, z: 0 };
+        this.writeNodePosition(n, d3node.x, d3node.y, d3node.z);
+        if (this.readNodePosition(n, out)) {
+            return out;
+        }
 
         return {
             x: d3node.x,
@@ -311,6 +332,9 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.x = newPos.x;
         d3node.y = newPos.y;
         d3node.z = newPos.z ?? 0;
+        // A drag is a placement like any other, so it lands in the shared array immediately rather
+        // than waiting for a tick that a settled simulation may never run.
+        this.writeNodePosition(n, d3node.x, d3node.y, d3node.z);
         this.reheat = true;
     }
 

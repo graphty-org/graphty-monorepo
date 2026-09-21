@@ -3,5 +3,5 @@
  */
 
 export * from "./communityUtils";
-export * from "./graphConverter";
 export * from "./graphUtils";
+export * from "./snapshotGraph";

@@ -188,6 +188,22 @@ export class NGraphEngine extends LayoutEngine {
         const maxSteps = 1000; // Force settling after 1000 steps
 
         this._settled = ngraphSettled || avgMovement <= customThreshold || this._stepCount >= maxSteps;
+        this.publishPositions();
+    }
+
+    /**
+     * Copy the simulation's node coordinates into the shared position array.
+     *
+     * `ngraphLayout.getNodePosition` hands back the body's own position object rather than a copy,
+     * so this reads it in place and allocates nothing -- which is the point of overriding the base,
+     * whose default would build one object per node per step. In two dimensions ngraph carries no
+     * z at all, and the row is published flat rather than left unplaced.
+     */
+    override publishPositions(): void {
+        for (const [node, ngraphNode] of this.nodeMapping) {
+            const pos = this.ngraphLayout.getNodePosition(ngraphNode.id);
+            this.writeNodePosition(node, pos.x, pos.y, pos.z ?? 0);
+        }
     }
 
     /**
@@ -229,7 +245,19 @@ export class NGraphEngine extends LayoutEngine {
      */
     getNodePosition(n: Node): Position {
         const ngraphNode = this._getMappedNode(n);
-        return this.ngraphLayout.getNodePosition(ngraphNode.id);
+        const pos = this.ngraphLayout.getNodePosition(ngraphNode.id);
+
+        // Publish first, then answer from the array, so a caller reading one node at a time sees
+        // the same coordinates as a caller reading the array in bulk. A node with no row in the
+        // graph falls through to the simulation's own body, which is the object ngraph itself
+        // mutates -- see setNodePosition, which writes straight into it.
+        const out = { x: 0, y: 0, z: 0 };
+        this.writeNodePosition(n, pos.x, pos.y, pos.z ?? 0);
+        if (this.readNodePosition(n, out)) {
+            return out;
+        }
+
+        return pos;
     }
 
     /**
@@ -243,6 +271,9 @@ export class NGraphEngine extends LayoutEngine {
         currPos.x = newPos.x;
         currPos.y = newPos.y;
         currPos.z = newPos.z;
+        // A drag is a placement like any other, so it lands in the shared array immediately rather
+        // than waiting for a step that a settled simulation may never run.
+        this.writeNodePosition(n, newPos.x, newPos.y, newPos.z ?? 0);
     }
 
     /**

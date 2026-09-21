@@ -1,3 +1,5 @@
+import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
+
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { NodeIdType } from "./config";
@@ -19,6 +21,7 @@ export type GraphEvent =
     | GraphErrorEvent
     | GraphDataLoadedEvent
     | GraphDataAddedEvent
+    | GraphSnapshotReplacedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
     | GraphGenericEvent
@@ -27,6 +30,33 @@ export type GraphEvent =
     | DataLoadingErrorSummaryEvent
     | DataLoadingCompleteEvent
     | SelectionChangedEvent;
+
+/**
+ * The graph event types that stay INSIDE the element: emitted on the internal graph observable so
+ * the element's own managers can react, and never re-dispatched to the DOM.
+ *
+ * `<graphty-element>` forwards every graph event it sees to the DOM verbatim -- the internal name
+ * becomes the `CustomEvent` name and the internal event object becomes its `detail` -- so an event
+ * meant for the element's own machinery escapes to consumers by default. Two rules decide what may
+ * go out: a public DOM event name is prefixed and kebab-case, and its `detail` must survive
+ * structured cloning. `snapshot-replaced` fails both. Its name carries no prefix, and its payload
+ * is a `Graph` plus two `GraphSnapshot`s built on typed arrays, which a listener cannot clone,
+ * post to a worker or serialise -- so the event would reach consumers as a name they must not rely
+ * on carrying a value they cannot use.
+ *
+ * To keep a new internal event off the DOM, add its type to this set. Nothing else changes: the
+ * forwarder asks {@link isDomForwardableEvent}, which is the only place the decision is made.
+ */
+export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>(["snapshot-replaced"]);
+
+/**
+ * Whether a graph event may leave the element as a DOM CustomEvent.
+ * @param event - the internal graph event about to be forwarded
+ * @returns false for an element-internal event, true for one consumers are meant to see
+ */
+export function isDomForwardableEvent(event: GraphEvent): boolean {
+    return !INTERNAL_EVENT_TYPES.has(event.type);
+}
 
 export interface GraphSettledEvent {
     type: "graph-settled";
@@ -56,6 +86,26 @@ export interface GraphDataAddedEvent {
     count: number;
     shouldStartLayout: boolean;
     shouldZoomToFit: boolean;
+}
+
+/**
+ * Emitted by DataManager after every freeze, once the element's position column is attached to the
+ * new snapshot (graph-format design 14.4 rule 11).
+ *
+ * Listeners release per-snapshot resources: at E1 `Graph` releases the accelerator's GPU buffers for
+ * `previous` and its derived views, and caches drop their entries. Nothing a WeakMap can do for
+ * them -- GPU memory is not garbage collected.
+ */
+export interface GraphSnapshotReplacedEvent {
+    type: "snapshot-replaced";
+    /** The graph whose data changed. */
+    graph: Graph;
+    /** The superseded snapshot; null on the first freeze. */
+    previous: GraphSnapshot | null;
+    /** The snapshot every consumer must switch to. */
+    next: GraphSnapshot;
+    /** freezeWithReport's report, relative to the PREVIOUS freeze of the same builder. */
+    report: FreezeReport;
 }
 
 export interface GraphLayoutInitializedEvent {

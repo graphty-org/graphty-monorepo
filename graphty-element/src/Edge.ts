@@ -1,13 +1,13 @@
 import { AbstractMesh, Mesh, Quaternion, Ray, Vector3 } from "@babylonjs/core";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import _ from "lodash";
 
-import { CalculatedValue } from "./CalculatedValue";
-import { ChangeManager } from "./ChangeManager";
-import { type AdHocData, EdgeStyle, type EdgeStyleConfig } from "./config";
+import type { AdHocData, EdgeStyleConfig } from "./config";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
+import type { EdgePaint } from "./managers/StylePainter";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import { FilledArrowRenderer } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -41,15 +41,40 @@ export class Edge {
     srcId: NodeIdType;
     dstId: NodeIdType;
     id: string;
+
+    /**
+     * This edge's LOGICAL edge index in the element's current GraphSnapshot, assigned at add time
+     * and re-keyed through `report.edgeRemap` on a compacting freeze. INVALID_INDEX until the edge
+     * reaches the builder. `id` is unchanged and remains the `"src:dst"` pair string (DEP-M6-B).
+     */
+    index: number = INVALID_INDEX;
     dstNode: Node;
     srcNode: Node;
     data: AdHocData;
-    algorithmResults: AdHocData;
-    styleUpdates: AdHocData;
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
     arrowMesh: AbstractMesh | null = null;
     arrowTailMesh: AbstractMesh | null = null;
     styleId: EdgeStyleId;
+
+    /**
+     * The source mesh this edge is currently drawn from.
+     *
+     * Under the legacy stack it is the style id; under the session's stack it is the interner's
+     * key with the colour put back in, because the edge renderer has no per-instance state to
+     * carry one. See `EdgePaint`.
+     */
+    private meshKey: string;
+
+    /**
+     * What the session's style stack resolved for this edge, or null while the legacy stack owns
+     * its paint.
+     *
+     * READ FOR EVERY DRAWING DECISION, not only for the mesh: whether the line bows, which arrow
+     * caps it carries and how wide it is are all read again on frames the style stack knows
+     * nothing about, and reading them off the legacy style id while the session owns the paint
+     * would draw half an edge from each system.
+     */
+    private sessionPaint: EdgePaint | null = null;
     // XXX: performance impact when not needed?
     ray: Ray;
     label: RichTextLabel | null = null;
@@ -59,7 +84,6 @@ export class Edge {
     private _arrowTailTextOffset = 0.3;
     private _labelOffset = 0;
     private _labelAttachPosition: AttachPosition = "center";
-    changeManager: ChangeManager;
     // Debug flag for logging lineDirection (reserved for future use)
     private _loggedLineDirection: boolean = false;
 
@@ -73,6 +97,22 @@ export class Edge {
      * calls every frame.
      */
     private disposed = false;
+
+    /**
+     * Whether the visibility mask says this edge is part of the graph on screen.
+     *
+     * Held rather than derived so the renderer can apply a mask as a DELTA: an edge whose
+     * visibility did not move costs no mesh operation at all.
+     */
+    private renderVisible = true;
+
+    /**
+     * Whether this edge is in the session's selection.
+     *
+     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected} for what is and
+     * is not drawn from it today.
+     */
+    private selected = false;
 
     /**
      * Helper to check if we're using GraphContext
@@ -110,14 +150,7 @@ export class Edge {
         this.dstId = dstNodeId;
         this.id = `${srcNodeId}:${dstNodeId}`;
         this.opts = opts;
-        this.changeManager = new ChangeManager();
-        this.data = this.changeManager.watch("data", data);
-        this.algorithmResults = this.changeManager.watch("algorithmResults", {} as unknown as AdHocData);
-        this.styleUpdates = this.changeManager.addData("style", {} as unknown as AdHocData, EdgeStyle);
-        this.changeManager.loadCalculatedValues(
-            this.context.getStyleManager().getStyles().getCalculatedStylesForEdge(data),
-            true,
-        );
+        this.data = data;
 
         // make sure both srcNode and dstNode already exist
         const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
@@ -143,12 +176,13 @@ export class Edge {
 
         // copy edgeMeshConfig
         this.styleId = styleId;
+        this.meshKey = String(styleId);
 
         // create ngraph link
         // TODO: Edge is added to layout engine by DataManager, not here
 
         // create mesh
-        const style = Styles.getStyleForEdgeStyleId(this.styleId);
+        const style = this.currentStyle;
 
         // create arrow mesh if needed
         this.arrowMesh = EdgeMesh.createArrowHead(
@@ -241,29 +275,26 @@ export class Edge {
     }
 
     /**
-     * Adds a calculated style value to this edge.
-     *
-     * NOT DURABLE, by design: a value added here does not survive a style reload.
-     * `ChangeManager.loadCalculatedValues` -- which `DataManager.applyStylesToExistingEdges` calls
-     * on every repaint -- REPLACES both the calculated-value set and the watched-input map with
-     * exactly what the current style layers ask for, so anything registered through this method is
-     * dropped at the next repaint. That replacement is deliberate: without it a REMOVED style
-     * layer's calculated value kept running and overwrote the replacement layer's colours on every
-     * repaint. To make a calculated value durable, put it in a style layer's `calculatedStyle` so
-     * `Styles.getCalculatedStylesForEdge` rebuilds it on every load.
-     * @param cv - The calculated value to add
-     */
-    addCalculatedStyle(cv: CalculatedValue): void {
-        this.changeManager.addCalculatedValue(cv);
-    }
-
-    /**
      * Invalidates the position cache, forcing the edge to be recalculated on the next update.
      * Call this when a connected node's size changes (e.g., due to selection).
      */
     invalidatePositionCache(): void {
         this._lastSrcPos = null;
         this._lastDstPos = null;
+    }
+
+    /**
+     * The style this edge is currently drawn from, whichever stack resolved it.
+     *
+     * ONE READER FOR ONE FACT. An edge asks what it looks like on nearly every frame -- to decide
+     * whether to bow, where to cut its line for an arrow cap, how wide to draw it -- and each of
+     * those questions used to go straight to the static style table keyed by `styleId`. That
+     * table is the legacy stack's, so every one of them was a second door into an answer the
+     * session's stack may already own. There is now one door, and it says which stack answered.
+     * @returns The resolved style.
+     */
+    private get currentStyle(): EdgeStyleConfig {
+        return this.sessionPaint?.style ?? Styles.getStyleForEdgeStyleId(this.styleId);
     }
 
     /**
@@ -280,23 +311,15 @@ export class Edge {
             return;
         }
 
-        this.context.getStatsManager().startMeasurement("Edge.update");
-
-        // Process style updates from calculated values
-        const newStyleKeys = Object.keys(this.styleUpdates);
-        if (newStyleKeys.length > 0) {
-            let style = Styles.getStyleForEdgeStyleId(this.styleId);
-            // Convert styleUpdates Proxy to plain object for proper merging
-            // (styleUpdates is wrapped by on-change library's Proxy)
-            const plainStyleUpdates = _.cloneDeep(this.styleUpdates);
-            style = _.defaultsDeep(plainStyleUpdates, style);
-            const styleId = Styles.getEdgeIdForStyle(style);
-            this.updateStyle(styleId);
-            for (const key of newStyleKeys) {
-                // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-                delete this.styleUpdates[key];
-            }
+        // A hidden edge costs nothing per frame. It is also what keeps the arrow-cap branches
+        // below from re-enabling an arrowhead on an edge the mask has taken off screen: those
+        // branches call setEnabled(true) as part of recomputing a cap, and they run on any frame
+        // an endpoint moves.
+        if (!this.renderVisible) {
+            return;
         }
+
+        this.context.getStatsManager().startMeasurement("Edge.update");
 
         const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
         if (!lnk) {
@@ -321,7 +344,7 @@ export class Edge {
         const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
 
         // PHASE 5: Bezier curves need geometry recreation (can't transform)
-        const style = Styles.getStyleForEdgeStyleId(this.styleId);
+        const style = this.currentStyle;
         if (style.line?.bezier) {
             // Dispose old mesh
             if (this.mesh instanceof PatternedLineMesh) {
@@ -390,7 +413,68 @@ export class Edge {
             return;
         }
 
-        // Only skip update if styleId is the same AND mesh is not disposed
+        this.styleId = styleId;
+
+        // THE OWNERSHIP RULE, AT THE WRITE. See Node.updateStyle and StylePainter: while the
+        // session's stack owns this graph's paint the legacy stack resolves a style id and keeps
+        // it, so everything reading `edge.styleId` keeps its answer, but it does not draw. The
+        // call is still a rebuild request -- the 2D/3D switch makes it with every mesh already
+        // disposed -- so it is answered from the owner's style rather than refused.
+        const paint = this.ownedPaint();
+
+        if (paint !== null) {
+            this.sessionPaint = paint;
+            this.paintFrom(paint.meshKey, paint.style);
+
+            return;
+        }
+
+        // Ownership has moved back, so the paint the session resolved is no longer this edge's.
+        this.sessionPaint = null;
+        this.paintFrom(String(styleId), Styles.getStyleForEdgeStyleId(styleId));
+    }
+
+    /**
+     * What the session's style stack says this edge looks like, when it is the owner.
+     *
+     * See Node.ownedPaint: the painter is asked rather than the field read, because a rebuild can
+     * arrive between the session being bound and the first frame that drains its dirty set.
+     * @returns The paint, or null when the legacy stack owns this edge.
+     */
+    private ownedPaint(): EdgePaint | null {
+        const painter = this.context.getStylePainter?.();
+
+        if (painter?.owns !== true) {
+            return null;
+        }
+
+        return this.sessionPaint ?? painter.edgePaint(this.index);
+    }
+
+    /**
+     * Draw this edge as the session's style stack resolved it.
+     *
+     * The session's half of the door {@link Edge.updateStyle} is the legacy half of. Exactly one
+     * of the two owns the graph at a time, so the two can never write one edge at once.
+     * @param paint - The source mesh and the style behind it.
+     */
+    applySessionPaint(paint: EdgePaint): void {
+        if (this.disposed) {
+            return;
+        }
+
+        this.sessionPaint = paint;
+        this.paintFrom(paint.meshKey, paint.style);
+    }
+
+    /**
+     * Build the line, the arrow caps and the label one resolved style asks for.
+     * @param meshKey - Which source mesh this edge is drawn from.
+     * @param style - The resolved style everything below is built from.
+     */
+    private paintFrom(meshKey: string, style: EdgeStyleConfig): void {
+
+        // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
         // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
         const meshDisposed =
@@ -398,11 +482,11 @@ export class Edge {
                 ? false // PatternedLineMesh is always "alive" (check individual meshes if needed)
                 : this.mesh.isDisposed();
 
-        if (styleId === this.styleId && !meshDisposed) {
+        if (meshKey === this.meshKey && !meshDisposed) {
             return;
         }
 
-        this.styleId = styleId;
+        this.meshKey = meshKey;
 
         // Invalidate position cache to force edge redraw with new style
         this._lastSrcPos = null;
@@ -414,8 +498,6 @@ export class Edge {
             this.mesh.dispose();
         }
 
-        const style = Styles.getStyleForEdgeStyleId(styleId);
-
         // recreate arrow mesh if needed
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
             this.arrowMesh.dispose();
@@ -423,7 +505,7 @@ export class Edge {
 
         this.arrowMesh = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
-            String(styleId),
+            meshKey,
             {
                 type: style.arrowHead?.type ?? "none",
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -441,7 +523,7 @@ export class Edge {
 
         this.arrowTailMesh = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
-            `${String(styleId)}-tail`,
+            `${meshKey}-tail`,
             {
                 type: style.arrowTail?.type ?? "none",
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -468,7 +550,7 @@ export class Edge {
         this.mesh = EdgeMesh.create(
             this.context.getMeshCache(),
             {
-                styleId: String(styleId),
+                styleId: meshKey,
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.line?.color ?? "#FFFFFF",
             },
@@ -546,6 +628,10 @@ export class Edge {
             this.arrowTailText.dispose();
             this.arrowTailText = null;
         }
+
+        // Every mesh above is new, so whatever the visibility mask said about this edge has to be
+        // said again -- otherwise a restyle silently puts a filtered-out edge back on screen.
+        this.applyRenderState();
     }
 
     /**
@@ -618,6 +704,115 @@ export class Edge {
     }
 
     /**
+     * Whether the renderer is currently drawing this edge.
+     * @returns True when it is drawn.
+     */
+    isRenderVisible(): boolean {
+        return this.renderVisible;
+    }
+
+    /**
+     * Say whether the renderer should draw this edge.
+     *
+     * HIDING IS NOT DELETION: the edge keeps its row in the store, its dense index, its endpoints
+     * and its style. Showing it again re-enables the meshes it already has and invalidates the
+     * endpoint cache so the next frame recomputes where the line meets the two node surfaces --
+     * which is a ray cast, not a layout.
+     * @param visible - What the visibility mask says about this edge.
+     * @returns True when this changed the state.
+     */
+    setRenderVisible(visible: boolean): boolean {
+        if (this.renderVisible === visible) {
+            return false;
+        }
+
+        this.renderVisible = visible;
+        this.applyRenderState();
+
+        return true;
+    }
+
+    /**
+     * Whether this edge is in the session's selection.
+     * @returns True when it is selected.
+     */
+    isSelected(): boolean {
+        return this.selected;
+    }
+
+    /**
+     * Say whether this edge is selected.
+     *
+     * The state is recorded and nothing is drawn from it yet. An edge line in 3D is an instance of
+     * ONE cached mesh per edge style (`EdgeMesh.create` interns it under `edge-style-<id>`), so a
+     * per-edge colour or alpha is not available without giving the selected edge a mesh of its
+     * own; see the report accompanying this change for what that needs. Recording it here rather
+     * than dropping it is what lets the renderer draw it the moment that lands, and what keeps the
+     * element -- rather than a style layer -- the owner of the answer.
+     * @param selected - What the selection mask says about this edge.
+     * @returns True when this changed the state.
+     */
+    setSelected(selected: boolean): boolean {
+        if (this.selected === selected) {
+            return false;
+        }
+
+        this.selected = selected;
+
+        return true;
+    }
+
+    /**
+     * Enable or disable every mesh this edge owns, to match {@link Edge.renderVisible}.
+     *
+     * The arrowheads are only ever DISABLED here. Whether an edge has an arrowhead at all, and
+     * where it sits, is decided while the endpoints are recomputed, so re-enabling one from here
+     * would show a cap on an edge whose style asks for none. Invalidating the endpoint cache hands
+     * that decision back to the next update, which is the code that owns it.
+     */
+    private applyRenderState(): void {
+        if (this.disposed) {
+            return;
+        }
+
+        const drawn = this.renderVisible;
+
+        if (this.mesh instanceof PatternedLineMesh) {
+            for (const segment of this.mesh.meshes) {
+                if (!segment.isDisposed()) {
+                    segment.setEnabled(drawn);
+                }
+            }
+        } else if (!this.mesh.isDisposed()) {
+            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
+            // isPickable here would lose whatever the edge style asked for on the way back.
+            this.mesh.setEnabled(drawn);
+        }
+
+        if (!drawn) {
+            if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
+                this.arrowMesh.setEnabled(false);
+            }
+
+            if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
+                this.arrowTailMesh.setEnabled(false);
+            }
+        }
+
+        for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
+            const labelMesh = text?.labelMesh;
+
+            if (labelMesh && !labelMesh.isDisposed()) {
+                labelMesh.setEnabled(drawn);
+            }
+        }
+
+        if (drawn) {
+            this.invalidatePositionCache();
+        }
+    }
+
+    /**
      * Updates ray directions for all edges in the graph to enable accurate mesh intersections.
      * @param g - The graph or graph context containing the edges
      */
@@ -641,7 +836,7 @@ export class Edge {
             const srcMesh = e.srcNode.mesh;
             const dstMesh = e.dstNode.mesh;
 
-            const style = Styles.getStyleForEdgeStyleId(e.styleId);
+            const style = e.currentStyle;
             if (style.arrowHead?.type === undefined || style.arrowHead.type === "none") {
                 // Performance: this could be optimized
                 continue;
@@ -723,7 +918,7 @@ export class Edge {
 
                 // Get arrow length (including size multiplier)
                 this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
-                const style = Styles.getStyleForEdgeStyleId(this.styleId);
+                const style = this.currentStyle;
                 const arrowSize = style.arrowHead?.size ?? 1.0;
                 const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
 
@@ -808,7 +1003,7 @@ export class Edge {
 
             // Use common arrow geometry functions for positioning
             this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
-            const arrowStyle = Styles.getStyleForEdgeStyleId(this.styleId);
+            const arrowStyle = this.currentStyle;
             const arrowType = arrowStyle.arrowHead?.type;
             const arrowSize = arrowStyle.arrowHead?.size ?? 1.0;
             const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
@@ -834,7 +1029,7 @@ export class Edge {
             if (this.arrowMesh.metadata?.is2D) {
                 // 2D: Use quaternion to properly compose rotations
                 // The arrow geometry is in XZ plane with tip at origin pointing along +X
-                // We need to: 1) rotate to XY plane (90° around X), 2) rotate to point at edge direction
+                // We need to: 1) rotate to XY plane (90 deg around X), 2) rotate to point at edge direction
                 //
                 // With Euler angles (YXZ order), setting rotation.x then rotation.z doesn't work because
                 // after the X rotation, the local Z axis points toward world -Y, so Z rotation
@@ -843,7 +1038,7 @@ export class Edge {
                 // Solution: Use quaternion composition with correct order
                 const angle = Math.atan2(direction.y, direction.x);
 
-                // Step 1: Rotation around X by 90° (brings arrow from XZ plane to XY plane)
+                // Step 1: Rotation around X by 90 deg (brings arrow from XZ plane to XY plane)
                 const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
                 // Step 2: Rotation around Z by angle (aligns arrow with edge direction in XY plane)
                 const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
@@ -881,7 +1076,7 @@ export class Edge {
             // Handle arrow tail if configured
             let adjustedSrcPoint = srcPoint;
             if (this.arrowTailMesh) {
-                const tailStyle = Styles.getStyleForEdgeStyleId(this.styleId);
+                const tailStyle = this.currentStyle;
                 const tailType = tailStyle.arrowTail?.type;
 
                 if (tailType && tailType !== "none") {
@@ -999,7 +1194,7 @@ export class Edge {
         let dstPoint: Vector3 | null = null;
         let newEndPoint: Vector3 | null = null;
         if (dstHitInfo.length && srcHitInfo.length) {
-            const style = Styles.getStyleForEdgeStyleId(this.styleId);
+            const style = this.currentStyle;
             const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
 
             dstPoint = dstHitInfo[0].pickedPoint;
@@ -1165,7 +1360,11 @@ export class Edge {
         textConfig: Record<string, unknown>,
         source: "arrowHead" | "arrowTail",
     ): { label: RichTextLabel; offset: number } {
-        // Extract text from config - either direct text or textPath
+        // Extract text from config - either direct text or textPath.
+        // The two arrow glyphs below are the only non-ASCII bytes in this file and they are
+        // DELIBERATE: this is the rendered default for an arrow label the caller declared but
+        // gave no text for, so it is UI content, not source punctuation. Replacing it with
+        // "->" / "<-" would change what the scene draws, which is not a formatting fix.
         let labelText: string = source === "arrowHead" ? "→" : "←";
 
         if (textConfig.text !== undefined && textConfig.text !== null) {

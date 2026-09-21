@@ -9,6 +9,46 @@ interface GMLValue {
 }
 
 /**
+ * The direction the `graph` block declares.
+ *
+ * GML states it with one key, `directed`, whose value is 1 for a digraph and 0 otherwise, and the
+ * specification gives an omitted `directed` the value 0. So a GML file that does not write the key
+ * is NOT silent: it has said undirected, and that is how every other GML reader takes it. This is
+ * the whole reason karate.gml -- which carries no `directed` key at all -- is an undirected graph
+ * everywhere except, until now, here.
+ *
+ * GML has no per-edge direction: an `edge` block holds `source`, `target` and attributes, and
+ * nothing in it can contradict the graph's own key. So there is no conflict to count.
+ * @param graph - the parsed `graph` block
+ * @returns the direction and the text that stated it
+ */
+function readDirectedKey(graph: GMLValue): { directed: boolean; statedBy: string } {
+    const value = graph.directed;
+    if (typeof value === "number") {
+        return { directed: value !== 0, statedBy: `directed ${String(value)}` };
+    }
+
+    // The tokenizer returns a string for anything that is not a bare integer or decimal, which
+    // includes a quoted `directed "1"`. Files in the wild do write it that way.
+    if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number(value.trim());
+        if (Number.isFinite(parsed)) {
+            return { directed: parsed !== 0, statedBy: `directed ${value}` };
+        }
+
+        // A `directed` key carrying something GML does not define leaves the spec's default
+        // standing, but the file did not omit the key and the element must not report that it did:
+        // a consumer reading the log line would go looking for a key that is right there.
+        return {
+            directed: false,
+            statedBy: `an unreadable directed ${value}, leaving the GML default (undirected)`,
+        };
+    }
+
+    return { directed: false, statedBy: "the GML default for an absent directed key (undirected)" };
+}
+
+/**
  * Data source for loading graph data from GML (Graph Modeling Language) files.
  * Supports hierarchical graph structures with typed attributes.
  */
@@ -48,6 +88,11 @@ export class GMLDataSource extends DataSource {
         // Extract nodes and edges
         const nodes = this.extractNodes(graph);
         const edges = this.extractEdges(graph);
+
+        // Declared BEFORE the first chunk is yielded, so the direction reaches the builder while it
+        // still holds no edges.
+        const declared = readDirectedKey(graph);
+        this.declareDirection(declared.directed, declared.statedBy);
 
         // Use shared chunking helper
         yield* this.chunkData(nodes, edges);
@@ -299,15 +344,11 @@ export class GMLDataSource extends DataSource {
                     continue;
                 }
 
-                const edgeData: Record<string, unknown> = {
-                    src: edge.source,
-                    dst: edge.target,
-                    ...edge,
-                };
-
-                // Remove redundant source/target fields
-                delete edgeData.source;
-                delete edgeData.target;
+                // `source` and `target`, the names the file already uses and the names the
+                // element reads. This used to rename them to `src`/`dst` and then delete the
+                // originals, which was one importer translating into a spelling nothing else in
+                // the ecosystem writes.
+                const edgeData: Record<string, unknown> = { ...edge };
 
                 edges.push(edgeData);
             } catch (error) {

@@ -158,7 +158,7 @@ describe("resolveEdgeWeight", () => {
 describe("ingestEdge", () => {
     it("takes an edge whose endpoints have not arrived, and the snapshot carries both", () => {
         const store = makeStore();
-        const index = ingestEdge(store, "X", "Y", 1);
+        const { index } = ingestEdge(store, "X", "Y", 1);
         assert.notStrictEqual(index, INVALID_INDEX);
         const snapshot = store.getSnapshot();
         assert.strictEqual(snapshot.edgeCount, 1, "addMissingNodes means the builder took it");
@@ -186,10 +186,23 @@ describe("ingestEdge", () => {
         assert.strictEqual(column.data[1], 1);
     });
 
+    it("hands the counter back, so the caller can build an Edge whose id IS that counter", () => {
+        const store = makeStore();
+        const first = ingestEdge(store, "a", "b", 1);
+        const second = ingestEdge(store, "b", "c", 1);
+
+        assert.strictEqual(first.edgeId, 0, "the first edge takes the first counter value");
+        assert.strictEqual(second.edgeId, 1, "and the counter does not repeat");
+
+        const column = store.getSnapshot().edges.requireTyped("graphty.edgeId", "u32");
+        assert.strictEqual(column.data[first.index], first.edgeId, "the returned id is the one in the column");
+        assert.strictEqual(column.data[second.index], second.edgeId);
+    });
+
     it("refuses an endpoint id graph-format will not take", () => {
         const store = makeStore();
-        assert.strictEqual(ingestEdge(store, null, "b", 1), INVALID_INDEX);
-        assert.strictEqual(ingestEdge(store, "a", undefined, 1), INVALID_INDEX);
+        assert.strictEqual(ingestEdge(store, null, "b", 1).index, INVALID_INDEX);
+        assert.strictEqual(ingestEdge(store, "a", undefined, 1).index, INVALID_INDEX);
         assert.strictEqual(store.getSnapshot().edgeCount, 0, "neither reached the builder");
     });
 

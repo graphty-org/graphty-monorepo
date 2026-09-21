@@ -1,4 +1,4 @@
-import { type F32, INVALID_INDEX, remapArray, type U32 } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX, remapArray, type U8, type U32 } from "@graphty/graph-format";
 
 /** Floats per node: x, y, z, in SCENE units. */
 export const POSITION_COMPONENTS = 3;
@@ -86,6 +86,13 @@ export function isStorableCoordinate(value: number): boolean {
  * across a freeze is the bug; the test file pins both halves of this so a future in-place growth
  * cannot land silently.
  *
+ * THE PIN LANE RIDES ALONG. Beside the three coordinate components each row also carries one byte
+ * saying whether the reader has fixed that node in place. It is here rather than on a Node or
+ * inside a layout engine because a pin is a statement about a coordinate, and because it then
+ * grows, truncates and REMAPS with the coordinate it pins -- so a pin survives the compacting
+ * freeze that renumbers every node, which is what a pin held by whichever engine happened to be
+ * current never did.
+ *
  * Every row accessor is bounded by the LIVE ROW COUNT, not by the allocated length. A typed array
  * answers `undefined` past its end and swallows a store past its end, so an unbounded `isPlaced`
  * would answer for a row that does not exist, an unbounded `read` would report it at the ORIGIN,
@@ -100,18 +107,35 @@ export class ElementPositions {
     readonly components = POSITION_COMPONENTS;
 
     private array: F32;
+
+    /**
+     * One byte per row, 1 while the reader has fixed that node in place.
+     *
+     * IT LIVES HERE, BESIDE THE COORDINATES, and not on a Node or inside a layout engine, because
+     * a pin is a statement ABOUT a coordinate: "leave this row alone". Keeping the two in one
+     * object means one growth path, one remap path and one disposal, so a pin cannot drift away
+     * from the position it pins, and it survives the compacting freeze that renumbers every node
+     * -- which is exactly what a pin held by whichever engine happened to be current did not.
+     *
+     * Exactly as long as the coordinate lanes: `pins.length` is always the row capacity.
+     */
+    private pins: U8;
+
     private rows = 0;
 
     /**
-     * Allocate the backing array, every row unplaced.
+     * Allocate the backing array, every row unplaced and unpinned.
      * @param capacity - rows to reserve before the first growth; a non-negative integer
      */
     constructor(capacity: number = DEFAULT_CAPACITY) {
         requireRowCount(capacity, "capacity");
-        this.array = new Float32Array(POSITION_COMPONENTS * Math.max(1, capacity));
+        const rowCapacity = Math.max(1, capacity);
+        this.array = new Float32Array(POSITION_COMPONENTS * rowCapacity);
         // A Float32Array is ZERO-filled, and zero is a perfectly good coordinate: without this the
         // spare capacity reads back as "placed at the origin" the moment grow() reaches it.
         this.array.fill(Number.NaN);
+        // A Uint8Array is zero-filled, and zero is the right default here: unpinned.
+        this.pins = new Uint8Array(rowCapacity);
     }
 
     /**
@@ -128,6 +152,38 @@ export class ElementPositions {
      */
     get count(): number {
         return this.rows;
+    }
+
+    /**
+     * How many live rows carry real coordinates, by the same test {@link ElementPositions.isPlaced}
+     * applies one row at a time.
+     *
+     * The question behind it is "did the file that loaded this graph place every node?", which is
+     * what decides whether the Keep Positions arrangement can be used at all: a fixed layout over a
+     * graph where half the rows are NaN draws half a picture. Compare it against
+     * {@link ElementPositions.count} to answer that -- equal means every node has somewhere to go.
+     *
+     * COUNTED ON EVERY READ, and it has to be. The array is lent to the snapshot as a mutable
+     * column, so a layout, a drag and a GPU readback all write coordinates without passing through
+     * this class; a counter kept up to date by `write()` would miss every one of those and would be
+     * most wrong exactly while a layout was running, which is when somebody is asking. The scan is
+     * one f32 read per node and touches only the x lane.
+     *
+     * This is deliberately NOT on `GraphStatistics`. Those are memoised against the snapshot they
+     * were computed from, and how many nodes carry a coordinate changes while a layout runs WITHIN
+     * one snapshot, so a cached answer would be stale in the one moment it mattered.
+     * @returns how many rows in `[0, count)` carry a storable x
+     */
+    get placedCount(): number {
+        let placed = 0;
+
+        for (let base = 0; base < POSITION_COMPONENTS * this.rows; base += POSITION_COMPONENTS) {
+            if (this.hasStorableX(base)) {
+                placed++;
+            }
+        }
+
+        return placed;
     }
 
     /**
@@ -174,8 +230,16 @@ export class ElementPositions {
             // was copied forward by set(), and anything above `rows` is by definition unplaced.
             next.fill(Number.NaN, POSITION_COMPONENTS * this.rows);
             this.array = next;
+
+            const nextPins = new Uint8Array(capacity);
+            nextPins.set(this.pins);
+            // Same reasoning as the NaN fill above: the old lane's spare capacity came forward
+            // with set(), and a pin above the live row count belongs to nobody.
+            nextPins.fill(0, this.rows);
+            this.pins = nextPins;
         } else if (nodeCount > this.rows) {
             this.array.fill(Number.NaN, POSITION_COMPONENTS * this.rows, POSITION_COMPONENTS * nodeCount);
+            this.pins.fill(0, this.rows, nodeCount);
         } else if (nodeCount < this.rows) {
             // Truncation must CLEAR, not merely move the count down. Two ways the abandoned
             // coordinates come back otherwise: a later grow() hands those rows to DIFFERENT nodes
@@ -183,6 +247,10 @@ export class ElementPositions {
             // them; and remapArray() walks `min(remap.length, data.length / components)` rows --
             // the CAPACITY, not this count -- so a later remap() copies them into the live space.
             this.array.fill(Number.NaN, POSITION_COMPONENTS * nodeCount, POSITION_COMPONENTS * this.rows);
+            // The pin lane is truncated for the same reason, and one more: a pin that came back
+            // on a row handed to a different node would hold a node the reader never touched,
+            // with nothing on screen saying why it will not move.
+            this.pins.fill(0, nodeCount, this.rows);
         }
 
         this.rows = nodeCount;
@@ -203,7 +271,92 @@ export class ElementPositions {
     remap(nodeRemap: U32, nodeCount: number): void {
         requireRowCount(nodeCount, "nodeCount");
         this.array = remapArray(this.array, nodeRemap, nodeCount, Number.NaN, POSITION_COMPONENTS);
+        // The pin lane moves WITH the coordinates, through the same map in the same call, because
+        // a pin that stayed on the old row number would hold whichever node inherited that row.
+        this.pins = remapArray(this.pins, nodeRemap, nodeCount, 0, 1);
         this.rows = nodeCount;
+    }
+
+    /**
+     * Whether the reader has fixed this row's node in place.
+     *
+     * A row outside the live count is UNPINNED, never pinned, for the same reason
+     * {@link ElementPositions.isPlaced} answers false there: a node with no row is a node the
+     * graph builder has not taken, and answering "pinned" for one would freeze a node that does
+     * not exist yet and that nothing could release.
+     * @param index - node index
+     * @returns true when the row is inside the live count AND carries a pin
+     */
+    isPinned(index: number): boolean {
+        if (!Number.isInteger(index) || index < 0 || index >= this.rows) {
+            return false;
+        }
+
+        return this.pins[index] === 1;
+    }
+
+    /**
+     * Record or release a pin, GROWING the lane to reach the row.
+     *
+     * It grows rather than throwing for the same reason `LayoutEngine.writeNodePosition` does: a
+     * node's index is handed out the moment the graph builder takes its record, but its row only
+     * appears when the graph is next frozen, and a reader who drags a node in between would
+     * otherwise have the pin thrown away in silence.
+     *
+     * It REFUSES rather than throwing for an index that is not a row number at all -- the
+     * `INVALID_INDEX` a record the builder would not take carries for its whole life, or a
+     * negative or fractional number. Pinning happens from a pointer gesture, and a throw on that
+     * path takes the frame with it.
+     * @param index - node index
+     * @param pinned - true to pin, false to release
+     * @returns true when the lane was written, false when the index names no row
+     */
+    setPinned(index: number, pinned: boolean): boolean {
+        if (index === INVALID_INDEX || !Number.isInteger(index) || index < 0) {
+            return false;
+        }
+
+        if (index >= this.rows) {
+            this.grow(index + 1);
+        }
+
+        this.pins[index] = pinned ? 1 : 0;
+        return true;
+    }
+
+    /**
+     * How many live rows are pinned.
+     * @returns the count of pinned rows in `[0, count)`
+     */
+    get pinnedCount(): number {
+        let pinned = 0;
+
+        for (let row = 0; row < this.rows; row++) {
+            if (this.pins[row] === 1) {
+                pinned++;
+            }
+        }
+
+        return pinned;
+    }
+
+    /**
+     * The exact view to hand to `snapshot.nodes.set("graphty.pinned", ...)`.
+     *
+     * Bounded by the live row count, like {@link ElementPositions.view} and for the same reasons.
+     * @param nodeCount - the snapshot's node count
+     * @returns a subarray of length `nodeCount` over the same buffer
+     * @throws RangeError when `nodeCount` is not a non-negative integer, or exceeds the live count
+     */
+    pinnedView(nodeCount: number): U8 {
+        requireRowCount(nodeCount, "nodeCount");
+        if (nodeCount > this.rows) {
+            throw new RangeError(
+                `ElementPositions: pinnedView(${nodeCount}) needs ${nodeCount} live rows but only ${this.rows} exist; call grow(${nodeCount}) first`,
+            );
+        }
+
+        return this.pins.subarray(0, nodeCount);
     }
 
     /**

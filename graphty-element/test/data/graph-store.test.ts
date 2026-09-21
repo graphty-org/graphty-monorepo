@@ -593,6 +593,28 @@ describe("GraphStore lifecycle", () => {
         assert.strictEqual(store.nextEdgeId(), 2);
     });
 
+    it("carries the reader's pins onto every frozen snapshot, beside the coordinates they pin", () => {
+        // A pin says "leave this coordinate alone", so it belongs with the coordinate: attached on
+        // EVERY freeze, from the same lane, through the same array the position column comes from.
+        // Without it a pin would be the one thing about a node that no snapshot knows -- invisible
+        // to anything that reads or serialises a graph, and lost at the first re-freeze.
+        const { store } = makeStore();
+        store.builder.addEdge("a", "b");
+        store.builder.addEdge("b", "c");
+        store.touch();
+        store.getSnapshot();
+
+        const pinned = store.getSnapshot().ids.indexOf("b");
+        assert.isTrue(store.positions.setPinned(pinned, true));
+        store.touch();
+
+        const column = store.getSnapshot().nodes.get("graphty.pinned");
+        assert.isNotNull(column, "every snapshot carries the lane");
+        assert.strictEqual(column.dtype, "u8", "one byte per node");
+        assert.strictEqual(column.value(pinned), 1, "the pinned node is marked");
+        assert.strictEqual(column.value(pinned === 0 ? 1 : 0), 0, "and no other node is");
+    });
+
     it("dispose is TERMINAL: a use after teardown throws instead of being served", () => {
         // The callbacks point into a DataManager that is being torn down. A freeze served after
         // dispose() emits snapshot-replaced with previous: null -- the contract's "FIRST freeze" --

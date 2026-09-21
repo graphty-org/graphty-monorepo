@@ -127,8 +127,8 @@ describe("PajekDataSource", () => {
 
             assert.ok(chunk.value);
             assert.equal(chunk.value.edges.length, 1);
-            assert.equal(chunk.value.edges[0].src, "1");
-            assert.equal(chunk.value.edges[0].dst, "2");
+            assert.equal(chunk.value.edges[0].source, "1");
+            assert.equal(chunk.value.edges[0].target, "2");
             assert.equal(chunk.value.edges[0].directed, true);
             assert.equal(chunk.value.edges[0].weight, 1.0);
         });
@@ -182,8 +182,8 @@ describe("PajekDataSource", () => {
 
             assert.ok(chunk.value);
             assert.equal(chunk.value.edges.length, 1);
-            assert.equal(chunk.value.edges[0].src, "1");
-            assert.equal(chunk.value.edges[0].dst, "2");
+            assert.equal(chunk.value.edges[0].source, "1");
+            assert.equal(chunk.value.edges[0].target, "2");
             assert.equal(chunk.value.edges[0].directed, false);
             assert.equal(chunk.value.edges[0].weight, 1.0);
         });

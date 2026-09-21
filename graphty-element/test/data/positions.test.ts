@@ -17,6 +17,62 @@ describe("ElementPositions", () => {
         assert.strictEqual(p.isPlaced(2), false);
     });
 
+    it("counts the rows that carry a coordinate, which is how a file's completeness is read", () => {
+        const p = new ElementPositions(8);
+        p.grow(5);
+
+        assert.strictEqual(p.count, 5);
+        assert.strictEqual(p.placedCount, 0, "a freshly grown array places nothing");
+
+        p.write(0, 1, 2, 3);
+        p.write(3, 4, 5, 6);
+        assert.strictEqual(p.placedCount, 2);
+
+        // EQUAL TO THE COUNT is the answer "every node carries a coordinate", which is the one a
+        // fixed layout needs before it can be used at all.
+        p.write(1, 0, 0, 0);
+        p.write(2, 0, 0, 0);
+        p.write(4, 0, 0, 0);
+        assert.strictEqual(p.placedCount, p.count);
+    });
+
+    it("counts a coordinate written through the lent column, which is the writer a counter would miss", () => {
+        const p = new ElementPositions(4);
+        p.grow(3);
+        const lent = p.view(3);
+
+        // The array is lent to the snapshot as a mutable column, so a layout, a drag and a GPU
+        // readback all write here without passing through write(). A count kept up to date by
+        // write() would report zero through all of it.
+        lent[0] = 7;
+        lent[1] = 8;
+        lent[2] = 9;
+        assert.strictEqual(p.placedCount, 1);
+
+        // An infinity is not a place, however it arrived: 1e39 is finite as a double and rounds
+        // to Infinity in the f32 store, and isPlaced() refuses it for the same reason.
+        lent[3] = 1e39;
+        assert.strictEqual(p.isPlaced(1), false);
+        assert.strictEqual(p.placedCount, 1);
+    });
+
+    it("counts only the live rows, never the spare capacity behind them", () => {
+        const p = new ElementPositions(8);
+        p.grow(4);
+        p.write(0, 1, 1, 1);
+        p.write(1, 2, 2, 2);
+        p.write(2, 3, 3, 3);
+        p.write(3, 4, 4, 4);
+        assert.strictEqual(p.placedCount, 4);
+
+        // A truncation clears the abandoned rows, so what is left is the live prefix and nothing
+        // a later growth could hand to a different node as "already placed".
+        p.grow(2);
+        assert.strictEqual(p.placedCount, 2);
+        p.grow(4);
+        assert.strictEqual(p.placedCount, 2, "the rows that came back are unplaced");
+    });
+
     it("publishes its component count", () => {
         const p = new ElementPositions(4);
         assert.strictEqual(p.components, POSITION_COMPONENTS);
@@ -354,6 +410,72 @@ describe("ElementPositions", () => {
         assert.strictEqual(p.capacity, 3);
         p.write(0, 9, 9, 9);
         assert.strictEqual(stale[0], 1);
+    });
+
+    it("carries a pin on the row it pins, and moves it with that row when the graph is renumbered", () => {
+        // A pin used to be held by whichever layout engine was current, which meant it did not
+        // survive a layout change -- and could not have survived a compacting freeze either, since
+        // a freeze renumbers every node. Here it rides in the lane beside the coordinates and goes
+        // through the same map, so the reader's pin stays on the reader's node.
+        const p = new ElementPositions(8);
+        p.grow(3);
+        p.write(2, 7, 8, 9);
+        assert.isTrue(p.setPinned(2, true), "the row exists, so the pin was recorded");
+        assert.isTrue(p.isPinned(2));
+        assert.isFalse(p.isPinned(0), "and only that row");
+        assert.strictEqual(p.pinnedCount, 1);
+
+        // Row 0 is dropped and everything above it shifts down: the old row 2 becomes row 1.
+        p.remap(new Uint32Array([INVALID_INDEX, 0, 1]), 2);
+
+        assert.isTrue(p.isPinned(1), "the pin followed the node to its new row");
+        assert.isFalse(p.isPinned(0), "and did not stay behind on a row that now belongs to someone else");
+        const out = { x: 0, y: 0, z: 0 };
+        p.read(1, out);
+        assert.deepStrictEqual(out, { x: 7, y: 8, z: 9 }, "with the coordinates it was pinning");
+    });
+
+    it("hands a pin no row to live on rather than throwing, and grows to reach one that is coming", () => {
+        // Pinning happens from a pointer gesture, so a throw here takes the frame with it. The two
+        // answers are different on purpose: INVALID_INDEX is a node the graph builder refused and
+        // will never have a row, while a row number past the live count is a node that HAS been
+        // taken and whose row appears at the next freeze -- and a drag in between must not be lost.
+        const p = new ElementPositions(2);
+        p.grow(1);
+
+        assert.isFalse(p.setPinned(INVALID_INDEX, true), "the no-node sentinel is not a row");
+        assert.isFalse(p.setPinned(-1, true));
+        assert.isFalse(p.isPinned(INVALID_INDEX));
+
+        assert.isTrue(p.setPinned(4, true), "a row that is coming is grown into");
+        assert.strictEqual(p.count, 5);
+        assert.isTrue(p.isPinned(4));
+    });
+
+    it("clears the pins of rows a truncation abandons, so a pin cannot come back on another node", () => {
+        // grow() past the capacity copies the old lane forward and a later growth hands those rows
+        // to DIFFERENT nodes. A pin that survived would hold a node the reader never touched, with
+        // nothing on screen saying why it will not move.
+        const p = new ElementPositions(8);
+        p.grow(4);
+        p.setPinned(3, true);
+
+        p.grow(2);
+        assert.strictEqual(p.pinnedCount, 0, "the abandoned pin went with the row");
+
+        p.grow(4);
+        assert.isFalse(p.isPinned(3), "and did not come back when the row was handed out again");
+    });
+
+    it("publishes the pins as a column exactly as long as the snapshot it is attached to", () => {
+        const p = new ElementPositions(8);
+        p.grow(3);
+        p.setPinned(1, true);
+
+        const view = p.pinnedView(3);
+        assert.strictEqual(view.length, 3, "one byte per node");
+        assert.deepStrictEqual(Array.from(view), [0, 1, 0]);
+        assert.throws(() => p.pinnedView(4), RangeError, undefined, "a short lane is never handed out silently");
     });
 });
 

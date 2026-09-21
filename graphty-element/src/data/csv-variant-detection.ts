@@ -13,6 +13,18 @@ export interface CSVVariantInfo {
 }
 
 /**
+ * The endpoint column pairs an edge list may be spelled with, in the order they are tried.
+ *
+ * The same three pairs, in the same order, that the element's own endpoint resolution uses, so a
+ * CSV and a JSON file spelled the same way are read the same way.
+ */
+const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
+    ["source", "target"],
+    ["src", "dst"],
+    ["from", "to"],
+];
+
+/**
  * Detect CSV variant from headers and sample data
  * @param headers - Array of column header names
  * @returns Information about the detected CSV variant including column mappings
@@ -57,29 +69,18 @@ export function detectCSVVariant(headers: string[]): CSVVariantInfo {
         };
     }
 
-    // Check adjacency list: first column is node, rest are neighbors
-    // No standard headers, detect by structure
-    if (
-        !headers.includes("source") &&
-        !headers.includes("target") &&
-        !headers.includes("Source") &&
-        !headers.includes("Target")
-    ) {
-        return {
-            variant: "adjacency-list",
-            hasHeaders: false,
-            delimiter: headers.length > 10 ? " " : ",",
-        };
-    }
-
-    // Standard edge list
-    if (headers.includes("source") || headers.includes("src")) {
+    // Standard edge list, in the three spellings the element accepts for an endpoint pair, tried
+    // in the same order it tries them: source/target, then src/dst, then from/to. Both halves of
+    // a pair must be present, so a file with a `source` column and no `target` is not an edge
+    // list on the strength of one of them.
+    const endpointPair = ENDPOINT_PAIRS.find(([source, target]) => headers.includes(source) && headers.includes(target));
+    if (endpointPair) {
         return {
             variant: "edge-list",
             hasHeaders: true,
             delimiter: ",",
-            sourceColumn: headers.includes("source") ? "source" : "src",
-            targetColumn: headers.includes("target") ? "target" : "dst",
+            sourceColumn: endpointPair[0],
+            targetColumn: endpointPair[1],
         };
     }
 
@@ -93,6 +94,16 @@ export function detectCSVVariant(headers: string[]): CSVVariantInfo {
         };
     }
 
+    // Everything else is a generic CSV with a header row, and its first line is a header row.
+    //
+    // An ADJACENCY LIST is never detected, only asked for: `{variant: "adjacency-list"}` or the
+    // `adjacency-list` format name. Nothing in a header row distinguishes "node, neighbour,
+    // neighbour" from an edge list whose columns happen to be spelled something else, so this
+    // used to guess adjacency list for every file it did not otherwise recognise -- which ate the
+    // header row of every such file as data, made the `node-list` and `generic` branches below it
+    // unreachable, and turned a two-column file spelled `a,b` into a graph the element could
+    // never report an endpoint failure for. A file whose columns nothing recognises now reaches
+    // the element as records, and the element names the columns it could not read.
     return {
         variant: "generic",
         hasHeaders: true,

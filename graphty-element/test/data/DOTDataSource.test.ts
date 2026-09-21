@@ -25,10 +25,10 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].nodes[0].id, "a");
         assert.equal(chunks[0].nodes[1].id, "b");
         assert.equal(chunks[0].nodes[2].id, "c");
-        assert.equal(chunks[0].edges[0].src, "a");
-        assert.equal(chunks[0].edges[0].dst, "b");
-        assert.equal(chunks[0].edges[1].src, "b");
-        assert.equal(chunks[0].edges[1].dst, "c");
+        assert.equal(chunks[0].edges[0].source, "a");
+        assert.equal(chunks[0].edges[0].target, "b");
+        assert.equal(chunks[0].edges[1].source, "b");
+        assert.equal(chunks[0].edges[1].target, "c");
     });
 
     test("parses basic directed graph", async () => {
@@ -50,8 +50,8 @@ describe("DOTDataSource", () => {
         assert.equal(chunks.length, 1);
         assert.equal(chunks[0].nodes.length, 3);
         assert.equal(chunks[0].edges.length, 2);
-        assert.equal(chunks[0].edges[0].src, "a");
-        assert.equal(chunks[0].edges[0].dst, "b");
+        assert.equal(chunks[0].edges[0].source, "a");
+        assert.equal(chunks[0].edges[0].target, "b");
     });
 
     test("parses strict graph", async () => {
@@ -128,8 +128,8 @@ describe("DOTDataSource", () => {
 
         assert.equal(chunks[0].nodes[0].id, "node a");
         assert.equal(chunks[0].nodes[1].id, "node b");
-        assert.equal(chunks[0].edges[0].src, "node a");
-        assert.equal(chunks[0].edges[0].dst, "node b");
+        assert.equal(chunks[0].edges[0].source, "node a");
+        assert.equal(chunks[0].edges[0].target, "node b");
     });
 
     test("parses graph with named graph ID", async () => {

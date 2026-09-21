@@ -7,6 +7,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import type { DirectionProvenance } from "../session/types";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
 /** The payload of `snapshot-replaced` (graph-format design 14.4 rule 11). */
@@ -41,8 +42,18 @@ export interface GraphStoreOptions {
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
 const SEED_COLUMN = "graphty.importPosition";
-/** The element-assigned edge counter column (D-M6-8: the counter is Edge.index, not Edge.id). */
+/** The element-assigned edge counter column. Its value, printed, is Edge.id. */
 const EDGE_ID_COLUMN = "graphty.edgeId";
+
+/**
+ * The node column every frozen snapshot carries the reader's pins in.
+ *
+ * One byte per node, 1 while the reader has fixed that node in place. The OWNER is
+ * `positions.pinnedView()`, the lane beside the coordinates; this column is that lane attached to
+ * the snapshot, exactly as the position column is, so anything that reads or serialises a snapshot
+ * carries the pins with the coordinates they pin rather than losing them at the freeze.
+ */
+const PINNED_COLUMN = "graphty.pinned";
 
 /**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.
@@ -124,6 +135,9 @@ export class GraphStore {
         this.options = options;
         this.builder = new GraphBuilder({ directed: true, addMissingNodes: true });
         if (typeof options.directed === "boolean") {
+            // A consumer who names the direction has settled it, and no file can overrule them, so
+            // that is the provenance from here on unless the store is rebuilt.
+            this.direction = { by: "configuration", statedBy: null };
             // Free only while the builder is empty (graph-format/src/builder/graph-builder.ts);
             // once edges exist, directed -> undirected throws E_DIRECTED. "auto" deliberately does
             // NOT lock (PLAN DECISION 2): an importer that learns the direction from the file it is
@@ -368,6 +382,13 @@ export class GraphStore {
             { dtype: "f32", components: POSITION_COMPONENTS, role: "position", mutable: true },
             { replaceRole: true },
         );
+        // The pins ride with the coordinates, through the same lane object and on the same
+        // schedule: re-attached on EVERY freeze, because a remap or a growth replaces the array
+        // and a column attached to the old one would answer for a graph that no longer exists.
+        snapshot.nodes.set(PINNED_COLUMN, this.positions.pinnedView(snapshot.nodeCount), {
+            dtype: "u8",
+            mutable: true,
+        });
         this.pendingPositions = null;
     }
 
@@ -449,6 +470,57 @@ export class GraphStore {
      * layout or a drag produced.
      * @param snapshot - the freshly frozen snapshot, BEFORE the position column is attached
      */
+    /**
+     * Record that a file settled the direction, and with what words.
+     *
+     * Called only when the declaration was actually taken -- a file whose direction was refused
+     * because the configuration had already settled it, or because edges were already loaded, did
+     * not settle anything and must not claim to have.
+     * @param statedBy - the text in the file that said so
+     */
+    recordDirectionFromFile(statedBy: string): void {
+        this.direction = { by: "file", statedBy };
+    }
+
+    /**
+     * How the direction of this store's graph was settled.
+     * @returns the provenance, which is `"unsettled"` until a file or the configuration says
+     */
+    get directionSettledBy(): DirectionProvenance {
+        return this.direction;
+    }
+
+    /**
+     * How many nodes the DATA arrived carrying a position for.
+     *
+     * THE DISTINCTION THAT MATTERS, and the one `positions.placedCount` cannot make. The position
+     * array is written by the importer AND by every running layout, so a moment after a file with
+     * no coordinates finishes loading, every node "carries a position" -- the layout put it there.
+     * Anything deciding what to do BECAUSE the file placed the nodes must not read that number:
+     * one animation frame after a load it says the file placed everything, for a file that placed
+     * nothing, and the graph gets pinned to whatever the first step of a force layout reached.
+     *
+     * COUNTED DURING THE FREEZE rather than on demand, because the importer's seed column exists
+     * only for that moment: attaching the live position array deletes it from the snapshot's
+     * table. This is the one place it can be read.
+     * @returns how many nodes arrived with a coordinate, zero before the first freeze
+     */
+    get seededNodeCount(): number {
+        // Freezing is lazy, so asking before anything has been frozen must not answer from a
+        // stale count -- it answers from the freeze this call performs.
+        this.getSnapshot();
+
+        return this.seeded;
+    }
+
+    /** How many rows the importer's own column carried, as of the last freeze. */
+    private seeded = 0;
+    /**
+     * How the direction was settled. Written by the constructor for an explicit configuration and
+     * by {@link GraphStore.recordDirectionFromFile} for a declaration that was taken.
+     */
+    private direction: DirectionProvenance = { by: "unsettled", statedBy: null };
+
     private seedUnplaced(snapshot: GraphSnapshot): void {
         // requireTyped, not the `Column | null` from get(): `Column` is a union and DictColumn has
         // no `data`, so reading `.data` off the union does not typecheck. requireTyped narrows to
@@ -459,7 +531,14 @@ export class GraphStore {
         const seed = snapshot.nodes.requireTyped(SEED_COLUMN, "f32");
         const { data } = seed;
         const scale = this.options.positionScale();
+        let seeded = 0;
         for (let i = 0; i < snapshot.nodeCount; i++) {
+            // Counted for EVERY seeded row, including one already placed and skipped below: the
+            // question this answers is what the data carried, not what still needed seeding.
+            if (seed.isSet(i)) {
+                seeded++;
+            }
+
             // The narrowed column's own isSet(i), which costs no lookup; `snapshot.nodes.isSet(name,
             // i)` is the same call through `require(name)` and would pay one map lookup per node per
             // freeze. NEVER write `column.isSet?.(i)`: under an optional call the expression is
@@ -495,5 +574,7 @@ export class GraphStore {
 
             this.positions.fillUnplaced(i, x, y, z);
         }
+
+        this.seeded = seeded;
     }
 }

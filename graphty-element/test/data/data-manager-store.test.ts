@@ -38,7 +38,9 @@ function nodeStub(id: string, index: number): Node {
  */
 function registerEdgeStub(dm: DataManager, srcId: string, dstId: string, index: number): Edge {
     const edge = {
-        id: `${srcId}:${dstId}`,
+        // The element-assigned counter, as a string. The store row and the counter are the same
+        // number for every edge these cases build, because nothing has been removed yet.
+        id: String(index),
         index,
         srcId,
         dstId,
@@ -105,13 +107,33 @@ describe("DataManager owns the graph store", () => {
         assert.strictEqual(dm.edgesByIndex.length, 0);
     });
 
-    it("drops a duplicate record for a pair whose render object is still pending", () => {
-        // `edgeCache` cannot answer this: it only learns about an edge when the Edge is built, so
-        // without the pending-key set the builder would take the same pair twice.
+    it("holds a repeated record for a pair whose render object is still pending as a second edge", () => {
+        // The element used to DROP this record, which is why `statistics().repeatedEdgeCount` has
+        // always been zero: the repeat never reached the store that would have counted it.
         const { dm } = makeManager();
         dm.addEdges([{ src: "a", dst: "b" }]);
         dm.addEdges([{ src: "a", dst: "b" }]);
+        assert.strictEqual(dm.getSnapshot().edgeCount, 2);
+    });
+
+    it("folds a repeated record for a pending pair into the first one when the policy says first", () => {
+        // `edgeCache` cannot answer this on its own: it only learns about an edge when the Edge is
+        // built, so a repeat policy that looked only there would take the same pair twice for
+        // every edge whose endpoints have not arrived.
+        const { dm } = makeManager();
+        dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
+        dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
         assert.strictEqual(dm.getSnapshot().edgeCount, 1);
+    });
+
+    it("sums a repeated pending pair's weight when the policy says sum", () => {
+        const { dm } = makeManager();
+        dm.addEdges([{ src: "a", dst: "b", weight: 2 }], { repeated: "sum" });
+        dm.addEdges([{ src: "a", dst: "b", weight: 3 }], { repeated: "sum" });
+
+        const snapshot = dm.getSnapshot();
+        assert.strictEqual(snapshot.edgeCount, 1, "one edge survives the merge");
+        assert.strictEqual(snapshot.weights?.[snapshot.edgeToArc[0] ?? 0], 5, "carrying the group's total weight");
     });
 
     it("keeps the mirror of a directed pair, which is a different edge", () => {
@@ -188,8 +210,8 @@ describe("DataManager removal reaches the store", () => {
         const { dm } = makeManager();
         dm.addEdges([{ src: "a", dst: "b" }]);
         const before = dm.getSnapshot();
-        assert.strictEqual(dm.removeNode("a"), false, "the store has the node; the render side never did");
-        assert.strictEqual(dm.removeEdge("a:b"), false);
+        assert.isNull(dm.removeNodeAndIncidentEdges("a"), "the store has the node; the render side never did");
+        assert.strictEqual(dm.removeEdge("0"), false);
         assert.strictEqual(dm.getSnapshot(), before, "and neither call invalidated the snapshot");
     });
 
@@ -203,7 +225,7 @@ describe("DataManager removal reaches the store", () => {
         const ab = registerEdgeStub(dm, "a", "b", 0);
         registerEdgeStub(dm, "b", "c", 1);
 
-        assert.strictEqual(dm.removeNode("a"), true);
+        assert.deepStrictEqual(dm.removeNodeAndIncidentEdges("a"), ["0"], "the incident edge is named in the answer");
         assert.strictEqual(removed.index, INVALID_INDEX);
         assert.strictEqual(ab.index, INVALID_INDEX, "the incident edge lost its row at once, not at the next freeze");
         assert.strictEqual(dm.edgesByIndex[0], undefined);
@@ -211,7 +233,12 @@ describe("DataManager removal reaches the store", () => {
         const snapshot = dm.getSnapshot();
         assert.strictEqual(snapshot.nodeCount, 2);
         assert.strictEqual(snapshot.edgeCount, 1);
-        assert.strictEqual(dm.edges.size, 2, "the render objects are untouched; this step changes no rendering");
+        // The render objects go too. They used to survive, still drawing, still holding a hard
+        // reference to the disposed Node, and unfilterable -- an edge with no store row is forced
+        // visible by the per-frame mask.
+        assert.strictEqual(dm.edges.size, 1, "only the edge that touches neither end of the removal is left");
+        assert.isUndefined(dm.getEdge("0"), "and the incident edge is not reachable by its id");
+        assert.deepStrictEqual([...dm.edgeCache.get("a", "b")], [], "nor by its endpoint pair");
     });
 
     it("takes a removed edge out of the snapshot and leaves its endpoints", () => {
@@ -220,7 +247,7 @@ describe("DataManager removal reaches the store", () => {
         dm.getSnapshot();
         const bc = registerEdgeStub(dm, "b", "c", 1);
 
-        assert.strictEqual(dm.removeEdge("b:c"), true);
+        assert.strictEqual(dm.removeEdge("1"), true);
         assert.strictEqual(bc.index, INVALID_INDEX);
         const snapshot = dm.getSnapshot();
         assert.strictEqual(snapshot.edgeCount, 1);
@@ -244,7 +271,7 @@ describe("DataManager walks a compacting freeze", () => {
         registerEdgeStub(dm, "a", "b", 0);
         const bc = registerEdgeStub(dm, "b", "c", 1);
 
-        dm.removeNode("a");
+        dm.removeNodeAndIncidentEdges("a");
         dm.getSnapshot();
 
         assert.strictEqual(b.index, 0, "b slid down into the row the removed node vacated");
@@ -264,7 +291,7 @@ describe("DataManager walks a compacting freeze", () => {
         const a = nodeStub("a", 0);
         dm.nodes.set("a", a);
         dm.nodeCache.set("a", a);
-        dm.removeNode("a");
+        dm.removeNodeAndIncidentEdges("a");
         dm.getSnapshot();
 
         const out = { x: 0, y: 0, z: 0 };
@@ -283,7 +310,7 @@ describe("DataManager walks a compacting freeze", () => {
         dm.nodes.set("a", a);
         dm.nodeCache.set("a", a);
 
-        dm.removeNode("a");
+        dm.removeNodeAndIncidentEdges("a");
         assert.strictEqual(dm.getSnapshot().edgeCount, 1, "the pending a-b edge went with its endpoint");
 
         dm.addEdges([{ src: "a", dst: "b" }]);

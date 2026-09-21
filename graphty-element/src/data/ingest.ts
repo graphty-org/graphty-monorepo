@@ -146,15 +146,88 @@ export function resolveEdgeWeight(
  * @param srcId - source node id, already extracted with JMESPath
  * @param dstId - destination node id
  * @param weight - the resolved weight
- * @returns the logical edge index, or `INVALID_INDEX` when either id is not one graph-format accepts
+ * @returns the logical edge index and the counter stamped into the edge's id column, or
+ *     `INVALID_INDEX` for both when either id is not one graph-format accepts
  */
-export function ingestEdge(store: GraphStore, srcId: unknown, dstId: unknown, weight: number): number {
+export function ingestEdge(
+    store: GraphStore,
+    srcId: unknown,
+    dstId: unknown,
+    weight: number,
+): { index: number; edgeId: number } {
     if (!isStorableId(srcId) || !isStorableId(dstId)) {
-        return INVALID_INDEX;
+        return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
     }
 
     const index = store.builder.addEdge(srcId, dstId, weight);
-    store.builder.setEdgeValue(store.edgeIdColumn, index, store.nextEdgeId());
+    const edgeId = store.nextEdgeId();
+    store.builder.setEdgeValue(store.edgeIdColumn, index, edgeId);
     store.touch();
-    return index;
+    return { index, edgeId };
+}
+
+/**
+ * What became of a file's declared direction when it reached the builder.
+ *
+ * - `applied`: the builder now holds the direction the file declared.
+ * - `unchanged`: the builder already held it, so there was nothing to do.
+ * - `config-wins`: `data.directed` was set explicitly, which locked the builder. The consumer
+ *   settled the question and a file header does not overrule them.
+ * - `edges-present`: the builder already holds edges, which is a direction graph-format will not
+ *   reinterpret in place. This is a second file loaded into a graph that the first file, or
+ *   pushed records, already filled.
+ */
+export type DirectionOutcome = "applied" | "unchanged" | "config-wins" | "edges-present";
+
+/**
+ * Give the builder the direction a file declared, without ever overruling the consumer.
+ *
+ * THE PRECEDENCE, highest first: an explicit `config.data.directed`, then the file's own header,
+ * then the builder's constructor value. `GraphStore` implements the first rung by calling
+ * `lockDirected()` for an explicit boolean and NOT calling it under `"auto"`, so
+ * `builder.directedLocked` is exactly "the consumer has settled this" and is the flag this reads.
+ * Locked is checked rather than caught, because `setDirected` on a locked builder whose value
+ * differs throws `E_DIRECTED` -- turning a consumer's perfectly legitimate `directed: false` plus
+ * a directed file into a failed import.
+ *
+ * A builder that already holds edges is refused for the same reason and not as a policy choice:
+ * graph-format accepts directed -> undirected only while the builder is empty, and accepts
+ * undirected -> directed with live edges only by MIRRORING every edge it holds, which would
+ * silently double the first file's edge count when a second file disagreed with it. So the first
+ * thing that settles the direction of a non-empty graph keeps it, and the caller is told.
+ * @param store - the element's store
+ * @param directed - the direction the file declared
+ * @param statedBy - the text in the file that declared it, recorded on the store so a consumer can
+ *     be told not only what the graph is but what said so
+ * @returns what happened, for the caller to log
+ */
+export function ingestDeclaredDirection(store: GraphStore, directed: boolean, statedBy: string): DirectionOutcome {
+    const { builder } = store;
+    if (builder.directed === directed) {
+        // The file agreed with what the builder already held, which is still the file SETTLING the
+        // direction -- unless the configuration had locked it, in which case the agreement is a
+        // coincidence and the consumer is the one who decided.
+        if (!builder.directedLocked) {
+            store.recordDirectionFromFile(statedBy);
+        }
+
+        return "unchanged";
+    }
+
+    if (builder.directedLocked) {
+        return "config-wins";
+    }
+
+    if (builder.edgeCount > 0) {
+        return "edges-present";
+    }
+
+    builder.setDirected(directed);
+    store.recordDirectionFromFile(statedBy);
+    // The direction is frozen into the snapshot, and `builder.mutationCount` is not what the store
+    // keys its cache on (see GraphStore.touch), so without this a snapshot taken before the
+    // declaration -- an empty one, taken by a consumer asking for statistics during the load --
+    // would still be served after it.
+    store.touch();
+    return "applied";
 }

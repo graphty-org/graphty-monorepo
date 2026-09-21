@@ -54,4 +54,21 @@ describe("detectFormat", () => {
         const xml = '<gexf xmlns="http://gexf.net/1.3">';
         assert.strictEqual(detectFormat("graph.xml", xml), "gexf");
     });
+
+    // An XML document the element cannot read must come back as "I do not know this file", not as
+    // a CSV. The CSV sniffer matches any line that reads `word , word` and the GML sniffer matches
+    // `graph [` anywhere, and both of those turn up inside ordinary XML element content -- so
+    // without a guard a catalogue export would be handed to the CSV reader and the user would be
+    // told about a column instead of about the format.
+    test("answers nothing for an XML document that is neither GraphML nor GEXF", () => {
+        const xml = '<?xml version="1.0"?>\n<rows>\nalpha,beta\n</rows>';
+
+        assert.strictEqual(detectFormat("", xml), null);
+    });
+
+    test("answers nothing for an XML document whose text happens to mention a GML opening", () => {
+        const xml = '<?xml version="1.0"?>\n<doc>graph [ x ]</doc>';
+
+        assert.strictEqual(detectFormat("", xml), null);
+    });
 });

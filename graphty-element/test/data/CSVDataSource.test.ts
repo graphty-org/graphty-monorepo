@@ -17,8 +17,8 @@ n1,n3`;
         }
 
         assert.strictEqual(chunks[0].edges.length, 3);
-        assert.strictEqual(chunks[0].edges[0].src, "n1");
-        assert.strictEqual(chunks[0].edges[0].dst, "n2");
+        assert.strictEqual(chunks[0].edges[0].source, "n1");
+        assert.strictEqual(chunks[0].edges[0].target, "n2");
     });
 
     test("parses weighted edges", async () => {
@@ -118,8 +118,8 @@ person-1,person-2,KNOWS,2020`;
             // Should have edges
             const edges = chunks.flatMap((c) => c.edges);
             assert.strictEqual(edges.length, 1);
-            assert.strictEqual(edges[0].src, "person-1");
-            assert.strictEqual(edges[0].dst, "person-2");
+            assert.strictEqual(edges[0].source, "person-1");
+            assert.strictEqual(edges[0].target, "person-2");
             assert.strictEqual(edges[0].type, "KNOWS");
         });
 
@@ -158,8 +158,8 @@ n2,n3,Directed,2.0,Link`;
 
             const edges = chunks.flatMap((c) => c.edges);
             assert.strictEqual(edges.length, 2);
-            assert.strictEqual(edges[0].src, "n1");
-            assert.strictEqual(edges[0].dst, "n2");
+            assert.strictEqual(edges[0].source, "n1");
+            assert.strictEqual(edges[0].target, "n2");
             assert.strictEqual(edges[0].Weight, 1.5);
         });
 
@@ -177,7 +177,7 @@ n2,n3,2.0`;
 
             const edges = chunks.flatMap((c) => c.edges);
             assert.strictEqual(edges.length, 2);
-            assert.strictEqual(edges[0].src, "n1");
+            assert.strictEqual(edges[0].source, "n1");
         });
 
         test("parses Cytoscape format with interaction column", async () => {
@@ -194,8 +194,8 @@ protein2,protein3,inhibits,0.75`;
 
             const edges = chunks.flatMap((c) => c.edges);
             assert.strictEqual(edges.length, 2);
-            assert.strictEqual(edges[0].src, "protein1");
-            assert.strictEqual(edges[0].dst, "protein2");
+            assert.strictEqual(edges[0].source, "protein1");
+            assert.strictEqual(edges[0].target, "protein2");
             assert.strictEqual(edges[0].interaction, "binds");
             assert.strictEqual(edges[0].weight, 0.95);
         });
@@ -231,10 +231,10 @@ n3,n1`;
 
             const edges = chunks.flatMap((c) => c.edges);
             assert.strictEqual(edges.length, 5);
-            assert.strictEqual(edges[0].src, "n1");
-            assert.strictEqual(edges[0].dst, "n2");
-            assert.strictEqual(edges[1].src, "n1");
-            assert.strictEqual(edges[1].dst, "n3");
+            assert.strictEqual(edges[0].source, "n1");
+            assert.strictEqual(edges[0].target, "n2");
+            assert.strictEqual(edges[1].source, "n1");
+            assert.strictEqual(edges[1].target, "n3");
         });
 
         test("parses adjacency list with weights", async () => {
@@ -250,10 +250,10 @@ n2,n3:0.8`;
 
             const edges = chunks.flatMap((c) => c.edges);
             assert.strictEqual(edges.length, 3);
-            assert.strictEqual(edges[0].src, "n1");
-            assert.strictEqual(edges[0].dst, "n2");
+            assert.strictEqual(edges[0].source, "n1");
+            assert.strictEqual(edges[0].target, "n2");
             assert.strictEqual(edges[0].weight, 1.5);
-            assert.strictEqual(edges[1].dst, "n3");
+            assert.strictEqual(edges[1].target, "n3");
             assert.strictEqual(edges[1].weight, 2.0);
         });
 

@@ -1,3 +1,33 @@
+/**
+ * @file `@graphty/graphty-element`: the ordinary consumer's entry point.
+ *
+ * ```js
+ * import "@graphty/graphty-element";
+ * ```
+ *
+ * Importing this module defines the `<graphty-element>` custom element and registers the
+ * built-in layouts, data sources and algorithms. That side effect is deliberate: every web
+ * component package defines its tag on the default import, and a stranger's one-line script tag
+ * depends on it.
+ *
+ * It also means this entry point carries the renderer, so it needs a DOM and a 3D engine. The
+ * parts of the package that do not are published separately, and a consumer that wants a colour
+ * ramp, a palette, an options list or a plugin base class should import one of those instead of
+ * this:
+ *
+ * - `@graphty/graphty-element/schema` -- palettes, shapes, style defaults and the style
+ *   document vocabulary.
+ * - `@graphty/graphty-element/catalog` -- the algorithms, layouts, formats, palettes and scales
+ *   the element offers, as plain JSON descriptors.
+ * - `@graphty/graphty-element/extend` -- the registration surface for a plugin.
+ * - `@graphty/graphty-element/format` -- the vocabulary for reading a graph snapshot.
+ * - `@graphty/graphty-element/session` -- the headless model.
+ * - `@graphty/graphty-element/ai` -- the natural-language layer and its optional peers.
+ * - `@graphty/graphty-element/webgpu` -- one import that switches on GPU acceleration.
+ *
+ * Each of the first five resolves in Node with no renderer anywhere in its import graph.
+ */
+
 // WORKAROUND: Import InstancedMesh first to satisfy Babylon.js side-effect requirement
 // See: https://github.com/graphty-org/graphty-element/issues/54
 import "@babylonjs/core/Meshes/instancedMesh";
@@ -14,8 +44,10 @@ export { Graph } from "./src/Graph";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
-export type { EdgeStyleId, NodeStyleId, StylesOpts } from "./src/Styles";
-export { Styles } from "./src/Styles";
+// `Styles`, `StylesOpts`, `NodeStyleId` and `EdgeStyleId` are no longer published. They were the
+// 1.x style engine's surface -- a layer stack addressed by array index, and a style resolved per
+// element by re-parsing a JMESPath expression. The 2.0 stack is `session.styles`: layers with
+// stable ids, declarative encodings, a legend and an explain. See design/element-api/.
 
 // =============================================================================
 // Config - Styles, Templates, and Types
@@ -30,7 +62,6 @@ export type {
     ImageData,
     NodeStyleConfig,
     RichTextStyleType,
-    StyleHelpersType,
     StyleLayerType,
     StyleSchema,
     StyleSchemaV1,
@@ -61,19 +92,14 @@ export {
     NodeShapes,
     NodeStyle,
     RichTextStyle,
-    StyleHelpers,
     StyleTemplate,
     VIEW_MODE_VALUES,
 } from "./src/config/index";
 
-// Suggested styles API
-export type {
-    ApplySuggestedStylesOptions,
-    SuggestedStyleLayer,
-    SuggestedStyleLayerMetadata,
-    SuggestedStylesConfig,
-    SuggestedStylesProvider,
-} from "./src/config/index";
+// The suggested-styles types are gone with the hand-written blocks they described. A run derives
+// what it suggests from its own result shape: `element.getSuggestedStyles(algorithm)` answers with
+// `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
+export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
@@ -149,7 +175,6 @@ export {
     RenderManager,
     SelectionManager,
     StatsManager,
-    StyleManager,
     UpdateManager,
 } from "./src/managers/index";
 
@@ -230,97 +255,39 @@ export {
 } from "./src/logging/index";
 
 // =============================================================================
-// AI Module
+// Errors
 // =============================================================================
-
-// AI Status
 export type {
-    AiStage,
-    AiState,
-    AiStatus,
-    StatusChangeCallback,
-    ToolCallStatus,
-    ToolCallStatusType,
-} from "./src/ai/index";
-export { AiStatusManager } from "./src/ai/index";
+    AccelerationErrorCode,
+    GraphtyErrorCode,
+    GraphtyErrorInit,
+    GraphtyErrorJson,
+    GraphtyErrorSource,
+    GraphtyErrorTarget,
+} from "./src/errors";
+export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, GraphtyError, isGraphtyError, isGraphtyErrorCode } from "./src/errors";
 
-// AI Controller
-export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./src/ai/index";
-export { AiController } from "./src/ai/index";
-
-// AI Manager
-export type { AiManagerConfig, KeyPersistenceConfig } from "./src/ai/index";
-export { AiManager, createAiManager } from "./src/ai/index";
-
-// AI Commands
-export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";
-export {
-    captureScreenshot,
-    captureVideo,
-    clearStyles,
-    CommandRegistry,
-    describeProperty,
-    findAndStyleEdges,
-    findAndStyleNodes,
-    findNodes,
-    listAlgorithms,
-    queryGraph,
-    runAlgorithm,
-    sampleData,
-    setCameraPosition,
-    setDimension,
-    setImmersiveMode,
-    setLayout,
-    zoomToNodes,
-} from "./src/ai/index";
-
-// AI Providers
+// =============================================================================
+// Acceleration
+// =============================================================================
 export type {
-    LlmProvider,
-    LlmResponse,
-    Message,
-    ProgressCallback,
-    ProviderOptions,
-    ProviderType,
-    StreamCallbacks,
-    ToolCall,
-    ToolDefinition,
-    VercelProviderType,
-    WebLlmModelInfo,
-} from "./src/ai/index";
-export {
-    createProvider,
-    // Async factory for WebLLM (Safari-compatible, loads module on demand)
-    createWebLlmProvider,
-    // Async getter for WebLlmProvider class (Safari-compatible, loads module on demand)
-    getWebLlmProviderClass,
-    MockLlmProvider,
-    VercelAiProvider,
-} from "./src/ai/index";
-
-// AI Key Management
-export type { PersistenceConfig } from "./src/ai/index";
-export { ApiKeyManager } from "./src/ai/index";
-
-// AI Prompt Builder
-export type { SystemPromptOptions } from "./src/ai/index";
-export { createSystemPromptBuilder, SystemPromptBuilder } from "./src/ai/index";
-
-// AI Input Adapters
-export type { InputAdapter, InputCallback, InputOptions } from "./src/ai/index";
-export { TextInputAdapter, VoiceInputAdapter } from "./src/ai/index";
-export type { VoiceStartCallback } from "./src/ai/input/VoiceInputAdapter";
-
-// AI Schema Discovery
-export type {
-    HistogramBin,
-    NumericStatistics,
-    PropertySummary,
-    PropertyType,
-    SchemaExtractorOptions,
-    SchemaSummary,
-} from "./src/ai/index";
-export { formatSchemaForPrompt, SchemaExtractor, SchemaManager } from "./src/ai/index";
+    AccelerationCapabilities,
+    AccelerationPolicy,
+    AccelerationPrecision,
+    AccelerationState,
+    AccelerationStatus,
+    AcceleratorDeviceInfo,
+    AcceleratorFactory,
+    AcceleratorFactoryOptions,
+    CalibrationRecord,
+    Capabilities,
+    CaptureCapability,
+    GraphAccelerator,
+    Limits,
+    WorkerCapability,
+    XrCapability,
+} from "./src/acceleration";
+export { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_MIN_NODES_KEY, CPU_PRECISION } from "./src/acceleration";
 
 // =============================================================================
 // Colorblind Simulation Utilities

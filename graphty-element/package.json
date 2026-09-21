@@ -3,25 +3,67 @@
     "version": "1.10.0",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
-    "main": "./dist/graphty.umd.cjs",
+    "customElements": "./dist/custom-elements.json",
     "module": "./dist/graphty.js",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
-            "import": "./dist/graphty.js",
-            "require": "./dist/graphty.umd.cjs"
-        }
+            "import": "./dist/graphty.js"
+        },
+        "./session": {
+            "types": "./dist/session.d.ts",
+            "import": "./dist/session.js"
+        },
+        "./schema": {
+            "types": "./dist/schema.d.ts",
+            "import": "./dist/schema.js"
+        },
+        "./catalog": {
+            "types": "./dist/catalog.d.ts",
+            "import": "./dist/catalog.js"
+        },
+        "./commands": {
+            "types": "./dist/commands.d.ts",
+            "import": "./dist/commands.js"
+        },
+        "./extend": {
+            "types": "./dist/extend.d.ts",
+            "import": "./dist/extend.js"
+        },
+        "./format": {
+            "types": "./dist/format.d.ts",
+            "import": "./dist/format.js"
+        },
+        "./react": {
+            "types": "./dist/react.d.ts",
+            "import": "./dist/react.js"
+        },
+        "./webgpu": {
+            "types": "./dist/webgpu.d.ts",
+            "import": "./dist/webgpu.js"
+        },
+        "./ai": {
+            "types": "./dist/ai.d.ts",
+            "import": "./dist/ai.js"
+        },
+        "./bundle": "./dist/graphty.bundle.js",
+        "./custom-elements.json": "./dist/custom-elements.json",
+        "./graphty-catalog.json": "./dist/graphty-catalog.json"
     },
     "sideEffects": [
         "./dist/graphty.js",
-        "./dist/graphty.umd.cjs",
-        "./src/layout/index.ts",
+        "./dist/graphty.bundle.js",
+        "./dist/webgpu.js",
+        "./dist/chunks/*.js",
+        "./src/algorithms/index.ts",
         "./src/data/index.ts",
-        "./src/algorithms/index.ts"
+        "./src/layout/index.ts"
     ],
     "files": [
         "dist/",
+        "!dist/**/*.map",
+        "AGENTS.md",
         "README.md",
         "LICENSE"
     ],
@@ -99,7 +141,7 @@
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty-element",
         "dev": "vite --force --mode development",
         "dev:xr": "node examples/xr/xr-demo-server.js",
-        "build": "vite build && tsc --project tsconfig.build.json",
+        "build": "vite build && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs",
         "preview": "vite preview",
         "build:storybook": "npm run build-storybook",
         "storybook": "rm -rf node_modules/.vite && npm run build-storybook && . ./.env 2>/dev/null; storybook dev -p ${PORT:-6006} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
@@ -107,7 +149,7 @@
         "build-storybook": "storybook build",
         "ready:commit": "npm run build && npm run lint && npm test",
         "merge:upstream": "git pull origin master --no-rebase",
-        "docs:api": "typedoc && node scripts/sanitize-api-docs.js",
+        "docs:api": "node scripts/build-api-docs.mjs && node scripts/sanitize-api-docs.js",
         "docs:api:watch": "typedoc --watch",
         "docs:dev": "vitepress dev docs",
         "docs:watch": "npm run docs:api && (npm run docs:api:watch & npm run docs:dev & wait)",
@@ -136,16 +178,23 @@
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",
+        "typescript": "^5.9.3",
         "vite-plugin-cem": "^0.8.2",
         "vite-plugin-eslint": "^1.8.1",
-        "vitepress": "^1.6.3"
+        "vitepress": "^1.6.3",
+        "vitest": "^3.2.4"
     },
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
+        "@graphty/graph-format": "^1.0.0",
+        "@graphty/webgpu-graph-algorithms": "^0.2.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "lit": "^3.0.0"
     },
     "peerDependenciesMeta": {
+        "@graphty/webgpu-graph-algorithms": {
+            "optional": true
+        },
         "@mlc-ai/web-llm": {
             "optional": true
         }
@@ -155,6 +204,7 @@
         "@ai-sdk/google": "^2.0.44",
         "@ai-sdk/openai": "^2.0.74",
         "@graphty/algorithms": "workspace:^",
+        "@graphty/graph-format": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
@@ -170,7 +220,6 @@
         "lodash": "^4.17.21",
         "ngraph.forcelayout": "^3.3.1",
         "ngraph.graph": "^20.0.1",
-        "on-change": "^5.0.1",
         "p-queue": "^8.1.1",
         "papaparse": "^5.5.3",
         "toposort": "^2.0.2",

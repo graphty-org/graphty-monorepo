@@ -1,5 +1,5 @@
 import type { Graphty } from "../../../src/graphty-element";
-import { algorithmMetaBase, createAlgorithmStory, type Story, templateCreator } from "../helpers";
+import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -101,27 +101,27 @@ export const BipartiteMatching: Story = {
         dataSource: undefined,
         nodeData: bipartiteJobMatchingData.nodes,
         edgeData: bipartiteJobMatchingData.edges,
-        styleTemplate: templateCreator({
-            graph: {
-                viewMode: "2d",
-                layout: "bipartite",
-                layoutOptions: {
-                    nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"],
-                    align: "horizontal",
-                    aspectRatio: 1.5,
-                },
-            },
+        setup: storySetup({
+            viewMode: "2d",
             algorithms: ["graphty:bipartite-matching"],
             layers: [
                 {
-                    edge: {
-                        selector: 'algorithmResults.graphty."bipartite-matching".inMatching == `false`',
-                        style: { enabled: true, line: { color: "#CCCCCC", opacity: 0.3 } },
+                    name: "Reader - dim non-matched edges",
+                    target: "edge",
+                    selector: {
+                        match: "expression",
+                        where: "'algorithmResults.graphty.\"bipartite-matching\".inMatching == `false`'",
                     },
-                    metadata: { name: "Reader - dim non-matched edges" },
+                    set: { "edge.color": "#CCCCCC", "edge.opacity": 0.3 },
                 },
             ],
         }),
+        layout: "bipartite",
+        layoutConfig: {
+            nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"],
+            align: "horizontal",
+            aspectRatio: 1.5,
+        },
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
@@ -134,43 +134,14 @@ export const BipartiteMatching: Story = {
 
         const graphtyElement = element as Graphty;
         const { graph } = graphtyElement;
-        const dm = graph.getDataManager();
-        const layoutManager = graph.getLayoutManager();
 
         // Run the algorithm explicitly (runAlgorithmsOnLoad may not trigger for all data sources)
         await graph.runAlgorithmsFromTemplate();
 
-        // Store current positions before style application (applyStylesToExistingNodes resets them)
-        const savedPositions = new Map<string, { x: number; y: number; z: number }>();
-        for (const [id, node] of dm.nodes) {
-            savedPositions.set(String(id), {
-                x: node.mesh.position.x,
-                y: node.mesh.position.y,
-                z: node.mesh.position.z,
-            });
-        }
-
-        // Apply suggested styles
+        // Apply suggested styles. The positions used to have to be saved and put back around
+        // this call, because applying a style walked every node and re-applied its layout
+        // position on the way; a style pass writes a colour into an instance and moves nothing.
         graph.applySuggestedStyles("graphty:bipartite-matching");
-
-        // Apply styles to existing elements (this will reset positions - bug)
-        dm.applyStylesToExistingNodes();
-        dm.applyStylesToExistingEdges();
-
-        // Restore positions after style application
-        for (const [id, node] of dm.nodes) {
-            const savedPos = savedPositions.get(String(id));
-            if (savedPos) {
-                node.mesh.position.x = savedPos.x;
-                node.mesh.position.y = savedPos.y;
-                node.mesh.position.z = savedPos.z;
-            }
-        }
-
-        // Update edge geometry to reflect new node positions
-        for (const edge of layoutManager.edges) {
-            edge.update();
-        }
     },
 };
 
@@ -186,24 +157,22 @@ export const MaxFlow: Story = {
         dataSource: undefined,
         nodeData: waterSupplyNetworkData.nodes,
         edgeData: waterSupplyNetworkData.edges,
-        styleTemplate: templateCreator({
+        setup: storySetup({
             // the node names carry the demonstration, so show them
-            nodeStyle: { label: { enabled: true, textPath: "label" } },
-            graph: {
-                viewMode: "2d",
-                layout: "multipartite",
-                layoutOptions: {
-                    subsetKey: {
-                        "0": ["reservoir"],
-                        "1": ["pump_north", "pump_central", "pump_south"],
-                        "2": ["plant_east", "plant_west", "plant_hill"],
-                        "3": ["city"],
-                    },
-                    align: "vertical",
-                },
-            },
+            nodeEncode: { "node.label": { by: "data.label", scale: "passthrough" } },
+            viewMode: "2d",
             algorithms: ["graphty:max-flow"],
         }),
+        layout: "multipartite",
+        layoutConfig: {
+            subsetKey: {
+                "0": ["reservoir"],
+                "1": ["pump_north", "pump_central", "pump_south"],
+                "2": ["plant_east", "plant_west", "plant_hill"],
+                "3": ["city"],
+            },
+            align: "vertical",
+        },
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
@@ -222,10 +191,6 @@ export const MaxFlow: Story = {
             algorithmOptions: { source: "reservoir", sink: "city" },
             applySuggestedStyles: true,
         });
-
-        const dm = graph.getDataManager();
-        dm.applyStylesToExistingNodes();
-        dm.applyStylesToExistingEdges();
     },
 };
 

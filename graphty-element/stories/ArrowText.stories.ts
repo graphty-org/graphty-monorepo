@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
+import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -14,16 +14,7 @@ const meta: Meta = {
         },
     },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
-        }),
+        setup: storySetup({ node: { "node.color": "#5A67D8" } }),
         nodeData: [
             { id: "A", position: { x: -3, y: 0, z: 0 } },
             { id: "B", position: { x: 3, y: 0, z: 0 } },
@@ -35,48 +26,27 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 /**
- * Edge with text labels on both arrow head, arrow tail, and the edge itself.
- * Demonstrates all three label positions with black text and no background.
+ * An edge carrying a label, with an arrow at each end.
+ *
+ * WHAT THIS NO LONGER DEMONSTRATES: the captions that used to sit beside the arrow head and the
+ * arrow tail. A style layer can say WHICH arrow is drawn (`edge.arrowHead`, `edge.arrowTail`) and
+ * nothing about what is written next to it -- there is no channel for an arrow's own text, its
+ * colour or its size -- so the two arrow captions are gone and the edge's own label is what is
+ * left. The renderer still draws arrow captions; nothing can ask it to.
  */
 export const ArrowText: Story = {
     args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: {
-                    type: "normal",
-                    text: {
-                        text: "end label",
-                        fontSize: 14,
-                        textColor: "#000000",
-                        backgroundColor: "transparent",
-                        attachOffset: 1,
-                    },
-                    color: "darkgrey",
-                },
-                arrowTail: {
-                    type: "normal",
-                    text: {
-                        text: "start label",
-                        fontSize: 14,
-                        textColor: "#000000",
-                        backgroundColor: "transparent",
-                        attachOffset: 1,
-                    },
-                    color: "darkgrey",
-                },
-                label: {
-                    enabled: true,
-                    text: "edge label",
-                    fontSize: 14,
-                    textColor: "#000000",
-                    backgroundColor: "transparent",
-                    location: "top",
-                    attachOffset: 0.5,
-                },
-                line: { type: "solid", color: "darkgrey" },
+        setup: storySetup({
+            edge: {
+                "edge.arrowHead": "normal",
+                "edge.arrowTail": "normal",
+                "edge.style": "solid",
+                "edge.color": "darkgrey",
+                "edge.label": "edge label",
+                "edge.labelStyle": { sizePx: 14, color: "#000000" },
             },
         }),
     },

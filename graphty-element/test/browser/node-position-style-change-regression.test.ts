@@ -141,17 +141,11 @@ describe("Node position preservation during style changes (regression)", () => {
         verifyNonZeroPositions(positionsBefore);
 
         // Apply a style change the way the AI commands do
-        graph.addStyleLayer({
-            node: {
-                selector: "type == 'server'",
-                style: {
-                    enabled: true,
-                    texture: { color: "#FF0000" },
-                },
-            },
-            metadata: {
-                name: "test-style-layer",
-            },
+        await graph.getSession().styles.add({
+            name: "test-style-layer",
+            target: "node",
+            selector: { match: "expression", where: "data.type == 'server'" },
+            set: { "node.color": "#FF0000" },
         });
 
         // Give a frame for any potential updates
@@ -175,17 +169,11 @@ describe("Node position preservation during style changes (regression)", () => {
         await waitForLayoutSettle();
 
         // Apply initial style
-        graph.addStyleLayer({
-            node: {
-                selector: "",
-                style: {
-                    enabled: true,
-                    texture: { color: "#00FF00" },
-                },
-            },
-            metadata: {
-                name: "test-layer",
-            },
+        const layer = await graph.getSession().styles.add({
+            name: "test-layer",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#00FF00" },
         });
 
         // Wait a frame
@@ -194,11 +182,8 @@ describe("Node position preservation during style changes (regression)", () => {
         // Record positions
         const positionsBefore = getNodePositions();
 
-        // Clear styles (which triggers another style update)
-        graph.removeStyleLayersByMetadata((metadata: unknown) => {
-            const meta = metadata as { name?: string } | null;
-            return meta?.name === "test-layer";
-        });
+        // Clear styles (which triggers another style pass)
+        await graph.getSession().styles.remove(layer.id);
 
         // Wait a frame
         await delay(16);
@@ -230,17 +215,11 @@ describe("Node position preservation during style changes (regression)", () => {
 
         // Apply multiple style changes in quick succession
         for (let i = 0; i < 5; i++) {
-            graph.addStyleLayer({
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                        texture: { color: `#${(i * 50).toString(16).padStart(2, "0")}0000` },
-                    },
-                },
-                metadata: {
-                    name: `test-layer-${i}`,
-                },
+            await graph.getSession().styles.add({
+                name: `test-layer-${String(i)}`,
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": `#${(i * 50).toString(16).padStart(2, "0")}0000` },
             });
 
             // Small delay between changes
@@ -272,17 +251,11 @@ describe("Node position preservation during style changes (regression)", () => {
         verifyNonZeroPositions(positionsBefore);
 
         // Change shape (this forces mesh recreation)
-        graph.addStyleLayer({
-            node: {
-                selector: "",
-                style: {
-                    enabled: true,
-                    shape: { type: "box", size: 1 },
-                },
-            },
-            metadata: {
-                name: "shape-change",
-            },
+        await graph.getSession().styles.add({
+            name: "shape-change",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "box", "node.size": 1 },
         });
 
         // Wait for mesh recreation

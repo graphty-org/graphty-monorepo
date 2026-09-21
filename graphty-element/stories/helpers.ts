@@ -8,15 +8,9 @@ import isChromatic from "chromatic/isChromatic";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
-const merge = lodash.merge.bind(lodash);
 
-import {
-    type AdHocData,
-    type CalculatedStyleConfig,
-    type StyleLayerType,
-    type StyleSchema,
-    StyleTemplate,
-} from "../src/config";
+import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
+import type { GraphBackgroundConfig, ViewMode } from "../src/config";
 import type { Graphty } from "../src/graphty-element";
 
 // Global storage for event promises set up by decorators
@@ -273,87 +267,204 @@ export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<v
     });
 }
 
-// Re-export all the original helpers unchanged
-interface TemplateOpts {
-    nodeStyle?: Record<string, unknown>;
-    nodeSelector?: string;
-    nodeCalculatedStyle?: CalculatedStyleConfig;
-    edgeStyle?: Record<string, unknown>;
-    edgeSelector?: string;
-    edgeCalculatedStyle?: CalculatedStyleConfig;
-    algorithms?: string[];
-    graph?: Record<string, unknown>;
-    layers?: StyleLayerType[];
-    behavior?: Record<string, unknown>;
-    data?: Record<string, unknown>;
+/**
+ * What a story asks the element to draw, beyond the data it loads.
+ *
+ * ONE STACK, ONE DOCUMENT. `node`, `edge`, `nodeEncode`, `edgeEncode` and `layers` become layers
+ * on `session.styles`, which is the only style stack there is; the rest are the element's own
+ * configuration properties. What used to sit here instead was a 1.x style template, which
+ * carried both halves in one object and replaced the whole of it every time a story applied one.
+ */
+interface StorySetup {
+    /** Channels every node is painted with, such as `{"node.color": "red"}`. */
+    node?: StaticStyle;
+    /** Node channels bound to a value in the data, such as a label read from a column. */
+    nodeEncode?: Encoding;
+    /** Channels every edge is painted with. */
+    edge?: StaticStyle;
+    /** Edge channels bound to a value in the data. */
+    edgeEncode?: Encoding;
+    /** Layers beyond the two above, in paint order: the last one listed paints over the rest. */
+    layers?: readonly LayerSpec[];
+    /** 2D or 3D. */
+    viewMode?: ViewMode;
+    /** What the graph is drawn against: a colour, or a photo-dome skybox. */
+    background?: GraphBackgroundConfig;
+    /** How far the camera starts from the graph. */
+    startingCameraDistance?: number;
+    /** Algorithms to run once the data has loaded, as "namespace:type". */
+    algorithms?: readonly string[];
+    /** How many layout steps to run before the first frame is drawn. */
+    preSteps?: number;
 }
 
-export function templateCreator(opts: TemplateOpts): StyleSchema {
-    const config = {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-        },
-        // Add default behavior with preSteps for Chromatic testing
-        // Most layouts don't need preSteps (they compute to completion immediately)
-        // Only physics-based layouts (ngraph, d3) need preSteps
-        behavior: {
-            layout: {
-                preSteps: isChromatic() ? 2000 : 0, // 2000 for Chromatic visual tests, 0 for regular tests
-            },
-        },
-    } as unknown as AdHocData;
+/**
+ * What a story's args are: the element's own properties, plus the setup above.
+ *
+ * `StoryObj<StoryArgs>` alone types `args` as a partial element, which `setup` is not part of --
+ * it is this package's own way of describing a story, not something a consumer sets on a tag.
+ */
+export type StoryArgs = Graphty & { setup: StorySetup };
 
-    if (opts.nodeStyle) {
-        deepSet(config, "layers[0].node.style", opts.nodeStyle);
-        deepSet(config, "layers[0].node.selector", opts.nodeSelector ?? "");
+/**
+ * Fill in the defaults every story shares.
+ *
+ * The only one is the layout pre-step count, which is what makes a Chromatic snapshot the same
+ * picture twice: a physics layout that has not been stepped is a graph in mid-flight, and how far
+ * it has flown depends on when the screenshot was taken.
+ * @param opts - What this story wants.
+ * @returns The setup to hand the element.
+ */
+export function storySetup(opts: StorySetup = {}): StorySetup {
+    return { preSteps: isChromatic() ? 2000 : 0, ...opts };
+}
+
+/**
+ * The label fields a `node.labelStyle` or `edge.labelStyle` control writes.
+ *
+ * A control named `node.labelStyle.font` writes the `font` field of that channel's value. The
+ * seven here are the whole of what a layer can say about a label; the renderer draws a great deal
+ * more -- pointers, badges, shadows, margins, gradients, depth fade -- and no channel reaches any
+ * of it. See this package's Label story for what that costs.
+ */
+const LABEL_FIELDS = new Set<keyof LabelStyle>([
+    "font",
+    "sizePx",
+    "weight",
+    "color",
+    "background",
+    "outline",
+    "padding",
+]);
+
+/**
+ * Write one control's value into the setup it belongs to.
+ *
+ * A control is named after the channel it writes -- `node.color`, `edge.width` -- or after one
+ * field of a label style, as `node.labelStyle.font`. Anything else is a control for a property of
+ * the element rather than for a style channel, and is left to the caller.
+ * @param setup - The setup being built.
+ * @param name - The control's name.
+ * @param value - What the reader set it to.
+ * @returns True when the control was a style channel and has been written.
+ */
+function writeChannelControl(setup: StorySetup, name: string, value: unknown): boolean {
+    const target = name.startsWith("node.") ? "node" : name.startsWith("edge.") ? "edge" : null;
+
+    if (target === null) {
+        return false;
     }
 
-    if (opts.nodeCalculatedStyle) {
-        deepSet(config, "layers[0].node.calculatedStyle", opts.nodeCalculatedStyle);
-        deepSet(config, "layers[0].node.selector", opts.nodeSelector ?? "");
-        deepSet(config, "layers[0].node.style", opts.nodeStyle ?? {});
+    const style: StaticStyle = { ...(target === "node" ? setup.node : setup.edge) };
+    const labelStyleChannel = `${target}.labelStyle`;
+
+    if (name.startsWith(`${labelStyleChannel}.`)) {
+        const field = name.slice(labelStyleChannel.length + 1) as keyof LabelStyle;
+
+        if (!LABEL_FIELDS.has(field)) {
+            return false;
+        }
+
+        style[labelStyleChannel as Channel] = {
+            ...(style[labelStyleChannel as Channel] as LabelStyle | undefined),
+            [field]: value,
+        };
+    } else {
+        style[name as Channel] = value as StaticStyle[Channel];
     }
 
-    if (opts.edgeStyle) {
-        deepSet(config, "layers[0].edge.style", opts.edgeStyle);
-        deepSet(config, "layers[0].edge.selector", opts.edgeSelector ?? "");
+    if (target === "node") {
+        setup.node = style;
+    } else {
+        setup.edge = style;
     }
 
-    if (opts.edgeCalculatedStyle) {
-        deepSet(config, "layers[0].edge.calculatedStyle", opts.edgeCalculatedStyle);
-        deepSet(config, "layers[0].edge.selector", opts.edgeSelector ?? "");
-        deepSet(config, "layers[0].edge.style", opts.edgeStyle ?? {});
+    return true;
+}
+
+/**
+ * How many layout steps to run before the first frame is drawn.
+ *
+ * Stories with a render function of their own call this, because they build the element
+ * themselves and so do not pass through {@link applyConfiguration}.
+ * @param element - The element to configure.
+ * @param preSteps - How many steps to run before the first frame.
+ */
+export function setLayoutPreSteps(element: Graphty, preSteps: number): void {
+    element.layoutBehavior = { layout: { preSteps } };
+}
+
+/**
+ * Turn a story's setup into layers on the element's own style stack.
+ *
+ * Added before the data is, which is deliberate: a layer is a standing instruction rather than a
+ * pass over what happens to be loaded, so the rows a later load adds are painted by it too.
+ * @param element - The element to style.
+ * @param setup - What the story asked for.
+ */
+function applyStyleLayers(element: Graphty, setup: StorySetup): void {
+    const layers: LayerSpec[] = [];
+
+    if (setup.node !== undefined || setup.nodeEncode !== undefined) {
+        layers.push({
+            name: "Story - nodes",
+            target: "node",
+            selector: { match: "everything" },
+            ...(setup.node === undefined ? {} : { set: setup.node }),
+            ...(setup.nodeEncode === undefined ? {} : { encode: setup.nodeEncode }),
+        });
     }
 
-    if (opts.algorithms) {
-        deepSet(config, "data.algorithms", opts.algorithms);
+    if (setup.edge !== undefined || setup.edgeEncode !== undefined) {
+        layers.push({
+            name: "Story - edges",
+            target: "edge",
+            selector: { match: "everything" },
+            ...(setup.edge === undefined ? {} : { set: setup.edge }),
+            ...(setup.edgeEncode === undefined ? {} : { encode: setup.edgeEncode }),
+        });
     }
 
-    if (opts.layers) {
-        deepSet(config, "layers", opts.layers);
+    layers.push(...(setup.layers ?? []));
+
+    for (const layer of layers) {
+        // Fired and forgotten: a style edit is a queued run that reports its own refusal, and a
+        // render function cannot await one.
+        void element.session.styles.add(layer);
+    }
+}
+
+/**
+ * Apply the configuration half of a story's setup to the element.
+ *
+ * TWO OF THESE REACH THROUGH `graph`, AND SHOULD NOT HAVE TO. The layout pre-step count and the
+ * list of algorithms to run on load were reachable only through the style template, and when that
+ * was removed nothing replaced them: every other setting it carried has a property on
+ * `<graphty-element>` -- `viewMode`, `background`, `startingCameraDistance`, `layout` -- and these
+ * two have none. Until the element grows them, a story writes the configuration document.
+ * @param element - The element to configure.
+ * @param setup - What the story asked for.
+ */
+function applyConfiguration(element: Graphty, setup: StorySetup): void {
+    if (setup.viewMode !== undefined) {
+        element.viewMode = setup.viewMode;
     }
 
-    if (opts.graph) {
-        // Merge with existing graph config instead of overwriting
-        config.graph = { ...config.graph, ...opts.graph };
+    if (setup.background !== undefined) {
+        element.background = setup.background;
     }
 
-    if (opts.behavior) {
-        // Merge behavior options instead of replacing them entirely
-        // This preserves the default preSteps setting for Chromatic
-        config.behavior = merge({}, config.behavior, opts.behavior);
+    if (setup.startingCameraDistance !== undefined) {
+        element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    if (opts.data) {
-        // Merge with any existing data config
-        config.data = { ...config.data, ...opts.data };
+    if (setup.preSteps !== undefined) {
+        element.layoutBehavior = { layout: { preSteps: setup.preSteps } };
     }
 
-    const template = StyleTemplate.parse(config);
-
-    return template;
+    if (setup.algorithms !== undefined) {
+        element.algorithmsOnLoad = setup.algorithms;
+    }
 }
 
 export const nodeData = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
@@ -379,77 +490,68 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad;
     }
 
-    // Process styleTemplate to apply argTypes modifications
-    const t = args.styleTemplate;
+    // The story's own setup, with whatever the reader has moved a control to written over it. A
+    // control is named after the thing it sets: a style channel, a layout option, or a property
+    // of the element.
+    const setup: StorySetup = { ...((args.setup as StorySetup | undefined) ?? {}) };
+    const layoutConfig: Record<string, unknown> = { ...(args.layoutConfig as Record<string, unknown> | undefined) };
 
-    // if argTypes have a name like "texture.color", apply that value to the node style
     for (const arg of Object.getOwnPropertyNames(args)) {
-         
         const name = storyConfig.argTypes[arg]?.name;
 
-        // if the arg has a name...
-        if (name) {
-            const val = args[arg];
+        if (!name) {
+            continue;
+        }
 
-            // Map control names to the correct template paths
-            if (name.startsWith("label.")) {
-                // For label properties, check if we're using nodeStyle or layers
-                const labelProp = name.substring(6); // Remove "label." prefix
-                if (t.nodeStyle) {
-                    deepSet(t, `nodeStyle.label.${labelProp}`, val);
-                } else if (t.layers) {
-                    deepSet(t, `layers[0].node.style.label.${labelProp}`, val);
-                }
-            } else if (name.startsWith("texture.") || name.startsWith("shape.") || name.startsWith("effect.")) {
-                // For other node properties
-                if (t.nodeStyle) {
-                    deepSet(t, `nodeStyle.${name}`, val);
-                } else if (t.layers) {
-                    deepSet(t, `layers[0].node.style.${name}`, val);
-                }
-            } else if (
-                name.startsWith("line.") ||
-                name.startsWith("arrowHead.") ||
-                name.startsWith("arrowTail.") ||
-                name.startsWith("tooltip.")
-            ) {
-                // For edge properties (including tail and tooltip)
-                if (t.edgeStyle) {
-                    deepSet(t, `edgeStyle.${name}`, val);
-                } else if (t.layers) {
-                    deepSet(t, `layers[0].edge.style.${name}`, val);
-                }
-            } else if (name.startsWith("graph.layoutOptions.")) {
-                // For layout options
-                const configKey = name.substring(20); // Remove "graph.layoutOptions." prefix
-                if (val !== undefined) {
-                    deepSet(t, `graph.layoutOptions.${configKey}`, val);
-                }
-            } else if (
-                ![
-                    "dataSource",
-                    "dataSourceConfig",
-                    "layout",
-                    "layoutConfig",
-                    "styleTemplate",
-                    "nodeData",
-                    "edgeData",
-                    "runAlgorithmsOnLoad",
-                    "onGraphSettled",
-                    "onSkyboxLoaded",
-                    "xr",
-                ].includes(arg)
-            ) {
-                // For other properties, apply directly (but skip component-level props and event handlers)
-                deepSet(t, name, val);
+        const value = args[arg];
+
+        if (writeChannelControl(setup, name, value)) {
+            continue;
+        }
+
+        // The two background controls build the element's own background value: one names a
+        // colour and the other the image a photo dome is built from.
+        if (name === "background.color" && typeof value === "string" && value !== "") {
+            setup.background = { backgroundType: "color", color: value };
+            continue;
+        }
+
+        if (name === "background.skybox" && typeof value === "string" && value !== "") {
+            setup.background = { backgroundType: "skybox", data: value };
+            continue;
+        }
+
+        if (name.startsWith("layoutConfig.")) {
+            if (value !== undefined) {
+                layoutConfig[name.slice("layoutConfig.".length)] = value;
             }
+
+            continue;
+        }
+
+        if (
+            ![
+                "dataSource",
+                "dataSourceConfig",
+                "layout",
+                "layoutConfig",
+                "setup",
+                "nodeData",
+                "edgeData",
+                "runAlgorithmsOnLoad",
+                "onGraphSettled",
+                "onSkyboxLoaded",
+                "xr",
+            ].includes(arg)
+        ) {
+            deepSet(setup, name, value);
         }
     }
 
-    // Set styleTemplate BEFORE adding data, because the trigger checks algorithms in the template
-    g.styleTemplate = t;
+    applyConfiguration(g, setup);
+    applyStyleLayers(g, setup);
 
-    // Now add data - this will trigger data-add operation which checks for algorithms
+    // Now add data - this will trigger data-add, which runs the algorithms the setup named
     if (args.dataSource) {
         // Set dataSourceConfig BEFORE dataSource, because setting dataSource
         // triggers addDataFromSource which needs the config
@@ -464,8 +566,8 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // Set layout properties if provided
     // IMPORTANT: Set layoutConfig BEFORE layout so that when layout triggers
     // setLayout(), it already has access to the seed value for deterministic layouts
-    if (args.layoutConfig) {
-        g.layoutConfig = args.layoutConfig;
+    if (Object.keys(layoutConfig).length > 0) {
+        g.layoutConfig = layoutConfig;
     }
 
     if (args.layout) {
@@ -649,4 +751,22 @@ export const nodeShapes = [
     "goldberg",
     "icosphere",
     "geodesic",
+] as const;
+
+/** Every arrow cap a layer can ask for, which is what `edge.arrowHead` and `edge.arrowTail` take. */
+export const arrowTypes = [
+    "normal",
+    "inverted",
+    "dot",
+    "sphere-dot",
+    "open-dot",
+    "none",
+    "tee",
+    "open-normal",
+    "diamond",
+    "open-diamond",
+    "crow",
+    "box",
+    "half-open",
+    "vee",
 ] as const;

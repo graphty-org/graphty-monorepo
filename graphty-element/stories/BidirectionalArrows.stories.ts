@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
+import { arrowTypes, eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -9,21 +9,12 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator],
     argTypes: {
-        arrowHeadSize: {
-            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
-            table: { category: "Head" },
-            name: "arrowHead.size",
-        },
-        arrowHeadColor: { control: "color", table: { category: "Head" }, name: "arrowHead.color" },
-        arrowTailSize: {
-            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
-            table: { category: "Tail" },
-            name: "arrowTail.size",
-        },
-        arrowTailColor: { control: "color", table: { category: "Tail" }, name: "arrowTail.color" },
+        arrowHead: { control: "select", options: arrowTypes, table: { category: "Head" }, name: "edge.arrowHead" },
+        arrowTail: { control: "select", options: arrowTypes, table: { category: "Tail" }, name: "edge.arrowTail" },
+        edgeColor: { control: "color", table: { category: "Line" }, name: "edge.color" },
     },
     args: {
-        styleTemplate: templateCreator({}),
+        setup: storySetup({}),
         dataSource: "json",
         dataSourceConfig: {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
@@ -34,21 +25,29 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
+/**
+ * An arrow at each end of every edge.
+ *
+ * WHAT THIS NO LONGER DEMONSTRATES: each arrow's own size and colour, which used to be the four
+ * controls on this story. A style layer chooses WHICH arrow is drawn and nothing else about it --
+ * there is no `edge.arrowHead.size` or `edge.arrowHead.color` channel -- so an arrow now takes
+ * its colour from the line it caps.
+ */
 export const Bidirectional: Story = {
     args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: { type: "normal", color: "#FF0000" },
-                arrowTail: { type: "tee", color: "#0000FF" },
-                line: { color: "darkgrey" },
+        setup: storySetup({
+            edge: {
+                "edge.arrowHead": "normal",
+                "edge.arrowTail": "tee",
+                "edge.color": "darkgrey",
             },
         }),
     },
     parameters: {
         controls: {
-            include: ["arrowHead.size", "arrowHead.color", "arrowTail.size", "arrowTail.color"],
+            include: ["edge.arrowHead", "edge.arrowTail", "edge.color"],
         },
     },
 };

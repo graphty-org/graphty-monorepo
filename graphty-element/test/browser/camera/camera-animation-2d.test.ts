@@ -2,7 +2,7 @@ import { afterEach, assert, test } from "vitest";
 
 import { TwoDCameraController } from "../../../src/cameras/TwoDCameraController.js";
 import { Graph } from "../../../src/Graph.js";
-import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
+import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup.js";
 
 let graph: Graph;
 let cameraController: TwoDCameraController;
@@ -14,46 +14,10 @@ afterEach(() => {
 async function setup2DGraph(): Promise<void> {
     graph = await createTestGraph();
 
-    // Switch to 2D mode using proper template format (like 2d-camera-controls.test.ts)
-    await graph.setStyleTemplate({
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            twoD: true,
-            viewMode: "2d",
-            background: { backgroundType: "color", color: "#f0f0f0" },
-            addDefaultStyle: true,
-            startingCameraDistance: 30,
-            layout: "ngraph",
-        },
-        layers: [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-                positionScale: 1,
-                idCoercion: "canonical",
-            },
-            directed: "auto",
-        },
-        behavior: {
-            layout: {
-                type: "ngraph",
-                preSteps: 0,
-                stepMultiplier: 1,
-                minDelta: 0.001,
-                zoomStepInterval: 5,
-            },
-            node: {
-                pinOnDrag: true,
-            },
-        },
-    });
+    graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+    await graph.setViewMode("2d");
+    await graph.setLayout("ngraph");
+    setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
     // Wait for camera to be activated
     await new Promise((resolve) => setTimeout(resolve, 100));

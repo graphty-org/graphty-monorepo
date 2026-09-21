@@ -2,7 +2,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph } from "../../../src/Graph.js";
 import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
-import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
+import { cleanupTestGraph, configureGraph, createTestGraph, setBehavior } from "../../helpers/testSetup.js";
 import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
 // Store original MediaRecorder
@@ -28,45 +28,9 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         graph = await createTestGraph();
 
         // Switch to 2D mode using proper template format
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: true,
-                viewMode: "2d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "fixed", // Use fixed to avoid layout delays
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                    positionScale: 1,
-                    idCoercion: "canonical",
-                },
-                directed: "auto",
-            },
-            behavior: {
-                layout: {
-                    type: "fixed",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        await configureGraph(graph, { viewMode: "2d", layout: "fixed" });
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -141,45 +105,9 @@ describe("Video Capture - 2D Animated Camera", () => {
         graph = await createTestGraph();
 
         // Switch to 2D mode using proper template format
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: true,
-                viewMode: "2d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "fixed", // Use fixed to avoid layout delays
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                    positionScale: 1,
-                    idCoercion: "canonical",
-                },
-                directed: "auto",
-            },
-            behavior: {
-                layout: {
-                    type: "fixed",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        await configureGraph(graph, { viewMode: "2d", layout: "fixed" });
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -321,45 +249,9 @@ describe("Video Capture - 2D Camera Preservation", () => {
         graph = await createTestGraph();
 
         // Switch to 2D mode
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: true,
-                viewMode: "2d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "fixed",
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                    positionScale: 1,
-                    idCoercion: "canonical",
-                },
-                directed: "auto",
-            },
-            behavior: {
-                layout: {
-                    type: "fixed",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        await configureGraph(graph, { viewMode: "2d", layout: "fixed" });
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 100));

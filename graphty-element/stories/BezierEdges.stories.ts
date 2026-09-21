@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
+import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -14,23 +14,14 @@ const meta: Meta = {
         },
     },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
-        }),
+        setup: storySetup({ node: { "node.color": "#5A67D8" } }),
         layout: "fixed",
         layoutConfig: {},
     },
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 export const Bezier: Story = {
     args: {
@@ -48,17 +39,11 @@ export const Bezier: Story = {
             { src: "A", dst: "C" },
             { src: "B", dst: "D" },
         ],
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                line: {
-                    bezier: true,
-                    color: "#48DBFB",
-                },
-                arrowHead: {
-                    type: "normal",
-                    color: "#48DBFB",
-                    size: 1.2,
-                },
+        setup: storySetup({
+            edge: {
+                "edge.curvature": true,
+                "edge.color": "#48DBFB",
+                "edge.arrowHead": "normal",
             },
         }),
     },

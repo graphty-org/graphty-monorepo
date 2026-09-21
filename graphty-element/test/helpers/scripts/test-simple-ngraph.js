@@ -43,30 +43,19 @@ async function main() {
             timeStep: 20,
         };
 
-        // Simple style template
-        graphty.styleTemplate = {
-            graphtyTemplate: true,
-            majorVersion: "1",
-            layers: [
-                {
-                    node: {
-                        selector: "",
-                        style: {
-                            shape: { type: "sphere", size: 2 },
-                            texture: { color: "steelblue" },
-                        },
-                    },
-                    edge: {
-                        selector: "",
-                        style: {
-                            line: { width: 1, color: "lightgray" },
-                        },
-                    },
-                },
-            ],
-            graph: {},
-            behavior: { node: { pinOnDrag: true } },
-        };
+        // Two style layers, one per kind of element
+        void graphty.session.styles.add({
+            name: "Nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "sphere", "node.size": 2, "node.color": "steelblue" },
+        });
+        void graphty.session.styles.add({
+            name: "Edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.width": 1, "edge.color": "lightgray" },
+        });
 
         document.body.appendChild(graphty);
 

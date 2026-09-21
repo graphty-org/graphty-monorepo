@@ -56,10 +56,13 @@ describe("Automatic Layout Updates", () => {
             data: {
                 knownFields: {
                     nodeIdPath: "id",
+                    nodeLabelPath: null,
                     nodeWeightPath: null,
                     nodeTimePath: null,
                     edgeSrcIdPath: "source",
                     edgeDstIdPath: "target",
+                    edgeIdPath: null,
+                    repeatedEdges: "keep",
                     edgeWeightPath: null,
                     edgeTimePath: null,
                     positionScale: 1,

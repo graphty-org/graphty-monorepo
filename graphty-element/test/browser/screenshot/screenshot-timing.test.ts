@@ -1,5 +1,6 @@
 import { afterEach, assert, test } from "vitest";
 
+import type { AuthoredLayoutDescriptor } from "../../../src/catalog/types";
 import type { Edge } from "../../../src/Edge";
 import type { Graph } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
@@ -16,6 +17,24 @@ afterEach(() => {
 class MockLayoutEngine extends LayoutEngine {
     static type = "mock";
     static maxDimensions = 3;
+
+    // Every layout registered from outside the element declares what a picker would show, and
+    // `LayoutEngine.register` refuses one that does not. A mock is registered the same way a
+    // third party's engine is, so it declares the same thing.
+    static descriptor: AuthoredLayoutDescriptor = {
+        id: "mock",
+        plainName: "Mock",
+        technicalName: "Mock layout, for tests",
+        description: "Puts every node at the origin so a test can drive the settle machinery.",
+        family: "special",
+        kind: "live",
+        maxDimensions: 3,
+        sizeRating: "any",
+        structuralInputs: [],
+        options: [],
+        engine: "mock",
+    };
+
     private _settled = false;
     private _nodes: Node[] = [];
     private _edges: Edge[] = [];

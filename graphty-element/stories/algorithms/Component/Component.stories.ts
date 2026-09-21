@@ -1,5 +1,5 @@
 import type { Graphty } from "../../../src/graphty-element";
-import { algorithmMetaBase, createAlgorithmStory, type Story, templateCreator, waitForGraphSettled } from "../helpers";
+import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -64,7 +64,7 @@ export const ConnectedComponents: Story = {
         layoutConfig: {
             seed: 42,
         },
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: ["graphty:connected-components"],
         }),
         runAlgorithmsOnLoad: true,
@@ -87,10 +87,6 @@ export const ConnectedComponents: Story = {
 
         // Apply suggested styles from the algorithm
         graph.applySuggestedStyles("graphty:connected-components");
-
-        // Re-apply styles to existing nodes and edges so they pick up the new style layers
-        graph.getDataManager().applyStylesToExistingNodes();
-        graph.getDataManager().applyStylesToExistingEdges();
     },
 };
 

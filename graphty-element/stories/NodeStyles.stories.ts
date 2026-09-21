@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, nodeShapes, renderFn, templateCreator, waitForGraphSettled } from "./helpers";
+import {
+    eventWaitingDecorator,
+    nodeShapes,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Node",
@@ -10,38 +17,33 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator],
     argTypes: {
-        nodeColor: { control: "color", table: { category: "Texture" }, name: "texture.color" },
-        nodeShape: { control: "select", options: nodeShapes, table: { category: "Shape" }, name: "shape.type" },
+        nodeColor: { control: "color", table: { category: "Colour" }, name: "node.color" },
+        nodeShape: { control: "select", options: nodeShapes, table: { category: "Shape" }, name: "node.shape" },
         nodeSize: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Shape" },
-            name: "shape.size",
+            name: "node.size",
         },
-        nodeWireframe: { control: "boolean", table: { category: "Effect" }, name: "effect.wireframe" },
-        nodeLabelEnabled: { control: "boolean", table: { category: "Label" }, name: "label.enabled" },
-        advancedNodeColor: { control: "color", table: { category: "Texture" }, name: "texture.color.value" },
-        advancedNodeOpacity: {
+        nodeWireframe: { control: "boolean", table: { category: "Effect" }, name: "node.wireframe" },
+        nodeLabel: { control: "text", table: { category: "Label" }, name: "node.label" },
+        nodeOpacity: {
             control: { type: "range", min: 0.1, max: 1, step: 0.1 },
-            table: { category: "Texture" },
-            name: "texture.color.opacity",
+            table: { category: "Colour" },
+            name: "node.opacity",
         },
     },
     parameters: {
         // controls: {exclude: /^(#|_)/},
         controls: {
-            include: ["texture.color", "shape.type", "shape.size", "effect.wireframe", "label.enabled"],
+            include: ["node.color", "node.shape", "node.size", "node.wireframe", "node.label"],
         },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
         },
     },
     args: {
-        styleTemplate: templateCreator({
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for ngraph physics layout
-                },
-            },
+        setup: storySetup({
+            preSteps: 8000, // Extra preSteps for ngraph physics layout
         }),
         dataSource: "json",
         dataSourceConfig: {
@@ -60,7 +62,7 @@ const waitForSettle = async ({ canvasElement }: { canvasElement: HTMLElement }):
     await waitForGraphSettled(canvasElement);
 };
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 export const Default: Story = {
     play: waitForSettle,
@@ -68,14 +70,14 @@ export const Default: Story = {
 
 export const Color: Story = {
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { texture: { color: "red" } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.color": "red" },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["texture.color"],
+            include: ["node.color"],
         },
     },
     play: waitForSettle,
@@ -83,14 +85,14 @@ export const Color: Story = {
 
 export const Shape: Story = {
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { shape: { type: "box" } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.shape": "box" },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["shape.type"],
+            include: ["node.shape"],
         },
     },
     play: waitForSettle,
@@ -98,11 +100,11 @@ export const Shape: Story = {
 
 export const Size: Story = {
     args: {
-        styleTemplate: templateCreator({ nodeStyle: { shape: { size: 3 } }, behavior: { layout: { preSteps: 8000 } } }),
+        setup: storySetup({ node: { "node.size": 3 }, preSteps: 8000 }),
     },
     parameters: {
         controls: {
-            include: ["shape.size"],
+            include: ["node.size"],
         },
     },
     play: waitForSettle,
@@ -110,29 +112,36 @@ export const Size: Story = {
 
 export const Wireframe: Story = {
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { effect: { wireframe: true } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.wireframe": true },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["effect.wireframe"],
+            include: ["node.wireframe"],
         },
     },
     play: waitForSettle,
 };
 
+/**
+ * A label on every node, reading each node's own id.
+ *
+ * `label: {enabled: true}` used to switch labels on and leave the words to the renderer's
+ * default. A layer says what a label SAYS: writing `node.label` is what switches one on, and
+ * binding it to a column is how the words come from the data.
+ */
 export const Label: Story = {
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { label: { enabled: true } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["label.enabled"],
+            include: ["node.label"],
         },
     },
     play: waitForSettle,
@@ -140,22 +149,14 @@ export const Label: Story = {
 
 export const Opacity: Story = {
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#0000FF",
-                        opacity: 0.5,
-                    },
-                },
-            },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.color": "#0000FF", "node.opacity": 0.5 },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["texture.color.value", "texture.color.opacity"],
+            include: ["node.color", "node.opacity"],
         },
     },
     play: waitForSettle,

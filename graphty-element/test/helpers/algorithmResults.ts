@@ -222,10 +222,13 @@ export function getNodeResult(
 }
 
 /**
- * One edge's value, addressed the 1.x way.
+ * One edge's value, addressed by the element's own edge id.
+ *
+ * It used to take the two endpoint ids and join them with a colon, because that WAS the edge id.
+ * It is not any more: an edge is identified by the counter the element stamps on it, which is what
+ * lets two edges run between the same pair of nodes and be told apart.
  * @param algorithm - The algorithm that ran.
- * @param srcId - The source node.
- * @param dstId - The destination node.
+ * @param edgeId - The edge's id, read off the `Edge` the test is asking about.
  * @param _namespace - The 1.x namespace.
  * @param type - The 1.x algorithm type.
  * @param key - The 1.x result key.
@@ -233,14 +236,13 @@ export function getNodeResult(
  */
 export function getEdgeResult(
     algorithm: ResultCarrier,
-    srcId: string | number,
-    dstId: string | number,
+    edgeId: string,
     _namespace: string,
     type: string,
     key: string,
      
 ): any {
-    return read(algorithm, `${String(srcId)}:${String(dstId)}`, type, key, "edge");
+    return read(algorithm, edgeId, type, key, "edge");
 }
 
 /**

@@ -5,9 +5,9 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../../src/catalog/types";
 import type { Graphty } from "../../src/graphty-element";
-import { eventWaitingDecorator, templateCreator, waitForGraphSettled } from "../helpers";
+import { eventWaitingDecorator, type StoryArgs, storySetup, waitForGraphSettled } from "../helpers";
 
-export type Story = StoryObj<Graphty>;
+export type Story = StoryObj<StoryArgs>;
 
 /**
  * Base meta configuration for algorithm stories (without title)
@@ -31,12 +31,8 @@ export const algorithmMetaBase: Omit<Meta, "title"> = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        styleTemplate: templateCreator({
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for ngraph physics layout
-                },
-            },
+        setup: storySetup({
+            preSteps: 8000, // Extra preSteps for ngraph physics layout
         }),
     },
 };
@@ -49,21 +45,16 @@ export const algorithmMetaBase: Omit<Meta, "title"> = {
  * algorithm did not select is a reader's choice and must not ship in suggestedStyles -- see
  * CLAUDE.md "### Algorithm Styles" -- so a story that wants the rest dimmed asks for it here.
  *
- * THEY GO IN THE SESSION'S STACK, NOT IN THE STYLE TEMPLATE, and the difference is not cosmetic.
- * A template layer is a 1.x layer, and one of those in the stack hands the whole graph back to
- * the 1.x painter -- at which point the algorithm's own layer, which lives in the session, paints
- * nothing at all. A reader layer written the old way therefore deleted the very picture it was
- * meant to sit under.
+ * ORDER IS EVERYTHING HERE. The reader's layers are added first and the algorithm's suggestion
+ * after them, because a layer later in the stack paints over a layer earlier in it -- so a story
+ * that dims every edge and then runs a route algorithm shows the route over the dimmed rest,
+ * which is the picture it is asking for.
  */
 export const createAlgorithmStory = (algorithmId: string, readerLayers?: readonly LayerSpec[]): Story => ({
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: [algorithmId],
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for ngraph physics layout
-                },
-            },
+            preSteps: 8000, // Extra preSteps for ngraph physics layout
         }),
         runAlgorithmsOnLoad: true,
     },
@@ -87,12 +78,8 @@ export const createAlgorithmStory = (algorithmId: string, readerLayers?: readonl
 
         // Apply suggested styles from the algorithm
         graph.applySuggestedStyles(algorithmId);
-
-        // Re-apply styles to existing nodes and edges so they pick up the new style layers
-        graph.getDataManager().applyStylesToExistingNodes();
-        graph.getDataManager().applyStylesToExistingEdges();
     },
 });
 
 // Re-export helpers for convenience
-export { templateCreator, waitForGraphSettled } from "../helpers";
+export { storySetup, waitForGraphSettled } from "../helpers";

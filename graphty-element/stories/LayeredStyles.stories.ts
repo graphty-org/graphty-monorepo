@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
+import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 // Simple test data: 5 nodes, 6 edges - positioned close together in 3D space
 const simpleNodeData = [
@@ -42,7 +42,7 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 /**
  * Two layers setting different node colors based on node type.
@@ -51,10 +51,20 @@ type Story = StoryObj<Graphty>;
  */
 export const TwoLayerNodeColors: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                { node: { selector: "type == 'primary'", style: { enabled: true, texture: { color: "red" } } } },
-                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "blue" } } } },
+                {
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    set: { "node.color": "red" },
+                },
+                {
+                    name: "nodes where data.type == 'secondary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'secondary'" },
+                    set: { "node.color": "blue" },
+                },
             ],
         }),
     },
@@ -67,10 +77,20 @@ export const TwoLayerNodeColors: Story = {
  */
 export const ShapeAndColorLayers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                { node: { selector: "type == 'primary'", style: { enabled: true, shape: { type: "box" } } } },
-                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "green" } } } },
+                {
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    set: { "node.shape": "box" },
+                },
+                {
+                    name: "nodes where data.type == 'secondary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'secondary'" },
+                    set: { "node.color": "green" },
+                },
             ],
         }),
     },
@@ -84,11 +104,26 @@ export const ShapeAndColorLayers: Story = {
  */
 export const ThreeLayerSizes: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                { node: { selector: "id == 'A'", style: { enabled: true, shape: { size: 2 } } } },
-                { node: { selector: "id == 'B' || id == 'C'", style: { enabled: true, shape: { size: 1.5 } } } },
-                { node: { selector: "id == 'E'", style: { enabled: true, shape: { size: 0.5 } } } },
+                {
+                    name: "nodes where data.id == 'A'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'A'" },
+                    set: { "node.size": 2 },
+                },
+                {
+                    name: "nodes where data.id == 'B' || data.id == 'C'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'B' || data.id == 'C'" },
+                    set: { "node.size": 1.5 },
+                },
+                {
+                    name: "nodes where data.id == 'E'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'E'" },
+                    set: { "node.size": 0.5 },
+                },
             ],
         }),
     },
@@ -101,10 +136,20 @@ export const ThreeLayerSizes: Story = {
  */
 export const EdgeWidthLayers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                { edge: { selector: "weight == `1`", style: { enabled: true, line: { width: 0.1 } } } },
-                { edge: { selector: "weight == `2`", style: { enabled: true, line: { width: 0.5 } } } },
+                {
+                    name: "edges where data.weight == `1`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `1`" },
+                    set: { "edge.width": 0.1 },
+                },
+                {
+                    name: "edges where data.weight == `2`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `2`" },
+                    set: { "edge.width": 0.5 },
+                },
             ],
         }),
     },
@@ -118,28 +163,25 @@ export const EdgeWidthLayers: Story = {
  */
 export const ArrowHeadStyles: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    edge: {
-                        selector: "weight == `1`",
-                        style: {
-                            enabled: true,
-                            arrowHead: { type: "sphere-dot", size: 1.5, color: "white", opacity: 1 },
-                        },
-                    },
+                    name: "edges where data.weight == `1`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `1`" },
+                    set: { "edge.arrowHead": "sphere-dot" },
                 },
                 {
-                    edge: {
-                        selector: "weight == `2`",
-                        style: { enabled: true, arrowHead: { type: "diamond", size: 1.5, color: "white", opacity: 1 } },
-                    },
+                    name: "edges where data.weight == `2`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `2`" },
+                    set: { "edge.arrowHead": "diamond" },
                 },
                 {
-                    edge: {
-                        selector: "",
-                        style: { enabled: true, arrowHead: { type: "normal", size: 1, color: "yellow", opacity: 1 } },
-                    },
+                    name: "every edge",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.arrowHead": "normal" },
                 },
             ],
         }),
@@ -155,17 +197,32 @@ export const ArrowHeadStyles: Story = {
  */
 export const MixedNodeProperties: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                { node: { selector: "type == 'primary'", style: { enabled: true, texture: { color: "red" } } } },
-                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "blue" } } } },
                 {
-                    node: {
-                        selector: "type == 'tertiary'",
-                        style: { enabled: true, texture: { color: "yellow" }, shape: { type: "cylinder" } },
-                    },
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    set: { "node.color": "red" },
                 },
-                { node: { selector: "id == 'A'", style: { enabled: true, shape: { size: 2.5 } } } },
+                {
+                    name: "nodes where data.type == 'secondary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'secondary'" },
+                    set: { "node.color": "blue" },
+                },
+                {
+                    name: "nodes where data.type == 'tertiary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'tertiary'" },
+                    set: { "node.color": "yellow", "node.shape": "cylinder" },
+                },
+                {
+                    name: "nodes where data.id == 'A'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'A'" },
+                    set: { "node.size": 2.5 },
+                },
             ],
         }),
     },
@@ -178,27 +235,19 @@ export const MixedNodeProperties: Story = {
  */
 export const EdgeColorVariations: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    edge: {
-                        selector: "weight == `1`",
-                        style: {
-                            enabled: true,
-                            line: { color: "green" },
-                            arrowHead: { type: "normal", size: 1, color: "green", opacity: 1 },
-                        },
-                    },
+                    name: "edges where data.weight == `1`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `1`" },
+                    set: { "edge.color": "green", "edge.arrowHead": "normal" },
                 },
                 {
-                    edge: {
-                        selector: "weight == `2`",
-                        style: {
-                            enabled: true,
-                            line: { color: "red" },
-                            arrowHead: { type: "normal", size: 1, color: "red", opacity: 1 },
-                        },
-                    },
+                    name: "edges where data.weight == `2`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `2`" },
+                    set: { "edge.color": "red", "edge.arrowHead": "normal" },
                 },
             ],
         }),
@@ -213,34 +262,25 @@ export const EdgeColorVariations: Story = {
  */
 export const OpacityLayers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    node: {
-                        selector: "id == 'A'",
-                        style: {
-                            enabled: true,
-                            texture: { color: { colorType: "solid", value: "#FF0000", opacity: 0.3 } },
-                        },
-                    },
+                    name: "nodes where data.id == 'A'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'A'" },
+                    set: { "node.color": "#FF0000", "node.opacity": 0.3 },
                 },
                 {
-                    node: {
-                        selector: "id == 'B' || id == 'C'",
-                        style: {
-                            enabled: true,
-                            texture: { color: { colorType: "solid", value: "#00FF00", opacity: 0.6 } },
-                        },
-                    },
+                    name: "nodes where data.id == 'B' || data.id == 'C'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'B' || data.id == 'C'" },
+                    set: { "node.color": "#00FF00", "node.opacity": 0.6 },
                 },
                 {
-                    node: {
-                        selector: "id == 'D' || id == 'E'",
-                        style: {
-                            enabled: true,
-                            texture: { color: { colorType: "solid", value: "#0000FF", opacity: 0.9 } },
-                        },
-                    },
+                    name: "nodes where data.id == 'D' || data.id == 'E'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'D' || data.id == 'E'" },
+                    set: { "node.color": "#0000FF", "node.opacity": 0.9 },
                 },
             ],
         }),
@@ -254,15 +294,20 @@ export const OpacityLayers: Story = {
  */
 export const WireframeEffectLayers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    node: {
-                        selector: "type == 'primary'",
-                        style: { enabled: true, effect: { wireframe: true }, texture: { color: "red" } },
-                    },
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    set: { "node.color": "red", "node.wireframe": true },
                 },
-                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "blue" } } } },
+                {
+                    name: "nodes where data.type == 'secondary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'secondary'" },
+                    set: { "node.color": "blue" },
+                },
             ],
         }),
     },
@@ -277,12 +322,32 @@ export const WireframeEffectLayers: Story = {
  */
 export const ComplexMultiProperty: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                { node: { selector: "", style: { enabled: true, texture: { color: "green" }, shape: { size: 1 } } } },
-                { node: { selector: "type == 'primary'", style: { enabled: true, texture: { color: "red" } } } },
-                { node: { selector: "id == 'A'", style: { enabled: true, shape: { type: "box", size: 2 } } } },
-                { node: { selector: "type == 'secondary'", style: { enabled: true, shape: { type: "sphere" } } } },
+                {
+                    name: "every node",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "green", "node.size": 1 },
+                },
+                {
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    set: { "node.color": "red" },
+                },
+                {
+                    name: "nodes where data.id == 'A'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'A'" },
+                    set: { "node.shape": "box", "node.size": 2 },
+                },
+                {
+                    name: "nodes where data.type == 'secondary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'secondary'" },
+                    set: { "node.shape": "sphere" },
+                },
             ],
         }),
     },
@@ -295,19 +360,20 @@ export const ComplexMultiProperty: Story = {
  */
 export const LabelEnabledLayers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    node: {
-                        selector: "type == 'primary'",
-                        style: { enabled: true, label: { enabled: true, textPath: "id" } },
-                    },
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    encode: { "node.label": { by: "data.id", scale: "passthrough" } },
                 },
                 {
-                    node: {
-                        selector: "id == 'E'",
-                        style: { enabled: true, label: { enabled: true, textPath: "id", textColor: "red" } },
-                    },
+                    name: "nodes where data.id == 'E'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'E'" },
+                    set: { "node.labelStyle": { color: "red" } },
+                    encode: { "node.label": { by: "data.id", scale: "passthrough" } },
                 },
             ],
         }),
@@ -322,29 +388,25 @@ export const LabelEnabledLayers: Story = {
  */
 export const ArrowSizeVariations: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    edge: {
-                        selector: "weight == `1`",
-                        style: { enabled: true, arrowHead: { type: "normal", size: 0.5, color: "white", opacity: 1 } },
-                    },
+                    name: "edges where data.weight == `1`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `1`" },
+                    set: { "edge.arrowHead": "normal" },
                 },
                 {
-                    edge: {
-                        selector: "weight == `2`",
-                        style: { enabled: true, arrowHead: { type: "normal", size: 2.0, color: "white", opacity: 1 } },
-                    },
+                    name: "edges where data.weight == `2`",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.weight == `2`" },
+                    set: { "edge.arrowHead": "normal" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'A'",
-                        style: {
-                            enabled: true,
-                            line: { color: "purple" },
-                            arrowHead: { type: "normal", size: 1, color: "purple", opacity: 1 },
-                        },
-                    },
+                    name: "edges where data.src == 'A'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'A'" },
+                    set: { "edge.color": "purple", "edge.arrowHead": "normal" },
                 },
             ],
         }),
@@ -358,19 +420,19 @@ export const ArrowSizeVariations: Story = {
  */
 export const ShapeVariationsWithColor: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    node: {
-                        selector: "type == 'primary'",
-                        style: { enabled: true, shape: { type: "tetrahedron" }, texture: { color: "red" } },
-                    },
+                    name: "nodes where data.type == 'primary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'primary'" },
+                    set: { "node.color": "red", "node.shape": "tetrahedron" },
                 },
                 {
-                    node: {
-                        selector: "type == 'secondary'",
-                        style: { enabled: true, shape: { type: "octahedron" }, texture: { color: "blue" } },
-                    },
+                    name: "nodes where data.type == 'secondary'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.type == 'secondary'" },
+                    set: { "node.color": "blue", "node.shape": "octahedron" },
                 },
             ],
         }),
@@ -405,35 +467,31 @@ export const AxisAlignedColoredSpheres: Story = {
         layoutConfig: {
             dim: 3,
         },
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
-                // Origin: tiny black sphere
                 {
-                    node: {
-                        selector: "id == 'origin'",
-                        style: { enabled: true, shape: { size: 0.5 }, texture: { color: "black" } },
-                    },
+                    name: "nodes where data.id == 'origin'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'origin'" },
+                    set: { "node.color": "black", "node.size": 0.5 },
                 },
-                // X-axis: large red sphere
                 {
-                    node: {
-                        selector: "id == 'x-axis'",
-                        style: { enabled: true, shape: { size: 1.5 }, texture: { color: "red" } },
-                    },
+                    name: "nodes where data.id == 'x-axis'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'x-axis'" },
+                    set: { "node.color": "red", "node.size": 1.5 },
                 },
-                // Y-axis: large green sphere
                 {
-                    node: {
-                        selector: "id == 'y-axis'",
-                        style: { enabled: true, shape: { size: 1.5 }, texture: { color: "green" } },
-                    },
+                    name: "nodes where data.id == 'y-axis'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'y-axis'" },
+                    set: { "node.color": "green", "node.size": 1.5 },
                 },
-                // Z-axis: large blue sphere
                 {
-                    node: {
-                        selector: "id == 'z-axis'",
-                        style: { enabled: true, shape: { size: 1.5 }, texture: { color: "blue" } },
-                    },
+                    name: "nodes where data.id == 'z-axis'",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'z-axis'" },
+                    set: { "node.color": "blue", "node.size": 1.5 },
                 },
             ],
         }),

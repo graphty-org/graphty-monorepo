@@ -1,5 +1,5 @@
 import type { Graphty } from "../../../src/graphty-element";
-import { algorithmMetaBase, type Story, templateCreator, waitForGraphSettled } from "../helpers";
+import { algorithmMetaBase, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -14,7 +14,7 @@ export default meta;
  */
 export const DegreeAndPageRank: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: ["graphty:degree", "graphty:pagerank"],
         }),
         runAlgorithmsOnLoad: true,
@@ -31,8 +31,6 @@ export const DegreeAndPageRank: Story = {
         const { graph } = graphtyElement;
 
         graph.applySuggestedStyles(["graphty:degree", "graphty:pagerank"]);
-        graph.getDataManager().applyStylesToExistingNodes();
-        graph.getDataManager().applyStylesToExistingEdges();
     },
 };
 
@@ -49,7 +47,7 @@ export const DegreeAndPageRank: Story = {
  */
 export const CentralityVsCommunity: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: ["graphty:louvain", "graphty:pagerank"],
         }),
         runAlgorithmsOnLoad: true,
@@ -66,8 +64,6 @@ export const CentralityVsCommunity: Story = {
         const { graph } = graphtyElement;
 
         graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
-        graph.getDataManager().applyStylesToExistingNodes();
-        graph.getDataManager().applyStylesToExistingEdges();
     },
 };
 
@@ -80,7 +76,7 @@ export const CentralityVsCommunity: Story = {
  */
 export const CommunityStructureWithPath: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: ["graphty:degree", "graphty:pagerank", "graphty:louvain", "graphty:dijkstra"],
         }),
         runAlgorithmsOnLoad: true,
@@ -103,9 +99,6 @@ export const CommunityStructureWithPath: Story = {
             "graphty:louvain", // Color by community (overrides degree color)
             "graphty:dijkstra", // Highlight shortest path
         ]);
-
-        graph.getDataManager().applyStylesToExistingNodes();
-        graph.getDataManager().applyStylesToExistingEdges();
     },
 };
 
@@ -121,7 +114,7 @@ export const CommunityStructureWithPath: Story = {
  */
 export const CombinedEdgeFlow: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: [],
         }),
         runAlgorithmsOnLoad: false,

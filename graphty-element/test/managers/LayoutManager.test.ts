@@ -1,5 +1,6 @@
 import { afterEach, assert, beforeEach, describe, expect, it } from "vitest";
 
+import { GraphtyError, isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
 import { LayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, EventManager, LayoutManager } from "../../src/managers";
@@ -117,8 +118,22 @@ describe("LayoutManager", () => {
             }
         });
 
-        it("should handle layout initialization errors", async () => {
-            await expect(layoutManager.setLayout("unknown", {})).rejects.toThrow(/No layout named: unknown/);
+        it("should report an unknown layout name as a coded failure", async () => {
+            // A bare TypeError left a consumer parsing a message to find out what went wrong, and
+            // told it nothing about what it could have asked for instead.
+            await expect(layoutManager.setLayout("unknown", {})).rejects.toThrow(GraphtyError);
+
+            let thrown: unknown;
+            try {
+                await layoutManager.setLayout("unknown", {});
+            } catch (error) {
+                thrown = error;
+            }
+
+            assert.isTrue(isGraphtyError(thrown), "an unknown layout fails as a GraphtyError");
+            const failure = thrown as GraphtyError;
+            assert.strictEqual(failure.code, "E_UNKNOWN_LAYOUT");
+            assert.include(failure.details.available as readonly string[], "ngraph", "and it says what is available");
         });
 
         it("should handle zero pre-steps configuration", async () => {
@@ -292,7 +307,7 @@ describe("LayoutManager", () => {
 
             const edges = Array.from(layoutManager.edges);
             assert.equal(edges.length, 1);
-            assert.equal(edges[0].id, "node1:node2");
+            assert.equal(edges[0].id, "0", "the engine holds the same Edge, under the element's own id");
         });
     });
 

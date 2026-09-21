@@ -3,7 +3,7 @@ import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
-import { asData, styleTemplate, type TestGraph } from "../helpers/testSetup";
+import { addStyleLayer, asData, edgeBetween, styleEveryEdge } from "../helpers/testSetup";
 
 describe("Edge 2D Patterns Integration", () => {
     let container: HTMLElement;
@@ -17,27 +17,8 @@ describe("Edge 2D Patterns Integration", () => {
         const graph = new Graph(container);
 
         // Set 2D mode via style template with diamond pattern
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: true,
-                layers: [
-                    {
-                        edge: {
-                            selector: "",
-                            style: {
-                                enabled: true,
-                                line: {
-                                    type: "diamond",
-                                    color: "darkgrey",
-                                },
-                            },
-                        },
-                    },
-                ],
-            }),
-        );
-
-        // Wait for style template operation to complete
+        await graph.setViewMode("2d");
+        await styleEveryEdge(graph, { "edge.style": "diamond", "edge.color": "darkgrey" });
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
@@ -51,8 +32,7 @@ describe("Edge 2D Patterns Integration", () => {
                 source: "node1",
                 target: "node2",
             }),
-            "source",
-            "target",
+            { source: "source", target: "target" },
         );
 
         // Wait for all operations to complete
@@ -63,8 +43,13 @@ describe("Edge 2D Patterns Integration", () => {
             setTimeout(resolve, 100);
         });
 
+        // A style pass works out what each element should look like; a FRAME is what applies it.
+        // This graph was never `init()`ed, so nothing is driving the render loop and the frame
+        // has to be driven by hand.
+        graph.getUpdateManager().renderFixedFrames(2);
+
         // Get the edge from dataManager
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("node1:node2");
+        const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh is a PatternedLineMesh
@@ -86,27 +71,8 @@ describe("Edge 2D Patterns Integration", () => {
         const graph = new Graph(container);
 
         // Set 3D mode via style template with diamond pattern
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: false,
-                layers: [
-                    {
-                        edge: {
-                            selector: "",
-                            style: {
-                                enabled: true,
-                                line: {
-                                    type: "diamond",
-                                    color: "darkgrey",
-                                },
-                            },
-                        },
-                    },
-                ],
-            }),
-        );
-
-        // Wait for style template operation to complete
+        await graph.setViewMode("3d");
+        await styleEveryEdge(graph, { "edge.style": "diamond", "edge.color": "darkgrey" });
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
@@ -120,8 +86,7 @@ describe("Edge 2D Patterns Integration", () => {
                 source: "node1",
                 target: "node2",
             }),
-            "source",
-            "target",
+            { source: "source", target: "target" },
         );
 
         // Wait for all operations to complete
@@ -132,8 +97,13 @@ describe("Edge 2D Patterns Integration", () => {
             setTimeout(resolve, 100);
         });
 
+        // A style pass works out what each element should look like; a FRAME is what applies it.
+        // This graph was never `init()`ed, so nothing is driving the render loop and the frame
+        // has to be driven by hand.
+        graph.getUpdateManager().renderFixedFrames(2);
+
         // Get the edge from dataManager
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("node1:node2");
+        const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh is a PatternedLineMesh
@@ -158,13 +128,7 @@ describe("Edge 2D Patterns Integration", () => {
         const graph = new Graph(container);
 
         // Set 2D mode via style template
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: true,
-            }),
-        );
-
-        // Wait for style template operation to complete
+        await graph.setViewMode("2d");
         await graph.operationQueue.waitForCompletion();
 
         // Test different pattern types
@@ -177,39 +141,30 @@ describe("Edge 2D Patterns Integration", () => {
             await graph.addNode(asData({ id: nodeId1, x: index, y: 0, z: 0 }));
             await graph.addNode(asData({ id: nodeId2, x: index + 1, y: 0, z: 0 }));
 
-            // Update style template for this specific edge pattern
-            await graph.setStyleTemplate(
-                styleTemplate({
-                    twoD: true,
-                    layers: [
-                        {
-                            edge: {
-                                selector: "",
-                                style: {
-                                    enabled: true,
-                                    line: {
-                                        type: pattern,
-                                        color: "darkgrey",
-                                    },
-                                },
-                            },
-                        },
-                    ],
-                }),
-            );
-
-            await graph.operationQueue.waitForCompletion();
-
-            // Add edge
+            // The edge FIRST, because the layer below names it by id and an edge's id is the
+            // element's own -- there is nothing to name until the element has assigned one.
             await graph.addEdge(
                 asData({
-                    id: `edge${index}`,
                     source: nodeId1,
                     target: nodeId2,
                 }),
-                "source",
-                "target",
+                { source: "source", target: "target" },
             );
+
+            const added = edgeBetween(graph, nodeId1, nodeId2);
+            assert(added, `Edge ${nodeId1} -> ${nodeId2} should exist`);
+
+            // One layer per pattern, each scoped to the one edge it is about. A layer selecting
+            // everything would leave every edge drawn in whichever pattern was added last, and
+            // the check at the bottom would be five assertions about one pattern.
+            await addStyleLayer(graph, {
+                name: `${pattern} edge`,
+                target: "edge",
+                selector: { match: "ids", edges: [added.id] },
+                set: { "edge.style": pattern, "edge.color": "darkgrey" },
+            });
+
+            await graph.operationQueue.waitForCompletion();
         }
 
         // Wait for all operations to complete
@@ -220,13 +175,18 @@ describe("Edge 2D Patterns Integration", () => {
             setTimeout(resolve, 100);
         });
 
+        // A style pass works out what each element should look like; a FRAME is what applies it.
+        // This graph was never `init()`ed, so nothing is driving the render loop and the frame
+        // has to be driven by hand.
+        graph.getUpdateManager().renderFixedFrames(2);
+
         // Verify all pattern types use 2D materials
         for (const [index, pattern] of patterns.entries()) {
             const nodeId1 = `node${index * 2}`;
             const nodeId2 = `node${index * 2 + 1}`;
-            const edgeId = `${nodeId1}:${nodeId2}`;
+            const edgeId = `${nodeId1} -> ${nodeId2}`;
 
-            const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);
+            const edge = edgeBetween(graph, nodeId1, nodeId2);
             assert(edge, `Edge ${edgeId} should exist`);
 
             assert("meshes" in edge.mesh, `Edge ${edgeId} should be a PatternedLineMesh with meshes property`);

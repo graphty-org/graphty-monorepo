@@ -20,7 +20,6 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { StyleSchemaV1 } from "../../src/config";
 
 /** How long the element needs to connect and finish its first update. */
 const ELEMENT_READY_MS = 300;
@@ -74,64 +73,21 @@ async function createGraphtyElement(): Promise<Graphty> {
 }
 
 /**
- * Build a style template whose edges carry an arrowhead and the given line type.
+ * Give every edge an arrowhead and the given line type.
  *
  * Both halves matter: the arrowhead is the mesh that survived the clear, and a patterned line
  * type ("dot") routes the line itself through `PatternedLineRenderer`, which is also uncached and
  * leaked identically.
+ * @param element - The element to style
  * @param lineType - The edge line type to use
- * @returns A style template with one edge layer
  */
-function edgeStyleTemplate(lineType: "solid" | "dot"): StyleSchemaV1 {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            background: { backgroundType: "color", color: "#2D2D2D" },
-            startingCameraDistance: 30,
-            viewMode: "3d",
-            twoD: false,
-        },
-        layers: [
-            {
-                edge: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                        line: { type: lineType, color: "#AAAAAA" },
-                        arrowHead: { type: "normal", size: 1, color: "#FFFFFF", opacity: 1 },
-                    },
-                },
-            },
-        ],
-        behavior: {
-            layout: {
-                type: "ngraph",
-                preSteps: 0,
-                stepMultiplier: 1,
-                minDelta: 0.001,
-                zoomStepInterval: 100,
-            },
-            node: {
-                pinOnDrag: false,
-            },
-        },
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-                positionScale: 1,
-                idCoercion: "canonical",
-            },
-            directed: "auto",
-        },
-    };
+async function styleEdges(element: Graphty, lineType: "solid" | "dot"): Promise<void> {
+    await element.session.styles.add({
+        name: "edges with arrowheads",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.style": lineType, "edge.color": "#AAAAAA", "edge.arrowHead": "normal" },
+    });
 }
 
 /**
@@ -155,7 +111,7 @@ describe("scene teardown on clearData", () => {
     for (const lineType of ["solid", "dot"] as const) {
         test(`returns scene.meshes to its pre-load baseline (${lineType} edges)`, async () => {
             const element = await createGraphtyElement();
-            await element.graph.setStyleTemplate(edgeStyleTemplate(lineType));
+            await styleEdges(element, lineType);
 
             const scene = element.graph.getScene();
             const baseline = scene.meshes.length;

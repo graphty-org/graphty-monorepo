@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
+import { arrowTypes, eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -13,45 +13,28 @@ const meta: Meta = {
         edgeLineWidth: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Line" },
-            name: "line.width",
+            name: "edge.width",
         },
-        edgeLineColor: { control: "color", table: { category: "Line" }, name: "line.color" },
+        edgeLineColor: { control: "color", table: { category: "Line" }, name: "edge.color" },
         edgeLineOpacity: {
             control: { type: "range", min: 0, max: 1, step: 0.1 },
             table: { category: "Line" },
-            name: "line.opacity",
+            name: "edge.opacity",
         },
-        arrowSize: {
-            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
-            table: { category: "Arrow" },
-            name: "arrowHead.size",
-        },
-        arrowColor: { control: "color", table: { category: "Arrow" }, name: "arrowHead.color" },
-        arrowOpacity: {
-            control: { type: "range", min: 0, max: 1, step: 0.1 },
-            table: { category: "Arrow" },
-            name: "arrowHead.opacity",
-        },
+        arrowHead: { control: "select", options: arrowTypes, table: { category: "Arrow" }, name: "edge.arrowHead" },
     },
     parameters: {
         // controls: {exclude: /^(#|_)/},
         controls: {
-            include: ["line.width"],
+            include: ["edge.width"],
         },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
         },
     },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
+        setup: storySetup({
+            node: { "node.color": "#5A67D8" },
         }),
         nodeData: [
             { id: "A", position: { x: -3, y: 0, z: 0 } },
@@ -64,398 +47,177 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 export const Default: Story = {};
 
 export const Width: Story = {
     args: {
-        styleTemplate: templateCreator({ edgeStyle: { line: { width: 40 } } }),
+        setup: storySetup({ edge: { "edge.width": 40 } }),
     },
     parameters: {
         controls: {
-            include: ["line.width"],
+            include: ["edge.width"],
         },
     },
 };
 
-export const ArrowSize: Story = {
+/**
+ * Which arrow is drawn at the head of an edge.
+ *
+ * WHAT THIS NO LONGER DEMONSTRATES: an arrow's own size, colour and opacity, which were three
+ * stories of their own here. A style layer chooses WHICH arrow is drawn and nothing else about
+ * it -- `edge.arrowHead` is the whole of the vocabulary -- so an arrow takes its appearance from
+ * the line it caps. The renderer still draws an arrow at any size, in any colour; nothing can
+ * ask it to.
+ */
+export const ArrowHead: Story = {
     args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: { type: "normal", size: 2.0, color: "darkgrey" },
-                line: { color: "darkgrey" },
-            },
+        setup: storySetup({
+            edge: { "edge.color": "darkgrey", "edge.arrowHead": "normal" },
         }),
     },
     parameters: {
         controls: {
-            include: ["arrowHead.size"],
-        },
-    },
-};
-
-export const ArrowOpacity: Story = {
-    args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: { type: "normal", opacity: 0.5, color: "darkgrey" },
-                line: { color: "darkgrey" },
-            },
-        }),
-    },
-    parameters: {
-        controls: {
-            include: ["arrowHead.opacity"],
-        },
-    },
-};
-
-export const ArrowColor: Story = {
-    args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: { type: "normal", color: "#FF0000" },
-                line: { color: "darkgrey" },
-            },
-        }),
-    },
-    parameters: {
-        controls: {
-            include: ["arrowHead.color", "line.color"],
+            include: ["edge.arrowHead", "edge.color"],
         },
     },
 };
 
 export const LineOpacity: Story = {
     args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: { type: "normal", color: "darkgrey" },
-                line: { opacity: 0.5, color: "darkgrey" },
-            },
+        setup: storySetup({
+            edge: { "edge.color": "darkgrey", "edge.opacity": 0.5, "edge.arrowHead": "normal" },
         }),
     },
     parameters: {
         controls: {
-            include: ["line.opacity"],
+            include: ["edge.opacity"],
         },
     },
 };
 
+/**
+ * A translucent line, and the arrow that caps it.
+ *
+ * This used to set the line's opacity and the arrow's separately, to show them combining. An
+ * arrow has no opacity of its own to set any more, so what is left is the line's.
+ */
 export const CombinedOpacity: Story = {
     args: {
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                arrowHead: { type: "normal", opacity: 0.3, color: "darkgrey" },
-                line: { opacity: 0.3, color: "darkgrey" },
-            },
+        setup: storySetup({
+            edge: { "edge.color": "darkgrey", "edge.opacity": 0.3, "edge.arrowHead": "normal" },
         }),
     },
     parameters: {
         controls: {
-            include: ["arrowHead.opacity", "line.opacity"],
+            include: ["edge.opacity"],
         },
     },
 };
 
-// Comprehensive 2D Arrow Type Showcase
-// This story displays all 14 arrow types in a grid layout for visual comparison
-// Arrow types: normal, inverted, dot, sphere-dot, open-dot, tee, open-normal,
-//              diamond, open-diamond, crow, box, half-open, vee, none
+/**
+ * Every arrow the element draws, in a grid, each edge labelled with the arrow's name.
+ *
+ * THE NAME IS NOW THE EDGE'S OWN LABEL rather than a caption beside the arrow. A layer can say
+ * which arrow an edge carries and what the EDGE's label says; an arrow's own caption, size and
+ * colour have no channel, so the fourteen captions that used to sit beside the arrow heads are
+ * drawn on the lines instead.
+ */
 export const TwoDAllArrows: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { viewMode: "2d", startingCameraDistance: 54 },
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
+        setup: storySetup({
+            viewMode: "2d",
+            startingCameraDistance: 54,
+            node: { "node.color": "#5A67D8" },
             layers: [
-                // Row 1: normal, inverted, dot, sphere-dot
                 {
-                    edge: {
-                        selector: "src == 'normal-src'",
-                        style: {
-                            arrowHead: {
-                                type: "normal",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "normal",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'normal-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'normal-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.label": "normal" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'inverted-src'",
-                        style: {
-                            arrowHead: {
-                                type: "inverted",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "inverted",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'inverted-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'inverted-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "inverted", "edge.label": "inverted" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'dot-src'",
-                        style: {
-                            arrowHead: {
-                                type: "dot",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "dot",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dot-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "dot", "edge.label": "dot" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'sphere-dot-src'",
-                        style: {
-                            arrowHead: {
-                                type: "sphere-dot",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "sphere-dot",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
-                },
-                // Row 2: open-dot, tee, open-normal, diamond
-                {
-                    edge: {
-                        selector: "src == 'open-dot-src'",
-                        style: {
-                            arrowHead: {
-                                type: "open-dot",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "open-dot",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'sphere-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'sphere-dot-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "sphere-dot", "edge.label": "sphere-dot" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'tee-src'",
-                        style: {
-                            arrowHead: {
-                                type: "tee",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "tee",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'open-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'open-dot-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-dot", "edge.label": "open-dot" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'open-normal-src'",
-                        style: {
-                            arrowHead: {
-                                type: "open-normal",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "open-normal",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'tee-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'tee-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "tee", "edge.label": "tee" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'diamond-src'",
-                        style: {
-                            arrowHead: {
-                                type: "diamond",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "diamond",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
-                },
-                // Row 3: open-diamond, crow, box, half-open
-                {
-                    edge: {
-                        selector: "src == 'open-diamond-src'",
-                        style: {
-                            arrowHead: {
-                                type: "open-diamond",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "open-diamond",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'open-normal-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'open-normal-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-normal", "edge.label": "open-normal" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'crow-src'",
-                        style: {
-                            arrowHead: {
-                                type: "crow",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "crow",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'diamond-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "diamond", "edge.label": "diamond" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'box-src'",
-                        style: {
-                            arrowHead: {
-                                type: "box",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "box",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'open-diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'open-diamond-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-diamond", "edge.label": "open-diamond" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'half-open-src'",
-                        style: {
-                            arrowHead: {
-                                type: "half-open",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "half-open",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
-                },
-                // Row 4: vee, none
-                {
-                    edge: {
-                        selector: "src == 'vee-src'",
-                        style: {
-                            arrowHead: {
-                                type: "vee",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "vee",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'crow-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'crow-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "crow", "edge.label": "crow" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'none-src'",
-                        style: {
-                            arrowHead: { type: "none" },
-                            line: { color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "none",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'box-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'box-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "box", "edge.label": "box" },
+                },
+                {
+                    name: "edges where data.src == 'half-open-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'half-open-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "half-open", "edge.label": "half-open" },
+                },
+                {
+                    name: "edges where data.src == 'vee-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'vee-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "vee", "edge.label": "vee" },
+                },
+                {
+                    name: "edges where data.src == 'none-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'none-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "none",
+                        "edge.label": "none",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
             ],
@@ -527,297 +289,97 @@ export const TwoDAllArrows: Story = {
 // 3D version showing all 14 arrowhead types with labels
 export const ThreeDAllArrows: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { twoD: false },
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.color": "#5A67D8" },
             layers: [
-                // Row 1: normal, inverted, dot, sphere-dot
                 {
-                    edge: {
-                        selector: "src == 'normal-src'",
-                        style: {
-                            arrowHead: {
-                                type: "normal",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "normal",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'normal-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'normal-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.label": "normal" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'inverted-src'",
-                        style: {
-                            arrowHead: {
-                                type: "inverted",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "inverted",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'inverted-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'inverted-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "inverted", "edge.label": "inverted" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'dot-src'",
-                        style: {
-                            arrowHead: {
-                                type: "dot",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "dot",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dot-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "dot", "edge.label": "dot" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'sphere-dot-src'",
-                        style: {
-                            arrowHead: {
-                                type: "sphere-dot",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "sphere-dot",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
-                },
-                // Row 2: open-dot, tee, open-normal, diamond
-                {
-                    edge: {
-                        selector: "src == 'open-dot-src'",
-                        style: {
-                            arrowHead: {
-                                type: "open-dot",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "open-dot",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'sphere-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'sphere-dot-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "sphere-dot", "edge.label": "sphere-dot" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'tee-src'",
-                        style: {
-                            arrowHead: {
-                                type: "tee",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "tee",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'open-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'open-dot-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-dot", "edge.label": "open-dot" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'open-normal-src'",
-                        style: {
-                            arrowHead: {
-                                type: "open-normal",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "open-normal",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'tee-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'tee-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "tee", "edge.label": "tee" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'diamond-src'",
-                        style: {
-                            arrowHead: {
-                                type: "diamond",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "diamond",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
-                },
-                // Row 3: open-diamond, crow, box, half-open
-                {
-                    edge: {
-                        selector: "src == 'open-diamond-src'",
-                        style: {
-                            arrowHead: {
-                                type: "open-diamond",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "open-diamond",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'open-normal-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'open-normal-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-normal", "edge.label": "open-normal" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'crow-src'",
-                        style: {
-                            arrowHead: {
-                                type: "crow",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "crow",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'diamond-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "diamond", "edge.label": "diamond" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'box-src'",
-                        style: {
-                            arrowHead: {
-                                type: "box",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "box",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'open-diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'open-diamond-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-diamond", "edge.label": "open-diamond" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'half-open-src'",
-                        style: {
-                            arrowHead: {
-                                type: "half-open",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "half-open",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
-                },
-                // Row 4: vee, none
-                {
-                    edge: {
-                        selector: "src == 'vee-src'",
-                        style: {
-                            arrowHead: {
-                                type: "vee",
-                                color: "darkgrey",
-                                size: 2,
-                                text: {
-                                    text: "vee",
-                                    fontSize: 32,
-                                    textColor: "#000000",
-                                    backgroundColor: "transparent",
-                                    attachOffset: 1,
-                                },
-                            },
-                            line: { color: "darkgrey" },
-                        },
-                    },
+                    name: "edges where data.src == 'crow-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'crow-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "crow", "edge.label": "crow" },
                 },
                 {
-                    edge: {
-                        selector: "src == 'none-src'",
-                        style: {
-                            arrowHead: { type: "none" },
-                            line: { color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "none",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'box-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'box-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "box", "edge.label": "box" },
+                },
+                {
+                    name: "edges where data.src == 'half-open-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'half-open-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "half-open", "edge.label": "half-open" },
+                },
+                {
+                    name: "edges where data.src == 'vee-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'vee-src'" },
+                    set: { "edge.color": "darkgrey", "edge.arrowHead": "vee", "edge.label": "vee" },
+                },
+                {
+                    name: "edges where data.src == 'none-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'none-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "none",
+                        "edge.label": "none",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
             ],
@@ -889,180 +451,116 @@ export const ThreeDAllArrows: Story = {
 // 3D version showing all 9 line types with labels
 export const ThreeDAllLines: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { twoD: false },
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.color": "#5A67D8" },
             layers: [
-                // Row 1: solid, dot, star
                 {
-                    edge: {
-                        selector: "src == 'solid-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "solid", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "solid",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'solid-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'solid-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "solid",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "solid",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'dot-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "dot", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "dot",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "dot",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "dot",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'star-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "star", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "star",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
-                    },
-                },
-                // Row 2: box, dash, diamond
-                {
-                    edge: {
-                        selector: "src == 'box-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "box", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "box",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'star-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'star-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "star",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "star",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'dash-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "dash", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "dash",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'box-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'box-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "box",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "box",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'diamond-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "diamond", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "diamond",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
-                    },
-                },
-                // Row 3: dash-dot, sinewave, zigzag
-                {
-                    edge: {
-                        selector: "src == 'dash-dot-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "dash-dot", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "dash-dot",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'dash-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dash-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "dash",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "dash",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'sinewave-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "sinewave", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "sinewave",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'diamond-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "diamond",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "diamond",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'zigzag-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "zigzag", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "zigzag",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'dash-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dash-dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "dash-dot",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "dash-dot",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                    },
+                },
+                {
+                    name: "edges where data.src == 'sinewave-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'sinewave-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "sinewave",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "sinewave",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                    },
+                },
+                {
+                    name: "edges where data.src == 'zigzag-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'zigzag-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "zigzag",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "zigzag",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
             ],
@@ -1117,180 +615,116 @@ export const ThreeDAllLines: Story = {
 // 2D version showing all 9 line types with labels
 export const TwoDAllLines: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { viewMode: "2d" },
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
+        setup: storySetup({
+            viewMode: "2d",
+            node: { "node.color": "#5A67D8" },
             layers: [
-                // Row 1: solid, dot, star
                 {
-                    edge: {
-                        selector: "src == 'solid-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "solid", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "solid",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'solid-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'solid-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "solid",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "solid",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'dot-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "dot", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "dot",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "dot",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "dot",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'star-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "star", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "star",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
-                    },
-                },
-                // Row 2: box, dash, diamond
-                {
-                    edge: {
-                        selector: "src == 'box-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "box", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "box",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'star-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'star-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "star",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "star",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'dash-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "dash", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "dash",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'box-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'box-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "box",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "box",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'diamond-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "diamond", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "diamond",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
-                    },
-                },
-                // Row 3: dash-dot, sinewave, zigzag
-                {
-                    edge: {
-                        selector: "src == 'dash-dot-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "dash-dot", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "dash-dot",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'dash-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dash-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "dash",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "dash",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'sinewave-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "sinewave", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "sinewave",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'diamond-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "diamond",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "diamond",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
                 {
-                    edge: {
-                        selector: "src == 'zigzag-src'",
-                        style: {
-                            arrowHead: { type: "normal", color: "darkgrey", size: 2 },
-                            line: { type: "zigzag", color: "darkgrey" },
-                            label: {
-                                enabled: true,
-                                text: "zigzag",
-                                fontSize: 32,
-                                textColor: "#000000",
-                                backgroundColor: "transparent",
-                                location: "top",
-                                attachOffset: 1,
-                            },
-                        },
+                    name: "edges where data.src == 'dash-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'dash-dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "dash-dot",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "dash-dot",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                    },
+                },
+                {
+                    name: "edges where data.src == 'sinewave-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'sinewave-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "sinewave",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "sinewave",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                    },
+                },
+                {
+                    name: "edges where data.src == 'zigzag-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.src == 'zigzag-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.style": "zigzag",
+                        "edge.arrowHead": "normal",
+                        "edge.label": "zigzag",
+                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
                     },
                 },
             ],

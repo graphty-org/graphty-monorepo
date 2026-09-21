@@ -1,10 +1,11 @@
 /**
  * The renderer's door onto the session's style stack.
  *
- * Two things are asserted here and they are the two that decide whether the migration is safe:
- * WHO paints an element -- exactly one of the two style systems, never both -- and WHAT the
- * channels a pass resolved turn into, which is the parsed style the mesh, the label and the
- * effects are built from.
+ * Two things are asserted here. WHAT the channels a pass resolved turn into, which is the parsed
+ * style the mesh, the label and the effects are built from. And what an element is drawn from
+ * BEFORE any pass has resolved anything for it -- the bootstrap paints, which fill the gap
+ * between a Node being constructed and the store handing it the dense index a session's paint is
+ * addressed by.
  *
  * The third thing, that two instances of one source mesh really are drawn in two colours, needs
  * pixels and lives in `test/browser/node-instance-color.test.ts`.
@@ -13,8 +14,8 @@
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../src/catalog/types";
-import { defaultNodeStyle } from "../../src/config";
-import { StylePainter } from "../../src/managers/StylePainter";
+import { defaultEdgeStyle, defaultNodeStyle } from "../../src/config";
+import { bootstrapEdgePaint, bootstrapNodePaint, StylePainter } from "../../src/managers/StylePainter";
 import {
     createStylesApi,
     type ElementLayerSpec,
@@ -89,10 +90,9 @@ interface Harness {
 
 /**
  * Build a stack, an engine and a painter over four nodes and two edges.
- * @param legacyLayers - How many layers the legacy stack is pretending to hold.
  * @returns The harness.
  */
-function harness(legacyLayers = 1): Harness {
+function harness(): Harness {
     const elements: SelectorSource = {
         nodeValue: (index, path) => NODES[index]?.[path],
         edgeValue: (index, path) => EDGES[index]?.[path],
@@ -108,10 +108,7 @@ function harness(legacyLayers = 1): Harness {
         base: [NODE_BASE],
         repaint: engine.repaint,
     });
-    const painter = new StylePainter(
-        () => legacyLayers,
-        () => 1,
-    );
+    const painter = new StylePainter();
     painter.bind(engine);
 
     return {
@@ -125,29 +122,93 @@ function harness(legacyLayers = 1): Harness {
     };
 }
 
+/**
+ * Who paints an element.
+ *
+ * THERE IS ONE STACK NOW, so the question this answers is no longer "which of the two systems
+ * owns this graph" but the much smaller "has a style pass been bound at all". The tests that
+ * used to live here pinned the old rule -- that one 1.x template layer took the whole graph back
+ * from every session layer on it -- and that rule is gone with the template. What replaces it is
+ * unconditional and is pinned below: a bound session always paints, and the only thing that
+ * paints when one is not bound is the element's own bootstrap.
+ */
 describe("StylePainter ownership", () => {
-    it("owns nothing until a session is bound", () => {
-        const painter = new StylePainter(
-            () => 1,
-            () => 1,
-        );
+    it("paints nothing until a session is bound", () => {
+        const painter = new StylePainter();
 
-        assert.isFalse(painter.owns, "an unbound painter cannot be the owner");
+        assert.isFalse(painter.owns, "an unbound painter has nothing to say about any element");
+        assert.isNull(painter.nodePaint(0));
+        assert.isNull(painter.edgePaint(0));
     });
 
-    it("owns the paint while the legacy stack holds only the element's own layer", () => {
-        assert.isTrue(harness(1).painter.owns);
+    it("paints as soon as a session is bound, whatever else the element is carrying", () => {
+        assert.isTrue(harness().painter.owns);
     });
 
-    it("hands the paint back the moment a legacy layer is added", () => {
-        assert.isFalse(harness(2).painter.owns, "a style template takes the graph back");
-    });
-
-    it("stops owning when the session is unbound", () => {
-        const { painter } = harness(1);
+    it("stops painting when the session is unbound", () => {
+        const { painter } = harness();
         painter.bind(null);
 
         assert.isFalse(painter.owns);
+    });
+});
+
+/**
+ * What an element is drawn from before the first style pass has reached it.
+ *
+ * A Node is constructed and only then does the store hand it the dense row index a session's
+ * paint is addressed by, so for the length of that gap there is no index to ask the painter
+ * about -- and a Node with no mesh cannot be positioned, picked or given an edge. These two are
+ * what fill the gap.
+ */
+describe("StylePainter bootstrap paint", () => {
+    it("keeps the node colour out of the material and beside it, exactly as a pass does", () => {
+        const paint = bootstrapNodePaint();
+
+        // The same split a resolved paint produces. A bootstrap built straight from the default
+        // style would put the colour in the source mesh's material, which is a material the
+        // session's own neutral one can never match -- so the first pass would rebuild every
+        // node's mesh instead of writing one buffer value per node.
+        assert.strictEqual(paint.style.texture?.color, "#FFFFFF");
+        assert.deepStrictEqual(paint.color, { r: 99, g: 102, b: 241, a: 1 }, "#6366F1, the element's own default");
+    });
+
+    it("builds the node from the element's own default shape and size", () => {
+        const paint = bootstrapNodePaint();
+
+        assert.strictEqual(paint.style.shape?.type, defaultNodeStyle.shape?.type);
+        assert.strictEqual(paint.style.shape?.size, defaultNodeStyle.shape?.size);
+    });
+
+    it("keeps the edge colour IN its style, because an edge has no per-instance state", () => {
+        const paint = bootstrapEdgePaint();
+
+        // The element's own default edge colour, as the schema normalises it: `defaultEdgeStyle`
+        // writes the CSS name `darkgrey` and parsing turns every colour into hex.
+        assert.strictEqual(paint.style.line?.color, "#A9A9A9");
+        assert.strictEqual(defaultEdgeStyle.line?.color, "darkgrey", "which is the same colour, unparsed");
+    });
+
+    it("reserves a mesh key the session's interner can never mint", async () => {
+        // The interner's keys are `s0`, `s1` and so on in first-seen order, and they are
+        // session-local: a bootstrap that borrowed `s0` would be handed back out of the mesh
+        // cache under whatever style the session happened to intern first, which is a graph
+        // silently drawn at the wrong size.
+        const held = harness();
+        await held.paintAll();
+
+        const key = bootstrapNodePaint().meshKey;
+
+        assert.strictEqual(key, bootstrapEdgePaint().meshKey, "one reserved key covers both halves");
+        assert.notStrictEqual(held.painter.nodePaint(0)?.meshKey, key);
+        assert.notMatch(key, /^s\d/, "and it is not spelled the way an interned key is");
+    });
+
+    it("hands back one shared object rather than a copy per element", () => {
+        // An edge asks what it looks like on nearly every frame, so an allocation here would be
+        // one per edge per frame. Nothing on the drawing path writes to a resolved style.
+        assert.strictEqual(bootstrapNodePaint(), bootstrapNodePaint());
+        assert.strictEqual(bootstrapEdgePaint(), bootstrapEdgePaint());
     });
 });
 

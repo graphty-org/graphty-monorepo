@@ -3,7 +3,7 @@ import "../index.ts";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Layout/2D",
@@ -12,164 +12,164 @@ const meta: Meta = {
     decorators: [eventWaitingDecorator],
     argTypes: {
         // Spring layout controls
-        springK: { control: { type: "number" }, table: { category: "Spring Layout" }, name: "graph.layoutOptions.k" },
+        springK: { control: { type: "number" }, table: { category: "Spring Layout" }, name: "layoutConfig.k" },
         springIterations: {
             control: { type: "range", min: 10, max: 200, step: 10 },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.iterations",
+            name: "layoutConfig.iterations",
         },
         springScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
         springSeed: {
             control: { type: "number" },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
 
         // Circular layout controls
         circularScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Circular Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
 
         // Shell layout controls
         shellScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Shell Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
 
         // Random layout controls
         randomSeed: {
             control: { type: "number" },
             table: { category: "Random Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
 
         // Spiral layout controls
         spiralScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Spiral Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
         spiralResolution: {
             control: { type: "range", min: 0.1, max: 1, step: 0.05 },
             table: { category: "Spiral Layout" },
-            name: "graph.layoutOptions.resolution",
+            name: "layoutConfig.resolution",
         },
         spiralEquidistant: {
             control: { type: "boolean" },
             table: { category: "Spiral Layout" },
-            name: "graph.layoutOptions.equidistant",
+            name: "layoutConfig.equidistant",
         },
 
         // Planar layout controls
         planarScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Planar Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
 
         // Kamada-Kawai layout controls
         kamadaScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Kamada-Kawai Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
 
         // ForceAtlas2 layout controls
         fa2MaxIter: {
             control: { type: "range", min: 10, max: 500, step: 10 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.maxIter",
+            name: "layoutConfig.maxIter",
         },
         fa2ScalingRatio: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.scalingRatio",
+            name: "layoutConfig.scalingRatio",
         },
         fa2Gravity: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.gravity",
+            name: "layoutConfig.gravity",
         },
         fa2StrongGravity: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.strongGravity",
+            name: "layoutConfig.strongGravity",
         },
         fa2DissuadeHubs: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.dissuadeHubs",
+            name: "layoutConfig.dissuadeHubs",
         },
         fa2LinLog: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.linlog",
+            name: "layoutConfig.linlog",
         },
         fa2Seed: {
             control: { type: "number" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
 
         // Arf layout controls
         arfScaling: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Arf Layout" },
-            name: "graph.layoutOptions.scaling",
+            name: "layoutConfig.scaling",
         },
         arfMaxIter: {
             control: { type: "range", min: 100, max: 5000, step: 100 },
             table: { category: "Arf Layout" },
-            name: "graph.layoutOptions.maxIter",
+            name: "layoutConfig.maxIter",
         },
-        arfSeed: { control: { type: "number" }, table: { category: "Arf Layout" }, name: "graph.layoutOptions.seed" },
+        arfSeed: { control: { type: "number" }, table: { category: "Arf Layout" }, name: "layoutConfig.seed" },
 
         // Bfs layout controls
         bfsAlign: {
             control: { type: "select", options: ["vertical", "horizontal"] },
             table: { category: "Bfs Layout" },
-            name: "graph.layoutOptions.align",
+            name: "layoutConfig.align",
         },
         bfsScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Bfs Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
 
         // Bipartite layout controls
         bipartiteAlign: {
             control: { type: "select", options: ["vertical", "horizontal"] },
             table: { category: "Bipartite Layout" },
-            name: "graph.layoutOptions.align",
+            name: "layoutConfig.align",
         },
         bipartiteScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Bipartite Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
         bipartiteAspectRatio: {
             control: { type: "range", min: 0.5, max: 2, step: 0.1 },
             table: { category: "Bipartite Layout" },
-            name: "graph.layoutOptions.aspectRatio",
+            name: "layoutConfig.aspectRatio",
         },
 
         // Multipartite layout controls
         multipartiteAlign: {
             control: { type: "select", options: ["vertical", "horizontal"] },
             table: { category: "Multipartite Layout" },
-            name: "graph.layoutOptions.align",
+            name: "layoutConfig.align",
         },
         multipartiteScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Multipartite Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
     },
     parameters: {
@@ -188,14 +188,15 @@ type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const Spiral: Story = {
     args: {
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "spiral" } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "spiral",
         spiralScale: 1,
         spiralResolution: 0.35,
         spiralEquidistant: true,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale", "graph.layoutOptions.resolution", "graph.layoutOptions.equidistant"],
+            include: ["layoutConfig.scale", "layoutConfig.resolution", "layoutConfig.equidistant"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -206,12 +207,14 @@ export const Spiral: Story = {
 
 export const Circular: Story = {
     args: {
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "circular",
+        layoutConfig: { dim: 2 },
         circularScale: 1,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale"],
+            include: ["layoutConfig.scale"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -222,30 +225,25 @@ export const Circular: Story = {
 
 export const Shell: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: {
-                viewMode: "2d",
-                layout: "shell",
-                layoutOptions: {
-                    nlist: [
-                        [0], // Core - 1 node at center
-                        [1, 2, 3, 4, 5], // Frameworks - 5 nodes
-                        [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // Tools - 15 nodes
-                        [
-                            21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
-                            44, 45, 46, 47, 48, 49, 50,
-                        ], // Applications - 30 nodes
-                        [
-                            51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73,
-                            74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96,
-                            97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115,
-                            116, 117, 118, 119,
-                        ], // Services - 69 nodes
-                    ],
-                    scale: 3,
-                },
-            },
-        }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "shell",
+        layoutConfig: {
+            nlist: [
+                [0], // Core - 1 node at center
+                [1, 2, 3, 4, 5], // Frameworks - 5 nodes
+                [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // Tools - 15 nodes
+                [
+                    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+                    46, 47, 48, 49, 50,
+                ], // Applications - 30 nodes
+                [
+                    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75,
+                    76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
+                    101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
+                ], // Services - 69 nodes
+            ],
+            scale: 3,
+        },
         shellScale: 1,
         dataSource: "json",
         dataSourceConfig: {
@@ -254,7 +252,7 @@ export const Shell: Story = {
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale", "graph.layoutOptions.nlist"],
+            include: ["layoutConfig.scale", "layoutConfig.nlist"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -265,12 +263,14 @@ export const Shell: Story = {
 
 export const Random: Story = {
     args: {
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "random", layoutOptions: { dim: 2 } } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "random",
+        layoutConfig: { dim: 2 },
         randomSeed: 12,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.seed"],
+            include: ["layoutConfig.seed"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -281,7 +281,9 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "spring", layoutOptions: { dim: 2 } } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "spring",
+        layoutConfig: { dim: 2 },
         springK: null,
         springIterations: 50,
         springScale: 1,
@@ -289,12 +291,7 @@ export const Spring: Story = {
     },
     parameters: {
         controls: {
-            include: [
-                "graph.layoutOptions.k",
-                "graph.layoutOptions.iterations",
-                "graph.layoutOptions.scale",
-                "graph.layoutOptions.seed",
-            ],
+            include: ["layoutConfig.k", "layoutConfig.iterations", "layoutConfig.scale", "layoutConfig.seed"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -344,12 +341,14 @@ export const Planar: Story = {
             { src: 9, dst: 7 },
             { src: 9, dst: 6 },
         ],
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "planar", layoutOptions: { seed: 42 } } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "planar",
+        layoutConfig: { seed: 42 },
         planarScale: 1,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale"],
+            include: ["layoutConfig.scale"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -360,14 +359,14 @@ export const Planar: Story = {
 
 export const KamadaKawai: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { viewMode: "2d", layout: "kamada-kawai", layoutOptions: { dim: 2 } },
-        }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "kamada-kawai",
+        layoutConfig: { dim: 2 },
         kamadaScale: 1,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale"],
+            include: ["layoutConfig.scale"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -378,7 +377,8 @@ export const KamadaKawai: Story = {
 
 export const ForceAtlas2: Story = {
     args: {
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "forceatlas2" } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "forceatlas2",
         fa2MaxIter: 100,
         fa2ScalingRatio: 2.0,
         fa2Gravity: 1.0,
@@ -390,13 +390,13 @@ export const ForceAtlas2: Story = {
     parameters: {
         controls: {
             include: [
-                "graph.layoutOptions.maxIter",
-                "graph.layoutOptions.scalingRatio",
-                "graph.layoutOptions.gravity",
-                "graph.layoutOptions.strongGravity",
-                "graph.layoutOptions.dissuadeHubs",
-                "graph.layoutOptions.linlog",
-                "graph.layoutOptions.seed",
+                "layoutConfig.maxIter",
+                "layoutConfig.scalingRatio",
+                "layoutConfig.gravity",
+                "layoutConfig.strongGravity",
+                "layoutConfig.dissuadeHubs",
+                "layoutConfig.linlog",
+                "layoutConfig.seed",
             ],
         },
     },
@@ -408,14 +408,15 @@ export const ForceAtlas2: Story = {
 
 export const Arf: Story = {
     args: {
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "arf" } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "arf",
         arfScaling: 1,
         arfMaxIter: 1000,
         arfSeed: 12,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scaling", "graph.layoutOptions.maxIter", "graph.layoutOptions.seed"],
+            include: ["layoutConfig.scaling", "layoutConfig.maxIter", "layoutConfig.seed"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -470,13 +471,15 @@ export const Bfs: Story = {
             { src: 8, dst: 18 },
             { src: 0, dst: 19 },
         ],
-        styleTemplate: templateCreator({ graph: { viewMode: "2d", layout: "bfs", layoutOptions: { start: 0 } } }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "bfs",
+        layoutConfig: { start: 0 },
         bfsAlign: "vertical",
         bfsScale: 1,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.align", "graph.layoutOptions.scale"],
+            include: ["layoutConfig.align", "layoutConfig.scale"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -561,20 +564,16 @@ export const Bipartite: Story = {
             { src: "A8", dst: "B2" },
             { src: "A4", dst: "B2" },
         ],
-        styleTemplate: templateCreator({
-            graph: {
-                viewMode: "2d",
-                layout: "bipartite",
-                layoutOptions: { nodes: ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"] },
-            },
-        }),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "bipartite",
+        layoutConfig: { nodes: ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"] },
         bipartiteAlign: "vertical",
         bipartiteScale: 1,
         bipartiteAspectRatio: 1.33,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.align", "graph.layoutOptions.scale", "graph.layoutOptions.aspectRatio"],
+            include: ["layoutConfig.align", "layoutConfig.scale", "layoutConfig.aspectRatio"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -645,26 +644,22 @@ export const Multipartite: Story = {
             { src: "L2N4", dst: "L3N1" },
             { src: "L2N4", dst: "L3N3" },
         ],
-        styleTemplate: templateCreator({
-            graph: {
-                viewMode: "2d",
-                layout: "multipartite",
-                layoutOptions: {
-                    subsetKey: {
-                        layer0: ["L0N0", "L0N1", "L0N2", "L0N3", "L0N4"],
-                        layer1: ["L1N0", "L1N1", "L1N2", "L1N3", "L1N4"],
-                        layer2: ["L2N0", "L2N1", "L2N2", "L2N3", "L2N4"],
-                        layer3: ["L3N0", "L3N1", "L3N2", "L3N3", "L3N4"],
-                    },
-                },
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "multipartite",
+        layoutConfig: {
+            subsetKey: {
+                layer0: ["L0N0", "L0N1", "L0N2", "L0N3", "L0N4"],
+                layer1: ["L1N0", "L1N1", "L1N2", "L1N3", "L1N4"],
+                layer2: ["L2N0", "L2N1", "L2N2", "L2N3", "L2N4"],
+                layer3: ["L3N0", "L3N1", "L3N2", "L3N3", "L3N4"],
             },
-        }),
+        },
         multipartiteAlign: "vertical",
         multipartiteScale: 1,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.align", "graph.layoutOptions.scale"],
+            include: ["layoutConfig.align", "layoutConfig.scale"],
         },
     },
     play: async ({ canvasElement }) => {

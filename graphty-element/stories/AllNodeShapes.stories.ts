@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { StyleLayerType } from "../src/config";
+import type { LayerSpec } from "../src/catalog/types";
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, nodeShapes, renderFn, templateCreator } from "./helpers";
+import { eventWaitingDecorator, nodeShapes, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Node",
@@ -15,14 +15,14 @@ const meta: Meta = {
         },
     },
     args: {
-        styleTemplate: templateCreator({}),
+        setup: storySetup({}),
         layout: "fixed",
         layoutConfig: {},
     },
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 // Generate node data for all shapes in a 5x5 grid with 3D depth
 const generateNodeData = (): { id: string; position: { x: number; y: number; z: number } }[] => {
@@ -46,23 +46,24 @@ const generateNodeData = (): { id: string; position: { x: number; y: number; z: 
     return nodes;
 };
 
-// Generate layer styles for each shape with label
-const generateLayers = (): StyleLayerType[] => {
+/**
+ * One layer per shape: the node with that id is drawn in that shape and named by its own label.
+ *
+ * WHERE THE LABEL SITS is no longer part of this. The 1.x version of these layers put the name
+ * above the node with a half-node offset; a style layer can say what a label SAYS and how it is
+ * lettered, and nothing about where it is placed, so each name is now drawn wherever the label
+ * renderer puts it.
+ * @returns One layer per shape, in the order the shapes are listed.
+ */
+const generateLayers = (): LayerSpec[] => {
     return nodeShapes.map((shape) => ({
-        node: {
-            selector: `id == '${shape}'`,
-            style: {
-                shape: { type: shape },
-                label: {
-                    enabled: true,
-                    text: shape,
-                    fontSize: 24,
-                    textColor: "#000000",
-                    backgroundColor: "transparent",
-                    location: "top",
-                    attachOffset: 0.5,
-                },
-            },
+        name: `Shape - ${shape}`,
+        target: "node" as const,
+        selector: { match: "expression" as const, where: `data.id == '${shape}'` },
+        set: {
+            "node.shape": shape,
+            "node.label": shape,
+            "node.labelStyle": { sizePx: 24, color: "#000000" },
         },
     }));
 };
@@ -74,16 +75,10 @@ const generateLayers = (): StyleLayerType[] => {
  */
 export const AllNodeShapes: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { twoD: false, startingCameraDistance: 30 },
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            startingCameraDistance: 30,
+            node: { "node.color": "#5A67D8" },
             layers: generateLayers(),
         }),
         nodeData: generateNodeData(),

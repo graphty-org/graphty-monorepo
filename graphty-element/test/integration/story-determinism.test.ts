@@ -7,7 +7,7 @@
  * 2. Physics-based layouts (ngraph, d3, forceatlas2, spring, random) without proper
  *    configuration:
  *    - Missing seed in layoutConfig
- *    - Missing preSteps in styleTemplate.behavior.layout
+ *    - Missing preSteps in the story's setup
  *    - Missing waitForGraphSettled in play function
  */
 import fs from "node:fs";
@@ -132,7 +132,6 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
         // Storybook argTypes can map args like "randomSeed" or "ngraphSeed" to "graph.layoutOptions.seed"
         const hasSeed =
             /layoutConfig:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
-            /styleTemplate.*seed:\s*\d+/s.test(storyBlock) ||
             /layoutOptions:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
             // Check for aliased seed args like ngraphSeed, randomSeed, springSeed, fa2Seed, d3Seed
             /ngraphSeed:\s*\d+/.test(storyBlock) ||
@@ -151,12 +150,12 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
             });
         }
 
-        // Check for preSteps in behavior.layout
-        // templateCreator includes default preSteps, so stories using it are covered
+        // Check for preSteps in the story's setup. `storySetup()` fills in a Chromatic default,
+        // so a story that calls it is covered whether or not it names a count of its own.
         const hasPreSteps =
             /preSteps:\s*\d+/.test(storyBlock) ||
             /preSteps:\s*isChromatic/.test(storyBlock) ||
-            /templateCreator\s*\(/.test(storyBlock);
+            /storySetup\s*\(/.test(storyBlock);
 
         if (!hasPreSteps) {
             issues.push({

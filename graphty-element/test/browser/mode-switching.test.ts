@@ -6,45 +6,7 @@
  */
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type { StyleSchema } from "../../src/config";
 import { Graph } from "../../src/Graph";
-
-// Helper to create minimal style templates
-function createStyleTemplate(overrides: { graph?: { twoD?: boolean } } = {}): StyleSchema {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            twoD: overrides.graph?.twoD ?? false,
-        },
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        texture: {
-                            color: "#4CAF50",
-                        },
-                        shape: {
-                            type: "sphere" as const,
-                            size: 10,
-                        },
-                    },
-                },
-                edge: {
-                    selector: "",
-                    style: {
-                        line: {
-                            color: "#888888",
-                            width: 3,
-                        },
-                    },
-                },
-            },
-        ],
-    } as unknown as StyleSchema;
-}
 
 describe("2D/3D Mode Switching", () => {
     let graph: Graph;
@@ -60,14 +22,6 @@ describe("2D/3D Mode Switching", () => {
         { id: "e1", source: 1, target: 2 },
         { id: "e2", source: 2, target: 3 },
     ];
-
-    const STYLE_3D = createStyleTemplate({
-        graph: { twoD: false },
-    });
-
-    const STYLE_2D = createStyleTemplate({
-        graph: { twoD: true },
-    });
 
     function delay(ms: number): Promise<void> {
         return new Promise((resolve) => setTimeout(resolve, ms));
@@ -93,14 +47,14 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify we're in 3D mode with potential non-zero Z positions
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D mode
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions are flattened
@@ -120,20 +74,27 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("ngraph");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Wait for layout to settle
             await delay(500);
 
             // Store original 3D Z positions (may be non-zero)
+            // The mesh positions are synced from the layout engine on the frame loop, so they
+            // are asked for explicitly here: a Z read before the sync is 0, and a test that
+            // recorded 0 as the "original" would pass whether or not it was ever restored.
+            for (const node of graph.getNodes()) {
+                node.update();
+            }
+
             const originalZPositions = new Map<string | number, number>();
             for (const node of graph.getNodes()) {
                 originalZPositions.set(node.id, node.mesh.position.z);
             }
 
             // Switch to 2D mode
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions are flattened regardless of original values
@@ -149,17 +110,24 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Store original 3D Z positions
+            // The mesh positions are synced from the layout engine on the frame loop, so they
+            // are asked for explicitly here: a Z read before the sync is 0, and a test that
+            // recorded 0 as the "original" would pass whether or not it was ever restored.
+            for (const node of graph.getNodes()) {
+                node.update();
+            }
+
             const originalZPositions = new Map<string | number, number>();
             for (const node of graph.getNodes()) {
                 originalZPositions.set(node.id, node.mesh.position.z);
             }
 
             // Switch to 2D mode
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify flattened
@@ -168,7 +136,7 @@ describe("2D/3D Mode Switching", () => {
             }
 
             // Switch back to 3D mode
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions are restored
@@ -187,7 +155,7 @@ describe("2D/3D Mode Switching", () => {
 
         it("should keep Z at 0 when switching from initial 2D to 3D (no previous values)", async () => {
             // Setup directly in 2D mode
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
@@ -202,7 +170,7 @@ describe("2D/3D Mode Switching", () => {
             }
 
             // Switch to 3D mode
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions stay at 0 since there were no previous 3D values
@@ -225,20 +193,27 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("ngraph");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
             await delay(500); // Let layout settle
 
             // Store original 3D Z positions
+            // The mesh positions are synced from the layout engine on the frame loop, so they
+            // are asked for explicitly here: a Z read before the sync is 0, and a test that
+            // recorded 0 as the "original" would pass whether or not it was ever restored.
+            for (const node of graph.getNodes()) {
+                node.update();
+            }
+
             const originalZPositions = new Map<string | number, number>();
             for (const node of graph.getNodes()) {
                 originalZPositions.set(node.id, node.mesh.position.z);
             }
 
             // Round trip: 3D → 2D → 3D
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions match original
@@ -259,10 +234,17 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Store original 3D Z positions
+            // The mesh positions are synced from the layout engine on the frame loop, so they
+            // are asked for explicitly here: a Z read before the sync is 0, and a test that
+            // recorded 0 as the "original" would pass whether or not it was ever restored.
+            for (const node of graph.getNodes()) {
+                node.update();
+            }
+
             const originalZPositions = new Map<string | number, number>();
             for (const node of graph.getNodes()) {
                 originalZPositions.set(node.id, node.mesh.position.z);
@@ -271,7 +253,7 @@ describe("2D/3D Mode Switching", () => {
             // Multiple round trips
             for (let i = 0; i < 3; i++) {
                 // To 2D
-                await graph.setStyleTemplate(STYLE_2D);
+                await graph.setViewMode("2d");
                 await graph.operationQueue.waitForCompletion();
 
                 // Verify flattened
@@ -285,7 +267,7 @@ describe("2D/3D Mode Switching", () => {
                 }
 
                 // Back to 3D
-                await graph.setStyleTemplate(STYLE_3D);
+                await graph.setViewMode("3d");
                 await graph.operationQueue.waitForCompletion();
 
                 // Verify restored
@@ -307,7 +289,7 @@ describe("2D/3D Mode Switching", () => {
 
         it("should handle 2D → 3D → 2D round-trip", async () => {
             // Setup directly in 2D mode
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
@@ -320,7 +302,7 @@ describe("2D/3D Mode Switching", () => {
             }
 
             // Switch to 3D
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
@@ -330,7 +312,7 @@ describe("2D/3D Mode Switching", () => {
             }
 
             // Switch back to 2D
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Z should remain 0
@@ -347,23 +329,30 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Store original Z positions
+            // The mesh positions are synced from the layout engine on the frame loop, so they
+            // are asked for explicitly here: a Z read before the sync is 0, and a test that
+            // recorded 0 as the "original" would pass whether or not it was ever restored.
+            for (const node of graph.getNodes()) {
+                node.update();
+            }
+
             const originalZPositions = new Map<string | number, number>();
             for (const node of graph.getNodes()) {
                 originalZPositions.set(node.id, node.mesh.position.z);
             }
 
             // Rapid switches without waiting
-            void graph.setStyleTemplate(STYLE_2D);
+            void graph.setViewMode("2d");
             await delay(10);
-            void graph.setStyleTemplate(STYLE_3D);
+            void graph.setViewMode("3d");
             await delay(10);
-            void graph.setStyleTemplate(STYLE_2D);
+            void graph.setViewMode("2d");
             await delay(10);
-            void graph.setStyleTemplate(STYLE_3D);
+            void graph.setViewMode("3d");
 
             // Wait for all to complete
             await graph.operationQueue.waitForCompletion();
@@ -387,11 +376,11 @@ describe("2D/3D Mode Switching", () => {
 
         it("should handle empty graph mode switches", async () => {
             // Setup empty graph in 3D mode
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Switch to 2D (no nodes to flatten)
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode");
@@ -408,7 +397,7 @@ describe("2D/3D Mode Switching", () => {
             }
 
             // Switch back to 3D
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Z should remain 0 (these nodes never had 3D positions)
@@ -422,14 +411,14 @@ describe("2D/3D Mode Switching", () => {
             // Setup in 3D mode with initial nodes
             await graph.addNodes([{ id: 1, name: "Initial" }]);
             await graph.setLayout("circular");
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Store original Z for initial node
             const initialNodeZ = graph.getNodes()[0].mesh.position.z;
 
             // Switch to 2D
-            await graph.setStyleTemplate(STYLE_2D);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify initial node is flattened
@@ -448,7 +437,7 @@ describe("2D/3D Mode Switching", () => {
             assert.closeTo(newNode.mesh.position.z, 0, 0.01);
 
             // Switch back to 3D
-            await graph.setStyleTemplate(STYLE_3D);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Initial node should have Z restored, new node should stay at 0

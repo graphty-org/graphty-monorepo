@@ -2,7 +2,9 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
 import type { AdHocData } from "../../../src/config/index.js";
+import { isGraphtyError } from "../../../src/errors/index.js";
 import { Graph } from "../../../src/Graph.js";
+import { setBehavior } from "../../helpers/testSetup.js";
 
 describe("Camera Presets - 2D", () => {
     let graph: Graph;
@@ -22,46 +24,10 @@ describe("Camera Presets - 2D", () => {
         // Initialize
         await graph.init();
 
-        // Switch to 2D mode and use fixed layout (using full template like working 2D tests)
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: true,
-                viewMode: "2d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "fixed",
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                    positionScale: 1,
-                    idCoercion: "canonical",
-                },
-                directed: "auto",
-            },
-            behavior: {
-                layout: {
-                    type: "fixed",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        await graph.setViewMode("2d");
+        await graph.setLayout("fixed");
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -115,9 +81,13 @@ describe("Camera Presets - 2D", () => {
             graph.resolveCameraPreset("sideView");
             assert.fail("Should have thrown an error");
         } catch (error) {
-            assert.ok(error instanceof Error);
-            assert.equal(error.name, "ScreenshotError");
-            assert.ok(error.message.includes("only available for 3D cameras"));
+            // A view says which drawing modes it works in, on its descriptor, and the element
+            // refuses the others before computing anything. The refusal carries the modes it does
+            // declare, so a picker can read what a throw could never tell it.
+            assert.ok(isGraphtyError(error));
+            assert.equal(error.code, "E_UNSUPPORTED");
+            assert.deepEqual(error.details?.modes, ["3d"]);
+            assert.ok(error.message.includes("2d"));
         }
     });
 
@@ -126,9 +96,13 @@ describe("Camera Presets - 2D", () => {
             graph.resolveCameraPreset("frontView");
             assert.fail("Should have thrown an error");
         } catch (error) {
-            assert.ok(error instanceof Error);
-            assert.equal(error.name, "ScreenshotError");
-            assert.ok(error.message.includes("only available for 3D cameras"));
+            // A view says which drawing modes it works in, on its descriptor, and the element
+            // refuses the others before computing anything. The refusal carries the modes it does
+            // declare, so a picker can read what a throw could never tell it.
+            assert.ok(isGraphtyError(error));
+            assert.equal(error.code, "E_UNSUPPORTED");
+            assert.deepEqual(error.details?.modes, ["3d"]);
+            assert.ok(error.message.includes("2d"));
         }
     });
 
@@ -137,9 +111,13 @@ describe("Camera Presets - 2D", () => {
             graph.resolveCameraPreset("isometric");
             assert.fail("Should have thrown an error");
         } catch (error) {
-            assert.ok(error instanceof Error);
-            assert.equal(error.name, "ScreenshotError");
-            assert.ok(error.message.includes("only available for 3D cameras"));
+            // A view says which drawing modes it works in, on its descriptor, and the element
+            // refuses the others before computing anything. The refusal carries the modes it does
+            // declare, so a picker can read what a throw could never tell it.
+            assert.ok(isGraphtyError(error));
+            assert.equal(error.code, "E_UNSUPPORTED");
+            assert.deepEqual(error.details?.modes, ["3d"]);
+            assert.ok(error.message.includes("2d"));
         }
     });
 });

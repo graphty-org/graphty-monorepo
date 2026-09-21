@@ -63,6 +63,8 @@ interface MockNode {
  * Internal mock edge type for algorithm results storage
  */
 interface MockEdge {
+    /** The element-assigned edge id: the counter this mock hands out, printed. */
+    id: string;
     srcId: string | number;
     dstId: string | number;
     algorithmResults?: Record<string, Record<string, Record<string, unknown>>>;
@@ -170,10 +172,14 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
         }
     }
 
-    // Add inline edges (deep copy to avoid shared state between tests)
+    // Add inline edges (deep copy to avoid shared state between tests). Keyed by the element's
+    // own edge id, which is a counter handed out in arrival order -- the same thing `DataManager`
+    // does, and what makes two edges between one pair two entries rather than one.
+    let nextEdgeId = 0;
     if (opts.edges) {
         for (const e of opts.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, { ...e } as MockEdge);
+            const id = String(nextEdgeId++);
+            edges.set(id, { ...e, id } as MockEdge);
         }
     }
 
@@ -187,7 +193,8 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
             nodes.set(n.id, { ...n } as MockNode);
         }
         for (const e of imp.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, { ...e } as MockEdge);
+            const id = String(nextEdgeId++);
+            edges.set(id, { ...e, id } as MockEdge);
         }
     }
 

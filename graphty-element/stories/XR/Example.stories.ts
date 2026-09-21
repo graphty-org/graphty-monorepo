@@ -5,7 +5,8 @@ import {
     eventWaitingDecorator,
     remoteLoggingDecorator,
     renderFn,
-    templateCreator,
+    type StoryArgs,
+    storySetup,
     waitForGraphSettled,
 } from "../helpers";
 
@@ -40,7 +41,7 @@ const meta: Meta = {
 
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 /**
  * XR Example - Advanced Gestures and Two-Hand Interactions
@@ -78,17 +79,11 @@ export const Default: Story = {
             dimensions: 3,
             iterations: 150,
         },
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-            },
-            behavior: {
-                layout: {
-                    // Physics-based layouts need preSteps for visual stability
-                    // Use constant value like other working ngraph stories
-                    preSteps: 8000,
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            // Physics-based layouts need preSteps for visual stability
+            // Use constant value like other working ngraph stories
+            preSteps: 8000,
         }),
         xr: {
             enabled: true,

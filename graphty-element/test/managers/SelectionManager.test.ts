@@ -235,11 +235,11 @@ describe("SelectionManager", () => {
             const graph = await createTestGraph();
 
             try {
-                const before = graph.getLayers().length;
+                const before = graph.getSession().styles.list().length;
                 await graph.addNode({ id: "layer-free" } as unknown as AdHocData);
                 graph.selectNode("layer-free");
 
-                assert.equal(graph.getLayers().length, before);
+                assert.equal(graph.getSession().styles.list().length, before);
             } finally {
                 cleanupTestGraph(graph);
             }
@@ -322,7 +322,7 @@ describe("SelectionManager integration with Graph", () => {
         assert.isNull(graph.getSelectedNode());
     });
 
-    it("selection persists across style template changes", async () => {
+    it("selection persists across style changes", async () => {
         // Add nodes
         await graph.addNode({ id: "persistent-node" } as unknown as AdHocData);
 
@@ -330,44 +330,13 @@ describe("SelectionManager integration with Graph", () => {
         graph.selectNode("persistent-node");
         assert.isNotNull(graph.getSelectedNode());
 
-        // Change style template
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                addDefaultStyle: true,
-                background: { backgroundType: "color", color: "#000000" },
-                startingCameraDistance: 200,
-                viewMode: "3d",
-                twoD: false,
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                    positionScale: 1,
-                    idCoercion: "canonical",
-                },
-                directed: "auto",
-            },
-            behavior: {
-                layout: {
-                    type: "ngraph",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.01,
-                    zoomStepInterval: 10,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
+        // Change the graph's appearance out from under the selection.
+        graph.setBackground({ backgroundType: "color", color: "#000000" });
+        await graph.getSession().styles.add({
+            name: "every node orange",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#FF6600" },
         });
 
         // Selection should still be present

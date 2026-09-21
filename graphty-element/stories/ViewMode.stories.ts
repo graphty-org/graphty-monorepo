@@ -2,9 +2,9 @@ import "../index.ts";
 
 import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { StyleTemplate, VIEW_MODE_VALUES, type ViewMode } from "../src/config";
+import { VIEW_MODE_VALUES, type ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData } from "./helpers";
+import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps } from "./helpers";
 
 // Track WebXR availability to avoid repeated checks
 let vrSupported: boolean | null = null;
@@ -107,15 +107,6 @@ export const SwitchViewModes: Story = {
         layoutConfig: {
             seed: 42,
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 2000,
-                },
-            },
-        }),
     },
     render: (args) => {
         const graphEl = document.createElement("graphty-element") as Graphty;
@@ -124,7 +115,7 @@ export const SwitchViewModes: Story = {
         graphEl.nodeData = args.nodeData;
         graphEl.edgeData = args.edgeData;
         graphEl.layoutConfig = args.layoutConfig;
-        graphEl.styleTemplate = args.styleTemplate;
+        setLayoutPreSteps(graphEl, 2000);
         graphEl.viewMode = args.viewMode;
 
         return graphEl;

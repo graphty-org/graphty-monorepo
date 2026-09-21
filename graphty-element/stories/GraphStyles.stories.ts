@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled, waitForSkyboxLoaded } from "./helpers";
+import {
+    eventWaitingDecorator,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+    waitForSkyboxLoaded,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Graph",
@@ -9,13 +16,13 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator],
     argTypes: {
-        skybox: { control: "text", table: { category: "Background" }, name: "graph.background.skybox" },
-        background: { control: "color", table: { category: "Background" }, name: "graph.background.color" },
+        skybox: { control: "text", table: { category: "Background" }, name: "background.skybox" },
+        background: { control: "color", table: { category: "Background" }, name: "background.color" },
     },
     parameters: {
         // controls: {exclude: /^(#|_)/},
         controls: {
-            include: ["graph.background.skybox", "graph.background.color"],
+            include: ["background.skybox", "background.color"],
         },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
@@ -30,18 +37,14 @@ const meta: Meta = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        styleTemplate: templateCreator({
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for more stable physics layouts
-                },
-            },
+        setup: storySetup({
+            preSteps: 8000, // Extra preSteps for more stable physics layouts
         }),
     },
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 // Common play function for all stories
 const waitForSettle = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
@@ -62,18 +65,16 @@ export const Skybox: Story = {
         layoutConfig: {
             dim: 3,
         },
-        styleTemplate: templateCreator({
-            graph: {
-                background: {
-                    backgroundType: "skybox",
-                    data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/rolling_hills_equirectangular_skybox.png",
-                },
+        setup: storySetup({
+            background: {
+                backgroundType: "skybox",
+                data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/rolling_hills_equirectangular_skybox.png",
             },
         }),
     },
     parameters: {
         controls: {
-            include: ["graph.background.skybox"],
+            include: ["background.skybox"],
         },
         chromatic: {
             diffIncludeAntiAliasing: true,
@@ -89,43 +90,52 @@ export const Skybox: Story = {
 
 export const BackgroundColor: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { background: { backgroundType: "color", color: "hotpink" } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            background: { backgroundType: "color", color: "hotpink" },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["graph.background.color"],
+            include: ["background.color"],
         },
     },
     play: waitForSettle,
 };
 
+/**
+ * Three layers, each colouring the nodes one of its own selector matches.
+ *
+ * SELECTED BY AN ATTRIBUTE, NOT BY A PREFIX OF THE ID. The element's selector language admits no
+ * functions at all -- it is a declared subset of JMESPath, refused at its edge rather than
+ * narrowed in silence -- so `starts_with(id, 'Mlle')`, which these three layers used to say, is
+ * rejected by name with the offset it went wrong at. Equality against a field the data already
+ * carries says the same thing and costs one column read per node.
+ */
 export const Layers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    node: {
-                        selector: "starts_with(id, 'Lt.') == `true`",
-                        style: { enabled: true, texture: { color: "black" } },
-                    },
+                    name: "Indoor cats are black",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
+                    set: { "node.color": "black" },
                 },
                 {
-                    node: {
-                        selector: "starts_with(id, 'Mme') == `true`",
-                        style: { enabled: true, texture: { color: "yellow" } },
-                    },
+                    name: "Outdoor cats are yellow",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'outdoor'" },
+                    set: { "node.color": "yellow" },
                 },
                 {
-                    node: {
-                        selector: "starts_with(id, 'Mlle') == `true`",
-                        style: { enabled: true, texture: { color: "red" } },
-                    },
+                    name: "Strays are red",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'stray'" },
+                    set: { "node.color": "red" },
                 },
             ],
-            behavior: { layout: { preSteps: 8000 } },
+            preSteps: 8000,
         }),
     },
     parameters: {

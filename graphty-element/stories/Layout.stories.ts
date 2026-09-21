@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import isChromatic from "chromatic/isChromatic";
 
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Layout/3D",
@@ -18,159 +18,159 @@ const meta: Meta = {
         d3AlphaMin: {
             control: { type: "range", min: 0.001, max: 0.5, step: 0.001 },
             table: { category: "D3 Layout" },
-            name: "graph.layoutOptions.alphaMin",
+            name: "layoutConfig.alphaMin",
         },
         d3AlphaTarget: {
             control: { type: "range", min: 0, max: 1, step: 0.01 },
             table: { category: "D3 Layout" },
-            name: "graph.layoutOptions.alphaTarget",
+            name: "layoutConfig.alphaTarget",
         },
         d3AlphaDecay: {
             control: { type: "range", min: 0.001, max: 0.1, step: 0.001 },
             table: { category: "D3 Layout" },
-            name: "graph.layoutOptions.alphaDecay",
+            name: "layoutConfig.alphaDecay",
         },
         d3VelocityDecay: {
             control: { type: "range", min: 0.1, max: 0.9, step: 0.1 },
             table: { category: "D3 Layout" },
-            name: "graph.layoutOptions.velocityDecay",
+            name: "layoutConfig.velocityDecay",
         },
 
         // Spring layout controls
         springK: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.k",
+            name: "layoutConfig.k",
         },
         springIterations: {
             control: { type: "range", min: 10, max: 200, step: 10 },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.iterations",
+            name: "layoutConfig.iterations",
         },
         springScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
         springSeed: {
             control: { type: "number" },
             table: { category: "Spring Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
 
         // Random layout controls
         randomSeed: {
             control: { type: "number" },
             table: { category: "Random Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
 
         // Kamada-Kawai layout controls
         kamadaScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Kamada-Kawai Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
-        kamadaWeightProperty: {
-            control: { type: "text" },
+        kamadaWeighted: {
+            control: { type: "boolean" },
             table: { category: "Kamada-Kawai Layout" },
-            name: "graph.layoutOptions.weightProperty",
+            name: "layoutConfig.weighted",
         },
 
         // Circular layout controls
         circularScale: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Circular Layout" },
-            name: "graph.layoutOptions.scale",
+            name: "layoutConfig.scale",
         },
 
         // ForceAtlas2 layout controls
         fa2MaxIter: {
             control: { type: "range", min: 10, max: 1000, step: 10 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.maxIter",
+            name: "layoutConfig.maxIter",
         },
         fa2JitterTolerance: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.jitterTolerance",
+            name: "layoutConfig.jitterTolerance",
         },
         fa2ScalingRatio: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.scalingRatio",
+            name: "layoutConfig.scalingRatio",
         },
         fa2Gravity: {
             control: { type: "range", min: 0, max: 10, step: 0.1 },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.gravity",
+            name: "layoutConfig.gravity",
         },
         fa2DistributedAction: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.distributedAction",
+            name: "layoutConfig.distributedAction",
         },
         fa2StrongGravity: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.strongGravity",
+            name: "layoutConfig.strongGravity",
         },
         fa2DissuadeHubs: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.dissuadeHubs",
+            name: "layoutConfig.dissuadeHubs",
         },
         fa2Linlog: {
             control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.linlog",
+            name: "layoutConfig.linlog",
         },
-        fa2WeightPath: {
-            control: { type: "text" },
+        fa2Weighted: {
+            control: { type: "boolean" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.weightPath",
+            name: "layoutConfig.weighted",
         },
         fa2Seed: {
             control: { type: "number" },
             table: { category: "ForceAtlas2 Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
 
         // NGraph layout controls
         ngraphSeed: {
             control: { type: "number" },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.seed",
+            name: "layoutConfig.seed",
         },
         ngraphSpringLength: {
             control: { type: "range", min: 10, max: 100, step: 5 },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.springLength",
+            name: "layoutConfig.springLength",
         },
         ngraphSpringCoefficient: {
             control: { type: "range", min: 0.0001, max: 0.01, step: 0.0001 },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.springCoefficient",
+            name: "layoutConfig.springCoefficient",
         },
         ngraphGravity: {
             control: { type: "range", min: -10, max: 10, step: 0.1 },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.gravity",
+            name: "layoutConfig.gravity",
         },
         ngraphTheta: {
             control: { type: "range", min: 0.1, max: 1, step: 0.1 },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.theta",
+            name: "layoutConfig.theta",
         },
         ngraphDragCoefficient: {
             control: { type: "range", min: 0.001, max: 0.1, step: 0.001 },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.dragCoefficient",
+            name: "layoutConfig.dragCoefficient",
         },
         ngraphTimeStep: {
             control: { type: "range", min: 1, max: 50, step: 1 },
             table: { category: "NGraph Layout" },
-            name: "graph.layoutOptions.timeStep",
+            name: "layoutConfig.timeStep",
         },
     },
     parameters: {
@@ -198,17 +198,11 @@ export const ngraph: Story = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests (same as other working ngraph stories)
         },
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-            },
-            behavior: {
-                layout: {
-                    // Physics-based layouts need preSteps for visual stability
-                    // Use constant value like other working ngraph stories (NodeStyles, GraphStyles)
-                    preSteps: 8000,
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            // Physics-based layouts need preSteps for visual stability
+            // Use constant value like other working ngraph stories (NodeStyles, GraphStyles)
+            preSteps: 8000,
         }),
         // Individual parameter args for controls
         ngraphSeed: 42,
@@ -222,13 +216,13 @@ export const ngraph: Story = {
     parameters: {
         controls: {
             include: [
-                "graph.layoutOptions.seed",
-                "graph.layoutOptions.springLength",
-                "graph.layoutOptions.springCoefficient",
-                "graph.layoutOptions.gravity",
-                "graph.layoutOptions.theta",
-                "graph.layoutOptions.dragCoefficient",
-                "graph.layoutOptions.timeStep",
+                "layoutConfig.seed",
+                "layoutConfig.springLength",
+                "layoutConfig.springCoefficient",
+                "layoutConfig.gravity",
+                "layoutConfig.theta",
+                "layoutConfig.dragCoefficient",
+                "layoutConfig.timeStep",
             ],
         },
     },
@@ -240,24 +234,18 @@ export const ngraph: Story = {
 
 export const D3: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-                layout: "d3",
-                layoutOptions: {
-                    alphaMin: 0.1,
-                    alphaTarget: 0,
-                    alphaDecay: 0.0228,
-                    velocityDecay: 0.4,
-                },
-            },
-            behavior: {
-                layout: {
-                    // D3 physics-based layout needs preSteps for Chromatic
-                    preSteps: isChromatic() ? 15000 : 200,
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            // D3 physics-based layout needs preSteps for Chromatic
+            preSteps: isChromatic() ? 15000 : 200,
         }),
+        layout: "d3",
+        layoutConfig: {
+            alphaMin: 0.1,
+            alphaTarget: 0,
+            alphaDecay: 0.0228,
+            velocityDecay: 0.4,
+        },
         d3AlphaMin: 0.1,
         d3AlphaTarget: 0,
         d3AlphaDecay: 0.0228,
@@ -266,10 +254,10 @@ export const D3: Story = {
     parameters: {
         controls: {
             include: [
-                "graph.layoutOptions.alphaMin",
-                "graph.layoutOptions.alphaTarget",
-                "graph.layoutOptions.alphaDecay",
-                "graph.layoutOptions.velocityDecay",
+                "layoutConfig.alphaMin",
+                "layoutConfig.alphaTarget",
+                "layoutConfig.alphaDecay",
+                "layoutConfig.velocityDecay",
             ],
         },
         chromatic: {
@@ -289,21 +277,17 @@ export const Circular: Story = {
         dataSourceConfig: {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
         },
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-                layout: "circular",
-                layoutOptions: {
-                    dim: 3,
-                    scale: 1,
-                },
-            },
-        }),
+        setup: storySetup({ viewMode: "3d" }),
+        layout: "circular",
+        layoutConfig: {
+            dim: 3,
+            scale: 1,
+        },
         circularScale: 1,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale"],
+            include: ["layoutConfig.scale"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -314,18 +298,14 @@ export const Circular: Story = {
 
 export const Random: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-                layout: "random",
-                layoutOptions: { dim: 3 },
-            },
-        }),
+        setup: storySetup({ viewMode: "3d" }),
+        layout: "random",
+        layoutConfig: { dim: 3 },
         randomSeed: 12,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.seed"],
+            include: ["layoutConfig.seed"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -336,13 +316,9 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-                layout: "spring",
-                layoutOptions: { dim: 3 },
-            },
-        }),
+        setup: storySetup({ viewMode: "3d" }),
+        layout: "spring",
+        layoutConfig: { dim: 3 },
         springK: 1,
         springIterations: 50,
         springScale: 1,
@@ -350,12 +326,7 @@ export const Spring: Story = {
     },
     parameters: {
         controls: {
-            include: [
-                "graph.layoutOptions.k",
-                "graph.layoutOptions.iterations",
-                "graph.layoutOptions.scale",
-                "graph.layoutOptions.seed",
-            ],
+            include: ["layoutConfig.k", "layoutConfig.iterations", "layoutConfig.scale", "layoutConfig.seed"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -370,23 +341,19 @@ export const KamadaKawai: Story = {
         dataSourceConfig: {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
         },
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-                layout: "kamada-kawai",
-                layoutOptions: {
-                    dim: 3,
-                    scale: 1,
-                    weightProperty: undefined,
-                },
-            },
-        }),
+        setup: storySetup({ viewMode: "3d" }),
+        layout: "kamada-kawai",
+        layoutConfig: {
+            dim: 3,
+            scale: 1,
+            weighted: true,
+        },
         kamadaScale: 1,
-        kamadaWeightProperty: undefined,
+        kamadaWeighted: true,
     },
     parameters: {
         controls: {
-            include: ["graph.layoutOptions.scale", "graph.layoutOptions.weightProperty"],
+            include: ["layoutConfig.scale", "layoutConfig.weighted"],
         },
     },
     play: async ({ canvasElement }) => {
@@ -401,24 +368,21 @@ export const ForceAtlas2: Story = {
         dataSourceConfig: {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
         },
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // 3D mode
-                layout: "forceatlas2",
-                layoutOptions: {
-                    dim: 3,
-                    maxIter: 500,
-                    jitterTolerance: 1.0,
-                    scalingRatio: 2.0,
-                    gravity: 1.0,
-                    distributedAction: false,
-                    strongGravity: false,
-                    dissuadeHubs: false,
-                    linlog: false,
-                    seed: 42,
-                },
-            },
-        }),
+        setup: storySetup({ viewMode: "3d" }),
+        layout: "forceatlas2",
+        layoutConfig: {
+            dim: 3,
+            maxIter: 500,
+            jitterTolerance: 1.0,
+            scalingRatio: 2.0,
+            gravity: 1.0,
+            distributedAction: false,
+            strongGravity: false,
+            dissuadeHubs: false,
+            linlog: false,
+            weighted: true,
+            seed: 42,
+        },
         // Individual parameter args for controls
         fa2MaxIter: 500,
         fa2JitterTolerance: 1.0,
@@ -428,21 +392,22 @@ export const ForceAtlas2: Story = {
         fa2StrongGravity: false,
         fa2DissuadeHubs: false,
         fa2Linlog: false,
+        fa2Weighted: true,
         fa2Seed: 42,
     },
     parameters: {
         controls: {
             include: [
-                "graph.layoutOptions.maxIter",
-                "graph.layoutOptions.jitterTolerance",
-                "graph.layoutOptions.scalingRatio",
-                "graph.layoutOptions.gravity",
-                "graph.layoutOptions.distributedAction",
-                "graph.layoutOptions.strongGravity",
-                "graph.layoutOptions.dissuadeHubs",
-                "graph.layoutOptions.linlog",
-                "graph.layoutOptions.weightPath",
-                "graph.layoutOptions.seed",
+                "layoutConfig.maxIter",
+                "layoutConfig.jitterTolerance",
+                "layoutConfig.scalingRatio",
+                "layoutConfig.gravity",
+                "layoutConfig.distributedAction",
+                "layoutConfig.strongGravity",
+                "layoutConfig.dissuadeHubs",
+                "layoutConfig.linlog",
+                "layoutConfig.weighted",
+                "layoutConfig.seed",
             ],
         },
     },
@@ -462,15 +427,9 @@ export const Fixed: Story = {
         layoutConfig: {
             dim: 3,
         },
-        styleTemplate: templateCreator({
-            graph: {
-                twoD: false, // Explicitly set to 3D mode
-            },
-            behavior: {
-                layout: {
-                    preSteps: 0, // Fixed layout doesn't need preSteps since positions are pre-calculated
-                },
-            },
+        setup: storySetup({
+            viewMode: "3d",
+            preSteps: 0, // Fixed layout doesn't need preSteps since positions are pre-calculated
         }),
     },
     parameters: {

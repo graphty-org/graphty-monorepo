@@ -44,8 +44,25 @@ describe("Graphty API Parity", () => {
 
         describe("Style Methods", () => {
             it("has style methods", () => {
-                assert.isFunction(Graphty.prototype.setStyleTemplate);
                 assert.isFunction(Graphty.prototype.getStyles);
+            });
+
+            /**
+             * The style template is gone and nothing replaced it wholesale, because it was never
+             * one thing: it carried the id paths, the view mode, the background, the layout and
+             * the run-on-load algorithms, and each of those is its own property now. Style layers
+             * are `session.styles`.
+             */
+            it("has no style template method, and a property for each setting one used to carry", () => {
+                assert.notProperty(Graphty.prototype, "setStyleTemplate");
+                assert.notProperty(Graphty.prototype, "styleTemplate");
+
+                for (const property of ["viewMode", "background", "startingCameraDistance", "layout"]) {
+                    assert.isDefined(
+                        Object.getOwnPropertyDescriptor(Graphty.prototype, property),
+                        `Graphty should have a ${property} property`,
+                    );
+                }
             });
         });
 

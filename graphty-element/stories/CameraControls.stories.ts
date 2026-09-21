@@ -2,10 +2,10 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
+import { ref } from "lit/directives/ref.js";
 
-import { StyleTemplate } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
+import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Camera Controls",
@@ -43,13 +43,6 @@ export const ThreeD: Story = {
     name: "3D",
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -60,7 +53,11 @@ export const ThreeD: Story = {
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
                     .layoutConfig=${args.layoutConfig}
-                    .styleTemplate=${args.styleTemplate}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 
@@ -185,17 +182,6 @@ export const TwoD: Story = {
     name: "2D",
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                viewMode: "2d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-            },
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -206,7 +192,15 @@ export const TwoD: Story = {
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
                     .layoutConfig=${args.layoutConfig}
-                    .styleTemplate=${args.styleTemplate}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            // The 2D story's own setup: the view mode and the background it is
+                            // drawn against, beside the pre-steps every story needs.
+                            el.viewMode = "2d";
+                            el.background = { backgroundType: "color", color: "#f0f0f0" };
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 

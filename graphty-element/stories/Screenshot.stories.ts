@@ -2,10 +2,17 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
+import { ref } from "lit/directives/ref.js";
 
-import { StyleTemplate } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
+import {
+    edgeData,
+    eventWaitingDecorator,
+    nodeData,
+    setLayoutPreSteps,
+    type StoryArgs,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Screenshot",
@@ -21,7 +28,7 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 /**
  * Capture screenshots of the graph in various formats and resolutions.
@@ -29,13 +36,6 @@ type Story = StoryObj<Graphty>;
 export const Image: Story = {
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -46,7 +46,11 @@ export const Image: Story = {
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
                     .layoutConfig=${args.layoutConfig}
-                    .styleTemplate=${args.styleTemplate}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 
@@ -180,13 +184,6 @@ export const Image: Story = {
 export const Video: Story = {
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -196,8 +193,12 @@ export const Video: Story = {
                     style="width: 100%; height: 100%; display: block;"
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
-                    .styleTemplate=${args.styleTemplate}
                     .layoutConfig=${args.layoutConfig}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 

@@ -1,11 +1,18 @@
 /**
- * `Node.index` and `Edge.index` (graph-format design 14.4 rule 5), and the pin lifecycle they
- * shipped alongside.
+ * `Node.index` (graph-format design 14.4 rule 5), and the pin lifecycle it shipped alongside.
  *
- * The two indices are the element's handles into the current GraphSnapshot. Pinning is the
- * neighbouring behaviour: a pin is held by whichever layout engine is current, and this file pins
- * both the round trip and the two ways a pin must NOT be acquired or kept -- a plain click never
- * pins, and a layout change does not carry a pin into the engine that replaces it.
+ * The index is the element's handle into the current GraphSnapshot. Pinning is the neighbouring
+ * behaviour, and it is INDEXED BY THE SAME NUMBER: a pin is one byte beside the node's
+ * coordinates in the element's own position array, so a node with no row in the graph has nowhere
+ * to record one. This file pins the round trip, the ordering the live simulations depend on, and
+ * the one way a pin must NOT be acquired -- a plain click never pins.
+ *
+ * Edge identity moved out to `test/unit/edge-identity.test.ts` when `Edge.id` stopped being the
+ * endpoint pair and became the element's own counter: it is a different subject, and the two were
+ * only ever in one file because `index` landed for both at the same time.
+ *
+ * What a pin does to an arrangement, and how it survives a layout change, is
+ * `test/layout/pin-state.test.ts`, which drives real engines through the real manager.
  *
  * The harness is the one `test/node-shape-edge-reattach.test.ts` already uses in this same
  * `default` project: a real `NullEngine` scene and the managers `Node` and `Edge` call into, so
@@ -17,14 +24,14 @@ import { NullEngine, type Scene as BabylonScene, Scene, Vector3 } from "@babylon
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { AdHocData, EdgeStyleConfig, NodeStyleConfig } from "../../src/config";
-import { Edge } from "../../src/Edge";
+import type { AdHocData, NodeStyleConfig } from "../../src/config";
 import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
 import { LayoutManager } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
+import type { NodePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { Node } from "../../src/Node";
 import { Styles } from "../../src/Styles";
@@ -35,10 +42,14 @@ const NODE_STYLE: NodeStyleConfig = {
     enabled: true,
 };
 
-const EDGE_STYLE: EdgeStyleConfig = {
-    enabled: true,
-    line: { type: "solid", color: "#AAAAAA", width: 0.5 },
-};
+/**
+ * The paint every node here is drawn from.
+ *
+ * A Node is handed its paint rather than an id to look a style up by, because the session's paint
+ * is addressed by the dense index the store assigns AFTER construction -- which is the very
+ * index this file is about. One style, so one key.
+ */
+const NODE_PAINT: NodePaint = { meshKey: "test-node", style: NODE_STYLE, color: null };
 
 /** One forwarded pin/unpin: which node, and what `isPinned()` answered AT THE CALL. */
 interface PinCall {
@@ -49,11 +60,12 @@ interface PinCall {
 /**
  * A layout engine that never moves anything, and that RECORDS the pins forwarded to it.
  *
- * `SimpleLayoutEngine.pin` / `.unpin` are no-ops today (LayoutEngine.ts), so an engine-only
- * assertion would prove nothing -- but the forwarding still has to happen, because
- * `NGraphLayoutEngine.pin` is what actually fixes a body in the live simulation. Recording what
- * `isPinned()` answered at the moment of the call also pins the ORDER: `Node.pin()` records the
- * engine BEFORE telling it, so an engine that asks the node back sees the pin.
+ * `SimpleLayoutEngine.pin` / `.unpin` hold nothing -- the element's position array does -- so an
+ * engine-only assertion would prove nothing. But the forwarding still has to happen, because
+ * `NGraphLayoutEngine.pin` and `D3GraphLayoutEngine.pin` are what stop a live simulation spending
+ * force on a body that cannot move. Recording what `isPinned()` answered at the moment of the call
+ * also pins the ORDER: `Node.pin()` records the pin BEFORE telling the engine, so an engine that
+ * asks the node back sees it.
  */
 class FixedTestLayout extends SimpleLayoutEngine {
     static override type = "fixed-test-pin";
@@ -99,6 +111,8 @@ interface Harness {
     layoutManager: LayoutManager;
     layoutEngine: FixedTestLayout;
     scene: BabylonScene;
+    /** How many rows the position array has handed out, which is the next node's index. */
+    rows: number;
     dispose(): void;
 }
 
@@ -134,6 +148,7 @@ function createHarness(): Harness {
         layoutManager,
         layoutEngine,
         scene,
+        rows: 0,
         dispose(): void {
             scene.dispose();
             engine.dispose();
@@ -145,13 +160,19 @@ function createHarness(): Harness {
  * Create a node and register it where a real load would.
  * @param harness - The test harness
  * @param id - The node id
- * @param pinOnDrag - The node's pinOnDrag behaviour option, as a style template would set it
+ * @param pinOnDrag - The node's pinOnDrag behaviour option, as the configuration document sets it
  * @returns The created node
  */
 function addNode(harness: Harness, id: string, pinOnDrag = true): Node {
-    const node = new Node(harness.context, id, Styles.getNodeIdForStyle(NODE_STYLE), { id } as unknown as AdHocData, {
+    const node = new Node(harness.context, id, NODE_PAINT, { id } as unknown as AdHocData, {
         pinOnDrag,
     });
+    // THE ROW IS THE POINT. A pin lives in the position array at the node's index, so a node that
+    // never reached the graph builder has nowhere to record one -- which is a real state, asserted
+    // separately below, and not the state a pin test should be run in.
+    node.index = harness.rows;
+    harness.rows += 1;
+    harness.dataManager.positions.grow(harness.rows);
     harness.dataManager.nodes.set(id, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
@@ -169,7 +190,7 @@ function dragAndDrop(node: Node): void {
     node.dragHandler.onDragEnd();
 }
 
-describe("Node.index, Edge.index and the pin lifecycle", () => {
+describe("Node.index and the pin lifecycle", () => {
     let harness: Harness | undefined;
 
     afterEach(() => {
@@ -177,12 +198,21 @@ describe("Node.index, Edge.index and the pin lifecycle", () => {
         harness = undefined;
     });
 
-    it("gives a fresh Node an INVALID_INDEX index and leaves it unpinned", () => {
+    it("gives a fresh Node an INVALID_INDEX index, and refuses to pin one that has no row", () => {
         harness = createHarness();
-        const node = addNode(harness, "src");
+        const node = new Node(harness.context, "src", NODE_PAINT, { id: "src" } as unknown as AdHocData, {
+            pinOnDrag: true,
+        });
 
         assert.strictEqual(node.index, INVALID_INDEX, "index is INVALID_INDEX until the node reaches the builder");
         assert.strictEqual(node.isPinned(), false, "a node is not pinned until the user pins it");
+
+        // A pin is recorded at the node's row, so a node the graph builder never took has nowhere
+        // to put one. Reporting the pin anyway would fix a node that does not exist in the graph,
+        // with nothing able to release it.
+        node.pin();
+        assert.strictEqual(node.isPinned(), false, "and pinning one that has no row does not pretend to work");
+        assert.strictEqual(harness.layoutEngine.pinCalls.length, 0, "nor is a layout engine told about it");
     });
 
     it("forwards the pin to the CURRENT layout engine and reports it through isPinned()", () => {
@@ -209,11 +239,11 @@ describe("Node.index, Edge.index and the pin lifecycle", () => {
         assert.strictEqual(layoutEngine.unpinCalls[0]?.pinnedAtCall, false, "and the pin was released first");
     });
 
-    it("releases the pin when setLayout replaces the engine that held it", () => {
-        // LayoutManager builds a fresh engine on every setLayout and re-adds the nodes to it, so
-        // the pins the old engine held die with it. Reporting a pin the live simulation does not
-        // have would leave a node fixed with nothing able to release it, because a pin acquired
-        // under one layout could never be handed to the next.
+    it("KEEPS the pin when the engine that was told about it is replaced", () => {
+        // The exact inverse of what this file used to assert. The pin used to be the engine's, so
+        // every layout change, every 2D/3D switch and every style template silently released every
+        // pin the reader had made -- and the reader was given no notice that it had happened. The
+        // pin is the element's now, so replacing the engine underneath cannot touch it.
         harness = createHarness();
         const node = addNode(harness, "src");
         node.pin();
@@ -222,14 +252,15 @@ describe("Node.index, Edge.index and the pin lifecycle", () => {
         replacement.addNode(node);
         harness.layoutManager.layoutEngine = replacement;
 
-        assert.strictEqual(replacement.pinCalls.length, 0, "nothing replayed the old pin into the new engine");
-        assert.strictEqual(node.isPinned(), false, "so the node is not pinned under the new layout either");
+        assert.strictEqual(node.isPinned(), true, "the pin belongs to the node's row, not to an engine");
 
-        // And the element now talks to the CURRENT engine, not the discarded one.
-        node.pin();
-        assert.strictEqual(replacement.pinCalls.length, 1, "a fresh pin goes to the engine that is live now");
-        assert.strictEqual(harness.layoutEngine.pinCalls.length, 1, "not to the one setLayout threw away");
-        assert.strictEqual(node.isPinned(), true);
+        // And a release now reaches the CURRENT engine, not the discarded one. This is the path
+        // that used to THROW: ngraph refuses a node it has never been told about, so a node pinned
+        // under one layout could not be released after a layout change at all.
+        node.unpin();
+        assert.strictEqual(node.isPinned(), false);
+        assert.strictEqual(replacement.unpinCalls.length, 1, "the release went to the engine that is live now");
+        assert.strictEqual(harness.layoutEngine.unpinCalls.length, 0, "not to the one that was replaced");
     });
 
     it("does NOT pin on a plain click, even with pinOnDrag on", () => {
@@ -268,22 +299,5 @@ describe("Node.index, Edge.index and the pin lifecycle", () => {
 
         assert.strictEqual(node.isPinned(), false, "pinOnDrag off means a dropped node rejoins the layout");
         assert.strictEqual(harness.layoutEngine.pinCalls.length, 0);
-    });
-
-    it("gives a fresh Edge an INVALID_INDEX index and keeps the src:dst id (DEP-M6-B)", () => {
-        harness = createHarness();
-        addNode(harness, "src");
-        addNode(harness, "dst");
-
-        const edge = new Edge(
-            harness.context,
-            "src",
-            "dst",
-            Styles.getEdgeIdForStyle(EDGE_STYLE),
-            {} as unknown as AdHocData,
-        );
-
-        assert.strictEqual(edge.index, INVALID_INDEX, "index is INVALID_INDEX until the edge reaches the builder");
-        assert.strictEqual(edge.id, "src:dst", "Edge.id stays the pair string; index is additive");
     });
 });

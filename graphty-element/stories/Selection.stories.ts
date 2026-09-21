@@ -9,9 +9,9 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { type StyleSchema, StyleTemplate, type ViewMode } from "../src/config";
+import type { ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, setLayoutPreSteps, type StoryArgs, waitForGraphSettled } from "./helpers";
 
 // Sample data with named nodes for clarity
 const selectionNodeData = [
@@ -30,47 +30,34 @@ const selectionEdgeData = [
     { src: "delta", dst: "epsilon" },
 ];
 
-// Create a style template with node labels
-const createStyleTemplate = (viewMode: ViewMode): StyleSchema =>
-    StyleTemplate.parse({
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            viewMode,
-            addDefaultStyle: true,
-            startingCameraDistance: 20,
+/**
+ * Set the graph up for the selection demo: blue spheres, each labelled with its own name.
+ *
+ * The label is BOUND to a column rather than written out, which is what `encode` is for: the
+ * words come from each node's own `label` field. The label's font size and colour are the two
+ * fields of `node.labelStyle` this needs; where the label sits relative to the node has no
+ * channel, so it is drawn wherever the renderer puts it by default.
+ * @param element - The element to set up.
+ * @param viewMode - 2D or 3D.
+ */
+const setUpSelectionDemo = (element: Graphty, viewMode: ViewMode): void => {
+    element.viewMode = viewMode;
+    element.startingCameraDistance = 20;
+    setLayoutPreSteps(element, 2000);
+
+    void element.session.styles.add({
+        name: "Selection demo - labelled nodes",
+        target: "node",
+        selector: { match: "everything" },
+        set: {
+            "node.shape": "sphere",
+            "node.size": 1.5,
+            "node.color": "#4A90D9",
+            "node.labelStyle": { sizePx: 14, color: "#FFFFFF" },
         },
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        shape: {
-                            type: "sphere",
-                            size: 1.5,
-                        },
-                        texture: {
-                            color: "#4A90D9",
-                        },
-                        label: {
-                            enabled: true,
-                            textPath: "label",
-                            fontSize: 14,
-                            textColor: "#FFFFFF",
-                            backgroundColor: "transparent",
-                            location: "top",
-                        },
-                    },
-                },
-            },
-        ],
-        behavior: {
-            layout: {
-                type: "ngraph",
-                preSteps: 2000,
-            },
-        },
+        encode: { "node.label": { by: "data.label", scale: "passthrough" } },
     });
+};
 
 /**
  * Render function that creates a selection demo with status display
@@ -120,7 +107,7 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     graphEl.style.cssText = "flex: 1; display: block; min-height: 0;";
     graphEl.nodeData = selectionNodeData;
     graphEl.edgeData = selectionEdgeData;
-    graphEl.styleTemplate = createStyleTemplate(viewMode);
+    setUpSelectionDemo(graphEl, viewMode);
     graphEl.layoutConfig = { seed: 42 };
     container.appendChild(graphEl);
 
@@ -154,7 +141,7 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 /**
  * 2D Mode Selection

@@ -2,7 +2,7 @@ import { Camera, StandardMaterial } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph";
-import { asData, styleTemplate, type TestGraph } from "../helpers/testSetup";
+import { asData, edgeBetween } from "../helpers/testSetup";
 
 describe("Edge 2D Solid Integration", () => {
     let container: HTMLElement;
@@ -15,14 +15,7 @@ describe("Edge 2D Solid Integration", () => {
     test("Edge uses Simple2DLineRenderer in 2D mode", async () => {
         const graph = new Graph(container);
 
-        // Set 2D mode via style template
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: true,
-            }),
-        );
-
-        // Wait for style template operation to complete
+        await graph.setViewMode("2d");
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
@@ -30,7 +23,7 @@ describe("Edge 2D Solid Integration", () => {
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge with source and target path parameters
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), "source", "target");
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
         // Wait for all operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -41,7 +34,7 @@ describe("Edge 2D Solid Integration", () => {
         });
 
         // Get the edge from dataManager
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("node1:node2");
+        const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh has 2D line metadata
@@ -58,13 +51,7 @@ describe("Edge 2D Solid Integration", () => {
         const graph = new Graph(container);
 
         // Ensure 3D mode (this is default, but making it explicit)
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: false,
-            }),
-        );
-
-        // Wait for style template operation to complete
+        await graph.setViewMode("3d");
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
@@ -72,7 +59,7 @@ describe("Edge 2D Solid Integration", () => {
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge with source and target path parameters
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), "source", "target");
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
         // Wait for all operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -83,7 +70,7 @@ describe("Edge 2D Solid Integration", () => {
         });
 
         // Get the edge from dataManager
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("node1:node2");
+        const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh does NOT have 2D line metadata
@@ -97,26 +84,20 @@ describe("Edge 2D Solid Integration", () => {
         const graph = new Graph(container);
 
         // Set 2D mode initially
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: true,
-            }),
-        );
-
-        // Wait for style template operation to complete
+        await graph.setViewMode("2d");
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes and edge with source and target path parameters
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), "source", "target");
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
         });
 
         // Get the edge from dataManager
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("node1:node2");
+        const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist in dataManager");
 
         // Verify 2D mode

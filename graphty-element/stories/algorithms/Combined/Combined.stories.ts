@@ -1,5 +1,5 @@
 import type { Graphty } from "../../../src/graphty-element";
-import { algorithmMetaBase, type Story, templateCreator } from "../helpers";
+import { algorithmMetaBase, type Story, templateCreator, waitForGraphSettled } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -114,48 +114,36 @@ export const CommunityStructureWithPath: Story = {
  * Demonstrates multi-dimensional edge styling where:
  * - Edge color intensity reflects the value (blues gradient)
  * - Edge width scales with the value
- * - Arrow head color matches the line color
+ *
+ * Both channels read the same field, `data.value`, which every edge in this dataset carries with
+ * a strength from 1 to 10. The arrow head is left alone: its colour is not a channel a layer can
+ * bind, so nothing here can make it follow the line.
  */
 export const CombinedEdgeFlow: Story = {
     args: {
         styleTemplate: templateCreator({
-            layers: [
-                {
-                    edge: {
-                        selector: "",
-                        style: { enabled: true },
-                        calculatedStyle: {
-                            inputs: ["data.value"],
-                            output: "style.line.color",
-                            expr: "(result => result.color)(StyleHelpers.combined.edgeFlow(arguments[0] / 10))",
-                        },
-                    },
-                },
-                {
-                    edge: {
-                        selector: "",
-                        style: { enabled: true },
-                        calculatedStyle: {
-                            inputs: ["data.value"],
-                            output: "style.line.width",
-                            expr: "(result => result.width)(StyleHelpers.combined.edgeFlow(arguments[0] / 10))",
-                        },
-                    },
-                },
-                {
-                    edge: {
-                        selector: "",
-                        style: { enabled: true },
-                        calculatedStyle: {
-                            inputs: ["data.value"],
-                            output: "style.arrowHead.color",
-                            expr: "(result => result.color)(StyleHelpers.combined.edgeFlow(arguments[0] / 10))",
-                        },
-                    },
-                },
-            ],
             algorithms: [],
         }),
         runAlgorithmsOnLoad: false,
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const element = canvasElement.querySelector("graphty-element");
+        if (!element) {
+            return;
+        }
+
+        const { session } = element as Graphty;
+
+        await session.styles.add({
+            name: "Relationship strength",
+            target: "edge",
+            selector: { match: "has", path: "data.value" },
+            encode: {
+                "edge.color": { by: "data.value", scale: "linear", palette: "blues", domain: [1, 10] },
+                "edge.width": { by: "data.value", scale: "linear", domain: [1, 10], range: [2, 12] },
+            },
+        });
     },
 };

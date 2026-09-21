@@ -2,13 +2,14 @@ import type { Scene } from "@babylonjs/core";
 
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { LayoutManager } from "./LayoutManager";
 import type { SelectionManager } from "./SelectionManager";
 import type { StatsManager } from "./StatsManager";
-import type { StyleManager } from "./StyleManager";
+import type { StylePainter } from "./StylePainter";
 
 /**
  * GraphContext provides controlled access to graph services
@@ -17,9 +18,18 @@ import type { StyleManager } from "./StyleManager";
  */
 export interface GraphContext {
     /**
-     * Get the StyleManager for style operations
+     * Get the style layer stack and the element's configuration document.
      */
-    getStyleManager(): StyleManager;
+    getStyles(): Styles;
+
+    /**
+     * Get the painter that answers what the session's style stack resolved for one element.
+     *
+     * Absent, or present and not owning, means the legacy stack paints this graph. Node and Edge
+     * ask it first and fall back to their style id, which is what keeps exactly one of the two
+     * systems writing an element's style -- see StylePainter for the rule it answers.
+     */
+    getStylePainter?(): StylePainter | undefined;
 
     /**
      * Get the DataManager for node/edge operations
@@ -130,7 +140,9 @@ export interface GraphContextConfig {
 export class DefaultGraphContext implements GraphContext {
     /**
      * Creates an instance of DefaultGraphContext
-     * @param styleManager - StyleManager instance for style operations
+     * @param styles - Reads the current style stack. A function rather than the instance, because
+     *     loading a style template REPLACES it and a captured one would answer for the template
+     *     that was in force when the context was built.
      * @param dataManager - DataManager instance for node/edge operations
      * @param layoutManager - LayoutManager instance for layout operations
      * @param meshCache - MeshCache instance for mesh creation and caching
@@ -138,9 +150,11 @@ export class DefaultGraphContext implements GraphContext {
      * @param statsManager - StatsManager instance for performance monitoring
      * @param config - Graph-level configuration options
      * @param rayUpdateNeeded - Whether ray updates are needed for edge arrows
+     * @param stylePainter - Painter answering what the session's style stack resolved, when one
+     *     is bound
      */
     constructor(
-        private styleManager: StyleManager,
+        private styles: () => Styles,
         private dataManager: DataManager,
         private layoutManager: LayoutManager,
         private meshCache: MeshCache,
@@ -148,14 +162,23 @@ export class DefaultGraphContext implements GraphContext {
         private statsManager: StatsManager,
         private config: GraphContextConfig,
         private rayUpdateNeeded = true,
+        private stylePainter?: StylePainter,
     ) {}
 
     /**
-     * Get the StyleManager for style operations
-     * @returns StyleManager instance
+     * Get the painter that answers what the session's style stack resolved for one element.
+     * @returns The painter, or undefined when this context was built without one.
      */
-    getStyleManager(): StyleManager {
-        return this.styleManager;
+    getStylePainter(): StylePainter | undefined {
+        return this.stylePainter;
+    }
+
+    /**
+     * Get the style layer stack and the element's configuration document.
+     * @returns The stack as it stands now.
+     */
+    getStyles(): Styles {
+        return this.styles();
     }
 
     /**
@@ -203,7 +226,7 @@ export class DefaultGraphContext implements GraphContext {
      * @returns True if in 2D mode, false otherwise
      */
     is2D(): boolean {
-        const config = this.styleManager.getStyles().config.graph;
+        const config = this.styles().config.graph;
         // Support both new viewMode and deprecated twoD for backward compatibility
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         return config.viewMode === "2d" || config.twoD;

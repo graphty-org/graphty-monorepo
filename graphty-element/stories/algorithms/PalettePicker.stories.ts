@@ -1,7 +1,26 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
 
-import { StyleHelpers } from "../../src/config/StyleHelpers";
+import { blueHighlight, greenSuccess, orangeWarning } from "../../src/utils/styleHelpers/color/binary";
+import { carbon, okabeIto, pastel, tolMuted, tolVibrant } from "../../src/utils/styleHelpers/color/categorical";
+import { blueOrange, purpleGreen, redBlue } from "../../src/utils/styleHelpers/color/diverging";
+import { blues, greens, inferno, oranges, plasma, viridis } from "../../src/utils/styleHelpers/color/sequential";
+
+/**
+ * The colour ramps this story draws.
+ *
+ * Gathered here rather than imported as one namespace: `StyleHelpers` existed to be in scope
+ * inside a `calculatedStyle` expression string, and it went with the evaluator. The ramps
+ * themselves did not move.
+ */
+const StyleHelpers = {
+    color: {
+        sequential: { viridis, plasma, inferno, blues, greens, oranges },
+        categorical: { okabeIto, tolVibrant, tolMuted, carbon, pastel },
+        diverging: { purpleGreen, blueOrange, redBlue },
+        binary: { blueHighlight, greenSuccess, orangeWarning },
+    },
+};
 
 const meta: Meta = {
     title: "Algorithms/Palette Picker",

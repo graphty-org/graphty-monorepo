@@ -236,11 +236,17 @@ export const MaxFlow: Story = {
  * Non-cut edges are dimmed
  */
 export const MinCut: Story = createAlgorithmStory("graphty:min-cut", [
+    /*
+     * The reader's own layer, beneath the algorithm's: every edge pale, so the ones the cut
+     * chose stand out when the algorithm's layer repaints them on top. It greys EVERY edge
+     * rather than naming the ones outside the cut, because an edge the cut left out is not the
+     * cut's to paint, and naming "the rest" would need the id of a run that has not started when
+     * this story is written.
+     */
     {
-        edge: {
-            selector: 'algorithmResults.graphty."min-cut".inCut == `false`',
-            style: { enabled: true, line: { color: "#CCCCCC", opacity: 0.4 } },
-        },
-        metadata: { name: "Reader - dim non-cut edges" },
+        name: "Reader - dim every edge",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.color": "#CCCCCC" },
     },
 ]);

@@ -25,7 +25,6 @@ import { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
-import { Algorithm } from "./algorithms/Algorithm";
 import {
     BUILTIN_PRESETS,
     calculateFitToGraph,
@@ -35,15 +34,15 @@ import {
     calculateTopView,
 } from "./camera/presets.js";
 import { type CameraController, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { algorithmByKey, algorithmByLegacyKey, type LegacyAlgorithmMapping } from "./catalog/algorithms";
+import type { AlgorithmKey } from "./catalog/types";
 import {
     AdHocData,
-    ApplySuggestedStylesOptions,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
     StyleLayerType,
     StyleSchema,
-    SuggestedStylesConfig,
     type ViewMode,
     type XRConfig,
 } from "./config";
@@ -67,8 +66,9 @@ import {
     RenderManager,
     SelectionManager,
     StatsManager,
-    StyleManager,
+    StylePainter,
     UpdateManager,
+    type ViewMasks,
 } from "./managers";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -76,6 +76,13 @@ import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import { ScreenshotError, ScreenshotErrorCode } from "./screenshot/ScreenshotError.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import type { Run, StartOptions } from "./session/runs";
+import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { StyleSuggestion } from "./session/styles";
+
+/** The namespace every algorithm this package ships is registered under. */
+const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions } from "./utils/queue-migration";
@@ -124,12 +131,30 @@ export class Graph implements GraphContext {
     private lifecycleManager: LifecycleManager;
     private dataManager: DataManager;
     private layoutManager: LayoutManager;
-    private styleManager: StyleManager;
     private statsManager: StatsManager;
     private updateManager: UpdateManager;
     private algorithmManager: AlgorithmManager;
     private inputManager: InputManager;
     private selectionManager: SelectionManager;
+
+    /**
+     * What the session's style stack resolved for each element, and which stack owns the paint.
+     *
+     * The renderer's one door onto the new style engine. Node and Edge read through it; the
+     * update loop drives it from the dirty set a pass hands back. See StylePainter for the rule
+     * that decides whether it or the legacy `Styles` stack is drawing.
+     */
+    private readonly stylePainter: StylePainter;
+
+    /**
+     * The headless model this renderer draws.
+     *
+     * The graph data, the coordinates, the statistics, the catalogue, what is selected, what is
+     * visible and what the machine can do belong to the session; the camera, the canvas and the
+     * scene belong here. The split is what makes a graph usable without a renderer at all -- and
+     * it is why every data question this class answers is forwarded rather than computed.
+     */
+    private readonly session: ElementSession;
     operationQueue: OperationQueueManager;
 
     // XR managers
@@ -160,9 +185,17 @@ export class Graph implements GraphContext {
             autoStart: true,
         });
 
-        // Initialize StyleManager
-        this.styleManager = new StyleManager(this.eventManager);
-        this.styles = this.styleManager.getStyles();
+        // The 1.x layer stack and the element's configuration document. Replaced wholesale by
+        // `setStyleTemplate`, which is why everything that reads it reads it through a thunk.
+        this.styles = Styles.default();
+
+        // Both halves are read LIVE rather than captured: applying a style template replaces the
+        // `Styles` instance, and an ownership rule answered from the stack that was in force when
+        // the graph was built would keep painting from a stack nobody is looking at.
+        this.stylePainter = new StylePainter(
+            () => this.styles.layers.length,
+            () => (this.styles.config.graph.addDefaultStyle ? 1 : 0),
+        );
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {
@@ -208,8 +241,63 @@ export class Graph implements GraphContext {
         // Initialize DataManager
         this.dataManager = new DataManager(this.eventManager, this.styles);
 
+        // The headless model, over the store the data manager already owns for the life of the
+        // graph. It is handed that store rather than building one, because a second store would be
+        // a second, disagreeing copy of the same graph -- and because the store's lifetime belongs
+        // to whoever built it: disposing this session leaves the renderer's data untouched.
+        //
+        // The record source is the seam that will close. The store carries ids, coordinates and
+        // weights; the arbitrary keys a record was imported with still live on the render objects,
+        // so until an attribute column lands in the store the session reads them from here.
+        this.session = createElementSession({
+            store: this.dataManager,
+            records: {
+                nodeAttributes: (_index, id) => this.dataManager.getNode(id)?.data,
+                edgeAttributes: (index) => this.dataManager.edgesByIndex[index]?.data,
+            },
+            // Read, not captured: applying a style template REPLACES this.styles, so a captured
+            // configuration would be the one that was in force when the graph was built.
+            config: { data: () => this.styles.config.data },
+            runs: {
+                // The element's own queue, so a run takes its turn among the loads, the layouts
+                // and the style passes rather than interleaving with them.
+                queue: this.operationQueue,
+                // Late-bound on purpose: the algorithm manager is built after the session, and an
+                // algorithm needs this Graph to read the data manager through. The session only
+                // ever calls this once a run reaches the front of the queue.
+                execute: (context) => this.algorithmManager.execute(context, algorithmByKey(context.algorithm)),
+            },
+        });
+
+        // The renderer reads its paint from the session's stack from here on. Binding is not the
+        // same as owning: the painter answers `owns` from the legacy stack's contents, so a graph
+        // that has been handed a style template is still drawn by the old system -- see
+        // StylePainter for the rule and for why there is exactly one owner rather than two
+        // writers.
+        this.stylePainter.bind(this.session.paint);
+
+        // A style edit is a queued run that repaints BEFORE it commits, so by the time this fires
+        // the pass has already worked out what moved. Taking the dirty set here rather than
+        // walking the graph on the next frame is what keeps a one-layer edit costing the renderer
+        // the elements that layer matched and not the elements the graph holds.
+        this.session.on("style:changed", () => {
+            this.stylePainter.markPainted();
+        });
+
         // Initialize LayoutManager
         this.layoutManager = new LayoutManager(this.eventManager, this.dataManager, this.styles);
+
+        // Bring the session's paint up to date once the rows a load added exist. A style pass is
+        // over a dense index space, so it cannot paint a node the store has not taken yet; this is
+        // the first moment it can, and it is the "everything changed, because the graph did"
+        // boundary that no layer edit describes.
+        this.operationQueue.registerTrigger("data-add", () => ({
+            category: "style-apply",
+            execute: async () => {
+                await this.repaintFromSession();
+            },
+            description: "Repaint from the session style stack after data add",
+        }));
 
         // Register layout-update trigger to handle positioning nodes when data is added
         this.operationQueue.registerTrigger("data-add", () => ({
@@ -230,7 +318,6 @@ export class Graph implements GraphContext {
             this.statsManager,
             this.layoutManager,
             this.dataManager,
-            this.styleManager,
             this.camera,
             this, // GraphContext
             {
@@ -245,7 +332,19 @@ export class Graph implements GraphContext {
         // Initialize SelectionManager
         this.selectionManager = new SelectionManager(this.eventManager);
         this.selectionManager.setDataManager(this.dataManager);
-        this.selectionManager.setStyleManager(this.styleManager);
+        this.selectionManager.bindSelection(this.session.selection);
+
+        // The render loop honours the two masks from here on: what is drawn, and what is drawn as
+        // selected, are answered by the model rather than by the style stack.
+        const viewMasks: ViewMasks = {
+            selection: {
+                edges: () => this.session.selection.edgeMembers(),
+                nodes: () => this.session.selection.nodeMembers(),
+            },
+            showContext: () => this.session.visibility.showContext,
+            visibility: this.session.visibility.masks,
+        };
+        this.updateManager.bindViewMasks(viewMasks);
 
         // Set up background click handler for deselection
         this.setupBackgroundClickHandler();
@@ -275,7 +374,7 @@ export class Graph implements GraphContext {
             xr: defaultXRConfig,
         };
         this.graphContext = new DefaultGraphContext(
-            this.styleManager,
+            () => this.styles,
             this.dataManager,
             this.layoutManager,
             this.dataManager.meshCache,
@@ -293,7 +392,6 @@ export class Graph implements GraphContext {
         const managers = new Map<string, Manager>([
             ["event", this.eventManager],
             ["queue", this.operationQueue],
-            ["style", this.styleManager],
             ["stats", this.statsManager],
             ["render", this.renderManager],
             ["data", this.dataManager],
@@ -306,7 +404,6 @@ export class Graph implements GraphContext {
         this.lifecycleManager = new LifecycleManager(managers, this.eventManager, [
             "event",
             "queue",
-            "style",
             "stats",
             "render",
             "data",
@@ -357,7 +454,7 @@ export class Graph implements GraphContext {
 
                         if (namespace && type) {
                             // Queue through public API which handles queueing
-                            void this.runAlgorithm(namespace.trim(), type.trim()).catch((error: unknown) => {
+                            void this.runLegacyAddress(namespace.trim(), type.trim()).catch((error: unknown) => {
                                 console.error(`[Graph] Error running algorithm ${trimmedName}:`, error);
                             });
                         }
@@ -375,31 +472,23 @@ export class Graph implements GraphContext {
             }
         });
 
-        // Listen for style-changed events to reapply styles to existing nodes/edges
-        // This is specifically for AI commands that add style layers via StyleManager.addLayer()
-        // Note: We use styleManager.getStyles() to get the current styles, not this.styles,
-        // because this.styles may not be updated yet when the event fires
+        // Reapply the layer stack to every element when it changes -- the AI style commands and
+        // `setStyleTemplate` both land here. Read live rather than captured: the instance is
+        // replaced when a template is loaded.
         this.eventManager.addListener("style-changed", () => {
             // Skip if the graph isn't fully initialized yet
             if (!this.initialized) {
                 return;
             }
 
-            // Get the current styles from StyleManager
-            const currentStyles = this.styleManager.getStyles();
+            const currentStyles = this.styles;
 
-            // Recompute and apply styles to all existing nodes and edges
             for (const n of this.dataManager.nodes.values()) {
-                const styleId = currentStyles.getStyleForNode(n.data);
-                n.changeManager.loadCalculatedValues(
-                    currentStyles.getCalculatedStylesForNode(n.data, n.algorithmResults),
-                );
-                n.updateStyle(styleId);
+                n.updateStyle(currentStyles.getStyleForNode(n.data));
             }
 
             for (const e of this.dataManager.edges.values()) {
-                const styleId = currentStyles.getStyleForEdge(e.data);
-                e.updateStyle(styleId);
+                e.updateStyle(currentStyles.getStyleForEdge(e.data));
             }
         });
 
@@ -440,6 +529,11 @@ export class Graph implements GraphContext {
         // Use cleanup for common operations
         this.cleanup();
 
+        // The session goes first: it releases the accelerator it attached and stops answering data
+        // questions, and it deliberately does NOT touch the store, which belongs to the data
+        // manager the lifecycle manager is about to dispose.
+        this.session.dispose();
+
         // Dispose all managers through lifecycle manager
         this.lifecycleManager.dispose();
     }
@@ -450,11 +544,6 @@ export class Graph implements GraphContext {
     async runAlgorithmsFromTemplate(): Promise<void> {
         if (this.runAlgorithmsOnLoad && this.styles.config.data.algorithms) {
             await this.algorithmManager.runAlgorithmsFromTemplate(this.styles.config.data.algorithms);
-
-            // Trigger calculated values after algorithms populate data
-            for (const node of this.dataManager.nodes.values()) {
-                node.changeManager.runAllCalculatedValues();
-            }
         }
     }
 
@@ -480,9 +569,6 @@ export class Graph implements GraphContext {
 
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
-
-            // Add the selection style layer (after managers are initialized)
-            this.styleManager.addLayer(this.selectionManager.getSelectionStyleLayer());
 
             // Apply default background color if no styleTemplate was explicitly set
             // This ensures stories without styleTemplate get the correct background
@@ -678,8 +764,8 @@ export class Graph implements GraphContext {
         this.camera.activateCamera(cameraType);
 
         // Now load the styles (this may trigger "style-changed" event and mesh operations)
-        this.styleManager.loadStylesFromObject(t);
-        this.styles = this.styleManager.getStyles();
+        this.styles = Styles.fromObject(t);
+        this.eventManager.emitGraphEvent("style-changed", {});
 
         // Synchronize styles config with our calculated values
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
@@ -1174,11 +1260,17 @@ export class Graph implements GraphContext {
      * - **Shortest Path**: dijkstra, bellman-ford
      * - **Spanning Tree**: prim, kruskal
      * - **Flow**: max-flow, min-cut
+     * @deprecated Since 2.0. Use {@link Graph.run}, which returns a `Run`: the result is on the
+     *   object the call hands back, the work reports progress and can be cancelled, and the
+     *   result is addressed at `results.<runId>.<field>` rather than found by walking
+     *   `algorithmResults`. This method still works and is expressed in terms of `run`; it goes
+     *   with the style layer migration, which moves selectors onto the new result path.
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "degree", "pagerank")
      * @param options - Algorithm options and queue settings
      * @returns Promise that resolves when algorithm completes
      * @since 1.0.0
+     * @see {@link Graph.run} for the verb that replaces this one
      * @see {@link applySuggestedStyles} to visualize results
      * @see {@link https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree | Centrality Examples}
      * @see {@link https://graphty.app/storybook/element/?path=/story/algorithms-community--louvain | Community Detection}
@@ -1205,6 +1297,34 @@ export class Graph implements GraphContext {
      * ```
      */
     async runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void> {
+        await this.runLegacyAddress(namespace, type, options);
+    }
+
+    /**
+     * Run an algorithm addressed the 1.10 way, through the 2.0 run machinery where it reaches.
+     *
+     * Private, and called both by the deprecated public {@link Graph.runAlgorithm} and by the
+     * `runAlgorithmsOnLoad` template path, so that the internal caller is not reaching for a
+     * method the element is telling consumers to stop using.
+     * @param namespace - Algorithm namespace.
+     * @param type - Algorithm type, which is the 1.10 registry key.
+     * @param options - Algorithm options and queue settings.
+     */
+    private async runLegacyAddress(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void> {
+        const mapping = namespace === BUILT_IN_ALGORITHM_NAMESPACE ? algorithmByLegacyKey(type) : undefined;
+
+        if (mapping !== undefined) {
+            await this.runLegacyAsRun(mapping, namespace, type, options);
+
+            return;
+        }
+
+        // A key the catalogue does not carry: a plugin registered through `Algorithm.register`,
+        // which publishes no descriptor and therefore cannot be started by key. It takes the 1.10
+        // path, which addresses the registry directly.
+        //
+        // REMOVED BY: plugin algorithms publishing a catalogue descriptor of their own. Once they
+        // do, every algorithm is startable as a run and this branch goes with the method.
         if (options?.skipQueue) {
             await this.algorithmManager.runAlgorithm(namespace, type, options.algorithmOptions);
 
@@ -1235,27 +1355,127 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Apply suggested styles from an algorithm
-     * @param algorithmKey - Algorithm key (e.g., "graphty:degree") or array of keys
-     * @param options - Options for applying suggested styles
-     * @returns true if any styles were applied, false otherwise
+     * Start an algorithm and get back something a caller can watch, stop and read.
+     *
+     * This is the verb {@link Graph.runAlgorithm} should have been. It returns a `Run`: an object
+     * with an identity, a label, live progress, a `cancel()` and a promise that resolves to the
+     * result. Awaiting it gives the result; not awaiting it is safe, because a run is a
+     * `PromiseLike` rather than a `Promise` subclass and a failure nobody awaited cannot reach
+     * the window as an unhandled rejection.
+     * @param algorithm - Which algorithm to run, by its catalogue key such as "betweenness".
+     * @param params - Its parameters, as the catalogue declares them.
+     * @param options - The scope, the seed, the id, the signal and the progress handler.
+     * @returns The run.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * const run = graph.run("betweenness");
+     * run.cancel();                                   // a Cancel button, wired
+     * const result = await graph.run("degree");
+     * console.log(result.summary().top);              // the ten highest, already ranked
+     * ```
      */
-    applySuggestedStyles(algorithmKey: string | string[], options?: ApplySuggestedStylesOptions): boolean {
+    run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run {
+        return this.session.runs.start(algorithm, params, options);
+    }
+
+    /**
+     * Run a 1.10 algorithm key through the run machinery.
+     *
+     * One implementation, reached two ways: the old address is translated into the catalogue key
+     * and the parameters that reproduce what that address used to do -- `scc` is `components` at
+     * `{ strength: "strong" }`, not a rename -- and everything after that is an ordinary run.
+     * @param mapping - The catalogue entry the 1.10 key became, and the parameters it needs.
+     * @param namespace - The 1.10 namespace, for the error event and the suggested styles.
+     * @param type - The 1.10 type, for the same two.
+     * @param options - What the caller passed.
+     */
+    private async runLegacyAsRun(
+        mapping: LegacyAlgorithmMapping,
+        namespace: string,
+        type: string,
+        options?: RunAlgorithmOptions,
+    ): Promise<void> {
+        try {
+            const run = this.session.runs.start(
+                mapping.descriptor.key,
+                { ...mapping.params, ...options?.algorithmOptions },
+                { queue: options?.skipQueue === true ? "now" : "append" },
+            );
+
+            // Inside `batchOperations`, the queue holds everything until the batch closes -- which
+            // happens AFTER the batching function returns. Awaiting the run here would wait for
+            // work that cannot start until this call has already returned, so the 1.10 contract is
+            // kept instead: the call resolves, the work lands with the batch, and
+            // `batchOperations` is what the caller awaits. `graph.run()` hands back the run
+            // itself, so a caller that wants the result awaits that and gets it either way.
+            if (!this.operationQueue.isInBatchMode()) {
+                await run;
+            }
+        } catch (error) {
+            const algorithmError = error instanceof Error ? error : new Error(String(error));
+
+            this.eventManager.emitGraphError(this, algorithmError, "algorithm", {
+                algorithm: `${namespace}:${type}`,
+                component: "AlgorithmManager",
+            });
+
+            throw algorithmError;
+        }
+
+        if (options?.applySuggestedStyles) {
+            this.applySuggestedStyles(`${namespace}:${type}`);
+        }
+    }
+
+    /**
+     * Paint what an algorithm's finished runs suggest be drawn from them.
+     *
+     * DERIVED, NOT WRITTEN OUT. A run already declares its result shape and its fields, and that
+     * is everything a first picture needs: a node metric suggests a sequential colour over the
+     * nodes it measured, a community suggests a categorical one, a route or a chosen set suggests
+     * a highlight, and a table of pairs suggests nothing at all. There is one derivation for
+     * every algorithm rather than a block per algorithm, so there is no per-algorithm branch that
+     * can paint the elements its own run measured nothing about.
+     *
+     * CALLING THIS IS USUALLY UNNECESSARY, and never harmful. A run paints itself on its FIRST
+     * completion through the session's auto-apply policy, and applying a suggestion again
+     * replaces the layer already bound to that run and channel rather than stacking a second one
+     * on it. So this is the verb for a run that was started with `{ style: false }`, or for
+     * putting a picture back after a reader cleared it.
+     * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
+     *     "graphty:degree", or an array of either.
+     * @returns True when at least one suggestion was applied, false when no finished run of that
+     *     algorithm has anything per element to paint.
+     */
+    applySuggestedStyles(algorithmKey: string | string[]): boolean {
         const keys = Array.isArray(algorithmKey) ? algorithmKey : [algorithmKey];
         let applied = false;
 
         for (const key of keys) {
-            const [namespace, type] = key.split(":");
-            const AlgorithmClass = Algorithm.getClass(namespace, type);
-
-            if (!AlgorithmClass || !AlgorithmClass.hasSuggestedStyles()) {
-                continue;
-            }
-
-            const suggestedStyles = AlgorithmClass.getSuggestedStyles();
-            if (suggestedStyles) {
-                this.#applyStyleLayers(suggestedStyles, key, options);
+            for (const suggestion of this.getSuggestedStyles(key)) {
                 applied = true;
+
+                const edit =
+                    suggestion.as === "highlight"
+                        ? this.session.styles.highlight(suggestion.spec)
+                        : this.session.styles.encode(suggestion.spec);
+
+                // Fire and forget with the refusal reported, for the reason the auto-apply policy
+                // gives: a style edit is a queued run, and a caller must not have to await the
+                // picture in order to have started the work. A refusal that reached nobody is what
+                // this whole system replaces, so it is announced rather than swallowed.
+                void edit.then(
+                    () => undefined,
+                    (error: unknown) => {
+                        this.eventManager.emitGraphError(
+                            this,
+                            error instanceof Error ? error : new Error(String(error)),
+                            "other",
+                            { algorithm: key, component: "Graph.applySuggestedStyles" },
+                        );
+                    },
+                );
             }
         }
 
@@ -1263,74 +1483,38 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get suggested styles without applying them
-     * @param algorithmKey - Algorithm key (e.g., "graphty:degree")
-     * @returns Suggested styles config or null if none exist
+     * What an algorithm's finished runs suggest be drawn from them, without painting any of it.
+     * @param algorithmKey - A catalogue key such as "degree", or a 1.10 address such as
+     *     "graphty:degree".
+     * @returns One suggestion per channel a run of that algorithm would paint, empty when it has
+     *     finished no run or its result is read rather than painted.
      */
-    getSuggestedStyles(algorithmKey: string): SuggestedStylesConfig | null {
-        const [namespace, type] = algorithmKey.split(":");
-        const AlgorithmClass = Algorithm.getClass(namespace, type);
-        return AlgorithmClass?.getSuggestedStyles() ?? null;
+    getSuggestedStyles(algorithmKey: string): readonly StyleSuggestion[] {
+        const suggestions: StyleSuggestion[] = [];
+
+        for (const run of this.#finishedRunsOf(algorithmKey)) {
+            suggestions.push(...run.suggestEncodings());
+        }
+
+        return suggestions;
     }
 
     /**
-     * Private helper to apply style layers from suggested styles
-     * @param suggestedStyles - Configuration containing style layers to apply
-     * @param algorithmKey - Unique identifier for the algorithm providing these styles
-     * @param options - Options controlling how styles are applied
+     * The finished runs an algorithm address names.
+     *
+     * Two addresses reach the same runs: the catalogue key a run records, and the 1.10
+     * "namespace:type" address the deprecated entry points still take. Translating here rather
+     * than at each caller is what keeps "one capability, one picture" true of the old door as
+     * well as the new one.
+     * @param algorithmKey - The catalogue key or the 1.10 address.
+     * @returns The runs of that algorithm that succeeded, oldest first.
      */
-    #applyStyleLayers(
-        suggestedStyles: SuggestedStylesConfig,
-        algorithmKey: string,
-        options?: ApplySuggestedStylesOptions,
-    ): void {
-        const { layers } = suggestedStyles;
-        const { position = "append", mode = "merge", layerPrefix = "", enabledStyles } = options ?? {};
+    #finishedRunsOf(algorithmKey: string): readonly Run[] {
+        const [namespace, type] = algorithmKey.includes(":") ? algorithmKey.split(":") : ["", algorithmKey];
+        const mapped = namespace === BUILT_IN_ALGORITHM_NAMESPACE ? algorithmByLegacyKey(type) : undefined;
+        const wanted = mapped?.descriptor.key ?? (namespace === "" ? algorithmKey : type);
 
-        // If mode is replace, remove existing algorithm-sourced layers
-        if (mode === "replace") {
-            this.styleManager.removeLayersByMetadata((metadata) => {
-                const typedMetadata = metadata as { algorithmSource?: string } | undefined;
-                return typedMetadata?.algorithmSource === algorithmKey;
-            });
-        }
-
-        // Filter layers by enabledStyles if provided
-        const filteredLayers = enabledStyles
-            ? layers.filter((layer) => {
-                  const name = layer.metadata?.name;
-                  return name && enabledStyles.includes(name);
-              })
-            : layers;
-
-        // Add metadata to track algorithm source
-        const enhancedLayers = filteredLayers.map((layer) => ({
-            ...layer,
-            metadata: {
-                ...layer.metadata,
-                name: layerPrefix + (layer.metadata?.name ?? ""),
-                algorithmSource: algorithmKey,
-            },
-        }));
-
-        // Apply layers based on position using StyleManager methods
-        // This automatically handles cache clearing and event emission
-        if (position === "prepend") {
-            // Insert at the beginning by inserting in reverse order
-            for (let i = enhancedLayers.length - 1; i >= 0; i--) {
-                this.styleManager.insertLayer(0, enhancedLayers[i]);
-            }
-        } else if (position === "append") {
-            // Add to the end
-            for (const layer of enhancedLayers) {
-                this.styleManager.addLayer(layer);
-            }
-        } else if (typeof position === "number") {
-            // Insert at specific position
-            for (let i = 0; i < enhancedLayers.length; i++) {
-                this.styleManager.insertLayer(position + i, enhancedLayers[i]);
-            }
-        }
+        return this.session.runs.list().filter((run) => run.algorithm === wanted && run.status === "succeeded");
     }
 
     /**
@@ -1389,7 +1573,7 @@ export class Graph implements GraphContext {
                 if (node) {
                     Object.assign(node.data, update);
                     // Recompute style after data update
-                    const styleId = this.styles.getStyleForNode(node.data, node.algorithmResults);
+                    const styleId = this.styles.getStyleForNode(node.data);
                     node.updateStyle(styleId);
                 }
             });
@@ -1408,7 +1592,7 @@ export class Graph implements GraphContext {
                     if (node) {
                         Object.assign(node.data, update);
                         // Recompute style after data update
-                        const styleId = this.styles.getStyleForNode(node.data, node.algorithmResults);
+                        const styleId = this.styles.getStyleForNode(node.data);
                         node.updateStyle(styleId);
                     }
                 });
@@ -1495,19 +1679,39 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The headless model behind this renderer: the graph data, the coordinates, the statistics,
+     * the catalogue, the configuration and what this machine can do.
+     *
+     * Everything about the graph that needs no screen is answered from here, so a consumer asking
+     * "how dense is this?" or "what attributes does it carry?" asks the session rather than
+     * walking the render objects.
+     * @returns The session
+     */
+    getSession(): GraphSession {
+        return this.session;
+    }
+
+    /**
      * Get the total number of nodes in the graph.
+     *
+     * This is the count in the graph data, which mid-load can be AHEAD of the nodes that have been
+     * drawn: an edge whose endpoints have not arrived materialises them in the store while its
+     * render objects wait. The data is the authority, so the data is what is counted.
      * @returns The number of nodes
      */
     getNodeCount(): number {
-        return this.dataManager.nodes.size;
+        return this.session.status.counts.nodes;
     }
 
     /**
      * Get the total number of edges in the graph.
+     *
+     * As with the node count, this is the count in the graph data rather than the count of edges
+     * that have a mesh yet.
      * @returns The number of edges
      */
     getEdgeCount(): number {
-        return this.dataManager.edges.size;
+        return this.session.status.counts.edges;
     }
 
     /**
@@ -1577,11 +1781,38 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get the StyleManager instance.
-     * @returns The StyleManager instance
+     * Get the painter that answers what the session's style stack resolved for one element.
+     *
+     * Part of this class's `GraphContext` half: Node and Edge reach it through here, and it is
+     * what tells them which of the two style systems owns their paint.
+     * @returns The painter.
      */
-    getStyleManager(): StyleManager {
-        return this.styleManager;
+    getStylePainter(): StylePainter {
+        return this.stylePainter;
+    }
+
+    /**
+     * Paint every element from the session's style stack, and queue the result for the renderer.
+     *
+     * THE BOUNDARY NO EDIT DESCRIBES. A layer edit hands the pass what changed; a dataset load
+     * changes the elements themselves, and "everything changed, because the graph did" is not an
+     * edit. So this is the one place the whole stack is applied to the whole graph, and it runs
+     * on the queue beside the loads and the layouts rather than beside them.
+     *
+     * It does nothing while the legacy stack owns the paint: a pass whose answer nothing draws is
+     * a pass over the graph for no picture.
+     * @returns A promise that settles when the pass has finished.
+     */
+    private async repaintFromSession(): Promise<void> {
+        if (!this.stylePainter.owns) {
+            return;
+        }
+
+        await this.session.paint.repaintAll(this.session.styles.compiled(), {
+            signal: new AbortController().signal,
+            report: () => undefined,
+        });
+        this.stylePainter.markPainted();
     }
 
     /**
@@ -1589,7 +1820,94 @@ export class Graph implements GraphContext {
      * @returns Array of style layers
      */
     getLayers(): StyleLayerType[] {
-        return this.styleManager.getLayers();
+        return [...this.styles.layers];
+    }
+
+    /**
+     * Add a style layer on top of the 1.x stack and repaint.
+     *
+     * The layer verbs live here rather than on a manager of their own: the wrapper that used to
+     * hold them cached a resolved style id against `JSON.stringify(data)` -- a string allocation
+     * per element per resolution -- and forwarded the other sixteen methods unchanged. The
+     * element's 2.0 stack is `session.styles`, which addresses a layer by a stable id instead of
+     * by its index; these five are what still speak the 1.x index vocabulary.
+     * @param layer - The layer to add.
+     */
+    addStyleLayer(layer: StyleLayerType): void {
+        this.styles.addLayer(layer);
+        this.eventManager.emitGraphEvent("style-changed", {});
+    }
+
+    /**
+     * Insert a style layer at a position in the 1.x stack and repaint.
+     * @param position - Where to insert it, 0 being the bottom.
+     * @param layer - The layer to insert.
+     */
+    insertStyleLayer(position: number, layer: StyleLayerType): void {
+        this.styles.insertLayer(position, layer);
+        this.eventManager.emitGraphEvent("style-changed", {});
+    }
+
+    /**
+     * Remove every 1.x layer whose metadata a predicate accepts, and repaint if any went.
+     * @param predicate - Tests one layer's metadata.
+     * @returns True when at least one layer was removed.
+     */
+    removeStyleLayersByMetadata(predicate: (metadata: unknown) => boolean): boolean {
+        const removed = this.styles.removeLayersByMetadata(predicate);
+
+        if (removed) {
+            this.eventManager.emitGraphEvent("style-changed", {});
+        }
+
+        return removed;
+    }
+
+    /**
+     * Remove the 1.x layer at an index, and repaint if it was there.
+     * @param index - Its place in the stack, 0 being the bottom.
+     * @returns True when a layer was removed.
+     */
+    removeStyleLayerByIndex(index: number): boolean {
+        const removed = this.styles.removeLayerByIndex(index);
+
+        if (removed) {
+            this.eventManager.emitGraphEvent("style-changed", {});
+        }
+
+        return removed;
+    }
+
+    /**
+     * Replace the 1.x layer at an index, and repaint if it was there.
+     * @param index - Its place in the stack, 0 being the bottom.
+     * @param layer - What to put there.
+     * @returns True when a layer was replaced.
+     */
+    updateStyleLayerByIndex(index: number, layer: StyleLayerType): boolean {
+        const updated = this.styles.updateLayerByIndex(index, layer);
+
+        if (updated) {
+            this.eventManager.emitGraphEvent("style-changed", {});
+        }
+
+        return updated;
+    }
+
+    /**
+     * Move one 1.x layer to another place in the stack, and repaint if it moved.
+     * @param fromIndex - Where it is now.
+     * @param toIndex - Where it should go.
+     * @returns True when the layer moved.
+     */
+    reorderStyleLayers(fromIndex: number, toIndex: number): boolean {
+        const reordered = this.styles.reorderLayers(fromIndex, toIndex);
+
+        if (reordered) {
+            this.eventManager.emitGraphEvent("style-changed", {});
+        }
+
+        return reordered;
     }
 
     /**
@@ -1662,18 +1980,26 @@ export class Graph implements GraphContext {
 
     /**
      * Get the currently selected node.
-     * @returns The selected node, or null if nothing is selected.
+     *
+     * Superseded by `session.selection.nodes`, which is the whole selection rather than the first
+     * node of it: this answers with one render object, and a selection now holds any number of
+     * nodes and edges. It keeps working, and returns the first selected node.
+     * @returns The first selected node, or null if nothing is selected.
+     * @see {@link Graph.select} to change the selection.
      */
     getSelectedNode(): Node | null {
         return this.selectionManager.getSelectedNode();
     }
 
     /**
-     * Select a node by its ID.
+     * Select a node by its ID, replacing whatever was selected before.
+     *
+     * Superseded by {@link Graph.select}, which takes the same five set operations over every way
+     * of naming elements. This is `select({ nodes: [nodeId] }, "replace")` with a render-object
+     * lookup in front of it, and it keeps working because it is what a click has always done.
      * @remarks
-     * Selection triggers a `selection-changed` event and applies selection styles
-     * (defined in the style template). Only one node can be selected at a time;
-     * calling this method will deselect any previously selected node.
+     * Selection triggers a `selection-changed` event. Only one node is selected by this call;
+     * it replaces any previous selection.
      *
      * Selection is often used to:
      * - Show a details panel with node information
@@ -1706,6 +2032,9 @@ export class Graph implements GraphContext {
 
     /**
      * Deselect the currently selected node.
+     *
+     * Superseded by `session.selection.clear()`, which empties both sets. This clears the node
+     * half through the same model and keeps working.
      * @remarks
      * Clears the current selection and triggers a `selection-changed` event.
      * If no node is selected, this is a no-op.
@@ -1733,12 +2062,31 @@ export class Graph implements GraphContext {
 
     /**
      * Check if a specific node is currently selected.
+     *
+     * Answered from the selection masks, so it is one array read and it is true for EVERY
+     * selected node rather than only the first one. Superseded by `session.selection.has`, which
+     * answers the same question for an edge too.
      * @param nodeId - The ID of the node to check.
      * @returns True if the node is selected, false otherwise.
      */
     isNodeSelected(nodeId: string | number): boolean {
-        const selectedNode = this.selectionManager.getSelectedNode();
-        return selectedNode !== null && selectedNode.id === nodeId;
+        return this.session.selection.has(nodeId);
+    }
+
+    /**
+     * Change what is selected.
+     *
+     * The one selection verb: five set operations over every way of naming elements -- a list of
+     * ids, a pasted column, a neighbourhood, a scope, the top twenty of a finished run. Selecting
+     * a second node, selecting an edge and inverting a selection are all this call, which is why
+     * it supersedes {@link Graph.selectNode} and {@link Graph.deselectNode}.
+     * @param target - What to select.
+     * @param op - What to do with it; replaces the selection when absent, which is what a click
+     *     does.
+     * @returns What changed: what joined, what left, and what the selection holds now.
+     */
+    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+        return this.session.selection.apply(target, op);
     }
 
     /**

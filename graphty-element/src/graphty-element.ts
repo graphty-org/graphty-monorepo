@@ -6,11 +6,29 @@ import { LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
+import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
+import type { AlgorithmKey } from "./catalog/types";
 import type { StyleSchema, ViewMode } from "./config";
 import type { PartialXRConfig } from "./config/xr-config-schema";
+import { isDomForwardableEvent } from "./events";
 import { Graph } from "./Graph";
 import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "./logging";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import type { GraphSession } from "./session";
+import type { Run, RunChange, StartOptions } from "./session/runs";
+import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { VisibilityChange } from "./session/visibility";
+
+/**
+ * How often a run's progress may reach a DOM listener, in milliseconds.
+ *
+ * A long run reports progress far more often than anything needs to be redrawn, and a mirror
+ * event is the cheapest place in the element to say so: ten a second is well under a frame and is
+ * what a progress bar and a percentage both need. The three moments that are not progress --
+ * queued, started, finished -- are never dropped, because each is a state change a consumer acts
+ * on rather than a number it displays.
+ */
+const RUN_PROGRESS_INTERVAL_MS = 100;
 
 /**
  * Graphty creates a graph
@@ -20,6 +38,12 @@ export class Graphty extends LitElement {
     #graph: Graph;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
+    #accelerationPolicy: AccelerationPolicy = "auto";
+    #acceleration: AccelerationController | null = null;
+    #unwatchRuns: (() => void) | null = null;
+    #unwatchSelection: (() => void) | null = null;
+    #unwatchVisibility: (() => void) | null = null;
+    #runProgressAt = new Map<string, number>();
 
     /**
      * Creates a new Graphty element instance.
@@ -32,6 +56,160 @@ export class Graphty extends LitElement {
         // position: relative is needed for absolute positioning of XR UI overlay
         this.#element.setAttribute("style", "width: 100%; height: 100%; display: block; position: relative;");
         this.#graph = new Graph(this.#element);
+    }
+
+    /**
+     * The headless model this element draws.
+     *
+     * Everything about the graph that needs no screen is here: the data, the coordinates, the
+     * statistics, the catalogue, the runs and their results, which elements a piece of work may
+     * look at (`scope`), what is selected (`selection`) and what is visible (`visibility`). The
+     * camera, the canvas and the scene stay on the element, because two synchronised views of one
+     * dataset disagree about those and agree about everything above.
+     *
+     * Read-only for now: a session built elsewhere cannot yet be attached to an element.
+     * @returns The session.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <script type="module">
+     *   const { session } = document.getElementById("g");
+     *   await session.visibility.set({ kind: "degree", min: 3 });
+     *   showing.textContent = `${session.status.counts.visibleNodes} of ${session.status.counts.nodes}`;
+     * </script>
+     * ```
+     */
+    get session(): GraphSession {
+        return this.#graph.getSession();
+    }
+
+    /**
+     * Start an algorithm and get back something a caller can watch, stop and read.
+     *
+     * Forwarded from the session, so the first graph needs no session: a page with a tag and
+     * three lines of script can run an analysis, await the result and read its ranking without
+     * importing a module or learning what a session is.
+     * @param algorithm - Which algorithm to run, by its catalogue key such as "betweenness".
+     * @param params - Its parameters, as the catalogue declares them.
+     * @param options - The scope, the seed, the id, the signal and the progress handler.
+     * @returns The run. Awaiting it gives the result; every encoding helper takes the run itself.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <script type="module">
+     *   const g = document.getElementById("g");
+     *   const run = g.run("betweenness");
+     *   g.addEventListener("graphty-run-change", (e) => bar.value = e.detail.run.status);
+     *   console.log((await run).summary().top);
+     * </script>
+     * ```
+     */
+    run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run {
+        return this.#graph.run(algorithm, params, options);
+    }
+
+    /**
+     * Change what is selected.
+     *
+     * Forwarded from the session, so the first graph needs no session: a page with a tag and two
+     * lines of script can select a list of ids, add to that selection, invert it or take the top
+     * twenty of a finished run, without importing a module.
+     *
+     * One selection per graph, shared by every surface reading it. The five operations are
+     * `"replace"` (the default, and what a click does), `"add"`, `"remove"`, `"toggle"` and
+     * `"intersect"`.
+     * @param target - What to select: ids, a pasted list, a neighbourhood, a scope, a run's top n.
+     * @param op - What to do with it; replaces the selection when absent.
+     * @returns What changed: what joined, what left, and what the selection holds now.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <script type="module">
+     *   const g = document.getElementById("g");
+     *   await g.select({ nodes: [1, 2, 3] });
+     *   g.addEventListener("graphty-selection-change", (e) => count.textContent = e.detail.nodes);
+     * </script>
+     * ```
+     */
+    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+        return this.#graph.select(target, op);
+    }
+
+    /**
+     * Mirror one run notification onto the DOM, so a consumer holding only the tag can follow it.
+     *
+     * The detail carries the run's RECORD rather than the run: a `CustomEvent` detail crosses to
+     * listeners that may structure-clone it, and a live object with a `cancel()` on it cannot go
+     * there. A consumer that wants to cancel looks the run up by `detail.run.id`.
+     * @param change - The run's record, and which moment it reached.
+     */
+    #mirrorRunChange(change: RunChange): void {
+        if (change.phase === "progress") {
+            const now = Date.now();
+            // Per run, not per element: two runs coalesced against one clock would take turns
+            // suppressing each other, and a consumer would see one bar move and the other freeze.
+            const last = this.#runProgressAt.get(change.run.id) ?? 0;
+
+            if (now - last < RUN_PROGRESS_INTERVAL_MS) {
+                return;
+            }
+
+            this.#runProgressAt.set(change.run.id, now);
+        }
+
+        if (change.phase === "end") {
+            this.#runProgressAt.delete(change.run.id);
+        }
+
+        this.dispatchEvent(
+            new CustomEvent("graphty-run-change", {
+                detail: { run: change.run, phase: change.phase },
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    /**
+     * Mirror one selection change onto the DOM.
+     *
+     * The detail carries IDS, never node or edge objects. A `CustomEvent` detail crosses to
+     * listeners that may structure-clone it or post it to a worker, and a render object holding a
+     * mesh, a material and a scene cannot go there -- it would throw on the way out, or, worse,
+     * hand a listener a live handle on something the renderer is about to dispose. A consumer
+     * that wants the record looks the id up.
+     * @param delta - What joined, what left, and what the selection holds now.
+     */
+    #mirrorSelectionChange(delta: SelectionDelta): void {
+        this.dispatchEvent(
+            new CustomEvent("graphty-selection-change", {
+                detail: delta,
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    /**
+     * Mirror one visibility change onto the DOM.
+     *
+     * Four counts, the paths nothing answered and what produced the change: everything "showing
+     * 1,204 of 50,000" needs, and nothing that cannot be serialised. Every producer arrives here
+     * -- a filter, the time window and the context flag -- because a status bar has to update for
+     * all three and must not learn about them in three different ways.
+     * @param change - The counts, the unresolved paths and what produced them.
+     */
+    #mirrorVisibilityChange(change: VisibilityChange): void {
+        this.dispatchEvent(
+            new CustomEvent("graphty-visibility-change", {
+                detail: change,
+                bubbles: true,
+                composed: true,
+            }),
+        );
     }
 
     /**
@@ -52,6 +230,29 @@ export class Graphty extends LitElement {
 
         // Parse URL parameters
         this.parseURLParams();
+
+        // Look for an accelerator. Nothing is registered unless the consumer imported
+        // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
+        void this.#ensureAcceleration().start();
+
+        // Mirror every run onto the DOM, whoever started it. A run started from a console, an
+        // agent or a panel has no `onProgress` this element could have attached, so the session's
+        // own notification is the only thing that sees all of them.
+        const session = this.#graph.getSession();
+
+        this.#unwatchRuns ??= session.on("run:changed", (change) => {
+            this.#mirrorRunChange(change);
+        });
+
+        // The same reason as the run mirror: a selection made from a console, an agent, a data
+        // table or a gesture all arrive here, and the session's own notification is the only
+        // thing that sees every one of them.
+        this.#unwatchSelection ??= session.on("selection:changed", (delta) => {
+            this.#mirrorSelectionChange(delta);
+        });
+        this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
+            this.#mirrorVisibilityChange(change);
+        });
     }
 
     private parseURLParams(): void {
@@ -90,10 +291,18 @@ export class Graphty extends LitElement {
      * Performs async initialization tasks for the graph, including event forwarding and graph initialization.
      */
     async asyncFirstUpdated(): Promise<void> {
-        // Forward ALL internal graph events as DOM CustomEvents
+        // Forward internal graph events as DOM CustomEvents
         // This allows external code (e.g., React) to listen for any graph event
         // using standard DOM addEventListener (e.g., "style-changed", "graph-settled", etc.)
+        //
+        // Everything except an element-internal event goes out, so the exclusion is a list rather
+        // than a comparison written here: see INTERNAL_EVENT_TYPES in events.ts for why an event
+        // belongs on it and how to add one.
         this.#graph.eventManager.onGraphEvent.add((event) => {
+            if (!isDomForwardableEvent(event)) {
+                return;
+            }
+
             this.dispatchEvent(
                 new CustomEvent(event.type, {
                     detail: event,
@@ -137,6 +346,18 @@ export class Graphty extends LitElement {
             this.#resizeObserver.disconnect();
             this.#resizeObserver = null;
         }
+
+        // Release the accelerator's device with the rest of the element's resources. A
+        // re-attached element builds a fresh controller and probes again.
+        this.#acceleration?.dispose();
+        this.#acceleration = null;
+
+        this.#unwatchRuns?.();
+        this.#unwatchRuns = null;
+        this.#unwatchSelection?.();
+        this.#unwatchSelection = null;
+        this.#unwatchVisibility?.();
+        this.#unwatchVisibility = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -1335,7 +1556,11 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Select a node by its ID.
+     * Select a node by its ID, replacing whatever was selected before.
+     *
+     * Superseded by {@link Graphty.select}, which takes the same five set operations over every
+     * way of naming elements. This is `select({ nodes: [nodeId] })` with a lookup in front of
+     * it, and it keeps working because it is what a click has always done.
      * @param nodeId - The ID of the node to select
      * @returns True if the node was found and selected, false otherwise
      * @since 1.5.0
@@ -1352,7 +1577,11 @@ export class Graphty extends LitElement {
 
     /**
      * Deselect the currently selected node.
+     *
+     * Superseded by `session.selection.clear()`, which empties both sets. This clears the node
+     * half through the same model and keeps working.
      * @since 1.5.0
+     * @see {@link Graphty.select} for the verb that replaces this one
      * @example
      * ```typescript
      * element.deselectNode();
@@ -1364,8 +1593,13 @@ export class Graphty extends LitElement {
 
     /**
      * Get the currently selected node.
-     * @returns The selected node, or null if no node is selected
+     *
+     * Superseded by `session.selection.nodes`, which is the whole selection rather than the
+     * first node of it: this answers with one render object, and a selection now holds any
+     * number of nodes and edges.
+     * @returns The first selected node, or null if no node is selected
      * @since 1.5.0
+     * @see {@link Graphty.select} for the verb that replaces this one
      * @example
      * ```typescript
      * const selected = element.getSelectedNode();
@@ -1380,6 +1614,9 @@ export class Graphty extends LitElement {
 
     /**
      * Check if a specific node is selected.
+     *
+     * Answered from the selection masks, so it is true for EVERY selected node rather than only
+     * the first one. Superseded by `session.selection.has`, which answers for an edge too.
      * @param nodeId - The ID of the node to check
      * @returns True if the node is selected, false otherwise
      * @since 1.5.0
@@ -1400,11 +1637,17 @@ export class Graphty extends LitElement {
 
     /**
      * Run a graph algorithm.
+     * @deprecated Since 2.0. Use `run()`, which returns a `Run`: the result is on the object the
+     *   call hands back, the work reports progress and can be cancelled, and
+     *   `graphty-run-change` follows it from the DOM. This method still works and is expressed in
+     *   terms of `run`. (An inline link cannot appear in this tag: the custom-elements-manifest
+     *   build serialises a raw compiler node for one and fails on the cycle inside it.)
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "degree", "pagerank")
      * @param options - Algorithm options
      * @returns Promise that resolves when algorithm completes
      * @since 1.5.0
+     * @see {@link Graphty.run} for the verb that replaces this one
      * @example
      * ```typescript
      * await element.runAlgorithm('graphty', 'degree');
@@ -1416,42 +1659,47 @@ export class Graphty extends LitElement {
         type: string,
         options?: import("./utils/queue-migration").RunAlgorithmOptions,
     ): Promise<void> {
+        // A forwarder for a deprecated verb has to call it; both go together.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         return this.#graph.runAlgorithm(namespace, type, options);
     }
 
     /**
-     * Apply suggested styles from an algorithm.
-     * @param algorithmKey - Algorithm key (e.g., "graphty:degree")
-     * @param options - Options for applying styles
-     * @returns True if styles were applied, false otherwise
+     * Paint what an algorithm's finished runs suggest be drawn from them.
+     *
+     * Rarely needed: a run paints itself on its first completion, from the encoding its own
+     * result shape derives. This is the verb for a run started with `{ style: false }`, or for
+     * putting a picture back after a reader cleared it. Applying twice replaces the layer bound
+     * to that run and channel rather than stacking a second one on it.
+     * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
+     *     "graphty:degree", or an array of either.
+     * @returns True if anything was applied, false when no finished run of that algorithm has
+     *     anything per element to paint.
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.runAlgorithm('graphty', 'degree');
-     * element.applySuggestedStyles('graphty:degree');
+     * await element.run('degree', undefined, { style: false });
+     * element.applySuggestedStyles('degree');
      * ```
      */
-    applySuggestedStyles(
-        algorithmKey: string | string[],
-        options?: import("./config").ApplySuggestedStylesOptions,
-    ): boolean {
-        return this.#graph.applySuggestedStyles(algorithmKey, options);
+    applySuggestedStyles(algorithmKey: string | string[]): boolean {
+        return this.#graph.applySuggestedStyles(algorithmKey);
     }
 
     /**
-     * Get suggested styles for an algorithm without applying them.
-     * @param algorithmKey - Algorithm key (e.g., "graphty:degree")
-     * @returns Suggested styles config, or null if none exist
+     * What an algorithm's finished runs suggest be drawn from them, without painting any of it.
+     * @param algorithmKey - A catalogue key such as "degree", or a 1.10 address such as
+     *     "graphty:degree".
+     * @returns One suggestion per channel a run of that algorithm would paint, empty when it has
+     *     finished no run or its result is read rather than painted.
      * @since 1.5.0
      * @example
      * ```typescript
-     * const styles = element.getSuggestedStyles('graphty:degree');
-     * if (styles) {
-     *   console.log('Available style layers:', styles.layers.length);
-     * }
+     * const suggested = element.getSuggestedStyles('degree');
+     * console.log(suggested.map((one) => one.channels).flat());
      * ```
      */
-    getSuggestedStyles(algorithmKey: string): import("./config").SuggestedStylesConfig | null {
+    getSuggestedStyles(algorithmKey: string): readonly import("./session/styles").StyleSuggestion[] {
         return this.#graph.getSuggestedStyles(algorithmKey);
     }
 
@@ -1477,23 +1725,6 @@ export class Graphty extends LitElement {
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<import("./Styles").Styles> {
         return this.#graph.setStyleTemplate(template, options);
-    }
-
-    /**
-     * Get the style manager for advanced style manipulation.
-     * @returns The style manager instance
-     * @since 1.5.0
-     * @example
-     * ```typescript
-     * const styleManager = element.getStyleManager();
-     * styleManager.addLayer({
-     *   selector: '[?type == "important"]',
-     *   styles: { node: { color: '#ff0000' } }
-     * });
-     * ```
-     */
-    getStyleManager(): import("./managers/StyleManager").StyleManager {
-        return this.#graph.getStyleManager();
     }
 
     // ============================================================================
@@ -2154,6 +2385,86 @@ export class Graphty extends LitElement {
      */
     isVoiceActive(): boolean {
         return this.#graph.isVoiceActive();
+    }
+
+    /**
+     * Whether this graph may use hardware acceleration.
+     *
+     * `"auto"` uses an accelerator when one can be attached and runs on the CPU when one
+     * cannot; `"off"` never looks; `"required"` turns absence into a thrown `E_NO_ACCELERATOR`
+     * rather than a quiet CPU result. Acceleration itself is one import away:
+     * `import "@graphty/graphty-element/webgpu"`, and nothing else.
+     * @remarks
+     * This is a session setting and the element never persists it. Remembering that a reader
+     * switched acceleration off, and restoring the choice on their next visit, is the host
+     * application's storage: an element that wrote to a host page's storage uninvited would be
+     * a surprise the host cannot anticipate, and a restored preference would fight the
+     * attribute the host page wrote in its own markup.
+     * @returns What the consumer asked for. `"auto"` unless it was set.
+     * @since 2.0.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element acceleration="required"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "acceleration", reflect: true })
+    get acceleration(): AccelerationPolicy {
+        return this.#accelerationPolicy;
+    }
+    /**
+     * Sets the acceleration policy and applies it immediately.
+     *
+     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
+     * throw here would abort attribute processing and leave the element unrendered -- a typo
+     * in markup would take the whole graph down. HTML has never behaved that way about an
+     * attribute value, and an embedded component must not be the first thing that does.
+     *
+     * The report is deliberately loud, because the quiet failure is the dangerous one: a page
+     * that meant `required` and wrote `requried` would otherwise run on the CPU and look
+     * healthy.
+     */
+    set acceleration(value: AccelerationPolicy) {
+        if (value !== "auto" && value !== "off" && value !== "required") {
+            console.error(
+                `<graphty-element>: acceleration must be "auto", "off" or "required", not ` +
+                    `"${String(value)}". Keeping "${this.#accelerationPolicy}". ` +
+                    "See https://graphty.app/docs/graphty-element/attributes#acceleration",
+            );
+            return;
+        }
+
+        const oldValue = this.#accelerationPolicy;
+        this.#accelerationPolicy = value;
+        this.#acceleration?.setPolicy(value);
+        this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * The acceleration controller for this element, built on first use.
+     *
+     * Every transition it publishes is mirrored as a `graphty-capabilities-change` DOM event,
+     * so a page with a tag and six lines of script can show whether the GPU is in use, say why
+     * it is not, and update itself when a device is lost -- without importing a module or
+     * naming a single GPU type.
+     * @returns The controller.
+     */
+    #ensureAcceleration(): AccelerationController {
+        if (this.#acceleration === null) {
+            const controller = new AccelerationController({ policy: this.#accelerationPolicy });
+            controller.onChange((status: AccelerationStatus) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-capabilities-change", {
+                        detail: { capabilities: { acceleration: status } },
+                        bubbles: true,
+                        composed: true,
+                    }),
+                );
+            });
+            this.#acceleration = controller;
+        }
+
+        return this.#acceleration;
     }
 }
 

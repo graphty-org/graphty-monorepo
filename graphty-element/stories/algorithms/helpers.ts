@@ -3,7 +3,7 @@ import "../../src/algorithms";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { StyleLayerType } from "../../src/config";
+import type { LayerSpec } from "../../src/catalog/types";
 import type { Graphty } from "../../src/graphty-element";
 import { eventWaitingDecorator, templateCreator, waitForGraphSettled } from "../helpers";
 
@@ -48,12 +48,17 @@ export const algorithmMetaBase: Omit<Meta, "title"> = {
  * `readerLayers` are the story's OWN layers, sitting beneath the algorithm's. Muting what an
  * algorithm did not select is a reader's choice and must not ship in suggestedStyles -- see
  * CLAUDE.md "### Algorithm Styles" -- so a story that wants the rest dimmed asks for it here.
+ *
+ * THEY GO IN THE SESSION'S STACK, NOT IN THE STYLE TEMPLATE, and the difference is not cosmetic.
+ * A template layer is a 1.x layer, and one of those in the stack hands the whole graph back to
+ * the 1.x painter -- at which point the algorithm's own layer, which lives in the session, paints
+ * nothing at all. A reader layer written the old way therefore deleted the very picture it was
+ * meant to sit under.
  */
-export const createAlgorithmStory = (algorithmId: string, readerLayers?: StyleLayerType[]): Story => ({
+export const createAlgorithmStory = (algorithmId: string, readerLayers?: readonly LayerSpec[]): Story => ({
     args: {
         styleTemplate: templateCreator({
             algorithms: [algorithmId],
-            layers: readerLayers,
             behavior: {
                 layout: {
                     preSteps: 8000, // Extra preSteps for ngraph physics layout
@@ -73,7 +78,12 @@ export const createAlgorithmStory = (algorithmId: string, readerLayers?: StyleLa
         }
 
         const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
+        const { graph, session } = graphtyElement;
+
+        // The reader's layers go in first, so the algorithm's layer paints over them.
+        for (const layer of readerLayers ?? []) {
+            await session.styles.add(layer);
+        }
 
         // Apply suggested styles from the algorithm
         graph.applySuggestedStyles(algorithmId);

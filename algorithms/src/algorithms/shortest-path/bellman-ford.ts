@@ -43,13 +43,6 @@ export interface BellmanFordResult {
 }
 
 /**
- * Find shortest paths from source using Bellman-Ford algorithm
- * @param graph - The graph to search
- * @param source - The starting node for the search
- * @param options - Algorithm options including optional target for early termination
- * @returns The distances, predecessors, and negative cycle information
- */
-/**
  * One relaxable arc: a direction an edge can actually be traversed in.
  */
 interface Arc {
@@ -86,6 +79,13 @@ function relaxableArcs(graph: Graph): Arc[] {
     return arcs;
 }
 
+/**
+ * Find shortest paths from source using Bellman-Ford algorithm
+ * @param graph - The graph to search
+ * @param source - The starting node for the search
+ * @param options - Algorithm options including optional target for early termination
+ * @returns The distances, predecessors, and negative cycle information
+ */
 export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOptions = {}): BellmanFordResult {
     if (!graph.hasNode(source)) {
         throw new Error(`Source node ${String(source)} not found in graph`);

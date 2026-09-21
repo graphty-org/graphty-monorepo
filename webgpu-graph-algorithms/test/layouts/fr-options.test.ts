@@ -152,11 +152,9 @@ describe("FruchtermanReingoldModel (no device)", () => {
     );
     const options = resolveFruchtermanReingoldOptions(undefined);
 
-    it("refuses paramsFor and recordIteration before bind() with E_NOT_LOADED, the grid tier with E_UNSUPPORTED, an unknown upTo stage with E_INVALID_ARGUMENT", () => {
+    it("refuses paramsFor and recordIteration before bind() with E_NOT_LOADED on either tier, an unknown upTo stage with E_INVALID_ARGUMENT", () => {
         expectCode(() => model.paramsFor(0, options), "E_NOT_LOADED", { state: "created" });
-        expectCode(() => model.recordIteration({} as CommandBatch, 0, "grid"), "E_UNSUPPORTED", {
-            feature: "repulsion.grid",
-        });
+        expectCode(() => model.recordIteration({} as CommandBatch, 0, "grid"), "E_NOT_LOADED", { state: "created" });
         expectCode(() => model.recordIteration({} as CommandBatch, 0, "exact"), "E_NOT_LOADED", { state: "created" });
         expectCode(() => model.recordIteration({} as CommandBatch, 0, "exact", "K4"), "E_NOT_LOADED", {
             state: "created",
@@ -286,12 +284,59 @@ describe("createFruchtermanReingold (spec 3.3, 7.20)", () => {
                 {},
                 {},
             ]);
-            expect(model.stages).toEqual(["K1", "K2", "K3", "K5", "toScene"]);
+            expect(model.stages).toEqual([
+                "K1",
+                "K2",
+                "K3",
+                "G1",
+                "G2",
+                "G3",
+                "G4",
+                "G5",
+                "G6",
+                "G7",
+                "K4",
+                "K5",
+                "toScene",
+            ]);
             expect(model.buffers(34, 2).map((b) => [b.name, b.byteLength, b.zero])).toEqual([
                 ["force", 408, true],
                 ["oldForce", 408, true],
                 ["fillParams", 256, false],
+                ["hubCounters", 16, true],
             ]);
+            // the grid tier (P4-T13, PD-18 / PD-22): the grid buffers by tierFor, the grid specs with LAW 1 once a
+            // grid load has been resolved by inputs()
+            const gridModel = new FruchtermanReingoldModel(
+                resolveLayoutTuning({ repulsion: "grid" }),
+                resolveFruchtermanReingoldOptions(undefined),
+            );
+            expect(gridModel.buffers(34, 2).map((b) => b.name)).toEqual([
+                "force",
+                "oldForce",
+                "fillParams",
+                "hubCounters",
+                "cellKey",
+                "cellVal",
+                "sortedKey",
+                "sortedIdx",
+                "cellHist",
+                "cellStart",
+                "hubList",
+                "hubArgs",
+                "pyramid",
+            ]);
+            expect(gridModel.specs(merged, true).map((spec) => spec.id)).toHaveLength(6);
+            gridModel.inputs(s, resolveFruchtermanReingoldOptions(undefined));
+            const gridSpecs = gridModel.specs(merged, true);
+            expect(gridSpecs.map((spec) => spec.id)).toContain("grid-far-field");
+            expect(gridSpecs.find((spec) => spec.id === "grid-far-field")?.overrides).toEqual({ LAW: 1 });
+            expect(gridSpecs.find((spec) => spec.id === "grid-near-field")?.overrides).toEqual({
+                SWING_MODE: 1,
+                STRONG_GRAVITY: false,
+                GRAVITY_CENTER: 0,
+                LAW: 1,
+            });
             const inputs = model.inputs(s, resolveFruchtermanReingoldOptions(undefined));
             expect(Array.from(inputs.mass)).toEqual(new Array<number>(34).fill(1));
             expect(inputs.weights).toEqual({ data: null, source: "none", column: null });

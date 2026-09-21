@@ -1,10 +1,19 @@
 import { dijkstra, dijkstraPath } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import type { EdgeId } from "../catalog/types";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+    PATH_FIELD_SPECS,
+} from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Dijkstra algorithm
@@ -52,7 +61,7 @@ interface DijkstraOptions extends Record<string, unknown> {
  * Computes shortest paths from a source node to all other nodes using
  * non-negative edge weights. Supports bidirectional search optimization.
  */
-export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
+export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     static namespace = "graphty";
     static type = "dijkstra";
 
@@ -90,43 +99,6 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
      */
     private legacyOptions: { source: number | string; target?: number | string } | null = null;
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                edge: {
-                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
-                        output: "style.line.color",
-                        expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Dijkstra - Path Edges",
-                    description: "Highlights edges that are part of the shortest path (blue) - colorblind-safe",
-                },
-            },
-            {
-                node: {
-                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Dijkstra - Path Nodes",
-                    description: "Highlights nodes that are part of the shortest path (blue) - colorblind-safe",
-                },
-            },
-        ],
-        description: "Visualizes shortest path by highlighting path edges and nodes",
-        category: "path",
-    });
-
     /**
      * Configure the algorithm with source and optional target nodes
      * @param options - Configuration options
@@ -141,55 +113,85 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
     }
 
     /**
-     * Executes Dijkstra's algorithm on the graph
+     * Find the cheapest route from the source to the target.
      *
-     * Computes shortest path distances and highlights the path from source to target.
+     * Publishes the path shape's uniform fields: whether each node and edge is on the route,
+     * where each node sits along it counting the source as 0, and the route's size and cost. It
+     * also publishes how far every reachable node is from the source, which is what makes one
+     * run answer both "show me the way there" and "how far is everything".
+     * @param context - What the element gave the run.
+     * @returns The route, or null when there are no nodes to search.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
-        const n = nodes.length;
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const dataManager = this.graph.getDataManager();
+        const nodeIds = Array.from(dataManager.nodes.keys());
 
-        if (n === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
         // Get source and target from legacy options, schema options, or use defaults
         // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodes[0];
-        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodes[nodes.length - 1];
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
+        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodeIds[nodeIds.length - 1];
         const { bidirectional } = this._schemaOptions;
 
-        // Convert to @graphty/algorithms format (undirected for path finding)
-        const graphData = toAlgorithmGraph(g);
+        // Undirected: a shortest path may cross an edge in either direction.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Dijkstra to get path from source to target
-        const pathResult = dijkstraPath(graphData, source, target, { bidirectional });
-        const path = pathResult?.path ?? [];
+        context.report({ phase: "Searching for the route", total: null });
+        const route = dijkstraPath(graphData, source, target, { bidirectional });
+        const path = route?.path ?? [];
 
-        // Run Dijkstra once from source to get all distances
-        const allDistances = dijkstra(graphData, source);
+        context.report({ phase: "Measuring distances", total: null });
+        const distances = dijkstra(graphData, source);
 
-        // Store path information on nodes
-        const pathNodeSet = new Set(path);
-        for (const nodeId of nodes) {
-            const isInPath = pathNodeSet.has(nodeId);
-            this.addNodeResult(nodeId, "isInPath", isInPath);
+        const orderOf = new Map<number | string, number>();
+        path.forEach((nodeId, position) => orderOf.set(nodeId, position));
 
-            // Get distance from the single Dijkstra run
-            const nodeResult = allDistances.get(nodeId);
-            const distance = nodeResult?.distance ?? Infinity;
-            this.addNodeResult(nodeId, "distance", distance);
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
+            const order = orderOf.get(nodeId);
 
-        // Store path information on edges
-        const pathEdges = this.getPathEdges(path);
-        for (const edge of g.getDataManager().edges.values()) {
-            const edgeKey = `${edge.srcId}:${edge.dstId}`;
-            const reverseEdgeKey = `${edge.dstId}:${edge.srcId}`;
-            const isInPath = pathEdges.has(edgeKey) || pathEdges.has(reverseEdgeKey);
-            this.addEdgeResult(edge, "isInPath", isInPath);
-        }
+            nodes.push({
+                id: nodeId,
+                values: {
+                    onPath: order !== undefined,
+                    order,
+                    distance: distances.get(nodeId)?.distance ?? Infinity,
+                },
+            });
+        });
+
+        const routeEdges = this.getPathEdges(path);
+        const edges: ResultElementValues<EdgeId>[] = [];
+        await forEachChunked(context, "Marking the route", Array.from(dataManager.edges.values()), (edge) => {
+            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
+            const reversed = `${String(edge.dstId)}:${String(edge.srcId)}`;
+
+            edges.push({ id: key, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
+        });
+
+        return {
+            shape: "path",
+            fields: [...PATH_FIELD_SPECS, { name: "distance", kind: "node", type: "number" }],
+            nodes,
+            edges,
+            graph: {
+                length: path.length,
+                cost: route?.distance ?? 0,
+                hops: Math.max(path.length - 1, 0),
+            },
+            caveats: declaredCaveats({
+                method: "dijkstra",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "distance" },
+                notes:
+                    route === null
+                        ? [`No route runs from ${String(source)} to ${String(target)}.`]
+                        : [`Route from ${String(source)} to ${String(target)}.`],
+            }),
+        };
     }
 
     /**
@@ -201,7 +203,7 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
         const edges = new Set<string>();
 
         for (let i = 0; i < path.length - 1; i++) {
-            edges.add(`${path[i]}:${path[i + 1]}`);
+            edges.add(`${String(path[i])}:${String(path[i + 1])}`);
         }
 
         return edges;

@@ -1,10 +1,15 @@
 import { eigenvectorCentrality } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import type { FieldDescriptor, NodeId } from "../catalog/types";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { walkInChunks } from "./metrics/context";
+import { nodeMetricFields } from "./metrics/fields";
+import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Eigenvector Centrality algorithm
@@ -70,18 +75,19 @@ interface EigenvectorCentralityOptions extends Record<string, unknown> {
     startVector: Map<string, number> | null;
 }
 
+/** What an eigenvector result publishes: the uniform node-metric fields and nothing else. */
+const EIGENVECTOR_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
+    plainName: "Influence by association",
+    technicalName: "eigenvector score",
+});
+
 /**
- * Eigenvector Centrality Algorithm
+ * Eigenvector centrality: how influential a node's neighbours are.
  *
- * Measures the influence of a node based on the influence of its neighbors.
- * A node has high eigenvector centrality if it is connected to other nodes
- * that themselves have high eigenvector centrality.
- *
- * Results stored per node:
- * - score: Raw eigenvector centrality value
- * - scorePct: Normalized value in [0, 1] range (for visualization)
+ * A node scores highly when it is connected to other nodes that themselves score highly, so a few
+ * important connections count for more than many unimportant ones.
  */
-export class EigenvectorCentralityAlgorithm extends Algorithm<EigenvectorCentralityOptions> {
+export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorCentralityOptions> {
     static namespace = "graphty";
     static type = "eigenvector";
 
@@ -135,51 +141,37 @@ export class EigenvectorCentralityAlgorithm extends Algorithm<EigenvectorCentral
         // Note: startVector is a Map type - programmatic only, not in schema
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.eigenvector.scorePct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.oranges(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Eigenvector - Oranges Gradient",
-                    description: "Light orange (low) → Dark orange (high) - shows influence",
-                },
-            },
-        ],
-        description: "Visualizes node influence through color based on eigenvector centrality",
-        category: "node-metric",
-    });
+    /**
+     * The fields an eigenvector result publishes.
+     * @returns The uniform node-metric fields.
+     */
+    protected resultFields(): readonly FieldDescriptor[] {
+        return EIGENVECTOR_FIELDS;
+    }
 
     /**
-     * Executes the eigenvector centrality algorithm on the graph
-     *
-     * Computes eigenvector centrality scores for all nodes using power iteration.
+     * Score every node by the influence of its neighbours.
+     * @param context - Where progress goes and where cancellation arrives.
+     * @param nodeIds - The nodes to measure.
+     * @returns One score per node, scaled as the options asked for.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
-
-        if (nodes.length === 0) {
-            return;
-        }
-
-        // Get options from schema and programmatic options
+    protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         // Map types are programmatic-only (not in schema)
         const startVector = this._schemaOptions.startVector ?? undefined;
 
-        // Convert to @graphty/algorithms format and run
-        const graphData = toAlgorithmGraph(g);
-        const results = eigenvectorCentrality(graphData, {
+        // Undirected: influence flows across an edge in either direction.
+        const graphData = this.algorithmGraph("undirected");
+
+        context.report({
+            phase: "iterating",
+            completed: 0,
+            total: nodeIds.length,
+            message: `Power iteration, up to ${String(maxIterations)} passes.`,
+        });
+        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
+        // The element's own half -- reading the scores back out -- is chunked below.
+        const scores = eigenvectorCentrality(graphData, {
             normalized,
             maxIterations,
             tolerance,
@@ -187,23 +179,35 @@ export class EigenvectorCentralityAlgorithm extends Algorithm<EigenvectorCentral
             endpoints,
             startVector,
         });
+        context.signal.throwIfAborted();
 
-        // Find min/max for min-max normalization
-        // This ensures values spread across full 0-1 range for better visual differentiation
-        let minScore = Infinity;
-        let maxScore = -Infinity;
-        for (const score of Object.values(results)) {
-            minScore = Math.min(minScore, score);
-            maxScore = Math.max(maxScore, score);
-        }
+        const nodes: ResultElementValues[] = [];
+        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+            const score = scores[String(nodeId)];
+            nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
+        });
 
-        // Store results with min-max normalization
-        const range = maxScore - minScore;
-        for (const nodeId of nodes) {
-            const score = results[String(nodeId)] ?? 0;
-            this.addNodeResult(nodeId, "score", score);
-            this.addNodeResult(nodeId, "scorePct", range > 0 ? (score - minScore) / range : 0);
-        }
+        return {
+            nodes,
+            // With `normalized`, the algorithm rescales its eigenvector so the lowest score is 0
+            // and the highest is 1. Without it the raw unit-length eigenvector is published.
+            normalization: normalized ? "min-max" : "none",
+            caveats: {
+                exact: true,
+                direction: "undirected",
+                weight: null,
+                precision: "f64",
+                method: "power-iteration",
+                // `converged` and `iterations` are deliberately absent: the algorithm stops either
+                // at its tolerance or at its iteration cap and reports neither, so saying it
+                // converged would be an assertion nothing measured.
+                notes: [
+                    `Power iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
+                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    "Edge weights are not read.",
+                ],
+            },
+        };
     }
 }
 

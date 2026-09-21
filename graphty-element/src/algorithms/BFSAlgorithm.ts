@@ -1,11 +1,19 @@
 import { breadthFirstSearch } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
-import type { Graph } from "../Graph";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+    LAYERED_GROUPING_FIELD_SPECS,
+    type ResultFieldSpec,
+} from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for BFS algorithm
@@ -44,7 +52,7 @@ interface BFSOptions extends Record<string, unknown> {
  * Performs a breadth-first traversal from a source node, computing level information
  * and predecessor relationships for each reachable node.
  */
-export class BFSAlgorithm extends Algorithm<BFSOptions> {
+export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
     static namespace = "graphty";
     static type = "bfs";
 
@@ -76,28 +84,6 @@ export class BFSAlgorithm extends Algorithm<BFSOptions> {
      */
     private legacyOptions: { source: number | string } | null = null;
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "algorithmResults.graphty.bfs.levelPct != `null`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.bfs.levelPct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.viridis(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "BFS - Level Colors",
-                    description: "Colors nodes by BFS level from source (viridis gradient)",
-                },
-            },
-        ],
-        description: "Visualizes breadth-first traversal levels from source node",
-        category: "hierarchy",
-    });
-
     /**
      * Configure the algorithm with source node
      * @param options - Configuration options
@@ -111,82 +97,86 @@ export class BFSAlgorithm extends Algorithm<BFSOptions> {
     }
 
     /**
-     * Executes the BFS algorithm on the graph
+     * Walk outwards from one node a level at a time.
      *
-     * Computes BFS level, predecessor, and distance information for all reachable nodes.
+     * A breadth-first walk sorts the graph into layers, so the result is shaped as a layered
+     * grouping: every reached node carries the level it sits on and the position it was reached
+     * in, and the element derives how many nodes share each level and how many levels there are.
+     * A node the walk never reached carries nothing at all -- it is not on level 0, and saying so
+     * would put every unreachable node in the same layer as the source.
+     * @param context - What the element gave the run.
+     * @returns The layered result, or null when there is nothing to walk.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const dm = g.getDataManager();
-        const nodes = Array.from(dm.nodes.keys());
-        const n = nodes.length;
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (n === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
         // Get source from legacy options, schema options, or use first node as default
         // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodes[0];
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const targetNode = this._schemaOptions.targetNode ?? undefined;
 
-        // Convert to @graphty/algorithms format
-        // Using directed=false so the converter adds reverse edges for undirected traversal
-        const graphData = toAlgorithmGraph(g as unknown as Graph, { directed: false });
+        // Undirected: the traversal follows an edge in either direction.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Check if source exists
         if (!graphData.hasNode(source)) {
-            // Source not in graph - nothing to do
-            return;
+            return null;
         }
 
-        // Track levels and visit order manually since breadthFirstSearch doesn't return them directly
-        const levels = new Map<string | number, number>();
-        const visitOrders = new Map<string | number, number>();
-        let visitOrder = 0;
-        let maxLevel = 0;
-        let foundTarget = false;
+        const levelOf = new Map<number | string, number>();
+        const orderOf = new Map<number | string, number>();
+        let deepest = 0;
+        let targetFound = false;
 
-        // Use visitCallback to track levels
+        context.report({ phase: "Walking outwards", total: null });
         breadthFirstSearch(graphData, source, {
             targetNode,
             visitCallback: (node, level) => {
-                levels.set(node, level);
-                visitOrders.set(node, visitOrder);
-                visitOrder++;
-                if (level > maxLevel) {
-                    maxLevel = level;
-                }
+                levelOf.set(node, level);
+                orderOf.set(node, orderOf.size);
+                deepest = Math.max(deepest, level);
 
                 if (targetNode !== undefined && node === targetNode) {
-                    foundTarget = true;
+                    targetFound = true;
                 }
             },
         });
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const level = levels.get(nodeId);
-            const order = visitOrders.get(nodeId);
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
+            const level = levelOf.get(nodeId);
 
-            if (level !== undefined) {
-                this.addNodeResult(nodeId, "level", level);
-                // Normalize level to percentage
-                const levelPct = maxLevel > 0 ? level / maxLevel : 0;
-                this.addNodeResult(nodeId, "levelPct", levelPct);
+            if (level === undefined) {
+                return;
             }
 
-            if (order !== undefined) {
-                this.addNodeResult(nodeId, "visitOrder", order);
-            }
-        }
+            nodes.push({ id: nodeId, values: { level, order: orderOf.get(nodeId) } });
+        });
 
-        // Store graph-level results
-        this.addGraphResult("maxLevel", maxLevel);
-        this.addGraphResult("visitedCount", levels.size);
+        const fields: ResultFieldSpec[] = [
+            ...LAYERED_GROUPING_FIELD_SPECS,
+            { name: "order", kind: "node", type: "integer" },
+        ];
+
         if (targetNode !== undefined) {
-            this.addGraphResult("targetFound", foundTarget);
+            fields.push({ name: "targetFound", kind: "graph", type: "boolean" });
         }
+
+        return {
+            shape: "layered-grouping",
+            fields,
+            nodes,
+            graph: targetNode === undefined ? undefined : { targetFound },
+            caveats: declaredCaveats({
+                method: "bfs",
+                direction: "undirected",
+                weight: null,
+                notes: [`Walked outwards from ${String(source)}, which is level 0.`],
+            }),
+        };
     }
 }
 

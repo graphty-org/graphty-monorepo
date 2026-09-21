@@ -1,10 +1,18 @@
 import { girvanNewman } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    communityFieldSpecs,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Girvan-Newman algorithm
@@ -50,7 +58,7 @@ interface GirvanNewmanOptions extends Record<string, unknown> {
 /**
  *
  */
-export class GirvanNewmanAlgorithm extends Algorithm<GirvanNewmanOptions> {
+export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions> {
     static namespace = "graphty";
     static type = "girvan-newman";
 
@@ -85,94 +93,74 @@ export class GirvanNewmanAlgorithm extends Algorithm<GirvanNewmanOptions> {
         },
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: 'algorithmResults.graphty."girvan-newman".communityId != `null`',
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.girvan-newman.communityId"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.categorical.tolVibrant(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "Girvan-Newman - Vibrant Colors",
-                    description: "7 high-saturation community colors",
-                },
-            },
-        ],
-        description: "Visualizes communities detected via edge betweenness removal",
-        category: "grouping",
-    });
-
     /**
-     * Executes the Girvan-Newman algorithm on the graph
+     * Group the nodes into communities by cutting the edges the most routes run through.
      *
-     * Detects communities by iteratively removing edges with highest betweenness.
+     * The method produces a dendrogram -- one partition per cut -- and the run publishes the cut
+     * that scored the highest modularity, with that score. A graph with no edges falls apart at
+     * the first step, and every node is then its own community.
+     * @param context - What the element gave the run.
+     * @returns The community result, or null when there are no nodes to group.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Get options from schema
         const { maxCommunities, minCommunitySize, maxIterations } = this.schemaOptions;
 
-        // Convert to @graphty/algorithms format (truly undirected for community detection)
-        // addReverseEdges: false creates an undirected graph required by girvanNewman
-        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
+        // Undirected: the edge betweenness this splits on is defined over unordered pairs.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Girvan-Newman algorithm - returns CommunityResult[] (dendrogram)
-        // Pass maxCommunities only if > 0 (0 means find optimal)
-        const results = girvanNewman(graphData, {
+        context.report({ phase: "Cutting bridges", total: null });
+
+        // maxCommunities is only passed on when it was set: 0 means "find the best split".
+        const dendrogram = girvanNewman(graphData, {
             maxCommunities: maxCommunities > 0 ? maxCommunities : undefined,
             minCommunitySize,
             maxIterations,
         });
 
-        // Handle empty results (e.g., graph with no edges)
-        if (results.length === 0) {
-            // Assign each node to its own community
-            for (let i = 0; i < nodes.length; i++) {
-                this.addNodeResult(nodes[i], "communityId", i);
+        const best = dendrogram.reduce<(typeof dendrogram)[number] | undefined>(
+            (winner, candidate) => (winner === undefined || candidate.modularity > winner.modularity ? candidate : winner),
+            undefined,
+        );
+
+        const groupOf = new Map<number | string, number>();
+        if (best !== undefined) {
+            for (let index = 0; index < best.communities.length; index++) {
+                for (const nodeId of best.communities[index]) {
+                    groupOf.set(nodeId, index);
+                }
             }
-            this.addGraphResult("modularity", 0);
-            this.addGraphResult("communityCount", nodes.length);
-            return;
+        } else {
+            // No cut was possible, which is what a graph with no edges looks like: every node
+            // stands alone, and a partition of singletons scores nothing.
+            nodeIds.forEach((nodeId, index) => groupOf.set(nodeId, index));
         }
 
-        // Find the result with highest modularity
-        let bestResult = results[0];
-        for (const result of results) {
-            if (result.modularity > bestResult.modularity) {
-                bestResult = result;
-            }
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+        });
 
-        // Store community assignments for each node
-        const communityMap = new Map<number | string, number>();
-        for (let i = 0; i < bestResult.communities.length; i++) {
-            for (const nodeId of bestResult.communities[i]) {
-                communityMap.set(nodeId, i);
-            }
-        }
-
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const communityId = communityMap.get(nodeId) ?? 0;
-            this.addNodeResult(nodeId, "communityId", communityId);
-        }
-
-        // Store graph-level results
-        this.addGraphResult("modularity", bestResult.modularity);
-        this.addGraphResult("communityCount", bestResult.communities.length);
+        return {
+            shape: "community",
+            fields: communityFieldSpecs(true),
+            nodes,
+            graph: { modularity: best?.modularity ?? 0 },
+            caveats: declaredCaveats({
+                method: "girvan-newman",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "strength" },
+                notes:
+                    best === undefined
+                        ? ["No edge could be cut, so every node is its own community."]
+                        : [`Kept the best of ${String(dendrogram.length)} successive cuts.`],
+            }),
+        };
     }
 }
 

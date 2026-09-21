@@ -1,11 +1,18 @@
 import { labelPropagation } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    communityFieldSpecs,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { countUniqueCommunities } from "./utils/communityUtils";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Label Propagation algorithm
@@ -41,7 +48,7 @@ interface LabelPropagationOptions extends Record<string, unknown> {
 /**
  *
  */
-export class LabelPropagationAlgorithm extends Algorithm<LabelPropagationOptions> {
+export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
     static namespace = "graphty";
     static type = "label-propagation";
 
@@ -67,65 +74,53 @@ export class LabelPropagationAlgorithm extends Algorithm<LabelPropagationOptions
         },
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: 'algorithmResults.graphty."label-propagation".communityId != `null`',
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.label-propagation.communityId"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.categorical.pastel(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "Label Propagation - Pastel Colors",
-                    description: "8 soft pastel community colors",
-                },
-            },
-        ],
-        description: "Visualizes communities detected via fast label propagation",
-        category: "grouping",
-    });
-
     /**
-     * Executes the label propagation algorithm on the graph
+     * Group the nodes into communities by letting labels spread between neighbours.
      *
-     * Detects communities by propagating labels through the network.
+     * Publishes a group per node and nothing the shape does not derive. Label propagation does
+     * not score its own partition, so it reports no modularity: the community shape makes that
+     * field optional for exactly this reason, and a number invented to fill it would be read as
+     * a measurement.
+     * @param context - What the element gave the run.
+     * @returns The community result, or null when there are no nodes to group.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Get options from schema
         const { maxIterations, randomSeed } = this.schemaOptions;
 
-        // Convert to @graphty/algorithms Graph format (undirected for community detection)
-        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
+        // Undirected: a label spreads across an edge in either direction.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Label Propagation algorithm - accepts Graph directly in new version
+        context.report({ phase: "Spreading labels", total: null });
         const result = labelPropagation(graphData, {
             maxIterations,
             randomSeed,
         });
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const communityId = result.communities.get(String(nodeId)) ?? 0;
-            this.addNodeResult(nodeId, "communityId", communityId);
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+            nodes.push({ id: nodeId, values: { group: result.communities.get(String(nodeId)) ?? 0 } });
+        });
 
-        // Store graph-level results
-        this.addGraphResult("communityCount", countUniqueCommunities(result.communities));
-        this.addGraphResult("converged", result.converged);
-        this.addGraphResult("iterations", result.iterations);
+        return {
+            shape: "community",
+            fields: communityFieldSpecs(false),
+            nodes,
+            caveats: declaredCaveats({
+                method: "label-propagation",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "strength" },
+                converged: result.converged,
+                iterations: result.iterations,
+                seed: randomSeed,
+                notes: ["Label propagation does not score its own partition, so it reports no modularity."],
+            }),
+        };
     }
 }
 

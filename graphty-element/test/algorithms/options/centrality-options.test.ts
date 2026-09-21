@@ -50,7 +50,7 @@ describe("Centrality Algorithm Options", () => {
                 await algo.run();
 
                 // Verify scores were calculated
-                const score = getNodeResult(graph, "A", "graphty", "eigenvector", "score");
+                const score = getNodeResult(algo, "A", "graphty", "eigenvector", "score");
                 assert.isDefined(score);
                 assert.isNumber(score);
             });
@@ -128,7 +128,7 @@ describe("Centrality Algorithm Options", () => {
                 await algo.run();
 
                 // Verify scores were calculated
-                const score = getNodeResult(graph, "A", "graphty", "eigenvector", "score");
+                const score = getNodeResult(algo, "A", "graphty", "eigenvector", "score");
                 assert.isDefined(score);
             });
         });
@@ -203,7 +203,7 @@ describe("Centrality Algorithm Options", () => {
                 await algo.run();
 
                 // Verify scores were calculated
-                const score = getNodeResult(graph, "A", "graphty", "katz", "score");
+                const score = getNodeResult(algo, "A", "graphty", "katz", "score");
                 assert.isDefined(score);
                 assert.isNumber(score);
             });
@@ -280,7 +280,7 @@ describe("Centrality Algorithm Options", () => {
                 await algo.run();
 
                 // Verify scores were calculated
-                const score = getNodeResult(graph, "A", "graphty", "katz", "score");
+                const score = getNodeResult(algo, "A", "graphty", "katz", "score");
                 assert.isDefined(score);
             });
         });
@@ -337,8 +337,8 @@ describe("Centrality Algorithm Options", () => {
                 await algo.run();
 
                 // Verify scores were calculated
-                const hubScore = getNodeResult(graph, "A", "graphty", "hits", "hubScore");
-                const authorityScore = getNodeResult(graph, "A", "graphty", "hits", "authorityScore");
+                const hubScore = getNodeResult(algo, "A", "graphty", "hits", "hubScore");
+                const authorityScore = getNodeResult(algo, "A", "graphty", "hits", "authorityScore");
                 assert.isDefined(hubScore);
                 assert.isDefined(authorityScore);
                 assert.isNumber(hubScore);
@@ -418,7 +418,7 @@ describe("Centrality Algorithm Options", () => {
                 await algo.run();
 
                 // Verify scores were calculated
-                const hubScore = getNodeResult(graph, "A", "graphty", "hits", "hubScore");
+                const hubScore = getNodeResult(algo, "A", "graphty", "hits", "hubScore");
                 assert.isDefined(hubScore);
             });
         });

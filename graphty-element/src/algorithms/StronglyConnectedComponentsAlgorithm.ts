@@ -1,75 +1,68 @@
 import { stronglyConnectedComponents } from "@graphty/algorithms";
 
-import type { SuggestedStylesConfig } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { toAlgorithmGraph } from "./utils/graphConverter";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    communityFieldSpecs,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 
 /**
  *
  */
-export class StronglyConnectedComponentsAlgorithm extends Algorithm {
+export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "scc";
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "algorithmResults.graphty.scc.componentId != `null`",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.scc.componentId"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.categorical.okabeIto(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "SCC - Okabe-Ito Colors",
-                    description: "8 colorblind-safe colors for strongly connected components",
-                },
-            },
-        ],
-        description: "Visualizes strongly connected components in directed graphs with distinct colors",
-        category: "grouping",
-    });
-
     /**
-     * Executes the strongly connected components algorithm on the graph
+     * Find the pieces of the graph that a directed path can cross both ways.
      *
-     * Identifies maximal strongly connected components in a directed graph.
+     * The same community shape as the weak reading, run at the other strength: two nodes share a
+     * group only when a directed path runs each way between them. The caveats say which strength
+     * ran, because on a directed graph the two answers differ and the numbers do not say so.
+     * @param context - What the element gave the run.
+     * @returns The community result, or null when there are no nodes to group.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Convert to @graphty/algorithms format - SCC requires directed graph
-        const graphData = toAlgorithmGraph(g, { directed: true, addReverseEdges: false });
+        // Directed: strong connectivity is a directed notion and has no undirected meaning.
+        const graphData = this.algorithmGraph("directed");
 
-        // Run Strongly Connected Components algorithm - returns NodeId[][] directly
+        context.report({ phase: "Finding pieces", total: null });
         const components = stronglyConnectedComponents(graphData);
 
-        // Store component assignments for each node
-        const componentMap = new Map<number | string, number>();
-        for (let i = 0; i < components.length; i++) {
-            for (const nodeId of components[i]) {
-                componentMap.set(nodeId, i);
+        const groupOf = new Map<number | string, number>();
+        for (let index = 0; index < components.length; index++) {
+            for (const nodeId of components[index]) {
+                groupOf.set(nodeId, index);
             }
         }
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const componentId = componentMap.get(nodeId) ?? 0;
-            this.addNodeResult(nodeId, "componentId", componentId);
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+        });
 
-        // Store graph-level results
-        this.addGraphResult("componentCount", components.length);
+        return {
+            shape: "community",
+            fields: communityFieldSpecs(false),
+            nodes,
+            caveats: declaredCaveats({
+                method: "strongly-connected-components",
+                direction: "directed",
+                weight: null,
+                notes: ["Strength: strong. Two nodes share a piece only when a directed path runs each way."],
+            }),
+        };
     }
 }
 

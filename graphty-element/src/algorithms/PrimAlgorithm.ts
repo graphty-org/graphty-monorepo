@@ -1,9 +1,9 @@
 /**
  * @file Prim's Minimum Spanning Tree Algorithm wrapper
  *
- * This algorithm finds the minimum spanning tree of an undirected graph
- * using Prim's algorithm. It marks edges that are part of the MST
- * and stores graph-level results (total weight, edge count).
+ * This algorithm finds the minimum spanning tree of an undirected graph using Prim's
+ * algorithm. It returns an edge set: every edge says whether it is in the tree, and the run
+ * publishes what the tree costs in total.
  *
  * Unlike Kruskal's which processes edges globally, Prim's grows the tree
  * from a starting node, which can be optionally configured.
@@ -12,10 +12,19 @@
 import { primMST } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import type { EdgeId } from "../catalog/types";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+    setFieldSpecs,
+} from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Prim algorithm
@@ -44,7 +53,7 @@ interface PrimOptions extends Record<string, unknown> {
  * Computes the minimum spanning tree of an undirected graph by growing
  * the tree from a starting node.
  */
-export class PrimAlgorithm extends Algorithm<PrimOptions> {
+export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
     static namespace = "graphty";
     static type = "prim";
 
@@ -65,28 +74,6 @@ export class PrimAlgorithm extends Algorithm<PrimOptions> {
      */
     private legacyOptions: PrimOptions | null = null;
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                edge: {
-                    selector: "algorithmResults.graphty.prim.inMST == `true`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.prim.inMST"],
-                        output: "style.line.color",
-                        expr: "{ return StyleHelpers.color.binary.greenSuccess(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Prim - MST Edges",
-                    description: "Highlights minimum spanning tree edges (green) - colorblind-safe",
-                },
-            },
-        ],
-        description: "Visualizes minimum spanning tree computed via Prim's algorithm",
-        category: "path",
-    });
-
     /**
      * Configure the algorithm with an optional start node
      * @param options - Configuration options
@@ -100,45 +87,58 @@ export class PrimAlgorithm extends Algorithm<PrimOptions> {
     }
 
     /**
-     * Executes Prim's algorithm on the graph
+     * Find the cheapest set of edges that still joins every node.
      *
-     * Computes the minimum spanning tree and marks MST edges.
+     * A spanning tree is a set of edges, so the result is shaped as one: every edge says whether
+     * it is in the network, the element counts how many are, and the run publishes the one number
+     * the answer is actually read for -- what the network costs in total.
+     * @param context - What the element gave the run.
+     * @returns The edge set, or null when there are no edges to choose from.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const edges = Array.from(g.getDataManager().edges.values());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const graphEdges = Array.from(this.graph.getDataManager().edges.values());
 
-        if (edges.length === 0) {
-            return;
+        if (graphEdges.length === 0) {
+            return null;
         }
 
         // Get startNode from legacy options, schema options, or use undefined (algorithm will pick first node)
         // Legacy configure() takes precedence for backward compatibility
         const startNode = this.legacyOptions?.startNode ?? this._schemaOptions.startNode ?? undefined;
 
-        // Convert to @graphty/algorithms format and run Prim's algorithm
-        // Note: Prim's algorithm requires a truly undirected graph (not a directed graph with reverse edges)
-        const graphData = toAlgorithmGraph(g, { directed: false, addReverseEdges: false });
-        const mstResult = primMST(graphData, startNode);
+        // Undirected: a spanning tree is a set of unordered pairs, and primMST refuses a directed input.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Create set of MST edge keys for fast lookup
-        // Store both directions since the graph is undirected
-        const mstEdgeKeys = new Set<string>();
-        for (const edge of mstResult.edges) {
-            mstEdgeKeys.add(`${String(edge.source)}:${String(edge.target)}`);
-            mstEdgeKeys.add(`${String(edge.target)}:${String(edge.source)}`);
+        context.report({ phase: "Choosing edges", total: null });
+        const tree = primMST(graphData, startNode);
+
+        // Both directions, because the element's edge carries the direction it was declared in
+        // and the tree's does not.
+        const chosen = new Set<string>();
+        for (const edge of tree.edges) {
+            chosen.add(`${String(edge.source)}:${String(edge.target)}`);
+            chosen.add(`${String(edge.target)}:${String(edge.source)}`);
         }
 
-        // Mark each edge as in MST or not
-        for (const edge of edges) {
-            const edgeKey = `${edge.srcId}:${edge.dstId}`;
-            const inMST = mstEdgeKeys.has(edgeKey);
-            this.addEdgeResult(edge, "inMST", inMST);
-        }
+        const edges: ResultElementValues<EdgeId>[] = [];
+        await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
+            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
 
-        // Store graph-level results
-        this.addGraphResult("totalWeight", mstResult.totalWeight);
-        this.addGraphResult("edgeCount", mstResult.edges.length);
+            edges.push({ id: key, values: { in: chosen.has(key) } });
+        });
+
+        return {
+            shape: "edge-set",
+            fields: setFieldSpecs("edge", { name: "totalWeight", type: "number" }),
+            edges,
+            graph: { totalWeight: tree.totalWeight },
+            caveats: declaredCaveats({
+                method: "prim",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "distance" },
+                notes: [`The tree joins the graph with ${String(tree.edges.length)} edges.`],
+            }),
+        };
     }
 }
 

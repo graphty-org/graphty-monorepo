@@ -1,10 +1,18 @@
 import { louvain } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    communityFieldSpecs,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Louvain algorithm
@@ -61,7 +69,7 @@ interface LouvainOptions extends Record<string, unknown> {
 /**
  *
  */
-export class LouvainAlgorithm extends Algorithm<LouvainOptions> {
+export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
     static namespace = "graphty";
     static type = "louvain";
 
@@ -104,58 +112,28 @@ export class LouvainAlgorithm extends Algorithm<LouvainOptions> {
         },
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "algorithmResults.graphty.louvain.communityId != `null`",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.louvain.communityId"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.categorical.okabeIto(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "Louvain - Okabe-Ito Colors",
-                    description: "8 vivid colorblind-safe community colors",
-                },
-            },
-        ],
-        description: "Visualizes graph communities through distinct colors",
-        category: "grouping",
-    });
-
     /**
-     * Executes the Louvain algorithm on the graph
+     * Group the nodes into communities by optimising modularity.
      *
-     * Detects communities by optimizing modularity in a hierarchical manner.
-     *
-     * Besides the per-node community id, the run publishes two graph-level results,
-     * groupCount and modularity. App shell spec line 5841 ("Community readings are
-     * method-independent and require group count and modularity from every grouping
-     * method") and line 2324 (the Community result shape "declares its required result
-     * fields ... group id per node, group count, modularity") both require them, and
-     * before this the modularity the algorithm already computed was discarded.
+     * Publishes the community shape's uniform fields: a group per node, and the modularity the
+     * method reported for its own partition. The group sizes, the group count and the size table
+     * are derived from the groups when the result is built, not counted again here.
+     * @param context - What the element gave the run.
+     * @returns The community result, or null when there are no nodes to group.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Get options from schema
         const { resolution, maxIterations, tolerance, useOptimized } = this.schemaOptions;
 
-        // Convert to @graphty/algorithms format (truly undirected for community detection)
-        // addReverseEdges: false creates an undirected graph required by louvain
-        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
+        // Undirected: modularity is defined over unordered pairs.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Louvain algorithm
+        context.report({ phase: "Optimizing modularity", total: null });
         const result = louvain(graphData, {
             resolution,
             maxIterations,
@@ -163,25 +141,30 @@ export class LouvainAlgorithm extends Algorithm<LouvainOptions> {
             useOptimized,
         });
 
-        // Store community assignments for each node
-        const communityMap = new Map<number | string, number>();
-        for (let i = 0; i < result.communities.length; i++) {
-            for (const nodeId of result.communities[i]) {
-                communityMap.set(nodeId, i);
+        const groupOf = new Map<number | string, number>();
+        for (let index = 0; index < result.communities.length; index++) {
+            for (const nodeId of result.communities[index]) {
+                groupOf.set(nodeId, index);
             }
         }
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const communityId = communityMap.get(nodeId) ?? 0;
-            this.addNodeResult(nodeId, "communityId", communityId);
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+        });
 
-        // Store graph-level results: the two fields the Community result shape requires
-        // besides the per-node group id.
-        const groupCount = result.communities.filter((community) => community.length > 0).length;
-        this.addGraphResult("groupCount", groupCount);
-        this.addGraphResult("modularity", result.modularity);
+        return {
+            shape: "community",
+            fields: communityFieldSpecs(true),
+            nodes,
+            graph: { modularity: result.modularity },
+            caveats: declaredCaveats({
+                method: "louvain",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "strength" },
+                notes: [`Resolution ${String(resolution)}.`],
+            }),
+        };
     }
 }
 

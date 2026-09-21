@@ -14,105 +14,6 @@ describe("PrimAlgorithm", () => {
         });
     });
 
-    describe("Suggested Styles", () => {
-        it("has suggested styles defined", () => {
-            assert.strictEqual(PrimAlgorithm.hasSuggestedStyles(), true);
-        });
-
-        it("returns correct suggested styles structure", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-
-            assert.ok(styles);
-            assert.ok(styles.description);
-            assert.strictEqual(styles.category, "path");
-            assert.ok(Array.isArray(styles.layers));
-            assert.strictEqual(styles.layers.length, 1); // MST edges
-        });
-
-        it("first layer highlights MST edges with calculated color", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const mstEdgeLayer = styles.layers[0];
-            assert.ok(mstEdgeLayer);
-            assert.ok(mstEdgeLayer.edge);
-
-            // Should use calculatedStyle for color (colorblind-safe)
-            assert.ok(mstEdgeLayer.edge.calculatedStyle);
-            assert.ok(mstEdgeLayer.edge.calculatedStyle.inputs);
-            assert.ok(mstEdgeLayer.edge.calculatedStyle.inputs[0].includes("inMST"));
-            assert.ok(mstEdgeLayer.edge.calculatedStyle.output.includes("color"));
-            assert.ok(mstEdgeLayer.edge.calculatedStyle.expr.includes("StyleHelpers"));
-
-            // Should have style enabled
-            assert.ok(mstEdgeLayer.edge.style);
-            assert.ok(mstEdgeLayer.edge.style.enabled);
-        });
-
-        it("layers have metadata", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const mstEdgeLayer = styles.layers[0];
-            assert.ok(mstEdgeLayer);
-            assert.ok(mstEdgeLayer.metadata);
-            assert.ok(mstEdgeLayer.metadata.name);
-            assert.ok(mstEdgeLayer.metadata.description);
-        });
-
-        it("description explains MST visualization", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.ok(styles.description);
-            // Should mention minimum spanning tree, Prim, or MST
-            const descLower = styles.description.toLowerCase();
-            assert.ok(
-                descLower.includes("minimum") ||
-                    descLower.includes("mst") ||
-                    descLower.includes("spanning") ||
-                    descLower.includes("prim"),
-            );
-        });
-    });
-
-    describe("MST Edge Detection", () => {
-        it("calculatedStyle uses correct algorithm result path for MST edges", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const mstEdgeLayer = styles.layers[0];
-            assert.ok(mstEdgeLayer.edge);
-
-            // First layer uses calculatedStyle with input referencing algorithmResults
-            const { calculatedStyle } = mstEdgeLayer.edge;
-            assert.ok(calculatedStyle);
-
-            const input = calculatedStyle.inputs[0];
-            // Should reference algorithmResults.graphty.prim.inMST
-            assert.ok(input.includes("algorithmResults"));
-            assert.ok(input.includes("graphty"));
-            assert.ok(input.includes("prim"));
-            assert.ok(input.includes("inMST"));
-        });
-
-        it("selector uses correct algorithm result path for MST edges", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const mstEdgeLayer = styles.layers[0];
-            assert.ok(mstEdgeLayer.edge);
-
-            const { selector } = mstEdgeLayer.edge;
-            assert.ok(selector);
-
-            // Should reference algorithmResults.graphty.prim.inMST
-            assert.ok(selector.includes("algorithmResults"));
-            assert.ok(selector.includes("graphty"));
-            assert.ok(selector.includes("prim"));
-            assert.ok(selector.includes("inMST"));
-        });
-    });
-
     describe("Algorithm Metadata", () => {
         it("has correct namespace and type", () => {
             assert.strictEqual(PrimAlgorithm.namespace, "graphty");
@@ -124,28 +25,6 @@ describe("PrimAlgorithm", () => {
             assert.strictEqual(AlgClass, PrimAlgorithm);
         });
 
-        it("suggested styles are retrievable via static method", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.ok(styles.layers);
-        });
-    });
-
-    describe("Style Configuration", () => {
-        it("MST edges use calculatedStyle for color", () => {
-            const styles = PrimAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const mstEdgeLayer = styles.layers[0];
-            assert.ok(mstEdgeLayer);
-            assert.ok(mstEdgeLayer.edge);
-            assert.ok(mstEdgeLayer.edge.style);
-            assert.ok(mstEdgeLayer.edge.style.enabled);
-
-            // MST edges should use calculatedStyle for color
-            assert.ok(mstEdgeLayer.edge.calculatedStyle);
-            assert.ok(mstEdgeLayer.edge.calculatedStyle.output.includes("color"));
-        });
     });
 
     describe("Configuration", () => {

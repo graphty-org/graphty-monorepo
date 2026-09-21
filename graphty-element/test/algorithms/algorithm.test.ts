@@ -16,23 +16,17 @@ describe("DegreeAlgorithm", () => {
 
         // Mlle.Baptistine: srcId in 1 edge (-> Myriel), dstId in 2 edges (<- Valjean, <- Mme.Magloire)
         // So: outDegree=1, inDegree=2, degree=3
-        // maxOutDegree=10 (most outgoing edges from one node), maxInDegree=32 (most incoming to one node)
-        const expectedResult = {
-            graphty: {
-                degree: {
-                    inDegree: 2,
-                    outDegree: 1,
-                    degree: 3,
-                    inDegreePct: 2 / 32, // inDegree / maxInDegree
-                    outDegreePct: 1 / 10, // outDegree / maxOutDegree
-                    degreePct: 3 / 36,
-                },
-            },
-        };
-
+        // The highest total in this dataset is 36, and the highest one-direction counts are 10 out
+        // and 32 in, which is what each fraction is measured against.
         const node = getMockNode(graph, "Mlle.Baptistine");
         assert.isDefined(node, "Node Mlle.Baptistine should exist");
-        assert.deepStrictEqual(node.algorithmResults, expectedResult);
+
+        assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "inDegree"), 2);
+        assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "outDegree"), 1);
+        assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "degree"), 3);
+        assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "inDegreePct"), 2 / 32);
+        assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "outDegreePct"), 1 / 10);
+        assert.strictEqual(getNodeResult(da, "Mlle.Baptistine", "graphty", "degree", "degreePct"), 3 / 36);
     });
 
     it("correctly calculates in-degree for destination nodes", async () => {
@@ -49,15 +43,15 @@ describe("DegreeAlgorithm", () => {
         await da.run();
 
         // Source node A should have outDegree=2, inDegree=0
-        assert.strictEqual(getNodeResult(graph, "A", "graphty", "degree", "outDegree"), 2, "A should have outDegree=2");
-        assert.strictEqual(getNodeResult(graph, "A", "graphty", "degree", "inDegree"), 0, "A should have inDegree=0");
+        assert.strictEqual(getNodeResult(da, "A", "graphty", "degree", "outDegree"), 2, "A should have outDegree=2");
+        assert.strictEqual(getNodeResult(da, "A", "graphty", "degree", "inDegree"), 0, "A should have inDegree=0");
 
         // Destination nodes B/C should have inDegree=1, outDegree=0
-        assert.strictEqual(getNodeResult(graph, "B", "graphty", "degree", "inDegree"), 1, "B should have inDegree=1");
-        assert.strictEqual(getNodeResult(graph, "B", "graphty", "degree", "outDegree"), 0, "B should have outDegree=0");
+        assert.strictEqual(getNodeResult(da, "B", "graphty", "degree", "inDegree"), 1, "B should have inDegree=1");
+        assert.strictEqual(getNodeResult(da, "B", "graphty", "degree", "outDegree"), 0, "B should have outDegree=0");
 
-        assert.strictEqual(getNodeResult(graph, "C", "graphty", "degree", "inDegree"), 1, "C should have inDegree=1");
-        assert.strictEqual(getNodeResult(graph, "C", "graphty", "degree", "outDegree"), 0, "C should have outDegree=0");
+        assert.strictEqual(getNodeResult(da, "C", "graphty", "degree", "inDegree"), 1, "C should have inDegree=1");
+        assert.strictEqual(getNodeResult(da, "C", "graphty", "degree", "outDegree"), 0, "C should have outDegree=0");
     });
 
     it("handles empty graph without NaN", async () => {
@@ -70,9 +64,9 @@ describe("DegreeAlgorithm", () => {
         await da.run();
 
         // Should return 0, not NaN
-        const degreePct = getNodeResult(graph, "A", "graphty", "degree", "degreePct");
-        const inDegreePct = getNodeResult(graph, "A", "graphty", "degree", "inDegreePct");
-        const outDegreePct = getNodeResult(graph, "A", "graphty", "degree", "outDegreePct");
+        const degreePct = getNodeResult(da, "A", "graphty", "degree", "degreePct");
+        const inDegreePct = getNodeResult(da, "A", "graphty", "degree", "inDegreePct");
+        const outDegreePct = getNodeResult(da, "A", "graphty", "degree", "outDegreePct");
 
         assert.strictEqual(degreePct, 0, "degreePct should be 0, not NaN");
         assert.strictEqual(inDegreePct, 0, "inDegreePct should be 0, not NaN");
@@ -96,9 +90,9 @@ describe("DegreeAlgorithm", () => {
         await da.run();
 
         // Graph-level results should be present
-        assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxOutDegree"), 2);
-        assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxInDegree"), 1);
-        assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxDegree"), 2);
+        assert.strictEqual(getGraphResult(da, "graphty", "degree", "maxOutDegree"), 2);
+        assert.strictEqual(getGraphResult(da, "graphty", "degree", "maxInDegree"), 1);
+        assert.strictEqual(getGraphResult(da, "graphty", "degree", "maxDegree"), 2);
     });
 
     it("handles graph with no edges for graph-level results", async () => {
@@ -111,8 +105,8 @@ describe("DegreeAlgorithm", () => {
         await da.run();
 
         // Graph-level results should be 0 when no edges
-        assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxOutDegree"), 0);
-        assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxInDegree"), 0);
-        assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxDegree"), 0);
+        assert.strictEqual(getGraphResult(da, "graphty", "degree", "maxOutDegree"), 0);
+        assert.strictEqual(getGraphResult(da, "graphty", "degree", "maxInDegree"), 0);
+        assert.strictEqual(getGraphResult(da, "graphty", "degree", "maxDegree"), 0);
     });
 });

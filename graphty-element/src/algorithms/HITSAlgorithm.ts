@@ -1,10 +1,15 @@
 import { hits } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import type { FieldDescriptor, NodeId } from "../catalog/types";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { walkInChunks } from "./metrics/context";
+import { metricField, nodeMetricFields } from "./metrics/fields";
+import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for HITS algorithm
@@ -69,21 +74,30 @@ interface HITSOptions extends Record<string, unknown> {
 }
 
 /**
- * HITS (Hyperlink-Induced Topic Search) Algorithm
- *
- * Identifies hub and authority scores for nodes in a graph:
- * - Authorities: nodes with valuable information (pointed to by hubs)
- * - Hubs: nodes that point to many authorities
- *
- * Results stored per node:
- * - hubScore: Raw hub score
- * - hubScorePct: Normalized hub score in [0, 1] range
- * - authorityScore: Raw authority score
- * - authorityScorePct: Normalized authority score in [0, 1] range
- * - combinedScore: Average of hub and authority scores
- * - combinedScorePct: Normalized combined score in [0, 1] range
+ * What a HITS result publishes: the uniform node-metric fields over the combined score, plus the
+ * two scores it is the average of.
  */
-export class HITSAlgorithm extends Algorithm<HITSOptions> {
+const HITS_FIELDS: readonly FieldDescriptor[] = [
+    ...nodeMetricFields({ plainName: "Hub and authority", technicalName: "combined HITS score" }),
+    metricField({ name: "hub", plainName: "Hub", technicalName: "hub score", kind: "node", type: "number" }),
+    metricField({
+        name: "authority",
+        plainName: "Authority",
+        technicalName: "authority score",
+        kind: "node",
+        type: "number",
+    }),
+];
+
+/**
+ * HITS: every node scored twice, as a hub and as an authority.
+ *
+ * An authority is a node that good hubs point at; a hub is a node that points at good
+ * authorities. The published `value` is the average of the two, because one number is what a
+ * colour ramp or a size can be bound to; `hub` and `authority` are published beside it, because
+ * the two halves are the reason to run HITS rather than PageRank.
+ */
+export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
     static namespace = "graphty";
     static type = "hits";
 
@@ -136,66 +150,35 @@ export class HITSAlgorithm extends Algorithm<HITSOptions> {
         },
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.hits.combinedScorePct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.viridis(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "HITS - Combined Score Color",
-                    description: "Viridis gradient based on combined hub/authority importance",
-                },
-            },
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.hits.combinedScorePct"],
-                        output: "style.shape.size",
-                        expr: "{ return StyleHelpers.size.linear(arguments[0], 1, 4) }",
-                    },
-                },
-                metadata: {
-                    name: "HITS - Combined Score Size",
-                    description: "Size 1-4 based on combined hub/authority importance",
-                },
-            },
-        ],
-        description: "Visualizes hub and authority nodes through combined color and size",
-        category: "node-metric",
-    });
+    /**
+     * The fields a HITS result publishes.
+     * @returns The uniform node-metric fields, plus `hub` and `authority`.
+     */
+    protected resultFields(): readonly FieldDescriptor[] {
+        return HITS_FIELDS;
+    }
 
     /**
-     * Executes the HITS algorithm on the graph
-     *
-     * Computes authority and hub scores for all nodes using mutual recursion.
+     * Score every node as a hub and as an authority.
+     * @param context - Where progress goes and where cancellation arrives.
+     * @param nodeIds - The nodes to measure.
+     * @returns The combined score per node, with the two halves beside it.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
-
-        if (nodes.length === 0) {
-            return;
-        }
-
-        // Get options from schema
+    protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
 
-        // Convert to @graphty/algorithms format and run
-        // HITS works best on directed graphs, but we'll run it anyway
-        const graphData = toAlgorithmGraph(g, { directed: true });
+        // Directed: hubs and authorities are the out- and in-directions, so HITS is meaningless
+        // without them. On data with no real direction every score simply converges together.
+        const graphData = this.algorithmGraph("directed");
+
+        context.report({
+            phase: "iterating",
+            completed: 0,
+            total: nodeIds.length,
+            message: `Hub and authority scores refine each other, up to ${String(maxIterations)} passes.`,
+        });
+        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
+        // The element's own half -- reading the scores back out -- is chunked below.
         const results = hits(graphData, {
             maxIterations,
             tolerance,
@@ -203,64 +186,46 @@ export class HITSAlgorithm extends Algorithm<HITSOptions> {
             mode,
             endpoints,
         });
+        context.signal.throwIfAborted();
 
-        // Find min/max for min-max normalization
-        // This ensures values spread across full 0-1 range for better visual differentiation
-        let minHubScore = Infinity;
-        let maxHubScore = -Infinity;
-        let minAuthorityScore = Infinity;
-        let maxAuthorityScore = -Infinity;
+        const nodes: ResultElementValues[] = [];
+        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+            const hub = results.hubs[String(nodeId)];
+            const authority = results.authorities[String(nodeId)];
 
-        for (const hubScore of Object.values(results.hubs)) {
-            minHubScore = Math.min(minHubScore, hubScore);
-            maxHubScore = Math.max(maxHubScore, hubScore);
-        }
-        for (const authorityScore of Object.values(results.authorities)) {
-            minAuthorityScore = Math.min(minAuthorityScore, authorityScore);
-            maxAuthorityScore = Math.max(maxAuthorityScore, authorityScore);
-        }
+            if (hub === undefined || authority === undefined) {
+                nodes.push({ id: nodeId, values: {} });
 
-        // Calculate combined scores and find their range
-        const combinedScores = new Map<string | number, number>();
-        let minCombinedScore = Infinity;
-        let maxCombinedScore = -Infinity;
+                return;
+            }
 
-        for (const nodeId of nodes) {
-            const hubScore: number = results.hubs[String(nodeId)] ?? 0;
-            const authorityScore: number = results.authorities[String(nodeId)] ?? 0;
-            const combinedScore = (hubScore + authorityScore) / 2;
+            nodes.push({ id: nodeId, values: { value: (hub + authority) / 2, hub, authority } });
+        });
 
-            combinedScores.set(nodeId, combinedScore);
-            minCombinedScore = Math.min(minCombinedScore, combinedScore);
-            maxCombinedScore = Math.max(maxCombinedScore, combinedScore);
-        }
-
-        // Store results with min-max normalization
-        const hubRange = maxHubScore - minHubScore;
-        const authorityRange = maxAuthorityScore - minAuthorityScore;
-        const combinedRange = maxCombinedScore - minCombinedScore;
-
-        for (const nodeId of nodes) {
-            const hubScore: number = results.hubs[String(nodeId)] ?? 0;
-            const authorityScore: number = results.authorities[String(nodeId)] ?? 0;
-            const combinedScore = combinedScores.get(nodeId) ?? 0;
-
-            this.addNodeResult(nodeId, "hubScore", hubScore);
-            this.addNodeResult(nodeId, "authorityScore", authorityScore);
-            this.addNodeResult(nodeId, "combinedScore", combinedScore);
-
-            this.addNodeResult(nodeId, "hubScorePct", hubRange > 0 ? (hubScore - minHubScore) / hubRange : 0);
-            this.addNodeResult(
-                nodeId,
-                "authorityScorePct",
-                authorityRange > 0 ? (authorityScore - minAuthorityScore) / authorityRange : 0,
-            );
-            this.addNodeResult(
-                nodeId,
-                "combinedScorePct",
-                combinedRange > 0 ? (combinedScore - minCombinedScore) / combinedRange : 0,
-            );
-        }
+        return {
+            nodes,
+            // The combined score is the average of two vectors the algorithm scaled, which leaves
+            // it scaled by neither of the two rules this field names. The notes say what was done.
+            normalization: "none",
+            caveats: {
+                exact: true,
+                direction: "directed",
+                weight: null,
+                precision: "f64",
+                method: "hits",
+                // `converged` and `iterations` are deliberately absent: the implementation stops
+                // either at its tolerance or at its iteration cap and reports neither.
+                notes: [
+                    "The published value is the average of this node's hub score and its authority score.",
+                    normalized
+                        ? "The hub and authority vectors each have unit length, which is how the iteration leaves them."
+                        : "The hub and authority vectors were each divided by their own highest score.",
+                    `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
+                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    "Edge weights are not read.",
+                ],
+            },
+        };
     }
 }
 

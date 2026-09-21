@@ -1,125 +1,112 @@
 import { floydWarshall } from "@graphty/algorithms";
 
-import type { SuggestedStylesConfig } from "../config";
-import type { Graph } from "../Graph";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { toAlgorithmGraph } from "./utils/graphConverter";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 
 /**
  *
  */
-export class FloydWarshallAlgorithm extends Algorithm {
+export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "floyd-warshall";
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: 'algorithmResults.graphty."floyd-warshall".eccentricityPct != `null`',
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.floyd-warshall.eccentricityPct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.viridis(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "Floyd-Warshall - Eccentricity Heatmap",
-                    description: "Colors nodes by eccentricity (purple=central, yellow=peripheral)",
-                },
-            },
-        ],
-        description: "Visualizes all-pairs shortest path distances via eccentricity heatmap",
-        category: "path",
-    });
-
     /**
-     * Executes the Floyd-Warshall algorithm on the graph
+     * Measure the distance between every pair of nodes, and what that says about the graph.
      *
-     * Computes shortest path distances between all pairs of nodes.
+     * Asked for every pair, the shortest-path question stops being one route and becomes a set of
+     * facts about the whole graph: how far the furthest node is from each node, the widest of
+     * those distances and the narrowest. So the result is shaped as facts rather than as a path
+     * -- there is no route here to put an `onPath` on.
+     * @param context - What the element gave the run.
+     * @returns The all-pairs facts, or null when there are no nodes to measure.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const dm = g.getDataManager();
-        const nodes = Array.from(dm.nodes.keys());
-        const n = nodes.length;
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (n === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Convert to @graphty/algorithms format
-        const graphData = toAlgorithmGraph(g as unknown as Graph, { directed: false });
+        // Undirected: floydWarshall seeds both directions of every edge when its input is undirected.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Floyd-Warshall algorithm
+        context.report({ phase: "Measuring every pair", total: null });
         const result = floydWarshall(graphData);
 
-        // Store graph-level results
-        this.addGraphResult("hasNegativeCycle", result.hasNegativeCycle);
-        this.addGraphResult("nodeCount", n);
+        // Eccentricity: how far the furthest reachable node is. Unreachable nodes are skipped
+        // rather than counted as infinitely far, which is what makes the diameter finite on a
+        // graph that comes in several pieces.
+        const eccentricityOf = new Map<number | string, number>();
+        await forEachChunked(context, "Measuring reach", nodeIds, (nodeId) => {
+            const distances = result.distances.get(nodeId);
 
-        // Compute eccentricity for each node
-        // Eccentricity = max distance from node to any other node
-        const eccentricities = new Map<string | number, number>();
+            if (distances === undefined) {
+                eccentricityOf.set(nodeId, Infinity);
+                return;
+            }
 
-        for (const nodeId of nodes) {
-            const nodeDistances = result.distances.get(nodeId);
-            if (!nodeDistances) {
-                eccentricities.set(nodeId, Infinity);
+            let furthest = 0;
+            for (const distance of distances.values()) {
+                if (isFinite(distance) && distance > furthest) {
+                    furthest = distance;
+                }
+            }
+
+            eccentricityOf.set(nodeId, furthest);
+        });
+
+        let diameter = 0;
+        let radius = Infinity;
+        for (const eccentricity of eccentricityOf.values()) {
+            if (!isFinite(eccentricity)) {
                 continue;
             }
 
-            let maxDist = 0;
-            for (const dist of nodeDistances.values()) {
-                if (isFinite(dist) && dist > maxDist) {
-                    maxDist = dist;
-                }
-            }
-            eccentricities.set(nodeId, maxDist);
+            diameter = Math.max(diameter, eccentricity);
+            radius = Math.min(radius, eccentricity);
         }
 
-        // Compute diameter (max eccentricity) and radius (min eccentricity)
-        let diameter = 0;
-        let radius = Infinity;
-
-        for (const ecc of eccentricities.values()) {
-            if (isFinite(ecc)) {
-                if (ecc > diameter) {
-                    diameter = ecc;
-                }
-
-                if (ecc < radius) {
-                    radius = ecc;
-                }
-            }
-        }
-
-        // If no valid eccentricities, reset to 0
         if (radius === Infinity) {
             radius = 0;
         }
 
-        this.addGraphResult("diameter", diameter);
-        this.addGraphResult("radius", radius);
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Publishing distances", nodeIds, (nodeId) => {
+            const eccentricity = eccentricityOf.get(nodeId) ?? Infinity;
 
-        // Store eccentricity results on nodes
-        for (const nodeId of nodes) {
-            const eccentricity = eccentricities.get(nodeId) ?? Infinity;
-            this.addNodeResult(nodeId, "eccentricity", eccentricity);
+            // An unreachable node has no eccentricity to publish: infinity is not a distance, and
+            // publishing it would put every disconnected node at the top of the column.
+            if (!isFinite(eccentricity)) {
+                return;
+            }
 
-            // Normalize eccentricity to percentage
-            const eccentricityPct = diameter > 0 && isFinite(eccentricity) ? eccentricity / diameter : 0;
-            this.addNodeResult(nodeId, "eccentricityPct", eccentricityPct);
+            nodes.push({ id: nodeId, values: { eccentricity } });
+        });
 
-            // Mark central nodes (eccentricity = radius)
-            const isCentral = isFinite(eccentricity) && eccentricity === radius;
-            this.addNodeResult(nodeId, "isCentral", isCentral);
-
-            // Mark peripheral nodes (eccentricity = diameter)
-            const isPeripheral = isFinite(eccentricity) && eccentricity === diameter;
-            this.addNodeResult(nodeId, "isPeripheral", isPeripheral);
-        }
+        return {
+            shape: "fact",
+            fields: [
+                { name: "eccentricity", kind: "node", type: "number" },
+                { name: "diameter", kind: "graph", type: "number" },
+                { name: "radius", kind: "graph", type: "number" },
+                { name: "hasNegativeCycle", kind: "graph", type: "boolean" },
+            ],
+            nodes,
+            graph: { diameter, radius, hasNegativeCycle: result.hasNegativeCycle },
+            caveats: declaredCaveats({
+                method: "floyd-warshall",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "distance" },
+                notes: ["Every pair was measured, so the result describes the graph rather than one route."],
+            }),
+        };
     }
 }
 

@@ -1,11 +1,19 @@
 import { bellmanFord } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
-import type { Graph } from "../Graph";
+import type { EdgeId } from "../catalog/types";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+    PATH_FIELD_SPECS,
+} from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Bellman-Ford algorithm
@@ -41,7 +49,7 @@ interface BellmanFordOptions extends Record<string, unknown> {
  * Computes shortest paths from a source node to all other nodes, supporting
  * negative edge weights and detecting negative cycles.
  */
-export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
+export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> {
     static namespace = "graphty";
     static type = "bellman-ford";
 
@@ -69,43 +77,6 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
      */
     private legacyOptions: { source: number | string; target?: number | string } | null = null;
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                edge: {
-                    selector: "algorithmResults.graphty.\"bellman-ford\".isInPath == `true`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.bellman-ford.isInPath"],
-                        output: "style.line.color",
-                        expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Bellman-Ford - Path Edges",
-                    description: "Highlights shortest path edges (blue) - colorblind-safe",
-                },
-            },
-            {
-                node: {
-                    selector: "algorithmResults.graphty.\"bellman-ford\".isInPath == `true`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.bellman-ford.isInPath"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Bellman-Ford - Path Nodes",
-                    description: "Highlights path nodes (blue) - colorblind-safe",
-                },
-            },
-        ],
-        description: "Visualizes shortest paths with support for negative edge weights",
-        category: "path",
-    });
-
     /**
      * Configure the algorithm with source and optional target nodes
      * @param options - Configuration options
@@ -120,76 +91,89 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
     }
 
     /**
-     * Executes the Bellman-Ford algorithm on the graph
+     * Find the cheapest route from the source to the target, negative weights included.
      *
-     * Computes shortest path distances and highlights the path from source to target.
+     * Publishes the same path fields Dijkstra does, because the engine is a parameter of the
+     * question and not a different question. What is different is what the method can tell you:
+     * it detects a loop that costs less every time round, and it says so on the graph half of
+     * the result, where a distance computed in the presence of one cannot be trusted.
+     * @param context - What the element gave the run.
+     * @returns The route, or null when there are no nodes to search.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const dm = g.getDataManager();
-        const nodes = Array.from(dm.nodes.keys());
-        const n = nodes.length;
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const dataManager = this.graph.getDataManager();
+        const nodeIds = Array.from(dataManager.nodes.keys());
 
-        if (n === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
         // Get source and target from legacy options, schema options, or use defaults
         // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodes[0];
-        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodes[nodes.length - 1];
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
+        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodeIds[nodeIds.length - 1];
 
-        // Convert to @graphty/algorithms format
-        // Note: Using directed=false (default) so converter adds reverse edges for undirected path finding
-        const graphData = toAlgorithmGraph(g as unknown as Graph, { directed: false });
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Bellman-Ford algorithm
+        context.report({ phase: "Relaxing edges", total: null });
         const result = bellmanFord(graphData, source);
 
-        // Store negative cycle information at graph level
-        this.addGraphResult("hasNegativeCycle", result.hasNegativeCycle);
-        if (result.negativeCycleNodes.length > 0) {
-            this.addGraphResult("negativeCycleNodes", result.negativeCycleNodes);
-        }
+        const path = this.reconstructPath(result.predecessors, source, target);
+        const orderOf = new Map<number | string, number>();
+        path.forEach((nodeId, position) => orderOf.set(nodeId, position));
 
-        // Find max distance for normalization (excluding Infinity)
-        let maxDistance = 0;
-        for (const dist of result.distances.values()) {
-            if (isFinite(dist) && dist > maxDistance) {
-                maxDistance = dist;
+        // The 1.10 result scaled every distance against the furthest reachable node.
+        let furthest = 0;
+        for (const distance of result.distances.values()) {
+            if (isFinite(distance) && distance > furthest) {
+                furthest = distance;
             }
         }
 
-        // Store distance results on nodes
-        for (const nodeId of nodes) {
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
+            const order = orderOf.get(nodeId);
             const distance = result.distances.get(nodeId) ?? Infinity;
-            this.addNodeResult(nodeId, "distance", distance);
 
-            // Normalize distance to percentage
-            const distancePct = maxDistance > 0 && isFinite(distance) ? distance / maxDistance : 0;
-            this.addNodeResult(nodeId, "distancePct", distancePct);
+            nodes.push({ id: nodeId, values: { onPath: order !== undefined, order, distance } });
+        });
+
+        const routeEdges = this.getPathEdges(path);
+        const edges: ResultElementValues<EdgeId>[] = [];
+        await forEachChunked(context, "Marking the route", Array.from(dataManager.edges.values()), (edge) => {
+            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
+            const reversed = `${String(edge.dstId)}:${String(edge.srcId)}`;
+
+            edges.push({ id: key, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
+        });
+
+        const notes = [`Route from ${String(source)} to ${String(target)}.`];
+        if (result.hasNegativeCycle) {
+            notes.push("A loop that costs less every time round was found, so no distance past it is meaningful.");
         }
 
-        // Mark the path from source to target
-        {
-            const path = this.reconstructPath(result.predecessors, source, target);
-            const pathNodeSet = new Set(path);
-
-            // Mark nodes in path
-            for (const nodeId of nodes) {
-                const isInPath = pathNodeSet.has(nodeId);
-                this.addNodeResult(nodeId, "isInPath", isInPath);
-            }
-
-            // Mark edges in path
-            const pathEdges = this.getPathEdges(path);
-            for (const edge of dm.edges.values()) {
-                const edgeKey = `${edge.srcId}:${edge.dstId}`;
-                const reverseEdgeKey = `${edge.dstId}:${edge.srcId}`;
-                const isInPath = pathEdges.has(edgeKey) || pathEdges.has(reverseEdgeKey);
-                this.addEdgeResult(edge, "isInPath", isInPath);
-            }
-        }
+        return {
+            shape: "path",
+            fields: [
+                ...PATH_FIELD_SPECS,
+                { name: "distance", kind: "node", type: "number" },
+                { name: "hasNegativeCycle", kind: "graph", type: "boolean" },
+            ],
+            nodes,
+            edges,
+            graph: {
+                length: path.length,
+                cost: path.length > 0 ? (result.distances.get(target) ?? 0) : 0,
+                hops: Math.max(path.length - 1, 0),
+                hasNegativeCycle: result.hasNegativeCycle,
+            },
+            caveats: declaredCaveats({
+                method: "bellman-ford",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "distance" },
+                notes,
+            }),
+        };
     }
 
     /**
@@ -233,7 +217,7 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
         const edges = new Set<string>();
 
         for (let i = 0; i < path.length - 1; i++) {
-            edges.add(`${path[i]}:${path[i + 1]}`);
+            edges.add(`${String(path[i])}:${String(path[i + 1])}`);
         }
 
         return edges;

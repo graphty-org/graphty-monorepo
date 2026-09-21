@@ -24,12 +24,7 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
-import {
-    createMockGraph,
-    getEdgeResult as _getEdgeResult,
-    getGraphResult,
-    getNodeResult,
-} from "../../helpers/mockGraph";
+import { createMockGraph, getEdgeResult as _getEdgeResult, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 // Re-export for future use
 void _getEdgeResult;
@@ -113,18 +108,12 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const rank1 = getNodeResult(graph1, firstNodeId, "graphty", "pagerank", "rank");
-                const rank2 = getNodeResult(graph2, firstNodeId, "graphty", "pagerank", "rank");
+                const rank1 = getNodeResult(pr1, firstNodeId, "graphty", "pagerank", "rank");
+                const rank2 = getNodeResult(pr2, firstNodeId, "graphty", "pagerank", "rank");
 
-                // Damping factor should be recorded in graph results
-                assert.strictEqual(
-                    getGraphResult(graph1, "graphty", "pagerank", "dampingFactor"),
-                    0.85,
-                );
-                assert.strictEqual(
-                    getGraphResult(graph2, "graphty", "pagerank", "dampingFactor"),
-                    0.5,
-                );
+                // The damping factor a run used is in its caveats' notes.
+                assert.ok(pr1.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
+                assert.ok(pr2.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
 
                 // Results should be different
                 assert.notStrictEqual(rank1, rank2, "Different damping factors should produce different results");
@@ -142,8 +131,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const pr2 = new PageRankAlgorithm(graph2, { maxIterations: 100 });
                 await pr2.run();
 
-                const iterations1 = getGraphResult(graph1, "graphty", "pagerank", "iterations");
-                const iterations2 = getGraphResult(graph2, "graphty", "pagerank", "iterations");
+                const iterations1 = getGraphResult(pr1, "graphty", "pagerank", "iterations");
+                const iterations2 = getGraphResult(pr2, "graphty", "pagerank", "iterations");
 
                 // With maxIterations=1, iterations should be limited (may be 1 or 2 due to loop counting)
                 assert.isAtMost(iterations1 as number, 2, "With maxIterations=1, should use at most 2 iterations");
@@ -163,8 +152,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const pr2 = new PageRankAlgorithm(graph2, { tolerance: 0.1 });
                 await pr2.run();
 
-                const iterations1 = getGraphResult(graph1, "graphty", "pagerank", "iterations");
-                const iterations2 = getGraphResult(graph2, "graphty", "pagerank", "iterations");
+                const iterations1 = getGraphResult(pr1, "graphty", "pagerank", "iterations");
+                const iterations2 = getGraphResult(pr2, "graphty", "pagerank", "iterations");
 
                 // Tighter tolerance should require more iterations
                 assert.isAtLeast(
@@ -192,8 +181,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const score1 = getNodeResult(graph1, firstNodeId, "graphty", "eigenvector", "score");
-                const score2 = getNodeResult(graph2, firstNodeId, "graphty", "eigenvector", "score");
+                const score1 = getNodeResult(ev1, firstNodeId, "graphty", "eigenvector", "score");
+                const score2 = getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score");
 
                 assert.isDefined(score1);
                 assert.isDefined(score2);
@@ -214,8 +203,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const score1 = getNodeResult(graph1, firstNodeId, "graphty", "eigenvector", "score");
-                const score2 = getNodeResult(graph2, firstNodeId, "graphty", "eigenvector", "score");
+                const score1 = getNodeResult(ev1, firstNodeId, "graphty", "eigenvector", "score");
+                const score2 = getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score");
 
                 assert.isDefined(score1);
                 assert.isDefined(score2);
@@ -236,8 +225,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const score1 = getNodeResult(graph1, firstNodeId, "graphty", "katz", "score");
-                const score2 = getNodeResult(graph2, firstNodeId, "graphty", "katz", "score");
+                const score1 = getNodeResult(katz1, firstNodeId, "graphty", "katz", "score");
+                const score2 = getNodeResult(katz2, firstNodeId, "graphty", "katz", "score");
 
                 assert.notStrictEqual(score1, score2, "Different alpha values should produce different results");
             });
@@ -257,8 +246,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const score1 = getNodeResult(graph1, firstNodeId, "graphty", "katz", "score");
-                const score2 = getNodeResult(graph2, firstNodeId, "graphty", "katz", "score");
+                const score1 = getNodeResult(katz1, firstNodeId, "graphty", "katz", "score");
+                const score2 = getNodeResult(katz2, firstNodeId, "graphty", "katz", "score");
 
                 assert.notStrictEqual(score1, score2, "Different beta values should produce different results");
             });
@@ -281,8 +270,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const hubScore1 = getNodeResult(graph1, firstNodeId, "graphty", "hits", "hubScore");
-                const hubScore2 = getNodeResult(graph2, firstNodeId, "graphty", "hits", "hubScore");
+                const hubScore1 = getNodeResult(hits1, firstNodeId, "graphty", "hits", "hubScore");
+                const hubScore2 = getNodeResult(hits2, firstNodeId, "graphty", "hits", "hubScore");
 
                 assert.isDefined(hubScore1);
                 assert.isDefined(hubScore2);
@@ -312,11 +301,11 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const communities2 = new Set<number>();
 
                 for (const nodeId of dm1.nodes.keys()) {
-                    const c = getNodeResult(graph1, nodeId, "graphty", "louvain", "communityId");
+                    const c = getNodeResult(louvain1, nodeId, "graphty", "louvain", "communityId");
                     if (c !== undefined) {communities1.add(c);}
                 }
                 for (const nodeId of dm2.nodes.keys()) {
-                    const c = getNodeResult(graph2, nodeId, "graphty", "louvain", "communityId");
+                    const c = getNodeResult(louvain2, nodeId, "graphty", "louvain", "communityId");
                     if (c !== undefined) {communities2.add(c);}
                 }
 
@@ -337,7 +326,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 // Algorithm should complete without error with limited iterations
                 const dm = graph.getDataManager() as any;
                 const firstNodeId = Array.from(dm.nodes.keys())[0] as string;
-                const communityId = getNodeResult(graph, firstNodeId, "graphty", "louvain", "communityId");
+                const communityId = getNodeResult(louvain, firstNodeId, "graphty", "louvain", "communityId");
                 assert.isDefined(communityId);
             });
         });
@@ -357,8 +346,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dm1 = graph1.getDataManager() as any;
                 const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
 
-                const c1 = getNodeResult(graph1, firstNodeId, "graphty", "leiden", "communityId");
-                const c2 = getNodeResult(graph2, firstNodeId, "graphty", "leiden", "communityId");
+                const c1 = getNodeResult(leiden1, firstNodeId, "graphty", "leiden", "communityId");
+                const c2 = getNodeResult(leiden2, firstNodeId, "graphty", "leiden", "communityId");
 
                 assert.isDefined(c1);
                 assert.isDefined(c2);
@@ -375,7 +364,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 // Algorithm should complete and assign communityId
                 const dm = graph.getDataManager() as any;
                 const firstNodeId = Array.from(dm.nodes.keys())[0] as string;
-                const communityId = getNodeResult(graph, firstNodeId, "graphty", "label-propagation", "communityId");
+                const communityId = getNodeResult(lp, firstNodeId, "graphty", "label-propagation", "communityId");
                 assert.isDefined(communityId);
             });
 
@@ -401,8 +390,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 // Compare results from same randomSeed
                 let sameResults = true;
                 for (const nodeId of nodeIds) {
-                    const communityId1 = getNodeResult(graph1, nodeId, "graphty", "label-propagation", "communityId");
-                    const communityId2 = getNodeResult(graph2, nodeId, "graphty", "label-propagation", "communityId");
+                    const communityId1 = getNodeResult(lp1, nodeId, "graphty", "label-propagation", "communityId");
+                    const communityId2 = getNodeResult(lp2, nodeId, "graphty", "label-propagation", "communityId");
                     if (communityId1 !== communityId2) {sameResults = false;}
                 }
 
@@ -429,11 +418,11 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const communities2 = new Set<number>();
 
                 for (const nodeId of dm1.nodes.keys()) {
-                    const c = getNodeResult(graph1, nodeId, "graphty", "girvan-newman", "communityId");
+                    const c = getNodeResult(gn1, nodeId, "graphty", "girvan-newman", "communityId");
                     if (c !== undefined) {communities1.add(c);}
                 }
                 for (const nodeId of dm2.nodes.keys()) {
-                    const c = getNodeResult(graph2, nodeId, "graphty", "girvan-newman", "communityId");
+                    const c = getNodeResult(gn2, nodeId, "graphty", "girvan-newman", "communityId");
                     if (c !== undefined) {communities2.add(c);}
                 }
 
@@ -456,9 +445,9 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await dijkstra2.run();
 
                 // Distance from A to B should be 1 in first case
-                const distAbFirst = getNodeResult(graph1, "B", "graphty", "dijkstra", "distance");
+                const distAbFirst = getNodeResult(dijkstra1, "B", "graphty", "dijkstra", "distance");
                 // Distance from C to B should be 1 in second case (going backwards)
-                const distCbSecond = getNodeResult(graph2, "B", "graphty", "dijkstra", "distance");
+                const distCbSecond = getNodeResult(dijkstra2, "B", "graphty", "dijkstra", "distance");
 
                 assert.strictEqual(distAbFirst, 1, "Distance from A to B should be 1");
                 assert.strictEqual(distCbSecond, 1, "Distance from C to B should be 1");
@@ -475,12 +464,12 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await dijkstra2.run();
 
                 // Path to C: A-B-C (nodes A, B, C in path)
-                const inPathCFirst = getNodeResult(graph1, "C", "graphty", "dijkstra", "isInPath");
-                const inPathDFirst = getNodeResult(graph1, "D", "graphty", "dijkstra", "isInPath");
-                const inPathEFirst = getNodeResult(graph1, "E", "graphty", "dijkstra", "isInPath");
+                const inPathCFirst = getNodeResult(dijkstra1, "C", "graphty", "dijkstra", "isInPath");
+                const inPathDFirst = getNodeResult(dijkstra1, "D", "graphty", "dijkstra", "isInPath");
+                const inPathEFirst = getNodeResult(dijkstra1, "E", "graphty", "dijkstra", "isInPath");
 
                 // Path to E: A-B-C-D-E (all nodes in path)
-                const inPathESecond = getNodeResult(graph2, "E", "graphty", "dijkstra", "isInPath");
+                const inPathESecond = getNodeResult(dijkstra2, "E", "graphty", "dijkstra", "isInPath");
 
                 assert.isTrue(inPathCFirst, "C should be in path to C");
                 assert.isFalse(inPathDFirst, "D should not be in path to C");
@@ -501,9 +490,9 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await bf2.run();
 
                 // From A: distance to E = 4
-                const distAeFirst = getNodeResult(graph1, "E", "graphty", "bellman-ford", "distance");
+                const distAeFirst = getNodeResult(bf1, "E", "graphty", "bellman-ford", "distance");
                 // From C: distance to E = 2
-                const distCeSecond = getNodeResult(graph2, "E", "graphty", "bellman-ford", "distance");
+                const distCeSecond = getNodeResult(bf2, "E", "graphty", "bellman-ford", "distance");
 
                 assert.strictEqual(distAeFirst, 4, "Distance from A to E should be 4");
                 assert.strictEqual(distCeSecond, 2, "Distance from C to E should be 2");
@@ -519,8 +508,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const bf2 = new BellmanFordAlgorithm(graph2, { source: "A", target: "E" });
                 await bf2.run();
 
-                const inPathDFirst = getNodeResult(graph1, "D", "graphty", "bellman-ford", "isInPath");
-                const inPathDSecond = getNodeResult(graph2, "D", "graphty", "bellman-ford", "isInPath");
+                const inPathDFirst = getNodeResult(bf1, "D", "graphty", "bellman-ford", "isInPath");
+                const inPathDSecond = getNodeResult(bf2, "D", "graphty", "bellman-ford", "isInPath");
 
                 assert.isFalse(inPathDFirst, "D should not be in path A->C");
                 assert.isTrue(inPathDSecond, "D should be in path A->E");
@@ -541,16 +530,16 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await bfs2.run();
 
                 // From A: level of E should be 4
-                const levelEFirst = getNodeResult(graph1, "E", "graphty", "bfs", "level");
+                const levelEFirst = getNodeResult(bfs1, "E", "graphty", "bfs", "level");
                 // From E: level of A should be 4
-                const levelASecond = getNodeResult(graph2, "A", "graphty", "bfs", "level");
+                const levelASecond = getNodeResult(bfs2, "A", "graphty", "bfs", "level");
 
                 assert.strictEqual(levelEFirst, 4, "Level of E from A should be 4");
                 assert.strictEqual(levelASecond, 4, "Level of A from E should be 4");
 
                 // Source level should be 0
-                const levelAFirst = getNodeResult(graph1, "A", "graphty", "bfs", "level");
-                const levelESecond = getNodeResult(graph2, "E", "graphty", "bfs", "level");
+                const levelAFirst = getNodeResult(bfs1, "A", "graphty", "bfs", "level");
+                const levelESecond = getNodeResult(bfs2, "E", "graphty", "bfs", "level");
 
                 assert.strictEqual(levelAFirst, 0, "Source A level should be 0");
                 assert.strictEqual(levelESecond, 0, "Source E level should be 0");
@@ -576,10 +565,10 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 let visited2 = 0;
 
                 for (const nodeId of dm1.nodes.keys()) {
-                    if (getNodeResult(graph1, nodeId, "graphty", "bfs", "level") !== undefined) {visited1++;}
+                    if (getNodeResult(bfs1, nodeId, "graphty", "bfs", "level") !== undefined) {visited1++;}
                 }
                 for (const nodeId of dm2.nodes.keys()) {
-                    if (getNodeResult(graph2, nodeId, "graphty", "bfs", "level") !== undefined) {visited2++;}
+                    if (getNodeResult(bfs2, nodeId, "graphty", "bfs", "level") !== undefined) {visited2++;}
                 }
 
                 assert.isAtMost(visited1, visited2, "Early termination should visit fewer or equal nodes");
@@ -598,8 +587,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await dfs2.run();
 
                 // Check discovery time - source should be discovered first (time=0)
-                const timeAFirst = getNodeResult(graph1, "A", "graphty", "dfs", "discoveryTime");
-                const timeESecond = getNodeResult(graph2, "E", "graphty", "dfs", "discoveryTime");
+                const timeAFirst = getNodeResult(dfs1, "A", "graphty", "dfs", "discoveryTime");
+                const timeESecond = getNodeResult(dfs2, "E", "graphty", "dfs", "discoveryTime");
 
                 assert.strictEqual(timeAFirst, 0, "A should be discovered first when starting from A");
                 assert.strictEqual(timeESecond, 0, "E should be discovered first when starting from E");
@@ -623,10 +612,10 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 let visited2 = 0;
 
                 for (const nodeId of dm1.nodes.keys()) {
-                    if (getNodeResult(graph1, nodeId, "graphty", "dfs", "visited") === true) {visited1++;}
+                    if (getNodeResult(dfs1, nodeId, "graphty", "dfs", "visited") === true) {visited1++;}
                 }
                 for (const nodeId of dm2.nodes.keys()) {
-                    if (getNodeResult(graph2, nodeId, "graphty", "dfs", "visited") === true) {visited2++;}
+                    if (getNodeResult(dfs2, nodeId, "graphty", "dfs", "visited") === true) {visited2++;}
                 }
 
                 assert.strictEqual(visited1, 5, "Recursive DFS should visit all 5 nodes");
@@ -648,8 +637,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await prim2.run();
 
                 // Both should produce valid MSTs with same total weight
-                const weight1 = getGraphResult(graph1, "graphty", "prim", "totalWeight");
-                const weight2 = getGraphResult(graph2, "graphty", "prim", "totalWeight");
+                const weight1 = getGraphResult(prim1, "graphty", "prim", "totalWeight");
+                const weight2 = getGraphResult(prim2, "graphty", "prim", "totalWeight");
 
                 assert.isDefined(weight1);
                 assert.isDefined(weight2);
@@ -657,8 +646,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 assert.strictEqual(weight1, weight2, "MST total weight should be the same");
 
                 // Edge count should be same (n-1 edges for n nodes)
-                const edgeCount1 = getGraphResult(graph1, "graphty", "prim", "edgeCount");
-                const edgeCount2 = getGraphResult(graph2, "graphty", "prim", "edgeCount");
+                const edgeCount1 = getGraphResult(prim1, "graphty", "prim", "edgeCount");
+                const edgeCount2 = getGraphResult(prim2, "graphty", "prim", "edgeCount");
                 assert.strictEqual(edgeCount1, edgeCount2, "MST edge count should be same");
             });
         });
@@ -676,8 +665,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const mf2 = new MaxFlowAlgorithm(graph2, { source: "B", sink: "C" });
                 await mf2.run();
 
-                const flow1 = getGraphResult(graph1, "graphty", "max-flow", "maxFlow");
-                const flow2 = getGraphResult(graph2, "graphty", "max-flow", "maxFlow");
+                const flow1 = getGraphResult(mf1, "graphty", "max-flow", "maxFlow");
+                const flow2 = getGraphResult(mf2, "graphty", "max-flow", "maxFlow");
 
                 assert.isDefined(flow1);
                 assert.isDefined(flow2);
@@ -697,8 +686,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const mc2 = new MinCutAlgorithm(graph2, { source: "B", sink: "C" });
                 await mc2.run();
 
-                const cutValue1 = getGraphResult(graph1, "graphty", "min-cut", "cutValue");
-                const cutValue2 = getGraphResult(graph2, "graphty", "min-cut", "cutValue");
+                const cutValue1 = getGraphResult(mc1, "graphty", "min-cut", "cutValue");
+                const cutValue2 = getGraphResult(mc2, "graphty", "min-cut", "cutValue");
 
                 assert.isDefined(cutValue1);
                 assert.isDefined(cutValue2);
@@ -714,13 +703,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
             const algo = Algorithm.get(graph, "graphty", "pagerank", { dampingFactor: 0.5 });
 
             assert.isNotNull(algo);
-            if (algo) {
-                // Type assertion needed due to abstract signature mismatch
-                await (algo as unknown as { run(): Promise<void> }).run();
-            }
+            assert.ok(algo);
+            // Type assertion needed due to abstract signature mismatch
+            await (algo as unknown as { run(): Promise<void> }).run();
 
-            const dampingFactor = getGraphResult(graph, "graphty", "pagerank", "dampingFactor");
-            assert.strictEqual(dampingFactor, 0.5, "Options should be passed through factory");
+            // The damping factor is part of what qualifies the numbers, so it is in the caveats'
+            // notes rather than published as a graph result of its own.
+            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            assert.ok(result);
+            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.5")));
         });
 
         it("uses defaults when no options passed to factory", async () => {
@@ -729,13 +720,13 @@ describe("Algorithm Options Pass-Through Tests", () => {
             const algo = Algorithm.get(graph, "graphty", "pagerank");
 
             assert.isNotNull(algo);
-            if (algo) {
-                // Type assertion needed due to abstract signature mismatch
-                await (algo as unknown as { run(): Promise<void> }).run();
-            }
+            assert.ok(algo);
+            // Type assertion needed due to abstract signature mismatch
+            await (algo as unknown as { run(): Promise<void> }).run();
 
-            const dampingFactor = getGraphResult(graph, "graphty", "pagerank", "dampingFactor");
-            assert.strictEqual(dampingFactor, 0.85, "Should use default damping factor");
+            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            assert.ok(result);
+            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.85")));
         });
     });
 });

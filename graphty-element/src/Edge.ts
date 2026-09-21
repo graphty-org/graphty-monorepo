@@ -5,16 +5,16 @@ import _ from "lodash";
 
 import type { AdHocData, EdgeStyleConfig } from "./config";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
+import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
-import type { EdgePaint } from "./managers/StylePainter";
+import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import { FilledArrowRenderer } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
 import { Node, NodeIdType } from "./Node";
-import { EdgeStyleId, Styles } from "./Styles";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -40,12 +40,25 @@ export class Edge {
     opts: EdgeOpts;
     srcId: NodeIdType;
     dstId: NodeIdType;
-    id: string;
+
+    /**
+     * This edge's identity: the element-assigned counter the store stamped into its
+     * `graphty.edgeId` column, printed as a string.
+     *
+     * It used to be the `"srcId:dstId"` pair string, which could not name two edges between the
+     * same pair at all -- so parallel edges were dropped -- and which collided for any node id
+     * containing a colon: an edge `a:b -> c` and an edge `a -> b:c` had the same id. The counter
+     * is unique by construction, so both of those are now two distinct edges.
+     */
+    readonly id: string;
 
     /**
      * This edge's LOGICAL edge index in the element's current GraphSnapshot, assigned at add time
-     * and re-keyed through `report.edgeRemap` on a compacting freeze. INVALID_INDEX until the edge
-     * reaches the builder. `id` is unchanged and remains the `"src:dst"` pair string (DEP-M6-B).
+     * and re-keyed through `report.edgeRemap` on a compacting freeze.
+     *
+     * Every Edge has one. An edge whose endpoint ids graph-format will not store is REJECTED
+     * before a render object is built for it, so there is no such thing as an Edge with no row --
+     * which is what makes `index` safe to read without a guard everywhere downstream.
      */
     index: number = INVALID_INDEX;
     dstNode: Node;
@@ -54,25 +67,22 @@ export class Edge {
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
     arrowMesh: AbstractMesh | null = null;
     arrowTailMesh: AbstractMesh | null = null;
-    styleId: EdgeStyleId;
 
     /**
      * The source mesh this edge is currently drawn from.
      *
-     * Under the legacy stack it is the style id; under the session's stack it is the interner's
-     * key with the colour put back in, because the edge renderer has no per-instance state to
-     * carry one. See `EdgePaint`.
+     * The interner's key with the colour put back in, because the edge renderer has no
+     * per-instance state to carry one. See `EdgePaint`.
      */
     private meshKey: string;
 
     /**
-     * What the session's style stack resolved for this edge, or null while the legacy stack owns
-     * its paint.
+     * What the session's style stack resolved for this edge, or null while no pass has resolved
+     * one and the element's own defaults are what is drawn.
      *
      * READ FOR EVERY DRAWING DECISION, not only for the mesh: whether the line bows, which arrow
      * caps it carries and how wide it is are all read again on frames the style stack knows
-     * nothing about, and reading them off the legacy style id while the session owns the paint
-     * would draw half an edge from each system.
+     * nothing about.
      */
     private sessionPaint: EdgePaint | null = null;
     // XXX: performance impact when not needed?
@@ -129,11 +139,38 @@ export class Edge {
     }
 
     /**
+     * Where this edge sits among the edges sharing its ordered endpoint pair, counting from zero.
+     *
+     * Derived on every read from the data manager's edge cache rather than stored, so a removal
+     * cannot leave it stale. Nothing draws with it yet -- two parallel edges still render as two
+     * coincident lines -- but a style layer can read it, and the geometry work that eventually
+     * separates parallel edges needs exactly this number.
+     * @returns the rank, or -1 for an edge the cache no longer holds
+     */
+    get parallelRank(): number {
+        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).indexOf(this);
+    }
+
+    /**
+     * How many edges share this edge's ordered endpoint pair, including this one.
+     * @returns the count
+     */
+    get parallelCount(): number {
+        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).length;
+    }
+
+    /**
      * Creates a new Edge instance connecting two nodes.
      * @param graph - The parent graph or graph context
      * @param srcNodeId - The ID of the source node
      * @param dstNodeId - The ID of the destination node
-     * @param styleId - The style ID to apply to this edge
+     * @param edgeId - The element-assigned counter the store stamped into this edge's
+     *     `graphty.edgeId` column. It becomes {@link Edge.id}, and it is what makes two edges
+     *     between the same pair of nodes two different edges
+     * @param paint - The source mesh and the style to draw this edge from. Handed in rather than
+     *     asked for: the session's paint is addressed by the dense index the store assigns after
+     *     construction, so an edge starts from `bootstrapEdgePaint()` and the first style pass
+     *     replaces it
      * @param data - Custom data associated with the edge
      * @param opts - Optional configuration options
      */
@@ -141,14 +178,15 @@ export class Edge {
         graph: Graph | GraphContext,
         srcNodeId: NodeIdType,
         dstNodeId: NodeIdType,
-        styleId: EdgeStyleId,
+        edgeId: number,
+        paint: EdgePaint,
         data: AdHocData,
         opts: EdgeOpts = {},
     ) {
         this.parentGraph = graph;
         this.srcId = srcNodeId;
         this.dstId = dstNodeId;
-        this.id = `${srcNodeId}:${dstNodeId}`;
+        this.id = edgeIdOf(edgeId);
         this.opts = opts;
         this.data = data;
 
@@ -174,20 +212,18 @@ export class Edge {
         // Ray constructor expects (origin, direction), not (origin, destination)
         this.ray = new Ray(this.srcNode.mesh.position, this.dstNode.mesh.position.subtract(this.srcNode.mesh.position));
 
-        // copy edgeMeshConfig
-        this.styleId = styleId;
-        this.meshKey = String(styleId);
+        this.meshKey = paint.meshKey;
 
         // create ngraph link
         // TODO: Edge is added to layout engine by DataManager, not here
 
         // create mesh
-        const style = this.currentStyle;
+        const { style } = paint;
 
         // create arrow mesh if needed
         this.arrowMesh = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
-            String(this.styleId),
+            paint.meshKey,
             {
                 type: style.arrowHead?.type ?? "none",
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -201,7 +237,7 @@ export class Edge {
         // create arrow tail mesh if needed
         this.arrowTailMesh = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
-            `${String(this.styleId)}-tail`,
+            `${paint.meshKey}-tail`,
             {
                 type: style.arrowTail?.type ?? "none",
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -217,7 +253,7 @@ export class Edge {
         this.mesh = EdgeMesh.create(
             this.context.getMeshCache(),
             {
-                styleId: String(this.styleId),
+                styleId: paint.meshKey,
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.line?.color ?? "#FFFFFF",
             },
@@ -284,17 +320,17 @@ export class Edge {
     }
 
     /**
-     * The style this edge is currently drawn from, whichever stack resolved it.
+     * The style this edge is currently drawn from.
      *
      * ONE READER FOR ONE FACT. An edge asks what it looks like on nearly every frame -- to decide
      * whether to bow, where to cut its line for an arrow cap, how wide to draw it -- and each of
-     * those questions used to go straight to the static style table keyed by `styleId`. That
-     * table is the legacy stack's, so every one of them was a second door into an answer the
-     * session's stack may already own. There is now one door, and it says which stack answered.
+     * those questions used to go straight to a static style table keyed by a style id, which was
+     * a second door into an answer the session's stack may already have given. There is now one
+     * door.
      * @returns The resolved style.
      */
     private get currentStyle(): EdgeStyleConfig {
-        return this.sessionPaint?.style ?? Styles.getStyleForEdgeStyleId(this.styleId);
+        return this.sessionPaint?.style ?? bootstrapEdgePaint().style;
     }
 
     /**
@@ -357,7 +393,7 @@ export class Edge {
             this.mesh = EdgeMesh.create(
                 this.context.getMeshCache(),
                 {
-                    styleId: String(this.styleId),
+                    styleId: this.meshKey,
                     width: style.line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                     color: style.line.color ?? "#FFFFFF",
                 },
@@ -403,59 +439,40 @@ export class Edge {
     }
 
     /**
-     * Updates the edge's style by changing its styleId and recreating visual elements.
-     * @param styleId - The new style ID to apply
+     * Rebuild this edge's line, arrow caps and label from the paint it is currently drawn from.
+     *
+     * A REBUILD REQUEST, NOT A STYLE CHANGE: the 2D/3D switch makes it with every mesh already
+     * disposed. What to draw is the style stack's answer; WHETHER to draw is the caller's.
      */
-    updateStyle(styleId: EdgeStyleId): void {
+    updateStyle(): void {
         // See update(): a disposed edge is still reachable from the layout engine, and this
         // method builds meshes. Refuse rather than resurrect.
         if (this.disposed) {
             return;
         }
 
-        this.styleId = styleId;
+        const paint = this.currentPaint();
 
-        // THE OWNERSHIP RULE, AT THE WRITE. See Node.updateStyle and StylePainter: while the
-        // session's stack owns this graph's paint the legacy stack resolves a style id and keeps
-        // it, so everything reading `edge.styleId` keeps its answer, but it does not draw. The
-        // call is still a rebuild request -- the 2D/3D switch makes it with every mesh already
-        // disposed -- so it is answered from the owner's style rather than refused.
-        const paint = this.ownedPaint();
-
-        if (paint !== null) {
-            this.sessionPaint = paint;
-            this.paintFrom(paint.meshKey, paint.style);
-
-            return;
-        }
-
-        // Ownership has moved back, so the paint the session resolved is no longer this edge's.
-        this.sessionPaint = null;
-        this.paintFrom(String(styleId), Styles.getStyleForEdgeStyleId(styleId));
+        this.sessionPaint = paint;
+        this.paintFrom(paint.meshKey, paint.style);
     }
 
     /**
-     * What the session's style stack says this edge looks like, when it is the owner.
+     * What this edge looks like right now.
      *
-     * See Node.ownedPaint: the painter is asked rather than the field read, because a rebuild can
-     * arrive between the session being bound and the first frame that drains its dirty set.
-     * @returns The paint, or null when the legacy stack owns this edge.
+     * See Node.currentPaint: the painter is asked rather than the field read, because a rebuild
+     * can arrive between the session being bound and the first frame that drains its dirty set.
+     * @returns The session's paint when one is bound, and the element's own defaults otherwise.
      */
-    private ownedPaint(): EdgePaint | null {
+    private currentPaint(): EdgePaint {
         const painter = this.context.getStylePainter?.();
+        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.edgePaint(this.index)) : null;
 
-        if (painter?.owns !== true) {
-            return null;
-        }
-
-        return this.sessionPaint ?? painter.edgePaint(this.index);
+        return painted ?? bootstrapEdgePaint();
     }
 
     /**
      * Draw this edge as the session's style stack resolved it.
-     *
-     * The session's half of the door {@link Edge.updateStyle} is the legacy half of. Exactly one
-     * of the two owns the graph at a time, so the two can never write one edge at once.
      * @param paint - The source mesh and the style behind it.
      */
     applySessionPaint(paint: EdgePaint): void {
@@ -473,7 +490,6 @@ export class Edge {
      * @param style - The resolved style everything below is built from.
      */
     private paintFrom(meshKey: string, style: EdgeStyleConfig): void {
-
         // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
         // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
@@ -1245,9 +1261,19 @@ export class Edge {
         return { label: new RichTextLabel(this.context.getScene(), labelOptions), offset, attachPosition };
     }
 
+    /**
+     * The text this edge's label draws, which is the empty string when nothing configured one.
+     *
+     * There used to be a fallback to `this.id`, so an unlabelled edge read `"alice:bob"` on
+     * screen. Under an element-assigned counter that same fallback would read `"17"` -- an
+     * internal number with no meaning to a reader -- so it is gone: an unlabelled edge draws no
+     * label at all.
+     * @param labelConfig - the label block of the resolved edge style, if there is one
+     * @returns the text, or "" for an edge nothing named
+     */
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
         if (!labelConfig) {
-            return this.id;
+            return "";
         }
 
         // Check if text is directly provided
@@ -1271,7 +1297,7 @@ export class Edge {
             }
         }
 
-        return this.id;
+        return "";
     }
 
     private createLabelOptions(labelText: string, styleConfig: EdgeStyleConfig): RichTextLabelOptions {
@@ -1408,30 +1434,36 @@ export class Edge {
     }
 }
 
+/** The one empty array every miss answers with, so a lookup for an absent pair allocates nothing. */
+const EMPTY_EDGES: readonly Edge[] = Object.freeze([]);
+
 /**
- * A specialized map data structure for storing edges using source and destination node IDs.
- * Provides efficient lookup and management of edges in the graph.
+ * Every edge the graph holds, indexed by its ordered endpoint pair.
+ *
+ * The inner value is an ARRAY, not one edge: two edges between the same ordered pair are two
+ * edges. This class used to throw `"Attempting to create duplicate Edge"` on the second one, which
+ * is why the data manager carried two separate guards that dropped a repeated record before it
+ * could reach here -- and those drops are what pinned `statistics().repeatedEdgeCount` at zero for
+ * every multigraph the element has ever loaded.
+ *
+ * Ask {@link EdgeMap.first} when the question genuinely has one answer, and {@link EdgeMap.get}
+ * otherwise. Neither ever returns undefined for the pair itself: an absent pair is an empty array.
  */
 export class EdgeMap {
-    map = new Map<NodeIdType, Map<NodeIdType, Edge>>();
+    map = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
 
     /**
-     * Checks if an edge exists between the specified source and destination nodes.
+     * Whether any edge runs between the specified source and destination nodes.
      * @param srcId - The source node ID
      * @param dstId - The destination node ID
-     * @returns True if the edge exists, false otherwise
+     * @returns True when at least one edge exists, false otherwise
      */
     has(srcId: NodeIdType, dstId: NodeIdType): boolean {
-        const dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            return false;
-        }
-
-        return dstMap.has(dstId);
+        return this.get(srcId, dstId).length > 0;
     }
 
     /**
-     * Adds an edge to the map. Throws an error if the edge already exists.
+     * Adds an edge to the map, alongside any edges already running between the same pair.
      * @param srcId - The source node ID
      * @param dstId - The destination node ID
      * @param e - The edge instance to store
@@ -1443,61 +1475,86 @@ export class EdgeMap {
             this.map.set(srcId, dstMap);
         }
 
-        if (dstMap.has(dstId)) {
-            throw new Error("Attempting to create duplicate Edge");
+        const parallel = dstMap.get(dstId);
+        if (parallel) {
+            parallel.push(e);
+            return;
         }
 
-        dstMap.set(dstId, e);
+        dstMap.set(dstId, [e]);
     }
 
     /**
-     * Retrieves an edge from the map.
+     * Every edge running from one node to another, in the order they were added.
      * @param srcId - The source node ID
      * @param dstId - The destination node ID
-     * @returns The edge if found, undefined otherwise
+     * @returns The edges, which is an empty array when there are none
      */
-    get(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined {
-        const dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            return undefined;
-        }
-
-        return dstMap.get(dstId);
+    get(srcId: NodeIdType, dstId: NodeIdType): readonly Edge[] {
+        return this.map.get(srcId)?.get(dstId) ?? EMPTY_EDGES;
     }
 
     /**
-     * Gets the total number of edges stored in the map.
+     * The first edge running from one node to another, for a caller whose question has one answer.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns The oldest edge between the pair, or undefined when there is none
+     */
+    first(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined {
+        return this.get(srcId, dstId)[0];
+    }
+
+    /**
+     * How many EDGES the map holds, which under parallel edges is more than the number of pairs.
      * @returns The total count of all edges
      */
     get size(): number {
         let sz = 0;
         for (const dstMap of this.map.values()) {
-            sz += dstMap.size;
+            for (const parallel of dstMap.values()) {
+                sz += parallel.length;
+            }
         }
 
         return sz;
     }
 
     /**
-     * Removes an edge from the map.
+     * Removes ONE edge from the map, leaving any other edges between the same pair alone.
      * @param srcId - The source node ID
      * @param dstId - The destination node ID
-     * @returns True if the edge was removed, false if it didn't exist
+     * @param e - The edge to remove
+     * @returns True if that edge was removed, false if the map did not hold it
      */
-    delete(srcId: NodeIdType, dstId: NodeIdType): boolean {
+    delete(srcId: NodeIdType, dstId: NodeIdType, e: Edge): boolean {
         const dstMap = this.map.get(srcId);
         if (!dstMap) {
             return false;
         }
 
-        const result = dstMap.delete(dstId);
+        const parallel = dstMap.get(dstId);
+        if (!parallel) {
+            return false;
+        }
 
-        // Clean up empty maps
+        const at = parallel.indexOf(e);
+        if (at === -1) {
+            return false;
+        }
+
+        parallel.splice(at, 1);
+
+        // Clean up empty levels, so `map.size` keeps meaning "pairs with an edge between them"
+        // and an iteration over the map never visits an empty array.
+        if (parallel.length === 0) {
+            dstMap.delete(dstId);
+        }
+
         if (dstMap.size === 0) {
             this.map.delete(srcId);
         }
 
-        return result;
+        return true;
     }
 
     /**

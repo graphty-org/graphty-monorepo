@@ -32,10 +32,11 @@ import { EventManager } from "../../src/managers/EventManager";
 import type { GraphContext } from "../../src/managers/GraphContext";
 import { LayoutManager } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
+import type { EdgePaint } from "../../src/managers/StylePainter";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { Node } from "../../src/Node";
-import { EdgeStyleId, Styles } from "../../src/Styles";
+import { Styles } from "../../src/Styles";
 
 /**
  * Create a minimal GraphContext mock for testing Edge creation
@@ -106,10 +107,13 @@ function createMinimalStyles(): Styles {
         data: {
             knownFields: {
                 nodeIdPath: "id",
+                nodeLabelPath: null,
                 nodeWeightPath: null,
                 nodeTimePath: null,
                 edgeSrcIdPath: "source",
                 edgeDstIdPath: "target",
+                edgeIdPath: null,
+                repeatedEdges: "keep",
                 edgeWeightPath: null,
                 edgeTimePath: null,
                 positionScale: 1,
@@ -142,10 +146,18 @@ function createMockNode(scene: Scene, id: string, position: Vector3): Node {
 }
 
 /**
- * Get or create a style ID for the given edge style config
+ * The paint an edge is drawn from, with a key of its own.
+ *
+ * An Edge is handed its paint rather than an id to look a style up by: the session's paint is
+ * addressed by the dense index the store assigns after construction, so there is nothing to look
+ * up at the moment an Edge is built. The key is what decides whether a restyle rebuilds the line
+ * and its arrow caps, so each distinct style here gets a distinct one.
+ * @param name - What to key this style's geometry under.
+ * @param style - The style to draw from.
+ * @returns The paint.
  */
-function getStyleId(config: EdgeStyleConfig): EdgeStyleId {
-    return Styles.getEdgeIdForStyle(config);
+function paintOf(name: string, style: EdgeStyleConfig): EdgePaint {
+    return { meshKey: `test-${name}`, style };
 }
 
 describe("Edge Integration", () => {
@@ -155,14 +167,14 @@ describe("Edge Integration", () => {
     let styles: Styles;
 
     // Pre-defined style configurations
-    let defaultStyleId: EdgeStyleId;
-    let arrowHeadStyleId: EdgeStyleId;
-    let arrowTailStyleId: EdgeStyleId;
-    let bidirectionalStyleId: EdgeStyleId;
-    let initialStyleId: EdgeStyleId;
-    let updatedStyleId: EdgeStyleId;
-    let styleAId: EdgeStyleId;
-    let styleBId: EdgeStyleId;
+    let defaultPaint: EdgePaint;
+    let arrowHeadPaint: EdgePaint;
+    let arrowTailPaint: EdgePaint;
+    let bidirectionalPaint: EdgePaint;
+    let initialPaint: EdgePaint;
+    let updatedPaint: EdgePaint;
+    let styleAPaint: EdgePaint;
+    let styleBPaint: EdgePaint;
 
     beforeEach(() => {
         engine = new NullEngine();
@@ -170,49 +182,49 @@ describe("Edge Integration", () => {
         meshCache = new MeshCache();
         styles = createMinimalStyles();
 
-        // Create style IDs using the proper API
-        defaultStyleId = getStyleId({
+        // One paint per distinct style, each with a mesh key of its own
+        defaultPaint = paintOf("default", {
             line: { width: 0.5, color: "#A9A9A9" },
             enabled: true,
         });
 
-        arrowHeadStyleId = getStyleId({
+        arrowHeadPaint = paintOf("arrowHead", {
             line: { width: 0.5, color: "#FF0000" },
             arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
             enabled: true,
         });
 
-        arrowTailStyleId = getStyleId({
+        arrowTailPaint = paintOf("arrowTail", {
             line: { width: 0.5, color: "#00FF00" },
             arrowTail: { type: "tee", size: 1, color: "#00FF00", opacity: 1 },
             enabled: true,
         });
 
-        bidirectionalStyleId = getStyleId({
+        bidirectionalPaint = paintOf("bidirectional", {
             line: { width: 0.5, color: "#0000FF" },
             arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
             arrowTail: { type: "inverted", size: 1, color: "#00FF00", opacity: 1 },
             enabled: true,
         });
 
-        initialStyleId = getStyleId({
+        initialPaint = paintOf("initial", {
             line: { width: 0.5, color: "#FF0000" },
             enabled: true,
         });
 
-        updatedStyleId = getStyleId({
+        updatedPaint = paintOf("updated", {
             line: { width: 1.0, color: "#00FF00" },
             arrowHead: { type: "diamond", size: 1.5, color: "#00FF00", opacity: 1 },
             enabled: true,
         });
 
-        styleAId = getStyleId({
+        styleAPaint = paintOf("styleA", {
             line: { width: 0.5, color: "#FF0000" },
             arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
             enabled: true,
         });
 
-        styleBId = getStyleId({
+        styleBPaint = paintOf("styleB", {
             line: { width: 1.0, color: "#0000FF" },
             arrowHead: { type: "box", size: 1, color: "#0000FF", opacity: 1 },
             enabled: true,
@@ -230,13 +242,13 @@ describe("Edge Integration", () => {
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
 
-            const edge = new Edge(context, "src", "dst", defaultStyleId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, defaultPaint, asData({}));
 
             assert.exists(edge.mesh);
             assert.isFalse(isDisposed(edge.mesh));
             assert.equal(edge.srcId, "src");
             assert.equal(edge.dstId, "dst");
-            assert.equal(edge.id, "src:dst");
+            assert.equal(edge.id, "0", "Edge.id is the element-assigned counter, printed");
         });
 
         test("creates edge with arrowHead when configured", () => {
@@ -248,7 +260,7 @@ describe("Edge Integration", () => {
             nodes.set("dst", dstNode);
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
-            const edge = new Edge(context, "src", "dst", arrowHeadStyleId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, arrowHeadPaint, asData({}));
 
             assert.exists(edge.mesh);
             assert.exists(edge.arrowMesh);
@@ -264,7 +276,7 @@ describe("Edge Integration", () => {
             nodes.set("dst", dstNode);
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
-            const edge = new Edge(context, "src", "dst", arrowTailStyleId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, arrowTailPaint, asData({}));
 
             assert.exists(edge.mesh);
             assert.exists(edge.arrowTailMesh);
@@ -280,7 +292,7 @@ describe("Edge Integration", () => {
             nodes.set("dst", dstNode);
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
-            const edge = new Edge(context, "src", "dst", bidirectionalStyleId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, bidirectionalPaint, asData({}));
 
             assert.exists(edge.mesh);
             assert.exists(edge.arrowMesh);
@@ -298,16 +310,25 @@ describe("Edge Integration", () => {
             nodes.set("dst", dstNode);
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
-            const edge = new Edge(context, "src", "dst", initialStyleId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, initialPaint, asData({}));
 
-            assert.equal(edge.styleId, initialStyleId);
-            assert.isNull(edge.arrowMesh);
+            assert.isTrue(edge.arrowMesh === null, "no arrow before the repaint");
 
-            // Update style
-            edge.updateStyle(updatedStyleId);
+            // Repaint from a style that carries an arrow cap. `applySessionPaint` is the door the
+            // session's own pass uses; `updateStyle()` is the no-argument rebuild request beside
+            // it, and neither takes a style id any more.
+            edge.applySessionPaint(updatedPaint);
 
-            assert.equal(edge.styleId, updatedStyleId);
-            assert.exists(edge.arrowMesh);
+            const drawn: AbstractMesh | null = edge.arrowMesh;
+
+            assert.exists(drawn);
+            /* WHICH style it was drawn from, not merely that something was drawn. That identity
+               used to be asserted through a style id, and without it this test passes on an edge
+               that grew an arrow of any shape at all. The mesh cache names an arrow after the
+               cap it built, so the name carries the one part of the new style that is visible
+               from outside -- read off the paint rather than spelled out here, so the two cannot
+               drift. */
+            assert.include(drawn.name, updatedPaint.style.arrowHead?.type ?? "none");
         });
 
         test("disposes edge resources when style changes", () => {
@@ -319,13 +340,13 @@ describe("Edge Integration", () => {
             nodes.set("dst", dstNode);
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
-            const edge = new Edge(context, "src", "dst", styleAId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, styleAPaint, asData({}));
 
             const oldMesh = edge.mesh;
             const oldArrowMesh = edge.arrowMesh;
 
-            // Update style triggers disposal of old meshes
-            edge.updateStyle(styleBId);
+            // Repainting from another style disposes the meshes the old one built.
+            edge.applySessionPaint(styleBPaint);
 
             // Old meshes should be disposed
             assert.isTrue(isDisposed(oldMesh));
@@ -524,7 +545,7 @@ describe("Edge Integration", () => {
             nodes.set("dst", dstNode);
 
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
-            const edge = new Edge(context, "src", "dst", defaultStyleId, asData({}));
+            const edge = new Edge(context, "src", "dst", 0, defaultPaint, asData({}));
 
             assert.exists(edge.ray);
             // Ray direction should point from source to destination
@@ -544,7 +565,7 @@ describe("Edge Integration", () => {
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
 
             assert.throws(
-                () => new Edge(context, "src", "dst", defaultStyleId, asData({})),
+                () => new Edge(context, "src", "dst", 0, defaultPaint, asData({})),
                 /Node 'src' hasn't been created yet/,
             );
         });
@@ -558,7 +579,7 @@ describe("Edge Integration", () => {
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
 
             assert.throws(
-                () => new Edge(context, "src", "dst", defaultStyleId, asData({})),
+                () => new Edge(context, "src", "dst", 0, defaultPaint, asData({})),
                 /Node 'dst' hasn't been created yet/,
             );
         });

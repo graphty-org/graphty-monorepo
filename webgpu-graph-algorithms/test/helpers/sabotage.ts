@@ -40,6 +40,13 @@ const SPMV_TEST = "test/primitives/spmv.test.ts";
 const PAGERANK_TEST = "test/algorithms/pagerank.test.ts";
 const SPECTRAL_TEST = "test/algorithms/spectral.test.ts";
 const COMPONENTS_TEST = "test/algorithms/components.test.ts";
+const INDIRECT_TEST = "test/kernel/indirect.test.ts";
+const SCAN_TEST = "test/primitives/scan.test.ts";
+const HISTOGRAM_TEST = "test/primitives/histogram.test.ts";
+const RADIX_TEST = "test/primitives/radix-sort.test.ts";
+const GRID_TEST = "test/primitives/grid.test.ts";
+const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
+const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -208,10 +215,11 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: SEGMENTED_REDUCE_TEST,
         },
         {
-            // a row with no arcs is never written: the check's 100 empty rows keep the sentinel
+            // a row with no arcs is never written: the check's 100 empty rows keep the sentinel (P4-T5 re-pointed the
+            // row to the TIER 0 call: the fold and the write live in row_fold / finish now, where a1 / a0 are out of scope)
             name: "empty-rows-skipped",
-            find: "out[i] = select(acc, comb(out[i], acc), P.accumulate == 1u);",
-            replace: "if (a1 > a0) { out[i] = select(acc, comb(out[i], acc), P.accumulate == 1u); }",
+            find: "finish(i, row_fold(i, 0u, 1u));",
+            replace: "if (rowPtr[i + 1u] > rowPtr[i]) { finish(i, row_fold(i, 0u, 1u)); }",
             minFactor: 10,
             test: SEGMENTED_REDUCE_TEST,
         },
@@ -270,16 +278,16 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // PLAN DECISION 2 (replaces the inert self-loop row): the row bound off by one reads the next row's first arc into every row
             name: "row-bound-inclusive",
-            find: "for (var a = rowPtr[i]; a < rowPtr[i + 1u]; a = a + 1u) {",
-            replace: "for (var a = rowPtr[i]; a <= rowPtr[i + 1u]; a = a + 1u) {",
+            find: "a < a1; a = a + step",
+            replace: "a <= a1; a = a + step",
             minFactor: 10,
             test: INSPECT_TEST,
         },
         {
             // spec 11.9 item 1: select arguments swapped in the USE_PERM read; with USE_PERM false the dummy rowPtr is read as the row index
             name: "use-perm-select-swapped",
-            find: "let i = select(row, perm[row], USE_PERM);",
-            replace: "let i = select(perm[row], row, USE_PERM);",
+            find: "return select(row, perm[row], USE_PERM);",
+            replace: "return select(perm[row], row, USE_PERM);",
             minFactor: 10,
             test: INSPECT_TEST,
         },
@@ -478,6 +486,361 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let parent = atomicLoad(&comp[v]);",
             minFactor: 10,
             test: COMPONENTS_TEST,
+        },
+    ]),
+    "indirect-finalize": Object.freeze([
+        {
+            // the ceil is dropped: a count that is not a multiple of wg loses its last workgroup
+            name: "ceil-dropped",
+            find: "let groups = count / P.wg + select(0u, 1u, count % P.wg != 0u);",
+            replace: "let groups = count / P.wg;",
+            minFactor: 10,
+            test: INDIRECT_TEST,
+        },
+        {
+            // the 2D split is never taken: x exceeds MAX_WORKGROUPS_PER_DIM above 16,776,960 items
+            name: "split-never-taken",
+            find: "if (groups > MAX_WORKGROUPS_PER_DIM) {",
+            replace: "if (groups > U32_MAX) {",
+            minFactor: 10,
+            test: INDIRECT_TEST,
+        },
+        {
+            // a 12-byte slot stride: every slot past the first lands on the wrong words
+            name: "slot-stride-twelve",
+            find: "let base = 4u * P.slot;",
+            replace: "let base = 3u * P.slot;",
+            minFactor: 10,
+            test: INDIRECT_TEST,
+        },
+    ]),
+    "scan-block": Object.freeze([
+        {
+            // the inclusive sum is written: every word is off by its own value
+            name: "inclusive-not-exclusive",
+            find: "if (i < P.count) { out[i] = inclusive - v; }",
+            replace: "if (i < P.count) { out[i] = inclusive; }",
+            minFactor: 10,
+            test: SCAN_TEST,
+        },
+        {
+            // the block sum is lane 0's own value: every block after the first starts from the wrong offset
+            name: "block-sum-from-lane-zero",
+            find: "if (lid.x == WG - 1u) { blockSums[g] = inclusive; }",
+            replace: "if (lid.x == 0u) { blockSums[g] = inclusive; }",
+            minFactor: 10,
+            test: SCAN_TEST,
+        },
+        {
+            // every other Hillis-Steele round is skipped: the in-block prefix misses half its terms
+            name: "round-doubling-dropped",
+            find: "for (var s = 1u; s < WG; s = s * 2u) {",
+            replace: "for (var s = 1u; s < WG; s = s * 4u) {",
+            minFactor: 10,
+            test: SCAN_TEST,
+        },
+    ]),
+    "scan-add": Object.freeze([
+        {
+            // the add-back is a no-op: every block after the first keeps its in-block prefix
+            name: "add-back-skipped",
+            find: "out[i] = out[i] + blockOffsets[g];",
+            replace: "out[i] = out[i];",
+            minFactor: 10,
+            test: SCAN_TEST,
+        },
+        {
+            // the next block's offset is added: every block is shifted by its own sum
+            name: "offset-of-next-block",
+            find: "blockOffsets[g];",
+            replace: "blockOffsets[g + 1u];",
+            minFactor: 10,
+            test: SCAN_TEST,
+        },
+        {
+            // the last block is never added back
+            name: "last-block-skipped",
+            find: "if (i >= P.count) { return; }",
+            replace: "if (i >= P.count - WG) { return; }",
+            minFactor: 10,
+            test: SCAN_TEST,
+        },
+    ]),
+    histogram: Object.freeze([
+        {
+            // the design's named mutation (11.9 item 1): a store instead of an add, so every hit bin counts 1
+            name: "plain-store",
+            find: "if (k < P.bins) { atomicAdd(&hist[k], 1u); }",
+            replace: "if (k < P.bins) { atomicStore(&hist[k], 1u); }",
+            minFactor: 10,
+            test: HISTOGRAM_TEST,
+        },
+        {
+            // the last key is never counted (the three-line find documents the intent; the body has one such line)
+            name: "last-key-skipped",
+            find: "if (i >= P.count) { return; }                                  // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
+            replace: "if (i + 1u >= P.count) { return; }                             // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
+            minFactor: 10,
+            test: HISTOGRAM_TEST,
+        },
+        {
+            // every key lands one bin up
+            name: "bin-off-by-one",
+            find: "atomicAdd(&hist[k], 1u)",
+            replace: "atomicAdd(&hist[k + 1u], 1u)",
+            minFactor: 10,
+            test: HISTOGRAM_TEST,
+        },
+    ]),
+    "counting-scatter": Object.freeze([
+        {
+            // the cursor never advances: every element of a bin takes slot 0 (duplicates, unwritten slots: outIndex is no permutation)
+            name: "cursor-not-advanced",
+            find: "let slot = atomicAdd(&cursor[k], 1u);",
+            replace: "let slot = atomicLoad(&cursor[k]);",
+            minFactor: 10,
+            test: HISTOGRAM_TEST,
+        },
+        {
+            // the bin start is ignored: every bin scatters from 0
+            name: "start-ignored",
+            find: "outIndex[start[k] + slot] = i;",
+            replace: "outIndex[slot] = i;",
+            minFactor: 10,
+            test: HISTOGRAM_TEST,
+        },
+        {
+            // the written index is off by one
+            name: "index-off-by-one",
+            find: "+ slot] = i;",
+            replace: "+ slot] = i + 1u;",
+            minFactor: 10,
+            test: HISTOGRAM_TEST,
+        },
+    ]),
+    "radix-hist": Object.freeze([
+        {
+            // the table is stored group-major: the scan yields offsets in the wrong order for every digit but the first
+            name: "group-major-table",
+            find: "hist[b * P.groups + g] = atomicLoad(&local[b]);",
+            replace: "hist[g * RADIX_BINS + b] = atomicLoad(&local[b]);",
+            minFactor: 10,
+            test: RADIX_TEST,
+        },
+        {
+            // the pass's shift is ignored: every pass histograms the low byte
+            name: "shift-ignored",
+            find: "let d = (keys[i] >> P.shift) & RADIX_DIGIT_MASK;",
+            replace: "let d = keys[i] & RADIX_DIGIT_MASK;",
+            minFactor: 10,
+            test: RADIX_TEST,
+        },
+        {
+            // the last key is never counted: its digit's offsets are one short
+            name: "last-key-uncounted",
+            find: "if (i < P.count) {\n        let d = (keys[i] >> P.shift) & RADIX_DIGIT_MASK;",
+            replace: "if (i + 1u < P.count) {\n        let d = (keys[i] >> P.shift) & RADIX_DIGIT_MASK;",
+            minFactor: 10,
+            test: RADIX_TEST,
+        },
+    ]),
+    "radix-scatter": Object.freeze([
+        {
+            // the rank never advances: every key of a digit lands on the same slot
+            name: "rank-not-advanced",
+            find: "cnt[ds] = cnt[ds] + 1u;",
+            replace: "cnt[ds] = cnt[ds];",
+            minFactor: 10,
+            test: RADIX_TEST,
+        },
+        {
+            // the values are read at the destination: they are never permuted with their keys
+            name: "values-not-permuted",
+            find: "valsOut[dst] = vals[i];",
+            replace: "valsOut[dst] = vals[dst];",
+            minFactor: 10,
+            test: RADIX_TEST,
+        },
+        {
+            // every workgroup uses group 0's offset: the blocks overwrite each other
+            name: "offset-of-group-zero",
+            find: "let dst = offsets[d * P.groups + g] + rank[lid.x];",
+            replace: "let dst = offsets[d * P.groups] + rank[lid.x];",
+            minFactor: 10,
+            test: RADIX_TEST,
+        },
+    ]),
+    "grid-cell-key": Object.freeze([
+        {
+            // the design's named mutation: an outside node lands in the last real cell instead of the pseudo-cell
+            name: "pseudo-cell-dropped",
+            find: "var key = cells;",
+            replace: "var key = cells - 1u;",
+            minFactor: 10,
+            test: GRID_TEST,
+        },
+        {
+            // x and y swapped in the linearisation: the key of every off-diagonal cell changes
+            name: "axes-swapped",
+            find: "key = u32(c.x) + P.gridMax * u32(c.y);",
+            replace: "key = u32(c.y) + P.gridMax * u32(c.x);",
+            minFactor: 10,
+            test: GRID_TEST,
+        },
+        {
+            // round instead of floor: every node past the half of its cell moves one cell up
+            name: "floor-replaced-by-round",
+            find: "let c = vec3<i32>(floor(clamp(q, vec3f(-1.0), vec3f(gf + 1.0))));",
+            replace: "let c = vec3<i32>(round(clamp(q, vec3f(-1.0), vec3f(gf + 1.0))));",
+            minFactor: 10,
+            test: GRID_TEST,
+        },
+    ]),
+
+    "grid-centroid": Object.freeze([
+        {
+            // the comment keeps the find unique against G4b's identical sum line (a find is checked within its own body)
+            name: "mass-lane-x",
+            find: "acc = acc + vec4f(p.xyz * p.w, p.w);                       // (sum m x, sum m y, sum m z, sum m)",
+            replace: "acc = acc + vec4f(p.xyz * p.x, p.x);                       // (sum m x, sum m y, sum m z, sum m)",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+        {
+            name: "pseudo-cell-skipped",
+            find: "if (c > grid_cells()) { return; }",
+            replace: "if (c >= grid_cells()) { return; }",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+        {
+            // every hub cell's level-0 entry goes stale (never written): a whole-cell miss on the hub fixture
+            name: "hub-not-appended",
+            find: "hubList[atomicAdd(&hubCounters[0], 1u)] = c;\n        return;",
+            replace: "return;",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+    ]),
+    "grid-centroid-hub": Object.freeze([
+        {
+            name: "hub-stride-off-by-one",
+            find: "k = k + WG) {",
+            replace: "k = k + WG + 1u) {",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+        {
+            name: "hub-lane-partial-written",
+            find: "if (valid && lid.x == 0u) { pyramid[c] = t; }",
+            replace: "if (valid && lid.x == 0u) { pyramid[c] = acc; }",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+        {
+            name: "hub-range-start-ignored",
+            find: "for (var k = start + lid.x; k < start + count; k = k + WG) {",
+            replace: "for (var k = lid.x; k < start + count; k = k + WG) {",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+    ]),
+    "grid-downsample": Object.freeze([
+        {
+            // the design's named mutation
+            name: "wrong-level-offset",
+            find: "acc = acc + pyramid[P.childBase + child];",
+            replace: "acc = acc + pyramid[P.childBase + child + 1u];",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+        {
+            name: "three-children",
+            find: "for (var dx = 0u; dx < 2u; dx = dx + 1u) {",
+            replace: "for (var dx = 0u; dx < 1u; dx = dx + 1u) {",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+        {
+            name: "parent-index-shifted",
+            find: "pyramid[P.parentBase + pc] = acc;",
+            replace: "pyramid[P.parentBase + pc + 1u] = acc;",
+            minFactor: 10,
+            test: PYRAMID_TEST,
+        },
+    ]),
+    // P4-T12: G6 / G7 (spec 11.9 item 1: "the outside pseudo-cell dropped", "the last workgroup's rows skipped");
+    // measured by test/sabotage/grid.test.ts through the far-field / near-field stages of grid-inspect.test.ts on
+    // the fixture each row's comment names (random20k in 2D unless said otherwise)
+    "grid-far-field": Object.freeze([
+        {
+            // the design's named mutation: measured on outside5, whose five far nodes ARE the pseudo-cell
+            name: "pseudo-cell-term-dropped",
+            find: "f = f + cell_force(pi, pyramid[grid_cells()]);",
+            replace: "f = f + vec3f(0.0);",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // eps^2 dropped from every far-field denominator: the nearest cells of every level are over-weighted
+            name: "softening-dropped",
+            find: "let d2 = dot(d, d) + S.eps * S.eps;",
+            replace: "let d2 = dot(d, d);",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // the finer level's own 3x3 (the near field's and the next level's work) is summed again at every level
+            name: "own-neighbourhood-double-counted",
+            find: "if (abs(cx - cl.x) <= 1 && abs(cy - cl.y) <= 1 && abs(cz - cl.z) <= 1) { continue; }",
+            replace: "if (false) { continue; }",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // 2D keys a node by its (zero) z into plane floor(-gridMin.z * invCellSize): a cell that is not the
+            // sorted one (measured in 2D; in 3D the line is dead and the row's report is the noise floor)
+            name: "2d-z-plane-not-collapsed",
+            find: "if (P.dim == 2u) { c0.z = 0; }",
+            replace: "if (false) { c0.z = 0; }",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+    ]),
+    "grid-near-field": Object.freeze([
+        {
+            // the own cell's Horvitz-Thompson scale counts the node itself: measured on the one-cell fixtures at
+            // nearMax 8 (hubcell and onecell1025), where the sampling runs
+            name: "own-cell-scale-off-by-one",
+            find: "let others = select(count, count - 1u, own);",
+            replace: "let others = count;",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // every over-full cell samples its first nearMax entries: not the oracle's draws (hubcell at nearMax 8)
+            name: "window-not-hashed",
+            find: "let jj = sortedIdx[start + (lowbias32(base ^ (k * 0x85EBCA6Bu)) % count)];",
+            replace: "let jj = sortedIdx[start + (k % count)];",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // the contiguous window of P4-T10 (`[h, h + nearMax) mod count` from one hash): the sample the G4-F2 fix
+            // replaced with independent draws; not the oracle's draws (hubcell at nearMax 8)
+            name: "window-contiguous",
+            find: "let jj = sortedIdx[start + (lowbias32(base ^ (k * 0x85EBCA6Bu)) % count)];",
+            replace: "let jj = sortedIdx[start + ((lowbias32(base) + k) % count)];",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // the design's named mutation: the sorted-last node keeps K2's force (no near field, no gravity)
+            name: "last-row-skipped",
+            find: "let valid = t < P.n;",
+            replace: "let valid = t + 1u < P.n;",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
         },
     ]),
 });
@@ -699,8 +1062,314 @@ export const SABOTAGE_P5: Readonly<Partial<Record<KernelId, readonly Mutation[]>
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10; test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
-export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7"]);
+const TIERS_TEST = "test/primitives/tiers.test.ts";
+const TIERS_INSPECT_TEST = "test/layouts/tiers-inspect.test.ts";
+const ATTRACTION_WINDOWED_TEST = "test/layouts/attraction-windowed.test.ts";
+
+/** The P4 tier rows (PD-21): the TIER 1 / 2 branches of the three row-walking kernels; measured by test/sabotage/tiers.test.ts only (the thread-per-row suites never reach these lines). The K2 rows are appended by P4-T6 and measured by the K2 stage check of test/layouts/tiers-inspect.test.ts; the window row by P4-T7; the fa2-stats-finalize rows (K1's grid block) by P4-T12, measured by test/sabotage/grid.test.ts. */
+export const SABOTAGE_P4_TIERS: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
+    "segmented-reduce": Object.freeze([
+        {
+            // every lane walks every arc of its row: a 32-lane row is summed 32 times over
+            name: "tier1-lane-stride-one",
+            find: "for (var arc = a0 + lane; arc < a1; arc = arc + step) {",
+            replace: "for (var arc = a0 + lane; arc < a1; arc = arc + 1u) {",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // the tree skips the 8-, 2- and 1-lane steps: lane 0 holds a partial of the row
+            name: "tier1-tree-step-quartered",
+            find: "for (var s = 16u; s >= 1u; s = s / 2u) {",
+            replace: "for (var s = 16u; s >= 1u; s = s / 4u) {",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // a workgroup claims 16 rows it can only fold 8 of: every other mid-tier row keeps the sentinel
+            name: "tier1-rows-per-group-doubled",
+            find: "row = P.start + g * (WG / 32u) + lid / 32u;",
+            replace: "row = P.start + g * (WG / 16u) + lid / 32u;",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // lane 0's own partial is written instead of the workgroup total
+            name: "tier2-lane-partial-written",
+            find: "if (valid && lid == 0u) { finish(i, t); }",
+            replace: "if (valid && lid == 0u) { finish(i, acc); }",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // the last row of every tier range is skipped and keeps the sentinel (the plan's `row <= P.end` form is
+            // inert: plan1d issues exactly one workgroup per TIER 2 row, so no workgroup ever sees row == P.end, and a
+            // TIER 1 lane past the end folds a real row correctly)
+            name: "tier-last-row-skipped",
+            find: "let valid = row < P.end;",
+            replace: "let valid = row + 1u < P.end;",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // the workgroup tree always sums: min / max of a hub row become its sum
+            name: "tier2-reduce-op-sum",
+            find: "let t = wg_reduce_f32(acc, lid, OP);",
+            replace: "let t = wg_reduce_f32(acc, lid, 0u);",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // the rebase uniform's accumulate flag is ignored: a row split across windows keeps its last window's
+            // partial, and under the tiers every window overwrites every row outside it with the identity (P4-T7,
+            // PD-8; measured by the windowed leg, test/sabotage/tiers.test.ts dispatches on the `test` field)
+            name: "accumulate-ignored",
+            find: "fn finish(i: u32, acc: f32) { out[i] = select(acc, comb(out[i], acc), P.accumulate == 1u); }",
+            replace: "fn finish(i: u32, acc: f32) { out[i] = acc; }",
+            minFactor: 10,
+            test: SEGMENTED_REDUCE_TEST,
+        },
+    ]),
+    "spmv-pull": Object.freeze([
+        {
+            // every lane walks every in-arc of its row: a 32-lane row is summed 32 times over
+            name: "tier1-lane-stride-one",
+            find: "for (var arc = a0 + lane; arc < a1; arc = arc + step) {",
+            replace: "for (var arc = a0 + lane; arc < a1; arc = arc + 1u) {",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // the tree skips the 8-, 2- and 1-lane steps: lane 0 holds a partial of the row
+            name: "tier1-tree-step-quartered",
+            find: "for (var s = 16u; s >= 1u; s = s / 2u) {",
+            replace: "for (var s = 16u; s >= 1u; s = s / 4u) {",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // a workgroup claims 16 rows it can only fold 8 of: every other mid-tier row keeps the sentinel
+            name: "tier1-rows-per-group-doubled",
+            find: "row = P.start + g * (WG / 32u) + lid / 32u;",
+            replace: "row = P.start + g * (WG / 16u) + lid / 32u;",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // lane 0's own partial is written instead of the workgroup total
+            name: "tier2-lane-partial-written",
+            find: "if (valid && lid == 0u) { finish(v, t); }",
+            replace: "if (valid && lid == 0u) { finish(v, acc); }",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // the last row of every tier range is skipped and keeps the sentinel (the plan's `row <= P.n` form is
+            // inert, as segmented-reduce's row of the same name explains)
+            name: "tier-last-row-skipped",
+            find: "let valid = row < P.n;",
+            replace: "let valid = row + 1u < P.n;",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+        {
+            // TIER 0 starts at 2 P.start: the rows [P.start, 2 P.start) are never visited and keep the sentinel (dropping
+            // P.start altogether is inert: the grid-stride loop re-walks the tier rows and still reaches every row below n)
+            name: "tier0-start-doubled",
+            find: "for (var row = linear_id(wid, lane) + P.start; row < P.n; row = row + P.stride) {",
+            replace: "for (var row = linear_id(wid, lane) + 2u * P.start; row < P.n; row = row + P.stride) {",
+            minFactor: 10,
+            test: TIERS_TEST,
+        },
+    ]),
+    // P4-T6: the K2 tier branches, measured by the layout's K2 stage on rmat14 against the f64 oracle within the
+    // analytic per-node bound (test/helpers/attraction-check.ts attractionTierWorstFactor); the window row by the
+    // kernel-level window check (attractionWindowedWorstFactor), whose poison tail the mutant folds
+    "fa2-attraction": Object.freeze([
+        {
+            // every lane walks every arc of its row: a 32-lane row is summed 32 times over (TIER 0 steps by 1 already)
+            name: "tier1-lane-stride-one",
+            find: "for (var a = a0 + lane; a < a1; a = a + step) {",
+            replace: "for (var a = a0 + lane; a < a1; a = a + 1u) {",
+            minFactor: 10,
+            test: TIERS_INSPECT_TEST,
+        },
+        {
+            // the tree skips the 8-, 2- and 1-lane steps: lane 0 holds a partial of the row
+            name: "tier1-tree-step-quartered",
+            find: "for (var s = 16u; s >= 1u; s = s / 2u) {",
+            replace: "for (var s = 16u; s >= 1u; s = s / 4u) {",
+            minFactor: 10,
+            test: TIERS_INSPECT_TEST,
+        },
+        {
+            // a workgroup claims 16 rows it can only fold 8 of: every other mid-tier row keeps the previous force
+            name: "tier1-rows-per-group-doubled",
+            find: "row = P.hiEnd + g * (WG / 32u) + lid / 32u;",
+            replace: "row = P.hiEnd + g * (WG / 16u) + lid / 32u;",
+            minFactor: 10,
+            test: TIERS_INSPECT_TEST,
+        },
+        {
+            // lane 0's own partial is written instead of the workgroup total
+            name: "tier2-lane-partial-written",
+            find: "if (valid && lid == 0u) { finish(i, t.xyz); }",
+            replace: "if (valid && lid == 0u) { finish(i, f); }",
+            minFactor: 10,
+            test: TIERS_INSPECT_TEST,
+        },
+        {
+            // the last TIER 2 row is never folded and keeps the zero the buffer held (the plan's `end = P.midEnd` form
+            // is inert: the TIER 2 dispatch issues exactly hiEnd workgroups, every one below midEnd as well)
+            name: "tier2-end-off-by-one",
+            find: "var end = P.hiEnd;",
+            replace: "var end = P.hiEnd - 1u;",
+            minFactor: 10,
+            test: TIERS_INSPECT_TEST,
+        },
+        {
+            // the arc window's rebase ignored: a windowed dispatch reads past its copy into the poison tail, whose
+            // INVALID_INDEX neighbours read pos out of bounds (WGSL clamps) and change the force by order 1
+            name: "tier0-rebase-ignored",
+            find: "let j = colIdx[a - P.arcBase];",
+            replace: "let j = colIdx[a];",
+            minFactor: 10,
+            test: ATTRACTION_WINDOWED_TEST,
+        },
+    ]),
+    // P4-T12: K1's grid block (PD-14), measured by test/sabotage/grid.test.ts through the k1 stage of
+    // grid-inspect.test.ts (the K1 grid block of iteration 2) on the fixture each row's comment names
+    "fa2-stats-finalize": Object.freeze([
+        {
+            // the extent floor dropped: on an all-coincident, all-fixed start the fold's bbox and rms radius are 0,
+            // so the extent is 0, invCellSize 1 / 0 and eps 0 (the floor is what keeps the frame finite)
+            name: "grid-extent-unfloored",
+            find: "let extent = max(min(bboxExtent, P.extentFactor * S.rmsRadius), GRID_EXTENT_FLOOR);",
+            replace: "let extent = min(bboxExtent, P.extentFactor * S.rmsRadius);",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // the rms bound dropped: on isolated with its strays started 5,000 units out (grid.test.ts strayStart) the
+            // strays' bounding box becomes the extent and the core collapses into a few cells
+            name: "grid-rms-bound-dropped",
+            find: "min(bboxExtent, P.extentFactor * S.rmsRadius)",
+            replace: "bboxExtent",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+        {
+            // the softening zeroed from iteration 2 on (the first build takes the host's eps): the k1 stage reads it
+            name: "grid-eps-zero",
+            find: "S.eps = 0.25 * cellSize;",
+            replace: "S.eps = 0.0;",
+            minFactor: 10,
+            test: GRID_INSPECT_TEST,
+        },
+    ]),
+});
+
+const GRID_LAW_TEST = "test/layouts/grid-law.test.ts";
+
+/**
+ * The P4 LAW rows (PD-21, PD-22; P4-T13): the LAW 1 / 2 branches of grid-far-field (the per-cell law of G6) and
+ * grid-near-field (K3's pair law in G7, the six K3 rows of P5-T7 transcribed onto `pair_force`), measured by
+ * test/sabotage/grid.test.ts through the exact-vs-grid comparison of the FR / spring simulations
+ * (test/helpers/grid-law.ts lawCheck): a law mutation moves the RMS by order 1 against the 5 % tolerance.
+ */
+export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
+    "grid-far-field": Object.freeze([
+        {
+            name: "fr-far-k-linear",
+            find: "(P.frK * P.frK * q.w / d2)",
+            replace: "(P.frK * q.w / d2)",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "fr-far-law-skipped",
+            find: "if (LAW == 1u) { return d * (P.frK",
+            replace: "if (LAW == 3u) { return d * (P.frK",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "fr-far-count-dropped",
+            find: "P.frK * P.frK * q.w / d2",
+            replace: "P.frK * P.frK / d2",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "coulomb-far-sign",
+            find: "(-P.coulomb * pi.w * q.w / (d2 * sqrt(d2)))",
+            replace: "(P.coulomb * pi.w * q.w / (d2 * sqrt(d2)))",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "coulomb-far-inverse-linear",
+            find: "pi.w * q.w / (d2 * sqrt(d2))",
+            replace: "pi.w * q.w / d2",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "coulomb-far-law-skipped",
+            find: "if (LAW == 2u) { return d * (-P.coulomb",
+            replace: "if (LAW == 3u) { return d * (-P.coulomb",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+    ]),
+    "grid-near-field": Object.freeze([
+        {
+            name: "fr-near-inverse-square",
+            find: "if (LAW == 1u) { return d * (P.frK * P.frK / d2); }",
+            replace: "if (LAW == 1u) { return d * (P.frK * P.frK / (d2 * sqrt(d2))); }",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "fr-near-k-linear",
+            find: "(P.frK * P.frK / d2)",
+            replace: "(P.frK / d2)",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "fr-near-law-skipped",
+            find: "if (LAW == 1u) { return d",
+            replace: "if (LAW == 3u) { return d",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "coulomb-near-sign",
+            find: "(-P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            replace: "(P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "coulomb-near-inverse-linear",
+            find: "pi.w * o.w / (d2 * sqrt(d2))",
+            replace: "pi.w * o.w / d2",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+        {
+            name: "coulomb-near-mass-dropped",
+            find: "(-P.coulomb * pi.w * o.w /",
+            replace: "(-P.coulomb /",
+            minFactor: 10,
+            test: GRID_LAW_TEST,
+        },
+    ]),
+});
+
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4"]);
 
 /**
  * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests

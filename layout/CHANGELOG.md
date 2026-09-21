@@ -1,3 +1,17 @@
+## 1.8.0 (2026-09-21)
+
+### 🚀 Features
+
+- **layout:** add the cooling option and the nullable spring constants to the layout option types ([bcb2bbdf](https://github.com/graphty-org/graphty-monorepo/commit/bcb2bbdf))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.7.0 (2026-09-20)
 
 ### 🚀 Features

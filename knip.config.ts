@@ -64,12 +64,18 @@ const config: KnipConfig = {
             ],
             project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
-            ignoreDependencies: ["webgpu"],
+            ignoreDependencies: ["@graphty/algorithms", "@graphty/layout", "webgpu"],
         },
 
         // Algorithms package
         algorithms: {
-            entry: ["src/index.ts", "test/**/*.test.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                "examples/**/*.ts",
+                "scripts/**/*.{ts,js}",
+            ],
             project: ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
@@ -222,8 +228,25 @@ const config: KnipConfig = {
     // exports already tagged `@internal` that something does import, which is worth knowing.
     tags: ["-internal"],
 
-    // Global ignore patterns
-    ignore: ["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/.nx/**", "**/docs/**"],
+    // Global ignore patterns.
+    //
+    // `pnpm run lint:knip` passes `--no-gitignore`, so the scratch directories the root
+    // .gitignore hides (`tmp/`, `.tmp/`) are listed here instead. knip otherwise reads every
+    // ancestor .gitignore of the directory it runs in and stops only at a `.git` DIRECTORY; a
+    // worktree's `.git` is a file, so from a worktree under `.worktrees/<name>/` it also reads
+    // the main checkout's .gitignore, whose unanchored `.worktrees/` matches every absolute
+    // path inside the worktree. Every entry knip derives from a package.json (scripts, bin,
+    // exports) is then dropped and its file and exports are reported as unused, while the
+    // same tree in the main checkout is clean.
+    ignore: [
+        "**/dist/**",
+        "**/coverage/**",
+        "**/node_modules/**",
+        "**/.nx/**",
+        "**/docs/**",
+        "**/tmp/**",
+        "**/.tmp/**",
+    ],
 
     // Ignore unlisted binaries that are shell built-ins or CI tools
     ignoreBinaries: [

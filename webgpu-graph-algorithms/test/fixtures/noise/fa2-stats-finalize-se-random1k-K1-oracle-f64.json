@@ -1,0 +1,7 @@
+{
+    "kernel": "fa2-stats-finalize",
+    "fixture": "se-random1k-K1",
+    "adapterClass": "oracle-f64",
+    "dtype": "f32",
+    "values": [-0.029036445181592332, -0.03524131805110624, 0, 1.1286189288084565, 1.898162227619562, 0.5, 0, 2, 1500]
+}

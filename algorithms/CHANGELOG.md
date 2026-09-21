@@ -1,3 +1,26 @@
+## 1.8.1 (2026-09-21)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.2
+
+## 1.8.0 (2026-09-20)
+
+### 🚀 Features
+
+- **algorithms:** add the accelerator seam and the accelerated() dispatcher ([ae609731](https://github.com/graphty-org/graphty-monorepo/commit/ae609731))
+- **algorithms:** express sampled betweenness on the shared option type ([1ff44991](https://github.com/graphty-org/graphty-monorepo/commit/1ff44991))
+- **algorithms:** port six algorithms to graph-format snapshots under the indexed namespace ([629ab26b](https://github.com/graphty-org/graphty-monorepo/commit/629ab26b))
+- **algorithms:** convert a legacy Graph to a graph-format snapshot with a mutation counter ([a7b909c1](https://github.com/graphty-org/graphty-monorepo/commit/a7b909c1))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.7.3 (2026-09-20)
+
+This was a version bump only for algorithms to align it with other projects, there were no code changes.
+
 ## [1.3.1](https://github.com/graphty-org/algorithms/compare/v1.3.0...v1.3.1) (2025-12-16)
 
 ### Bug Fixes

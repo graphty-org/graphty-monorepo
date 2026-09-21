@@ -27,8 +27,10 @@
 # hook (.husky/pre-push -> pnpm run prepush:fast -> tools/prepush.sh) runs the
 # validation then.
 #
-# The plan below is tailored to one specific change set: the app shell work of
-# 2026-09. It is data, not machinery -- STEPS, SUBJECTS, PATHS and one body_*
+# The plan below is tailored to one specific change set: the P5 phase of the
+# WebGPU work (Fruchterman-Reingold and the spring-electrical preset, branch
+# feat/gpu-p5-p4, seventeen commits). It is data, not machinery --
+# STEPS, SUBJECTS, PATHS and one body_*
 # function each. Re-point it at the next change set rather than reusing the
 # messages, and read the diff before you write a message, not a summary of it.
 #
@@ -159,7 +161,7 @@ function they describe.
 BODY
 }
 
-body_tooling() {
+body_demo() {
     cat <<'BODY'
 The step list, the subjects and the paths describe this change set. The
 machinery -- the commitlint pre-validation, the temporary hooks directory that
@@ -256,8 +258,8 @@ fi
 CONVENTIONAL_TYPES='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'
 # Kept in step with commitlint.config.js's scope-enum, which is enforced at level 2:
 # a scope outside this list is rejected by the commit-msg hook, mid-run.
-VALID_SCOPES="algorithms layout graphty-element compact-mantine remote-logger graphty
-              gpu-3d-force-layout deps release ci docs tools workspace"
+VALID_SCOPES="graph-format graph-io webgpu-graph-algorithms algorithms layout graphty-element
+              compact-mantine remote-logger graphty gpu-3d-force-layout deps release ci docs tools workspace"
 # commitlint's body-max-line-length, from @commitlint/config-conventional.
 BODY_MAX_LINE=100
 SUBJECT_MAX=100

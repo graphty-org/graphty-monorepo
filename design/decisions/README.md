@@ -31,4 +31,14 @@ version of the code.
 | [2026-09-19-no-nightly-gpu-lane.md](2026-09-19-no-nightly-gpu-lane.md) | The GPU lane has no nightly cron |
 | [2026-09-19-bench-compare-min-confirms-median.md](2026-09-19-bench-compare-min-confirms-median.md) | A benchmark regression needs the minimum to confirm the median |
 | [2026-09-19-graphty-element-owns-webgpu.md](2026-09-19-graphty-element-owns-webgpu.md) | graphty-element owns WebGPU detection; the GPU package is an optional peer |
+| [2026-09-19-a1-lands-inside-m8a.md](2026-09-19-a1-lands-inside-m8a.md) | A1 lands inside phase M8a, together with the first six indexed ports |
+| [2026-09-19-afforest-needs-no-dedupe.md](2026-09-19-afforest-needs-no-dedupe.md) | Afforest WCC needs no `dedupe` |
 | [2026-09-19-land-element-graph-store.md](2026-09-19-land-element-graph-store.md) | The element graph store lands now; the rest of its refactor is respecified |
+| [2026-09-19-outweightsum-is-call-scratch.md](2026-09-19-outweightsum-is-call-scratch.md) | PageRank's `outWeightSum` is per-call scratch, not a residency entry |
+| [2026-09-19-pagerank-options-shadowing.md](2026-09-19-pagerank-options-shadowing.md) | The shadowed PageRankOptions stays until 2.0 |
+| [2026-09-19-pagerank-ping-pong-is-two-buffers.md](2026-09-19-pagerank-ping-pong-is-two-buffers.md) | PageRank ping-pongs two buffers, not two ranges of one |
+| [2026-09-19-spmv-pull-is-its-own-kernel.md](2026-09-19-spmv-pull-is-its-own-kernel.md) | `spmvPull` is its own kernel, not a `segmentedReduce` snippet |
+| [2026-09-19-spmv-tier-zero-only.md](2026-09-19-spmv-tier-zero-only.md) | `spmvPull` ships the thread-per-row tier only |
+| [2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md](2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md) | A Fruchterman-Reingold reheat restarts the temperature at 70% of the budget, not the iteration count |
+| [2026-09-20-spring-electrical-integrates-like-ngraph.md](2026-09-20-spring-electrical-integrates-like-ngraph.md) | The spring-electrical preset integrates like ngraph: semi-implicit Euler with a unit speed clamp |
+| [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](2026-09-20-spring-electrical-settles-by-the-shared-rule.md) | The spring-electrical preset settles by the shared rule, not by ngraph's absolute one |

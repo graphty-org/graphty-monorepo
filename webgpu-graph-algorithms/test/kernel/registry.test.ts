@@ -5,8 +5,8 @@
  * a body reads is a prelude constant, a standard override or a declared override, kernelSpec /
  * setKernelBodyOverride behave, the generated blocks have the byte layout of 3.10.2, and graphBindings /
  * graphOverrides apply the dummy rules. No device is touched (the setup file still loads Dawn once per worker).
- * The table below holds all ten ids of P1-P3: entries present in KERNELS are checked against it, and the five P1
- * ids must be present, so P2-T2 and P3-T2 extend the registry without editing this file.
+ * The table below holds all ten ids of P1-P3 and the seven P7 ids (design 8.10): entries present in KERNELS are
+ * checked against it, and the five P1 ids must be present.
  */
 
 import { PARTIAL_BYTES, STATE_HEADER_BYTES, TRACE_RECORD_BYTES } from "../../src/constants.js";
@@ -26,9 +26,13 @@ import {
     type KernelId,
     KERNELS,
     kernelSpec,
+    PR_PARAMS,
+    PR_PARTIAL,
     RANGE_PARAMS,
     REDUCE_PARAMS,
     setKernelBodyOverride,
+    SPMV_PARAMS,
+    WCC_PARAMS,
 } from "../../src/kernels.js";
 import { type CoreBinding } from "../../src/memory/residency.js";
 import { type Binding } from "../../src/types/memory.js";
@@ -47,8 +51,8 @@ interface ExpectedEntry {
     readonly uniforms: readonly UniformBlock[];
     readonly needs: readonly "subgroups"[];
     readonly snippetSlots: readonly string[];
-    readonly phase: "P1" | "P2" | "P3";
-    /** Storage-buffer count per stage (3.10.1: "degree 5, reduce 2, fill 1, segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2"). */
+    readonly phase: "P1" | "P2" | "P3" | "P7";
+    /** Storage-buffer count per stage (3.10.1: "degree 5, reduce 2, fill 1, segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2"; design 8.10: spmvPull 8, pr-scale 5, pr-finalize 1, Afforest link 3 / compress 1, sample 2; wcc-link-sample 5 = the graph slots + comp). */
     readonly storageCount: number;
 }
 
@@ -133,7 +137,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             [1, 2, "T", "storage", "array<Fa2Trace>"],
             [2, 0, "P", "uniform", "Fa2Params"],
         ],
-        overrideDecls: [],
+        overrideDecls: [["STATS_MODE", "u32", 0]],
         uniforms: [FA2_PARAMS, FA2_STATE, FA2_TRACE, FA2_PARTIAL],
         needs: ["subgroups"],
         snippetSlots: [],
@@ -151,6 +155,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             ["LINLOG", "bool", false],
             ["DISTRIBUTED", "bool", false],
             ["TIER", "u32", 0],
+            ["LAW", "u32", 0],
         ],
         uniforms: [FA2_PARAMS],
         needs: [],
@@ -173,6 +178,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             ["SWING_MODE", "u32", 0],
             ["STRONG_GRAVITY", "bool", false],
             ["GRAVITY_CENTER", "u32", 0],
+            ["LAW", "u32", 0],
         ],
         uniforms: [FA2_PARAMS, FA2_STATE, FA2_PARTIAL],
         needs: ["subgroups"],
@@ -206,7 +212,10 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             [1, 5, "partials", "storage", "array<Fa2Partial>"],
             [2, 0, "P", "uniform", "Fa2Params"],
         ],
-        overrideDecls: [["SWING_MODE", "u32", 0]],
+        overrideDecls: [
+            ["SWING_MODE", "u32", 0],
+            ["APPLY", "u32", 0],
+        ],
         uniforms: [FA2_PARAMS, FA2_STATE, FA2_PARTIAL],
         needs: ["subgroups"],
         snippetSlots: [],
@@ -225,6 +234,110 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         needs: [],
         snippetSlots: [],
         phase: "P3",
+        storageCount: 2,
+    },
+    "spmv-pull": {
+        entryPoint: "spmv_pull",
+        bindings: withGraph([
+            [1, 0, "xNorm", "storage-ro", "array<f32>"],
+            [1, 1, "rankOut", "storage", "array<f32>"],
+            [1, 2, "personalization", "storage-ro", "array<f32>"],
+            [1, 3, "partials", "storage-ro", "array<PrPartial>"],
+            [2, 0, "P", "uniform", "SpmvParams"],
+        ]),
+        overrideDecls: [
+            ["HAS_PERSONALIZATION", "bool", false],
+            ["USE_DANGLING", "bool", false],
+        ],
+        uniforms: [SPMV_PARAMS, PR_PARTIAL],
+        needs: [],
+        snippetSlots: [],
+        phase: "P7",
+        storageCount: 8,
+    },
+    "pr-scale": {
+        entryPoint: "pr_scale",
+        bindings: [
+            [1, 0, "rankIn", "storage-ro", "array<f32>"],
+            [1, 1, "rankPrev", "storage-ro", "array<f32>"],
+            [1, 2, "outWeightSum", "storage-ro", "array<f32>"],
+            [1, 3, "xNorm", "storage", "array<f32>"],
+            [1, 4, "partials", "storage", "array<PrPartial>"],
+            [2, 0, "P", "uniform", "PrParams"],
+        ],
+        overrideDecls: [["NORM_MODE", "u32", 0]],
+        uniforms: [PR_PARAMS, PR_PARTIAL],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P7",
+        storageCount: 5,
+    },
+    "pr-finalize": {
+        entryPoint: "pr_finalize",
+        bindings: [
+            [1, 0, "partials", "storage", "array<PrPartial>"],
+            [2, 0, "P", "uniform", "PrParams"],
+        ],
+        overrideDecls: [["NORM_MODE", "u32", 0]],
+        uniforms: [PR_PARAMS, PR_PARTIAL],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P7",
+        storageCount: 1,
+    },
+    "wcc-link-sample": {
+        entryPoint: "wcc_link_sample",
+        bindings: withGraph([
+            [1, 0, "comp", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "WccParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [WCC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P7",
+        storageCount: 5,
+    },
+    "wcc-link-edges": {
+        entryPoint: "wcc_link_edges",
+        bindings: [
+            [1, 0, "edgeSrc", "storage-ro", "array<u32>"],
+            [1, 1, "edgeDst", "storage-ro", "array<u32>"],
+            [1, 2, "comp", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "WccParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [WCC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P7",
+        storageCount: 3,
+    },
+    "wcc-compress": {
+        entryPoint: "wcc_compress",
+        bindings: [
+            [1, 0, "comp", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "WccParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [WCC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P7",
+        storageCount: 1,
+    },
+    "wcc-sample": {
+        entryPoint: "wcc_sample",
+        bindings: [
+            [1, 0, "comp", "storage", "array<atomic<u32>>"],
+            [1, 1, "hist", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "WccParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [WCC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P7",
         storageCount: 2,
     },
 };
@@ -546,7 +659,7 @@ const BLOCKS: readonly BlockRow[] = [
         block: FA2_PARAMS,
         name: "Fa2Params",
         layout: "uniform",
-        byteLength: 96,
+        byteLength: 128,
         offsets: [
             ["n", 0],
             ["dim", 4],
@@ -566,6 +679,14 @@ const BLOCKS: readonly BlockRow[] = [
             ["gridMax", 72],
             ["levels", 76],
             ["pad", 80],
+            ["frK", 96],
+            ["temperature", 100],
+            ["springLength", 104],
+            ["springCoefficient", 108],
+            ["coulomb", 112],
+            ["dragCoefficient", 116],
+            ["timeStep", 120],
+            ["pad1", 124],
         ],
     },
     {
@@ -590,7 +711,10 @@ const BLOCKS: readonly BlockRow[] = [
             ["settledCount", 100],
             ["outsideGrid", 104],
             ["maxCellOccupancy", 108],
-            ["reserved0", 112],
+            ["temperature", 112],
+            ["kineticEnergy", 116],
+            ["frEnergy", 120],
+            ["frProgress", 124],
             ["reserved1", 128],
             ["reserved2", 144],
             ["reserved3", 160],
@@ -614,7 +738,7 @@ const BLOCKS: readonly BlockRow[] = [
             ["meanDisplacement", 16],
             ["settledCount", 20],
             ["iteration", 24],
-            ["pad0", 28],
+            ["modelScalar", 28],
         ],
     },
     {
@@ -628,6 +752,70 @@ const BLOCKS: readonly BlockRow[] = [
             ["max", 32],
             ["swingTraction", 48],
             ["dispFree", 56],
+        ],
+    },
+    {
+        block: SPMV_PARAMS,
+        name: "SpmvParams",
+        layout: "uniform",
+        byteLength: 32,
+        offsets: [
+            ["n", 0],
+            ["arcBase", 4],
+            ["arcEnd", 8],
+            ["stride", 12],
+            ["alpha", 16],
+            ["beta", 20],
+            ["uniformP", 24],
+            ["pad0", 28],
+        ],
+    },
+    {
+        block: PR_PARAMS,
+        name: "PrParams",
+        layout: "uniform",
+        byteLength: 32,
+        offsets: [
+            ["n", 0],
+            ["groups", 4],
+            ["iteration", 8],
+            ["trackConvergence", 12],
+            ["convergeThreshold", 16],
+            ["pad0", 20],
+            ["pad1", 24],
+            ["pad2", 28],
+        ],
+    },
+    {
+        block: PR_PARTIAL,
+        name: "PrPartial",
+        layout: "storage",
+        byteLength: 32,
+        offsets: [
+            ["danglingMass", 0],
+            ["delta", 4],
+            ["firstConverged", 8],
+            ["iteration", 12],
+            ["norm", 16],
+            ["pad0", 20],
+            ["pad1", 24],
+            ["pad2", 28],
+        ],
+    },
+    {
+        block: WCC_PARAMS,
+        name: "WccParams",
+        layout: "uniform",
+        byteLength: 32,
+        offsets: [
+            ["n", 0],
+            ["items", 4],
+            ["stride", 8],
+            ["r", 12],
+            ["flagIndex", 16],
+            ["giant", 20],
+            ["maxSteps", 24],
+            ["pad0", 28],
         ],
     },
 ];

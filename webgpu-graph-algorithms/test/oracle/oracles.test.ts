@@ -2,8 +2,11 @@
  * Hand-computed checks of the two CPU references of P1 (spec 11.3 "CPU reference", 5.3): the out-degree oracle over
  * the karate club and small graphs, and the f64 reduce oracle over f32 / u32 / vec4f inputs incl. the identity
  * elements of the empty range; plus the pure reduce-input recipe (test/helpers/reduce-input.ts) that DEFINES the
- * reduce noise fixture, pinned here so P1-T6 / P1-T7 cannot drift from it. No device.
+ * reduce noise fixture, pinned here so P1-T6 / P1-T7 cannot drift from it; plus three hand-computed cases of the P5
+ * Fruchterman-Reingold reference (test/oracle/fruchterman-reingold.ts). No device.
  */
+
+import { makeMask, maskSet } from "@graphty/graph-format";
 
 import { type ReduceDtype } from "../../src/primitives/reduce.js";
 import { KARATE_EDGES, pathEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
@@ -16,6 +19,7 @@ import {
     reduceInput,
 } from "../helpers/reduce-input.js";
 import { outDegreeOracle } from "./degree.js";
+import { FruchtermanReingoldOracle } from "./fruchterman-reingold.js";
 import { reduceIdentity, reduceOracle } from "./reduce.js";
 
 const F32_MAX = 3.4028234663852886e38;
@@ -144,5 +148,68 @@ describe("reduceOracle (5.3): f64 sequential reduction", () => {
     it("a single element is returned exactly for every op", () => {
         expect(reduceOracle(Float32Array.from([0.30000001192092896]), "sum", "f32")).toBe(0.30000001192092896);
         expect(reduceOracle(Uint32Array.from([4294967295]), "max", "u32")).toBe(4294967295);
+    });
+});
+
+describe("FruchtermanReingoldOracle (spec 7.20; P5-T3 Step 1): hand-computed one-iteration cases", () => {
+    /** Two nodes at distance 0.5 on the x axis, k = 0.5; iterations 0 -> dt = 0.1, so t = 0.1 at index 0 and 0 after. */
+    const options = { precision: "f64", dim: 2, k: 0.5, iterations: 0, settleThreshold: 0.001 } as const;
+    const start = [0, 0, 0, 0.5, 0, 0];
+
+    it("no edge: k^2 / d = 0.5 repels each node; the cap t = 0.1 moves both 0.1 apart; the next temperature is 0", () => {
+        const s = snapshotOf([], { nodeCount: 2 });
+        const oracle = new FruchtermanReingoldOracle(s, start, options);
+        expect(oracle.temperature).toBe(0.1);
+        const record = oracle.step();
+        expect(record.temperature).toBe(0.1);
+        expect(Array.from(oracle.stages.attraction)).toEqual([0, 0, 0, 0, 0, 0]);
+        expect(Array.from(oracle.stages.repulsion)).toEqual([-0.5, 0, 0, 0.5, 0, 0]);
+        expect(Array.from(oracle.stages.force)).toEqual([-0.5, 0, 0, 0.5, 0, 0]);
+        expect(Array.from(oracle.stages.displacement)).toEqual([-0.1, 0, 0, 0.1, 0, 0]);
+        expect(Array.from(oracle.positions)).toEqual([-0.1, 0, 0, 0.6, 0, 0]);
+        expect(oracle.stages.partials.disp).toBeCloseTo(0.2, 15);
+        expect(oracle.stages.partials.free).toBe(2);
+        expect(oracle.temperature).toBe(0);
+        // the K1 fold of the next step reports the iteration above: mean displacement 0.1 over the two free rows
+        const next = oracle.step();
+        expect(next.temperature).toBe(0);
+        expect(next.meanDisplacement).toBeCloseTo(0.1, 15);
+        expect(next.centroid[0]).toBeCloseTo(0.25, 15);
+        expect(next.settledCount).toBe(0);
+        // at temperature 0 nothing moves
+        expect(Array.from(oracle.positions)).toEqual([-0.1, 0, 0, 0.6, 0, 0]);
+        expect(oracle.trace).toHaveLength(2);
+    });
+
+    it("joined by an edge: the attraction d^2 / k = 0.5 cancels the repulsion exactly; nothing moves", () => {
+        const s = snapshotOf([[0, 1]]);
+        const oracle = new FruchtermanReingoldOracle(s, start, options);
+        oracle.step();
+        expect(Array.from(oracle.stages.attraction)).toEqual([0.5, 0, 0, -0.5, 0, 0]);
+        expect(Array.from(oracle.stages.repulsion)).toEqual([-0.5, 0, 0, 0.5, 0, 0]);
+        expect(Array.from(oracle.stages.force)).toEqual([0, 0, 0, 0, 0, 0]);
+        expect(Array.from(oracle.stages.displacement)).toEqual([0, 0, 0, 0, 0, 0]);
+        expect(Array.from(oracle.positions)).toEqual(start);
+        const next = oracle.step();
+        expect(next.meanDisplacement).toBe(0);
+        expect(next.settledCount).toBe(1);
+    });
+
+    it("a fixed row never moves and is excluded from meanDisplacement", () => {
+        const s = snapshotOf([], { nodeCount: 2 });
+        const fixed = makeMask(2);
+        maskSet(fixed, 0, true);
+        const oracle = new FruchtermanReingoldOracle(s, start, { ...options, fixed });
+        oracle.step();
+        expect(Array.from(oracle.stages.displacement)).toEqual([0, 0, 0, 0.1, 0, 0]);
+        expect(Array.from(oracle.positions)).toEqual([0, 0, 0, 0.6, 0, 0]);
+        expect(oracle.stages.partials.free).toBe(1);
+        expect(oracle.stages.partials.disp).toBeCloseTo(0.1, 15);
+        const next = oracle.step();
+        expect(next.meanDisplacement).toBeCloseTo(0.1, 15);
+        // reheat restarts the temperature index at floor(0.7 * 0) = 0: the temperature is 0.1 again
+        oracle.reheat();
+        expect(oracle.temperature).toBe(0.1);
+        expect(oracle.settledCount).toBe(0);
     });
 });

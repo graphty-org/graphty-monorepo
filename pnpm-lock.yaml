@@ -203,6 +203,9 @@ importers:
 
   algorithms:
     dependencies:
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
       typedfastbitset:
         specifier: ^0.6.1
         version: 0.6.1
@@ -567,9 +570,6 @@ importers:
       '@jsonhero/schema-infer':
         specifier: ^0.1.5
         version: 0.1.5
-      '@logtape/logtape':
-        specifier: ^1.2.2
-        version: 1.3.5
       '@mlc-ai/web-llm':
         specifier: '>=0.2.0'
         version: 0.2.80
@@ -606,9 +606,6 @@ importers:
       ngraph.graph:
         specifier: ^20.0.1
         version: 20.1.1
-      on-change:
-        specifier: ^5.0.1
-        version: 5.0.1
       p-queue:
         specifier: ^8.1.1
         version: 8.1.1
@@ -702,6 +699,10 @@ importers:
         version: 3.2.7(@types/node@20.19.27)(@vitest/browser@3.2.7)(@vitest/ui@3.2.4)(happy-dom@20.14.3)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
 
   layout:
+    dependencies:
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^4.0.0
@@ -809,19 +810,19 @@ importers:
 
   webgpu-graph-algorithms:
     dependencies:
-      '@graphty/algorithms':
-        specifier: ^1.0.0
-        version: 1.7.2
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
-      '@graphty/layout':
-        specifier: ^1.0.0
-        version: 1.6.2
       '@webgpu/types':
         specifier: ^0.1.72
         version: 0.1.72
     devDependencies:
+      '@graphty/algorithms':
+        specifier: workspace:^
+        version: link:../algorithms
+      '@graphty/layout':
+        specifier: workspace:^
+        version: link:../layout
       '@vitest/browser':
         specifier: ^3.2.7
         version: 3.2.7(playwright@1.57.0)(vite@7.3.6(@types/node@20.19.27)(jiti@2.6.1)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@3.2.7)
@@ -834,6 +835,12 @@ importers:
       fast-check:
         specifier: ^4.2.0
         version: 4.5.2
+      ngraph.forcelayout:
+        specifier: ^3.3.1
+        version: 3.3.1
+      ngraph.graph:
+        specifier: ^20.0.1
+        version: 20.1.1
       playwright:
         specifier: ^1.54.1
         version: 1.57.0
@@ -2221,13 +2228,6 @@ packages:
   '@github/catalyst@1.7.0':
     resolution: {integrity: sha512-qOAxrDdRZz9+v4y2WoAfh11rpRY/x4FRofPNmJyZFzAjubtzE3sCa/tAycWWufmQGoYiwwzL/qJBBgyg7avxPw==}
 
-  '@graphty/algorithms@1.7.2':
-    resolution: {integrity: sha512-MfDm350ugiSYfVn+DhM91tlX7+BPvi7u6F6CxN5DbPVP/Ve68lzwZdBOP78dL3fZEdM5Fhgn66ftmalw1gSQrQ==}
-    engines: {node: '>=18.19.0'}
-
-  '@graphty/layout@1.6.2':
-    resolution: {integrity: sha512-1HaMYlK6KiqbGmSDN0iUA+VUuHGZoi2JF3+xS/aoa2cHRdF1wwlD9FTuZREny/fSXDJ8hD6pDul3LD3e6fL6Fg==}
-
   '@graphty/webgpu-graph-algorithms@0.2.1':
     resolution: {integrity: sha512-+gdNUn9q4PwdAyvaDROTUE3cbU/3fcmv8rOOyA6OjPIvNeiiZTC8Xpr7kE0gZHR/ung8cZPpdlBjEmD/uDRUkQ==}
     engines: {node: '>=18.19.0'}
@@ -2342,9 +2342,6 @@ packages:
 
   '@lit/reactive-element@2.1.2':
     resolution: {integrity: sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A==}
-
-  '@logtape/logtape@1.3.5':
-    resolution: {integrity: sha512-G+MxWB7Tbv/2764519+Cp6rKXUdRbe/GiRwTvlm/Wv/sNsiquRnx9Hzr9eXaIpAYLT4PrBlkthjJ4gmqdSPrFg==}
 
   '@mantine/core@8.3.10':
     resolution: {integrity: sha512-aKQFETN14v6GtM07b/G5yJneMM1yrgf9mNrTah6GVy5DvQM0AeutITT7toHqh5gxxwzdg/DoY+HQsv5zhqnc5g==}
@@ -3778,7 +3775,7 @@ packages:
   '@storybook/test@8.6.14':
     resolution: {integrity: sha512-GkPNBbbZmz+XRdrhMtkxPotCLOQ1BaGNp/gFZYdGDk2KmUWBKmvc5JxxOhtoXM2703IzNFlQHSSNnhrDZYuLlw==}
     peerDependencies:
-      storybook: ^9.1.19
+      storybook: ^8.6.17
 
   '@storybook/test@8.6.18':
     resolution: {integrity: sha512-u/RwfWMyHcH0N2hqfMTw2CoZ58IXdeED3b8NmcHc8bmERB3byI5vVAkwYbcD7+WeRHIiym38ZHi0SRn+IpkO3Q==}
@@ -7974,10 +7971,6 @@ packages:
     resolution: {integrity: sha512-gXah6aZrcUxjWg2zR2MwouP2eHlCBzdV4pygudehaKXSGW4v2AsRQUK+lwwXhii6KFZcunEnmSUoYp5CXibxtA==}
     engines: {node: '>= 0.4'}
 
-  on-change@5.0.1:
-    resolution: {integrity: sha512-n7THCP7RkyReRSLkJb8kUWoNsxUIBxTkIp3JKno+sEz6o/9AJ3w3P9fzQkITEkMwyTKJjZciF3v/pVoouxZZMg==}
-    engines: {node: '>=18'}
-
   on-finished@2.4.1:
     resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
     engines: {node: '>= 0.8'}
@@ -11923,12 +11916,6 @@ snapshots:
 
   '@github/catalyst@1.7.0': {}
 
-  '@graphty/algorithms@1.7.2':
-    dependencies:
-      typedfastbitset: 0.6.1
-
-  '@graphty/layout@1.6.2': {}
-
   '@graphty/webgpu-graph-algorithms@0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)':
     dependencies:
       '@graphty/graph-format': link:graph-format
@@ -12044,8 +12031,6 @@ snapshots:
   '@lit/reactive-element@2.1.2':
     dependencies:
       '@lit-labs/ssr-dom-shim': 1.5.0
-
-  '@logtape/logtape@1.3.5': {}
 
   '@mantine/core@8.3.10(@mantine/hooks@8.3.10(react@19.2.3))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
@@ -19090,8 +19075,6 @@ snapshots:
       call-bound: 1.0.4
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
-
-  on-change@5.0.1: {}
 
   on-finished@2.4.1:
     dependencies:

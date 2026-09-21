@@ -54,10 +54,10 @@ webgpu-graph-algorithms/
 |   +-- memory/                   # upload-plan.ts, residency.ts, buffer-pool.ts, readback.ts, lease.ts
 |   +-- kernel/                   # wgsl.ts (composeWgsl), prelude.ts, struct-block.ts, pipeline-cache.ts, kernel.ts, dispatch.ts, uniform-ring.ts, batch.ts, profiler.ts
 |   +-- kernels.ts                # THE registry of every WgslModuleSpec (the only importer of src/wgsl/**)
-|   +-- wgsl/                     # <name>.wgsl.ts: kernel BODIES only (no @group, no override lines)
-|   +-- primitives/               # reduce.ts (P1), segmented-reduce.ts (P2); the section 6 primitives each phase pulls in
-|   +-- algorithms/               # degree.ts (P1), the walking-skeleton diagnostic; the section 8 families from P7
-|   +-- layouts/                  # repulsion-exact.ts (P1), seed.ts, inputs.ts, force-simulation.ts, forceatlas2.ts (P3)
+|   +-- wgsl/                     # <name>.wgsl.ts: kernel BODIES only (no @group, no override lines); seventeen: the P1-P3 ten plus the seven of P7 (spmv-pull, pr-scale, pr-finalize, wcc-link-sample, wcc-link-edges, wcc-compress, wcc-sample -- the package's first atomics); P5 adds no body, only the `LAW` / `APPLY` / `STATS_MODE` override branches of K1, K2, K3, K5 inside the four FA2 bodies
+|   +-- primitives/               # reduce.ts (P1), segmented-reduce.ts (P2), core-shape.ts + spmv.ts (P7: prepareSpmvPull, thread-per-row tier only); the section 6 primitives each phase pulls in
+|   +-- algorithms/               # degree.ts (P1, the walking skeleton); from P7 no longer one file: scope.ts (the per-call scratch scope), pagerank.ts (pageRank, personalizedPageRank), power-iteration.ts (the shared driver), spectral.ts (hits, eigenvectorCentrality, katzCentrality), components.ts (connectedComponents, Afforest)
+|   +-- layouts/                  # repulsion-exact.ts (P1), seed.ts, inputs.ts, force-simulation.ts, forceatlas2.ts (P3), model-common.ts, fruchterman-reingold.ts, spring-electrical.ts (P5)
 |   +-- accelerator.ts            # createAccelerator(ctx, options?)
 |   +-- browser/index.ts          # the ./browser entry: the ONLY directory that may reference navigator
 |   +-- node/index.ts             # the ./node entry: the ONLY file that names the "webgpu" module, inside a dynamic import()
@@ -68,10 +68,10 @@ webgpu-graph-algorithms/
 |   +-- setup/browser-commands.d.ts  # BrowserCommands augmentation + ImportMetaEnv keys (a MODULE: `export {}` first)
 |   +-- helpers/ oracle/ fixtures/   # test-side helpers, the f64 CPU references, committed fixtures
 |   +-- device/ memory/ kernel/ primitives/ algorithms/ layouts/ sabotage/   # the node project
-|   +-- limits/                   # the node-limits project (GPU lane only; P4)
+|   +-- limits/                   # the node-limits project (GPU lane only): pagerank-1m.test.ts, the T-8 fixture (P7)
 |   +-- browser/                  # the browser smoke project
 |   +-- types/*.test-d.ts  index.test.ts  build-output.test.ts  layers.test.ts  errors.test.ts
-+-- benchmarks/                   # run.ts (tsx), harness.ts, datasets.ts, upload / roundtrip / layout-exact .bench.ts, layout-run.ts (the end-to-end driver), results/<runner-class>.json and noise-floor.json (checked in), out/ (gitignored)
++-- benchmarks/                   # run.ts (tsx), harness.ts, datasets.ts, upload / roundtrip / layout-exact / pagerank / wcc .bench.ts, layout-run.ts (the end-to-end driver), results/<runner-class>.json and noise-floor.json (checked in), out/ (gitignored)
 +-- docs/                         # HEADLESS_GPU_REPORT.md, research/, decisions/G<n>.md
 ```
 
@@ -117,6 +117,9 @@ that `scripts/gpu-report.js` and `scripts/bench-compare.js` also use, so the fil
 | `upload`       | `residency.core` of the 100k / 1M and 1M / 10M weighted hot prefixes                                                                                                                                                                                                                                                                                                                                                                                                                                           | T-1                                                                                   |
 | `roundtrip`    | `degree` + 400 KB readback at 100k; an empty submit + 4-byte `readU32`                                                                                                                                                                                                                                                                                                                                                                                                                                         | T-2, T-3                                                                              |
 | `layout-exact` | one `createForceAtlas2` simulation per rung of the exact ladder 1k / 4k / 8k / 16k / 32k / 65k (E = 10n, 2D, `repulsion: "exact"`) plus the 10k frame rung; an untimed clock warm-up burst (>= 500 ms of back-to-back `step(1)`), then `step(1)` after an untimed `reheat()`; two rows per rung: `step(1) wall n=<n> ...` (one iteration + `toScene` + the 12n readback) and `ms/iteration (profiler\|wall) n=<n> ...` (`stats.msPerIteration`: the GPU time of the passes when `timestamp-query` was granted) | T-4 (the `ms/iteration` rows at 10k and 16k), the Node side of T-5 (the 10k wall row) |
+| `pagerank`     | `pageRank` with `{ maxIterations: 100, tolerance: 0 }` (all 100 iterations; at the NetworkX tolerance the seeded G(n, m) input converges in one to four), wall end to end including the upload, at 10k / 100k, 100k / 1M and 1M / 10M | T-8 (the 100k / 1M and 1M / 10M rows) |
+| `wcc`          | `connectedComponents` wall end to end including the upload and the label readback, at 100k / 1M and 1M / 10M | T-9 (the 1M / 10M row) |
+| `layout-fr`    | one `createFruchtermanReingold` and one `createSpringElectrical` simulation per rung 10k / 100k (E = 10n, 2D, `repulsion: "exact"`), the same warm-up burst and `reheat()` + `step(1)` protocol as `layout-exact`; four rows per rung: `fr` / `se` x `step(1) wall` / `ms/iteration` | T-14 (the two `fr ms/iteration` rows) |
 
 The checked-in baselines live in `benchmarks/results/<runner-class>.json` (the dev box: `nvidia-lovelace-driver580.json` --
 Dawn spells the RTX 4070 SUPER's architecture `lovelace`; the GPU lane: `gpu-linux-t4.json`, fixed by
@@ -146,9 +149,12 @@ exits 1 on a non-finite position or a run that neither settled nor reached `maxI
 but labels its timings as not representative. The measured numbers and the missed targets are in `docs/decisions/G1.md`
 (P1) and `docs/decisions/G3.md` (P3).
 
-@graphty/graph-format must be built before this package's tests or build run (pnpm's workspace symlink
-resolves its `exports` to `dist/`; tsc resolves its sources through `paths`). From the workspace root
-`pnpm -r run build:all` orders the packages correctly.
+@graphty/graph-format AND @graphty/layout must be built before this package's tests or build run: pnpm's
+workspace symlink resolves graph-format's `exports` to `dist/` and tsc resolves its sources through `paths`;
+both tsconfigs resolve `@graphty/layout` to `../layout/dist/layout.d.ts` (the BUILT declarations, W1b) and
+`test/layouts/seed-cross.test.ts` and `test/layouts/fa2-layout-oracle.test.ts` import its built barrel. From
+the workspace root `pnpm exec nx run-many -t build --projects=graph-format,layout` does it, and
+`pnpm -r run build:all` orders every package correctly.
 
 The dev box needs the extracted libEGL tree for BOTH Dawn-node and headless Chromium to see the NVIDIA GPU
 (`docs/HEADLESS_GPU_REPORT.md` appendix D): `LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu`
@@ -245,7 +251,7 @@ reads an environment variable):
 | `GRAPHTY_GPU_REQUIRE`                     | `any`                                                       | `nvidia`                                                | unset (skip with reason) or `hardware`                                                                                                                                                       |
 | `GRAPHTY_BROWSER_GPU`                     | `swiftshader` (flag set)                                    | `nvidia` (flag set)                                     | `nvidia`; the host lane (hosts.yml) uses `metal` on macos-latest (Chromium on Dawn's Metal backend) and `warp` on windows-latest (the full Chromium build on Dawn's D3D12 backend over WARP) |
 | `GRAPHTY_BROWSER`                         | unset (chromium)                                            | unset                                                   | unset; `webkit` runs the browser project in Playwright's WebKit (the host lane's Safari proxy, a spike step until it is known to expose WebGPU)                                              |
-| `GRAPHTY_GPU_NO_SUBGROUPS`                | a second pass over `test/primitives test/layouts` with `1`  | a second pass over the whole `node` project with `1`    | unset (the twins are also tested in-process)                                                                                                                                                 |
+| `GRAPHTY_GPU_NO_SUBGROUPS`                | a second pass over `test/primitives test/layouts test/algorithms` with `1` | a second pass over the whole `node` project with `1`    | unset (the twins are also tested in-process)                                                                                                                                                 |
 | `GRAPHTY_DAWN_FEATURES`                   | unset                                                       | unset                                                   | optional Dawn toggles                                                                                                                                                                        |
 | `GRAPHTY_EGL_LIB_DIR` / `LD_LIBRARY_PATH` | --                                                          | unset (the partner image has `libegl1`; verified at G0) | the extracted tree (`docs/HEADLESS_GPU_REPORT.md` appendix D)                                                                                                                                |
 | `GRAPHTY_RUNNER_CLASS`                    | unset                                                       | `gpu-linux-t4`                                          | unset                                                                                                                                                                                        |
@@ -371,10 +377,23 @@ measured it):
 | Dawn on Metal (dawn-node 0.4.0) and a staging buffer unmapped or destroyed while its mapAsync is pending             | the macOS node run lost its vitest worker (tinypool's `Channel closed`) in four runs of seven: once at `test/memory/readback.test.ts` (destroyAll() with a read pending) and three times at `test/layouts/force-simulation.test.ts` "device loss disposes the simulation" (device.destroy() with two heavy batches in flight); the one-batch device-loss tests pass. The crash report of run 35135772420 (`scripts/print-crash-reports.mjs`): SIGSEGV in `v8impl::ConcludeDeferred` <- `Napi::Promise::Deferred::Reject` <- `wgpu::binding::AsyncRunner::Reject(...)::$_0` from a setImmediate -- a pending mapAsync promise concluded TWICE. dawn-node settles it synchronously when the buffer is unmapped or destroyed (`GPUBuffer::DetachMappings`) and again, deferred to a setImmediate, when Dawn's map callback arrives; on the Vulkan backends the callback has already run inside `device.destroy()`, on Metal it arrives after the device-lost fan-out, and `CommandBatch` returned (unmapped) its slot as soon as the loss won the race against the map. Rule (contract CONTRACT DECISION RB-1): a staging buffer whose map is pending is never unmapped and never destroyed -- every map on a slot goes through the ring (`read()` / `mapSlot`), which defers a returnSlot or destroyAll that arrives during it to the settle, and the batch lets the map settle (bounded by LOSS_GRACE_MS) before returning the slot                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | runs 35118525921, 35124900751, 35127087672, 35135772420 (the crash report); `src/memory/readback.ts`, `src/kernel/batch.ts`                                                                      |
 | WebKit (Safari 26 on iPadOS / macOS, Metal) and pipeline constants                                                   | `createComputePipeline` fails with `Compute library failed creation` whenever `constants` names an `override` the entry point never reads (`HAS_WEIGHTS` in `degree`, `TIER` in the thread-per-row `segmented-reduce` / `fa2-attraction`, an unused module override in a minimal body); constants for read overrides compile (`SWING_MODE`, `STRONG_GRAVITY`, `OP`, ...). The spec allows unused constants ("validating GPUProgrammableStage": the constant is not required to be statically used by the entry point), so this is a WebKit bug; `composeWgsl` returns `constants` = the referenced subset and `PipelineCache` supplies only those (`ComposedModule.constants`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `demo/compile.html` on an iPad (68 of 111 matrix cases red before the fix, all bisect variants with unread constants red, `bisect:no-overrides` green), 2026-09-16                               |
 
+### Settled at G5 (P5-T11; the evidence is docs/decisions/G5.md)
+
+| Fact | Value | Evidence |
+| --- | --- | --- |
+| The FR stage noise floors (one iteration vs the f64 oracle, the recorded `fr-*.oracle-f64` rows) | attraction 6.348e-7, force 2.388e-5, partials 2.670e-7, displacement 1.991e-5, positions and scene 4.208e-6, k1 2.086e-7 (random1k at `k: 0.3`, the worse-conditioned case); the whole-project maxima NVIDIA / lavapipe: force 2.150e-5 / 6.368e-7, displacement 1.854e-5 / 6.050e-7, positions 3.918e-6 / 1.193e-7, k1 4.071e-7 / 4.584e-7 | `benchmarks/results/noise-floor.json`; `[fr-inspect]` lines of `tmp/p5/t11/node-{nvidia,lavapipe-cov}.log` |
+| The spring stage noise floors (the recorded `se-*.oracle-f64` rows) | attraction 9.843e-7, force 6.299e-6 (maxAbsError 3.887e+1: ngraph's `gravity -12` on a unit-square start), velocity 9.786e-6, displacement 9.762e-6, positions and scene 2.632e-5, partials 4.348e-6, k1 4.392e-6; the maxima NVIDIA / lavapipe: positions 1.803e-5 / 3.666e-7, velocity 6.710e-6 / 3.372e-7, k1 4.392e-6 / 4.116e-6 | the same files, `[se-inspect]` lines |
+| T-14 on the RTX 4070 SUPER (`layout-fr`, GPU ms per iteration, profiler, E = 10n, 2D, exact tier) | FR 0.617 ms at 10k (1.05x the FA2 T-4 row of the same session), 16.367 ms at 100k; the spring preset 0.648 ms and 18.154 ms (1.11x FR at 100k); the T4 lane (`gpu-linux-t4.json` session 2026-09-21T01:43:35.026Z, gpu.yml run 35550805914): FR 0.942 ms at 10k (0.96x its FA2 T-4 row of 0.980 ms), 54.232 ms at 100k; the spring preset 1.051 ms and 60.706 ms (1.12x FR at 100k) | `benchmarks/results/nvidia-lovelace-driver580.json` session 2026-09-20T19:25:37.311Z |
+| The 150 / 249 story graph under the spring preset (ngraph's defaults, the shared 7.17 settle rule) | settles at 496 iterations on NVIDIA (Dawn and Chromium), 480 on lavapipe and SwiftShader; ngraph's own `step()` reports stable at 346 steps; edge-length q10 / q50 / q90 GPU 10.93 / 15.01 / 20.94 (NVIDIA), 11.47 / 15.17 / 21.18 (lavapipe) vs ngraph 10.87 / 15.30 / 20.70, worst 1.94% / 5.55% against the 25% gate | `test/layouts/se-settle.test.ts`, `test/browser/spring-layouts.test.ts` |
+| The lavapipe node project with coverage after P5 (93 files, 1835 cases) | 241 s wall (vitest `Duration` 239.32 s; 66.5 s for the 71-file tree before P5) against the 900 s lane budget T-12 at the default fork count, where the process exits 1 on a vitest-worker `onTaskUpdate` RPC timeout with every test green (a saturation effect of 32 forks x lavapipe's thread pool under coverage: 298 s and exit 0 at the CI-like `--maxWorkers=3`, 59 s and exit 0 without `--coverage`; G5.md finding G5-F2); the P5 property suites alone sum to 61.0 s (FR) + 43.1 s (spring) of case time on lavapipe, 8.5 s + 8.1 s on NVIDIA | `tmp/p5/t11/node-lavapipe-cov.log`, G5.md finding G5-F2 |
+| The compile matrix in Chromium after PD-9 (P1 37 -> 53 cases, P3 22 -> 61) | 22.894 s on SwiftShader, 0.767 s on the RTX 4070 SUPER (`test/browser/compile-matrix.test.ts`, 20 cases); the node override-matrix check reads 298 distinct pipeline keys, all covered | `tmp/p5/t11/browser-{swiftshader,nvidia}.log` |
+| The P5 sabotage set (25 rows over the four branch groups) | every row >= 10x on both adapters; the smallest ratio 1.308e+3 (`euler-mass-ignored`, a trace row: through one iteration the mutant is bitwise the pristine kernel because the unit speed clamp hides the mass) | `test/sabotage/fr.test.ts`, `test/sabotage/se.test.ts` |
+
 ## Adding an Algorithm / a Kernel
 
-1. Types: add the option / result types to `src/types/` (types only; structural mirrors of the CPU packages
-   until W1, D27).
+1. Types: add the option / result types to `src/types/` (types only). The LAYOUT types are imported from
+   `@graphty/layout` and re-exported since W1b; the `@graphty/algorithms` ones are still structural mirrors
+   until A2/M8a (D27).
 2. Body: `src/wgsl/<name>.wgsl.ts` exporting `<name>Wgsl` -- the body only, written to the uniformity and
    precedence rules; no `@group(`, no `override `, constants interpolated from `src/constants.ts`.
 3. Registry: one `WgslModuleSpec` entry in `src/kernels.ts` with its `bindings` (group 0 graph / 1 state /
@@ -400,12 +419,16 @@ options?) => Promise<Result>`, index-aligned typed arrays, no id mapping); every
 The shared state machine is `ForceSimulation` (`src/layouts/force-simulation.ts`: buffers, in-flight batches, the
 readback into the owner's stride-3 array, the settle window, the fixed mask, the `setPosition` override list, the
 trace, `run()`); a layout is a `ForceModel<Options, Stats>` it consumes by composition (spec 7.19; contract 3.13).
-`ForceAtlas2Model` (`src/layouts/forceatlas2.ts`) is the reference; the FR model of P5 and the spring-electrical
-preset follow the same steps:
+`ForceAtlas2Model` (`src/layouts/forceatlas2.ts`) is the reference; `FruchtermanReingoldModel`
+(`src/layouts/fruchterman-reingold.ts`) and `SpringElectricalModel` (`src/layouts/spring-electrical.ts`) landed with
+P5 (`docs/decisions/G5.md`) by the same steps, as override branches of the four FA2 kernels rather than new bodies
+(`LAW` on K2 / K3, `APPLY` on K5, `STATS_MODE` on K1; the shared option and value helpers are `model-common.ts`).
+A further model follows the same steps:
 
-1. Types: the option record in `src/types/options.ts` (the CPU package's names and defaults, every field
-   `?: T | undefined`; plus its `Resolved<Model>Options`), the stats record extending `LayoutStatsBase` in
-   `src/types/layout.ts`, and the method on the `LayoutAccelerator` mirror in `src/types/accelerator.ts`.
+1. Types: since W1b the option record and the `LayoutAccelerator` method are @graphty/layout's to add FIRST --
+   `layout/src/simulation/types.ts` -- and this package re-exports them from `src/types/options.ts` and
+   `src/types/accelerator.ts`; add only the package's own `Resolved<Model>Options` here, plus the stats record
+   extending `LayoutStatsBase` in `src/types/layout.ts`. test/types/conformance.test-d.ts is the cross-check.
 2. Kernels: the bodies in `src/wgsl/<model>-*.wgsl.ts` and their registry entries in `src/kernels.ts` (group 0
    the graph through `graphBindings` / `graphOverrides`, group 1 the model state, group 2 the params slot of the
    `UniformRing` with a dynamic offset; reuse `fill` for zeroing and `fa2-to-scene` for the scene unpack when

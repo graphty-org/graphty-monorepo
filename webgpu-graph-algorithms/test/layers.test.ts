@@ -438,4 +438,19 @@ describe("eslint zones (contract 2.4: flat config replaces rule options, so both
         expect(options.patterns?.length).toBe(1);
         expect(options.patterns?.[0]?.allowTypeImports).toBe(true);
     });
+
+    // W1b (Task M5b-T2) gave options.ts the same allowance so it can `import type` the five layout-owned option
+    // records. Nothing else pins it: the allowance lives in TWO blocks (the restrictive one must stop matching the
+    // file AND the permissive one must start), and flat config replaces rule options rather than merging them, so
+    // half the edit silently leaves the import erroring.
+    it("src/types/options.ts carries the CPU-package paths with allowTypeImports (W1b)", async () => {
+        const eslint = new ESLint({ cwd: PACKAGE_ROOT });
+        const options = await restrictedImportsOptions(eslint, "src/types/options.ts");
+        expect((options.paths ?? []).map((p) => p.name).sort()).toEqual(["@graphty/algorithms", "@graphty/layout"]);
+        for (const p of options.paths ?? []) {
+            expect(p.allowTypeImports, p.name).toBe(true);
+        }
+        expect(options.patterns?.length).toBe(1);
+        expect(options.patterns?.[0]?.allowTypeImports).toBe(true);
+    });
 });

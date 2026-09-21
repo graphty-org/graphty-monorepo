@@ -4859,3 +4859,278 @@ design 13.5 rule 3 was corrected in place and its decision log gained a
 17.7 entry (D-F2-GATE, D-PEER-1X, D-RULE5-CHECK). The cut did NOT wait for
 the A1 branch that 14.6 gates it on -- A1 has not started; it was cut on
 graph-io, this package and layout's L1-sim instead.
+
+L1-sim landed 2026-09-18 (phase M5 of
+`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, branch
+`feat/layout-simulation`; the date is the Chromatic re-baseline commit's):
+`layout/src/simulation/` per 9.3, re-exported from the layout barrel --
+`LayoutSimulation`, `SimulationOptions`, `CommonLayoutOptions`,
+`ForceAtlas2Options`, `FruchtermanReingoldOptions`, `SpringElectricalOptions`,
+`LayoutAccelerator`, `SimulationType`, `createSimulation`,
+`ForceAtlas2Simulation`, `FruchtermanReingoldSimulation`, `resolveNodeVector`,
+`resolveWeights`, `seedPositions` (with the `Lcg` it draws from) and the
+minimal `toLayoutSnapshot` the legacy wrappers need; the other thirteen
+layouts are not ported to `indexed.*` (graph-format design 14.3's own work).
+The CPU `ForceAtlas2Simulation` is a COPY of the oracle's formulas
+(`webgpu-graph-algorithms/test/oracle/forceatlas2.ts`, the SPEC of the class
+per 11.3 and the P3 row), not a move: the oracle stays in the GPU package as
+its independent reference (integration plan DEP-E, D-16; two transcriptions of
+table 7.2 remain the R-1 mitigation). The port keeps the oracle's K1-K5 stage
+order, `estimateFactor`, `kickDir`, the 256-lane fold order and the
+per-formula citations, drops the f32 mode, the trace and the inspection
+instrumentation, resolves its inputs by graph-format role (D28), and checks
+its `compat: "networkx"` mode against the NetworkX fixtures the GPU package
+pins (11.4 oracle independence). Both CPU simulations settle by the 7.17 rule
+-- `iterationsDone >= maxIter || settledCount >= settleWindow`, the counter
+fed by the mean free-node displacement against the RMS radius about the
+centroid, an empty graph settled at once and an all-fixed layout after
+`settleWindow` iterations (FR) or `settleWindow + 1` (FA2, whose K1 folds the
+previous integrate) -- follow 7.12 / D8 for pins, drags and `reheat()`
+(FA2's speed controller is reset by `load()` only; FR's `reheat()` restarts
+the temperature index at `floor(0.7 * iterations)`, 7.20), and run in layout
+units behind the owner's stride-3 scene-unit array (7.18). The dispatcher
+`createSimulation` is as 9.3 writes it: the accelerator's method when present,
+else the CPU class; `"spring-electrical"` throws without an accelerator; a
+thrown accelerator error propagates. The legacy `forceatlas2Layout` is a
+one-shot wrapper over the simulation (integration plan D-17). Graph-format
+design 14.3 is amended by its 17.6 entry (DEPARTURE-3 and DEPARTURE-7), as
+CHECK-R3 and REPAIR-1 scheduled for the L1 PR.
+
+W1b landed 2026-09-18 (phase M5b of
+`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`; the date is
+the commit's), the LAYOUT half of W1. The five amendments 1.5 declares against
+the graph-format design and 9.8's W1 row schedules here are now in that
+document's decision log as section 17.8 -- D-NODE-FIRST (DEPARTURE-1),
+D-ARENA-HOT (-2), D-RESIDENCY (-4), D-INJECT (-5), D-TOL-1E4 (-6) -- appended
+after section 18 like 17.6 and 17.7, with 10.3, 14.5, 14.6, 16.2 and 16.7 left
+untouched in place. DEPARTURE-3 and -7 were already recorded by 17.6 in the L1
+PR, so 1.5 is fully discharged. Three stale citations recorded here rather than
+edited in place: DEPARTURE-6 cites "16.2 line 4545" and the 1.3 table gives
+"16.2 (4535-4551)" and "16.6 (4622-4641)"; 15.6 was inserted at the F1 landing,
+so those are now 16.2 line 4594, 16.2 (4583-4599) and 16.6 (4670-4689). The
+integration plan's Task M5b-T4 had called the new section "17.6"; that number
+belongs to the L1-sim entry and 17.7 had already reserved 17.8, which is what
+landed, and the plan was corrected to 17.8 in the same commit. The package's
+`@graphty/layout` peer range is `^1.7.0`, not D27's `^1.0.0`: the published
+d.ts now imports the seam's interfaces, which only the layout release carrying
+them ships.
+
+The mirrors are gone: `src/types/accelerator.ts` and `src/types/options.ts` now
+`import type` `LayoutAccelerator`, `LayoutSimulation`, `CommonLayoutOptions`,
+`ForceAtlas2Options`, `FruchtermanReingoldOptions`, `SimulationOptions` and
+`SpringElectricalOptions` from `@graphty/layout` and re-export them, as D27 says
+they do at W1; `ResolvedForceAtlas2Options` stays the package's own. The package
+gains `@graphty/layout` as a `workspace:^` devDependency, `project.json` loses
+the `!layout` negation because the project-graph edge is real now (integration
+plan D-19; Q-29's coupling accepted -- every layout release now patch-bumps this
+package), and both tsconfigs resolve `@graphty/layout` to
+`../layout/dist/layout.d.ts`, the BUILT declarations: layout compiles with
+`noUnusedLocals` / `noUnusedParameters` off, and under `composite: true` a source
+mapping would force 56 layout source files into `include` (55x TS6307 without
+it), while a `.d.ts` never triggers that check. `skipLibCheck` (tsconfig.base.json
+line 9) is what keeps layout's whole declaration tree clean under the
+strict-consumer flags it never compiles with itself. `test/types/conformance.test-d.ts`
+is CREATED here and STAYS: 9.8's W1 row, the P10 row and D27 all say it is
+"retired" at W1, but G10 requires its `expectTypeOf` cross-compile and nothing in
+`src/` carries an `implements LayoutAccelerator` clause to do the checking
+instead -- only `src/layouts/force-simulation.ts` implements the simulation
+(integration plan D-9). Its algorithms half waits for the first A2 commit (Phase
+M8a), which also removes the `!algorithms` negation and retires
+`CpuAlgorithmOptions`.
+
+Layout's `ForceAtlas2Simulation` is the SECOND FA2 REFERENCE, not an independent
+one: `layout/src/simulation/forceatlas2.ts` lines 2-6 call it "a PORT of the GPU
+package's f64 reference, webgpu-graph-algorithms/test/oracle/forceatlas2.ts ...
+the oracle's line for line", and lines 13-15 call the pair "the two f64
+transcriptions". `test/layouts/fa2-layout-oracle.test.ts` therefore catches
+transcription, shell, unit-conversion and option-resolution divergence between
+the two copies -- it holds the GPU within `fa2-trace-parity.f64` (5e-2) of it on
+karate / grid10 / random1k at `gpuScale()` after k = 1 and k = 5 from the same
+f32 seed in the same `compat` (and k = 10 in `networkx`), and at k = 50 asserts
+only run-to-run bitwise determinism and finiteness, printing the accuracy leg
+(G3-F3). The existing oracle tests are untouched and `test/oracle/forceatlas2.ts`
+stays as the independent reference R-1 and G10 rely on (integration plan DEP-E,
+D-16). `test/layouts/seed-cross.test.ts` pins the last shared piece:
+`seedPositions` and `Lcg` from `src/layouts/seed.ts` and from `@graphty/layout`
+write BIT-IDENTICAL `Float32Array`s over seeds 1 / 7 / 42 / 123456, dims 2 and 3,
+scale 1 and 5, a null and a non-null centre, both draw ranges, and an all-NaN and
+a half-finite input. The two copies are line-for-line identical except four
+argument-validation throw sites, where the GPU throws
+`WebGpuGraphError("E_INVALID_ARGUMENT")` and layout a `RangeError`
+(`src/layouts/seed.ts` lines 64, 107, 114, 125 against
+`layout/src/simulation/seed.ts` lines 62, 101, 104, 107); the cross-test pins
+that asymmetry so nobody "fixes" it. The layout copy is canonical from now on and
+the package's copy stays only for its own use (D27: it still imports nothing from
+layout at runtime). The P10 row's "`seedPositions` cross-test against the real
+`RandomNumberGenerator`" is wrong in the same way `src/layouts/seed.ts`'s header
+was: `RandomNumberGenerator` (`layout/src/utils/random.ts` line 10) is in no
+layout barrel; the cross-test is against `seedPositions` and `Lcg`.
+
+2026-09-20, amendments after the cuGraph comparison: section 16 adds the visited pre-check before the
+atomic claim (16.1), the density-selected bitmap contraction of the emitted frontier (16.2), the Louvain
+gain floor `max(threshold / n, 1e-12)` (16.3) and edge and node masks as an input of every algorithm
+with two consumption mechanisms that keep every kernel inside the eight-binding budget (16.4); section
+17 is the register of algorithms cuGraph ships or the CPU package runs that no phase schedules, with
+the GPU case and the suggested placement for each. Sections 6, 8 and 13 are not edited; a plan for P8
+or P11 reads 16 as part of its specification.
+
+## 16. Amendments of 2026-09-20: frontier contraction, the Louvain gain floor, and masks
+
+These amendments come from a side-by-side reading of NVIDIA cuGraph's sources (commit 8443253f of
+2026-09-17) against this design. They extend sections 6 (rows 7 and 8), 8 (BFS, SSSP, Louvain) and 13
+(rows P8 and P11); those sections are not edited in place. A plan written for P8 or P11 reads this
+section as part of its specification.
+
+### 16.1 The visited pre-check before the claim (BFS, SSSP, betweenness's forward pass)
+
+Section 8's BFS claims a vertex with `atomicMin(&depth[v], level)` on every arc the expand phase
+visits. On the levels that dominate a traversal most arcs lead to a vertex claimed in an earlier
+level, and an atomic read-modify-write on each of them is the single largest cost of the top-down
+phase. cuGraph avoids most of it with a plain read first (`bfs_impl.cuh` lines 80-96: "visited in the
+previous iterations, to reduce the number of atomic operations").
+
+Rule: every expand kernel that claims a vertex reads the claim word with `atomicLoad` first and
+issues the `atomicMin` only when the vertex is unclaimed. The read is relaxed and may be stale, which
+is safe: a stale "unclaimed" costs one redundant atomic, a stale "claimed" cannot happen because a
+claim is never revoked. The same rule applies to the SSSP relax (`atomicMin` on the distance bits:
+read the current bits and skip the atomic when the candidate is not smaller) and to the betweenness
+forward pass. Expected gain: 10-30% of the top-down levels; measured at G8 on the RMAT and grid
+fixtures as a row of the noise-floor / benchmark record, never assumed.
+
+### 16.2 Contraction by bitmap when the emitted frontier is dense
+
+Section 6 row 8 dedupes the emitted vertex frontier with workgroup hash culling backed by Davidson's
+ownership pass. cuGraph switches strategy by density (`transform_reduce_if_v_frontier_outgoing_e_by_dst.cuh`
+lines 328-345): when the emitted buffer holds at least an eighth of the vertex range it marks a
+packed bitmap and compacts the bitmap instead of sorting or hashing the buffer.
+
+Rule: the contract phase carries two paths selected on the device by `finalizeArgs` from the counter
+the advance already produces. Below `n / 8` emitted entries the existing ownership dedupe runs.
+At or above `n / 8` the expand kernel sets the vertex's bit in a `ceil(n / 32)`-word bitmap with
+`atomicOr` (the bitmap section 8 already uses for the bottom-up phase, so no new buffer) and the next
+vertex frontier is produced by one compaction pass over the bitmap words: `exclusiveScan` over the
+per-word population counts, then a scatter of the set bits into the queue. The queue order is then
+vertex order, which section 8's `order` result already admits ("grouped by level"). The threshold is
+an override-free uniform so a test can force either path on the same graph and assert identical
+depths. Expected gain: 50-200% on the largest levels of a scale-free traversal, where the emitted
+buffer is a multiple of `n` and sorting it would cost three radix passes per level.
+
+The pre-sized output cuGraph computes per level (a prefix scan of frontier degrees before the
+expand) is NOT adopted: this design sizes the edge frontier to `A` entries once (6 row 7) and
+chunks above `maxBufferSize`, which needs no per-level allocation and no host round trip.
+
+### 16.3 The Louvain gain floor
+
+Section 8's Louvain moves a vertex only when `delta_Q > minGain` and the direction matches the
+alternating `up_down` pass (already the cuGraph rule, `louvain_impl.cuh` lines 186-219). What section
+8 leaves open is `minGain`'s value. cuGraph sets `min_vertex_move_gain = max(threshold / V,
+noise_floor)` with `noise_floor = 1e-12` for float (`detail/common_methods.cuh` lines 50-66), because
+below that a "gain" is f32 rounding of the two nearly equal sums and a move made on it oscillates.
+
+Rule: `minGain = max(threshold / n, 1e-12)` in f32, where `threshold` is the option the CPU package
+already exposes; the floor is a named constant in `src/constants.ts` interpolated into the kernel,
+never a literal, and a sabotage mutation that drops the floor must make the planted-partition test
+oscillate. This is a convergence rule, not a throughput one: it prevents wasted passes, and in the
+worst case non-termination, rather than making a pass faster.
+
+### 16.4 Edge and node masks: running an algorithm on a filtered graph without a new snapshot
+
+The application filters (design/ui section 5.3, Explore) produce a visibility mask over nodes and
+edges. Today the only way to run an algorithm on the visible graph is to build a filtered snapshot on
+the CPU (graph-format's `filterEdges` / `inducedSubgraph`) and upload it, which at the 1M / 10M tier
+costs the T-1 upload (125 ms on the dev box, 256 ms on the T4) for every change of the filter, and a
+second resident copy. cuGraph attaches a packed edge mask to a graph view instead
+(`graph_view.hpp` lines 775-786) and every primitive honours it; its triangle counting and k-truss
+build their working subgraph purely by stacking masks.
+
+Decision: masks become an input of the GPU package with graph-format's own types. `NodeMask` and
+`EdgeMask` are the packed bitmaps graph-format already defines (`graph-format/src/types/columns.ts`,
+LSB-first, `ceil(n / 32)` and `ceil(edgeCount / 32)` words; k-truss in section 8 already consumes an
+`EdgeMask`). The rules:
+
+1. Input shape. Every algorithm entry point and `GpuRunOptions` accept `mask?: { nodes?: NodeMask;
+   edges?: EdgeMask }`. A masked node is absent together with every arc touching it; a masked edge is
+   absent in both arc directions of an undirected snapshot (the mask is over LOGICAL edges, so the
+   caller cannot express a one-directional hole in an undirected graph, which is the invariant
+   graph-format's I7 already imposes on the snapshot itself). The CPU seam gains the same optional
+   member on its option records so `accelerated(acc)` passes it through unchanged; the indexed CPU
+   ports honour it by the same semantics (9.2 keeps the two sides member for member).
+2. Expansion on the device, once per (snapshot, mask) pair. One kernel expands the node and edge
+   masks into a packed ARC mask per view (forward, and reverse when the algorithm pulls) through the
+   view's `arcToEdge` map and the arc's endpoints, and writes it into the residency keyed on the
+   mask arrays (the same `array(key, label, owner)` path the personalization vector uses). The
+   expansion is `O(A)` and runs inside the algorithm's first batch; a repeated call with the same
+   mask objects finds the arc masks resident. A mask never changes the snapshot's counts, offsets
+   or permutation.
+3. Two consumption mechanisms, chosen per kernel family so no kernel crosses the eight-storage-buffer
+   budget of 3.5:
+   - The weighted-sum family (`spmv-pull`, the attraction gather, `segmentedReduce` with a weight
+     snippet) consumes a MASKED WEIGHT array: a per-arc f32 array equal to `weight` (or 1) where the
+     arc is present and 0 where it is absent, produced by the expansion kernel and bound in the
+     existing `weights` slot with `HAS_WEIGHTS` forced on. No binding is added, `spmv-pull` stays at
+     eight, and the normalisers (the PageRank out-weight sum, the degree used by Katz) are
+     automatically the masked ones because they are computed from the same array.
+   - The structural family (traversal, components, k-core, triangles, Boruvka) consumes the packed
+     arc mask through a `HAS_MASK` override and one added `storage-ro` binding in group 3, testing
+     `(mask[arc / 32] >> (arc % 32)) & 1` before using an arc (`/` and `%` on a u32, never a shift
+     of an arc index above 2^31). Every kernel in that family binds at most six buffers today, so the
+     seventh fits; a future kernel at eight splits rather than raising the limit.
+4. Masked-out outputs are defined, index-aligned and documented per algorithm: a score of 0 and no
+   share of the teleport (PageRank's `n` in the teleport term and the dangling redistribution is the
+   VISIBLE count, computed by a `reduce` over the node mask), `INVALID_INDEX` as a component label,
+   an unreached distance of `+Inf`, a zero degree. `iterations` and `converged` mean what they mean on
+   the visible graph.
+5. Layouts are out of scope of this amendment: a filtered layout is a product decision (design/ui
+   section 5.3, "Filter semantics") and the simulation's fixed mask already expresses "do not move";
+   a masked node that should also exert no force needs a mass of 0 and is deferred to the phase that
+   first needs it.
+6. The oracle is free: for every masked run, `graph-format`'s `filterEdges(edges)` then
+   `inducedSubgraph(nodes)` produces the CPU snapshot the masked GPU run must equal, index for index
+   after mapping through the derived snapshot's index map. Every masked kernel's differential test is
+   that equality plus a sabotage mutation that drops the mask test.
+7. Cost: the structural family pays one extra load per arc, a few percent; the weighted-sum family
+   pays nothing per arc; the expansion pays `O(A)` once per mask change instead of an upload.
+
+Placement: the mask input and the expansion kernel land with the first consumer, which is the
+frontier phase (P8, whose BFS is the first structural kernel); the masked-weight path lands in the
+same phase for the shipped PageRank family so the two mechanisms are proven together. Section 13's
+rows P8 and P11 inherit this deliverable; the gate adds the masked-equals-filtered differential for
+every algorithm the phase ships.
+
+## 17. Future work: algorithms not scheduled, with the GPU case for each
+
+Sections 8 and 13 schedule the GPU algorithms through P11. This register lists what cuGraph ships and
+what `@graphty/algorithms` already runs on the CPU that neither section covers, with a judgement of
+whether a device implementation is worth having. "GPU case" is the honest expectation: a family whose
+work is a neighbour intersection, a sort or a sparse product gains an order of magnitude on a resident
+graph; one that is a single query, a sequential walk or a tiny problem does not, and the CPU package
+stays the right home. Nothing here is committed; each row becomes a phase only through a plan of its
+own when an owner picks it.
+
+| Algorithm | Where it exists today | GPU case | Primitives it needs | Suggested placement |
+| --- | --- | --- | --- | --- |
+| Triangle counting, local clustering coefficient, transitivity | cuGraph; not in graphty | strong: a merge intersection per arc over a resident graph, 10-100x at 1M edges; also the UX design's missing "clustering coefficient" | the P11 orientation and intersection kernels | inside P11 (8 row "Triangles" already sketches the kernel; add the per-node coefficient as its epilogue) |
+| k-truss | cuGraph; not in graphty | strong, once triangles exist: peeling by support over `edgeToArc` | P11 triangles, `EdgeMask` (16.4) | inside P11, after triangles |
+| Jaccard, overlap, Sorensen, cosine similarity, weighted variants, all-pairs top-k | cuGraph; graphty has only common neighbours and Adamic-Adar on the CPU | strong for the per-pair kernel (the same intersection as triangles); all-pairs needs batching by the two-hop neighbourhood | the P11 intersection kernel, `radixSort` for top-k | a P11b slice after triangles; the CPU package gains the four scorers first so the seam has something to dispatch to |
+| Leiden | graphty CPU; cuGraph | moderate: Louvain's move phase plus a refinement pass of independent moves; cuGraph disables random moves in refinement | P11 Louvain, `radixSort` | after P11 Louvain is stable, as section 8 already says |
+| ECG (ensemble Louvain) | cuGraph; not in graphty | moderate: `k` Louvain runs with random initial partitions, an edge co-membership count, one final Louvain; gains whatever Louvain gains | P11 Louvain | with Leiden, if Louvain's measured gain justifies it |
+| Strongly connected components | graphty CPU (Tarjan); cuGraph | moderate: forward-backward reachability with the coloring trick (Slota et al.) is two BFS families per round; gains on large graphs with few big components, poor on many small ones | P8 frontier family | after P8 |
+| Spectral clustering | graphty CPU; cuGraph via RAFT | moderate: the Lanczos or power iterations are `spmvPull` calls, the k-means step is small; f32 eigenvectors are a precision risk | `spmvPull` (P7), `reduce` | after P8, only if the CPU is measured too slow at the sizes the app reaches |
+| Markov clustering | graphty CPU | strong in principle (expansion is a sparse-matrix product, inflation an elementwise op) but sparse-matrix-by-sparse-matrix needs a `cooToCsr`-plus-merge product the design does not have; memory blows up on dense graphs | a new SpGEMM primitive | not before a SpGEMM exists; low priority |
+| Girvan-Newman | graphty CPU | weak: repeated edge betweenness over a shrinking graph; the GPU betweenness helps each step but the step count is `O(E)` | P9 edge betweenness | dispatch each betweenness step through P9's kernel; no phase of its own |
+| Hierarchical (agglomerative) clustering | graphty CPU | weak at graph scale: pairwise distances are `O(n^2)` memory | none | stays on the CPU |
+| Delta PageRank | graphty CPU | moderate: an incremental update on a mutated graph; the GPU wins only if the snapshot stays resident across mutations, which the element's E0 design provides | P7 PageRank with a resident diff | after M6 lands the resident snapshot |
+| Random walks: uniform, biased, node2vec | cuGraph; not in graphty | strong for many walks at once (embedding workloads): one step is a per-walk random neighbour pick, node2vec adds an intersection lookup | a random-select primitive over CSR rows, the P11 intersection for node2vec | a phase of its own only if the product wants embeddings; not scheduled |
+| Neighbour sampling (uniform, biased, temporal, negative) | cuGraph, for graph neural network loaders | none for this product: a training-loader workload, not a visualisation one | -- | not planned |
+| Maximal independent set, maximal matching, vertex colouring | cuGraph (MIS, matching) | moderate: Luby-style rounds are cheap on the GPU and MIS is a building block for Leiden's refinement and for colouring-based SCC | `reduce`, `compact` | when SCC or Leiden needs them |
+| Ego graph, induced subgraph, two-hop neighbourhood, symmetrize | cuGraph structure utilities; graph-format has `inducedSubgraph` on the CPU | weak as algorithms; on the GPU they are the masks of 16.4 plus a `compact` | 16.4 masks | covered by 16.4 |
+| A-star, bidirectional Dijkstra | graphty CPU | none: a single query, latency-bound; a submit round trip already exceeds the CPU search on graphs that fit the app | -- | stays on the CPU |
+| Bipartite matching (Hopcroft-Karp), subgraph isomorphism | graphty CPU | none / poor: augmenting-path and backtracking searches are sequential | -- | stays on the CPU |
+| Maximum flow, minimum cut | graphty CPU (Ford-Fulkerson) | poor to moderate: push-relabel has GPU formulations but they are large, and the app's use is small graphs | -- | stays on the CPU |
+| Prim's MST, DFS, topological orders | graphty CPU | none: sequential by nature; Boruvka (P11) covers MST on the GPU | -- | stays on the CPU |
+| Floyd-Warshall all-pairs | graphty CPU; section 8 sketches a blocked device version | strong up to the binding bound (`n <= 23,170` at 2 GiB): an `O(n^3)` kernel the GPU does well | the P9 blocked tiles | inside P9, as section 8 already states; the CPU stays for larger `n` where the dense matrix does not fit |
+
+Priority, if the GPU track continues past P11: triangles with the clustering coefficient (a product
+gap and the cheapest strong case), the similarity family (the same kernel, and the CPU scorers are
+missing too), then SCC and delta PageRank once the element holds a resident snapshot. Random walks
+and sampling are a different product.

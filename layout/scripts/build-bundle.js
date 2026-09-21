@@ -9,12 +9,34 @@
  */
 
 import { build } from "vite";
+import { readFileSync } from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Every package listed in dependencies or peerDependencies is external to the
+ * bundle, including its subpaths (the graph-io helper). external: [] would inline
+ * a second copy of @graphty/graph-format into dist/layout.js.
+ */
+function externalDependencies() {
+    const packageJson = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const names = new Set([
+        ...Object.keys(packageJson.dependencies ?? {}),
+        ...Object.keys(packageJson.peerDependencies ?? {}),
+    ]);
+    return (id) => {
+        for (const name of names) {
+            if (id === name || id.startsWith(`${name}/`)) {
+                return true;
+            }
+        }
+        return false;
+    };
+}
 
 async function buildBundle() {
     try {
@@ -31,7 +53,7 @@ async function buildBundle() {
                 outDir: path.resolve(__dirname, "../dist"),
                 emptyOutDir: false, // Don't clean the dist directory
                 rollupOptions: {
-                    external: [],
+                    external: externalDependencies(),
                     output: {
                         preserveModules: false,
                         inlineDynamicImports: true,

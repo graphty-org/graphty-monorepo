@@ -10,21 +10,43 @@ import { bfsWithPathCounting } from "../traversal/bfs-variants.js";
  */
 
 /**
- * Betweenness centrality options
+ * Betweenness centrality options.
+ *
+ * Every member is `readonly` and carries `| undefined`: the GPU package compiles this declaration
+ * a second time under `exactOptionalPropertyTypes`, where `sources?: readonly number[]` and
+ * `sources?: readonly number[] | undefined` are different types (plan decision PD-6).
  */
 export interface BetweennessCentralityOptions {
+    /** Whether to normalize the centrality values (default: false) */
+    readonly normalized?: boolean | undefined;
+    /** Whether to use endpoints in path counting (default: false) */
+    readonly endpoints?: boolean | undefined;
+    /** Whether to use optimized BFS implementation for large graphs */
+    readonly optimized?: boolean | undefined;
     /**
-     * Whether to normalize the centrality values (default: false)
+     * Sampled betweenness: the source NODE INDICES to run from. Indices are meaningful only against
+     * a `GraphSnapshot`, so the legacy `Graph`-taking entry points below THROW when this is set.
      */
-    normalized?: boolean;
-    /**
-     * Whether to use endpoints in path counting (default: false)
-     */
-    endpoints?: boolean;
-    /**
-     * Whether to use optimized BFS implementation for large graphs
-     */
-    optimized?: boolean;
+    readonly sources?: readonly number[] | undefined;
+    /** Sampled betweenness: how many sources to draw when `sources` is not given. */
+    readonly k?: number | undefined;
+}
+
+/**
+ * Refuse the index-space options on a path that has no index space.
+ *
+ * Ignoring them would be the expensive silence: a caller asking for a 128-source sample would get
+ * an exact all-sources run, correct and a thousand times too slow, with no signal at all.
+ * @param options - The caller's options
+ * @param fn - The entry point's name, for the message
+ */
+function rejectIndexOptions(options: BetweennessCentralityOptions, fn: string): void {
+    if (options.sources !== undefined || options.k !== undefined) {
+        throw new Error(
+            `${fn}: 'sources' and 'k' are node INDICES and are meaningful only against a GraphSnapshot; ` +
+                "call accelerated(accelerator).betweennessCentrality(snapshot, options) instead",
+        );
+    }
 }
 
 /**
@@ -205,6 +227,7 @@ export function betweennessCentrality(
     graph: Graph,
     options: BetweennessCentralityOptions = {},
 ): Record<string, number> {
+    rejectIndexOptions(options, "betweennessCentrality");
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
     const centrality: Record<string, number> = {};
 
@@ -250,6 +273,7 @@ export function nodeBetweennessCentrality(
     targetNode: NodeId,
     options: BetweennessCentralityOptions = {},
 ): number {
+    rejectIndexOptions(options, "nodeBetweennessCentrality");
     if (!graph.hasNode(targetNode)) {
         throw new Error(`Node ${String(targetNode)} not found in graph`);
     }
@@ -268,6 +292,7 @@ export function edgeBetweennessCentrality(
     graph: Graph,
     options: BetweennessCentralityOptions = {},
 ): Map<string, number> {
+    rejectIndexOptions(options, "edgeBetweennessCentrality");
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
     const edgeCentrality = new Map<string, number>();
 

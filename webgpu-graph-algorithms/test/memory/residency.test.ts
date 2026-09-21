@@ -26,6 +26,7 @@ import {
 } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
+import { STORAGE_ALIGN } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
@@ -33,7 +34,7 @@ import { GraphResidency } from "../../src/memory/residency.js";
 import { type Binding } from "../../src/types/memory.js";
 import { fakeCaps } from "../helpers/caps-tables.js";
 import { readF32, readU32, withContext } from "../helpers/device.js";
-import { csrSnapshotOf, KARATE_EDGES, pathEdges, randomEdges, snapshotOf } from "../helpers/graphs.js";
+import { csrSnapshotOf, fixture, KARATE_EDGES, pathEdges, randomEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { requireGpu } from "../setup/gpu.js";
 
@@ -690,11 +691,11 @@ describe("GraphResidency: the upload contract (spec 11.3, gpu-upload.test.ts lin
         });
     });
 
-    it("view(): P7 names and packViews are E_UNSUPPORTED, an empty snapshot is E_INVALID_ARGUMENT; core() of arcCount 0 binds rowPtr only", async (t: TestContext) => {
+    it("view(): the P11 names and packViews on a one-array view are E_UNSUPPORTED, an empty snapshot is E_INVALID_ARGUMENT; core() of arcCount 0 binds rowPtr only", async (t: TestContext) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {
             const s = snapshotOf(KARATE_EDGES);
-            for (const name of ["reverse", "coo", "edgeList", "mate"] as const) {
+            for (const name of ["coo", "mate"] as const) {
                 const err = caught(() => ctx.residency.view(s, name));
                 expect(err.code).toBe("E_UNSUPPORTED");
                 expect(err.details.feature).toBe(`view:${name}`);
@@ -886,6 +887,143 @@ describe("P2: residentBytes and stats().perSnapshot (spec 4.1)", () => {
             expect(ctx.allocator.liveBuffers).toBe(live);
             expect(ctx.residency.isReleased(s.serial)).toBe(false);
             await Promise.resolve();
+        });
+    });
+});
+
+/** A directed weighted snapshot whose reverse arrays differ from the forward ones (graph-format invariant I7 does not apply). */
+function directedWeighted(): GraphSnapshot {
+    return snapshotOf(
+        [
+            [0, 1, 2],
+            [1, 2, 3],
+            [2, 0, 4],
+            [0, 3, 5],
+            [3, 1, 6],
+        ],
+        { directed: true, label: "directed-weighted" },
+    );
+}
+
+describe("the P7 views (spec 4.3 lines 1180-1190)", () => {
+    it("the reverse view of an UNDIRECTED snapshot is the core buffers, with no new upload", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const { snapshot } = fixture("karate");
+            const core = ctx.residency.core(snapshot);
+            const before = ctx.residency.stats().buffers;
+            const view = ctx.residency.view(snapshot, "reverse");
+            expect(ctx.residency.stats().buffers).toBe(before);
+            expect(view.bindings.rowPtr.buffer).toBe(core.rowPtr.buffer);
+            expect(view.bindings.rowPtr.offset).toBe(core.rowPtr.offset);
+            expect(view.bindings.rowPtr.size).toBe(core.rowPtr.size);
+            expect(view.scalars.directed).toEqual([0]);
+            ctx.release(snapshot);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("the reverse view of a DIRECTED snapshot uploads rowPtr, colIdx and weights and never touches fwdArc", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const s = directedWeighted();
+            ctx.residency.core(s);
+            const before = ctx.residency.stats().buffers;
+            const view = ctx.residency.view(s, "reverse");
+            expect(ctx.residency.stats().buffers).toBe(before + 3);
+            expect(Object.keys(view.bindings).sort()).toEqual(["colIdx", "rowPtr", "weights"]);
+            expect(view.scalars.arcCount).toEqual([s.arcCount]);
+            expect(view.scalars.directed).toEqual([1]);
+            ctx.release(s);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("packViews packs the directed reverse arrays into ONE buffer at 256-aligned offsets", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const s = directedWeighted();
+            const packed = ctx.residency.view(s, "reverse", { packViews: true });
+            const buffers = new Set(Object.values(packed.bindings).map((b) => b.buffer));
+            expect(buffers.size).toBe(1);
+            for (const binding of Object.values(packed.bindings)) {
+                expect(binding.offset % STORAGE_ALIGN).toBe(0);
+                expect(binding.size).toBeGreaterThan(0);
+                expect(binding.offset + binding.size).toBeLessThanOrEqual(binding.buffer.size);
+            }
+            expect(packed.bindings.rowPtr.size).toBe(4 * (s.nodeCount + 1));
+            ctx.release(s);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("the packed and the unpacked reverse view of ONE snapshot do not share a resident", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const s = directedWeighted();
+            const plain = ctx.residency.view(s, "reverse");
+            const packed = ctx.residency.view(s, "reverse", { packViews: true });
+            // Both builders upload through this.upload(), which memoises on the KEY object and does NOT compare
+            // byte lengths (src/memory/residency.ts upload()). s.reverse() is cached (graph-format
+            // graph-snapshot.ts:600-601), so both builders see the SAME rev.rowPtr object: keying the packed
+            // buffer on it would hand one of the two views the other's buffer.
+            expect(packed.bindings.rowPtr.buffer).not.toBe(plain.bindings.rowPtr.buffer);
+            expect(plain.bindings.rowPtr.size).toBe(4 * (s.nodeCount + 1));
+            expect(plain.bindings.rowPtr.offset).toBe(0);
+            expect(plain.bindings.rowPtr.size).toBe(plain.bindings.rowPtr.buffer.size);
+            const w = packed.bindings.weights;
+            expect(w.offset + w.size).toBeLessThanOrEqual(w.buffer.size);
+            ctx.release(s);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("packViews on an UNDIRECTED snapshot returns the core buffers unchanged (nothing to pack)", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const { snapshot } = fixture("karate");
+            const core = ctx.residency.core(snapshot);
+            const packed = ctx.residency.view(snapshot, "reverse", { packViews: true });
+            expect(packed.bindings.rowPtr.buffer).toBe(core.rowPtr.buffer);
+            ctx.release(snapshot);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("the edgeList view uploads src and dst once and is memoised", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const { snapshot } = fixture("karate");
+            const first = ctx.residency.view(snapshot, "edgeList");
+            const second = ctx.residency.view(snapshot, "edgeList");
+            expect(second.bindings.src.buffer).toBe(first.bindings.src.buffer);
+            expect(first.scalars.edgeCount).toEqual([snapshot.edgeCount]);
+            ctx.release(snapshot);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("coo and mate are still E_UNSUPPORTED (P11)", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const { snapshot } = fixture("karate");
+            for (const name of ["coo", "mate"] as const) {
+                expect(() => ctx.residency.view(snapshot, name)).toThrow(/not uploaded/);
+            }
+            ctx.release(snapshot);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("release(s) destroys the packed buffer too", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const s = directedWeighted();
+            ctx.residency.view(s, "reverse", { packViews: true });
+            expect(ctx.residency.stats().buffers).toBeGreaterThan(0);
+            ctx.release(s);
+            expect(ctx.residency.stats().perSnapshot.some((r) => r.serial === s.serial)).toBe(false);
+            await ctx.allocator.check();
         });
     });
 });

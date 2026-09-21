@@ -14,6 +14,7 @@ import { type Kernel } from "../kernel/kernel.js";
 import { graphBindings, graphOverrides, kernelSpec, RANGE_PARAMS } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
 import { type Binding } from "../types/memory.js";
+import { assertNotWindowed, rowCountOf } from "./core-shape.js";
 import { type ReduceOp, type ReduceScope } from "./reduce.js";
 
 /** The degree tiers of degreeOrder(): the permutation binding and the CPU-side segmentOffsets [0, hiEnd, midEnd, lowEnd, n]. */
@@ -140,39 +141,6 @@ function validateValueSnippet(snippet: string): void {
     }
 }
 
-/**
- * The row count of a core from its rowPtr binding (4(n + 1) bytes).
- * @param core - the core
- * @returns n
- */
-function rowCountOf(core: CoreBinding): number {
-    const bytes = core.rowPtr.size;
-    if (bytes < 4 || bytes % 4 !== 0) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `segmentedReduce: a rowPtr binding of ${bytes} bytes is not 4(n + 1)`,
-            {
-                argument: "core.rowPtr",
-                value: bytes,
-                expected: "a positive multiple of 4",
-            },
-        );
-    }
-    return bytes / 4 - 1;
-}
-
-/**
- * Rejects a windowed core (executed at P4).
- * @param core - the core
- */
-function assertNotWindowed(core: CoreBinding): void {
-    if (core.plan === "windowed" || core.windows !== null) {
-        throw new WebGpuGraphError("E_UNSUPPORTED", "segmentedReduce: windowed cores are executed at P4", {
-            feature: "segmentedReduce.windowed",
-        });
-    }
-}
-
 /** The thread-per-row planner: ONE `segmented-reduce` dispatch with TIER 0 over every row. */
 class ThreadPerRowPlanner implements SegmentedReducePlanner {
     private readonly scope: ReduceScope;
@@ -202,7 +170,7 @@ class ThreadPerRowPlanner implements SegmentedReducePlanner {
      * @param out - at least 4n bytes of f32
      */
     record(pass: GPUComputePassEncoder, core: CoreBinding, out: Binding): void {
-        assertNotWindowed(core);
+        assertNotWindowed(core, "segmentedReduce");
         if ((core.weights !== null) !== this.hasWeights) {
             throw new WebGpuGraphError(
                 "E_INVALID_ARGUMENT",
@@ -214,7 +182,7 @@ class ThreadPerRowPlanner implements SegmentedReducePlanner {
                 },
             );
         }
-        const n = rowCountOf(core);
+        const n = rowCountOf(core, "segmentedReduce");
         if (n === 0) {
             return;
         }
@@ -260,7 +228,7 @@ export async function prepareSegmentedReduce(
             feature: "segmentedReduce.tiers",
         });
     }
-    assertNotWindowed(core);
+    assertNotWindowed(core, "segmentedReduce");
     const op = opCode(options.op);
     validateValueSnippet(options.valueSnippet);
     const overrides = { ...graphOverrides(core, null), OP: op, TIER: 0 };

@@ -1,3 +1,36 @@
+## 1.10.4 (2026-09-21)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.3
+- Updated algorithms to 1.8.1
+- Updated layout to 1.8.0
+
+## 1.10.3 (2026-09-20)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 1.8.0
+
+## 1.10.2 (2026-09-20)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.2
+- Updated algorithms to 1.7.3
+- Updated layout to 1.7.0
+
+## 1.10.1 (2026-09-20)
+
+### 🩹 Fixes
+
+- **graphty-element:** stop rendering the scene twice on every frame ([a414f9dc](https://github.com/graphty-org/graphty-monorepo/commit/a414f9dc))
+- **graphty-element:** publish caret ranges for the workspace siblings ([de93a6d2](https://github.com/graphty-org/graphty-monorepo/commit/de93a6d2))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## [1.4.7](https://github.com/graphty-org/graphty-element/compare/v1.4.6...v1.4.7) (2025-12-26)
 
 ### Bug Fixes

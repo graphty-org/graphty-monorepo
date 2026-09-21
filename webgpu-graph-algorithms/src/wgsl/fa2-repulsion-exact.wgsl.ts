@@ -1,6 +1,8 @@
 /**
  * The `fa2-repulsion-exact` kernel body (K3; contract 4.5; spec 7.6, 7.9, 7.10): the tiled all-pairs repulsion
- * `|F| = k m_i m_j / d` with the 0.01 distance floor and the antisymmetric coincident kick, the gravity epilogue
+ * `|F| = k m_i m_j / d` with the 0.01 distance floor and the antisymmetric coincident kick (`LAW` 0; P5's `LAW` 1
+ * is Fruchterman-Reingold `k^2 / d` and `LAW` 2 ngraph's Coulomb `-g m_i m_j / d^2`, both unfloored, spec 7.20,
+ * with the kick's magnitude taken from the law at d = 0.01, PD-10), the gravity epilogue
  * (GRAVITY_CENTER 0 = centroid, 1 = origin; STRONG_GRAVITY) added under the `valid` guard, `force += f`, and the
  * swing / traction workgroup reduction in uniform control flow (SWING_MODE 0 = paper: free nodes only against
  * `oldForce`; 1 = NetworkX: positions and forces mixed, every node) whose lane 0 writes
@@ -18,6 +20,11 @@ fn store_force(i: u32, f: vec3f) {
     force[3u * i + 2u] = f.z;
 }
 fn load_old(i: u32) -> vec3f { return vec3f(oldForce[3u * i], oldForce[3u * i + 1u], oldForce[3u * i + 2u]); }
+fn kick_magnitude(mi: f32, mj: f32) -> f32 {                   // the law's magnitude at d = FA2_DIST_FLOOR (PD-10)
+    if (LAW == 1u) { return P.frK * P.frK / FA2_DIST_FLOOR; }
+    if (LAW == 2u) { return -P.coulomb * mi * mj / FA2_DIST_FLOOR_SQ; }
+    return P.scalingRatio * mi * mj / FA2_DIST_FLOOR;
+}
 fn gravity_force(pi: vec4f) -> vec3f {                         // spec 7.9: centroid (GRAVITY_CENTER 0) or origin (1); regular or strong
     var q = pi.xyz;
     if (GRAVITY_CENTER == 0u) { q = pi.xyz - S.centroid.xyz; }
@@ -45,13 +52,15 @@ fn repulsion(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id
             if (o.w > 0.0 && jj != i) {                                           // mass > 0 for every real node, 0 for the pad
                 let d = pi.xyz - o.xyz;
                 var d2 = dot(d, d);
-                if (d2 < FA2_COINCIDENT_SQ) {                                     // coincident: antisymmetric unit kick of magnitude k m_i m_j / 0.01 (7.2)
-                    f = f + kick_dir(i, jj, P.dim) * (P.scalingRatio * pi.w * o.w / FA2_DIST_FLOOR);
+                if (d2 < FA2_COINCIDENT_SQ) {                                     // coincident: antisymmetric unit kick of the law's magnitude at d = 0.01 (7.2; PD-10)
+                    f = f + kick_dir(i, jj, P.dim) * kick_magnitude(pi.w, o.w);
                     continue;
                 }
-                d2 = max(d2, FA2_DIST_FLOOR_SQ);                                  // d >= 0.01
+                if (LAW == 0u) { d2 = max(d2, FA2_DIST_FLOOR_SQ); }               // FA2 alone floors d >= 0.01 (7.2); FR and coulomb are unfloored (7.20)
                 let k = P.scalingRatio * pi.w * o.w;
-                f = f + d * (k / d2);                                             // |F| = k m_i m_j / d along d / d
+                if (LAW == 0u) { f = f + d * (k / d2); }                          // LAW 0 (FA2): |F| = k m_i m_j / d along d / d
+                if (LAW == 1u) { f = f + d * (P.frK * P.frK / d2); }              // LAW 1 (FR, 7.20): |F| = k^2 / d, mass ignored
+                if (LAW == 2u) { f = f + d * (-P.coulomb * pi.w * o.w / (d2 * sqrt(d2))); }   // LAW 2 (coulomb, ngraph generateQuadTree.js:131-132): |F| = -g m_i m_j / d^2
             }
         }
         workgroupBarrier();

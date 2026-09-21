@@ -9,12 +9,16 @@
  * each occurs exactly once in the registry's body, so a re-formatted body is caught, never silently un-mutated.
  *
  * Rows: degree, reduce, K3 (fa2-repulsion-exact) and K4 (fa2-speed-finalize) at P1-T5; segmented-reduce at P2-T2
- * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3". SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
- * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only).
+ * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
+ * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
+ * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts. SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
+ * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
+ * only, since the FA2 checks never reach those lines).
  */
 
 import { type GpuContext } from "../../src/context.js";
-import { type KernelId, KERNELS, setKernelBodyOverride } from "../../src/kernels.js";
+import { type KernelEntry, type KernelId, KERNELS, setKernelBodyOverride } from "../../src/kernels.js";
 import { acquire } from "../setup/gpu.js";
 
 /** One named mutation of a kernel body: a unique `find` string replaced by `replace`, and the minimum factor by which it must break the named test's tolerance. */
@@ -32,6 +36,10 @@ const SKELETON_TEST = "test/layouts/skeleton.test.ts";
 const SEGMENTED_REDUCE_TEST = "test/primitives/segmented-reduce.test.ts";
 const INSPECT_TEST = "test/layouts/fa2-inspect.test.ts";
 const TRACE_TEST = "test/layouts/fa2-trace-parity.test.ts";
+const SPMV_TEST = "test/primitives/spmv.test.ts";
+const PAGERANK_TEST = "test/algorithms/pagerank.test.ts";
+const SPECTRAL_TEST = "test/algorithms/spectral.test.ts";
+const COMPONENTS_TEST = "test/algorithms/components.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -310,6 +318,168 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: INSPECT_TEST,
         },
     ]),
+    "spmv-pull": Object.freeze([
+        {
+            // the damping and the teleport swapped: beta scales the pull and alpha the personalization
+            name: "alpha-beta-swapped",
+            find: "(P.beta * pv) + (P.alpha * (acc + (dangling * pv)))",
+            replace: "(P.alpha * pv) + (P.beta * (acc + (dangling * pv)))",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+        {
+            // the row end read from rowPtr[v]: every row folds nothing
+            name: "row-end-off-by-one",
+            find: "let a1 = min(rowPtr[v + 1u], P.arcEnd);",
+            replace: "let a1 = min(rowPtr[v], P.arcEnd);",
+            minFactor: 10,
+            test: SPMV_TEST,
+        },
+        {
+            // the dangling mass never redistributed (USE_DANGLING is set and the header carries a non-zero mass)
+            name: "dangling-dropped",
+            find: "(dangling * pv)",
+            replace: "(0.0 * pv)",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+    ]),
+    "pr-scale": Object.freeze([
+        {
+            // a node with no out-weight contributes nothing to the dangling mass: the mass leaks out of the system
+            name: "dangling-not-accumulated",
+            find: "if (divisor <= 0.0) { dangling = x; xNorm[u] = 0.0; }",
+            replace: "if (divisor <= 0.0) { dangling = 0.0; xNorm[u] = 0.0; }",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+        {
+            // the L1 delta is the L1 norm of the iterate (1 for PageRank): convergence is never recorded
+            name: "delta-ignores-previous",
+            find: "delta = abs(x - prev);",
+            replace: "delta = abs(x);",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+        {
+            // group 0 writes the header and the last group's partial is never written: the fold reads a stale slot
+            name: "partial-slot-off-by-one",
+            find: "let slot = 1u + group_id(wid);",
+            replace: "let slot = group_id(wid);",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+    ]),
+    "pr-finalize": Object.freeze([
+        {
+            // the one-iteration-late guard dropped: iteration 1 (whose delta is |x0 - 0|) can record firstConverged = 0
+            name: "converged-recorded-at-one",
+            find: "P.iteration >= 2u",
+            replace: "P.iteration >= 0u",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+        {
+            // the header's dangling mass is the folded delta: the pull redistributes the wrong mass
+            name: "dangling-takes-the-delta",
+            find: "partials[0].danglingMass = folded.x;",
+            replace: "partials[0].danglingMass = folded.y;",
+            minFactor: 10,
+            test: PAGERANK_TEST,
+        },
+        {
+            // the L2 norm without its square root: the eigenvector iterate alternates in magnitude and never converges
+            name: "l2-sqrt-dropped",
+            find: "norm = sqrt(max(0.0, folded.z));",
+            replace: "norm = max(0.0, folded.z);",
+            minFactor: 10,
+            test: SPECTRAL_TEST,
+        },
+    ]),
+    "wcc-link-sample": Object.freeze([
+        {
+            // a row of degree exactly r links the NEXT row's first neighbour (colIdx[rowPtr[v + 1]])
+            name: "degree-guard-inclusive",
+            find: "if (a0 + P.r < a1) {",
+            replace: "if (a0 + P.r <= a1) {",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+        {
+            // PLAN DECISION (replaces the plan's inert `high-low-swapped`, measured 0: a sampled round that links
+            // NOTHING is repaired by the each-edge-once round): the CAS lands on the root's neighbour by index, so
+            // an unrelated node joins lo's tree and the real pair stays apart
+            name: "root-off-by-one",
+            find: "let hi = max(p1, p2);",
+            replace: "let hi = max(p1, p2) + 1u;",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+        {
+            // PLAN DECISION (replaces the plan's inert `changed-flag-never-set`, measured 0: the host clears the
+            // flag before every edge batch and never reads the one the setup batch sets): every row of degree > r
+            // links the NEXT row instead of its r-th neighbour, chaining the blocks together
+            name: "neighbour-is-next-row",
+            find: "link_pair(v, colIdx[a0 + P.r]);",
+            replace: "link_pair(v, v + 1u);",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+    ]),
+    "wcc-link-edges": Object.freeze([
+        {
+            // an edge with ONE endpoint in the giant is skipped: a node hanging off the giant never joins it
+            name: "giant-guard-widened",
+            find: "if (atomicLoad(&comp[u]) == P.giant && atomicLoad(&comp[v]) == P.giant) { continue; }",
+            replace: "if (atomicLoad(&comp[u]) == P.giant || atomicLoad(&comp[v]) == P.giant) { continue; }",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+        {
+            // every edge in canonical orientation (u < v) is skipped, not just the self-edges
+            name: "self-edge-skip-widened",
+            find: "if (u == v) { continue; }",
+            replace: "if (u <= v) { continue; }",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+        {
+            // lo is the higher root: the CAS precondition never holds and the edge round links nothing
+            name: "low-high-swapped",
+            find: "let lo = min(p1, p2);",
+            replace: "let lo = max(p1, p2);",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+    ]),
+    "wcc-compress": Object.freeze([
+        {
+            // the compress writes the node's own index: every round resets the forest to singletons
+            name: "root-not-stored",
+            find: "atomicStore(&comp[v], root);",
+            replace: "atomicStore(&comp[v], v);",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+        {
+            // the walk stops at the first NON-fixed point: the compress is a no-op and the labels are parents, not roots
+            name: "fixed-point-inverted",
+            find: "if (parent == root) { break; }",
+            replace: "if (parent != root) { break; }",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+        {
+            // PLAN DECISION (replaces the plan's inert `starts-at-self`, measured 0: a walk that starts at v takes
+            // one more hop to the same root): the parent is read from v itself, so the walk ends where it began
+            // and every label is an immediate parent, not a root
+            name: "parent-read-from-self",
+            find: "let parent = atomicLoad(&comp[root]);",
+            replace: "let parent = atomicLoad(&comp[v]);",
+            minFactor: 10,
+            test: COMPONENTS_TEST,
+        },
+    ]),
 });
 
 /**
@@ -334,11 +504,211 @@ export const SABOTAGE_P3_ADDENDUM: Readonly<Partial<Record<KernelId, readonly Mu
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5; test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
-export const SABOTAGE_PHASES: readonly ("P1" | "P2" | "P3")[] = Object.freeze(["P1", "P2", "P3"]);
+const FR_INSPECT_TEST = "test/layouts/fr-inspect.test.ts";
+const FR_TRACE_TEST = "test/layouts/fr-trace.test.ts";
+const SE_INSPECT_TEST = "test/layouts/se-inspect.test.ts";
+const SE_TRACE_TEST = "test/layouts/se-trace.test.ts";
 
-/** Kernels with no oracle-sensitive arithmetic to mutate (a wrong fill / toScene fails the exact-equality tests directly): ["fill", "fa2-to-scene"]. */
-export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene"]);
+/** The P5 rows (PD-8): the FR and spring-electrical BRANCHES of the four FA2 kernels; measured by test/sabotage/fr.test.ts and se.test.ts only, never against the FA2 checks (which never reach these lines). */
+export const SABOTAGE_P5: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
+    "fa2-attraction": Object.freeze([
+        {
+            name: "fr-attraction-k-multiplied",
+            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
+            replace: "if (LAW == 1u) { w = length(d) * P.frK; }",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-attraction-linear",
+            find: "w = length(d) / P.frK;",
+            replace: "w = 1.0 / P.frK;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-attraction-law-skipped",
+            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
+            replace: "if (LAW == 3u) { w = length(d) / P.frK; }",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "spring-rest-length-dropped",
+            find: "w = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "w = P.springCoefficient;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "spring-sign-flipped",
+            find: "w = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "w = P.springCoefficient * (P.springLength - len) / len;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "spring-law-skipped",
+            find: "if (LAW == 2u) { w = P.springCoefficient",
+            replace: "if (LAW == 3u) { w = P.springCoefficient",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+    ]),
+    "fa2-repulsion-exact": Object.freeze([
+        {
+            name: "fr-repulsion-inverse-square",
+            find: "f = f + d * (P.frK * P.frK / d2);",
+            replace: "f = f + d * (P.frK * P.frK / (d2 * sqrt(d2)));",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-repulsion-k-linear",
+            find: "(P.frK * P.frK / d2)",
+            replace: "(P.frK / d2)",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-repulsion-law-skipped",
+            find: "if (LAW == 1u) { f = f + d",
+            replace: "if (LAW == 3u) { f = f + d",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-sign-flipped",
+            find: "(-P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            replace: "(P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-inverse-linear",
+            find: "pi.w * o.w / (d2 * sqrt(d2))",
+            replace: "pi.w * o.w / d2",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-mass-dropped",
+            find: "(-P.coulomb * pi.w * o.w /",
+            replace: "(-P.coulomb /",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+    ]),
+    "fa2-integrate": Object.freeze([
+        {
+            name: "fr-temperature-cap-dropped",
+            find: "dp = f * (min(mag, t) / mag);",
+            replace: "dp = f;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-fixed-moves",
+            find: "if (mag > 0.0 && !fixed) {",
+            replace: "if (mag > 0.0) {",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-apply-skipped",
+            find: "if (APPLY == 1u) {",
+            replace: "if (APPLY == 3u) {",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "euler-drag-sign",
+            find: "let fd = f - P.dragCoefficient * v;",
+            replace: "let fd = f + P.dragCoefficient * v;",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+        // measured through the 10-iteration trajectory, not the one-iteration stages: from v = 0 the step (dt / m) F exceeds
+        // ngraph's unit speed clamp on every karate node in iteration 1, so the clamped velocity, dp and 0.5 m |v|^2 are the
+        // same whatever the mass; the mass reaches the output only once a node's |dt F / m| falls under 1 (P5-T7 finding)
+        {
+            name: "euler-mass-ignored",
+            find: "v = v + (P.timeStep / p.w) * fd;",
+            replace: "v = v + P.timeStep * fd;",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+        {
+            name: "euler-clamp-dropped",
+            find: "if (sp > 1.0) { v = v / sp; }",
+            replace: "if (sp > 1.0e30) { v = v / sp; }",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "euler-velocity-not-stored",
+            find: "if (!fixed) { store_old(i, v); }",
+            replace: "if (fixed) { store_old(i, v); }",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+    ]),
+    "fa2-stats-finalize": Object.freeze([
+        {
+            name: "fr-temperature-not-traced",
+            find: "T[P.iterationIndex].modelScalar = S.temperature;",
+            replace: "T[P.iterationIndex].modelScalar = 0.0;",
+            minFactor: 10,
+            test: FR_TRACE_TEST,
+        },
+        {
+            name: "fr-temperature-state-stale",
+            find: "S.temperature = P.temperature;",
+            replace: "S.temperature = S.temperature;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-stats-mode-skipped",
+            find: "if (STATS_MODE == 1u) {",
+            replace: "if (STATS_MODE == 3u) {",
+            minFactor: 10,
+            test: FR_TRACE_TEST,
+        },
+        {
+            name: "ke-not-folded",
+            find: "ke = ke + q.swingTraction.x;",
+            replace: "ke = ke + 0.0 * q.swingTraction.x;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "ke-state-not-written",
+            find: "S.kineticEnergy = tKe;",
+            replace: "S.kineticEnergy = 0.0;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "ke-stats-mode-skipped",
+            find: "if (STATS_MODE == 2u) {",
+            replace: "if (STATS_MODE == 3u) {",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+    ]),
+});
+
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10; test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7"]);
+
+/**
+ * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests
+ * directly, and `wcc-sample` (M8b plan PD-6) only selects WHICH component is called the giant -- Afforest is correct
+ * for any choice, so a mutated sampler makes the last rounds slower and changes no label, and no mutation of it can
+ * break a tolerance by the `minFactor >= 10` the table demands.
+ */
+export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene", "wcc-sample"]);
 
 /**
  * The mutated body (throws when `find` is absent or not unique in the normative body).

@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>GPU ForceAtlas2 demo</title>
+        <title>GPU layout demo</title>
         <style>
             :root {
                 color-scheme: dark;
@@ -66,7 +66,8 @@
                 color: #08111f;
                 font-weight: 600;
             }
-            #stats {
+            #stats,
+            .stats {
                 margin-top: 14px;
                 border-top: 1px solid #2c3340;
                 padding-top: 10px;
@@ -91,6 +92,31 @@
                 width: 100%;
                 height: 100%;
                 cursor: grab;
+                touch-action: none;
+            }
+            #panel h2 {
+                font-size: 13px;
+                margin: 16px 0 4px;
+                padding-top: 10px;
+                border-top: 1px solid #2c3340;
+            }
+            #zoom {
+                display: flex;
+                gap: 6px;
+            }
+            #zoom button {
+                flex: 1;
+            }
+            @media (max-width: 800px) {
+                #app {
+                    grid-template-columns: 1fr;
+                    grid-template-rows: auto 1fr;
+                }
+                #panel {
+                    max-height: 45vh;
+                    border-right: 0;
+                    border-bottom: 1px solid #2c3340;
+                }
             }
             canvas.dragging {
                 cursor: grabbing;
@@ -108,7 +134,7 @@
     <body>
         <div id="app">
             <div id="panel">
-                <h1>GPU ForceAtlas2 (exact tier)</h1>
+                <h1>GPU layouts + PageRank</h1>
                 <label for="graph">Graph</label>
                 <select id="graph">
                     <option value="karate">Zachary karate club (34 / 78)</option>
@@ -118,6 +144,16 @@
                     <option value="random10k">Random G(10,000, 30,000)</option>
                     <option value="rmat">R-MAT hub graph (16,384 / 131,072)</option>
                     <option value="random30k">Random G(30,000, 90,000)</option>
+                    <option value="condmat">SNAP ca-CondMat (23k / 93k)</option>
+                    <option value="enron">SNAP email-Enron (37k / 184k)</option>
+                    <option value="brightkite">SNAP Brightkite (58k / 214k)</option>
+                    <option value="gnutella">SNAP Gnutella31 (63k / 148k)</option>
+                </select>
+                <label for="model">Layout model</label>
+                <select id="model">
+                    <option value="fa2" selected>ForceAtlas2</option>
+                    <option value="fr">Fruchterman-Reingold</option>
+                    <option value="se">spring-electrical (ngraph preset)</option>
                 </select>
                 <label for="compat">Formulas</label>
                 <select id="compat">
@@ -128,17 +164,31 @@
                 <input id="ips" type="number" min="1" max="64" value="2" />
                 <label><input id="linlog" type="checkbox" style="width: auto" /> linlog</label>
                 <label><input id="strong" type="checkbox" style="width: auto" /> strong gravity</label>
+                <label><input id="adaptive" type="checkbox" style="width: auto" checked /> adaptive cooling (FR)</label>
                 <label><input id="edges" type="checkbox" style="width: auto" checked /> draw edges</label>
                 <button id="play" class="primary">Pause</button>
                 <button id="restart">Restart (new seed)</button>
                 <button id="unpin">Unpin all</button>
+                <div id="zoom">
+                    <button id="zoomout">Zoom -</button>
+                    <button id="zoomin">Zoom +</button>
+                </div>
+                <h2>PageRank (GPU)</h2>
+                <label for="colour">Colour and size nodes by</label>
+                <select id="colour">
+                    <option value="degree" selected>degree</option>
+                    <option value="pagerank">PageRank score</option>
+                </select>
+                <button id="pagerank" class="primary">Run PageRank</button>
+                <div id="prstats" class="stats"></div>
                 <div id="status">starting...</div>
                 <div id="stats"></div>
             </div>
             <div id="view">
                 <canvas id="canvas"></canvas>
                 <div id="hint">
-                    drag a node to move it (it stays pinned; click a pinned node to release it) - wheel to zoom
+                    drag a node to move it (it stays pinned; tap a pinned node to release it) - wheel or the zoom
+                    buttons to zoom
                 </div>
             </div>
         </div>

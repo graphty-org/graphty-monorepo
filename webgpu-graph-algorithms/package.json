@@ -1,6 +1,6 @@
 {
     "name": "@graphty/webgpu-graph-algorithms",
-    "version": "0.2.1",
+    "version": "0.5.1",
     "description": "WebGPU-accelerated graph algorithms and layouts over the @graphty/graph-format snapshot, for Node (Dawn) and browsers",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -88,7 +88,7 @@
     "peerDependencies": {
         "@graphty/algorithms": "^1.0.0",
         "@graphty/graph-format": "^1.0.0",
-        "@graphty/layout": "^1.0.0",
+        "@graphty/layout": "^1.7.0",
         "webgpu": ">=0.4.0 <1.0.0"
     },
     "peerDependenciesMeta": {
@@ -103,10 +103,14 @@
         }
     },
     "devDependencies": {
+        "@graphty/algorithms": "workspace:^",
+        "@graphty/layout": "workspace:^",
         "@vitest/browser": "^3.2.4",
         "@vitest/coverage-v8": "^3.2.4",
         "@vitest/ui": "^3.2.4",
         "fast-check": "^4.2.0",
+        "ngraph.forcelayout": "^3.3.1",
+        "ngraph.graph": "^20.0.1",
         "playwright": "^1.54.1",
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",

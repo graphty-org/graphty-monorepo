@@ -38,7 +38,7 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint && tsc --noEmit",
+                "command": "npm run lint",
                 "cwd": "algorithms"
             }
         },

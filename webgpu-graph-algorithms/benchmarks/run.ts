@@ -8,6 +8,7 @@
  *   pnpm run bench                                        # every group, 5 timed runs each after one warm-up, appended
  *   pnpm exec tsx benchmarks/run.ts upload roundtrip      # selected groups
  *   pnpm exec tsx benchmarks/run.ts layout-exact          # the T-4 ladder and the 10k frame rung (P3)
+ *   pnpm exec tsx benchmarks/run.ts layout-fr             # T-14 (P5)
  *   pnpm exec tsx benchmarks/run.ts --no-save             # print only
  *   pnpm exec tsx benchmarks/run.ts --runs 3              # 3 timed runs per benchmark
  *   pnpm exec tsx benchmarks/run.ts --allow-software      # time on a software adapter anyway (never for a baseline)
@@ -22,14 +23,23 @@ import { type GpuContext } from "../src/context.js";
 import { createNodeGpuContext } from "../src/node/index.js";
 import { appendSession, type BenchResult, gpuSessionInfo, printTable, runnerClass, setBenchRuns } from "./harness.js";
 import { LAYOUT_EXACT_GROUP, runLayoutExactBenchmarks } from "./layout-exact.bench.js";
+import { LAYOUT_FR_GROUP, runLayoutFrBenchmarks } from "./layout-fr.bench.js";
+import { runPagerankBenchmarks } from "./pagerank.bench.js";
 import { runRoundtripBenchmarks } from "./roundtrip.bench.js";
 import { runUploadBenchmarks } from "./upload.bench.js";
+import { runWccBenchmarks } from "./wcc.bench.js";
 
-/** The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side of T-5. */
+/**
+ * The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side
+ * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14.
+ */
 const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]>>> = {
     upload: runUploadBenchmarks,
     roundtrip: runRoundtripBenchmarks,
     [LAYOUT_EXACT_GROUP]: runLayoutExactBenchmarks,
+    pagerank: runPagerankBenchmarks,
+    wcc: runWccBenchmarks,
+    [LAYOUT_FR_GROUP]: runLayoutFrBenchmarks,
 };
 
 /** The parsed command line. */
@@ -52,6 +62,9 @@ function parseArgs(argv: readonly string[]): Args {
     let runs = 5;
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
+        if (a === "--") {
+            continue; // pnpm run bench -- <group> forwards the separator itself
+        }
         if (a === "--no-save") {
             save = false;
         } else if (a === "--allow-software") {

@@ -30,9 +30,11 @@ npm install webgpu@0.4.0
 `webgpu@0.6.x` needs glibc 2.38). The peer range `>=0.4.0 <1.0.0` admits the newer builds on a newer
 glibc; a Node consumer that forgets the package gets `E_NO_WEBGPU` with the message
 "install the optional peer dependency webgpu@0.4.0". `@graphty/algorithms` and `@graphty/layout` are
-optional peer dependencies too: the accelerator types mirror their interfaces (structurally until the
-package moves into the monorepo), so a consumer that type-checks against this package installs them; a
-consumer that never touches the accelerator types does not need them.
+optional peer dependencies too, on different footings since W1b: the layout interfaces and option types
+are `import type`d from `@graphty/layout` and re-exported, so they ARE its declarations, while the
+`@graphty/algorithms` accelerator types are still structural mirrors until A2. Either way a consumer that
+type-checks against the accelerator types (without `skipLibCheck`) installs the package it names; a
+consumer that never touches them does not need it.
 
 ## ForceAtlas2 from Node
 
@@ -272,8 +274,10 @@ lane's own artifact; `bench:compare` skips when the card was not quiet during th
 `roundtrip` (T-2, T-3), `layout-exact` (T-4 and the Node side of T-5: `step(1)` on the exact ladder 1k / 4k / 8k / 16k /
 32k / 65k and at 10k, two rows per rung -- the wall time of one iteration with its readback, and the GPU time per iteration
 the profiler reports; every rung starts with an untimed clock warm-up burst, because NVIDIA's power management leaves the
-SM clock at its idle 210 MHz under sparse sub-millisecond dispatches and the kernels then measure 4-15x slower). The
-Chromium number of T-5 comes from the `bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node
+SM clock at its idle 210 MHz under sparse sub-millisecond dispatches and the kernels then measure 4-15x slower),
+`pagerank` (T-8), `wcc` (T-9), `layout-fr` (T-14: `step(1)` of `createFruchtermanReingold` and `createSpringElectrical`
+at 10k and at 100k with `repulsion: "exact"`, the same two rows per model and rung as `layout-exact`, tagged `fr` /
+`se`). The Chromium number of T-5 comes from the `bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node
 scripts/run-browser-project.js`), which appends its session through the Vitest commands bridge. `exactMaxNodes` is
 re-fixed from the ladder by the rule of plan section 7.8 (the largest rung under 4 ms per iteration, rounded down to a
 power of two; `benchmarks/layout-exact.bench.ts` `exactMaxNodesFromLadder`).
@@ -287,32 +291,42 @@ are the T-table of plan section 10.4. A missed target is re-fixed by a recorded 
 
 ### The dev box (nvidia-lovelace-driver580)
 
-Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 2026-09-16T02:07:45.933Z, medians of 5 runs; Chromium: nvidia / lovelace (nvidia-lovelace-driver0, the description is redacted by Chromium), session 2026-09-16T02:18:11.896Z.
+Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 2026-09-20T01:06:48.656Z, medians of 5 runs; Chromium: nvidia / lovelace (nvidia-lovelace-driver0, the description is redacted by Chromium), session 2026-09-16T02:18:11.896Z.
 
-| Id  | What                                                                                         | Target              | Measured             |
-| --- | -------------------------------------------------------------------------------------------- | ------------------- | -------------------- |
-| T-1 | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                     | <= 10 ms; <= 100 ms | 6.032 ms; 127.531 ms |
-| T-2 | `degree` + 400 KB readback at 100k (core resident), Node                                     | <= 2 ms             | 0.878 ms             |
-| T-3 | Empty submit + 4-byte `readU32` round trip, Dawn                                             | <= 0.1 ms           | 0.170 ms             |
-| T-4 | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                     | <= 1 ms; <= 2 ms    | 0.586 ms; 1.052 ms   |
-| T-5 | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets) | <= 6 ms             | 2.400 ms (0.738 ms)  |
+| Id   | What                                                                                                                                     | Target              | Measured               |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- |
+| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms | 5.980 ms; 125.738 ms   |
+| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms             | 0.870 ms               |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms           | 0.181 ms               |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms    | 0.586 ms; 1.053 ms     |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms             | 2.400 ms (0.726 ms)    |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s | 17.204 ms; 198.645 ms  |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms           | 145.970 ms (12.613 ms) |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded            | 0.617 ms; 16.367 ms    |
 
-Two rows miss their target in this session: the 1M / 10M upload (127.5 ms against 100 ms, the open owner decision of
-`docs/decisions/G1.md` section 7) and the empty-submit round trip (0.170 ms against 0.1 ms: the row is measured after the
-`upload` group, whose CPU-heavy setup lets the SM clock fall to its idle state; the same row measures 0.041-0.074 ms at
-the working clock -- finding G3-F2 of `docs/decisions/G3.md` section 10).
+Three rows miss their target in this session: the 1M / 10M upload (125.7 ms against 100 ms, the open owner decision of
+`docs/decisions/G1.md` section 7), the empty-submit round trip (0.181 ms against 0.1 ms: the row is measured after the
+`upload` group, whose CPU-heavy setup lets the SM clock fall to its idle state; the same row measures 0.041-0.075 ms at
+the working clock -- finding G3-F2 of `docs/decisions/G3.md` section 10), and WCC at 1M / 10M (146.0 ms against
+100 ms: the row is wall end to end from a released core, so it carries the same 164 MB upload T-1 times at 125.7 ms;
+with the core resident the same call takes 11-16 ms). The T-9 target is therefore below
+the T-1 upload it includes, an owner decision for `docs/decisions/G7.md`. The `pagerank` rows run all 100 iterations
+(`tolerance: 0`): at the NetworkX tolerance of 1e-6 the seeded G(n, m) input converges from the uniform start in one to
+four iterations, which would time one pull and call it a hundred. The T-14 row is the `layout-fr` group of the later
+session 2026-09-20T19:25:37.311Z (the file's last session, the current baseline), whose other rows are within 1.08x of
+this table's; the spring-electrical preset measures 0.648 ms at 10k and 18.154 ms at 100k in the same session.
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 
 | n     | ms / iteration | step(1) wall (ms) | pairs / s |
 | ----- | -------------- | ----------------- | --------- |
-| 1024  | 0.096          | 0.228             | 1.09e+10  |
-| 4096  | 0.255          | 0.415             | 6.58e+10  |
-| 8192  | 0.478          | 0.630             | 1.40e+11  |
-| 10000 | 0.586          | 0.738             | 1.71e+11  |
-| 16384 | 1.052          | 1.226             | 2.55e+11  |
-| 32768 | 2.560          | 2.787             | 4.19e+11  |
-| 65536 | 8.405          | 8.862             | 5.11e+11  |
+| 1024  | 0.087          | 0.224             | 1.20e+10  |
+| 4096  | 0.255          | 0.381             | 6.58e+10  |
+| 8192  | 0.478          | 0.612             | 1.40e+11  |
+| 10000 | 0.586          | 0.726             | 1.71e+11  |
+| 16384 | 1.053          | 1.207             | 2.55e+11  |
+| 32768 | 2.561          | 2.757             | 4.19e+11  |
+| 65536 | 8.402          | 8.705             | 5.11e+11  |
 
 The end-to-end run of `benchmarks/layout-run.ts --nodes 100000 --edges 1000000` (the exact tier at 100k, 100
 iterations, batches of 8) takes 18.971 ms per iteration on the same card, uploads and readbacks included (16.975 ms of
@@ -327,27 +341,30 @@ T-4 and T-5 and misses T-1 (both uploads), T-2 and T-3, which is the class diffe
 cloud vCPU (host-side copies and submit latency), not a regression: the exact tier's `ms / iteration` is 1.7x the
 RTX 4070 SUPER's at 10k and 3.0x at 65k.
 
-Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-18T07:03:17.146Z, medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-18T07:02:07.834Z.
+Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-20T02:29:33.210Z (run 35483512705), medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-20T02:28:10.676Z.
 
-| Id  | What                                                                                         | Target              | Measured              |
-| --- | -------------------------------------------------------------------------------------------- | ------------------- | --------------------- |
-| T-1 | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                     | <= 10 ms; <= 100 ms | 14.458 ms; 257.954 ms |
-| T-2 | `degree` + 400 KB readback at 100k (core resident), Node                                     | <= 2 ms             | 2.298 ms              |
-| T-3 | Empty submit + 4-byte `readU32` round trip, Dawn                                             | <= 0.1 ms           | 0.171 ms              |
-| T-4 | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                     | <= 1 ms; <= 2 ms    | 0.977 ms; 1.879 ms    |
-| T-5 | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets) | <= 6 ms             | 2.600 ms (1.357 ms)   |
+| Id   | What                                                                                                                                     | Target              | Measured                                                                                                                                       |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms | 14.338 ms; 256.418 ms                                                                                                                          |
+| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms             | 2.957 ms                                                                                                                                       |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms           | 1.296 ms                                                                                                                                       |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms    | 0.972 ms; 1.953 ms                                                                                                                             |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms             | 2.600 ms (1.359 ms)                                                                                                                            |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s | 45.461 ms; 1092.799 ms                                                                                                                         |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms           | 293.079 ms (28.544 ms)                                                                                                                         |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded            | 0.942 ms; 54.232 ms (the spring preset 1.051 ms; 60.706 ms)                                                                                    |
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 
 | n     | ms / iteration | step(1) wall (ms) | pairs / s |
 | ----- | -------------- | ----------------- | --------- |
-| 1024  | 0.334          | 0.977             | 3.13e+9   |
-| 4096  | 0.426          | 0.881             | 3.93e+10  |
-| 8192  | 0.801          | 1.184             | 8.38e+10  |
-| 10000 | 0.977          | 1.357             | 1.02e+11  |
-| 16384 | 1.879          | 2.317             | 1.43e+11  |
-| 32768 | 6.534          | 7.241             | 1.64e+11  |
-| 65536 | 24.883         | 25.955            | 1.73e+11  |
+| 1024  | 0.340          | 0.711             | 3.08e+9   |
+| 4096  | 0.431          | 0.814             | 3.90e+10  |
+| 8192  | 0.797          | 1.172             | 8.42e+10  |
+| 10000 | 0.972          | 1.359             | 1.03e+11  |
+| 16384 | 1.953          | 2.383             | 1.37e+11  |
+| 32768 | 6.861          | 7.394             | 1.57e+11  |
+| 65536 | 25.236         | 26.366            | 1.70e+11  |
 
 ## Development
 

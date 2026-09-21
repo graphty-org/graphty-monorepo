@@ -84,6 +84,8 @@ export interface ModelResources {
 export interface ModelInputs {
     readonly mass: F32;
     readonly weights: ResolvedWeights;
+    /** A mask to apply at load (the FR `fixed` option, PD-6); validated against `ceil(n / 32)` words; absent / null leaves the words as they are (kept on a same-size reload, cleared on a resize, spec 7.12). */
+    readonly fixed?: NodeMask | null | undefined;
 }
 
 /**
@@ -930,6 +932,15 @@ export class ForceSimulation<
                     `the model resolved ${inputs.mass.length} masses for ${n} nodes`,
                 );
             }
+            const fixedWords = Math.ceil(n / 32);
+            if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
+                throw invalidArgument(
+                    "fixed",
+                    inputs.fixed.length,
+                    fixedWords,
+                    `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
+                );
+            }
         }
 
         // ---- every check passed: mutate
@@ -955,6 +966,10 @@ export class ForceSimulation<
             this.overrideList.clear();
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
+        }
+        if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
+            this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
+            this.fixedDirty = true;
         }
         if (n === 0 || core === null || inputs === null) {
             // PLAN DECISION 10: an empty graph loads with no GPU work
@@ -1542,22 +1557,24 @@ export class ForceSimulation<
      * The uniform values of one iteration slot: the model's values with the shared fields on top (PLAN DECISION 6).
      * @param global - the global iteration index (iterationsSubmitted + i)
      * @param index - the slot index within the batch (the trace slot)
-     * @param flags - FA2_FLAG_FIRST for the first iteration after load(), else 0
+     * @param flags - FA2_FLAG_FIRST for the first iteration after load(), else 0; the model's own flag bits are OR-ed in
      * @returns the values
      */
     private paramsForSlot(global: number, index: number, flags: number): UniformValues {
         const [cx, cy, cz] = this.center;
+        const model = this.model.paramsFor(global, this.optionsValue);
+        const modelFlags = typeof model.flags === "number" ? model.flags : 0;
         const shared: UniformValues = {
             n: this.n,
             dim: this.dimValue,
-            flags,
+            flags: flags | modelFlags,
             iterationIndex: index,
             seed: this.seedU32(),
             scale: this.scale,
             center: [cx, cy, cz, 0],
             settleThreshold: this.settleThreshold(),
         };
-        return { ...this.model.paramsFor(global, this.optionsValue), ...shared };
+        return { ...model, ...shared };
     }
 
     /**

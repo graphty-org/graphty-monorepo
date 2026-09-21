@@ -4,6 +4,13 @@
  * exact spec 3.3 value from `partials.max.w`), bounding box, mean displacement over free nodes (0 when every node
  * is fixed), the settle counter -- increments the iteration counter and writes the K1 half of the trace record.
  * On the first iteration after load() (`FA2_FLAG_FIRST`) it folds nothing and keeps the host-written state.
+ * `STATS_MODE` (P5, spec 7.20) adds the model statistic: 0 = the FA2 text, 1 = the Fruchterman-Reingold temperature
+ * of this iteration into `S.temperature` and the trace's `modelScalar` -- the uniform's under the linear schedule,
+ * or, with `FA2_FLAG_ADAPTIVE` set, the adaptive one: the previous iteration's force energy (K5 folds sum |F|^2 over
+ * free nodes into `partials.swingTraction.x`) against `S.frEnergy` grows the temperature by 1 / FR_COOLING_STEP after
+ * FR_COOLING_PATIENCE consecutive falls and shrinks it by FR_COOLING_STEP on a rise (Yifan Hu 2005, section 3.2);
+ * 2 = the spring-electrical kinetic energy K5 folded into `partials.swingTraction.x` (PD-4) into `S.kineticEnergy`
+ * and the trace.
  *
  * This file holds the kernel BODY only (spec 3.5, D9): no bind-group lines and no `override` lines -- the composer
  * emits them from the registry entry in src/kernels.ts (contract 3.10.1). The text is normative (contract 4.5) and
@@ -21,6 +28,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
     var hi = vec4f(-F32_MAX);
     var disp = 0.0;
     var free = 0u;
+    var ke = 0.0;
     if (fold) {
         for (var g = lid.x; g < groups; g = g + WG) {   // sequential per lane in index order: deterministic
             let q = partials[g];
@@ -29,6 +37,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             hi = max(hi, q.max);
             disp = disp + q.dispFree.x;
             free = free + u32(q.dispFree.y);
+            ke = ke + q.swingTraction.x;
         }
     }
     let tSum = wg_reduce_vec4(sum, lid.x, 0u);
@@ -36,6 +45,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
     let tHi = wg_reduce_vec4(hi, lid.x, 2u);
     let tDisp = wg_reduce_f32(disp, lid.x, 0u);
     let tFree = wg_reduce_u32(free, lid.x, 0u);
+    let tKe = wg_reduce_f32(ke, lid.x, 0u);
     if (lid.x == 0u) {
         if (fold) {
             let n = f32(P.n);
@@ -53,5 +63,28 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         T[P.iterationIndex].meanDisplacement = S.meanDisplacement;
         T[P.iterationIndex].settledCount = S.settledCount;
         T[P.iterationIndex].iteration = S.iteration;
+        if (STATS_MODE == 1u) {                                    // FR: this iteration's temperature (7.20) into the state and the trace
+            if ((P.flags & FA2_FLAG_ADAPTIVE) != 0u) {                // adaptive cooling (Yifan Hu 2005 3.2): tKe is the previous iteration's sum |F|^2 over free nodes
+                if (fold) {
+                    var t = S.temperature;
+                    if (tKe < S.frEnergy) {
+                        S.frProgress = S.frProgress + 1u;
+                        if (S.frProgress >= FR_COOLING_PATIENCE) { S.frProgress = 0u; t = t / FR_COOLING_STEP; }
+                    } else {
+                        S.frProgress = 0u;
+                        t = t * FR_COOLING_STEP;
+                    }
+                    S.frEnergy = tKe;
+                    S.temperature = t;
+                }
+            } else {
+                S.temperature = P.temperature;
+            }
+            T[P.iterationIndex].modelScalar = S.temperature;
+        }
+        if (STATS_MODE == 2u) {                                    // spring-electrical: the kinetic energy K5 folded into partials B (PD-4); 0 on the first iteration after load()
+            S.kineticEnergy = tKe;
+            T[P.iterationIndex].modelScalar = tKe;
+        }
     }
 }`;

@@ -97,11 +97,15 @@ async function buildGitHubPages() {
         await ensureDirectoryExists(ghPagesDir);
 
         // 2. Ensure dist/algorithms.js exists
-        const algorithmsJsPath = path.join(distDir, "algorithms.js");
+        // The self-contained bundle, not dist/algorithms.js: the example pages load it as a plain
+        // relative module and a browser cannot resolve the bare "@graphty/graph-format" specifier
+        // the published bundle carries. The DESTINATION file is still named algorithms.js, which is
+        // what every example imports, so nothing under examples/html-legacy/ changes.
+        const algorithmsJsPath = path.join(distDir, "algorithms.standalone.js");
         try {
             await fs.access(algorithmsJsPath);
         } catch {
-            console.error('dist/algorithms.js not found. Please run "npm run build:bundle" first.');
+            console.error('dist/algorithms.standalone.js not found. Please run "npm run build:bundle" first.');
             process.exit(1);
         }
 

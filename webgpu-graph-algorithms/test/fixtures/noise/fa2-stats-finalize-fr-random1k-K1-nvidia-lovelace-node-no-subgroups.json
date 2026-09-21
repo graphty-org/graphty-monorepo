@@ -1,0 +1,10 @@
+{
+    "kernel": "fa2-stats-finalize",
+    "fixture": "fr-random1k-K1",
+    "adapterClass": "nvidia-lovelace-node-no-subgroups",
+    "dtype": "f32",
+    "values": [
+        -0.04056348651647568, -0.03979223221540451, 0, 0.7363178730010986, 1.4235576391220093, 0.10000000149011612, 0,
+        2, 0.09803921729326248
+    ]
+}

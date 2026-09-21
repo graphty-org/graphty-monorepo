@@ -1,6 +1,17 @@
 import type { Edge, GraphConfig, Node, NodeId } from "../types/index.js";
 
 /**
+ * True when an undirected edge seen from `source` is the mirror of one already yielded from
+ * `target`: ids of one type compare by value, ids of different types by their type name.
+ * @param source - The node the edge is read from
+ * @param target - The node the edge points to
+ * @returns True when this side of the edge is the duplicate
+ */
+function isMirror(source: NodeId, target: NodeId): boolean {
+    return typeof source === typeof target ? source > target : typeof source > typeof target;
+}
+
+/**
  * Core Graph data structure for the Graphty Algorithms library
  *
  * Provides efficient graph representation with support for both directed and undirected graphs.
@@ -12,6 +23,7 @@ export class Graph {
     private incomingEdges: Map<NodeId, Map<NodeId, Edge>>; // For directed graphs
     private config: GraphConfig;
     private edgeCount: number;
+    private mutations: number;
 
     /**
      * Creates a new Graph instance.
@@ -28,6 +40,7 @@ export class Graph {
         this.adjacencyList = new Map();
         this.incomingEdges = new Map();
         this.edgeCount = 0;
+        this.mutations = 0;
     }
 
     /**
@@ -43,6 +56,8 @@ export class Graph {
             if (this.config.directed) {
                 this.incomingEdges.set(id, new Map());
             }
+
+            this.mutations++;
         }
     }
 
@@ -88,6 +103,7 @@ export class Graph {
             this.incomingEdges.delete(id);
         }
 
+        this.mutations++;
         return true;
     }
 
@@ -142,6 +158,7 @@ export class Graph {
         }
 
         this.edgeCount++;
+        this.mutations++;
     }
 
     /**
@@ -172,6 +189,7 @@ export class Graph {
         }
 
         this.edgeCount--;
+        this.mutations++;
         return true;
     }
 
@@ -224,6 +242,18 @@ export class Graph {
     }
 
     /**
+     * A counter that increases on every topology change (`addNode` of a new id, `removeNode`,
+     * `addEdge`, `removeEdge`, `clear`) and never on a read. Callers memoise derived structures on
+     * `(graph, mutationCount)`; graph-format design 14.1 rule 4 names this counter, and `toSnapshot`
+     * is its first consumer. It is monotone and is NOT reset by `clear()`: a reset could hand a
+     * stale cache entry a matching key.
+     * @returns The number of topology changes made to this graph
+     */
+    get mutationCount(): number {
+        return this.mutations;
+    }
+
+    /**
      * Get the number of edges in the graph
      * @returns The total count of edges
      */
@@ -254,8 +284,10 @@ export class Graph {
     *edges(): IterableIterator<Edge> {
         for (const [source, edges] of this.adjacencyList) {
             for (const edge of edges.values()) {
-                // For undirected graphs, only yield each edge once
-                if (!this.config.directed && source > edge.target) {
+                // For undirected graphs, only yield each edge once. A string never compares
+                // greater than a number (both `<` and `>` are false), so mixed-type ids are
+                // ordered by their type name first; the mirror is then skipped on exactly one side.
+                if (!this.config.directed && isMirror(source, edge.target)) {
                     continue;
                 }
 
@@ -371,6 +403,7 @@ export class Graph {
         this.adjacencyList.clear();
         this.incomingEdges.clear();
         this.edgeCount = 0;
+        this.mutations++;
     }
 
     /**

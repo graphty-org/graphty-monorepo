@@ -38,9 +38,9 @@ npm install @graphty/graphty-element @babylonjs/core lit
                 { id: 3, label: "Node 3" },
             ];
             graph.edgeData = [
-                { src: 1, dst: 2 },
-                { src: 2, dst: 3 },
-                { src: 3, dst: 1 },
+                { source: 1, target: 2 },
+                { source: 2, target: 3 },
+                { source: 3, target: 1 },
             ];
         </script>
     </body>

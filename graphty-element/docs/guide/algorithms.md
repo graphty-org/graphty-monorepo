@@ -124,115 +124,89 @@ await graph.runAlgorithm("graphty", "max-flow", {
 
 ## Accessing Results
 
-Algorithm results are stored on nodes:
+A run hands back its own result. Nothing has to be found by walking the graph:
 
 ```typescript
-// Run algorithm
-await graph.runAlgorithm("graphty", "degree");
+const run = await element.run("degree");
 
-// Access results on individual nodes
-const node = graph.getNode("node1");
-const degree = node.algorithmResults["graphty:degree"];
+// One element
+console.log(run.result.node("node1")?.value);
 
-// Access all nodes with results
-const nodes = graph.getNodes();
-for (const node of nodes) {
-    console.log(`${node.id}: ${node.algorithmResults["graphty:degree"]}`);
-}
+// The shape of the whole thing, computed once
+const summary = run.result.summary();
+console.log(summary.max, summary.min, summary.top[0].id);
 ```
+
+The same values are published as columns under the run's id, which is what a style layer and a
+filter read: `results.<runId>.value`.
 
 ## Suggested Styles
 
-Many algorithms provide suggested visualizations:
+A run paints itself on its first completion. For a run started with `{style: false}`, or to put a
+picture back after a reader cleared it, ask for the suggestion again:
 
 ```typescript
-// Run algorithm
-await graph.runAlgorithm("graphty", "degree");
+await element.run("degree");
 
-// Apply the algorithm's suggested visualization
-graph.applySuggestedStyles("graphty:degree");
+element.applySuggestedStyles("degree");
 ```
 
 This automatically maps algorithm results to visual properties like color and size.
 
 ## Custom Styling with Algorithm Results
 
-Use algorithm results in style selectors:
+A run publishes its measurements under its own id, so a layer reads them the way it reads any
+other column -- `results.<runId>.<field>`:
 
 ```typescript
+const run = await element.run("degree");
+
 // Highlight high-degree nodes
-graph.styleManager.addLayer({
-    selector: "[?algorithmResults.'graphty:degree' > `10`]",
-    styles: {
-        node: { color: "#e74c3c", size: 2.0 },
-    },
-});
-
-// Dynamic styling based on results
-graph.styleManager.addLayer({
-    selector: "*",
-    styles: {
-        node: {
-            size: (node) => {
-                const degree = node.algorithmResults["graphty:degree"] || 0;
-                return 0.5 + degree * 0.1;
-            },
-        },
-    },
+await element.session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "expression", where: `results.${run.id}.value > \`10\`` },
+    set: { "node.color": "#E74C3C", "node.size": 2 },
 });
 ```
 
-## Combining with Style Helpers
+**Select only the elements the run measured.** A layer that matched everything would run its
+expression over nodes the algorithm has nothing to say about, and whatever the expression
+returned for them would be painted onto them.
 
-Use style helpers for polished visualizations:
+## Encoding a result onto a channel
+
+For a ramp or a palette across everything a run measured, bind the channel to it rather than
+writing out a rule per element. The scale, the palette and the extent all default to something
+that suits the field:
 
 ```typescript
-import { StyleHelpers } from "@graphty/graphty-element";
+const run = await element.run("pagerank");
 
-await graph.runAlgorithm("graphty", "pagerank");
+// Size every measured node by its rank, on one call
+await element.session.styles.encode({ run, channel: "node.size" });
 
-// Find max value for normalization
-const maxRank = Math.max(...graph.getNodes().map((n) => n.algorithmResults["graphty:pagerank"] || 0));
-
-graph.styleManager.addLayer({
-    selector: "*",
-    styles: {
-        node: {
-            color: (node) => {
-                const rank = node.algorithmResults["graphty:pagerank"] || 0;
-                return StyleHelpers.color.sequential.viridis(rank / maxRank);
-            },
-        },
-    },
-});
+// And colour it, through a palette of your choosing
+await element.session.styles.encode({ run, channel: "node.color", palette: "viridis" });
 ```
+
+`encode()` replaces the layer already painting that channel from that run, so running the
+algorithm again leaves one layer and one legend block rather than two.
 
 ## Multiple Algorithms
 
-Run multiple algorithms and combine results:
+Run several and let each paint a channel of its own:
 
 ```typescript
-// Run multiple algorithms
-await graph.runAlgorithm("graphty", "degree");
-await graph.runAlgorithm("graphty", "louvain");
+const degree = await element.run("degree");
+const communities = await element.run("louvain");
 
-// Style by community with size by degree
-graph.styleManager.addLayer({
-    selector: "*",
-    styles: {
-        node: {
-            color: (node) => {
-                const community = node.algorithmResults["graphty:louvain"];
-                return StyleHelpers.color.categorical.okabeIto(community);
-            },
-            size: (node) => {
-                const degree = node.algorithmResults["graphty:degree"] || 0;
-                return 0.5 + degree * 0.1;
-            },
-        },
-    },
-});
+await element.session.styles.encode({ run: communities, channel: "node.color" });
+await element.session.styles.encode({ run: degree, channel: "node.size" });
 ```
+
+Layers stack, so the two do not fight: one decides colour, the other decides size, and
+`session.styles.legend()` describes both.
 
 ## Custom Algorithms
 

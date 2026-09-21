@@ -38,7 +38,7 @@ features:
     link: /graphty-element/guide/layouts
     linkText: Learn more
   - title: Extending
-    details: Create custom layouts, algorithms, and data sources.
-    link: /graphty-element/guide/extending/custom-layouts
+    details: Bring your own palette, file format, camera view, layout, algorithm or log destination.
+    link: /graphty-element/guide/extending/
     linkText: Learn more
 ---

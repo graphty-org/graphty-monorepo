@@ -21,8 +21,10 @@ The Web Component exposes these properties for declarative configuration:
 | `nodeData`      | `node-data`        | `Array<object>` | Array of node objects                              |
 | `edgeData`      | `edge-data`        | `Array<object>` | Array of edge objects                              |
 | `nodeIdPath`    | `node-id-path`     | `string`        | JMESPath to node ID (default: `"id"`)              |
-| `edgeSrcIdPath` | `edge-src-id-path` | `string`        | JMESPath to edge source ID (default: `"src"`)      |
-| `edgeDstIdPath` | `edge-dst-id-path` | `string`        | JMESPath to edge destination ID (default: `"dst"`) |
+| `edgeSrcIdPath` | `edge-src-id-path` | `string`        | JMESPath to the edge source ID. Unset by default, which means the element looks for `source`, then `src`, then `from` |
+| `edgeDstIdPath` | `edge-dst-id-path` | `string`        | JMESPath to the edge target ID. Unset by default; see above |
+| `edgeIdPath`    | `edge-id-path`     | `string`        | JMESPath to an edge's own identifier, for data that carries one. Unset by default, which means a repeat is decided by its ordered endpoint pair alone. It does not name the edge -- `Edge.id` is always the element's counter |
+| `repeatedEdges` | `repeated-edges`   | `DuplicatePolicy` | What a second edge record naming a pair the graph already holds does: `keep` (default, a second edge), `first`, `last`, `sum`, `min`, `max`, or `error` |
 
 ### Layout Properties
 
@@ -33,10 +35,14 @@ The Web Component exposes these properties for declarative configuration:
 
 ### Display Properties
 
-| Property        | Attribute        | Type                           | Description         |
-| --------------- | ---------------- | ------------------------------ | ------------------- |
-| `viewMode`      | `view-mode`      | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode      |
-| `styleTemplate` | `style-template` | `object`                       | Style configuration |
+| Property                 | Attribute                  | Type                           | Description                      |
+| ------------------------ | -------------------------- | ------------------------------ | -------------------------------- |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                   |
+| `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out    |
+
+What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
+See the [styling guide](/guide/styling).
 
 ### Data Source Properties
 

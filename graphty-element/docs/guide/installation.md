@@ -188,7 +188,7 @@ Graphty includes TypeScript definitions. Import types as needed:
 
 ```typescript
 import "@graphty/graphty-element";
-import type { Graph, Node, Edge, StyleSchema } from "@graphty/graphty-element";
+import type { Edge, Graph, Node } from "@graphty/graphty-element";
 
 // Access the Graph instance
 const element = document.querySelector("graphty-element");

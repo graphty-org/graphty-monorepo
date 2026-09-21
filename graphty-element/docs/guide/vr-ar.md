@@ -187,39 +187,41 @@ XR requires high frame rates (72-120 fps). Tips for smooth performance:
 graph.setLayout("fixed");
 
 // Simplify styles
-graph.styleManager.addLayer({
-    selector: "*",
-    styles: {
-        node: { shape: "sphere" },
-        label: { visible: false },
-    },
+await element.session.styles.add({
+    name: "XR - simple nodes",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.shape": "sphere" },
 });
 ```
+
+A label is drawn because a layer wrote one. The way not to draw labels in XR is not to add that
+layer -- or, when one is already in the stack, to take it out by its id.
 
 ## VR-Specific Styling
 
 Adjust styles for VR visibility:
 
 ```typescript
-graph.styleManager.addLayer({
-    selector: "*",
-    priority: 50,
-    styles: {
-        node: {
-            // Larger nodes for VR
-            size: 2.0,
-            // High contrast colors
-            color: "#00ff00",
-        },
-        edge: {
-            line: {
-                // Thicker lines visible in VR
-                width: 1.5,
-            },
-        },
-    },
+// Larger nodes and high contrast, on top of whatever is already in the stack
+await element.session.styles.add({
+    name: "VR - readable at arm's length",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.size": 2, "node.color": "#00FF00" },
+});
+
+// Thicker lines, visible in VR
+await element.session.styles.add({
+    name: "VR - thicker edges",
+    target: "edge",
+    selector: { match: "everything" },
+    set: { "edge.width": 1.5 },
 });
 ```
+
+A layer added later paints over the layers under it, which is what "on top" means here: there is
+no priority number, only position in the stack.
 
 ## AR Considerations
 

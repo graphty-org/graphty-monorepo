@@ -76,10 +76,22 @@ await graph.addEdges([
 **Removing Elements:**
 
 ```typescript
-// Remove nodes (edges are removed automatically)
+// Remove nodes. The edges attached to them go too.
 await graph.removeNodes(["node1"]);
 await graph.removeNodes(["node1", "node2"]);
 ```
+
+One `elements-removed` event follows each call, naming the node ids you asked for and every edge
+id that went with them -- including edges you never mentioned:
+
+```typescript
+graph.on("elements-removed", ({ nodes, edges }) => {
+    console.log(`${nodes.length} nodes and ${edges.length} edges left the graph`);
+});
+```
+
+In 1.x the edges stayed behind: lines drawn to a node that no longer existed, which a filter could
+not reach and nothing could hide.
 
 **Bulk Data Loading:**
 
@@ -116,16 +128,30 @@ const node = graph.getNode("node1");
 // Get all nodes
 const allNodes = graph.getNodes();
 
-// Get a single edge
-const edge = graph.getEdge("node1", "node2");
-
-// Get all edges
-const allEdges = graph.getEdges();
-
 // Get counts
 const nodeCount = graph.getNodeCount();
 const edgeCount = graph.getEdgeCount();
 ```
+
+Edge records are read through the session, by the edge's own id. Ask for the ids first:
+
+```typescript
+const session = element.session;
+
+for (const id of (await session.scope.resolve("graph")).edges) {
+    const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
+}
+```
+
+"The edge between two nodes" is plural, because a graph may hold more than one:
+
+```typescript
+const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // readonly Edge[]
+```
+
+In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
+colon. Neither could represent a graph that holds two edges between one pair -- see
+[Data Sources](./data-sources#two-edges-between-the-same-pair).
 
 ### Selection
 
@@ -164,15 +190,14 @@ await graph.waitForSettled();
 ### Algorithms
 
 ```typescript
-// Run an algorithm
-await graph.runAlgorithm("graphty", "degree");
+// Run an algorithm. The run hands back its own result.
+const run = await graph.run("degree");
 
-// Apply visualization from algorithm results
-graph.applySuggestedStyles("graphty:degree");
+// One element's value
+const degree = run.result.node("node1")?.value;
 
-// Access results on individual nodes
-const node = graph.getNode("node1");
-const degree = node.algorithmResults["graphty:degree"];
+// Put the algorithm's own suggested picture back, after a reader cleared it
+graph.applySuggestedStyles("degree");
 ```
 
 ### Camera Control
@@ -206,9 +231,6 @@ const dataManager = graph.getDataManager();
 
 // Layout control
 const layoutManager = graph.getLayoutManager();
-
-// Style management
-const styleManager = graph.getStyleManager();
 
 // Event handling
 const eventManager = graph.getEventManager();
@@ -379,15 +401,14 @@ async function initGraph() {
     await graph.waitForSettled();
 
     // Run algorithm
-    await graph.runAlgorithm("graphty", "degree");
-    graph.applySuggestedStyles("graphty:degree");
+    const run = await graph.run("degree");
 
     // Fit view
     graph.zoomToFit();
 
     // Set up interaction
     graph.on("node-click", ({ node }) => {
-        console.log(`Clicked ${node.id} (degree: ${node.algorithmResults["graphty:degree"]})`);
+        console.log(`Clicked ${node.id} (degree: ${String(run.result.node(node.id)?.value)})`);
         graph.selectNode(node.id);
     });
 }

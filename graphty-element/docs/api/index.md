@@ -64,99 +64,52 @@ graph.zoomToFit();
 | Set layout           | ✅ `layout` attribute    | ✅ `setLayout()` method |
 | Run algorithms       | ❌                       | ✅ `runAlgorithm()`     |
 | Camera control       | ✅ Limited via methods   | ✅ Full control         |
-| Custom styles        | ✅ `style-template`      | ✅ `addStyleLayer()`    |
+| Custom styles        | ✅ `session.styles`      | ✅ `session.styles`     |
 | Event handling       | ✅ `addEventListener()`  | ✅ `graph.on()`         |
 | Screenshot/Video     | ✅ Via element methods   | ✅ Via graph methods    |
 
 ## Configuration Types
 
-### GraphtyConfig
+### Element properties
 
-Main configuration object:
-
-```typescript
-interface GraphtyConfig {
-    layout?: string;
-    layoutOptions?: object;
-    styleTemplate?: string;
-    viewMode?: "2d" | "3d" | "vr" | "ar";
-    debug?: boolean;
-}
-```
-
-### StyleSchema
-
-Style configuration:
+The whole picture -- which layout places it, which mode it is drawn in, what it is drawn against:
 
 ```typescript
-interface StyleSchema {
-    layers: StyleLayer[];
-}
-
-interface StyleLayer {
-    selector: string;
-    priority?: number;
-    styles: {
-        node?: NodeStyle;
-        edge?: EdgeStyle;
-        label?: LabelStyle;
-    };
-}
+element.layout = "ngraph";
+element.layoutConfig = { seed: 42 };
+element.viewMode = "2d";
+element.background = { backgroundType: "color", color: "#101014" };
+element.startingCameraDistance = 60;
 ```
 
-### NodeStyle
+### LayerSpec
 
-Node appearance options:
+What every node and edge looks like is a stack of layers on `element.session.styles`, and this is
+one layer as it is authored:
 
 ```typescript
-interface NodeStyle {
-    color?: string | ((node: Node) => string);
-    size?: number | ((node: Node) => number);
-    shape?: string;
-    opacity?: number;
-    texture?: string;
+interface LayerSpec {
+    name: string;
+    target?: "node" | "edge";
+    kind?: "base" | "encoding" | "highlight" | "custom";
+    selector: Selector;
+    set?: StaticStyle; // literal channel values
+    encode?: Encoding; // channel values bound to the data
+    source?: LayerSource;
+    enabled?: boolean;
+    userData?: Record<string, unknown>;
 }
+
+type Selector =
+    | { match: "expression"; where: string }
+    | { match: "has"; path: string }
+    | { match: "ids"; nodes?: readonly string[]; edges?: readonly string[] }
+    | { match: "everything" };
 ```
 
-### EdgeStyle
-
-Edge appearance options:
-
-```typescript
-interface EdgeStyle {
-    line?: {
-        type?: string;
-        width?: number;
-        color?: string;
-        opacity?: number;
-        bezier?: boolean;
-    };
-    arrowHead?: {
-        type?: string;
-        size?: number;
-        color?: string;
-    };
-    arrowTail?: {
-        type?: string;
-        size?: number;
-        color?: string;
-    };
-}
-```
-
-### LabelStyle
-
-Label appearance options:
-
-```typescript
-interface LabelStyle {
-    text?: string | ((element: Node | Edge) => string);
-    fontSize?: number;
-    fontColor?: string;
-    position?: string;
-    offset?: Vector3;
-}
-```
+A layer is addressed by the id the element mints for it, never by its index. The full vocabulary
+of channels, the expression language, and what `set` and `encode` each do are in the
+[styling guide](/guide/styling).
 
 ## Generated TypeDoc Reference
 

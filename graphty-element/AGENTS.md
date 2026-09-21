@@ -47,7 +47,7 @@ needs no import map.
    `edge-src-id-path` and `edge-dst-id-path` attributes rather than reshaping the data.
 3. **Rich values are properties, never attributes.** `el.nodeData = [...]`, not
    `node-data='[...]'`. The same goes for `edgeData`, `layoutConfig`, `dataSourceConfig`,
-   `styleTemplate` and `xr`. The fifteen attributes are strings and booleans; the complete list,
+   `background` and `xr`. The attributes are strings, numbers and booleans; the complete list,
    with types, is in `dist/custom-elements.json`.
 4. **The `layout` attribute takes an engine name, not a catalogue id.** Working values today are
    `ngraph`, `d3`, `forceatlas2`, `spring`, `kamada-kawai`, `arf`, `circular`, `shell`, `spiral`,
@@ -70,9 +70,10 @@ needs no import map.
 | `@graphty/graphty-element` | The custom element. Importing it defines the tag and registers the built-in layouts, data sources and algorithms. Pulls in Babylon.js and Lit. | No |
 | `@graphty/graphty-element/schema` | Palettes, `NodeShapes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, the style config types and the colour helpers (`interpolatePalette`, `hexToRgb`, the colour-vision simulators). | Yes |
 | `@graphty/graphty-element/catalog` | Plain-JSON descriptors for every algorithm, layout, file format, palette and scale, with the options each accepts. Build an options form from these instead of hard-coding a list. | Yes |
-| `@graphty/graphty-element/extend` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError`. | Yes |
+| `@graphty/graphty-element/extend` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `registerLogSink`, `GraphtyError`. | Yes |
 | `@graphty/graphty-element/format` | The read-only half of the graph-format vocabulary: `isGraphSnapshot`, the mask helpers, `expandEdges`, `foldArcs`, the gather/scatter/remap helpers. | Yes |
 | `@graphty/graphty-element/session` | The error model (`GraphtyError`, `GRAPHTY_ERROR_CODES`, `isGraphtyError`) and the identity and result-shape types. | Yes |
+| `@graphty/graphty-element/logging` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy`. Register a destination by name with `registerLogSink` from `/extend`. | Yes |
 | `@graphty/graphty-element/webgpu` | A side-effect import that registers the WebGPU accelerator. It is the only module that touches the optional `@graphty/webgpu-graph-algorithms` peer, so a consumer that never imports it never needs that package installed. | No |
 | `@graphty/graphty-element/ai` | The natural-language layer and its LLM SDKs, behind optional peers. | No |
 | `@graphty/graphty-element/bundle` | One self-contained file for a `<script>` tag. | No |
@@ -100,18 +101,22 @@ Prose and the generated type reference are at <https://graphty.app/docs/graphty-
 
 ## Not built yet -- do not write code against these
 
-The published API is the element, its attributes, its DOM events and the entry points above.
-Several surfaces are designed but not implemented, and code written against them will not
-compile or will silently do nothing:
+The published API is the element, its attributes, its DOM events, the entry points above, and
+the headless session reached through `element.session` or `createGraphSession`. The session
+carries the graph data, the runs and their results, scope, selection, visibility and the style
+layer stack -- write against those freely.
 
-- **`GraphSession` and `createGraphSession`.** `@graphty/graphty-element/session` exports the
-  error model and types today, and no session object. There is no headless graph model yet.
-- **Runs.** There is no `run()` returning a `Run` object, no `run.progress`, no `run.cancel()`
-  and no `results.<runId>` addressing.
-- **The declarative style layer system.** `Layer`, `Encoding`, `session.style.*` and the
-  `suggestedStyles` application policy described in the design documents do not exist as a public
-  API. Styling today goes through the `styleTemplate` property.
-- **Selection and visibility masks**, saved scopes, and the filter vocabulary that goes with them.
+What follows is designed and NOT implemented. Code written against it will not compile, or will
+silently do nothing:
+
+- **Neighbour pages.** The session's data surface answers one node and one edge by id, and has
+  no verb for "the neighbours of this node". Walking the records yourself is the only route.
+- **`session.calibrate()`.** The limits a session publishes are shipped defaults, not measured
+  ones; nothing times this machine yet.
+- **Counting what a `{ where }` scope matches.** A scope that names an expression is refused
+  rather than resolved, so "how many nodes would this selector pick" has no answer.
+- **A time role.** Nothing infers that an attribute is a timestamp, so there is no way to ask
+  whether a graph can be played over time.
 - **The command union and the journal.** `@graphty/graphty-element/commands` currently exports
   nothing; the name is reserved.
 - **The React wrappers.** `@graphty/graphty-element/react` currently exports nothing. In React 19

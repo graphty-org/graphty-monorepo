@@ -72,9 +72,13 @@ export default defineConfig({
                 {
                     text: "Extending",
                     items: [
+                        { text: "Extension Points", link: "/guide/extending/" },
+                        { text: "Custom Palettes", link: "/guide/extending/custom-palettes" },
+                        { text: "Custom File Formats", link: "/guide/extending/custom-data-sources" },
+                        { text: "Custom Camera Views", link: "/guide/extending/custom-cameras" },
                         { text: "Custom Layouts", link: "/guide/extending/custom-layouts" },
                         { text: "Custom Algorithms", link: "/guide/extending/custom-algorithms" },
-                        { text: "Custom Data Sources", link: "/guide/extending/custom-data-sources" },
+                        { text: "Custom Log Destinations", link: "/guide/extending/custom-log-destinations" },
                     ],
                 },
             ],

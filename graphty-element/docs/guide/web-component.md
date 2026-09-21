@@ -25,20 +25,37 @@ The `<graphty-element>` Web Component provides a declarative way to add graph vi
 
 All configuration is done through HTML attributes or their corresponding JavaScript properties:
 
-| Property           | Attribute            | Type                           | Default     | Description                    |
-| ------------------ | -------------------- | ------------------------------ | ----------- | ------------------------------ |
-| `nodeData`         | `node-data`          | `Array<object>`                | `[]`        | Array of node objects          |
-| `edgeData`         | `edge-data`          | `Array<object>`                | `[]`        | Array of edge objects          |
-| `layout`           | `layout`             | `string`                       | `'ngraph'`  | Layout algorithm name          |
-| `layoutConfig`     | `layout-config`      | `object`                       | `{}`        | Layout algorithm options       |
-| `styleTemplate`    | `style-template`     | `string`                       | `undefined` | Built-in style template        |
-| `viewMode`         | `view-mode`          | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
-| `dataSource`       | `data-source`        | `string`                       | `undefined` | Data source type               |
-| `dataSourceConfig` | `data-source-config` | `object`                       | `{}`        | Data source configuration      |
-| `nodeIdPath`       | `node-id-path`       | `string`                       | `'id'`      | Path to node ID in data        |
-| `edgeSrcIdPath`    | `edge-src-id-path`   | `string`                       | `'source'`  | Path to source ID in edge data |
-| `edgeDstIdPath`    | `edge-dst-id-path`   | `string`                       | `'target'`  | Path to target ID in edge data |
-| `debug`            | `debug`              | `boolean`                      | `false`     | Enable debug overlay           |
+| Property                 | Attribute                  | Type                           | Default     | Description                    |
+| ------------------------ | -------------------------- | ------------------------------ | ----------- | ------------------------------ |
+| `nodeData`               | `node-data`                | `Array<object>`                | `[]`        | Array of node objects          |
+| `edgeData`               | `edge-data`                | `Array<object>`                | `[]`        | Array of edge objects          |
+| `layout`                 | `layout`                   | `string`                       | `'ngraph'`  | Layout algorithm name          |
+| `layoutConfig`           | `layout-config`            | `object`                       | `{}`        | Layout algorithm options       |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
+| `background`             | `background`               | `object`                       | whitesmoke  | A colour, or a skybox image    |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | `30`        | How far the camera starts out  |
+| `dataSource`             | `data-source`              | `string`                       | `undefined` | Data source type               |
+| `dataSourceConfig`       | `data-source-config`       | `object`                       | `{}`        | Data source configuration      |
+| `nodeIdPath`             | `node-id-path`             | `string`                       | `'id'`      | Path to node ID in data        |
+| `edgeSrcIdPath`          | `edge-src-id-path`         | `string`                       | unset       | Path to source ID in edge data; unset means probe |
+| `edgeDstIdPath`          | `edge-dst-id-path`         | `string`                       | unset       | Path to target ID in edge data; unset means probe |
+| `edgeIdPath`             | `edge-id-path`             | `string`                       | unset       | Path to an edge's own identifier, for data that carries one |
+| `repeatedEdges`          | `repeated-edges`           | `'keep' \| 'first' \| 'last' \| 'sum' \| 'min' \| 'max' \| 'error'` | `'keep'` | What a second edge between one pair does |
+| `debug`                  | `debug`                    | `boolean`                      | `false`     | Enable debug overlay           |
+
+### How the element finds an edge's endpoints
+
+Leave `edge-src-id-path` and `edge-dst-id-path` unset and the element works out which keys name the
+endpoints. It tries `source` and `target` first, then `src` and `dst`, then `from` and `to`, and it
+decides once for a whole batch of records rather than once per record -- so a file cannot spell one
+edge one way and the next edge another and have both silently accepted.
+
+A batch that answers none of the three fails the load with `E_EDGE_ENDPOINTS_UNRESOLVED`, naming
+the columns the records do carry. It never loads a graph with nodes and no edges in silence, which
+is what 1.x did to every file spelled the way the guides teach.
+
+Setting either attribute settles the question and turns the probe off. A record that then does not
+answer the column you named is rejected and counted rather than guessed at again.
 
 ### Read-only Properties
 
@@ -68,7 +85,7 @@ The Web Component exposes many methods directly. See [Direct Methods](#direct-me
 ```html
 <graphty-element
     layout="circular"
-    style-template="dark"
+    background='{"backgroundType":"color","color":"#101014"}'
     node-data='[{"id": "a"}, {"id": "b"}, {"id": "c"}]'
     edge-data='[{"source": "a", "target": "b"}, {"source": "b", "target": "c"}]'
 >
@@ -190,13 +207,25 @@ element.layoutConfig = {
 };
 ```
 
-## Style Templates
+## Styling
 
-Apply built-in style templates:
+The background is a property of the element. What the nodes and edges look like is a stack of
+style layers, which is reached through the session:
 
 ```html
-<graphty-element style-template="dark"></graphty-element> <graphty-element style-template="light"></graphty-element>
+<graphty-element id="graph" background='{"backgroundType":"color","color":"#101014"}'></graphty-element>
 ```
+
+```javascript
+await document.querySelector("#graph").session.styles.add({
+    name: "Nodes",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#E5E7EB" },
+});
+```
+
+See the [styling guide](/guide/styling) for selectors, channels and the rest of the vocabulary.
 
 ## View Modes
 
@@ -407,7 +436,6 @@ const controller = element.getCameraController();
 // Access internal managers
 const dataManager = element.getDataManager();
 const layoutManager = element.getLayoutManager();
-const styleManager = element.getStyleManager();
 const selectionManager = element.getSelectionManager();
 const eventManager = element.getEventManager();
 const statsManager = element.getStatsManager();

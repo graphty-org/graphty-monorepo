@@ -1460,6 +1460,26 @@ interface ResultsApi {
 (4.15.2). `field` defaults to the shape's primary field, so `results.path(run)` is the common
 call.
 
+**A path going into an expression is quoted first, and the element publishes the quoting.** A
+run id carries its algorithm's name and ten of the twenty-four catalogue algorithms are
+hyphenated -- `shortest-path`, `min-cut`, `bipartite-matching` -- while the selector grammar
+reads a bare hyphen as subtraction. So `` `${results.path(run)} >= \`3\`` `` is not a comparison
+at all on those runs: it parses as one column minus another and the layer is refused outright.
+`quotePath`, exported from `./session` alongside `resultPath`, writes any segment that is not a
+bare identifier as a quoted name, and is what every expression built outside the element goes
+through:
+
+```ts
+import { quotePath, resultPath } from "@graphty/graphty-element/session";
+
+selector: { match: "expression", where: `${quotePath(resultPath(run.id, "value"))} >= \`3\`` }
+```
+
+It applies to attribute paths on the same terms -- `data.node-type` is refused for the same
+reason -- so it is published as a path-to-expression conversion rather than as a result helper.
+The selector `encode()` writes for itself needs none of this: it takes the `path` form, where a
+hyphen is just a character.
+
 `run.label` is computed by the element, not the consumer: the algorithm's plain name alone while
 it is the only run of that algorithm, gaining the differing parameter in parentheses the moment
 a sibling exists. One string, computed once, used by the layer row, the legend, the journal row
@@ -2921,8 +2941,9 @@ type GraphtyErrorCode =
   | "E_BAD_COMMAND" | "E_BAD_QUERY" | "E_BAD_LAYER" | "E_BAD_SELECTOR" | "E_BAD_FORMULA"
   | "E_SELECTOR_EMPTY" | "E_UNSCOPED_RUN_ENCODING" | "E_UNKNOWN_SCALE" | "E_UNKNOWN_CHANNEL"
   | "E_UNKNOWN_OPTION" | "E_OPTION_RANGE" | "E_UNKNOWN_ATTRIBUTE"
-  | "E_UNKNOWN_ALGORITHM" | "E_UNKNOWN_LAYOUT" | "E_UNKNOWN_FORMAT" | "E_UNKNOWN_RUN"
-  | "E_UNSTABLE_RUN_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_PLUGIN" | "E_PROTECTED"
+  | "E_UNKNOWN_ALGORITHM" | "E_UNKNOWN_LAYOUT" | "E_UNKNOWN_FORMAT"
+  | "E_UNKNOWN_PALETTE" | "E_UNKNOWN_CAMERA" | "E_UNKNOWN_SINK" | "E_UNKNOWN_RUN"
+  | "E_UNSTABLE_RUN_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_PLUGIN" | "E_PROTECTED"
   | "E_FETCH_FAILED" | "E_PARSE_FAILED" | "E_EDGE_ENDPOINTS_UNRESOLVED" | "E_ID_MISSING"
   | "E_TOO_LARGE" | "E_OUT_OF_MEMORY" | "E_CAP_EXCEEDED" | "E_SCOPE_EMPTY"
   | "E_NO_ACCELERATOR" | "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST"

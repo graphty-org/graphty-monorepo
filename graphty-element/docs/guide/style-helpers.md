@@ -180,24 +180,17 @@ const pulse = StyleHelpers.animation.pulse(t, { frequency: 2 });
 Complete example combining algorithms with style helpers:
 
 ```typescript
-// Run algorithm
-await graph.runAlgorithm("graphty", "degree");
+const run = await element.run("degree");
 
-// Find max degree for normalization
-const maxDegree = Math.max(...graph.getNodes().map((n) => n.algorithmResults["graphty:degree"] || 0));
-
-// Apply style helper
-graph.styleManager.addLayer({
-    selector: "*",
-    styles: {
-        node: {
-            color: (node) =>
-                StyleHelpers.color.sequential.viridis((node.algorithmResults["graphty:degree"] || 0) / maxDegree),
-            size: (node) => StyleHelpers.size.log(node.algorithmResults["graphty:degree"] || 0, { min: 0.5, max: 2.5 }),
-        },
-    },
-});
+// The element has the same palettes and scales built in, and knows the extent the run measured,
+// so a ramp over a result is one call rather than a normalisation done by hand
+await element.session.styles.encode({ run, channel: "node.color", palette: "viridis" });
+await element.session.styles.encode({ run, channel: "node.size", scale: "log" });
 ```
+
+Reach for the helpers below when you are computing a colour for something the element is not
+drawing -- a legend of your own, an HTML table beside the graph -- rather than for a channel a
+layer can bind directly.
 
 ## Colorblind Safety Guidelines
 

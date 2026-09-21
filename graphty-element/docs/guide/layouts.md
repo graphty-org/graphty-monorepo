@@ -205,6 +205,54 @@ For 2D layouts, also set the view mode:
 <graphty-element layout="d3-force" view-mode="2d"></graphty-element>
 ```
 
+## Edge weights
+
+Two layouts read edge weights: `kamada-kawai` and `forceatlas2`. Both are on by default on a graph
+whose edges carry weights, and both read the number the same way: **a larger weight means a
+stronger connection**, drawn shorter.
+
+```typescript
+// Weights are read by default. This says so explicitly.
+graph.setLayout("forceatlas2", { weighted: true });
+
+// Arrange this graph as though its weights were not there.
+graph.setLayout("forceatlas2", { weighted: false });
+```
+
+A graph whose weights are all 1 -- which is every unweighted graph -- is arranged exactly as it
+was before weights existed, by construction: with no information in the weight column the element
+hands the layout no weight callback at all.
+
+Where a weight comes from is `data.knownFields.edgeWeightPath`, which defaults to `weight`.
+Parallel edges are summed into one weight per ordered pair, because the layout functions read a
+weight by endpoint pair and have nowhere to put a second one.
+
+Ask the catalogue rather than hard-coding the list of two:
+
+```typescript
+for (const layout of element.session.catalog.layouts()) {
+    layout.honoursWeights; // whether a "use edge weights" control belongs in your UI
+}
+```
+
+`weighted` replaces 1.x's `weightProperty` and `weightPath`. Both are gone, and a stored layout
+configuration carrying either is refused at parse rather than ignored.
+
+## Pinned nodes
+
+A node the reader drags is pinned where they dropped it, and it stays there through a layout
+change, a 2D/3D switch and a template apply. That is true under every layout, including the
+fourteen with no physics of their own and including a layout you wrote yourself.
+
+```typescript
+element.pin("alice");
+element.unpin("alice");
+element.pinnedNodes; // a Set of the pinned node ids
+```
+
+Turn the drag behaviour off with `pinOnDrag: false` in the graph's behaviour configuration; the
+verbs above still work.
+
 ## Performance Tips
 
 1. **Large graphs**: Use Barnes-Hut approximation (ngraph with default theta)

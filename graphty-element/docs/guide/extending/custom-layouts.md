@@ -1,346 +1,351 @@
-# Custom Layouts
+# Custom layouts
 
-Guide to creating custom layout algorithms.
+A layout decides where nodes sit. There are two kinds and you pick one by extending the matching
+base class:
 
-## Overview
+- **`LayoutEngine`** -- a simulation the element steps every frame, until it reports itself
+  settled. Force-directed arrangements are this.
+- **`SimpleLayoutEngine`** -- an arrangement computed in a single pass. Circles, grids, trees and
+  spirals are this, and it is much less code.
 
-Graphty's layout system is extensible. Create custom layouts for specialized graph structures or unique positioning requirements.
+Both register with `LayoutEngine.register(MyLayout)`, and from that moment the layout is in the
+catalogue a picker reads and is chosen by the name you gave it.
 
-## LayoutEngine Interface
+## One key, not two
 
-All layouts extend the abstract `LayoutEngine` class:
+A layout has exactly one name: `static type` on the class, and `descriptor.id` must equal it.
+Registration refuses a class where the two disagree, because the element derives one from the
+other in several places and a mismatch fails silently.
 
-```typescript
-abstract class LayoutEngine {
-    static type: string;
+## A single-pass layout
 
-    abstract initialize(nodes: Node[], edges: Edge[]): void;
-    abstract step(): boolean; // Returns true when settled
-    abstract getPosition(nodeId: string): Vector3;
+```ts
+import {
+    LayoutEngine,
+    type LayoutDescriptor,
+    type Node,
+    SimpleLayoutEngine,
+} from "@graphty/graphty-element/extend";
+
+// Declared with its members required and taken as `Partial<GridOptions>` below. A mapped type
+// carries an implicit index signature, which is what lets the base class -- whose own options
+// type is open -- accept it, and what lets `LayoutEngine.register` accept the class.
+interface GridOptions {
+    /** Multiplier the base class applies to everything `doLayout` computes. */
+    scalingFactor: number;
+    /** How many nodes to a row. */
+    columns: number;
 }
-```
 
-## Creating a Custom Layout
+class GridLayout extends SimpleLayoutEngine {
+    static override type = "acme-grid";
 
-### Basic Example
+    /** The most dimensions this layout can draw in. */
+    static override maxDimensions: 2 | 3 = 3;
 
-```typescript
-import { LayoutEngine, Node, Edge, Vector3 } from "@graphty/graphty-element";
+    /** What a picker reads, and the one place this layout's options are declared. */
+    static override descriptor: LayoutDescriptor = {
+        id: "acme-grid",
+        plainName: "Grid",
+        technicalName: "Row-and-column placement",
+        description: "Puts the nodes in rows, in the order they arrived.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 3,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "acme-grid",
+        options: [
+            {
+                name: "columns",
+                plainName: "Columns",
+                type: "integer",
+                default: 3,
+                min: 1,
+                max: 100,
+                description: "How many nodes to a row.",
+            },
+        ],
+    };
 
-class MyLayout extends LayoutEngine {
-    static type = "my-layout";
+    readonly #columns: number;
 
-    private positions: Map<string, Vector3> = new Map();
+    constructor(opts: Partial<GridOptions> = {}) {
+        super(opts);
+        this.#columns = opts.columns ?? 3;
+    }
 
-    initialize(nodes: Node[], edges: Edge[]): void {
-        // Set up initial positions
-        nodes.forEach((node, index) => {
-            this.positions.set(node.id, {
-                x: index * 10,
-                y: 0,
-                z: 0,
-            });
+    /**
+     * Put the nodes in rows. The numbers written here are LAYOUT units; the base class
+     * multiplies them by `scalingFactor` on the way into the element's position array.
+     */
+    override doLayout(): void {
+        this.positions = {};
+
+        this._nodes.forEach((node: Node, index: number) => {
+            this.positions[node.id] = [index % this.#columns, Math.floor(index / this.#columns), 0];
         });
     }
-
-    step(): boolean {
-        // Perform one iteration of layout algorithm
-        // Return true when layout is stable
-        return true; // Immediately settled for static layouts
-    }
-
-    getPosition(nodeId: string): Vector3 {
-        return this.positions.get(nodeId) || { x: 0, y: 0, z: 0 };
-    }
 }
 
-// Register the layout
-LayoutEngine.register(MyLayout);
+LayoutEngine.register(GridLayout);
 ```
 
-### Using Your Layout
+`doLayout` is the only member you have to write. Adding and removing nodes, recomputing when the
+graph changes, answering where an edge's two ends are, and publishing into the element's shared
+position array are all inherited.
 
-```typescript
-graph.setLayout("my-layout");
-```
+## A live simulation
 
-## Complete Example: Spiral Layout
+```ts
+import {
+    type Edge,
+    type EdgePosition,
+    LayoutEngine,
+    type LayoutDescriptor,
+    type Node,
+    type Position,
+} from "@graphty/graphty-element/extend";
 
-```typescript
-import { LayoutEngine, Node, Edge, Vector3 } from "@graphty/graphty-element";
+class RingLayout extends LayoutEngine {
+    static override type = "acme-ring";
+    static override maxDimensions: 2 | 3 = 3;
 
-class SpiralLayout extends LayoutEngine {
-    static type = "spiral";
+    static override descriptor: LayoutDescriptor = {
+        id: "acme-ring",
+        plainName: "Ring walk",
+        technicalName: "Ring walk simulation",
+        description: "Walks every node outwards to an evenly spaced place on one ring.",
+        family: "geometric",
+        kind: "live",
+        maxDimensions: 3,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "acme-ring",
+        options: [
+            { name: "radius", plainName: "Ring size", type: "number", default: 120, min: 1, max: 1000 },
+            { name: "stride", plainName: "Step size", type: "number", default: 45, min: 1, max: 500 },
+        ],
+    };
 
-    private positions: Map<string, Vector3> = new Map();
-    private options: SpiralOptions;
+    /** How the element tells a layout which drawing mode it is in. */
+    static override getOptionsForDimension(dimension: 2 | 3): object | null {
+        return dimension > this.maxDimensions ? null : { dimensions: dimension };
+    }
 
-    constructor(options: Partial<SpiralOptions> = {}) {
+    readonly #radius: number;
+    readonly #stride: number;
+    readonly #nodes: Node[] = [];
+    readonly #edges: Edge[] = [];
+    readonly #placed = new Map<Node, { x: number; y: number; z: number }>();
+    readonly #pinned = new Set<Node>();
+    #arrived = false;
+
+    constructor(opts: { radius?: number; stride?: number } = {}) {
         super();
-        this.options = {
-            radiusStep: 2,
-            angleStep: 0.5,
-            heightStep: 1,
-            ...options,
-        };
+        this.#radius = opts.radius ?? 120;
+        this.#stride = opts.stride ?? 45;
     }
 
-    initialize(nodes: Node[], edges: Edge[]): void {
-        let angle = 0;
-        let radius = 0;
-        let height = 0;
-
-        nodes.forEach((node) => {
-            this.positions.set(node.id, {
-                x: radius * Math.cos(angle),
-                y: height,
-                z: radius * Math.sin(angle),
-            });
-
-            angle += this.options.angleStep;
-            radius += this.options.radiusStep;
-            height += this.options.heightStep;
-        });
+    /** Awaited before the element draws anything: where a worker or a WASM module is set up. */
+    async init(): Promise<void> {
+        // Nothing to set up.
     }
 
-    step(): boolean {
-        // Static layout - immediately settled
-        return true;
+    addNode(n: Node): void {
+        this.#nodes.push(n);
+        this.#placed.set(n, { x: 0, y: 0, z: 0 });
+        this.#arrived = false;
     }
 
-    getPosition(nodeId: string): Vector3 {
-        return this.positions.get(nodeId) || { x: 0, y: 0, z: 0 };
-    }
-}
-
-interface SpiralOptions {
-    radiusStep: number;
-    angleStep: number;
-    heightStep: number;
-}
-
-LayoutEngine.register(SpiralLayout);
-```
-
-Usage:
-
-```typescript
-graph.setLayout("spiral", {
-    radiusStep: 3,
-    angleStep: 0.3,
-    heightStep: 0.5,
-});
-```
-
-## Force-Directed Layout Example
-
-For iterative layouts that converge over time:
-
-```typescript
-import { LayoutEngine, Node, Edge, Vector3 } from "@graphty/graphty-element";
-
-class SimpleForceLayout extends LayoutEngine {
-    static type = "simple-force";
-
-    private nodes: Node[] = [];
-    private edges: Edge[] = [];
-    private positions: Map<string, Vector3> = new Map();
-    private velocities: Map<string, Vector3> = new Map();
-
-    private repulsion = 100;
-    private attraction = 0.01;
-    private damping = 0.9;
-    private threshold = 0.1;
-
-    initialize(nodes: Node[], edges: Edge[]): void {
-        this.nodes = nodes;
-        this.edges = edges;
-
-        // Random initial positions
-        nodes.forEach((node) => {
-            this.positions.set(node.id, {
-                x: (Math.random() - 0.5) * 100,
-                y: (Math.random() - 0.5) * 100,
-                z: (Math.random() - 0.5) * 100,
-            });
-            this.velocities.set(node.id, { x: 0, y: 0, z: 0 });
-        });
+    addEdge(e: Edge): void {
+        this.#edges.push(e);
     }
 
-    step(): boolean {
-        let maxVelocity = 0;
+    /** One frame of the simulation. Do NOT publish positions -- the element does that for you. */
+    step(): void {
+        let moved = false;
 
-        // Calculate forces
-        this.nodes.forEach((node) => {
-            const pos = this.positions.get(node.id)!;
-            const vel = this.velocities.get(node.id)!;
-            const force = { x: 0, y: 0, z: 0 };
-
-            // Repulsion from other nodes
-            this.nodes.forEach((other) => {
-                if (other.id === node.id) return;
-                const otherPos = this.positions.get(other.id)!;
-
-                const dx = pos.x - otherPos.x;
-                const dy = pos.y - otherPos.y;
-                const dz = pos.z - otherPos.z;
-                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.1;
-
-                const f = this.repulsion / (dist * dist);
-                force.x += (dx / dist) * f;
-                force.y += (dy / dist) * f;
-                force.z += (dz / dist) * f;
-            });
-
-            // Attraction along edges
-            this.edges.forEach((edge) => {
-                let otherId: string | null = null;
-                if (edge.source === node.id) otherId = edge.target as string;
-                if (edge.target === node.id) otherId = edge.source as string;
-                if (!otherId) return;
-
-                const otherPos = this.positions.get(otherId);
-                if (!otherPos) return;
-
-                const dx = otherPos.x - pos.x;
-                const dy = otherPos.y - pos.y;
-                const dz = otherPos.z - pos.z;
-
-                force.x += dx * this.attraction;
-                force.y += dy * this.attraction;
-                force.z += dz * this.attraction;
-            });
-
-            // Update velocity
-            vel.x = (vel.x + force.x) * this.damping;
-            vel.y = (vel.y + force.y) * this.damping;
-            vel.z = (vel.z + force.z) * this.damping;
-
-            // Update position
-            pos.x += vel.x;
-            pos.y += vel.y;
-            pos.z += vel.z;
-
-            const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
-            maxVelocity = Math.max(maxVelocity, speed);
-        });
-
-        // Return true when settled
-        return maxVelocity < this.threshold;
-    }
-
-    getPosition(nodeId: string): Vector3 {
-        return this.positions.get(nodeId) || { x: 0, y: 0, z: 0 };
-    }
-}
-
-LayoutEngine.register(SimpleForceLayout);
-```
-
-## Layout Configuration
-
-Accept configuration options in the constructor:
-
-```typescript
-class ConfigurableLayout extends LayoutEngine {
-    static type = "configurable";
-
-    private config: LayoutConfig;
-
-    constructor(options: Partial<LayoutConfig> = {}) {
-        super();
-        this.config = {
-            spacing: 10,
-            direction: "horizontal",
-            ...options,
-        };
-    }
-
-    // ... implementation
-}
-
-interface LayoutConfig {
-    spacing: number;
-    direction: "horizontal" | "vertical";
-}
-```
-
-Usage:
-
-```typescript
-graph.setLayout("configurable", {
-    spacing: 20,
-    direction: "vertical",
-});
-```
-
-## 2D vs 3D Layouts
-
-Check dimensions in your layout:
-
-```typescript
-class FlexibleLayout extends LayoutEngine {
-    static type = "flexible";
-
-    private dimensions: 2 | 3 = 3;
-
-    constructor(options: { dimensions?: 2 | 3 } = {}) {
-        super();
-        this.dimensions = options.dimensions || 3;
-    }
-
-    initialize(nodes: Node[], edges: Edge[]): void {
-        nodes.forEach((node, i) => {
-            if (this.dimensions === 2) {
-                this.positions.set(node.id, { x: i * 10, y: 0, z: 0 });
-            } else {
-                this.positions.set(node.id, {
-                    x: i * 10,
-                    y: Math.random() * 10,
-                    z: Math.random() * 10,
-                });
+        this.#nodes.forEach((node, index) => {
+            if (this.#pinned.has(node)) {
+                return;
             }
+
+            const angle = (index / this.#nodes.length) * Math.PI * 2;
+            const goal = { x: Math.cos(angle) * this.#radius, y: 0, z: Math.sin(angle) * this.#radius };
+            const at = this.#placed.get(node) ?? { x: 0, y: 0, z: 0 };
+            const next = {
+                x: approach(at.x, goal.x, this.#stride),
+                y: approach(at.y, goal.y, this.#stride),
+                z: approach(at.z, goal.z, this.#stride),
+            };
+
+            moved ||= next.x !== at.x || next.y !== at.y || next.z !== at.z;
+            this.#placed.set(node, next);
+        });
+
+        this.#arrived = !moved;
+    }
+
+    getNodePosition(n: Node): Position {
+        return this.#placed.get(n) ?? { x: 0, y: 0, z: 0 };
+    }
+
+    /** Called when the reader drags a node and drops it. */
+    setNodePosition(n: Node, p: Position): void {
+        this.#placed.set(n, { x: p.x, y: p.y, z: p.z ?? 0 });
+    }
+
+    getEdgePosition(e: Edge): EdgePosition {
+        return { src: this.getNodePosition(e.srcNode), dst: this.getNodePosition(e.dstNode) };
+    }
+
+    pin(n: Node): void {
+        this.#pinned.add(n);
+    }
+
+    unpin(n: Node): void {
+        this.#pinned.delete(n);
+    }
+
+    get nodes(): Iterable<Node> {
+        return this.#nodes;
+    }
+
+    get edges(): Iterable<Edge> {
+        return this.#edges;
+    }
+
+    /** The element stops stepping and announces `graph-settled` when this turns true. */
+    get isSettled(): boolean {
+        return this.#arrived;
+    }
+}
+
+function approach(from: number, to: number, maxDelta: number): number {
+    const delta = to - from;
+
+    return Math.abs(delta) <= maxDelta ? to : from + Math.sign(delta) * maxDelta;
+}
+
+LayoutEngine.register(RingLayout);
+```
+
+## Using it
+
+```ts
+await graph.setLayout("acme-ring", { radius: 200 });
+```
+
+```html
+<graphty-element layout="acme-ring"></graphty-element>
+```
+
+## Four optional members, each with a working default
+
+Override one only if your engine needs it. Each is declared on the base class, so your editor
+offers it and the element calls it by name.
+
+| Member | Default | Override when |
+| --- | --- | --- |
+| `dispose(): void` | does nothing | your engine holds a worker, a timer, a socket or a GPU buffer |
+| `removeNode(n: Node): void` | does nothing | your engine keeps its own node list, or it will hold every removed node forever |
+| `removeEdge(e: Edge): void` | does nothing | the same, for edges |
+| `updatePositions(nodes): void` | steps up to ten times, stopping early if settled | your engine can place a newcomer without re-running the simulation |
+
+## Positions are the element's job
+
+The element copies your coordinates into its shared position array after the pre-steps and after
+every step batch. Do not call `publishPositions()` yourself: forgetting it used to render
+perfectly and leave `session.positions` unfilled for every node, with no symptom until a drag, a
+re-freeze or an accelerator read the array.
+
+## A pinned node is not yours to move, and you do not have to know that
+
+A reader who drags a node pins it, and a pin now survives a layout change, a 2D/3D toggle and a
+template apply. The refusal lives in the element, on the write your coordinates pass through, so
+an engine that has never heard of pinning honours pins anyway: your arrangement is computed over
+every node, and the write onto a pinned row is dropped.
+
+The one thing you must not do is write positions by some other route. Everything you place goes
+through `publishPositions()` -- which is called for you -- or through `setNodePosition`, which the
+element calls when the reader drops a node and which is a deliberate placement rather than a
+layout opinion.
+
+Read the pin with `session.positions.isPinned(index)` if your engine wants to, for instance to
+treat pinned nodes as fixed anchors rather than computing a position it knows will be dropped.
+
+## Say whether you read edge weights
+
+```ts
+class RingWalk extends LayoutEngine {
+    static type = "acme-ring";
+    static honoursWeights = true;
+}
+```
+
+`honoursWeights` defaults to `false`, and false is right for most layouts: of the element's own
+sixteen only Kamada-Kawai and ForceAtlas2 have a weight channel at all. Declaring it `true` puts
+`honoursWeights: true` on your descriptor in `session.catalog.layouts()`, which is how a settings
+panel decides whether to offer a "use edge weights" control for your layout. Declaring it on a
+layout that ignores weights advertises a control that changes nothing.
+
+Likewise, you do not have to assign `this.config`. The element rebuilds your engine from the
+options the consumer actually gave when the drawing mode changes.
+
+## Finding it again
+
+```ts
+import { layoutDescriptor, layoutIdForEngine } from "@graphty/graphty-element/catalog";
+
+layoutDescriptor("acme-ring")?.plainName;   // "Ring walk"
+layoutIdForEngine("acme-ring");              // "acme-ring" -- one key, not two
+session.catalog.layouts();                   // every layout a picker may offer
+```
+
+## How it is refused
+
+| What is wrong | Code |
+| --- | --- |
+| No `static type`, no `static descriptor`, or a descriptor `id` that disagrees with `static type` | `E_BAD_COMMAND`, `details.field` naming it |
+| A layout id the element itself ships | `E_DUPLICATE_PLUGIN` |
+| A layout name nothing registered | `E_UNKNOWN_LAYOUT`, with `details.available` |
+| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
+| An option value outside the declared range | `E_OPTION_RANGE` |
+
+A failure thrown from your constructor or from `init()` arrives at the caller as a `GraphtyError`
+and is announced on the graph's error event; throw a `GraphtyError` of your own and the code you
+chose survives the trip.
+
+```ts
+import { GraphtyError } from "@graphty/graphty-element/extend";
+
+constructor(opts: { radius?: number } = {}) {
+    super();
+
+    if (opts.radius !== undefined && opts.radius <= 0) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: "a ring needs a positive radius",
+            source: "layout",
+            details: { option: "radius", value: opts.radius },
         });
     }
 }
 ```
 
-## Performance Tips
+## Deliberate limits
 
-1. **Use spatial indexing**: For large graphs, use quadtrees (2D) or octrees (3D)
-2. **Batch updates**: Update all positions before returning from `step()`
-3. **Early exit**: Return `true` from `step()` as soon as layout is stable
-4. **Avoid allocations**: Reuse objects instead of creating new ones each step
+**A layout cannot add an engine to an existing arrangement.** A third force-directed
+implementation cannot register under `force`: the arrangement table is the element's editorial
+judgement about which of its own engines to prefer, which is not a judgement a third party can
+make on the element's behalf. Register your own key.
 
-```typescript
-// Good: reuse force object
-private force = { x: 0, y: 0, z: 0 };
+**There is no progress and no cancellation** anywhere in the layout path, for a built-in or a
+plugin. A single-pass engine that takes a long time holds the frame.
 
-step(): boolean {
-  this.force.x = 0;
-  this.force.y = 0;
-  this.force.z = 0;
-  // ... calculate forces
-}
+**A saved document's `graph.layout` is inert.** Nothing reads it back yet, for a built-in layout
+or a registered one.
 
-// Bad: create new object each time
-step(): boolean {
-  const force = { x: 0, y: 0, z: 0 }; // Allocation every frame!
-}
-```
-
-## Debugging Layouts
-
-Log layout progress:
-
-```typescript
-step(): boolean {
-  this.iterationCount++;
-
-  if (this.iterationCount % 100 === 0) {
-    console.log(`Layout iteration ${this.iterationCount}`);
-  }
-
-  // ...
-}
-```
+**A routed or curved edge path is not available.** Edges are drawn between the two ends
+`getEdgePosition` reports, for every engine alike.

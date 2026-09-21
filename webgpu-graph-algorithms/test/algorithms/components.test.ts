@@ -10,7 +10,10 @@ import { type TestContext } from "vitest";
 import { connectedComponents } from "../../src/algorithms/components.js";
 import { type GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
+import { GraphResidency } from "../../src/memory/residency.js";
 import { type GpuLabelResult } from "../../src/types/algorithms.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
+import { withResidency } from "../helpers/degree-check.js";
 import { type EdgeSpec, fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { componentsOracle, partitionEquals } from "../oracle/components.js";
@@ -289,5 +292,27 @@ describe("connectedComponents (GPU, spec 8.3 / 9.7)", () => {
         });
         expect(empty.labels).toBe(emptyDest);
         expect(emptyCalls).toEqual([[1, 1]]);
+    });
+
+    it("a windowed core is refused with E_TOO_LARGE { path: 'windowed', algorithm } before any work, directed and undirected (DEP-P4-B)", async (t) => {
+        const ctx = await context(t);
+        // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not, so the core plan is windowed
+        const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
+        const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+        const proxied = withResidency(ctx, residency);
+        try {
+            for (const directed of [true, false]) {
+                const s = snapshotOf(KARATE_EDGES, { directed });
+                const err = await expectRejection(connectedComponents(proxied, s), "E_TOO_LARGE");
+                expect(err.details).toMatchObject({
+                    path: "windowed",
+                    algorithm: "connectedComponents",
+                    needed: 4 * s.arcCount,
+                });
+            }
+        } finally {
+            residency.destroyAll();
+        }
+        expect(ctx.residency.stats().snapshots).toBe(0);
     });
 });

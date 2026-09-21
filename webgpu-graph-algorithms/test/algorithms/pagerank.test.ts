@@ -11,6 +11,9 @@ import { type TestContext } from "vitest";
 import { pageRank, personalizedPageRank } from "../../src/algorithms/pagerank.js";
 import { GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
+import { GraphResidency } from "../../src/memory/residency.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
+import { withResidency } from "../helpers/degree-check.js";
 import { fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectAllClose, expectBitwiseEqual, maxRelError } from "../helpers/matchers.js";
@@ -205,7 +208,11 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
         ctx.release(snapshot);
         // the validation: a wrong length, a negative entry, a NaN, an all-zero vector
         const { snapshot: k2 } = fixture("karate", gpuScale());
-        for (const bad of [new Float32Array(n - 1), Float32Array.of(-1, ...new Float32Array(n - 1)), new Float32Array(n)]) {
+        for (const bad of [
+            new Float32Array(n - 1),
+            Float32Array.of(-1, ...new Float32Array(n - 1)),
+            new Float32Array(n),
+        ]) {
             const error = await expectRejection(personalizedPageRank(ctx, k2, bad), "E_INVALID_ARGUMENT");
             expect(error.details.argument).toBe("personalization");
         }
@@ -249,7 +256,10 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
         const ctx = await context(t);
         const { snapshot } = fixture("karate", gpuScale());
         const n = snapshot.nodeCount;
-        const wrong = await expectRejection(pageRank(ctx, snapshot, { dest: new Float32Array(n - 1) }), "E_INVALID_ARGUMENT");
+        const wrong = await expectRejection(
+            pageRank(ctx, snapshot, { dest: new Float32Array(n - 1) }),
+            "E_INVALID_ARGUMENT",
+        );
         expect(wrong.details.argument).toBe("dest");
         await expectRejection(pageRank(ctx, snapshot, { dest: new Uint32Array(n) }), "E_INVALID_ARGUMENT");
         const controller = new AbortController();
@@ -305,5 +315,28 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
         }
         expect(counter.live, "live buffers after release + dispose").toBe(0);
         counter.restore();
+    });
+
+    it("a windowed core is refused with E_TOO_LARGE { path: 'windowed', algorithm } before any work, directed and undirected (DEP-P4-B)", async (t) => {
+        const ctx = await context(t);
+        // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not, so the core plan is windowed
+        const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
+        const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+        const proxied = withResidency(ctx, residency);
+        try {
+            for (const directed of [true, false]) {
+                const s = snapshotOf(KARATE_EDGES, { directed });
+                const err = await expectRejection(pageRank(proxied, s), "E_TOO_LARGE");
+                expect(err.details).toMatchObject({ path: "windowed", algorithm: "pageRank", needed: 4 * s.arcCount });
+                const ppr = await expectRejection(
+                    personalizedPageRank(proxied, s, new Float32Array(s.nodeCount).fill(1)),
+                    "E_TOO_LARGE",
+                );
+                expect(ppr.details).toMatchObject({ path: "windowed", algorithm: "personalizedPageRank" });
+            }
+        } finally {
+            residency.destroyAll();
+        }
+        expect(ctx.residency.stats().snapshots).toBe(0);
     });
 });

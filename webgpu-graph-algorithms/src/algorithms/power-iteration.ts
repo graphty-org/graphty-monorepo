@@ -20,12 +20,12 @@ import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { U32_MAX } from "../constants.js";
 import { type GpuContext } from "../context.js";
-import { isWebGpuGraphError, WebGpuGraphError } from "../errors.js";
+import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
 import { groupsOf, plan1d } from "../kernel/dispatch.js";
 import { kernelSpec, PR_PARAMS, PR_PARTIAL } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
-import { coreOfView } from "../primitives/core-shape.js";
+import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
 import { prepareSpmvPull } from "../primitives/spmv.js";
 import { type Binding } from "../types/memory.js";
 import { algorithmScope } from "./scope.js";
@@ -103,26 +103,17 @@ export function checkDest(dest: Float32Array | Uint32Array | undefined, n: numbe
 }
 
 /**
- * The resident core; a windowed plan (`E_TOO_LARGE { path: "windowed", algorithm: null }`, spec 3.8) is re-thrown
- * with the algorithm name (3.12). Transcribed from degree.ts, whose coreOf is module-private.
+ * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (spec 3.8, 3.12;
+ * DEP-P4-B: only degree and segmentedReduce execute windows).
  * @param ctx - the context
  * @param s - the snapshot
  * @param algorithm - the caller's name
  * @returns the core binding
  */
 export function coreOf(ctx: GpuContext, s: GraphSnapshot, algorithm: string): CoreBinding {
-    try {
-        return ctx.residency.core(s);
-    } catch (error: unknown) {
-        if (isWebGpuGraphError(error) && error.code === "E_TOO_LARGE" && error.details.path === "windowed") {
-            throw new WebGpuGraphError(
-                "E_TOO_LARGE",
-                `${algorithm}: the arc arrays need a windowed upload, which P1-P3 plan but do not execute`,
-                { ...error.details, algorithm },
-            );
-        }
-        throw error;
-    }
+    const core = ctx.residency.core(s);
+    assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, algorithm);
+    return core;
 }
 
 /**
@@ -231,7 +222,14 @@ export async function runPowerIteration(
                 const rankOut = ring[iteration % ring.length];
                 const { core, pull } = pulls[(iteration - 1) % pulls.length];
                 // outWeightSum takes rankIn as its dummy: storage-ro, read only under NORM_MODE 0, never compiled here
-                const scaleBindings = { rankIn, rankPrev: rankOut, outWeightSum: rankIn, xNorm, partials, P: params.binding };
+                const scaleBindings = {
+                    rankIn,
+                    rankPrev: rankOut,
+                    outWeightSum: rankIn,
+                    xNorm,
+                    partials,
+                    P: params.binding,
+                };
                 scaleNorm.dispatch(pass, scaleNorm.bind(scaleBindings), scalePlan, [params.offset]);
                 finalize.dispatch(pass, finalize.bind({ partials, P: params.binding }), finalizePlan, [params.offset]);
                 if (scaleApply !== null) {
@@ -265,7 +263,8 @@ export async function runPowerIteration(
                 }
                 return {
                     scores: new Float32Array(back, scoresRequest.offset, n).slice(),
-                    previous: previousRequest === null ? null : new Float32Array(back, previousRequest.offset, n).slice(),
+                    previous:
+                        previousRequest === null ? null : new Float32Array(back, previousRequest.offset, n).slice(),
                     iterations: converged ? firstConverged : iterationsRun,
                     converged,
                     iterationsRun,

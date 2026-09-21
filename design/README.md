@@ -18,7 +18,7 @@ This directory contains design documents, implementation plans, research, and co
 | [`rendering/`](rendering/) | Visual rendering - edges, lines, cameras, styles, screen capture | 21 |
 | [`testing/`](testing/) | Testing strategies - Playwright, profiling, logging, documentation | 12 |
 | [`ui/`](ui/) | React application UI - sidebars, modals, theming, Mantine components | 19 |
-| [`webgpu/`](webgpu/) | WebGPU-accelerated graph algorithms and layouts: the accepted design, the P0-P3 contract and phase plans, the monorepo integration plan | 13 |
+| [`webgpu/`](webgpu/) | WebGPU-accelerated graph algorithms and layouts: the accepted design, the P0-P3 contract and phase plans, the monorepo integration plan | 16 |
 | [`xr/`](xr/) | Extended reality - VR, AR, WebXR cameras and controllers | 7 |
 
 ## Quick Reference

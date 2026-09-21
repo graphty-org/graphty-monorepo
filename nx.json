@@ -78,6 +78,9 @@
             "inputs": ["default", "^production", "{workspaceRoot}/vitest.shared.config.ts"],
             "cache": true
         },
+        "build-storybook": {
+            "dependsOn": ["^build"]
+        },
         "lint": {
             "inputs": ["default", "{workspaceRoot}/eslint.config.js"],
             "cache": true

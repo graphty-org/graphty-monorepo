@@ -1,5 +1,11 @@
 # graphty app W2 (Phase M7) Implementation Plan
 
+> **Superseded on 2026-09-21 by `2026-09-21-webgpu-m7-graphty-app-v2.md`.** This plan was written against the
+> version 1 element API and the old M6 plan. The version 2 element API (branch `feat/element-api-2`) changed what the
+> app consumes -- the `acceleration` attribute and policy, `capabilities.acceleration`, the session's events -- and
+> moved every piece of detection, construction and recovery into the element, so the app's half was re-planned as
+> presentation only. The text below is kept as history and is not the plan of record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in; most run in `/home/apowers/Projects/graphty-monorepo`. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees. **Before dispatching anything in parallel, read the "File ownership" paragraph below: M7-T5, M7-T6 and M7-T7 all edit `AppShell.tsx` and MUST run sequentially in one tree.**
 
 **Goal:** Give the graphty app the two things that are genuinely presentation once graphty-element owns WebGPU itself: a Settings > Performance control that writes the element's `gpu` policy into its config, and a "GPU acceleration: on (vendor arch) / off" indicator drawn as a `StatusBarChip` in the frozen `issues` slot, which gains its first producer, with the device-lost report routed through the app's one toast. The app activates the element's optional peer with a single side-effect import, `import "@graphty/graphty-element/webgpu"`, and writes no probe, construct, inject or recovery code at all. Plus `metricCost.ts`'s per-metric accelerator constant, two `gpu`-tagged stories that render a deterministic no-GPU state on Chromatic, and `graphty/package.json` taking `@graphty/webgpu-graph-algorithms` as the optional peer graphty-element declares (gate G12, W2 subset).

@@ -47,6 +47,7 @@ import {
     KARATE_EDGES,
     pathEdges,
     randomEdges,
+    rmatEdges,
     snapshotOf,
     starEdges,
 } from "./graphs.js";
@@ -58,7 +59,7 @@ import { type CheckReport, ratioOf } from "./sabotage.js";
 // ---------------------------------------------------------------- constants
 
 /** Spec 11.4 (DEPARTURE-6): the floored denominator max(|F_cpu(i)|, FLOOR_FRACTION x max_j |F_cpu(j)|). */
-const FLOOR_FRACTION = 1e-3;
+export const FLOOR_FRACTION = 1e-3;
 /** The absolute floor of the elementwise scalar comparisons (P1-T6's TRACE_ABS_FLOOR; PLAN DECISION 11). */
 const SCALAR_ABS_FLOOR = 1e-6;
 /** The absolute floor of the relative comparisons of the non-histogram distributional metrics (PLAN DECISION 11); the histogram bins are compared as one total-variation distance instead (distributionalValuesError). */
@@ -100,8 +101,17 @@ export type Fa2Sim = ForceSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
 
 // ---------------------------------------------------------------- the parity graphs and the case matrix
 
-/** The seven parity graphs paritySnapshot() builds. */
-export type ParityGraph = "karate" | "grid10" | "star200" | "random1k" | "path10" | "complete6" | "isolated34";
+/** The nine parity graphs paritySnapshot() builds (hub10k and rmat14 are the P4-T6 tier graphs: the same generators and seeds as fixture() in graphs.ts). */
+export type ParityGraph =
+    | "karate"
+    | "grid10"
+    | "star200"
+    | "random1k"
+    | "path10"
+    | "complete6"
+    | "isolated34"
+    | "hub10k"
+    | "rmat14";
 /** The four graphs of spec 11.4's force parity. */
 const PARITY_GRAPHS: readonly ParityGraph[] = Object.freeze(["karate", "grid10", "star200", "random1k"]);
 
@@ -134,6 +144,20 @@ function parityGraphSpec(name: ParityGraph, scale: number): { readonly edges: Ed
             return { edges: completeEdges(6), nodeCount: 6 };
         case "isolated34":
             return { edges: [], nodeCount: 34 };
+        case "hub10k": {
+            // fixture("hub10k", scale): a star of n - 1 leaves inside a random graph of 2n edges on the leaves
+            const n = Math.max(64, Math.round(10_000 * scale));
+            const edges: EdgeSpec[] = starEdges(n - 1);
+            for (const [u, v] of randomEdges(n - 1, 2 * n, 1002)) {
+                edges.push([u + 1, v + 1]);
+            }
+            return { edges, nodeCount: n };
+        }
+        case "rmat14": {
+            // fixture("rmat14", scale): a scale-14 R-MAT at edge factor 8 (scale 12 on a software adapter)
+            const rmatScale = Math.max(12, Math.round(14 + Math.log2(scale)));
+            return { edges: rmatEdges(rmatScale, 8, 1005), nodeCount: 2 ** rmatScale };
+        }
         default:
             throw new Error("unknown parity graph");
     }

@@ -24,11 +24,14 @@ import { BufferUsage } from "../device/webgpu-constants.js";
 import { hasErrorCode, WebGpuGraphError } from "../errors.js";
 import { CommandBatch, type ReadbackRequest, type SubmittedBatch } from "../kernel/batch.js";
 import { type PipelineCache } from "../kernel/pipeline-cache.js";
+import { type PassTiming } from "../kernel/profiler.js";
 import { type UniformBlock, type UniformFieldType, type UniformValues } from "../kernel/struct-block.js";
 import { UniformRing } from "../kernel/uniform-ring.js";
 import { type WgslModuleSpec } from "../kernel/wgsl.js";
 import { graphOverrides } from "../kernels.js";
+import { type BufferPool } from "../memory/buffer-pool.js";
 import { type ArrayBinding, type CoreBinding } from "../memory/residency.js";
+import { type DegreeTiers, degreeTiersOf } from "../primitives/core-shape.js";
 import { type PlanCaps } from "../types/context.js";
 import {
     type GpuLayoutSimulation,
@@ -65,7 +68,14 @@ export interface ModelResources {
     readonly caps: PlanCaps;
     readonly pipelines: PipelineCache;
     readonly core: CoreBinding;
+    /** `tiers.perm`, or null when no row has degree >= 32 (P4 PD-7: the rowPtr dummy is bound and USE_PERM is false). */
     readonly perm: Binding | null;
+    /**
+     * The degree tiers of the snapshot's degreeOrder view (the perm binding and the CPU-side segment offsets
+     * [0, hiEnd, midEnd, lowEnd, n]), or null when no row has degree >= 32 -- then every K2 dispatch is the
+     * thread-per-row TIER 0 over node indices, as before P4.
+     */
+    readonly tiers: DegreeTiers | null;
     /**
      * The RESOLVED weights binding (model.inputs(): source "arcs" -> core.weights (null on an unweighted snapshot),
      * "column" -> the registered ArrayBinding's binding, "none" -> null); group 0 is built as
@@ -76,6 +86,8 @@ export interface ModelResources {
     readonly dim: 2 | 3;
     readonly tier: "exact" | "grid";
     readonly ring: UniformRing;
+    /** The context's buffer pool (the grid stage's lease of sort scratch draws on it, P4 PD-11). */
+    readonly pool: BufferPool;
     /** A shared or model-owned buffer by name: "positions", "scenePositions", "fixed", "partials", "state", "trace", plus every BufferSpec name. */
     buffer(name: string): Binding;
 }
@@ -125,6 +137,8 @@ export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     onReheat(state: StateWriter): void;
     onSetParams(patch: Partial<Options>, state: StateWriter): void;
     readStats(state: DataView, trace: DataView): Stats;
+    /** Releases what the model holds outside the simulation's buffers (the grid stage's lease, P4-T10); called by dispose() once every in-flight batch has settled. */
+    dispose?(): void;
 }
 
 // ============================================================ module-private helpers
@@ -155,6 +169,21 @@ const SHARED_STATE_FIELDS: readonly (readonly [string, number])[] = [
 
 /** The names of the shared buffers a BufferSpec may not reuse. */
 const SHARED_BUFFER_NAMES: readonly string[] = ["positions", "scenePositions", "fixed", "partials", "state", "trace"];
+
+/** The buffers inspect() returns as Uint32Array: the mask, the trace records and the grid tier's index / count arrays (P4). */
+const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
+    "fixed",
+    "trace",
+    "cellKey",
+    "cellVal",
+    "sortedKey",
+    "sortedIdx",
+    "cellHist",
+    "cellStart",
+    "hubList",
+    "hubCounters",
+    "hubArgs",
+]);
 
 /** The per-batch epilogue stage: iterations 0..k-2 stop after the stage that precedes it (PLAN DECISION 2). */
 const EPILOGUE_STAGE = "toScene";
@@ -355,12 +384,13 @@ function centerOf(options: CommonLayoutOptions): [number, number, number] {
 }
 
 /**
- * The repulsion tier of a node count under a tuning (PLAN DECISION 11).
+ * The repulsion tier of a node count under a tuning (PLAN DECISION 11; spec 7.8: `"auto"` by `n` alone). Exported
+ * so a model's `buffers(n, dim)` decides the tier by the same rule `load()` applies (P4 PD-18).
  * @param tuning - the resolved tuning
  * @param n - the node count
  * @returns "exact" or "grid"
  */
-function tierFor(tuning: ResolvedLayoutTuning, n: number): "exact" | "grid" {
+export function tierFor(tuning: ResolvedLayoutTuning, n: number): "exact" | "grid" {
     if (tuning.repulsion === "exact") {
         return "exact";
     }
@@ -621,6 +651,7 @@ export class ForceSimulation<
     private settledValue = false;
     private firstPending = true;
     private statsValue: Stats | null = null;
+    private lastPassTimingsValue: readonly PassTiming[] | null = null;
     private lastSubmittedBatchIdValue = 0;
     /** The id of the last batch submitted BEFORE the most recent reheat() (PLAN DECISION 21); 0 = none. */
     private reheatedAfterBatchId = 0;
@@ -731,11 +762,22 @@ export class ForceSimulation<
     }
 
     /**
-     * The repulsion tier of the current load ("exact" until P4 lifts the grid tier).
+     * The repulsion tier of the current load (spec 7.8).
      * @returns the tier
      */
     get tier(): "exact" | "grid" {
         return this.tierValue;
+    }
+
+    /**
+     * The profiler's per-pass timings of the last landed batch (pass order; the grid tier's `fa2-k1` /
+     * `fa2-attraction` / `fa2-grid` / `fa2-to-scene` rows give T-7's attraction figure, P4 PD-16), or null before a
+     * batch landed or without `timestamp-query`.
+     * @internal
+     * @returns the timings
+     */
+    get lastPassTimings(): readonly PassTiming[] | null {
+        return this.lastPassTimingsValue;
     }
 
     /**
@@ -888,16 +930,6 @@ export class ForceSimulation<
         const scale = scaleOf(this.optionsValue);
         const center = centerOf(this.optionsValue);
         const tier = tierFor(this.tuning, n);
-        if (tier === "grid") {
-            throw new WebGpuGraphError(
-                "E_UNSUPPORTED",
-                `the grid repulsion tier lands at P4 (n = ${n}, exactMaxNodes = ${this.tuning.exactMaxNodes})`,
-                {
-                    feature: "repulsion.grid",
-                    hint: 'pass repulsion: "exact" or raise exactMaxNodes',
-                },
-            );
-        }
         const positionsBytes = 16 * n;
         if (positionsBytes > this.ctx.caps.limits.maxBufferSize) {
             throw new WebGpuGraphError("E_TOO_LARGE", `${positionsBytes} bytes of positions exceed maxBufferSize`, {
@@ -908,6 +940,7 @@ export class ForceSimulation<
             });
         }
         let core: CoreBinding | null = null;
+        let tiers: DegreeTiers | null = null;
         let inputs: ModelInputs | null = null;
         if (n > 0) {
             core = this.ctx.residency.core(snapshot);
@@ -922,6 +955,11 @@ export class ForceSimulation<
                         algorithm: this.model.kind,
                     },
                 );
+            }
+            // PD-7 (the 7.3 rule): the permutation is bound iff a row of degree >= 32 exists; the view is uploaded
+            // only then, so a low-degree snapshot compiles and runs the same pipelines as before P4
+            if (snapshot.degreeOrder().segmentOffsets[2] > 0) {
+                tiers = degreeTiersOf(this.ctx.residency.view(snapshot, "degreeOrder"));
             }
             inputs = this.model.inputs(snapshot, this.optionsValue);
             if (inputs.mass.length !== n) {
@@ -991,8 +1029,11 @@ export class ForceSimulation<
         seedPositions(snapshot, positions, this.optionsValue.seed ?? null, this.dimValue, scale, center, range);
         this.uploadPositions(buffers, positions, inputs.mass);
         const weights = this.resolveWeightsBinding(snapshot, core, inputs.weights);
-        const overrides = { ...this.model.overrides(this.optionsValue), ...graphOverrides(core, null, weights) };
-        const resources = this.makeResources(core, weights, buffers);
+        const overrides = {
+            ...this.model.overrides(this.optionsValue),
+            ...graphOverrides(core, tiers?.perm ?? null, weights),
+        };
+        const resources = this.makeResources(core, tiers, weights, buffers);
         this.resources = resources;
         this.startBind(resources, overrides);
         this.settledValue = false;
@@ -1267,7 +1308,10 @@ export class ForceSimulation<
         this.center = center;
         const { resources, core } = this;
         if (this.stateValue === "loaded" && resources !== null && core !== null && before !== after) {
-            const overrides = { ...this.model.overrides(next), ...graphOverrides(core, null, resources.weights) };
+            const overrides = {
+                ...this.model.overrides(next),
+                ...graphOverrides(core, resources.perm, resources.weights),
+            };
             this.startBind(resources, overrides);
         }
         this.model.onSetParams(patch, this.writer);
@@ -1484,7 +1528,10 @@ export class ForceSimulation<
     }
 
     /**
-     * The batch's duration in milliseconds: the profiler's pass timings summed when present, else wall time.
+     * The batch's duration in milliseconds: the profiler's pass timings summed when present and complete, else wall
+     * time. The profiler budgets PROFILER_QUERY_SLOTS / 2 passes per batch; the grid tier records three passes per
+     * iteration (P4 PD-16), so a grid batch above (PROFILER_QUERY_SLOTS / 2 - 1) / 3 iterations is timed partially:
+     * its rows stay in `lastPassTimings` but the duration is the wall time, never the sum of a prefix.
      * @param record - the batch
      * @param bytes - its readback (the profiler's resolve lands in it)
      * @returns milliseconds
@@ -1493,7 +1540,8 @@ export class ForceSimulation<
         const { profiler } = this.ctx;
         if (profiler !== null && record.profile !== null) {
             const timings = profiler.timings(bytes, record.profile);
-            if (timings.length > 0) {
+            this.lastPassTimingsValue = timings;
+            if (timings.length > 0 && !profiler.partial(record.profile)) {
                 let ns = 0;
                 for (const timing of timings) {
                     ns += timing.ns;
@@ -1934,23 +1982,31 @@ export class ForceSimulation<
     /**
      * The ModelResources of a load.
      * @param core - the core
+     * @param tiers - the degree tiers, or null when no row has degree >= 32
      * @param weights - the resolved weights binding
      * @param buffers - the buffers
      * @returns the resources
      */
-    private makeResources(core: CoreBinding, weights: Binding | null, buffers: SimulationBuffers): ModelResources {
+    private makeResources(
+        core: CoreBinding,
+        tiers: DegreeTiers | null,
+        weights: Binding | null,
+        buffers: SimulationBuffers,
+    ): ModelResources {
         const { bindings } = buffers;
         return {
             device: this.ctx.device,
             caps: this.ctx.caps,
             pipelines: this.ctx.pipelines,
             core,
-            perm: null,
+            perm: tiers?.perm ?? null,
+            tiers,
             weights,
             n: this.n,
             dim: this.dimValue,
             tier: this.tierValue,
             ring: this.ring,
+            pool: this.ctx.pool,
             buffer: (name: string): Binding => {
                 const binding = bindings.get(name);
                 if (binding === undefined) {
@@ -2001,7 +2057,7 @@ export class ForceSimulation<
     // ---------------------------------------------------------------- private: inspect and debug runs
 
     /**
-     * inspect(name): flush, read the named buffer back, Uint32Array for "fixed" and "trace", Float32Array otherwise.
+     * inspect(name): flush, read the named buffer back, Uint32Array for the u32 buffers (U32_BUFFER_NAMES), Float32Array otherwise.
      * @param name - a shared or BufferSpec name
      * @returns the words
      */
@@ -2019,7 +2075,7 @@ export class ForceSimulation<
         }
         await this.flush();
         const bytes = await this.ctx.readback.read(binding.buffer, binding.size, undefined, binding.offset);
-        return name === "fixed" || name === "trace" ? new Uint32Array(bytes) : new Float32Array(bytes);
+        return U32_BUFFER_NAMES.has(name) ? new Uint32Array(bytes) : new Float32Array(bytes);
     }
 
     /**
@@ -2100,6 +2156,7 @@ export class ForceSimulation<
         this.destroyBuffers();
         this.afterInFlight(() => {
             this.ring.destroy();
+            this.model.dispose?.();
         });
         if (this.ctx.state === "ready") {
             this.ctx.pool.trim();

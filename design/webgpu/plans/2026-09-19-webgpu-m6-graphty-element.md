@@ -1,5 +1,12 @@
 # graphty-element E0 + E1 (Phase M6) Implementation Plan
 
+> **Superseded on 2026-09-21 by `2026-09-21-webgpu-m6-graphty-element-v2.md`.** This plan was written against the
+> version 1 element API. The version 2 element API (branch `feat/element-api-2`) has since delivered the data model
+> this plan's E0 half set out to build and the whole detection half of E1 (the optional peer, the `./webgpu` entry
+> point, `AccelerationController`, the `acceleration` attribute), and master has since landed the layout simulation
+> seam and `accelerated()` that the remaining half joins to, so the phase was re-planned from the version 2 code.
+> The text below is kept as history and is not the plan of record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in; most run in `/home/apowers/Projects/graphty-monorepo`. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees; appendix 7.1 is that command sheet.
 
 **Goal:** Give `graphty-element` the graph-format 14.4 data model and the WebGPU design's 9.4 accelerator seam in one phase, in two halves: E0 makes `DataManager` own ONE `GraphBuilder` for the graph's life, an element-owned `positions` Float32Array attached by reference as the `position` column after every freeze, `getSnapshot()` on a sound invalidation key, `dm.undirected(s)`, a typed `snapshot-replaced` event, `Node.index` and `Node.pinned`, and retires `toAlgorithmGraph` (43 occurrences) and `EdgeMap`; E1 then adds `Graph.accelerator` / `setAccelerator()` / `accelerator-changed`, the `snapshot-replaced` release list, the adapters routed through `accelerated()` with ONE result-writing loop, the `SimulationLayoutEngine` bridge with `forceatlas2` and `spring` re-registered on it, the three `behavior.layout` knobs, `setRunning`/`reheat`, the D28 `graphty.mass` role column and the fake-accelerator stories (gate G6, element part).

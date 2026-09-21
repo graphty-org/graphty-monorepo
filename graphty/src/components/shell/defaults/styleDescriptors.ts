@@ -23,7 +23,7 @@
  * painted from. One derivation, in the element, for every algorithm of that shape.
  */
 
-import type { LayerSpec, RunId } from "@graphty/graphty-element/session";
+import { type LayerSpec, quotePath, resultPath, type RunId } from "@graphty/graphty-element/session";
 
 /**
  * The template id every layer the 7.2 defaults add carries.
@@ -96,7 +96,12 @@ export function topDegreeLabelLayer(input: {
     /** The attribute path to draw as the label. Omitted draws `data.id`. */
     readonly labelAttribute?: string;
 }): LayerSpec {
-    const valuePath = `results.${input.degreeRunId}.${METRIC_VALUE_FIELD}`;
+    // Built by the element rather than spelled here, and QUOTED because it is going into an
+    // expression: a run id carries its algorithm's name, and a hyphenated name -- "shortest-path"
+    // -- lexes its hyphen as arithmetic and gets the whole selector refused. Degree has no hyphen,
+    // so writing it by hand worked; the next metric to be wired up this way is where it would
+    // have stopped working, silently.
+    const valuePath = quotePath(resultPath(input.degreeRunId, METRIC_VALUE_FIELD));
 
     return {
         name: "Top degree labels",

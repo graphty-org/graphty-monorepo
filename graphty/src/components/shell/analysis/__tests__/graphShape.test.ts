@@ -1,25 +1,136 @@
-import { describe, expect, it } from "vitest";
+/**
+ * What the shell does with the graph's shape, now that it no longer measures it.
+ *
+ * The arithmetic -- components, repeats, self loops, density, the direction the graph is
+ * frozen with -- belongs to graphty-element and is tested there against its own snapshot.
+ * Nothing here asserts any of it. What is asserted is the shell's half: that it reads the
+ * element rather than a second copy of the graph, that it has an honest answer when there
+ * is no element to read, and the two derived facts it still owns -- the small-parts
+ * predicate the graph-summary sentence branches on, and the endpoint reader the node
+ * inspector's neighbour list is built from.
+ */
 
-import { computeGraphShape, edgeEndpointId } from "../graphShape";
+import type { ComponentStatistics, GraphSession, GraphStatistics } from "@graphty/graphty-element/session";
+import { describe, expect, it, vi } from "vitest";
+
+import {
+    edgeEndpointId,
+    edgeEndpoints,
+    EMPTY_GRAPH_STATISTICS,
+    readGraphStatistics,
+    smallPartsAreSingleNodes,
+} from "../graphShape";
 
 /**
- * Node records shaped as `handle.getData()` returns them: an id plus whatever the
- * source file carried.
- * @param ids - the node ids.
- * @returns one record per id.
+ * The component shape the element publishes for a graph with these part sizes.
+ *
+ * The sizes are the fixture and the three summary numbers are derived from them, which is
+ * the relationship the element maintains: a board states the parts it means and cannot
+ * state a count that disagrees with them.
+ * @param sizes - one node count per component, in any order.
+ * @returns the component statistics.
  */
-function nodes(...ids: (string | number)[]): { id: string | number }[] {
-    return ids.map((id) => ({ id }));
+function components(...sizes: number[]): ComponentStatistics {
+    return {
+        count: sizes.length,
+        sizes: [...sizes].sort((a, b) => b - a),
+        largestSize: sizes.length === 0 ? 0 : Math.max(...sizes),
+        isolatedCount: sizes.filter((size) => size === 1).length,
+        truncatedSizes: false,
+        componentOf: () => undefined,
+    };
 }
 
 /**
- * Edge records in the src/dst spelling `Graphty.tsx` writes.
- * @param pairs - endpoint pairs.
- * @returns one record per pair.
+ * A session that answers one fixed set of statistics.
+ * @param statistics - what its data surface reports.
+ * @returns the session, with only the member this module reads.
  */
-function edges(...pairs: [string | number, string | number][]): { src: string | number; dst: string | number }[] {
-    return pairs.map(([src, dst]) => ({ src, dst }));
+function sessionReporting(statistics: GraphStatistics): GraphSession {
+    return { data: { statistics: () => statistics } } as unknown as GraphSession;
 }
+
+describe("readGraphStatistics", () => {
+    it("reports every count as zero, and claims no direction, when there is no element yet", () => {
+        const statistics = readGraphStatistics(null);
+
+        expect(statistics).toEqual(EMPTY_GRAPH_STATISTICS);
+        expect(statistics.nodeCount).toBe(0);
+        expect(statistics.edgeCount).toBe(0);
+        expect(statistics.density).toBe(0);
+        expect(statistics.selfLoopCount).toBe(0);
+        expect(statistics.repeatedEdgeCount).toBe(0);
+        expect(statistics.components.count).toBe(0);
+        expect(statistics.components.largestSize).toBe(0);
+        expect(statistics.components.isolatedCount).toBe(0);
+        expect(statistics.directedness).toBe("unknown");
+    });
+
+    it("hands back exactly what the element said, without reshaping it", () => {
+        const published: GraphStatistics = {
+            nodeCount: 20,
+            edgeCount: 29,
+            density: 0.152,
+            directedness: "undirected",
+            directednessSource: { by: "unsettled", statedBy: null },
+            weighted: true,
+            selfLoopCount: 1,
+            repeatedEdgeCount: 2,
+            degreeRange: [2, 4],
+            meanDegree: 0,
+            components: components(18, 1, 1),
+        };
+
+        expect(readGraphStatistics(sessionReporting(published))).toBe(published);
+    });
+
+    /**
+     * A disposed session throws rather than answering, and the shell asking one is a
+     * lifecycle bug above this line -- so it is reported, and the surfaces get the empty
+     * shape rather than a crash halfway through a data event.
+     */
+    it("reports the empty shape, loudly, when the session refuses to answer", () => {
+        const reported = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const disposed = {
+            data: {
+                statistics: () => {
+                    throw new Error("E_DISPOSED");
+                },
+            },
+        } as unknown as GraphSession;
+
+        expect(readGraphStatistics(disposed)).toEqual(EMPTY_GRAPH_STATISTICS);
+        expect(reported).toHaveBeenCalled();
+
+        reported.mockRestore();
+    });
+});
+
+describe("smallPartsAreSingleNodes", () => {
+    it("is true for one part, because there are no small parts to be anything else", () => {
+        expect(smallPartsAreSingleNodes(components(5))).toBe(true);
+    });
+
+    it("is true for a graph that is nothing at all", () => {
+        expect(smallPartsAreSingleNodes(components())).toBe(true);
+    });
+
+    it("is false for two disjoint triangles, neither of them a single node", () => {
+        expect(smallPartsAreSingleNodes(components(3, 3))).toBe(false);
+    });
+
+    it("is true for a triangle plus two loose nodes, both of them single", () => {
+        expect(smallPartsAreSingleNodes(components(3, 1, 1))).toBe(true);
+    });
+
+    it("is false as soon as one small part holds a pair", () => {
+        expect(smallPartsAreSingleNodes(components(5, 2, 1))).toBe(false);
+    });
+
+    it("is true for a graph of nothing but isolated nodes", () => {
+        expect(smallPartsAreSingleNodes(components(1, 1, 1))).toBe(true);
+    });
+});
 
 describe("edgeEndpointId", () => {
     it("reads a string id", () => {
@@ -43,237 +154,38 @@ describe("edgeEndpointId", () => {
     });
 });
 
-describe("computeGraphShape", () => {
-    it("reports every count as zero for no records at all", () => {
-        expect(computeGraphShape({ nodes: [], edges: [] })).toEqual({
-            nodeCount: 0,
-            edgeCount: 0,
-            connectedPartCount: 0,
-            largestPartNodeCount: 0,
-            isolatedNodeCount: 0,
-            selfLoopCount: 0,
-            parallelEdgeCount: 0,
-            smallPartsMostlySingleNodes: true,
-            directedness: "unknown",
-        });
+describe("edgeEndpoints", () => {
+    /**
+     * The spelling `GraphtyHandle.getData` writes, which is the spelling every one of the
+     * element's importers now produces. It used to write `src`/`dst`, so a reader that knew only
+     * `source`/`target` found neither on a GML load and the inspector drew "Expand 0 neighbors"
+     * for a node whose own card said 17 links.
+     */
+    it("reads the source/target spelling the app's own records carry", () => {
+        expect(edgeEndpoints({ id: "0", source: "a", target: "b" })).toEqual({ source: "a", target: "b" });
     });
 
-    it("finds one part in a five node path", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b", "c", "d", "e"),
-            edges: edges(["a", "b"], ["b", "c"], ["c", "d"], ["d", "e"]),
-        });
-
-        expect(shape.nodeCount).toBe(5);
-        expect(shape.edgeCount).toBe(4);
-        expect(shape.connectedPartCount).toBe(1);
-        expect(shape.largestPartNodeCount).toBe(5);
-        expect(shape.isolatedNodeCount).toBe(0);
-        expect(shape.selfLoopCount).toBe(0);
-        expect(shape.parallelEdgeCount).toBe(0);
+    it("names no node for a record spelled the old src/dst way, which the element no longer writes", () => {
+        // The inverse of the assertion that stood here while the reader carried a fallback. The
+        // element resolves an input file's own spelling before the record exists, so `src`/`dst`
+        // on a record reaching this reader is an ATTRIBUTE that happens to be called that, not an
+        // endpoint -- and reading it as an endpoint is how two spellings of one fact start
+        // disagreeing again.
+        expect(edgeEndpoints({ src: "a", dst: "b" })).toEqual({ source: null, target: null });
     });
 
-    it("finds two parts in two disjoint triangles, neither of them a single node", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b", "c", "x", "y", "z"),
-            edges: edges(["a", "b"], ["b", "c"], ["c", "a"], ["x", "y"], ["y", "z"], ["z", "x"]),
-        });
-
-        expect(shape.connectedPartCount).toBe(2);
-        expect(shape.largestPartNodeCount).toBe(3);
-        expect(shape.isolatedNodeCount).toBe(0);
-        expect(shape.smallPartsMostlySingleNodes).toBe(false);
+    it("ignores the old spelling sitting beside the canonical one", () => {
+        // A source file carrying its own `src` attribute survives the spread onto the record.
+        // Only the two names the element resolved are read.
+        expect(edgeEndpoints({ src: "x", dst: "y", source: "a", target: "b" })).toEqual({ source: "a", target: "b" });
     });
 
-    it("finds three parts in a triangle plus two loose nodes, both of them single", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b", "c", "loose1", "loose2"),
-            edges: edges(["a", "b"], ["b", "c"], ["c", "a"]),
-        });
-
-        expect(shape.connectedPartCount).toBe(3);
-        expect(shape.largestPartNodeCount).toBe(3);
-        expect(shape.isolatedNodeCount).toBe(2);
-        expect(shape.smallPartsMostlySingleNodes).toBe(true);
+    it("reads an endpoint given as a node object, and a numeric id as its printed form", () => {
+        expect(edgeEndpoints({ source: { id: 1 }, target: 2 })).toEqual({ source: "1", target: "2" });
     });
 
-    it("counts a self loop and leaves the node in its own part", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b"),
-            edges: edges(["a", "a"], ["a", "b"]),
-        });
-
-        expect(shape.selfLoopCount).toBe(1);
-        expect(shape.parallelEdgeCount).toBe(0);
-        expect(shape.connectedPartCount).toBe(1);
-    });
-
-    describe("parallel edges", () => {
-        it("counts a repeat of the same ordered pair", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b"),
-                edges: edges(["a", "b"], ["a", "b"], ["a", "b"]),
-            });
-
-            expect(shape.edgeCount).toBe(3);
-            expect(shape.parallelEdgeCount).toBe(2);
-        });
-
-        it("does not call a reciprocal pair parallel when direction was never measured", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b"),
-                edges: edges(["a", "b"], ["b", "a"]),
-            });
-
-            expect(shape.directedness).toBe("unknown");
-            expect(shape.parallelEdgeCount).toBe(0);
-        });
-
-        it("does not call a reciprocal pair parallel on a measured directed graph", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b"),
-                edges: [
-                    { src: "a", dst: "b", directed: true },
-                    { src: "b", dst: "a", directed: true },
-                ],
-            });
-
-            expect(shape.directedness).toBe("directed");
-            expect(shape.parallelEdgeCount).toBe(0);
-        });
-
-        it("counts a reciprocal pair as parallel on a measured undirected graph", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b"),
-                edges: [
-                    { src: "a", dst: "b", directed: false },
-                    { src: "b", dst: "a", directed: false },
-                ],
-            });
-
-            expect(shape.directedness).toBe("undirected");
-            expect(shape.parallelEdgeCount).toBe(1);
-        });
-
-        it("still counts an ordered repeat on a directed graph that also has the reciprocal edge", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b"),
-                edges: [
-                    { src: "a", dst: "b", directed: true },
-                    { src: "b", dst: "a", directed: true },
-                    { src: "a", dst: "b", directed: true },
-                ],
-            });
-
-            expect(shape.edgeCount).toBe(3);
-            expect(shape.parallelEdgeCount).toBe(1);
-        });
-    });
-
-    it("ignores direction when it counts parts", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b", "c"),
-            edges: edges(["a", "b"], ["c", "b"]),
-        });
-
-        expect(shape.connectedPartCount).toBe(1);
-    });
-
-    it("accepts the source/target spelling as well as src/dst", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b", "c"),
-            edges: [
-                { source: "a", target: "b" },
-                { source: { id: "b" }, target: "c" },
-            ],
-        });
-
-        expect(shape.connectedPartCount).toBe(1);
-        expect(shape.largestPartNodeCount).toBe(3);
-    });
-
-    it("reads numeric ids consistently across nodes and edges", () => {
-        const shape = computeGraphShape({
-            nodes: nodes(1, 2, 3),
-            edges: edges([1, 2], [2, 3]),
-        });
-
-        expect(shape.connectedPartCount).toBe(1);
-        expect(shape.largestPartNodeCount).toBe(3);
-    });
-
-    it("unions nothing for an edge naming a node that was not loaded", () => {
-        const shape = computeGraphShape({
-            nodes: nodes("a", "b"),
-            edges: edges(["a", "ghost"]),
-        });
-
-        expect(shape.nodeCount).toBe(2);
-        expect(shape.connectedPartCount).toBe(2);
-        expect(shape.largestPartNodeCount).toBe(1);
-    });
-
-    describe("directedness", () => {
-        it("is directed only when every edge says so", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b", "c"),
-                edges: [
-                    { src: "a", dst: "b", directed: true },
-                    { src: "b", dst: "c", directed: true },
-                ],
-            });
-
-            expect(shape.directedness).toBe("directed");
-        });
-
-        it("is undirected only when every edge says so", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b", "c"),
-                edges: [
-                    { src: "a", dst: "b", directed: false },
-                    { src: "b", dst: "c", directed: false },
-                ],
-            });
-
-            expect(shape.directedness).toBe("undirected");
-        });
-
-        it("is unknown when the edges disagree", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b", "c"),
-                edges: [
-                    { src: "a", dst: "b", directed: true },
-                    { src: "b", dst: "c", directed: false },
-                ],
-            });
-
-            expect(shape.directedness).toBe("unknown");
-        });
-
-        it("is unknown when any edge does not carry the key", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b", "c"),
-                edges: [{ src: "a", dst: "b", directed: true }, { src: "b", dst: "c" }],
-            });
-
-            expect(shape.directedness).toBe("unknown");
-        });
-
-        it("is unknown on the cat fixture's spelling, where no edge carries the key", () => {
-            const shape = computeGraphShape({
-                nodes: nodes("a", "b"),
-                edges: edges(["a", "b"]),
-            });
-
-            expect(shape.directedness).toBe("unknown");
-        });
-
-        it("is unknown when there are no edges at all, rather than vacuously directed", () => {
-            const shape = computeGraphShape({ nodes: nodes("a", "b"), edges: [] });
-
-            expect(shape.directedness).toBe("unknown");
-            expect(shape.connectedPartCount).toBe(2);
-            expect(shape.isolatedNodeCount).toBe(2);
-        });
+    it("names no node for an endpoint the record does not carry", () => {
+        expect(edgeEndpoints({ id: "e1" })).toEqual({ source: null, target: null });
+        expect(edgeEndpoints({ source: "", target: "b" })).toEqual({ source: null, target: "b" });
     });
 });

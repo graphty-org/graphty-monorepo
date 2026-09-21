@@ -52,6 +52,10 @@ function rankingOf(
             label: String(reading.id),
             fraction: fractionOf(reading.value),
         })),
+        // The body never draws the chart, so the distribution it carries is empty here rather
+        // than invented: a fixture that supplied bars nothing reads would be claiming this
+        // module depends on something it does not.
+        distribution: { bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" },
         nodeCount: counts.rankedCount,
         rankedCount: counts.rankedCount,
         maxValue,

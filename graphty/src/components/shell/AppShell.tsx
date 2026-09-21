@@ -73,6 +73,14 @@
  * - **The legend's channels.** With nothing encoded the legend renders nothing by
  *   design (spec 01 section 9), so an empty channel list is the correct state, not a
  *   missing one.
+ * - **A reproducible scatter on a large graph.** `recommendLayout` picks the Scattered
+ *   arrangement above the large-graph threshold and says of it that the result is "the same
+ *   every time", but the recommendation is a descriptor with no configuration and the random
+ *   engine's own seed defaults to null, so each load scatters differently. The shell applies
+ *   the arrangement the element named and adds no seed of its own: a layout option written
+ *   down here would be the copy of the element's catalogue this file has just finished
+ *   deleting. The promise holds the day the recommendation carries the configuration it
+ *   describes.
  */
 
 import {
@@ -82,7 +90,9 @@ import {
     PopoutManager,
     PopoutRegion,
 } from "@graphty/compact-mantine";
-import type { Channel, LayerSpec, RunId } from "@graphty/graphty-element/session";
+import type { DataLoadingErrorEvent } from "@graphty/graphty-element";
+import type { MetricAvailability } from "@graphty/graphty-element/catalog";
+import { type Channel, type GraphStatistics, type LayerSpec, recommendLayout, type RunId } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -91,7 +101,6 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import { useGraphInfo } from "../../hooks/useGraphInfo";
 import type { ProviderType } from "../../types/ai";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { FeedbackModal } from "../FeedbackModal";
@@ -99,14 +108,18 @@ import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from 
 import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
 import { asElementGraph, elementSession } from "./analysis/elementBridge";
-import { computeGraphShape, edgeEndpoints, type GraphShape } from "./analysis/graphShape";
-import { estimateMetricCost, estimateSecondsByMetric, type MetricCostEstimate } from "./analysis/metricCost";
+import {
+    edgeEndpoints,
+    EMPTY_GRAPH_STATISTICS,
+    readGraphStatistics,
+    smallPartsAreSingleNodes,
+} from "./analysis/graphShape";
+import { metricCost, type MetricCostEstimate, metricCosts, readMetricAvailability } from "./analysis/metricCost";
 import {
     metricDistribution,
     NODE_METRIC_DEFINITIONS,
     NODE_METRIC_IDS,
     type NodeMetricId,
-    rankingFromDegreeResults,
     runNodeMetric,
 } from "./analysis/nodeMetrics";
 import { COMMUNITY_METHOD_NAME, type DegreeResults, runCommunityDetection, runDegreePass } from "./analysis/runs";
@@ -141,7 +154,7 @@ import {
     runColourBlock,
     topSwatchColour,
 } from "./defaults/encodingReport";
-import { labelDegreeThreshold, LARGE_GRAPH_NODE_THRESHOLD, loadDefaults } from "./defaults/loadDefaults";
+import { labelDegreeThreshold, loadDefaults } from "./defaults/loadDefaults";
 import { SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "./defaults/styleDescriptors";
 import {
     graphDeselectNode,
@@ -405,9 +418,10 @@ function fileSizeLabel(bytes: number): string {
  * Only measured facts go in. The format is there when the request NAMED one; with
  * "auto" the loader detected it and publishes no answer, so the compound is not drawn
  * rather than drawn with a guess. The size is there when a real file was read. The
- * direction is in neither: nothing in this build reads it off the data --
- * `useGraphInfo`'s `directed` is its own default, not a measurement -- and the one
- * place a wrong direction would do its damage is silently, in every algorithm after it.
+ * direction is in neither, and not because it is unknown: the element measures it and the
+ * Counts "Type" row prints that. It is absent from THIS compound because the compound
+ * describes the REQUEST -- what the reader asked for and what was read -- and the direction
+ * is a fact about the graph that came back.
  * @param request - the load request that just succeeded.
  * @returns the compound's values, or undefined when the request measured none of them.
  */
@@ -455,12 +469,10 @@ function focusWhenMounted(selector: string): void {
 }
 
 /*
- * A private `edgeEndpoint(value)` helper stood here until 2026-09-14, and with it a
- * `neighborsOf` loop that read `edge.source` and `edge.target`. Those are precisely the
- * two fields `GraphtyHandle.getData` never writes, so the node inspector reported zero
- * neighbours for every node on every dataset. Both are gone; `neighborsOf` now calls
- * `edgeEndpoints` from `analysis/graphShape.ts`, which is the one reader of that fact and
- * carries the full account of the defect in its own doc comment.
+ * A private `edgeEndpoint(value)` helper stood here, and with it a second reader of an
+ * edge's ends. It is gone: `neighborsOf` calls `edgeEndpoints` from
+ * `analysis/graphShape.ts`, which is the shell's one reader of that fact. Keep it that
+ * way -- a second reader here is free to invent a spelling the first one does not use.
  */
 
 /**
@@ -528,6 +540,9 @@ interface ShellGraphData {
 
 const NO_GRAPH_DATA: ShellGraphData = { nodes: [], edges: [] };
 
+/** What the shell reports as pinned before the element is up to be asked. */
+const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
+
 /**
  * The event graphty-element publishes when a data source has finished loading.
  *
@@ -554,24 +569,16 @@ const DATA_LOADED_EVENT = "data-loaded";
 const DATA_LOADING_ERROR_EVENT = "data-loading-error";
 
 /**
- * What that event carries (graphty-element's `events.ts:113-122`).
+ * What that event carries: graphty-element's own `DataLoadingErrorEvent`, imported.
  *
- * Restated here rather than imported, as `Graphty.tsx` restates `SelectionChangedDetail`
- * and for the same two reasons: no type export of that package resolves through the
- * application's path alias, and every member is optional here because this is a DOM
- * CustomEvent whose `detail` is whatever the dispatcher put on it. The shell reads two
- * of the fields and treats a missing one as a fact it was not told.
+ * A near-copy of this interface stood here, with a note saying no type export of the
+ * package resolved through the application's path alias. It does now -- the element
+ * publishes an exports map and real declarations -- so the copy is gone and the shell
+ * reads the element's own shape. The `| undefined` is not defensiveness about the
+ * FIELDS; it is the one honest thing a DOM listener can say about `detail`, which is
+ * whatever the dispatcher put on the event.
  */
-interface DataLoadingErrorDetail {
-    /** What went wrong, as the parser or the fetch threw it. */
-    readonly error?: unknown;
-    /** Where it went wrong: detection, validation or parsing. */
-    readonly context?: string;
-    /** The data source type the element was reading. */
-    readonly format?: string;
-    /** Whether the load carries on despite this error. */
-    readonly canContinue?: boolean;
-}
+type DataLoadingErrorDetail = DataLoadingErrorEvent;
 
 /**
  * The events graphty-element publishes WHILE a load is still arriving.
@@ -587,6 +594,17 @@ const DATA_LOADING_PROGRESS_EVENT = "data-loading-progress";
 
 /** The other half of that heartbeat: one per chunk of nodes and one per chunk of edges. */
 const DATA_ADDED_EVENT = "data-added";
+
+/**
+ * The event graphty-element publishes when the reader finishes dragging a node.
+ *
+ * It is the only way a pin the reader made with the POINTER reaches this shell. `pinOnDrag`
+ * is on by default, so letting go of a dragged node pins it, and nothing else in the shell
+ * is told: the Pin verb below knows about the pins it makes itself and about no others.
+ * The element mirrors its node events to the DOM under a `graphty-` prefix, bubbling and
+ * composed, so the frame hears this the same way it hears a load completing.
+ */
+const NODE_DRAG_END_EVENT = "graphty-node-drag-end";
 
 /**
  * How long the shell waits on a SILENT element before it stops waiting, in milliseconds.
@@ -944,22 +962,44 @@ function degreeHistogram(degreesDescending: readonly number[]): DegreeHistogram 
 }
 
 /**
- * What the Counts "Type" row may say about direction.
+ * What the Counts "Type" row says about direction.
  *
- * The row's string is a claim plus where the claim was read: "Directed (from file),
- * weighted (amount), timed (opened)" (inspectorConstants.ts:336), which is spec line 843
- * -- "Direction (Directed / Undirected, from the file where the format carries it)". A
- * measured direction therefore keeps its provenance, and where the format carried none
- * the row says that and claims nothing. It does NOT read
- * `graphInfo.graphType.directed`, which defaults to true and measures nothing, and there
- * is no 6.3 pair for a fact nobody read: a plain-language phrase alone is the whole
- * vocabulary the unknown case has.
+ * It states what graphty-element says the graph IS -- the direction the snapshot is
+ * frozen with, which is the direction every run, every layout and every degree uses.
+ *
+ * THE PROVENANCE CLAUSE IS GONE, and its absence is the honest half of this row. Spec
+ * line 843 writes it as "Direction (Directed / Undirected, from the file where the format
+ * carries it)", and the row used to print "(from file)". The element publishes what the
+ * graph is and not where that came from: under `data.directed: "auto"` a format that
+ * states nothing leaves the element's own default standing, and the row cannot tell that
+ * apart from a file header that said so. Claiming the file said it would be inventing a
+ * source. The clause comes back the day the element publishes where the direction was
+ * settled -- see the element note in this module's header.
+ *
+ * "unknown" survives as the empty graph's answer: nothing has settled the question yet,
+ * and there is no 6.3 pair for a fact nobody read, so a plain-language phrase alone is
+ * the whole vocabulary that case has.
  */
-const COUNTS_TYPE_ROW: Readonly<Record<GraphShape["directedness"], string>> = {
-    directed: "Directed (from file)",
-    undirected: "Undirected (from file)",
-    unknown: "Not stated in the file",
+const COUNTS_TYPE_ROW: Readonly<Record<GraphStatistics["directedness"], string>> = {
+    directed: "Directed",
+    undirected: "Undirected",
+    mixed: "Mixed directions",
+    unknown: "Not stated yet",
 };
+
+/**
+ * The Type row: what the graph is, and where that came from when a file is what settled it.
+ * @param statistics - the element's statistics for the loaded graph
+ * @returns the row text
+ */
+function countsTypeRow(statistics: GraphStatistics): string {
+    const claim = COUNTS_TYPE_ROW[statistics.directedness];
+
+    // The source qualifies the claim only when data said so. A direction the reader themselves
+    // configured, or one nothing has stated, is still true of the graph -- but "(from file)" on
+    // either would credit the file with a decision it did not make.
+    return statistics.directednessSource.by === "file" ? `${claim} (from file)` : claim;
+}
 
 /**
  * Props of {@link AppShell}.
@@ -1015,7 +1055,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     const graphtyRef = useRef<GraphtyHandle>(null);
-    const { graphInfo, updateStats, addDataSource } = useGraphInfo();
     const [datasetName, setDatasetName] = useState<string | null>(null);
     const [dataLoaded, setDataLoaded] = useState(false);
     /* The load that did not arrive, or null while nothing has failed since the last
@@ -1024,6 +1063,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
     const [loadedSummary, setLoadedSummary] = useState<LoadedDataSummary | undefined>(undefined);
     const [graphData, setGraphData] = useState<ShellGraphData>(NO_GRAPH_DATA);
+    /*
+     * The graph's shape, as graphty-element last reported it.
+     *
+     * Held beside the records rather than derived from them, because it is not derivable
+     * from them: the element measures the snapshot it froze, and the records are a copy
+     * the shell keeps for its data table. Both are re-read together in `refreshGraphData`,
+     * on the element's own data events, so the two can never describe different graphs.
+     */
+    const [graphStatistics, setGraphStatistics] = useState<GraphStatistics>(EMPTY_GRAPH_STATISTICS);
+    /*
+     * What the element says each metric would cost on the graph it is holding.
+     *
+     * It feeds two surfaces that must agree: the Suggested Run's own label and tooltip,
+     * and the Insights strip's 60 s ceiling. The strip's gate is inert without it -- an
+     * unestimated betweenness card is offered whatever the graph's size -- so a 200k-node
+     * graph would have gone on suggesting a pass measured in hours as a one-click card.
+     *
+     * Read beside the statistics, on the same data events, because the same thing makes
+     * both answers move: the estimate is O(1) over the shape the session maintains, so
+     * asking for all three costs no more than reading the shape once. The number the
+     * reader is asked to ACCEPT is asked for again on the click -- see `runNodeMetricCard`
+     * -- because by then the element may have timed a real run and know better.
+     */
+    const [metricEstimates, setMetricEstimates] = useState<Readonly<Record<NodeMetricId, MetricCostEstimate>>>(() =>
+        metricCosts(null),
+    );
+    /* What the element says this graph can support and what each analysis would cost, one
+       entry per algorithm it ships. The Insights strip reads it so that a card is offered
+       only for a run the element will actually perform, and so that the 60 s ceiling has a
+       number for every card rather than for the three this shell estimates for its own Run
+       buttons. Empty until the element is up, which is what it also answers for a graph of
+       no size. */
+    const [elementMetrics, setElementMetrics] = useState<readonly MetricAvailability[]>([]);
     /* How many loads the element has reported COMPLETE since the last dataset boundary.
        The 7.2 defaults wait on it rather than on the first data event: a chunked load
        publishes `data-added` per chunk, and a decision taken on the first one is taken
@@ -1048,8 +1120,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
     const [selectedNode, setSelectedNode] = useState<{
         readonly id: string;
+        /*
+         * The same node, as the ELEMENT spells its id. Kept beside the printed form because the
+         * element looks a node up by exact map key: `element.pin("34")` finds nothing on a graph
+         * whose ids are numbers, and unlike `selectNode` the pin verbs return nothing, so a miss
+         * cannot even be detected and retried. Every call on the element made from this state
+         * passes this field.
+         */
+        readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;
     } | null>(null);
+    /*
+     * Which nodes the element has pinned, as the inspector's Pinned badge and its Pin/Unpin verb
+     * read it. Re-read from the element rather than tracked here, because the element pins on
+     * drag as well (`pinOnDrag` is on by default) and a copy kept up to date only by this shell's
+     * own calls would say "Pin" over a node the reader has already fixed by dragging it. The two
+     * things that move it are this shell's own Pin verb and {@link NODE_DRAG_END_EVENT}.
+     */
+    const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
     const firstLoadDone = useRef(false);
     /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
@@ -1366,15 +1454,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
 
     /* ---------------------------------------------------------------------- */
-    /* What one O(n+m) pass over the loaded records can honestly say            */
+    /* What is still true of the graph the shell last measured                 */
     /* ---------------------------------------------------------------------- */
 
-    /* Components, isolated nodes, self-loops, parallel edges and the direction the
-       records actually carry -- the facts the graph-summary reading and the 7.3 rule
-       table both read. Nothing above O(n+m) is in here: no diameter, no path lengths,
-       and no direction guessed from `graphInfo.graphType.directed`, which defaults to
-       true and is therefore not a measurement. */
-    const graphShape = useMemo(() => computeGraphShape(graphData), [graphData]);
     /*
      * The held degree pass, or null when it no longer describes the graph on the canvas.
      *
@@ -1388,10 +1470,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return null;
         }
 
-        const fresh = degreePass.nodeCount === graphShape.nodeCount && degreePass.edgeCount === graphShape.edgeCount;
+        const fresh =
+            degreePass.nodeCount === graphStatistics.nodeCount && degreePass.edgeCount === graphStatistics.edgeCount;
 
         return fresh ? degreePass.results : null;
-    }, [degreePass, graphShape.edgeCount, graphShape.nodeCount]);
+    }, [degreePass, graphStatistics.edgeCount, graphStatistics.nodeCount]);
 
     /* ---------------------------------------------------------------------- */
     /* The 6.1 state axis, derived rather than stored twice                    */
@@ -1492,10 +1575,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     const refreshGraphData = useCallback(() => {
         const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
+        const session = elementSession(graphtyRef.current?.graph);
+        const statistics = readGraphStatistics(session);
 
+        /* The counts travel with the rest of the shape, in {@link graphStatistics}, so the
+           number in the status bar and the number every reading is written from are the same
+           field of the same object. They are the nodes and edges the element actually froze,
+           which is not always the length of the record lists: an edge naming a node no record
+           declared is still an edge of the graph. */
         setGraphData({ nodes: data.nodes, edges: data.edges });
-        updateStats(data.nodes.length, data.edges.length);
-    }, [updateStats]);
+        setGraphStatistics(statistics);
+        setMetricEstimates(metricCosts(session));
+        setElementMetrics(readMetricAvailability(session));
+    }, []);
 
     useEffect(() => {
         refreshGraphDataRef.current = refreshGraphData;
@@ -1620,6 +1712,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             frame?.removeEventListener(DATA_LOADED_EVENT, onDataLoaded);
             frame?.removeEventListener(DATA_LOADING_PROGRESS_EVENT, onLoadProgress);
             frame?.removeEventListener(DATA_ADDED_EVENT, onLoadProgress);
+        };
+    }, []);
+
+    /*
+     * Keeps the Pinned badge honest for a pin the READER made with the pointer.
+     *
+     * The whole set is re-read rather than the event's own `pinned` flag applied, because the
+     * element is where a pin lives and it is the only thing that knows about pins this shell
+     * did not make. The event says WHEN to look, not what the answer is.
+     */
+    useEffect(() => {
+        const frame = frameRef.current;
+
+        const onNodeDragEnd = (): void => {
+            setPinnedNodes(new Set(graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES));
+        };
+
+        frame?.addEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
+
+        return () => {
+            frame?.removeEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
         };
     }, []);
 
@@ -1926,13 +2039,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const finishLoad = useCallback(
         (name: string, type: string, summary: LoadedDataSummary | undefined) => {
-            addDataSource({ name, type });
             setDatasetName(name);
             setDataLoaded(true);
             setLoadedSummary(summary);
             refreshGraphData();
         },
-        [addDataSource, refreshGraphData],
+        [refreshGraphData],
     );
 
     /**
@@ -2417,7 +2529,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        setSelectedNode({ id: String(detail.currentNodeId), attributes: detail.currentNodeData });
+        setSelectedNode({
+            id: String(detail.currentNodeId),
+            elementId: detail.currentNodeId,
+            attributes: detail.currentNodeData,
+        });
     }, []);
 
     /*
@@ -2625,26 +2741,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     /*
-     * What each metric is expected to cost on THIS graph, in seconds.
-     *
-     * It feeds two surfaces that must agree: the Suggested Run's own label and tooltip,
-     * and the Insights strip's 60 s ceiling. The strip's gate is inert without it -- an
-     * unestimated betweenness card is offered whatever the graph's size -- so a 200k-node
-     * graph would have gone on suggesting a pass measured in hours as a one-click card.
-     */
-    const metricEstimates = useMemo(
-        () => estimateSecondsByMetric({ nodeCount: graphShape.nodeCount, edgeCount: graphShape.edgeCount }),
-        [graphShape.edgeCount, graphShape.nodeCount],
-    );
-
-    /*
      * What each Suggested row's Run says about what it will cost, per card id.
      *
-     * Every string comes from `estimateMetricCost` and none is composed here: the label,
-     * the tooltip and the warning sentence are one register, and the card and the confirm
-     * dialog draw the SAME sentence (spec 2043-2047) precisely because neither builds it.
-     * A cost string formatted at a call site would also escape the table-driven test that
-     * holds all of them to spec 1918-1927.
+     * Every string comes from the gate and none is composed here: the label, the tooltip
+     * and the warning sentence are one register, and the card and the confirm dialog draw
+     * the SAME sentence (spec 2043-2047) precisely because neither builds it. A cost
+     * string formatted at a call site would also escape the table-driven test that holds
+     * all of them to spec 1918-1927.
      */
     const suggestedRunCosts = useMemo(() => {
         const labels: Record<string, string> = {};
@@ -2652,11 +2755,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const warnings: Record<string, string> = {};
 
         for (const [cardId, metric] of Object.entries(SUGGESTED_CARD_METRICS)) {
-            const estimate = estimateMetricCost({
-                metric,
-                nodeCount: graphShape.nodeCount,
-                edgeCount: graphShape.edgeCount,
-            });
+            const estimate = metricEstimates[metric];
 
             labels[cardId] = estimate.runLabel;
             titles[cardId] = estimate.runTitle;
@@ -2667,7 +2766,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         return { labels, titles, warnings };
-    }, [graphShape.edgeCount, graphShape.nodeCount]);
+    }, [metricEstimates]);
 
     /* Which Suggested ROW is in flight, in the panel's own vocabulary. The panel keys by
        card id and the shell holds a metric id, so the map is read backwards here rather
@@ -2729,11 +2828,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             if (!confirmed) {
-                const estimate = estimateMetricCost({
-                    metric,
-                    nodeCount: graphShape.nodeCount,
-                    edgeCount: graphShape.edgeCount,
-                });
+                /* Asked again HERE rather than read off the memo above, because this is the
+                   click and the memo is a frame old. The element's estimate improves as it
+                   learns: a run of the same algorithm on this machine is timed and the next
+                   estimate is scaled from that timing rather than modelled, so the number
+                   the reader is asked to accept should be the freshest one the element has.
+                   It is O(1) over the shape the session already maintains. */
+                const estimate = metricCost(graph.getSession(), metric);
+
+                if (estimate.verdict === "unavailable") {
+                    /* The element will not run this on this graph and said why. Nothing is
+                       confirmed, because there is nothing a Run button could do: the card
+                       is already drawing the same sentence under its own Run. */
+                    console.error(`[shell] the element cannot run ${metric}:`, estimate.warningSentence);
+
+                    return;
+                }
 
                 if (estimate.verdict !== "run") {
                     /* The route's own flag rides along on the confirm, because the dialog
@@ -2750,21 +2860,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setRunningMetric(metric);
 
             try {
-                /* Ruling 3: the degree pass already ran at import and the shell is holding
-                   its result. `readNodeMetricResults` exists to read without running, and
-                   this is the reader. The other two have nothing held, so they run.
-
-                   `degreeResults` is null the moment that held pass stops describing the
-                   live graph, so a graph that has changed under it falls through to a real
-                   pass rather than ranking the records that were there when it ran -- which
-                   is what the short circuit did, under a run record counting them and a
-                   ramp leaving every node the pass never saw unencoded. The live node count
-                   goes in beside the readings so the ranking can say how many nodes it did
-                   NOT measure; without it that departure could never fire on this path. */
-                const ranking =
-                    metric === "degree" && degreeResults !== null
-                        ? rankingFromDegreeResults(degreeResults, graphShape.nodeCount)
-                        : await runNodeMetric(graph, metric);
+                /* The shell no longer decides whether the degree pass already covers this
+                   graph, because the element decides it better. Starting a run the session
+                   already holds returns that run untouched when nothing it measured has
+                   moved, and re-executes it when the graph has -- compared by the scope's
+                   own membership digest rather than by a flag the shell keeps in sync by
+                   hand. The short circuit this replaces was the shell keeping that flag,
+                   and it got it wrong on an additive load: the held pass described one file
+                   while the ranking reported its node count as the whole graph. */
+                const ranking = await runNodeMetric(graph, metric);
                 const top = ranking.byValueDescending[0];
 
                 if (top === undefined) {
@@ -2960,7 +3064,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, graphShape.edgeCount, graphShape.nodeCount, layers, openPanelAt, undoStore],
+        [degreeResults, layers, openPanelAt, undoStore],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2968,9 +3072,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     /*
-     * The layout, the label budget, the size scale and the one neutral colour, applied
-     * once per dataset from the loaded graph's size alone. Nothing else runs (7.2), and
-     * every number and every hex comes from the defaults module rather than from here.
+     * The arrangement and the label budget, applied once per dataset. Nothing else runs
+     * (7.2).
+     *
+     * WHICH ARRANGEMENT IS THE ELEMENT'S ANSWER, not this file's and not the defaults
+     * module's. `recommendLayout` reads the graph's shape and how many nodes already carry
+     * a coordinate, resolves each candidate against the element's own layout catalogue, and
+     * never names one the element cannot serve at this size or without an input nobody has
+     * supplied. What it replaced was the same three cases decided here from a copy of that
+     * catalogue -- a copy that named "grid" as 7.2's first choice for years after the engine
+     * behind it stopped existing.
      *
      * The degree pass is awaited because three of the four decisions need it: the size
      * scale reads `degreePct`, the label selector needs the labelCount-th degree as its
@@ -3003,10 +3114,26 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         loadDefaultsAppliedRef.current = true;
 
-        const defaults = loadDefaults({ nodeCount: graphShape.nodeCount });
+        const defaults = loadDefaults({ nodeCount: graphStatistics.nodeCount });
+        const session = graph.getSession();
 
-        setLayoutType(defaults.layout.type);
-        setLayoutConfig(defaults.layout.config);
+        /* `seededNodeCount`, NOT `positions.placedCount`, and the difference is the whole
+           decision. The position array is written by the importer AND by every running layout,
+           so one animation frame after a file with no coordinates loads, every node carries a
+           position -- the layout put it there. This effect runs after that frame, so reading the
+           live count answered "keep the arrangement the data arrived with" for a file that
+           arrived with none, and froze the graph at whatever the first step of a force layout
+           reached. The seeded count is what the importer itself placed and nothing else writes. */
+        const arrangement = recommendLayout(graphStatistics, { placedNodes: session.seededNodeCount });
+
+        if (arrangement !== undefined) {
+            /* `engine` and not `id`: `id` is the arrangement's public name ("force"), and
+               `setLayout` takes the engine that draws it ("ngraph"). No configuration of the
+               shell's own goes with it -- the element's recommendation is the whole decision,
+               and options belong to the Layout panel, where a reader can see them. */
+            setLayoutType(arrangement.layout.engine);
+            setLayoutConfig({});
+        }
 
         const apply = async (): Promise<void> => {
             const degrees = await runDegreePass(graph);
@@ -3014,7 +3141,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             /* Stamped with the graph it was just measured over. Both counts, not only the
                nodes: a file that adds edges between nodes that are already here changes
                every degree in the ranking without changing its length. */
-            setDegreePass({ results: degrees, nodeCount: graphShape.nodeCount, edgeCount: graphShape.edgeCount });
+            setDegreePass({ results: degrees, nodeCount: graphStatistics.nodeCount, edgeCount: graphStatistics.edgeCount });
 
             /* NO node colour or size layer, which is a deliberate departure from 7.2's
                "node size by degree on a square-root scale" and "a single neutral node
@@ -3033,7 +3160,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                maximum alone. Labels stay: they add a channel rather than overriding a
                tuned value. */
             const degreeThreshold = labelDegreeThreshold(degrees.degreesDescending, defaults.labelCount);
-            const session = graph.getSession();
             const degreeRunId = degrees.runId;
 
             /* The layer names the RUN that measured the degrees, so a node the pass never
@@ -3070,8 +3196,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         dataLoaded,
         graphData.nodes.length,
-        graphShape.edgeCount,
-        graphShape.nodeCount,
+        graphStatistics.edgeCount,
+        graphStatistics.nodeCount,
         loadCompletions,
         runFindGroups,
     ]);
@@ -3377,8 +3503,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        too small" state and never reaches this line. The prop stays on both region
        components because their own tests and stories still exercise the overlay form. */
     const presentation = "docked";
-    const { nodeCount } = graphInfo;
-    const { edgeCount } = graphInfo;
+    const { nodeCount } = graphStatistics;
+    const { edgeCount } = graphStatistics;
 
     /* Which activity the 280 px panel is drawing, or null when the sidebars are hidden.
        The store always holds an activity -- there is no "no panel" state any more -- so
@@ -3442,7 +3568,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         setDatasetName(null);
                         setGraphData(NO_GRAPH_DATA);
                         setLoadedSummary(undefined);
-                        updateStats(0, 0);
+                        /* The WHOLE shape goes, not just the two counts. Every field of it
+                           describes the dataset being closed -- the density, the parts, the
+                           direction -- so leaving the rest standing beside a node count of
+                           zero would have the Counts rows describing a graph nobody can see. */
+                        setGraphStatistics(EMPTY_GRAPH_STATISTICS);
                         crossDatasetBoundary();
                     },
                 },
@@ -3479,7 +3609,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         return [];
-    }, [activeActivity, crossDatasetBoundary, updateStats]);
+    }, [activeActivity, crossDatasetBoundary]);
 
     const panelBody = useMemo(() => {
         switch (activeActivity) {
@@ -3701,29 +3831,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /**
      * The distinct neighbours of one node, as the inspector's Neighbors block draws them.
      *
-     * THE DEFECT THIS CLOSES. Until 2026-09-14 the loop read `edge.source` and
-     * `edge.target` through a private helper in this file. `GraphtyHandle.getData`
-     * (`Graphty.tsx:280-286`) writes every edge as `{id, src, dst, ...edge.data}` and
-     * never writes either of those two names, so `other` was null on every iteration, the
-     * loop returned an empty array for every node on every dataset, and the inspector
-     * drew "Expand 0 neighbors" for a node whose own result card said 17 links -- verified
-     * in the browser on node 34 of Karate Club. It looked like an id-type problem and was
-     * not one: the private helper already stringified a finite number, and a JSON file
-     * spelled `{"source":..,"target":..}` accidentally worked because `getData` spreads
-     * `edge.data` over the record, while `karate.gml` could not, because `GMLDataSource`
-     * deletes `source` and `target` from the data it hands on.
-     *
-     * The fix is to use `edgeEndpoints`, which was already the shell's one correct reader
-     * of an edge's ends (it is what the graph-shape pass uses, which is why THAT pass
-     * always counted the links right). Two spellings of one fact become one, which is the
-     * only version of this fix that stops a third call site inventing a fourth spelling.
+     * The ends come from `edgeEndpoints`, the shell's one reader of that fact, which reads
+     * the two names the element resolved and publishes. Nothing here probes for a second
+     * spelling, and nothing here should: the element answers the endpoint question once,
+     * per load, and refuses a file it cannot answer it for.
      *
      * `direction` is derived from which end matched, and it is only MEANINGFUL on a
      * directed graph -- on an undirected one it is an artefact of the order the loader
      * happened to write the endpoints in. It is safe to pass unconditionally because the
-     * one consumer, `NodeInspector`, filters on it only while `directed === true`, and
-     * the shell passes `graphInfo.graphType.directed` for that. Do not start drawing an
-     * arrow from this field without re-checking that guard.
+     * one consumer, `NodeInspector`, filters on it only while `directed === true`, and the
+     * shell passes the element's MEASURED direction for that -- `graphStatistics.directedness`,
+     * not the handle's default, which is the constant true. Do not start drawing an arrow from
+     * this field without re-checking that guard.
      * @param nodeId - the node whose neighbours are wanted.
      * @returns one row per DISTINCT neighbour, in edge-record order.
      */
@@ -3761,6 +3880,35 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         [graphData.edges],
     );
 
+    /**
+     * Pins the node where it is, or releases one already pinned.
+     *
+     * The inspector's Pin row and its Pinned badge's Unpin button are the same verb, and both
+     * are the reader's only way back out of a pin: `pinOnDrag` is on by default and a pin now
+     * survives a layout change, a 2D/3D switch and a template apply, so every node the reader
+     * has ever dragged stays where they put it until this is called.
+     *
+     * The set is re-read from the element afterwards rather than edited here. The element is
+     * where a pin lives, and it is the only thing that knows about the pins this shell did not
+     * make.
+     * @param elementId - the node, as the element spells its id.
+     */
+    const togglePin = useCallback((elementId: string | number) => {
+        const handle = graphtyRef.current;
+
+        if (handle === null) {
+            return;
+        }
+
+        if (handle.pinnedNodes.has(elementId)) {
+            handle.unpin(elementId);
+        } else {
+            handle.pin(elementId);
+        }
+
+        setPinnedNodes(new Set(handle.pinnedNodes));
+    }, []);
+
     const copyReading = useCallback((text: string) => {
         navigator.clipboard?.writeText(text).catch((error: unknown) => {
             console.error("[shell] could not copy the reading:", error);
@@ -3769,23 +3917,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     /*
      * The graph-summary reading (7.5). It is the template's, not a sentence assembled
-     * here, and it is fed only facts one O(n+m) pass measured.
+     * here, and every fact in it is one the element published.
      *
      * Two clauses the spec draws are deliberately absent. The type clause ("17 cats, 1 dog
      * and 2 humans") needs a node-type ROLE, and no column-role model exists in either
      * package -- the cat fixture's `breed` carries 17 values with counts of 1 to 3, so the
      * drawn string is not derivable from the data. The "at most 5 steps" clause needs an
-     * exact diameter, which is above the O(n+m) ceiling spec 5843 sets for a template. The
-     * template accepts `nodeTypes` and `exactDiameter` for the day either lands.
+     * exact diameter, which is above the O(n+m) ceiling spec 5843 sets for a template and
+     * which the element's statistics do not carry. The template accepts `nodeTypes` and
+     * `exactDiameter` for the day either lands.
      */
     const graphReading = dataLoaded
         ? graphSummaryReading({
-              nodeCount: graphShape.nodeCount,
-              edgeCount: graphShape.edgeCount,
+              nodeCount: graphStatistics.nodeCount,
+              edgeCount: graphStatistics.edgeCount,
               edgeNoun: DEFAULT_EDGE_NOUN,
-              connectedPartCount: graphShape.connectedPartCount,
-              largestPartNodeCount: graphShape.largestPartNodeCount,
-              smallPartsMostlySingleNodes: graphShape.smallPartsMostlySingleNodes,
+              connectedPartCount: graphStatistics.components.count,
+              largestPartNodeCount: graphStatistics.components.largestSize,
+              smallPartsMostlySingleNodes: smallPartsAreSingleNodes(graphStatistics.components),
           })
         : GRAPH_SUMMARY_EMPTY_READING;
 
@@ -3945,21 +4094,21 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         ? {
                               nodes: nodeCount.toLocaleString(),
                               edges: edgeCount.toLocaleString(),
-                              /* What the O(n+m) pass READ off the edge records, never
-                                 `graphInfo.graphType.directed`, which defaults to true
-                                 and measures nothing. */
-                              types: COUNTS_TYPE_ROW[graphShape.directedness],
-                              density: graphInfo.density.toFixed(3),
-                              densityTitle: graphInfo.density.toExponential(2),
-                              averageDegree: nodeCount === 0 ? "0" : ((edgeCount * 2) / nodeCount).toFixed(1),
-                              connectedParts: formatCount(graphShape.connectedPartCount),
+                              types: countsTypeRow(graphStatistics),
+                              /* The element's density, which excludes self loops from both
+                                 halves of the fraction and knows the direction the pairs
+                                 should be counted in. */
+                              density: graphStatistics.density.toFixed(3),
+                              densityTitle: graphStatistics.density.toExponential(2),
+                              averageDegree: graphStatistics.meanDegree.toFixed(1),
+                              connectedParts: formatCount(graphStatistics.components.count),
                               // 6.2's zero rule: a count of nothing is not a row.
                               selfLoops:
-                                  graphShape.selfLoopCount === 0 ? undefined : formatCount(graphShape.selfLoopCount),
+                                  graphStatistics.selfLoopCount === 0 ? undefined : formatCount(graphStatistics.selfLoopCount),
                               parallelEdges:
-                                  graphShape.parallelEdgeCount === 0
+                                  graphStatistics.repeatedEdgeCount === 0
                                       ? undefined
-                                      : formatCount(graphShape.parallelEdgeCount),
+                                      : formatCount(graphStatistics.repeatedEdgeCount),
                           }
                         : null,
                     mostConnected,
@@ -4014,7 +4163,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 notes: [],
                 neighborCount: neighbors.length,
                 neighborBreakdown: [],
-                directed: graphInfo.graphType.directed,
+                /* The MEASURED answer. The shell used to carry its own graph-type record whose
+                   `directed` was the constant `true`, so the inspector split every node's
+                   neighbours into incoming and outgoing on graphs that have no direction, three
+                   feet from a Counts row that says "Undirected". The element knows which it is;
+                   this reads that. */
+                directed: graphStatistics.directedness === "directed",
                 neighbors,
                 onCopyId: () => {
                     copyReading(selectedNode.id);
@@ -4041,7 +4195,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onSeeAllNeighbors: () => {
                     openDrawerOn("edges");
                 },
-                onAction: () => undefined,
+                pinnedToCanvas: pinnedNodes.has(selectedNode.elementId),
+                onUnpinFromCanvas: () => {
+                    togglePin(selectedNode.elementId);
+                },
+                onAction: (action) => {
+                    if (action === "pinNode") {
+                        togglePin(selectedNode.elementId);
+                    }
+                },
             },
         };
     }, [
@@ -4051,13 +4213,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeDistribution,
         degreeResults,
         edgeCount,
-        graphInfo.density,
-        graphInfo.graphType.directed,
         graphReading,
-        graphShape.connectedPartCount,
-        graphShape.directedness,
-        graphShape.parallelEdgeCount,
-        graphShape.selfLoopCount,
+        graphStatistics.components.count,
+        graphStatistics.density,
+        graphStatistics.directedness,
+        graphStatistics.repeatedEdgeCount,
+        graphStatistics.selfLoopCount,
         handleLayersChange,
         layers,
         mostConnected,
@@ -4065,9 +4226,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         nodeCount,
         openDrawerOn,
         openPanelAt,
+        pinnedNodes,
         removeResultLayers,
         selectedLayerId,
         selectedNode,
+        togglePin,
         zoomToSelection,
     ]);
 
@@ -4430,22 +4593,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         const shape: InsightsGraphShape = {
-            nodeCount: graphShape.nodeCount,
-            edgeCount: graphShape.edgeCount,
-            directedness: graphShape.directedness,
+            nodeCount: graphStatistics.nodeCount,
+            edgeCount: graphStatistics.edgeCount,
+            directedness: graphStatistics.directedness,
             hasTimeRole: false,
             validationIssueTypeCount: 0,
             searchExample: degreeResults?.byDegreeDescending[0]?.id,
-            largeGraphThreshold: LARGE_GRAPH_NODE_THRESHOLD,
-            /* The 60 s ceiling is inert without this: an unestimated betweenness card is
-               offered at ANY size, so a graph big enough to cost hours would still have
-               been suggested as a one-click card. The record is keyed by metric and the
-               gate by capability, so the three pairs are spelled out at the seam. */
-            estimateSeconds: {
-                "centrality-degree": metricEstimates.degree,
-                "centrality-pagerank": metricEstimates.pagerank,
-                "centrality-betweenness": metricEstimates.betweenness,
-            },
+            /* Whether a run is possible on this graph and what it would cost, for every
+               algorithm the element ships. It replaces a three-entry record this file
+               assembled by hand: the 60 s ceiling had a number for Most connected, Influence
+               and Bridges and none for anything else, so every other card passed the ceiling
+               by never having been measured. The threshold the strip branches on is not
+               passed either -- the element publishes its own, and the shell's was ten times
+               larger with nothing between them able to notice. */
+            metrics: elementMetrics,
         };
 
         /* The cap of four is spent only on cards this build can carry through to a
@@ -4503,11 +4664,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         dataLoaded,
         degreeResults,
-        graphShape.directedness,
-        graphShape.edgeCount,
-        graphShape.nodeCount,
+        elementMetrics,
+        graphStatistics.directedness,
+        graphStatistics.edgeCount,
+        graphStatistics.nodeCount,
         insightsMemory.retiredCapabilities,
-        metricEstimates,
         openPanelAt,
         runFindGroups,
         runNodeMetricCard,

@@ -1,6 +1,7 @@
 import type { LegendBlock } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
+import { defaultNodeHex } from "../../../../utils/channelControls";
 import { CANVAS_METRICS } from "../canvasLayout";
 import { legendChannelOf, legendChannels } from "../legendChannels";
 
@@ -41,7 +42,7 @@ describe("legendChannelOf", () => {
         expect(channel?.scaleShort).toBe("linear");
     });
 
-    it("draws a ramp as three stops, the middle one naming itself as the median", () => {
+    it("draws a ramp as three stops, the middle one naming itself as the midpoint", () => {
         const channel = legendChannelOf(
             block({
                 swatches: [
@@ -54,7 +55,7 @@ describe("legendChannelOf", () => {
 
         expect(channel?.stops).toEqual([
             { label: "1", color: "#440154" },
-            { label: "median 3", color: "#21918C" },
+            { label: "midpoint 3", color: "#21918C" },
             { label: "9", color: "#FDE725" },
         ]);
     });
@@ -84,6 +85,28 @@ describe("legendChannelOf", () => {
 
         expect(channel?.categories).toHaveLength(CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS);
         expect(channel?.stops).toBeUndefined();
+    });
+
+    /* The colour the Other row and an uncoloured swatch fall back to is what graphty-element
+       paints a node no layer has encoded, read off the element. It was a hex written down in
+       this module, and a second copy of the same hex sat in the load defaults; neither would
+       have followed the element if it changed its default. */
+    it("draws the Other row in the colour the element paints an unencoded node", () => {
+        const swatches = Array.from({ length: CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS + 2 }, (_unused, index) => ({
+            label: `Group ${String(index + 1)}`,
+            value: index,
+            color: "#000000",
+        }));
+
+        const channel = legendChannelOf(block({ kind: "categorical", swatches }));
+
+        expect(channel?.other?.color).toBe(defaultNodeHex());
+    });
+
+    it("falls back to the same element colour for a category the element painted nothing", () => {
+        const channel = legendChannelOf(block({ kind: "categorical", swatches: [{ label: "Group 1", value: 0 }] }));
+
+        expect(channel?.categories?.[0].color).toBe(defaultNodeHex());
     });
 
     it("counts every category it does not name in the Other row, hidden ones included", () => {

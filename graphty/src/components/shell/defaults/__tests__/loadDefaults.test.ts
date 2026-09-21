@@ -1,5 +1,7 @@
+import { DEFAULT_LIMITS, recommendLayout } from "@graphty/graphty-element/session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EMPTY_GRAPH_STATISTICS } from "../../analysis/graphShape";
 import {
     DEFAULT_LABEL_SETTINGS,
     isAboveLargeGraphThreshold,
@@ -11,15 +13,20 @@ import {
     labelCutExplanation,
     labelCutFor,
     labelDegreeThreshold,
-    LARGE_GRAPH_NODE_THRESHOLD,
     loadDefaults,
     PERFORMANCE_LABEL_COUNT,
     type PersistedLabelSettings,
     readPersistedLabelSettings,
     resolveLabelSettings,
-    UNENCODED_NODE_COLOR,
     writePersistedLabelSettings,
 } from "../loadDefaults";
+
+/**
+ * The large-graph threshold every branch below reads. It is graphty-element's own shipped
+ * default, not a number this suite states: the shell declared one of its own until this pass,
+ * ten times the element's, and a literal here would be the same defect wearing a test.
+ */
+const LARGE_GRAPH_NODE_THRESHOLD = DEFAULT_LIMITS.largeGraphThreshold;
 
 /* Every board in this file that does not name its own settings reads the store, so the
    store is emptied before each of them: a value one board wrote must not decide what the
@@ -34,22 +41,19 @@ function labelsOn(): PersistedLabelSettings {
 }
 
 describe("loadDefaults constants", () => {
-    it("declares the threshold spec 7.2 and 7.3 both branch on", () => {
-        expect(LARGE_GRAPH_NODE_THRESHOLD).toBe(100000);
+    /* The shell declares no threshold of its own any more. This board exists to catch its
+       return: a number written down here would be free to disagree with the element's, which
+       is exactly how the shell came to branch at 100,000 nodes while the element drew less
+       detail from 10,000. */
+    it("branches on graphty-element's own large-graph threshold and declares none of its own", () => {
+        expect(isAboveLargeGraphThreshold(DEFAULT_LIMITS.largeGraphThreshold)).toBe(false);
+        expect(isAboveLargeGraphThreshold(DEFAULT_LIMITS.largeGraphThreshold + 1)).toBe(true);
     });
 
     it("declares the label clamp spec 7.2 names", () => {
         expect(LABEL_COUNT_MIN).toBe(5);
         expect(LABEL_COUNT_MAX).toBe(50);
         expect(PERFORMANCE_LABEL_COUNT).toBe(20);
-    });
-
-    /* The colour an unencoded node actually carries, which is the ELEMENT's own default
-       (graphty-element/src/config/NodeStyle.ts:90) rather than a colour the shell paints.
-       The shell stopped painting one on 2026-09-13; the constant survives only so the
-       legend's Other swatch can match what a reader sees. */
-    it("declares the colour an unencoded node actually carries", () => {
-        expect(UNENCODED_NODE_COLOR).toBe("#6366F1");
     });
 });
 
@@ -465,10 +469,6 @@ describe("loadDefaults below the threshold", () => {
         expect(belowThreshold().aboveThreshold).toBe(false);
     });
 
-    it("picks ngraph with no config", () => {
-        expect(belowThreshold().layout).toEqual({ type: "ngraph", config: {} });
-    });
-
     it("labels the clamped top-N", () => {
         expect(belowThreshold().labelCount).toBe(labelCountFor(20));
     });
@@ -482,13 +482,6 @@ describe("loadDefaults below the threshold", () => {
         expect("neutralColor" in belowThreshold()).toBe(false);
         expect("sizeByDegree" in belowThreshold()).toBe(false);
     });
-
-    it("ignores complete positions below the threshold", () => {
-        expect(loadDefaults({ nodeCount: 20, hasPositionsForEveryNode: true }).layout).toEqual({
-            type: "ngraph",
-            config: {},
-        });
-    });
 });
 
 describe("loadDefaults above the threshold", () => {
@@ -498,31 +491,55 @@ describe("loadDefaults above the threshold", () => {
         expect(loadDefaults({ nodeCount }).aboveThreshold).toBe(true);
     });
 
-    it("falls back to Random with a fixed seed, the spec's own named fallback", () => {
-        expect(loadDefaults({ nodeCount }).layout).toEqual({ type: "random", config: { seed: 1 } });
-    });
-
-    it("falls back to Random when positions are declared incomplete", () => {
-        expect(loadDefaults({ nodeCount, hasPositionsForEveryNode: false }).layout).toEqual({
-            type: "random",
-            config: { seed: 1 },
-        });
-    });
-
-    it("picks Fixed when the file carried a position for every node", () => {
-        expect(loadDefaults({ nodeCount, hasPositionsForEveryNode: true }).layout).toEqual({
-            type: "fixed",
-            config: {},
-        });
-    });
-
     it("caps labels at 20", () => {
         expect(loadDefaults({ nodeCount, labels: labelsOn() }).labelCount).toBe(PERFORMANCE_LABEL_COUNT);
     });
+});
 
-    it("never picks a grid layout, which is not registered", () => {
-        expect(loadDefaults({ nodeCount }).layout.type).not.toBe("grid");
-        expect(loadDefaults({ nodeCount, hasPositionsForEveryNode: true }).layout.type).not.toBe("grid");
+/*
+ * The arrangement is graphty-element's decision now, so these boards stand where the shell's
+ * own layout table used to be tested and pin the same three cases through the call AppShell
+ * makes -- `recommendLayout(statistics, { placedNodes })`, whose `layout.engine` is what the
+ * shell hands to `setLayout`.
+ *
+ * They are here rather than deleted because the shell RELIES on these answers: a small graph
+ * gets a force layout, a large one is scattered instead of holding the frame, a fully placed
+ * one keeps the coordinates the data arrived with, and no arrangement the element cannot serve
+ * is ever named. That last one is what the shell's own table got wrong for a long time, naming
+ * "grid" for an engine that was never registered.
+ */
+describe("the arrangement a load applies, which graphty-element decides", () => {
+    /** @param over - the counts and the placed nodes this board means. @returns the engine the shell would set. */
+    function engineFor(over: { nodeCount: number; edgeCount: number; placedNodes?: number }): string | undefined {
+        const statistics = { ...EMPTY_GRAPH_STATISTICS, nodeCount: over.nodeCount, edgeCount: over.edgeCount };
+
+        return recommendLayout(statistics, { placedNodes: over.placedNodes ?? 0 })?.layout.engine;
+    }
+
+    it("spreads a small connected graph out with the force engine", () => {
+        expect(engineFor({ nodeCount: 20, edgeCount: 29 })).toBe("ngraph");
+    });
+
+    it("scatters a graph above the large-graph threshold rather than settling a simulation", () => {
+        expect(engineFor({ nodeCount: LARGE_GRAPH_NODE_THRESHOLD + 1, edgeCount: 400000 })).toBe("random");
+    });
+
+    it("keeps the coordinates the data arrived with when every node carries one", () => {
+        expect(engineFor({ nodeCount: 20, edgeCount: 29, placedNodes: 20 })).toBe("fixed");
+    });
+
+    it("does not keep positions when only some nodes carry one", () => {
+        expect(engineFor({ nodeCount: 20, edgeCount: 29, placedNodes: 19 })).not.toBe("fixed");
+    });
+
+    it("rings an edgeless graph, where a force layout has no pull to work with", () => {
+        expect(engineFor({ nodeCount: 20, edgeCount: 0 })).toBe("circular");
+    });
+
+    it("never names the grid engine, which is not registered", () => {
+        expect(engineFor({ nodeCount: 20, edgeCount: 29 })).not.toBe("grid");
+        expect(engineFor({ nodeCount: LARGE_GRAPH_NODE_THRESHOLD + 1, edgeCount: 400000 })).not.toBe("grid");
+        expect(engineFor({ nodeCount: 20, edgeCount: 29, placedNodes: 20 })).not.toBe("grid");
     });
 });
 
@@ -567,10 +584,11 @@ describe("loadDefaults and the reader's Performance settings", () => {
         expect(loadDefaults({ nodeCount: 20, labels: labelsOn() }).labelCount).toBe(labelCountFor(20));
     });
 
-    it("still decides the layout when labels are off", () => {
+    it("still reports the Performance branch when labels are off", () => {
         writePersistedLabelSettings({ topDegreeLabelsOn: false, labelCount: null });
 
-        expect(loadDefaults({ nodeCount: 20 }).layout).toEqual({ type: "ngraph", config: {} });
+        expect(loadDefaults({ nodeCount: 20 }).aboveThreshold).toBe(false);
+        expect(loadDefaults({ nodeCount: LARGE_GRAPH_NODE_THRESHOLD + 1 }).aboveThreshold).toBe(true);
     });
 
     it("survives an unreadable store by labelling as usual", () => {

@@ -23,9 +23,10 @@
  * App shell progressive disclosure design, section 7 "Novice path".
  */
 
-import type { RunId } from "@graphty/graphty-element/session";
+import type { RunId, RunResult } from "@graphty/graphty-element/session";
 
-import { type ElementGraph, readResultPath } from "./elementBridge";
+import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
+import type { ElementGraph } from "./elementBridge";
 
 /** graphty-element's registry coordinates for the two algorithms this slice reads back. */
 export const DEGREE_NAMESPACE = "graphty";
@@ -95,65 +96,34 @@ export interface CommunityRunResult {
     }[];
 }
 
-/**
- * Whether a value read back off the element is a number a reading can print.
- * @param value - the value at a result path.
- * @returns true when it is a finite number.
- */
-function isFiniteNumber(value: unknown): value is number {
-    return typeof value === "number" && Number.isFinite(value);
-}
+
 
 /**
- * Compares two ids as a stable tie-break, so equal degrees and equal group sizes come
- * back in the same order on every run.
- * @param a - one id.
- * @param b - the other id.
- * @returns the usual negative, zero or positive ordering.
- */
-function compareIds(a: string, b: string): number {
-    if (a === b) {
-        return 0;
-    }
-
-    return a < b ? -1 : 1;
-}
-
-/**
- * Reads a degree pass that has already run, without running one.
+ * Turns graphty-element's degree result into the readings this slice carries.
  *
- * A node with no numeric degree is skipped rather than read as 0: the pass either
- * reached it or it did not, and a fabricated zero would sit at the bottom of the label
- * ranking claiming to have been measured. maxDegree comes from the readings themselves
- * rather than from the graph-level maxDegree result, so one source answers every
- * question this function is asked.
- * @param graph - the element graph whose nodes carry the results.
+ * WHAT THIS USED TO DO. It walked every node and read a degree off a per-node
+ * `algorithmResults` bag, then sorted and normalised the list itself. graphty-element no
+ * longer writes that bag, so the read came back empty on every node and the whole load-time
+ * degree pass produced nothing: no label cut, no Most connected card, no size ramp input.
+ *
+ * The element publishes the ordering and the extremes on the result object. `ranking("value")`
+ * is sorted highest first with a printed-id tie-break, and `summary().max` is the highest
+ * degree -- one source answering every question this function is asked, which is what the old
+ * note about not reading the graph-level maximum was reaching for.
+ *
+ * `degreePct` is a share of the top degree, derived here rather than read: the element
+ * publishes degree unnormalised (`normalization: "none"`), because how long to draw a bar is a
+ * presentation choice and not a measurement.
+ * @param result - what the degree run published.
  * @returns the readings, highest degree first.
  */
-export function readDegreeResults(graph: ElementGraph): DegreeResults {
-    const raw: { id: string; degree: number; storedPct: number | undefined }[] = [];
-
-    for (const node of graph.getNodes()) {
-        const degree = readResultPath(node.algorithmResults, [DEGREE_NAMESPACE, DEGREE_TYPE, "degree"]);
-        if (!isFiniteNumber(degree)) {
-            continue;
-        }
-
-        const storedPct = readResultPath(node.algorithmResults, [DEGREE_NAMESPACE, DEGREE_TYPE, "degreePct"]);
-        raw.push({
-            id: String(node.id),
-            degree,
-            storedPct: isFiniteNumber(storedPct) ? storedPct : undefined,
-        });
-    }
-
-    raw.sort((a, b) => (b.degree === a.degree ? compareIds(a.id, b.id) : b.degree - a.degree));
-
-    const maxDegree = raw.length > 0 ? raw[0].degree : 0;
-    const byDegreeDescending: DegreeReading[] = raw.map((reading) => ({
-        id: reading.id,
-        degree: reading.degree,
-        degreePct: reading.storedPct ?? (maxDegree > 0 ? reading.degree / maxDegree : 0),
+function degreeResultsFrom(result: RunResult): DegreeResults {
+    const summary = result.summary();
+    const maxDegree = summary.max ?? 0;
+    const byDegreeDescending: DegreeReading[] = result.ranking(METRIC_VALUE_FIELD).map((entry) => ({
+        id: String(entry.id),
+        degree: entry.value,
+        degreePct: maxDegree > 0 ? entry.value / maxDegree : 0,
     }));
 
     return {
@@ -161,6 +131,29 @@ export function readDegreeResults(graph: ElementGraph): DegreeResults {
         maxDegree,
         degreesDescending: byDegreeDescending.map((reading) => reading.degree),
     };
+}
+
+/**
+ * Reads a degree pass that has already run, without running one.
+ *
+ * The numbers live on the run rather than on the nodes, so this finds the run rather than
+ * walking the graph: the most recent succeeded degree run, which is the one the label cut and
+ * the size ramp were built from. No degree run yet reports nothing rather than zeros.
+ * @param graph - the element graph whose session holds the runs.
+ * @returns the readings, highest degree first.
+ */
+export function readDegreeResults(graph: ElementGraph): DegreeResults {
+    const latest = graph
+        .getSession()
+        .runs.list()
+        .filter((run) => run.algorithm === DEGREE_ALGORITHM && run.status === "succeeded")
+        .at(-1);
+
+    if (latest?.result === undefined) {
+        return { byDegreeDescending: [], maxDegree: 0, degreesDescending: [] };
+    }
+
+    return { ...degreeResultsFrom(latest.result), runId: latest.id };
 }
 
 /**
@@ -176,10 +169,9 @@ export function readDegreeResults(graph: ElementGraph): DegreeResults {
  */
 export async function runDegreePass(graph: ElementGraph): Promise<DegreeResults> {
     const run = graph.getSession().runs.start(DEGREE_ALGORITHM, {}, { style: false });
+    const result = await run;
 
-    await run;
-
-    return { ...readDegreeResults(graph), runId: run.id };
+    return { ...degreeResultsFrom(result), runId: run.id };
 }
 
 /**
@@ -199,42 +191,29 @@ export async function runCommunityDetection(graph: ElementGraph): Promise<Commun
        grouped, with the palette, the legend and the swatch counts read off the same prepared
        binding the repaint painted from. The shell used to build one layer per group by hand. */
     const run = graph.getSession().runs.start(COMMUNITY_ALGORITHM);
+    const result = await run;
+    const summary = result.summary();
 
-    await run;
-
-    const sizes = new Map<number, number>();
-    let nodeCount = 0;
-
-    for (const node of graph.getNodes()) {
-        const communityId = readResultPath(node.algorithmResults, [
-            COMMUNITY_NAMESPACE,
-            COMMUNITY_TYPE,
-            "communityId",
-        ]);
-        if (!isFiniteNumber(communityId)) {
-            continue;
-        }
-
-        nodeCount++;
-        sizes.set(communityId, (sizes.get(communityId) ?? 0) + 1);
-    }
-
-    const groups = Array.from(sizes.entries())
-        .map(([communityId, size]) => ({ communityId, size }))
+    /* The element counts the groups while it walks the result, so the sizes and the count come
+       from one reading and cannot disagree -- which is what the shell used to get by counting
+       the grouped nodes itself rather than trusting a graph-level number beside them. Largest
+       first, ties broken by group id, so the card's "largest group" row does not reshuffle
+       between two equally large groups on a re-run. */
+    const groups = [...(summary.groups ?? [])]
+        .map((entry) => ({ communityId: Number(entry.group), size: entry.size }))
         .sort((a, b) => (b.size === a.size ? a.communityId - b.communityId : b.size - a.size));
 
-    const modularity = readResultPath(graph.getDataManager().graphResults, [
-        COMMUNITY_NAMESPACE,
-        COMMUNITY_TYPE,
-        "modularity",
-    ]);
+    /* Only a finite number is carried. Modularity is a graph-level field of the grouping shape,
+       and a run that did not publish one must degrade to the reading with no banded clause
+       rather than to a fabricated score. */
+    const { modularity } = result.graph;
 
     return {
         runId: run.id,
         groupCount: groups.length,
         largestGroupSize: groups.length > 0 ? groups[0].size : 0,
-        ...(isFiniteNumber(modularity) ? { modularity } : {}),
-        nodeCount,
+        ...(typeof modularity === "number" && Number.isFinite(modularity) ? { modularity } : {}),
+        nodeCount: summary.measured,
         groups,
     };
 }

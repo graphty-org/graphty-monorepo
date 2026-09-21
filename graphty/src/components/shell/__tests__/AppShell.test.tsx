@@ -14,7 +14,7 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
  * too-small message rather than a dialog floating over it.
  */
 const MANTINE_MODAL_Z_INDEX = 200;
-import type { Layer, LayerSpec } from "@graphty/graphty-element/session";
+import type { GraphStatistics, Histogram, Layer, LayerSpec, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
@@ -59,9 +59,11 @@ async function renderMeasuredShell(shellWidth = 1440) {
  * reports the pick BEFORE React's click, and reports a null id when the pick hit
  * nothing. See the carve-out's own board below.
  * @param container - the render result's container.
- * @param nodeId - the id the pick produced, or null for a pick that hit nothing.
+ * @param nodeId - the id the pick produced, as the ELEMENT spells it, or null for a pick that
+ * hit nothing. Numbers are allowed because the element reports the id it holds, not a printed
+ * form, and the shell's pin verbs hand that same value back to the element.
  */
-function reportSelection(container: HTMLElement, nodeId: string | null) {
+function reportSelection(container: HTMLElement, nodeId: string | number | null) {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
@@ -348,17 +350,144 @@ function captureLoads(container: HTMLElement): readonly RecordedLoad[] {
 }
 
 /**
- * One node, as both the element's data manager and its algorithm results spell it.
+ * One node, as the element's data manager spells it.
  *
  * The id is `string | number` because the ELEMENT's is: `DataManager` stores whatever the
  * file carried, untouched, and `GMLDataSource` parses a bare integer with `parseInt`, so
  * two of the three shipped samples (karate.gml, football.gml) hold NUMBER keys. A stub
  * that could only hold strings could not fail the way those two samples fail.
+ *
+ * A node carries no measurements. graphty-element used to scatter an algorithm's per-node
+ * numbers across the nodes it measured, and a consumer read them back off every node in
+ * turn; a run publishes one result object now, and this stand-in publishes results the same
+ * way -- see {@link fixtureResult}.
  */
 interface StubNode {
     id: string | number;
     data: Record<string, unknown>;
-    algorithmResults: Record<string, unknown>;
+}
+
+/** One edge as the stand-in holds it, which is how `GraphtyHandle.getData` reads it too. */
+interface StubEdge {
+    /** The element-assigned edge id. */
+    id: string;
+    /** The id of the node the edge leaves. */
+    srcId: string | number;
+    /** The id of the node the edge arrives at. */
+    dstId: string | number;
+    /** Whatever the source file carried. */
+    data: Record<string, unknown>;
+}
+
+/**
+ * The graph's shape, as graphty-element would publish it for the records standing in the
+ * stand-in right now.
+ *
+ * THIS IS A STAND-IN FOR THE ELEMENT, not a second implementation for the shell. The
+ * shell used to hold a disjoint-set forest of its own and a per-edge vote on direction,
+ * and deleting them is the point of this change: the element measures the snapshot it
+ * froze, and the shell reads the answer. What a board needs is an element that answers,
+ * so the walk lives here, next to the fixture it describes, in the same spirit as
+ * `fixtureResult` -- and, like that one, nothing in this file is a claim about the
+ * element's arithmetic.
+ *
+ * The definitions are the element's own: components ignore direction, because "how many
+ * pieces is this network in?" is a question about the picture; a repeat is an edge beyond
+ * the first between the same pair of endpoints, read against the direction the graph is
+ * frozen with; and density excludes self loops from both halves of the fraction.
+ * @param nodes - every node the stand-in holds.
+ * @param edges - every edge the stand-in holds.
+ * @param directedness - the direction the element would report for this graph.
+ * @returns the statistics.
+ */
+function fixtureStatistics(
+    nodes: ReadonlyMap<string | number, StubNode>,
+    edges: ReadonlyMap<string, StubEdge>,
+    directedness: GraphStatistics["directedness"],
+): GraphStatistics {
+    const parent = new Map<string | number, string | number>([...nodes.keys()].map((id) => [id, id]));
+
+    /**
+     * The representative of an id's part.
+     * @param id - the node id.
+     * @returns the representative.
+     */
+    const find = (id: string | number): string | number => {
+        let root = id;
+
+        while ((parent.get(root) ?? root) !== root) {
+            root = parent.get(root) ?? root;
+        }
+
+        return root;
+    };
+
+    const degrees = new Map<string | number, number>([...nodes.keys()].map((id) => [id, 0]));
+    const seenPairs = new Set<string>();
+    const undirected = directedness !== "directed";
+    let selfLoopCount = 0;
+    let repeatedEdgeCount = 0;
+
+    for (const edge of edges.values()) {
+        degrees.set(edge.srcId, (degrees.get(edge.srcId) ?? 0) + 1);
+        degrees.set(edge.dstId, (degrees.get(edge.dstId) ?? 0) + 1);
+
+        if (edge.srcId === edge.dstId) {
+            selfLoopCount += 1;
+        }
+
+        const ends = [String(edge.srcId), String(edge.dstId)];
+        const key = JSON.stringify(undirected ? [...ends].sort() : ends);
+
+        if (seenPairs.has(key)) {
+            repeatedEdgeCount += 1;
+        } else {
+            seenPairs.add(key);
+        }
+
+        const left = find(edge.srcId);
+        const right = find(edge.dstId);
+
+        if (left !== right) {
+            parent.set(left, right);
+        }
+    }
+
+    const sizes = new Map<string | number, number>();
+
+    for (const id of nodes.keys()) {
+        const root = find(id);
+
+        sizes.set(root, (sizes.get(root) ?? 0) + 1);
+    }
+
+    const partSizes = [...sizes.values()].sort((a, b) => b - a);
+    const every = [...degrees.values()];
+    const pairs = nodes.size * (nodes.size - 1);
+    const possible = directedness === "directed" ? pairs : pairs / 2;
+
+    return {
+        nodeCount: nodes.size,
+        edgeCount: edges.size,
+        density: possible === 0 ? 0 : Math.max(0, edges.size - selfLoopCount) / possible,
+        directedness,
+        directednessSource: { by: "unsettled", statedBy: null },
+        weighted: false,
+        selfLoopCount,
+        repeatedEdgeCount,
+        degreeRange: [Math.min(...every, 0), Math.max(...every, 0)],
+        // Measured from the same degrees the range above is, because that is the invariant the
+        // element guarantees and a fixture that broke it would hide a bug rather than model one.
+        meanDegree: every.length === 0 ? 0 : every.reduce((sum, d) => sum + d, 0) / every.length,
+        components: {
+            count: partSizes.length,
+            sizes: partSizes,
+            largestSize: partSizes[0] ?? 0,
+            isolatedCount: partSizes.filter((size) => size === 1).length,
+            truncatedSizes: false,
+            componentOf: () => undefined,
+        },
+    };
 }
 
 /**
@@ -403,6 +532,16 @@ interface StubGraph {
      * a graph that has grown since it ran.
      */
     readonly addNode: (id: string) => void;
+    /**
+     * The runs the element's session holds for one algorithm, in the order it made them.
+     *
+     * Starting an algorithm the session has already run over the same graph hands back the run
+     * that exists rather than making a second one, so this list is how a board says whether a
+     * pass really ran again or the element re-served the one it held.
+     * @param algorithm - the catalogue key, e.g. "degree".
+     * @returns the run ids.
+     */
+    readonly runIds: (algorithm: string) => readonly RunId[];
     /** The data manager, for the clear a replacing load makes. */
     readonly dataManager: {
         clear: ReturnType<typeof vi.fn>;
@@ -431,17 +570,160 @@ const STUB_GROUP_SIZES = [7, 6, 4, 3];
 /** The modularity the stub's louvain reports, which bands as "clearly separated". */
 const STUB_MODULARITY = 0.447;
 
-/**
- * Writes one algorithm's per-node results where the real element writes them.
- * @param node - the node to write on.
- * @param type - the algorithm's type, e.g. "degree".
- * @param values - the named results.
- */
-function writeNodeResult(node: StubNode, type: string, values: Record<string, number>): void {
-    const namespace = (node.algorithmResults.graphty ?? {}) as Record<string, unknown>;
+/** How many bars a distribution draws before values start sharing a band. */
+const FIXTURE_HISTOGRAM_BINS = 20;
 
-    namespace[type] = values;
-    node.algorithmResults.graphty = namespace;
+/**
+ * Orders two measured elements the way graphty-element's ranking does.
+ *
+ * Value descending, ties broken by the PRINTED id -- so the top row of a graph where three
+ * nodes share the highest degree is the same row on every run, and a board may name it.
+ * @param left - one element's id and value.
+ * @param right - the other's.
+ * @returns the comparison, for `Array.prototype.sort`.
+ */
+function byValueThenPrintedId(left: readonly [string | number, number], right: readonly [string | number, number]): number {
+    if (left[1] !== right[1]) {
+        return right[1] - left[1];
+    }
+
+    const leftId = String(left[0]);
+    const rightId = String(right[0]);
+
+    if (leftId === rightId) {
+        return 0;
+    }
+
+    return leftId < rightId ? -1 : 1;
+}
+
+/**
+ * The distribution of one run's values, as the element lays it out.
+ *
+ * One bar per distinct value while that fits under {@link FIXTURE_HISTOGRAM_BINS}, equal-width
+ * bands once it does not, and no bar at all when nothing was measured. A bar whose `from`
+ * equals its `to` names one value, which is what lets the cat fixture's chart read "3 links:
+ * 12 nodes" rather than a range nobody's degree falls in.
+ * @param ascending - every measured value, lowest first.
+ * @returns the bars, with the scale they were really laid out on.
+ */
+function fixtureHistogram(ascending: readonly number[]): Histogram {
+    if (ascending.length === 0) {
+        return { bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" };
+    }
+
+    const low = ascending[0];
+    const high = ascending[ascending.length - 1];
+    const distinct = [...new Set(ascending)];
+
+    if (distinct.length <= FIXTURE_HISTOGRAM_BINS) {
+        return {
+            bins: distinct.map((value) => ({
+                from: value,
+                to: value,
+                count: ascending.filter((candidate) => candidate === value).length,
+            })),
+            scale: "linear",
+            suggestedScale: "linear",
+            binning: "per-value",
+        };
+    }
+
+    const width = (high - low) / FIXTURE_HISTOGRAM_BINS;
+    const counts = Array.from({ length: FIXTURE_HISTOGRAM_BINS }, () => 0);
+
+    for (const value of ascending) {
+        const band = Math.min(FIXTURE_HISTOGRAM_BINS - 1, Math.floor((value - low) / width));
+
+        counts[band] += 1;
+    }
+
+    return {
+        bins: counts.map((count, band) => ({ from: low + band * width, to: low + (band + 1) * width, count })),
+        scale: "linear",
+        suggestedScale: "linear",
+        binning: "banded",
+    };
+}
+
+/**
+ * One algorithm's result over the fixture, in the shape graphty-element publishes.
+ *
+ * THESE ARE FIXTURE NUMBERS, worked out here so a board has something it can point at behind
+ * the copy it asserts -- "Mr_Whiskers is the most connected, with 4 links. The typical node
+ * has 3." is the cat fixture's own twenty degrees, and a board that could not name where the
+ * 4 and the 3 came from would be agreeing with whatever the shell drew. The arithmetic is
+ * deliberately the plainest reading of what the element publishes: sorted descending with a
+ * printed-id tie-break, ties sharing a rank, the LOWER median of the ascending values, the
+ * count of measured elements sitting at the minimum, and one bar per distinct value.
+ *
+ * The REAL statistics belong to graphty-element, which computes them once while it walks the
+ * result and tests them there against its own columns. Nothing in this file is a claim about
+ * that arithmetic; it is a fixture for the sentences the shell writes from it.
+ * @param input - what the run measured, and what it publishes beside the numbers.
+ * @returns the result, as `session.runs.start` resolves with.
+ */
+function fixtureResult(input: {
+    /** Every element the run measured, and the value it measured. */
+    readonly values: ReadonlyMap<string | number, number>;
+    /** Every element that was IN SCOPE, measured or not. */
+    readonly count: number;
+    /** The graph-level fields, for a run that publishes any. */
+    readonly graph?: Readonly<Record<string, unknown>>;
+    /** The groups, largest first, for a run that partitions. */
+    readonly groups?: readonly { readonly group: number; readonly size: number }[];
+}): RunResult {
+    const measured = [...input.values.entries()].sort(byValueThenPrintedId);
+    const ascending = measured.map((entry) => entry[1]).reverse();
+    const ranking: { id: string | number; value: number; rank: number; percentile: number }[] = [];
+    let rank = 0;
+
+    for (const [index, entry] of measured.entries()) {
+        /* Ties SHARE a rank -- 1, 2, 2, 4 -- so two nodes with equal betweenness do not read as
+           third and fourth, which is a difference a reader can see and a shell cannot invent. */
+        if (index === 0 || entry[1] !== measured[index - 1][1]) {
+            rank = index + 1;
+        }
+
+        ranking.push({
+            id: entry[0],
+            value: entry[1],
+            rank,
+            percentile: (measured.length - index) / measured.length,
+        });
+    }
+
+    const total = ascending.reduce((sum, value) => sum + value, 0);
+    const lowest = ascending.length === 0 ? null : ascending[0];
+
+    return {
+        ranking: () => ranking,
+        summary: () => ({
+            count: input.count,
+            measured: measured.length,
+            min: lowest,
+            max: ascending.length === 0 ? null : ascending[ascending.length - 1],
+            /* The LOWER median, so a degree median is a whole number some node actually has. */
+            median: ascending.length === 0 ? null : ascending[Math.floor((ascending.length - 1) / 2)],
+            mean: ascending.length === 0 ? null : total / ascending.length,
+            tiedAtMin: ascending.filter((value) => value === lowest).length,
+            normalization: "none",
+            top: [],
+            ...(input.groups === undefined ? {} : { groups: input.groups }),
+            caveats: {
+                exact: true,
+                seed: null,
+                direction: "as-loaded",
+                weight: null,
+                precision: "f64",
+                method: "exact",
+                notes: [],
+            },
+            durationMs: 0,
+        }),
+        histogram: () => fixtureHistogram(ascending),
+        graph: input.graph ?? {},
+    } as unknown as RunResult;
 }
 
 /**
@@ -458,6 +740,16 @@ interface NovicePathOptions {
      */
     readonly synthetic?: { readonly nodeCount: number; readonly edgeCount: number };
     /**
+     * Which way the element says this graph's edges run.
+     *
+     * Undirected by default, which is what the element freezes a mutual-following network
+     * out of: the cat fixture's edges are unordered pairs and every board that reads this
+     * is reading a graph of that shape. A board that wants the other answer says so, and
+     * the two surfaces that branch on direction -- the Counts Type row and rule 3 of the
+     * Insights table -- follow it.
+     */
+    readonly directedness?: GraphStatistics["directedness"];
+    /**
      * What the stub's PageRank publishes at graph level.
      *
      * Absent means it publishes NOTHING, which is the element saying nothing rather than
@@ -471,20 +763,18 @@ interface NovicePathOptions {
      * A ring of this many nodes instead of the cat fixture.
      *
      * Every node has exactly two links, so every betweenness score is the same, the
-     * element's min-max normalisation divides by a range of 0 and writes `scorePct: 0` for
-     * every node -- the degenerate ranking whose top fraction is 0 and whose canvas is
-     * uniformly the bottom of the ramp.
+     * shell's min-max normalisation divides by a range of 0 and every bar is drawn at 0 --
+     * the degenerate ranking whose top fraction is 0 and whose canvas is uniformly the
+     * bottom of the ramp.
      */
     readonly ring?: number;
     /**
      * How many nodes the metric pass leaves WITHOUT a published value.
      *
-     * The element publishes per-node results only for the nodes its pass reached, and
-     * `readNodeMetricResults` skips a node whose value is not a finite number rather than
-     * reading it as 0 -- while still counting it in `nodeCount`, so the ranking can say
-     * how many nodes it did not measure. That difference is the only thing that puts the
-     * legend's "Not measured (N nodes)" departure on screen, and nothing in the fixture
-     * could produce it: every node of a stub that writes for all of them is measured.
+     * A run's result carries a value only for the elements its pass reached, and its summary
+     * reports the scope it SAW as well as the number it measured -- which is the difference
+     * that puts the legend's "Not measured (N nodes)" departure on screen. Nothing in the
+     * fixture could produce it: every node of a stub that measures all of them is measured.
      *
      * The LAST n nodes are the ones left out, and only for the three node metrics -- the
      * grouping run is untouched, because it is not what this reaches.
@@ -513,8 +803,8 @@ function syntheticGraph(nodeCount: number, edgeCount: number): StringFixtureReco
         const target = (index * 7 + 1) % nodeCount;
 
         return {
-            src: `n${String(source)}`,
-            dst: `n${String(source === target ? (target + 1) % nodeCount : target)}`,
+            source: `n${String(source)}`,
+            target: `n${String(source === target ? (target + 1) % nodeCount : target)}`,
         };
     });
 
@@ -530,13 +820,13 @@ function syntheticGraph(nodeCount: number, edgeCount: number): StringFixtureReco
  */
 interface FixtureRecords {
     readonly nodes: readonly { readonly id: string | number }[];
-    readonly edges: readonly { readonly src: string | number; readonly dst: string | number }[];
+    readonly edges: readonly { readonly source: string | number; readonly target: string | number }[];
 }
 
 /** The same records before any renumbering, which is to say with the ids the file wrote. */
 interface StringFixtureRecords {
     readonly nodes: readonly { readonly id: string }[];
-    readonly edges: readonly { readonly src: string; readonly dst: string }[];
+    readonly edges: readonly { readonly source: string; readonly target: string }[];
 }
 
 /**
@@ -547,8 +837,8 @@ interface StringFixtureRecords {
 function ringGraph(nodeCount: number): StringFixtureRecords {
     const nodes = Array.from({ length: nodeCount }, (_unused, index) => ({ id: `n${String(index)}` }));
     const edges = Array.from({ length: nodeCount }, (_unused, index) => ({
-        src: `n${String(index)}`,
-        dst: `n${String((index + 1) % nodeCount)}`,
+        source: `n${String(index)}`,
+        target: `n${String((index + 1) % nodeCount)}`,
     }));
 
     return { nodes, edges };
@@ -568,8 +858,8 @@ function withNumericIds(fixture: StringFixtureRecords): FixtureRecords {
     return {
         nodes: fixture.nodes.map((node) => ({ id: numbering.get(node.id) ?? 0 })),
         edges: fixture.edges.map((edge) => ({
-            src: numbering.get(edge.src) ?? 0,
-            dst: numbering.get(edge.dst) ?? 0,
+            source: numbering.get(edge.source) ?? 0,
+            target: numbering.get(edge.target) ?? 0,
         })),
     };
 }
@@ -577,17 +867,17 @@ function withNumericIds(fixture: StringFixtureRecords): FixtureRecords {
 /**
  * Stands a graph on the mounted host that answers the whole novice path.
  *
- * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in
- * the two Maps `GraphtyHandle.getData` reads, and its `runAlgorithm` writes exactly what
- * `DegreeAlgorithm` and `LouvainAlgorithm` write -- per-node `degree`/`degreePct` and
- * `communityId`, plus the two graph results (`groupCount`, `modularity`) the Louvain edit
- * added. The real numbers are the element's own boards to assert; what these boards test
- * is that the shell runs the right passes, in the right order, and turns what comes back
- * into the right sentence.
+ * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in the
+ * two Maps `GraphtyHandle.getData` reads, and it PUBLISHES A RESULT per run -- a ranking, a
+ * summary and a distribution for each of the three node metrics, and a group per node with a
+ * modularity beside it for the grouping run. What these boards test is that the shell starts
+ * the right passes, in the right order, and turns what comes back into the right sentence.
  *
- * The degrees are computed from the fixture's own edges rather than invented, so the
- * label cut and the Most connected rows are the fixture's real ranking.
+ * The degrees are computed from the fixture's own edges rather than invented, so the label
+ * cut and the Most connected rows are the fixture's real ranking; every number in a result
+ * is derived from them by {@link fixtureResult}.
  * @param container - the render result's container.
+ * @param options - what this board wants the stand-in to be, beyond the cat fixture.
  * @returns the stub's doors, to assert the calls the shell made on it.
  */
 function installNovicePathGraph(container: HTMLElement, options: NovicePathOptions = {}): StubGraph {
@@ -604,37 +894,121 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
     const nodes = new Map<string | number, StubNode>();
 
     for (const node of fixture.nodes) {
-        nodes.set(node.id, { id: node.id, data: { ...node }, algorithmResults: {} });
+        nodes.set(node.id, { id: node.id, data: { ...node } });
     }
 
-    const edges = new Map<
-        string,
-        { id: string; srcId: string | number; dstId: string | number; data: Record<string, unknown> }
-    >();
+    const edges = new Map<string, StubEdge>();
     const degrees = new Map<string | number, number>();
 
     fixture.edges.forEach((edge, index) => {
         const id = `edge-${String(index)}`;
 
-        edges.set(id, { id, srcId: edge.src, dstId: edge.dst, data: { ...edge } });
-        degrees.set(edge.src, (degrees.get(edge.src) ?? 0) + 1);
-        degrees.set(edge.dst, (degrees.get(edge.dst) ?? 0) + 1);
+        edges.set(id, { id, srcId: edge.source, dstId: edge.target, data: { ...edge } });
+        degrees.set(edge.source, (degrees.get(edge.source) ?? 0) + 1);
+        degrees.set(edge.target, (degrees.get(edge.target) ?? 0) + 1);
     });
-
-    const maxDegree = Math.max(...degrees.values());
 
     /* The nodes the metric pass did not reach, and so published nothing for. See
        {@link NovicePathOptions.unmeasured}. */
     const unmeasured = new Set<string | number>([...nodes.keys()].slice(nodes.size - (options.unmeasured ?? 0)));
     const measuredNodes = (): StubNode[] => [...nodes.values()].filter((node) => !unmeasured.has(node.id));
 
+    /* What each node metric measures, on the fixture's own degrees. The three are deliberately
+       different shapes of number -- a count, a count nudged off its integers, and a count
+       doubled -- because the panel prints a count without decimals and a score with them. */
+    const metricValue: Readonly<Record<string, (degree: number) => number>> = {
+        degree: (degree) => degree,
+        pagerank: (degree) => degree + 1,
+        betweenness: (degree) => degree * 2,
+    };
+
+    /**
+     * Which group each node lands in, taken in the fixture's own insertion order.
+     * @returns the assignment, a group id per node.
+     */
+    const communityAssignment = (): Map<string | number, number> => {
+        const assignment = new Map<string | number, number>();
+        const ids = [...nodes.keys()];
+        let cursor = 0;
+
+        STUB_GROUP_SIZES.forEach((size, communityId) => {
+            for (let taken = 0; taken < size; taken += 1) {
+                const id = ids[cursor];
+
+                cursor += 1;
+
+                if (id !== undefined) {
+                    assignment.set(id, communityId);
+                }
+            }
+        });
+
+        return assignment;
+    };
+
+    /**
+     * What one run publishes, built fresh so a re-executed run reports the graph as it is now.
+     * @param algorithm - the catalogue key that ran.
+     * @returns the result, or undefined for an algorithm this stand-in does not model.
+     */
+    const resultFor = (algorithm: string): RunResult | undefined => {
+        if (algorithm === "louvain") {
+            /* A grouping run publishes a group per node, its group sizes largest first, and the
+               modularity the reading bands as "clearly separated" -- and NOT a ranking, because
+               a group id is not a measurement anything can be ranked on. */
+            return fixtureResult({
+                values: communityAssignment(),
+                count: nodes.size,
+                graph: { modularity: STUB_MODULARITY },
+                groups: STUB_GROUP_SIZES.map((size, group) => ({ group, size })),
+            });
+        }
+
+        const measure = metricValue[algorithm];
+
+        if (measure === undefined) {
+            return undefined;
+        }
+
+        return fixtureResult({
+            values: new Map(measuredNodes().map((node) => [node.id, measure(degrees.get(node.id) ?? 0)])),
+            count: nodes.size,
+            /* PageRank is the only one of the three that publishes anything at graph level, and
+               whatever the board says it published is published VERBATIM -- including a
+               `converged: true`. That is the case that matters: on the delta path upstream
+               returns a hard-coded true, so the shell drops a true and keeps only a false, and
+               a stand-in that filtered the true out here would leave that rule pinned by
+               nothing. Absent means the run published no convergence fields at all, which is a
+               third state and is what the boards that pass no option are testing.
+               See {@link NovicePathOptions.pagerank}. */
+            ...(algorithm === "pagerank" && options.pagerank !== undefined
+                ? {
+                      graph: {
+                          converged: options.pagerank.converged,
+                          iterations: options.pagerank.iterations,
+                      },
+                  }
+                : {}),
+        });
+    };
+
     /* The element's own base and selection layers are seeded by the fake session itself, and
        BOTH carry a node colour, as the real ones do: the base layer parses the whole of
        `defaultNodeStyle` and the selection layer paints the gold highlight. Both are LOCKED,
        which is what makes a board catch a sweep that would take the layer carrying every
        node's shape type -- the removal that left the next load dying in mesh building with
-       "shape with type required to create mesh". */
-    const styles = createFakeSession();
+       "shape with type required to create mesh".
+
+       The scope digest is the node set itself, which is what decides whether starting an
+       algorithm again re-serves the run the session holds or re-executes it: a graph that has
+       grown under a held pass is a different graph, and the held numbers no longer describe it. */
+    const styles = createFakeSession({
+        result: resultFor,
+        scope: () => [...nodes.keys()].join("|"),
+        /* Read fresh on every call, because a board can grow the graph under the session
+           (`addNode`), and the shape the shell reads has to move with it. */
+        statistics: () => fixtureStatistics(nodes, edges, options.directedness ?? "undirected"),
+    });
 
     for (const spec of options.extraLayers ?? []) {
         styles.seed(spec);
@@ -643,122 +1017,59 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
     const dataManager = {
         nodes,
         edges,
-        graphResults: undefined as unknown,
         clear: vi.fn(),
     };
 
-    /* SYNCHRONOUS, and recorded by the same spy the boards have always asserted against. The
-       shell starts its runs through `session.runs.start(key)` now, and the fake session calls
-       this with the 1.10 spelling of the same key -- which is the identical string for all
-       four of these algorithms -- so the boards read as they did while the results land before
-       the run resolves. */
-    const runAlgorithm = vi.fn((_namespace: string, type: string) => {
-        if (type === "degree") {
-            for (const node of measuredNodes()) {
-                const degree = degrees.get(node.id) ?? 0;
+    /* The ELEMENT EXECUTING an algorithm, recorded by the same spy the boards have always
+       asserted against. It writes nothing: a run publishes one result object now, and this
+       stand-in publishes it through the session (see `resultFor` above). What is left for the
+       spy is the fact the boards actually assert -- which passes ran, and in what order.
 
-                writeNodeResult(node, "degree", { degree, degreePct: degree / maxDegree });
-            }
+       The shell starts its runs through `session.runs.start(key)`, and the fake session calls
+       this with the 1.10 spelling of the same key, which is the identical string for all four
+       of these algorithms -- so the boards read as they always did. */
+    const runAlgorithm = vi.fn((_namespace: string, _type: string) => undefined);
 
-            return;
-        }
-
-        if (type === "pagerank") {
-            /* PageRank's own fields (PageRankAlgorithm.ts:219-235): `rank` with `rankPct`
-               max-normalised, and the graph-level pair this is the only metric to publish. */
-            const ranks = new Map<string | number, number>();
-
-            for (const node of measuredNodes()) {
-                ranks.set(node.id, (degrees.get(node.id) ?? 0) + 1);
-            }
-
-            const maxRank = Math.max(...ranks.values());
-
-            for (const node of measuredNodes()) {
-                const rank = ranks.get(node.id) ?? 0;
-
-                writeNodeResult(node, "pagerank", { rank, rankPct: rank / maxRank });
-            }
-
-            if (options.pagerank !== undefined) {
-                dataManager.graphResults = {
-                    graphty: {
-                        pagerank: {
-                            converged: options.pagerank.converged,
-                            iterations: options.pagerank.iterations,
-                        },
-                    },
-                };
-            }
-
-            return;
-        }
-
-        if (type === "betweenness") {
-            /* Betweenness's own fields (BetweennessCentralityAlgorithm.ts:61-78): `score`
-               with `scorePct` MIN-MAX normalised, so the bottom node reads exactly 0. */
-            const scores = new Map<string | number, number>();
-
-            for (const node of measuredNodes()) {
-                scores.set(node.id, (degrees.get(node.id) ?? 0) * 2);
-            }
-
-            const maxScore = Math.max(...scores.values());
-            const minScore = Math.min(...scores.values());
-            const span = maxScore - minScore;
-
-            for (const node of measuredNodes()) {
-                const score = scores.get(node.id) ?? 0;
-
-                writeNodeResult(node, "betweenness", {
-                    score,
-                    scorePct: span === 0 ? 0 : (score - minScore) / span,
-                });
-            }
-
-            return;
-        }
-
-        if (type === "louvain") {
-            const ids = [...nodes.keys()];
-            let cursor = 0;
-
-            STUB_GROUP_SIZES.forEach((size, communityId) => {
-                for (let taken = 0; taken < size; taken += 1) {
-                    const id = ids[cursor];
-
-                    cursor += 1;
-
-                    const node = id === undefined ? undefined : nodes.get(id);
-
-                    if (node !== undefined) {
-                        writeNodeResult(node, "louvain", { communityId });
-                    }
-                }
-            });
-
-            dataManager.graphResults = {
-                graphty: { louvain: { groupCount: STUB_GROUP_SIZES.length, modularity: STUB_MODULARITY } },
-            };
-        }
-    });
-
-    /* The results are written BEFORE the run is recorded and its picture applied, which is the
-       order the real element works in: an encoding scoped to the elements a run measured needs
-       the measurements to exist. */
+    /* Called only when the session really COMPUTES. A run the session re-serves, because
+       nothing it measured has moved, reaches no algorithm at all -- which is how a board tells
+       a second pass from the element handing back the pass it already holds. */
     styles.onStart((algorithm) => {
         runAlgorithm("graphty", algorithm);
     });
 
     /* The SELECTION, modelled rather than counted. `Graph.selectNode` is a pass-through to
-       `SelectionManager.selectById`, which is `dataManager.getNode(id)` -- a raw `Map.get`
-       on the element's own id -- and then `select()`, which RETURNS EARLY, emitting
-       nothing, when the node handed to it is the one it already holds
-       (SelectionManager.ts:120-123, and its own test "selecting the same node is a no-op").
-       A bare `vi.fn()` here records the argument and proves neither: it cannot tell an id
-       that found a node from one that missed, and it cannot tell a select that reached the
-       reader from one the element swallowed. */
+       `SelectionManager.selectById`, which is `dataManager.getNode(id)` and then `select()`,
+       which RETURNS EARLY, emitting nothing, when the node handed to it is the one it already
+       holds (SelectionManager.ts:120-123, and its own test "selecting the same node is a
+       no-op"). A bare `vi.fn()` here records the argument and proves neither: it cannot tell
+       an id that found a node from one that missed, and it cannot tell a select that reached
+       the reader from one the element swallowed. */
     let selectedId: string | number | null = null;
+
+    /**
+     * A node by id, the way `DataManager.getNode` finds one.
+     *
+     * The exact key first, and then the OTHER SPELLING of an integer id. That retry is the
+     * element's, not this stand-in's invention: the element keys its node map on the id the
+     * source file carried, GML numbers its nodes, and every id a surface has printed is text
+     * by the time it comes back -- so `get("1")` against the key `1` has to find the node or
+     * every ranked row is inert on the two samples that ship with numeric ids.
+     * @param nodeId - the id as the caller holds it, printed or not.
+     * @returns the node, or undefined when no node carries that id in either spelling.
+     */
+    const findNode = (nodeId: string | number): StubNode | undefined => {
+        const exact = nodes.get(nodeId);
+
+        if (exact !== undefined) {
+            return exact;
+        }
+
+        if (typeof nodeId === "string") {
+            return /^-?\d+$/.test(nodeId) ? nodes.get(Number.parseInt(nodeId, 10)) : undefined;
+        }
+
+        return Number.isInteger(nodeId) ? nodes.get(String(nodeId)) : undefined;
+    };
 
     const emitSelection = (nodeId: string | number | null): void => {
         element?.dispatchEvent(
@@ -773,7 +1084,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
     };
 
     const selectNode = vi.fn((nodeId: string | number) => {
-        const node = nodes.get(nodeId);
+        const node = findNode(nodeId);
 
         if (node === undefined || selectedId === node.id) {
             return false;
@@ -809,16 +1120,22 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
        the data has to reset the element's per-load data-source guard, and only the element
        can reach that, so the handle stopped reaching past it to `graph.dataManager.clear`.
        The stand-in clears the same records the real one does, so a board sees the graph
-       actually empty rather than only the call recorded. */
+       actually empty rather than only the call recorded.
+
+       THE RUNS GO WITH THE DATA. A result describes the graph it measured, so a run held over
+       a dataset boundary would let the next load be served numbers taken from a file nobody is
+       looking at any more. The fixture's own records stay standing, because these boards want
+       a graph to load into rather than the element's data lifecycle. */
     Object.defineProperty(element, "clearData", {
         configurable: true,
         value: () => {
             dataManager.clear();
+            styles.forgetRuns();
         },
     });
 
     const addNode = (id: string): void => {
-        nodes.set(id, { id, data: { id }, algorithmResults: {} });
+        nodes.set(id, { id, data: { id } });
     };
 
     return {
@@ -827,6 +1144,11 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         deselectNode,
         elementHoldsSelection: () => selectedId,
         addNode,
+        runIds: (algorithm: string) =>
+            styles.session.runs
+                .list()
+                .filter((run) => run.algorithm === algorithm)
+                .map((run) => run.id),
         styles,
         dataManager,
     };
@@ -1986,20 +2308,37 @@ describe("AppShell", () => {
             expect(axis).toHaveTextContent("4");
         });
 
-        it("says only what it measured in the Counts Type row", async () => {
+        it("says what the ELEMENT says in the Counts Type row, not what the app defaults to", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
             installNovicePathGraph(container);
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
-            /* No edge record in the JSON fixture carries a `directed` key, so the O(n+m)
-               pass read no direction and the row says so. `graphInfo.graphType.directed`
-               defaults to TRUE and measures nothing, and the row used to print it. */
+            /* The element freezes this graph undirected and the row says so.
+               `graphInfo.graphType.directed` defaults to TRUE and measures nothing, so a
+               row reading that would say the opposite -- which is exactly what it used to
+               do before the row read the element. */
             const inspector = screen.getByTestId("inspector");
 
-            expect(within(inspector).getByText("Not stated in the file")).toBeInTheDocument();
-            expect(within(inspector).queryByText("Directed (from file)")).toBeNull();
+            expect(within(inspector).getByText("Undirected")).toBeInTheDocument();
+            expect(within(inspector).queryByText("Directed")).toBeNull();
+        });
+
+        /* The other half of the same rule: the row is not a constant either. It follows
+           the element to whichever answer the element gives. */
+        it("follows the element to the other answer in the Counts Type row", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { directedness: "directed" });
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByText("Directed")).toBeInTheDocument();
+            expect(within(inspector).queryByText("Undirected")).toBeNull();
         });
 
         it("retires the suggested card once the sample's hint has run it", async () => {
@@ -2222,9 +2561,15 @@ describe("AppShell", () => {
             expect(within(legend).queryByText("Color: Bridging")).toBeInTheDocument();
         });
 
-        /* Ruling 3. The 7.2 load already ran a degree pass and the shell is still holding
-           it, so the card reads that rather than recomputing numbers it has in hand. */
-        it("reads the degree pass the load already ran rather than running a second one", async () => {
+        /* Ruling 3, decided by the ELEMENT rather than by the shell. The 7.2 load already ran
+           a degree pass over this graph, and starting the same algorithm again over a graph
+           that has not moved hands back the run the session already holds -- so the card draws
+           the pass the load ran, and nothing computes twice.
+
+           The shell used to decide this itself, by keeping a flag that said whether its own
+           held pass still covered the graph. It now always asks, because only the element can
+           compare what a run measured against the graph as it stands. */
+        it("lets the element re-serve the degree run the load made, rather than making a second one", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
@@ -2232,17 +2577,24 @@ describe("AppShell", () => {
             const graph = installNovicePathGraph(container);
 
             await loadCatSample(container);
+
+            const afterLoad = graph.runIds("degree");
+
+            expect(afterLoad).toHaveLength(1);
+
             await runSuggested("Most connected");
 
+            // The SAME run, not a second one beside it: one id, and it is the load's.
+            expect(graph.runIds("degree")).toEqual(afterLoad);
+            // And it was executed once, because nothing it measured had moved.
             expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
         });
 
-        /* Ruling 3's short circuit, and the condition it was missing. The 7.2 pass runs
-           ONCE per dataset, and the degree card read it back with no test of whether it
-           still described the graph: a graph that had grown since the pass was ranked from
-           the records that were there when it ran, the run record counted them, and the
-           ramp left every node the pass never saw unencoded under a legend claiming to
-           cover the whole graph. */
+        /* The other half of the same rule, and the condition the shell's own short circuit
+           was missing. A graph that had grown since the held pass was ranked from the records
+           that were there when it ran, the run record counted them, and the ramp left every
+           node the pass never saw unencoded under a legend claiming to cover the whole graph.
+           The element re-executes the run instead, because the scope it measured has moved. */
         it("runs a real degree pass when the held one no longer covers the graph", async () => {
             const { container } = await renderMeasuredShell();
 
@@ -2495,9 +2847,9 @@ describe("AppShell", () => {
             });
         });
 
-        /* 6.12: what a boundary clears is what was true of the graph that has gone. A
-           metric encoding reads `algorithmResults` off nodes that left with the dataset,
-           so it goes -- by tag, with the community layers, and never by index. */
+        /* 6.12: what a boundary clears is what was true of the graph that has gone. A metric
+           encoding reads a run's column off nodes that left with the dataset, so it goes --
+           by tag, with the community layers, and never by index. */
         it("takes every metric encoding, the result and the channel across a dataset boundary", async () => {
             const { container } = await renderMeasuredShell();
 
@@ -2622,7 +2974,10 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: /Search commands, nodes and edges/ }));
             await screen.findByTestId("command-palette");
-            fireEvent.click(screen.getByRole("option", { name: /Most connected \(Degree centrality\)/ }));
+            /* The rows arrive a tick after the palette does, so this waits for the row
+               rather than for the frame it is drawn in. Read synchronously it failed only
+               under a loaded machine, which is the worst way for a board to be wrong. */
+            fireEvent.click(await screen.findByRole("option", { name: /Most connected \(Degree centrality\)/ }));
             await flushMicrotasks();
 
             expect(metricLayers(graph.styles.layers())).toHaveLength(1);
@@ -3513,10 +3868,11 @@ describe("AppShell", () => {
         /**
          * Loads the cat fixture, selects one node and returns its real link count.
          *
-         * THE DEFECT: `neighborsOf` read `edge.source` and `edge.target`, the two fields
-         * `GraphtyHandle.getData` never writes -- it writes `{id, src, dst, ...edge.data}`
-         * -- so every node on every dataset reported zero neighbours while its own result
-         * card said otherwise. Verified in the browser on node 34 of Karate Club.
+         * The count the inspector draws has to be the count the records carry, on either id
+         * type. It once was not: the shell read a spelling of an edge's ends that no record
+         * carried, so every node on every dataset reported zero neighbours while its own
+         * result card said otherwise -- silent, and format-dependent, which is why this board
+         * runs the same measurement twice.
          * @param numericIds - whether the fixture carries integer ids, as GML loads do.
          * @returns the selected node's id and how many distinct neighbours it has.
          */
@@ -3536,8 +3892,8 @@ describe("AppShell", () => {
             const counts = new Map<string, Set<string>>();
 
             for (const edge of fixture.edges) {
-                const src = String(edge.src);
-                const dst = String(edge.dst);
+                const src = String(edge.source);
+                const dst = String(edge.target);
 
                 if (!counts.has(src)) {
                     counts.set(src, new Set());
@@ -3558,7 +3914,7 @@ describe("AppShell", () => {
             return { neighborCount: busiest[1].size };
         }
 
-        it("reads the node's REAL link count from the src/dst spelling getData writes", async () => {
+        it("reads the node's REAL link count from the source/target spelling getData writes", async () => {
             const { neighborCount } = await selectBusiestNode(false);
 
             expect(neighborCount).toBeGreaterThan(0);
@@ -3571,11 +3927,10 @@ describe("AppShell", () => {
         });
 
         it("reads the same count on a numeric-id graph, which retires the id-type suspicion", async () => {
-            /* The observation arrived as "it must be the id type", because a JSON file
-               whose edges are spelled {"source":..,"target":..} accidentally worked (the
-               names came back through getData's `...edge.data` spread) while karate.gml
-               could not -- GMLDataSource deletes both names from the data it hands on.
-               Running this board on BOTH id types retires that suspicion permanently. */
+            /* The observation arrived as "it must be the id type", because one file format
+               happened to work and another did not. It was never the id type; it was two
+               spellings of an edge's ends. Running this board on BOTH id types retires that
+               suspicion permanently, and keeps doing so now that one spelling is left. */
             const { neighborCount } = await selectBusiestNode(true);
 
             expect(neighborCount).toBeGreaterThan(0);
@@ -3585,6 +3940,146 @@ describe("AppShell", () => {
             expect(
                 within(inspector).getByRole("button", { name: `Expand ${String(neighborCount)} neighbors` }),
             ).toBeInTheDocument();
+        });
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* Pinning a node to the canvas                                                */
+    /* -------------------------------------------------------------------------- */
+
+    describe("the node inspector's Pin verb", () => {
+        /**
+         * Stands the element's three pin verbs on the mounted host.
+         *
+         * They are the element's, not the graph's: `element.pin` / `unpin` / `pinnedNodes` are
+         * the published door, and reaching through `element.graph` to a node object is what
+         * they exist to replace. The stand-in records the id it was handed, because the id TYPE
+         * is the thing that decides whether the verb does anything -- the element looks a node
+         * up by exact map key, so a printed "1" finds nothing on a graph keyed by the number 1.
+         * @param container - the render result's container.
+         * @returns the ids pinned and unpinned, in call order.
+         */
+        function installPinVerbs(container: HTMLElement) {
+            const element = container.querySelector("graphty-element");
+
+            expect(element).not.toBeNull();
+
+            const pinned = new Set<string | number>();
+            const pinnedWith: (string | number)[] = [];
+            const unpinnedWith: (string | number)[] = [];
+
+            Object.defineProperties(element as HTMLElement, {
+                pin: {
+                    configurable: true,
+                    value: (id: string | number) => {
+                        pinnedWith.push(id);
+                        pinned.add(id);
+                    },
+                },
+                unpin: {
+                    configurable: true,
+                    value: (id: string | number) => {
+                        unpinnedWith.push(id);
+                        pinned.delete(id);
+                    },
+                },
+                pinnedNodes: { configurable: true, get: () => pinned },
+            });
+
+            return { pinnedWith, unpinnedWith };
+        }
+
+        /**
+         * Loads the cat fixture with integer ids and selects one node.
+         * @returns the element's pin call log and the id that was selected.
+         */
+        async function selectNumericNode() {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { numericIds: true });
+
+            const calls = installPinVerbs(container);
+
+            await loadCatSample(container);
+
+            const selected = Number(withNumericIds(CAT_SOCIAL_NETWORK).nodes[0].id);
+
+            reportSelection(container, selected);
+
+            return { ...calls, selected };
+        }
+
+        it("hands the element the id it holds, not the id the inspector printed", async () => {
+            const { pinnedWith, selected } = await selectNumericNode();
+
+            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+            /* A printed "1" would leave `DataManager.nodes.get` looking for a key that is not
+               there, and `element.pin` returns nothing, so the miss would be silent: the verb
+               would read as wired and fix no node at all. */
+            expect(pinnedWith).toEqual([selected]);
+            expect(typeof pinnedWith[0]).toBe("number");
+        });
+
+        it("draws the Pinned badge once the element holds the pin, and releases it again", async () => {
+            const { unpinnedWith, selected } = await selectNumericNode();
+
+            expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+
+            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+            expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
+
+            fireEvent.click(screen.getByTestId("node-unpin"));
+
+            expect(unpinnedWith).toEqual([selected]);
+            expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+        });
+
+        it("draws the badge for a node the reader pinned by DRAGGING it, without a second pick", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { numericIds: true });
+
+            const element = container.querySelector("graphty-element");
+            const pinned = new Set<string | number>();
+
+            Object.defineProperty(element as HTMLElement, "pinnedNodes", {
+                configurable: true,
+                get: () => pinned,
+            });
+
+            await loadCatSample(container);
+
+            const selected = Number(withNumericIds(CAT_SOCIAL_NETWORK).nodes[0].id);
+
+            reportSelection(container, selected);
+
+            expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+
+            /* What a drag does, in the order the element does it: `pinOnDrag` is on by default,
+               so letting go of the node pins it and then `graphty-node-drag-end` leaves the
+               element carrying the pin as it stands afterwards. The node is ALREADY SELECTED
+               here, which is the case the shell used to get wrong -- it learned about a drag
+               pin only on the next pick, so the badge stayed off for the node in front of the
+               reader until they clicked something else and came back. */
+            pinned.add(selected);
+
+            act(() => {
+                element?.dispatchEvent(
+                    new CustomEvent("graphty-node-drag-end", {
+                        detail: { nodeId: selected, position: { x: 1, y: 2, z: 3 }, pinned: true },
+                        bubbles: true,
+                        composed: true,
+                    }),
+                );
+            });
+
+            expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
         });
     });
 });

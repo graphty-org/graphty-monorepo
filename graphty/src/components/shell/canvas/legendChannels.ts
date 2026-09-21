@@ -18,12 +18,20 @@
  *
  * WHAT IS LEFT HERE is presentation, which is the app's: which of the element's channels
  * the canvas legend draws a block for, the canvas's own five-category cap and its Other
- * row, and the three-stop min / median / max shape a quantitative block takes on this
- * surface. None of it invents a number.
+ * row, and the three-stop shape a quantitative block takes on this surface. None of it
+ * invents a number, and since this pass none of it invents a WORD for one either: the middle
+ * stop used to be labelled "median" over a value the element had swept out of the domain,
+ * which named a statistic nothing here had computed. It says "midpoint", which is what that
+ * value is.
+ *
+ * The Other row's neutral is read off the element's own default node style for the same reason
+ * every swatch is read off its block: a hex written down beside the element is a copy, and a
+ * copy is wrong the moment the element changes it, silently. The shell held two of them.
  */
 
 import type { Channel, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 
+import { defaultNodeHex } from "../../../utils/channelControls";
 import { CANVAS_METRICS, type LegendChannelId } from "./canvasLayout";
 import type { LegendCategory, LegendChannel, LegendStop } from "./Legend";
 
@@ -53,18 +61,34 @@ const BLOCK_LABEL: Readonly<Record<LegendChannelId, string>> = {
 };
 
 /**
- * The word the MIDDLE stop carries inside its own label. {@link LegendStop}'s own doc is
- * explicit that the median names itself rather than being read off its position: "1 to 44"
- * and "1 to 44" print the same string over two very different distributions, and the median
- * is the one number that tells them apart.
+ * The word the MIDDLE stop carries inside its own label, and it is "midpoint" rather than
+ * "median" because a midpoint is what the element publishes there.
+ *
+ * A quantitative block's swatches are stops the element swept across the DOMAIN -- seven evenly
+ * spaced values for a ramp, one per painted group for a stepped encoding -- so the middle one is
+ * the middle of that row of stops and says nothing about where the values actually sit. Calling
+ * it the median was a claim about the distribution that no number in the block supports, and
+ * "median 3" over a column whose median is 47 is exactly the false reading this file's header
+ * says a legend exists to prevent. Build spec 01 section 9 writes the line as "the domain
+ * endpoints with the median or midpoint", so naming the midpoint is the specified form for a
+ * block that carries one.
  */
-const MEDIAN_STOP_PREFIX = "median ";
+const MIDPOINT_STOP_PREFIX = "midpoint ";
 
 /** What the compact form's dimmed suffix says for a block with no scale of its own. */
 const LITERAL_SCALE_SHORT = "fixed";
 
-/** The neutral the Other row is drawn in: what an element no category covers is painted. */
-const OTHER_ROW_COLOR = "#6366F1";
+/**
+ * The neutral the Other row is drawn in: what an element no category covers is painted.
+ *
+ * Read off the element's own default node style rather than written here, so the chip and the
+ * nodes it stands for cannot come to disagree. The shell held two copies of this hex before
+ * this, neither of which anything would have updated.
+ * @returns the colour as "#RRGGBB".
+ */
+function otherRowColor(): string {
+    return defaultNodeHex();
+}
 
 /**
  * Whether a legend block describes a ramp rather than a list.
@@ -82,7 +106,7 @@ function isQuantitative(block: LegendBlock): boolean {
  * chose: the element painted the canvas from the same prepared binding, so the chip and the
  * node it stands for are one value read twice rather than two guesses.
  * @param swatch - the swatch the element published.
- * @param prefix - {@link MEDIAN_STOP_PREFIX} for the middle stop, "" for the two ends.
+ * @param prefix - {@link MIDPOINT_STOP_PREFIX} for the middle stop, "" for the two ends.
  * @returns the stop, or undefined when the element published no swatch there.
  */
 function stopOf(swatch: LegendSwatch | undefined, prefix: string): LegendStop | undefined {
@@ -100,8 +124,9 @@ function stopOf(swatch: LegendSwatch | undefined, prefix: string): LegendStop | 
 /**
  * The three stops a quantitative block draws: the two ends of the domain and the middle.
  *
- * The middle is the swatch the element put in the middle of its own list, which is a value
- * out of this picture rather than the palette's midpoint. A block with fewer than three
+ * The middle is the swatch the element put in the middle of its own list, and it carries the
+ * COLOUR that swatch carries rather than a palette lookup at a position chosen here -- so the
+ * chip and the nodes it stands for are one value read twice. A block with fewer than three
  * swatches draws the ones it has.
  * @param swatches - the swatches the element published, low to high.
  * @returns the stops, in drawing order.
@@ -114,7 +139,7 @@ function rampStops(swatches: readonly LegendSwatch[]): readonly LegendStop[] {
     const middle = swatches.length > 2 ? swatches[Math.floor(swatches.length / 2)] : undefined;
     const stops = [
         stopOf(swatches[0], ""),
-        stopOf(middle, MEDIAN_STOP_PREFIX),
+        stopOf(middle, MIDPOINT_STOP_PREFIX),
         stopOf(swatches.length > 1 ? swatches[swatches.length - 1] : undefined, ""),
     ];
 
@@ -131,7 +156,7 @@ function categoriesOf(swatches: readonly LegendSwatch[]): readonly LegendCategor
         (swatch, index): LegendCategory => ({
             id: `swatch-${String(index)}`,
             label: swatch.label,
-            color: swatch.color ?? OTHER_ROW_COLOR,
+            color: swatch.color ?? otherRowColor(),
         }),
     );
 }
@@ -158,7 +183,7 @@ function otherRowOf(block: LegendBlock): LegendChannel["other"] {
     return {
         label: "Other",
         coverage: `${String(remaining)} ${remaining === 1 ? "category" : "categories"}`,
-        color: OTHER_ROW_COLOR,
+        color: otherRowColor(),
     };
 }
 

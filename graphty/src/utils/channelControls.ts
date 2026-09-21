@@ -69,14 +69,22 @@ function hexOf(color: string | undefined): string {
 }
 
 /**
- * The single hex the node colour control opens on.
+ * The single hex the node colour control opens on: what the element paints a node no layer has
+ * encoded.
  *
  * `texture.color` may be a bare string or an advanced object, and only the solid form has one
  * swatch to show: a gradient default yields the missing-data colour rather than an invented
  * pick out of the ramp.
+ *
+ * EXPORTED so that the canvas legend's Other row -- the chip standing for every category the
+ * legend does not name -- is drawn in the colour those elements actually carry, read off the
+ * element, rather than in a hex copied into the shell beside it. There were two such copies
+ * before this, and a copy of an element constant is wrong from the moment the element changes
+ * it, silently.
  * @returns the colour as "#RRGGBB".
+ * @public
  */
-function defaultNodeHex(): string {
+export function defaultNodeHex(): string {
     const color = defaultNodeStyle.texture?.color;
 
     if (typeof color === "string") {

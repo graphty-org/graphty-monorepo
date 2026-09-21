@@ -34,15 +34,20 @@ import { CANVAS_TOOLBAR_Z_INDEX, LEGEND_MIN_HEIGHT, LEGEND_WIDTH, OVERLAY_INSET 
 import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE, LEGEND_BLOCK_ORDER, type LegendChannelId, OVERLAY_REFLOW_TRANSITION_MS } from "./canvasLayout";
 
 /**
- * One end of a quantitative domain: MIN, MEDIAN or MAX. The middle stop carries the
- * word "median" in its own label, because "1 to 44" and "1 to 44" print the same
- * string over two very different distributions.
+ * One end of a quantitative domain: MIN, MIDPOINT or MAX. The middle stop carries the
+ * word "midpoint" in its own label, because a stop with no word beside it reads as another
+ * endpoint.
+ *
+ * It says "midpoint" and not "median" because a midpoint is what it is: the element sweeps a
+ * quantitative encoding's stops across the DOMAIN, so the middle one sits halfway between the
+ * two ends whatever the distribution does in between. The legend cannot tell "1 to 44" bunched
+ * at the bottom from "1 to 44" spread evenly, and saying "median" claimed it could.
  *
  * Built by the caller and handed in through {@link LegendChannel.stops}.
  * @public
  */
 export interface LegendStop {
-    /** The endpoint as it is printed, e.g. "2", "median 3", "14,206". */
+    /** The endpoint as it is printed, e.g. "2", "midpoint 3", "14,206". */
     readonly label: string;
     /** The swatch's drawn radius, which is the encoding's own transform. */
     readonly radius?: number;
@@ -100,7 +105,7 @@ export interface LegendChannel {
     readonly scaleLine: string;
     /** The compact form's dimmed suffix, e.g. "sqrt", "categorical". */
     readonly scaleShort: string;
-    /** MIN / MEDIAN / MAX, for a quantitative channel. */
+    /** MIN / MIDPOINT / MAX, for a quantitative channel. */
     readonly stops?: readonly LegendStop[];
     /** The five largest categories by member count, for a categorical channel. */
     readonly categories?: readonly LegendCategory[];
@@ -325,7 +330,7 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
                                 >
                                     {/*
                                         Keyed by POSITION, not by label. A stop is min,
-                                        median or max -- a slot in a fixed three-slot row,
+                                        midpoint or max -- a slot in a fixed three-slot row,
                                         with no identity of its own (see LegendStop) --
                                         and over a metric whose nodes all score the same
                                         the min and max stops print the identical string,

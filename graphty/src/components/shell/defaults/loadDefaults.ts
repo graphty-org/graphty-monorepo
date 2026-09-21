@@ -1,16 +1,34 @@
 /**
- * What a load decides for itself, from the loaded graph's size alone.
+ * What a load decides for itself about LABELS, and nothing else.
  *
  * Spec 7.2 "Defaults on load" (design/ui/app-shell-progressive-disclosure-design.md
  * lines 5666-5692) names one set of defaults below the large-graph threshold and a
- * different set above it. Both sets branch on the same threshold, and spec 7.3's rule
- * table branches on it too, so the number is declared here once and read from here by
- * everything that branches on it -- a second declaration would drift.
+ * different set above it. What survives here is the half that is about this product's
+ * canvas: how many nodes carry a label, where the cut falls, and the sentence a reader
+ * is owed when no cut can be drawn at all.
  *
- * This module decides and returns descriptors and performs no side effects on the
- * graph: the caller sets the layout, adds the layers and runs the degree pass. That
- * split is what lets the decisions be tested as arithmetic rather than through a
- * mounted canvas.
+ * TWO THINGS LEFT THIS MODULE, and both of them were facts about a GRAPH rather than
+ * about this product.
+ *
+ * - THE LARGE-GRAPH THRESHOLD. It was declared here as 100,000 nodes. The element now
+ *   publishes its own -- `DEFAULT_LIMITS.largeGraphThreshold`, 10,000 -- as the shipped
+ *   default it runs its own renderer under, and the element is the party that knows what
+ *   its renderer costs. The two disagreed by a factor of ten and nothing between them
+ *   could notice, which is the defect a second declaration always produces. Every branch
+ *   here now reads the element's number.
+ * - THE LAYOUT CHOICE. Which arrangement suits a graph is `recommendLayout` in
+ *   `@graphty/graphty-element/session`: it reads the graph's shape, resolves every
+ *   candidate against the element's own layout catalogue, and never names an arrangement
+ *   the element cannot serve at that size or without an input nobody supplied. The rule
+ *   this module held was the same three cases -- every node already placed, above the
+ *   threshold, otherwise force -- decided from a copy of a catalogue it could not see.
+ *   AppShell asks the element instead, and passes `session.positions.placedCount` for the
+ *   "already placed" case, which is a live count the element keeps and the app had to be
+ *   told.
+ *
+ * This module decides and returns numbers and performs no side effects on the graph: the
+ * caller sets the layout, adds the layers and runs the degree pass. That split is what
+ * lets the decisions be tested as arithmetic rather than through a mounted canvas.
  *
  * Its one reading of the outside world is {@link readPersistedLabelSettings}, the
  * reader's own Performance setting, which {@link loadDefaults} consults when the caller
@@ -19,24 +37,9 @@
  * remembered" -- so every decision below stays a pure function of the node count and
  * that record. The record lives here rather than in a module of its own because the
  * setting it holds is an INPUT to this file's arithmetic and nowhere else's.
- *
- * The colours here are the two the canvas itself paints (a Babylon node mesh and its
- * label), not controls, so they are artboard hexes rather than compact-mantine tokens:
- * CONTRAST-DIVERGENCE.md's precedence clause gives compact-mantine the colour of a
- * shipped CONTROL, and ColorStyle runs its string through colorjs.io, which rejects a
- * CSS variable or a light-dark() pair.
  */
 
-/**
- * The large-graph threshold every 7.2 and 7.3 branch reads. Declared once here
- * because two sections branch on it and a second declaration would drift.
- *
- * Settings > Performance draws the label switch and the label budget (2026-09-13) and
- * NOT this number: a reader who moved the threshold would be choosing which layout and
- * which size scale a load picks, which is a different decision from how many labels they
- * want to read. It stays a code constant and nothing pretends otherwise.
- */
-export const LARGE_GRAPH_NODE_THRESHOLD = 100000;
+import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 
 /** Spec 7.2: labels on clamp(round(sqrt(n)), 5, 50) nodes. */
 export const LABEL_COUNT_MIN = 5;
@@ -46,9 +49,6 @@ export const LABEL_COUNT_MAX = 50;
 
 /** Spec 7.2: "at most 20 labels" in Performance mode. */
 export const PERFORMANCE_LABEL_COUNT = 20;
-
-/** The one neutral node colour the canvas paints (Main.dc.html:644). */
-export const UNENCODED_NODE_COLOR = "#6366F1";
 
 /**
  * Versioned local-storage key for the reader's own label settings.
@@ -165,12 +165,17 @@ export function resolveLabelSettings(persisted: Partial<PersistedLabelSettings>)
 }
 
 /**
- * Whether a node count is above the threshold.
+ * Whether a node count is above the large-graph threshold.
+ *
+ * The threshold is the element's own `DEFAULT_LIMITS.largeGraphThreshold` rather than a number
+ * declared here, so 7.2's Performance branch and 7.3's replacement set open at the same size the
+ * element itself starts drawing less detail at. Strictly above, so a graph of exactly that size
+ * is still a small graph.
  * @param nodeCount - nodes loaded.
  * @returns true when the Performance branch of 7.2 applies.
  */
 export function isAboveLargeGraphThreshold(nodeCount: number): boolean {
-    return nodeCount > LARGE_GRAPH_NODE_THRESHOLD;
+    return nodeCount > DEFAULT_LIMITS.largeGraphThreshold;
 }
 
 /**
@@ -417,78 +422,42 @@ export function labelCutExplanation(outcome: LabelCutOutcome): string | undefine
     return `Labels are on, but ${tied} of ${String(outcome.nodeCount)} nodes share the highest degree (${String(outcome.topDegree)}), and a rule that compares degrees cannot pick ${String(outcome.budget)} out of ${tied} equals, so none are labelled.${remedy}`;
 }
 
-/** A layout choice, ready for `graph.setLayout`. @public */
-export interface LayoutDescriptor {
-    /** A registered LayoutEngine id, e.g. "ngraph". */
-    readonly type: string;
-    /** Its options, e.g. {seed: 1}. */
-    readonly config: Readonly<Record<string, unknown>>;
-}
-
-/** What 7.2 decides on load. Descriptors only: this module performs no side effects. @public */
+/** What 7.2 decides on load. Numbers only: this module performs no side effects. @public */
 export interface LoadDefaults {
     /** Whether the Performance branch was taken. */
     readonly aboveThreshold: boolean;
-    /** The layout to set. */
-    readonly layout: LayoutDescriptor;
     /** How many nodes get labels. */
     readonly labelCount: number;
 }
 
 /**
- * What a load should apply, from the loaded graph's size alone.
+ * The label budget a load should apply, from the loaded graph's size alone.
  *
- * Below the threshold: ngraph, size by degree, labels on clamp(round(sqrt(n)), 5, 50)
- * nodes, one neutral colour.
+ * Below the large-graph threshold the budget is clamp(round(sqrt(n)), 5, 50); above it 7.2's
+ * Performance branch drops it to 20. THE LAYOUT IS NOT DECIDED HERE and has not been since the
+ * element began publishing `recommendLayout`, which reads the same graph shape against the
+ * element's own catalogue of arrangements -- see this module's header for what that replaced.
  *
- * Above the threshold: Fixed when the file carried a position for every node,
- * otherwise Random with a fixed seed. Spec 7.2's FIRST choice above the threshold is
- * Quick grid, and it is unavailable: the registered LayoutEngine ids are d3, ngraph,
- * forceatlas2, spring, kamada-kawai, arf, circular, spiral, shell, random, planar,
- * spectral, bfs, bipartite, multipartite and fixed, so `graph.setLayout("grid")` would
- * fail. Random with a fixed seed is the spec's own named fallback for exactly this
- * case ("with the Random layout with a fixed seed as the fallback"), so the
- * substitution is the spec's, not an invention. Size stays uniform and the label
- * budget drops to 20, both as 7.2 requires.
- *
- * The LABEL BUDGET is the one decision a reader may overrule, in Settings > Performance
- * (2026-09-13). A caller that names `labels` gets exactly those; a caller that names none
- * gets what the reader last chose, read from local storage. A budget of zero is how the
- * switch turns the feature off: the caller asks for a cut, is told there is none, and adds
- * no layer.
- * @param input - the loaded graph's size, whether it carried complete positions, and the
- * reader's label settings when the caller holds them already.
+ * The budget is the one decision a reader may overrule, in Settings > Performance (2026-09-13).
+ * A caller that names `labels` gets exactly those; a caller that names none gets what the reader
+ * last chose, read from local storage. A budget of zero is how the switch turns the feature off:
+ * the caller asks for a cut, is told there is none, and adds no layer.
+ * @param input - the loaded graph's size and the reader's label settings when the caller holds
+ * them already.
  * @param input.nodeCount - nodes loaded.
- * @param input.hasPositionsForEveryNode - whether the file carried a position for every node.
  * @param input.labels - the reader's label settings; omitted reads the stored ones.
- * @returns the descriptors the caller applies.
+ * @returns what the caller applies.
  */
 export function loadDefaults(input: {
     /** Nodes loaded. */
     readonly nodeCount: number;
-    /** Whether the file carried a position for EVERY node. */
-    readonly hasPositionsForEveryNode?: boolean;
     /** The reader's own label settings. Omitted, the stored ones are read. */
     readonly labels?: PersistedLabelSettings;
 }): LoadDefaults {
-    const aboveThreshold = isAboveLargeGraphThreshold(input.nodeCount);
     const labels = input.labels ?? resolveLabelSettings(readPersistedLabelSettings());
-    const labelCount = labelCountFor(input.nodeCount, labels);
-
-    if (!aboveThreshold) {
-        return {
-            aboveThreshold: false,
-            layout: { type: "ngraph", config: {} },
-            labelCount,
-        };
-    }
 
     return {
-        aboveThreshold: true,
-        layout:
-            input.hasPositionsForEveryNode === true
-                ? { type: "fixed", config: {} }
-                : { type: "random", config: { seed: 1 } },
-        labelCount,
+        aboveThreshold: isAboveLargeGraphThreshold(input.nodeCount),
+        labelCount: labelCountFor(input.nodeCount, labels),
     };
 }

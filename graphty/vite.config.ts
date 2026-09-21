@@ -32,8 +32,9 @@ export default defineConfig(({ mode }) => {
                 // graphty-element is read from SOURCE rather than from its published dist, so
                 // the dev server hot-reloads element changes without a rebuild. Its exports map
                 // names one file per entry point at the package root (index.ts, schema.ts,
-                // catalog.ts, extend.ts, format.ts, session.ts, commands.ts, ai.ts, webgpu.ts,
-                // react.ts), so a subpath maps to the file of the same name. tsconfig.json
+                // catalog.ts, extend.ts, format.ts, logging.ts, session.ts, commands.ts, ai.ts,
+                // webgpu.ts, react.ts), so a subpath maps to the file of the same name.
+                // tsconfig.json
                 // carries the same two rules; change them together or the editor and the
                 // bundler will disagree about what @graphty/graphty-element/schema means.
                 {

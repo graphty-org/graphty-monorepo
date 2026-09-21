@@ -10,7 +10,11 @@
  * free nodes into `partials.swingTraction.x`) against `S.frEnergy` grows the temperature by 1 / FR_COOLING_STEP after
  * FR_COOLING_PATIENCE consecutive falls and shrinks it by FR_COOLING_STEP on a rise (Yifan Hu 2005, section 3.2);
  * 2 = the spring-electrical kinetic energy K5 folded into `partials.swingTraction.x` (PD-4) into `S.kineticEnergy`
- * and the trace.
+ * and the trace. On the grid tier (`P.gridMax > 0`, P4-T10, PD-14) it also derives the grid frame of the next build
+ * from the fold (`extent = max(min(bboxExtent * GRID_BBOX_MARGIN, extentFactor * rmsRadius), GRID_EXTENT_FLOOR)`,
+ * `cellSize = extent / G`, `gridMin = centroid - extent / 2` with `cellSize` in `.w`, `invCellSize`, `eps = 0.25
+ * cellSize`), copies the previous iteration's pseudo-cell count and occupancy max into the state, and resets the
+ * hub counters; the exact tier writes `gridMax: 0` and binds two dummies, so the block is dead there.
  *
  * This file holds the kernel BODY only (spec 3.5, D9): no bind-group lines and no `override` lines -- the composer
  * emits them from the registry entry in src/kernels.ts (contract 3.10.1). The text is normative (contract 4.5) and
@@ -63,6 +67,23 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         T[P.iterationIndex].meanDisplacement = S.meanDisplacement;
         T[P.iterationIndex].settledCount = S.settledCount;
         T[P.iterationIndex].iteration = S.iteration;
+        if (P.gridMax > 0u) {                                      // the grid tier (7.7): the robust extent, the cell size, eps, last iteration's counts, the hub counter reset (PD-14)
+            let cells = P.gridMax * P.gridMax * select(1u, P.gridMax, P.dim == 3u);
+            if (fold) {
+                let box = (S.max.xyz - S.min.xyz) * GRID_BBOX_MARGIN;
+                var bboxExtent = max(box.x, box.y);
+                if (P.dim == 3u) { bboxExtent = max(bboxExtent, box.z); }
+                let extent = max(min(bboxExtent, P.extentFactor * S.rmsRadius), GRID_EXTENT_FLOOR);   // min(bbox, extentFactor x rms), floored (7.7)
+                let cellSize = extent / f32(P.gridMax);
+                S.gridMin = vec4f(S.centroid.xyz - vec3f(0.5 * extent), cellSize);   // gridMin.w carries cellSize
+                S.invCellSize = 1.0 / cellSize;
+                S.eps = 0.25 * cellSize;
+            }
+            S.outsideGrid = cellHist[cells];                         // the previous iteration's pseudo-cell count (0 after load)
+            S.maxCellOccupancy = atomicLoad(&hubCounters[1]);
+            atomicStore(&hubCounters[0], 0u);
+            atomicStore(&hubCounters[1], 0u);
+        }
         if (STATS_MODE == 1u) {                                    // FR: this iteration's temperature (7.20) into the state and the trace
             if ((P.flags & FA2_FLAG_ADAPTIVE) != 0u) {                // adaptive cooling (Yifan Hu 2005 3.2): tKe is the previous iteration's sum |F|^2 over free nodes
                 if (fold) {

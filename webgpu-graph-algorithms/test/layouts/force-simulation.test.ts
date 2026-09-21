@@ -507,7 +507,7 @@ describe("ForceSimulation (fake model)", () => {
         expect(s.state).toBe("created");
     });
 
-    it("load() rejects a directed snapshot, a too-large graph, a bad positions array and the grid tier", async (t) => {
+    it("load() rejects a directed snapshot, a too-large graph and a bad positions array; the tier rule selects the grid tier (P4)", async (t) => {
         requireGpu(t);
         const ctx = await ctxOf();
         const s = sim(ctx, new FakeModel());
@@ -533,11 +533,12 @@ describe("ForceSimulation (fake model)", () => {
         expect(s.state).toBe("created");
 
         const grid = sim(ctx, new FakeModel(), {}, { repulsion: "grid" });
-        const e5 = errorOf(() => grid.load(g, nanPositions(8)));
-        expect(e5.code).toBe("E_UNSUPPORTED");
-        expect(e5.details.feature).toBe("repulsion.grid");
+        grid.load(g, nanPositions(8));
+        expect(grid.tier).toBe("grid");
+        expect(grid.state).toBe("loaded");
         const auto = sim(ctx, new FakeModel(), {}, { repulsion: "auto", exactMaxNodes: 4 });
-        expect(errorOf(() => auto.load(g, nanPositions(8))).details.feature).toBe("repulsion.grid");
+        auto.load(g, nanPositions(8));
+        expect(auto.tier).toBe("grid");
         const exact = sim(ctx, new FakeModel(), {}, { repulsion: "exact", exactMaxNodes: 4 });
         exact.load(g, nanPositions(8));
         expect(exact.tier).toBe("exact");

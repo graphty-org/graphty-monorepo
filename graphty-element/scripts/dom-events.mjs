@@ -87,8 +87,14 @@ export function readDomEvents(eventsFile) {
                 (member) => ts.isPropertySignature(member) && member.name.getText(source) === "type",
             );
 
+            // An interface with no `type` member is not an event, and there are such interfaces in
+            // the module -- `NodeEventDetail` is the shape a node event's DOM `detail` carries, not
+            // an event. `find` answers undefined for one, and `ts.isPropertySignature` reads
+            // `.kind` off whatever it is handed, so calling it with that undefined threw and took
+            // the whole custom-elements manifest with it: `vite build` and every Storybook test
+            // failed to start, with the error blamed on the manifest plugin.
             interfaces.set(statement.name.text, {
-                names: ts.isPropertySignature(property) ? stringLiterals(property.type) : [],
+                names: property === undefined ? [] : stringLiterals(property.type),
                 description: description(statement),
             });
             continue;

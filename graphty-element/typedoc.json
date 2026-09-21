@@ -8,6 +8,7 @@
         "./commands.ts",
         "./extend.ts",
         "./format.ts",
+        "./logging.ts",
         "./react.ts",
         "./webgpu.ts",
         "./ai.ts"

@@ -11,9 +11,16 @@ import VitePluginCustomElementsManifest from "vite-plugin-cem";
  * these. The root entry keeps the name `graphty` it has always had, so a deep import of
  * `dist/graphty.js` written against 1.x still resolves.
  *
- * Five of them -- session, schema, catalog, extend and format -- must stay free of Babylon.js,
- * Lit and the DOM; `test/packaging/node-safe-entries.test.ts` fails the build's tests if any of
- * them stops being.
+ * Eight of them -- session, schema, catalog, commands, extend, format, react and logging --
+ * must stay free of Babylon.js, Lit and the DOM; `test/packaging/node-safe-entries.test.ts`
+ * fails the build's tests if any of them stops being.
+ *
+ * Four lists name these files and nothing checks them against each other at build time:
+ * this one, `tsconfig.build.json`'s `include`, `typedoc.json`'s `entryPoints` and the
+ * graphty-element entry list in the repository root's `knip.config.ts`. Adding an entry to this
+ * one alone produces a `dist/<name>.js` with no `.d.ts` beside it, which fails far away from
+ * here -- in a consumer's editor. `test/logging/logging-entry-point.test.ts` holds the four
+ * lists to each other.
  */
 const entries = {
     graphty: "./index.ts",
@@ -23,6 +30,7 @@ const entries = {
     commands: "./commands.ts",
     extend: "./extend.ts",
     format: "./format.ts",
+    logging: "./logging.ts",
     react: "./react.ts",
     webgpu: "./webgpu.ts",
     ai: "./ai.ts",
@@ -104,6 +112,20 @@ export default defineConfig(({ mode }) => {
                     chunkFileNames: "chunks/[name]-[hash].js",
                 },
                 treeshake: {
+                    // This does NOT override package.json's `sideEffects` array, and the
+                    // difference is load-bearing. Rolldown resolves every source file against
+                    // the nearest package.json, and a file absent from an array-valued
+                    // `sideEffects` is marked side-effect-free at resolve time, which wins over
+                    // this default. Measured on vite 8 / rolldown 1.2.8 with a two-module probe:
+                    // with `sideEffects: ["./dist/x.js"]` a top-level `register(...)` call is
+                    // dropped from the output; adding the module's own path to the array brings
+                    // it back. The same thing happens to the real package -- building with
+                    // `./src/data/index.ts` removed from `sideEffects` produces a `dist/` with
+                    // no CSV importer in it at all.
+                    //
+                    // So the three `./src/` entries in `sideEffects` are not leftovers from the
+                    // UMD era; they are what keeps the built-in data sources, layouts and
+                    // algorithms in the build. `test/packaging/exports-map.test.ts` pins them.
                     moduleSideEffects: true,
                 },
             },

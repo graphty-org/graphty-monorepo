@@ -20,6 +20,7 @@
         "commands.ts",
         "extend.ts",
         "format.ts",
+        "logging.ts",
         "react.ts",
         "schema.ts",
         "session.ts",

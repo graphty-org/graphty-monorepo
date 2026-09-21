@@ -124,6 +124,7 @@ const config: KnipConfig = {
                 "commands.ts",
                 "extend.ts",
                 "format.ts",
+                "logging.ts",
                 "react.ts",
                 "schema.ts",
                 "session.ts",
@@ -211,6 +212,15 @@ const config: KnipConfig = {
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
+
+    // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
+    // every named type in a published signature to be exported -- the parameter and return types
+    // of `createPluginRegistry`, say. It is the opposite of `@public`: a symbol nobody outside its
+    // own module may use. Tagging one keeps it visible to a reader while taking it out of
+    // dead-code detection, and it is per symbol rather than a blanket setting. Knip accepts the
+    // key only at the root, so it applies to every workspace; the "unused tag" hints it prints are
+    // exports already tagged `@internal` that something does import, which is worth knowing.
+    tags: ["-internal"],
 
     // Global ignore patterns
     ignore: ["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/.nx/**", "**/docs/**"],

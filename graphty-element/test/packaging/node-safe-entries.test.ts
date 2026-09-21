@@ -11,7 +11,16 @@ const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
  * The entry points that must resolve with no renderer anywhere in their import graph, per the
  * table in design/element-api/element-api-design.md section 6.1.
  */
-const NODE_SAFE_ENTRIES = ["session.ts", "schema.ts", "catalog.ts", "commands.ts", "extend.ts", "format.ts", "react.ts"];
+const NODE_SAFE_ENTRIES = [
+    "session.ts",
+    "schema.ts",
+    "catalog.ts",
+    "commands.ts",
+    "extend.ts",
+    "format.ts",
+    "logging.ts",
+    "react.ts",
+];
 
 /** What must never appear in a Node-safe entry point's import graph. */
 const FORBIDDEN = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/, /^@mlc-ai($|\/)/];
@@ -144,6 +153,7 @@ describe("the Node-safe entry points", () => {
             import("../../catalog"),
             import("../../extend"),
             import("../../format"),
+            import("../../logging"),
         ]);
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));

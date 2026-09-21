@@ -35,6 +35,10 @@
             "types": "./dist/format.d.ts",
             "import": "./dist/format.js"
         },
+        "./logging": {
+            "types": "./dist/logging.d.ts",
+            "import": "./dist/logging.js"
+        },
         "./react": {
             "types": "./dist/react.d.ts",
             "import": "./dist/react.js"
@@ -208,7 +212,6 @@
         "@graphty/layout": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
-        "@logtape/logtape": "^1.2.2",
         "@types/papaparse": "^5.5.0",
         "ai": "^5.0.104",
         "colorjs.io": "^0.5.2",

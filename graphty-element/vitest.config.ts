@@ -1,3 +1,28 @@
+/*
+ * This package must keep "vitest" in its own devDependencies, even though no source file
+ * imports it by name. Deleting it brings back a hang that costs days to diagnose.
+ *
+ * What went wrong: every browser-mode project below -- browser, interactions and storybook --
+ * printed the "RUN v3.2.7" banner and then produced no further output, forever. No test names,
+ * no failures, no exit. The Node-only projects, default and llm-regression, were unaffected.
+ *
+ * Why: @vitest/browser injects `resolve: { dedupe: ["vitest"] }` into the Vite server it
+ * starts, so the page in Chromium loads whichever copy of the "vitest" package Vite resolves
+ * starting from this directory. The Node side, meanwhile, is whichever `vitest` executable the
+ * shell found first on PATH. Those are two independent lookups. pnpm's store can legitimately
+ * hold more than one instance of the same vitest version -- they differ only in how a
+ * transitive peer resolved -- and this package declared no vitest at all, so the executable
+ * came from a stray hoisted shim in node_modules/.bin that belonged to a different instance
+ * than the package Vite deduped to. Two copies of vitest in one page never complete the
+ * tester-to-orchestrator handshake, and a run that never gets an answer never prints and never
+ * exits.
+ *
+ * The fix: declaring vitest here makes pnpm create both node_modules/vitest and
+ * node_modules/.bin/vitest from the same instance, so the executable and the deduped package
+ * cannot drift apart. Every other package in this monorepo that runs vitest already declares
+ * it; this one invoked it from 27 scripts and relied on hoisting.
+ */
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,10 +36,30 @@ export default defineConfig({
         projects: [
             {
                 test: {
+                    // Timing benchmarks, kept out of the coverage-collecting "default" project
+                    // because instrumentation makes a stopwatch measure the instrumentation. Run
+                    // with: npx vitest run --project=bench
+                    name: "bench",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/**/*.bench.test.ts"],
+                    coverage: { enabled: false },
+                },
+            },
+            {
+                test: {
                     name: "default",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
+                        // Timing benchmarks, which run as their own project -- see "bench" above.
+                        // CI runs this project with --coverage, and v8 coverage instruments this
+                        // package's own source while leaving node_modules alone. That breaks a
+                        // benchmark in both directions at once: absolute milliseconds stop meaning
+                        // milliseconds, and a ratio against a reference living in node_modules
+                        // flatters the reference, because only the measured side is instrumented.
+                        // There is no runtime signal a test could branch on -- the v8 provider sets
+                        // no environment variable and no global -- so the split is structural.
+                        "test/**/*.bench.test.ts",
                         // These tests require DOM APIs and should run in browser environment
                         "test/managers/DataManager.test.ts",
                         "test/managers/LayoutManager.test.ts",

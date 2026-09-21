@@ -186,9 +186,14 @@ beforeEach(async () => {
     await graph.operationQueue.waitForCompletion();
 });
 
-afterEach(() => {
+afterEach(async () => {
     stopWatching?.();
     stopWatching = null;
+
+    // Drained before the graph is thrown away. A style edit is a queued run, and the element
+    // schedules a repaint behind every finished run -- so disposing while the queue still holds
+    // one runs that repaint against a store the dispose has already emptied.
+    await graph.operationQueue.waitForCompletion();
     graph.dispose();
     container.remove();
 });
@@ -327,7 +332,7 @@ describe("an encoding over a real algorithm run", () => {
         await run;
 
         const first = await session.styles.encode({ run: run.id, channel: "node.color" });
-        const second = await session.styles.encode({ run: run.id, channel: "node.color", palette: "magma" });
+        const second = await session.styles.encode({ run: run.id, channel: "node.color", palette: "inferno" });
 
         assert.strictEqual(second.id, first.id, "taken over in place, keeping the id");
         assert.strictEqual(session.styles.list().length, 3, "two element layers and one encoding, not two encodings");
@@ -432,23 +437,20 @@ describe("a layer bound to what one run chose", () => {
 });
 
 /**
- * WHAT A READER IS TOLD, AND THE ONE WIRE THAT IS NOT CONNECTED.
+ * WHAT A READER IS TOLD ABOUT A PICTURE THAT WAS REALLY PAINTED.
  *
- * `legend()` and `explain()` are reads of the PREPARED BINDINGS the last repaint painted from --
- * that is what makes them a reading of the object that made the picture rather than a second
- * guess at it -- and a session supplies those through `StylesSources.encoding`.
+ * `legend()` says what an encoding MEANS and `explain()` says why one element looks the way it
+ * does. Both are reads of the prepared bindings the last repaint painted from, reached through
+ * `StylesSources.encoding` -- and that is what makes them a reading of the object that made the
+ * picture rather than a second guess at it. Preparing a fresh set to answer with would walk every
+ * bound column again and could disagree with what is on screen the moment the data moved.
  *
- * A session supplies none. `createGraphSession` builds the styles API without an `encoding`
- * member (`src/session/GraphSession.ts:1042-1058`), and it has nothing to supply: the columnar
- * repaint prepares a binding per layer and keeps it in a private `WeakMap`, and `RepaintEngine`
- * (`src/session/styles/repaint.ts:144-202`) publishes no way to read one back. So both verbs fall
- * through to the "nothing is prepared" default on every real graph, not only on a headless one.
- *
- * The two tests below pin THAT rather than asserting the contract and failing, so the suite stays
- * honest about where the migration has got to. What the contract says is written in each one, and
- * each has to be inverted when the wire lands. The half that IS connected -- resolving an element
- * id against the real snapshot -- is asserted for real, because that half is the element's to get
- * wrong on every freeze.
+ * Which is why these tests belong in this file rather than beside the unit tests. Everywhere else
+ * the encoding lookup is a fixture handing back bindings somebody wrote by hand; here it is a
+ * real degree run over a real snapshot, repainted by the real columnar pass, and the domain the
+ * legend reports is the one the pass measured off the column -- 0 for the unconnected node up to
+ * 3 for the busiest one. A hand-written binding cannot get that wrong and this cannot get it
+ * right by accident.
  */
 describe("what a reader is told about a real run", () => {
     it("resolves a real element id, and refuses one the graph does not hold", async () => {
@@ -457,34 +459,132 @@ describe("what a reader is told about a real run", () => {
         await session.styles.encode({ run: run.id, channel: "node.color" });
 
         assert.doesNotThrow(() => session.styles.explain({ node: "c" }));
-        assert.doesNotThrow(() => session.styles.explain({ edge: "a:b" }));
+        // The element's own edge id, which is a counter. The first edge this fixture added gets
+        // "0"; the pair string it used to be is now an id naming nothing.
+        assert.doesNotThrow(() => session.styles.explain({ edge: "0" }));
         assert.strictEqual(syncCodeOf(() => session.styles.explain({ node: "zz" })), "E_BAD_COMMAND");
     });
 
-    it("does NOT yet explain what painted one element, because no prepared binding reaches it", async () => {
+    it("names the layer that painted one element, and the colour it painted", async () => {
         const run = session.runs.start("degree", {}, { as: "degree" });
         await run;
         const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
 
+        // c has the most edges of any node here, so the encoding reached it and put it at the top
+        // of the ramp. Asking about c rather than about the unconnected node is deliberate: an
+        // element the run never measured is not painted, and would answer nothing for the right
+        // reason while proving nothing about the wire.
         const explanation = session.styles.explain({ node: "c" });
 
-        // THE CONTRACT: c has the most edges, so the encoding painted it, and this should name
-        // `layer.id` as a contributor and carry a colour in `merged`.
-        assert.deepStrictEqual(explanation.contributions, [], "invert this when the session supplies encoding");
-        assert.deepStrictEqual(explanation.merged, {});
-        assert.deepStrictEqual(explanation.channels, []);
+        assert.include(
+            explanation.contributions.map((entry) => entry.layerId),
+            layer.id,
+            "the encoding layer is named as what painted this node",
+        );
+        assert.property(explanation.merged, "node.color");
+        assert.include(
+            explanation.channels.map((entry) => entry.channel),
+            "node.color",
+            "and the channel it drives is reported",
+        );
         assert.isDefined(session.styles.get(layer.id), "the layer itself is in the stack and painting");
         assert.strictEqual(painted().nodes, NODES.length, "and the pass really did visit every node");
     });
 
-    it("does NOT yet produce a legend for a real run, for the same reason", async () => {
+    it("produces a legend whose domain is the one the pass measured", async () => {
         const run = session.runs.start("degree", {}, { as: "degree" });
         await run;
-        await session.styles.encode({ run: run.id, channel: "node.color" });
+        const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
 
-        // THE CONTRACT: one sequential block on node.color, reading results.degree.value, over a
-        // domain of 0 (the unconnected node) to 3 (the busiest one).
-        assert.deepStrictEqual(session.styles.legend(), [], "invert this when the session supplies encoding");
+        const blocks = session.styles.legend();
+        const block = blocks.find((entry) => entry.layerId === layer.id);
+
+        assert.isDefined(block, "the encoding layer earns a legend block");
+        assert.strictEqual(block.channel, "node.color");
+        assert.isDefined(block.field, "a block over a measured column names the field it reads");
+        assert.strictEqual(block.field.path, `results.${run.id}.value`, "and it names the column it reads");
+        assert.isDefined(block.domain, "a continuous encoding reports the domain it ramps over");
+        // Read off the graph rather than restated: f is connected to nothing and c carries three
+        // edges (a-c, b-c, c-d), so the column the pass measured runs 0 to 3.
+        assert.strictEqual(block.domain.min, 0);
+        assert.strictEqual(block.domain.max, 3);
+        assert.isNotEmpty(block.swatches, "and it carries swatches a reader can match against");
+    });
+
+    /**
+     * THE ONE MOMENT THE LEGEND COULD GO BLANK OVER A PICTURE NOBODY CHANGED.
+     *
+     * A run announces that it has ended BEFORE the auto-apply policy is consulted, and the
+     * session forgets every prepared binding on that announcement -- correctly, because a run
+     * that has just published has replaced the column those bindings settled their domains
+     * against. Then the policy is asked, and on a re-run it declines: a re-run keeps its id, so
+     * it already has its layers and gets no new ones. Nothing repaints.
+     *
+     * The graph is still on screen, painted, unchanged. If "what the last pass painted from" had
+     * been forgotten along with "what the next pass must work out again", this is where a reader
+     * would watch the legend empty itself under a picture that had not moved.
+     */
+    it("still describes the picture after a re-run that repaints nothing", async () => {
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+        const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
+        const before = session.styles.legend().find((entry) => entry.layerId === layer.id);
+
+        assert.isDefined(before, "the legend describes the run's encoding to begin with");
+
+        await run.rerun();
+
+        const after = session.styles.legend().find((entry) => entry.layerId === layer.id);
+
+        assert.isDefined(after, "and it still describes it afterwards");
+        assert.deepStrictEqual(after.domain, before.domain, "over the same domain, because the picture is the same");
+        assert.isNotEmpty(
+            session.styles.explain({ node: "c" }).contributions,
+            "and one node can still say what painted it",
+        );
+    });
+});
+
+/**
+ * WHICH LAYERS BELONG TO A RUN, WHICH IS THE QUESTION BEFORE "ARE YOU SURE".
+ *
+ * A layer built from a run records the run in its own `source`, so `runs.bindings(id)` is a read
+ * of the stack rather than a second register that could disagree with it. Two things depend on
+ * it: a confirmation dialog that wants to say "Removes 2 style layers" BEFORE anything is
+ * removed, and `runs.remove(id)` itself, which has to take those layers with it -- a layer left
+ * behind reads a column whose run has gone, and paints from numbers nobody can produce again.
+ */
+describe("the layers a run put on the graph", () => {
+    it("names them, and takes them away with the run", async () => {
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+        const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
+
+        assert.deepStrictEqual(session.runs.bindings(run.id), [layer.id], "the run knows what it painted");
+
+        const removal = session.runs.remove(run.id);
+
+        assert.deepStrictEqual(removal.layerIds, [layer.id], "and says so before it goes");
+
+        // The removal is a style edit, which is queued like every other one.
+        await graph.operationQueue.waitForCompletion();
+
+        assert.isUndefined(
+            session.styles.get(layer.id),
+            "the layer went with the run rather than being left to read a column that has gone",
+        );
+    });
+
+    it("names none for a run nothing was painted from", async () => {
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+
+        assert.deepStrictEqual(session.runs.bindings("no-such-run"), []);
+        assert.deepStrictEqual(
+            session.runs.bindings(run.id),
+            [],
+            "a run whose suggestion has not landed reports nothing rather than guessing",
+        );
     });
 });
 

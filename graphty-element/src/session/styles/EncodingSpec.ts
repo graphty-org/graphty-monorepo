@@ -3,7 +3,7 @@
  *
  * A consumer that has just run an algorithm wants one thing -- "colour the graph by this" -- and
  * everything else in a style layer is detail it can get wrong. So `encode()` takes the run, the
- * channel and the taste (a palette, a scale, a clamp), and {@link planEncoding} writes the rest:
+ * channel and the taste (a palette, a scale, a clamp), and `planEncoding` writes the rest:
  * the path, the selector, the layer's kind, its name and where it came from.
  *
  * THE SELECTOR IS WRITTEN HERE, AND IT IS `{ match: "has" }`. The layer paints exactly the
@@ -59,7 +59,7 @@ import { requireChannel, type RuleBinding } from "./encoding";
  * What `encode()` is asked for: a run, a channel, and taste.
  *
  * Everything else about the layer -- the path, the selector, the kind, the source, the name -- is
- * written by {@link planEncoding}, because every one of them is something a consumer can get
+ * written by `planEncoding`, because every one of them is something a consumer can get
  * wrong and none of them is a decision it wanted to make.
  */
 export interface EncodingSpec {
@@ -86,7 +86,7 @@ export interface EncodingSpec {
 }
 
 /**
- * What {@link planEncoding} needs to know about the run it is binding to.
+ * What `planEncoding` needs to know about the run it is binding to.
  *
  * A `Run` satisfies this as it stands, which is the point: a session hands one over without
  * building an adapter, and nothing here drags the queue, the abort controllers or the progress
@@ -107,7 +107,7 @@ export interface EncodingRun {
     readonly fields: readonly FieldDescriptor[];
 }
 
-/** Where {@link planEncoding} looks a run up. */
+/** Where `planEncoding` looks a run up. */
 export interface EncodingSource {
     /**
      * One run, by any of the three ways a caller names one.

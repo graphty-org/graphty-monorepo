@@ -220,12 +220,51 @@ export interface RepaintEngine extends ElementPaint {
     /** What `createStylesApi` takes as its `repaint`. */
     readonly repaint: LayerRepaint;
     /**
+     * What one layer was last painted FROM.
+     *
+     * THE READ THAT MAKES A LEGEND HONEST. `styles.legend()` tells a reader what the picture
+     * means and `styles.explain()` tells them why one element looks the way it does, and both
+     * are only trustworthy if they read the same object the paint came from. A second set of
+     * bindings prepared for the purpose would walk every bound column again -- milliseconds per
+     * continuous binding at fifty thousand values -- to produce an answer that could disagree
+     * with what is on screen. It would also be WRONG rather than merely slow: a domain is
+     * settled against the element count the pass last sized its stores to, so preparing outside
+     * a pass invents a domain from a count of zero before the first draw. So the pass keeps what
+     * it prepared and publishes it here, and this read never prepares anything.
+     *
+     * Deliberately NOT on {@link ElementPaint}: a renderer draws from the resolved columns and
+     * has no business reading a scale's domain.
+     *
+     * KEYED BY THE COMPILED LAYER, NOT BY ITS ID, and the difference is a false legend. An id is
+     * minted as a slug of the layer's name plus the lowest free number, and "free" is worked out
+     * from the layers the stack holds NOW -- so removing a layer puts its id back in circulation
+     * and the next layer of the same name takes it. An index keyed by id would hand the new
+     * layer the removed one's bindings, and a legend block would name one layer while reporting
+     * another layer's channel, domain and palette. An object cannot be recycled that way.
+     *
+     * The list is in the order the pass applies them, fixed values first and rules second, and
+     * every binding names the channel it paints.
+     * @param entry - The compiled layer, as `styles.compiled()` holds it.
+     * @returns Its prepared bindings. Empty for a layer that paints nothing, for one the pass
+     *   could not prepare at all, and for one that has never been painted.
+     */
+    encoding(entry: CompiledLayer): readonly PreparedBinding[];
+    /**
      * Forget every prepared binding.
      *
      * A binding's domain, its percentile clamp and its category list are properties of the COLUMN
      * it was prepared against, worked out once and then never read again. When the data behind
      * that column moves -- a run publishes, a dataset loads -- they describe the previous data,
      * and the next pass has to work them out again.
+     *
+     * It does NOT empty {@link RepaintEngine.encoding}. Those are two different questions: what
+     * the next pass must work out again, and what the last pass actually painted from. The
+     * second stays true after the data moves, because the pixels that pass produced are still on
+     * screen until something repaints them -- and there are ordinary paths where nothing does. A
+     * run announces its end before the auto-apply policy is consulted, and the policy declines a
+     * re-run because it keeps its id and already has its layers; a batch never consults the
+     * policy at all. Emptying the read here would blank the legend and empty every explanation
+     * over a graph that is visibly, correctly painted.
      */
     invalidate(): void;
 }
@@ -236,6 +275,9 @@ export interface RepaintEngine extends ElementPaint {
 
 /** How many elements one slice of a pass covers before the clock is consulted. */
 const CHUNK = 4096;
+
+/** What {@link RepaintEngine.encoding} answers for a layer nothing was prepared for. */
+const NO_PREPARED_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
 
 /** How long the pass may hold the thread before it hands it back, in milliseconds. */
 const SLICE_MS = 8;
@@ -546,6 +588,23 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      */
     let prepared = new WeakMap<CompiledLayer, PreparedLayer>();
 
+    /**
+     * What the last pass painted each layer FROM, which is a different fact with a different
+     * lifetime.
+     *
+     * The map above is a CACHE: it answers "can the next pass skip preparing this layer again",
+     * and `invalidate` empties it the moment the data behind a domain moves. This one is a
+     * RECORD: it answers "what did the paint currently on screen come from", and that stays true
+     * until something actually repaints. Conflating them blanks the legend of a picture nobody
+     * has changed, because a run ending invalidates and then, on a re-run or a batch, repaints
+     * nothing.
+     *
+     * Written together with the cache, so the two can never describe different bindings, and
+     * weak for the same reason the cache is: an entry lives exactly as long as the compiled
+     * layer it describes, and a layer dropped from the stack takes its record with it.
+     */
+    const lastPreparedFrom = new WeakMap<CompiledLayer, PreparedLayer>();
+
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
 
@@ -775,11 +834,17 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const cached = prepared.get(entry);
 
         if (cached !== undefined) {
+            // Written on the cache hit as well as the miss, so the record stays in step with the
+            // cache without anybody having to reason about which paths clear which. One map
+            // write per layer per pass, against a read that has to be right every time.
+            lastPreparedFrom.set(entry, cached);
+
             return cached;
         }
 
         const built = buildPreparedLayer(entry);
         prepared.set(entry, built);
+        lastPreparedFrom.set(entry, built);
 
         return built;
     };
@@ -1268,6 +1333,18 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         problems(): readonly RepaintProblem[] {
             return problems;
+        },
+
+        encoding(entry: CompiledLayer): readonly PreparedBinding[] {
+            const layer = lastPreparedFrom.get(entry);
+
+            if (layer === undefined || layer.channels.length === 0) {
+                return NO_PREPARED_BINDINGS;
+            }
+
+            // Built per call rather than kept, because the pass holds the channel and the reader
+            // wants the binding, and a legend is read once a picture rather than once an element.
+            return layer.channels.map((channel) => channel.binding);
         },
 
         invalidate(): void {

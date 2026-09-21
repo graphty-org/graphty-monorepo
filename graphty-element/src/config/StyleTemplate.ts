@@ -6,46 +6,15 @@ import { GraphBehaviorOpts } from "./GraphBehavior";
 import { GraphStyle } from "./GraphStyle";
 import { NodeStyle } from "./NodeStyle";
 
-/**
- * A 1.x calculated style, which is accepted and then ignored.
- *
- * `expr` was a string of JavaScript compiled with the `Function` constructor and run once per
- * element per repaint, with no try/catch anywhere on the path -- so one throw aborted the repaint
- * part way through and every element after it silently kept its old style, and under a Content
- * Security Policy without `unsafe-eval` the whole mechanism died and took every algorithm's
- * colouring with it, in silence. It is deleted rather than sandboxed: a declarative encoding
- * (`session.styles.encode()`) has no evaluator, can be validated, diffed, legended and retargeted
- * at another dataset, and a string of JavaScript can do none of those.
- *
- * THE SHAPE STILL PARSES so that a template saved by 1.x loads instead of being refused at the
- * door; {@link Styles} warns once for every layer carrying one, naming the layer. Nothing reads
- * the value. Bind a value to a channel with `session.styles.encode()` instead.
- */
-export const CalculatedStyle = z.looseObject({
-    inputs: z.array(z.string()).optional(),
-    output: z.string().optional(),
-    expr: z.string().optional(),
-});
-
-/** A 1.x calculated style as it parses. Accepted, never applied -- see {@link CalculatedStyle}. */
-export type CalculatedStyleConfig = z.infer<typeof CalculatedStyle>;
-
-const AppliedNodeStyle = z.strictObject({
+const AppliedNodeStyle = z.looseObject({
     selector: z.string(),
     style: NodeStyle,
-    /** Removed in 2.0: accepted so a 1.x template loads, never applied. */
-    calculatedStyle: CalculatedStyle.optional(),
 });
 
-const AppliedEdgeStyle = z.strictObject({
+const AppliedEdgeStyle = z.looseObject({
     selector: z.string(),
     style: EdgeStyle,
-    /** Removed in 2.0: accepted so a 1.x template loads, never applied. */
-    calculatedStyle: CalculatedStyle.optional(),
 });
-
-export type AppliedNodeStyleConfig = z.infer<typeof AppliedNodeStyle>;
-export type AppliedEdgeStyleConfig = z.infer<typeof AppliedEdgeStyle>;
 
 const StyleLayerMetadata = z
     .object({
@@ -53,14 +22,23 @@ const StyleLayerMetadata = z
     })
     .loose();
 
+/**
+ * A 1.x style layer, which parses and is then ignored.
+ *
+ * ACCEPTED SO A SAVED DOCUMENT STILL LOADS. The stack these layers described is gone: layers are
+ * `session.styles`, addressed by a stable id, compiled once into a predicate, and able to say
+ * what they painted. A document carrying this array loads, and the rest of it -- the id paths,
+ * the view mode, the background, the layout, the run-on-load algorithms -- still applies. Nothing
+ * reads the layers. Loose rather than strict, so a layer written against an older shape (a
+ * `calculatedStyle` beside its style, for instance) does not take the whole document down.
+ */
 const StyleLayer = z
-    .strictObject({
+    .looseObject({
         node: AppliedNodeStyle,
         edge: AppliedEdgeStyle,
         metadata: StyleLayerMetadata.optional(),
     })
-    .partial()
-    .refine((data) => !!data.node || !!data.edge, "StyleLayer requires either 'node' or 'edge'.");
+    .partial();
 
 const TemplateMetadata = z.strictObject({
     templateName: z.string().optional(),
@@ -74,6 +52,7 @@ const StyleTemplateV1 = z.strictObject({
     majorVersion: z.literal("1"),
     metadata: TemplateMetadata.optional(),
     graph: GraphStyle.prefault({}),
+    /** Accepted and ignored. See {@link StyleLayer}; style layers are `session.styles`. */
     layers: z.array(StyleLayer).prefault([]),
     data: DataConfig.prefault({}),
     behavior: GraphBehaviorOpts.prefault({}),
@@ -81,6 +60,4 @@ const StyleTemplateV1 = z.strictObject({
 
 export const StyleTemplate = z.discriminatedUnion("majorVersion", [StyleTemplateV1]);
 
-export type StyleSchema = z.infer<typeof StyleTemplate>;
 export type StyleSchemaV1 = z.infer<typeof StyleTemplateV1>;
-export type StyleLayerType = z.infer<typeof StyleLayer>;

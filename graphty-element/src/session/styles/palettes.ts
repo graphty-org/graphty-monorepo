@@ -31,7 +31,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
+import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
 import type { PaletteDescriptor, PaletteId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation";
@@ -105,20 +105,29 @@ export function paletteCapacity(
 }
 
 /**
- * Look a palette up, or say what the element does have.
+ * Look a palette up, or say what this page does have.
+ *
+ * `E_UNKNOWN_PALETTE` RATHER THAN `E_BAD_LAYER`, because the two answer different questions. A
+ * layer that names a palette is well formed; what is wrong is that nothing on this page answers
+ * to the name, which is the same failure a consumer already switches on for an unknown algorithm,
+ * layout or format. A reader who registered their own palette and misspelled it gets the family
+ * of code that tells them to register it or pick another, and `details.candidates` is what a
+ * settings panel shows them.
  * @param id - The palette name.
  * @returns The descriptor.
- * @throws `E_BAD_LAYER` naming every palette the element knows, because a misspelled palette
- *   must not quietly become the default one.
+ * @throws `E_UNKNOWN_PALETTE` naming every palette that can be painted with here, because a
+ *   misspelled palette must not quietly become the default one.
  */
 function requirePalette(id: PaletteId): PaletteDescriptor {
     const found = paletteDescriptor(id);
     if (found === undefined) {
+        const available = knownPaletteIds();
+
         throw new GraphtyError({
-            code: "E_BAD_LAYER",
+            code: "E_UNKNOWN_PALETTE",
             message: `There is no palette named "${id}".`,
             source: "style",
-            details: { palette: id, available: PALETTE_DESCRIPTORS.map((descriptor) => descriptor.id) },
+            details: { palette: id, available, candidates: available },
         });
     }
 

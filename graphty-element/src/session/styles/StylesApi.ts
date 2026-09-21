@@ -60,7 +60,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { paletteDescriptor } from "../../catalog/palettes";
+import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
     Channel,
     EdgeId,
@@ -69,6 +69,7 @@ import type {
     LayerSource,
     LayerSpec,
     NodeId,
+    PaletteDescriptor,
     Path,
     RunId,
     Scope,
@@ -332,6 +333,27 @@ export interface StylesApi {
      */
     legend(): readonly LegendBlock[];
     /**
+     * Resolve once the element has finished painting everything it started for itself.
+     *
+     * WHY A CONSUMER NEEDS THIS. The element paints a run's suggested encoding on the run's first
+     * completion, and it does so WITHOUT making the caller await the picture -- a reader who asked
+     * for a measurement is waiting on the numbers, not on the repaint. The consequence is that
+     * `await runs.start(...)` hands back the result while the paint is still on its way, so a
+     * consumer that reads {@link StylesApi.list} or {@link StylesApi.legend} in the same turn sees
+     * the picture as it stood a moment earlier and can reasonably conclude the element painted
+     * nothing.
+     *
+     * Working that out by counting turns is coordination code, and coordination code is exactly
+     * what a consumer should never have to write against this element. So the element answers the
+     * question instead.
+     *
+     * Every style edit is queued on the session's own queue, so this is the queue being empty
+     * rather than a per-run promise: after it resolves there is no element-initiated painting
+     * outstanding, whoever started it.
+     * @returns A promise that resolves when nothing the element started is still in flight.
+     */
+    settled(): Promise<void>;
+    /**
      * Why one element looks the way it does: what it is painted, which layer painted each part of
      * it, and whether a person may change any of it where they are looking.
      *
@@ -410,7 +432,7 @@ export interface SessionStylesApi extends StylesApi {
 /**
  * A layer the element owns, which is the only kind that may be seeded as one.
  *
- * Element layers exist by construction: they are handed to {@link createStylesApi} and cannot be
+ * Element layers exist by construction: they are handed to `createStylesApi` and cannot be
  * added afterwards, which is what makes `locked` a fact about where a layer came from rather than
  * a flag anybody can set.
  */
@@ -477,8 +499,16 @@ export interface StylesSources {
      * Absent, the session has nothing prepared to read: the legend is empty and an explanation
      * paints nothing. That is the truthful answer for a session with no renderer bound to it, not
      * a degraded one.
+     *
+     * Asked by the COMPILED layer rather than by its id, because a layer id is recycled: it is a
+     * slug of the layer's name plus the lowest number no layer in the stack is using, so removing
+     * a layer frees its id for the next layer of the same name. A lookup by id would answer for
+     * the departed layer, and a legend block would name one layer while reporting another's
+     * channel, domain and palette. This API still speaks ids to its own callers -- {@link
+     * EncodingLookup} is what the legend and the explanation take -- and the translation happens
+     * once, here, where the stack that resolves an id to its compiled layer lives.
      */
-    readonly encoding?: EncodingLookup;
+    readonly encoding?: (entry: CompiledLayer) => readonly PreparedBinding[];
     /**
      * The dense index of one node, for {@link StylesApi.explain}.
      *
@@ -553,12 +583,6 @@ const NO_PATHS: readonly Path[] = Object.freeze([]);
 
 /** A layer nothing prepared has no bindings to read. */
 const NO_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
-
-/**
- * What a session with nothing prepared reads for every layer.
- * @returns No bindings, whichever layer is asked about.
- */
-const NO_ENCODING: EncodingLookup = () => NO_BINDINGS;
 
 /**
  * The index of an element in a session that cannot resolve ids.
@@ -722,9 +746,15 @@ function stamped(spec: LayerSpec, templateId: string | undefined): LayerSpec {
 
 /**
  * Check a style document is one this element can read at all.
+ *
+ * A DOCUMENT MAY CARRY PALETTES AND THEY ARE NOT AN ERROR. The refusal here used to say that
+ * "palettes travel with the element, not with a document", which stopped being true the moment a
+ * palette could be registered: a document naming a registered palette is applied, and only one
+ * naming a palette nothing registered is refused -- with the code that tells a consumer to
+ * register it first rather than one that says the element does not support the idea.
  * @param document - The document.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a version this element does not read,
- *   and `E_UNSUPPORTED` for a palette it does not have.
+ *   and `E_UNKNOWN_PALETTE` for a palette nothing on this page has registered.
  */
 function checkDocument(document: StyleDocument): void {
     // Read as a number rather than as the literal the type declares: a document is data off a
@@ -744,15 +774,59 @@ function checkDocument(document: StyleDocument): void {
         .map((palette) => palette.id);
 
     if (missing.length > 0) {
+        const available = knownPaletteIds();
+
         throw new GraphtyError({
-            code: "E_UNSUPPORTED",
+            code: "E_UNKNOWN_PALETTE",
             message:
-                `This element does not have the palette ${missing.map((id) => `"${id}"`).join(", ")}, ` +
-                "and a document cannot register one. Applying it would paint colours nobody chose.",
+                `Nothing has registered the palette ${missing.map((id) => `"${id}"`).join(", ")}. ` +
+                "Register it with `registerPalette` before applying this document; applying it now would " +
+                "paint colours nobody chose.",
             source: "style",
-            details: { palettes: missing, reason: "palettes travel with the element, not with a document" },
+            details: { palettes: missing, available, candidates: available },
         });
     }
+}
+
+/**
+ * The descriptors of every palette these layers name that the element does not itself ship.
+ *
+ * WHY A SAVED LOOK CARRIES THEM. A document records the palette a layer paints through by NAME,
+ * and a name is only meaningful on a page that registered it. Writing the descriptor beside the
+ * name makes the document self-describing: the consumer opening it can see exactly which palettes
+ * it needs, show them, and register them -- rather than getting a refusal naming a palette they
+ * have no way to reconstruct. The element's own palettes are left out on purpose, because they
+ * are the same everywhere and copying seventeen descriptors into every saved file would make a
+ * document larger than the look it records.
+ * @param specs - The layers being written out.
+ * @returns The descriptors, in the order the palettes were first named.
+ */
+function carriedPalettes(specs: readonly LayerSpec[]): readonly PaletteDescriptor[] {
+    const named = new Set<string>();
+
+    for (const spec of specs) {
+        for (const binding of Object.values(spec.encode ?? {})) {
+            if (binding !== undefined && "by" in binding && binding.palette !== undefined) {
+                named.add(String(binding.palette));
+            }
+        }
+    }
+
+    const carried: PaletteDescriptor[] = [];
+
+    for (const id of named) {
+        if (PALETTE_DESCRIPTORS.some((descriptor) => descriptor.id === id)) {
+            continue;
+        }
+
+        const descriptor = paletteDescriptor(id);
+
+        if (descriptor !== undefined) {
+            carried.push(descriptor);
+        }
+    }
+
+    return carried;
 }
 
 /**
@@ -913,10 +987,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return listCache;
     };
 
+    /**
+     * The bindings one layer was painted from, by the id its readers know it by.
+     *
+     * The translation between the two ways a layer is addressed, in the one place that holds
+     * both: `legend()` and `explain()` have a `LayerId`, and the pass that prepared the bindings
+     * is keyed by the compiled layer object so that a recycled id cannot answer for a layer that
+     * has gone. A layer that is not in the stack, and a session with nothing prepared at all,
+     * both read as no bindings -- which is the truthful answer rather than a degraded one.
+     * @param layerId - The layer.
+     * @returns Its prepared bindings, fixed values first and rules second.
+     */
+    const encodingOf: EncodingLookup = (layerId) => {
+        const entry = byId.get(layerId);
+
+        return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
+    };
+
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
         stack: () => stack,
-        encoding: sources.encoding ?? NO_ENCODING,
+        encoding: encodingOf,
         elements: sources.elements,
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
@@ -926,7 +1017,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         layers: listLayers,
-        encoding: sources.encoding ?? NO_ENCODING,
+        encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
     };
@@ -1632,16 +1723,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return buildLegend(legendSources);
         },
 
+        settled(): Promise<void> {
+            // A stack with no queue behind it runs its edits inline, so there is never anything
+            // in flight for a caller to wait on and "already settled" is the true answer.
+            return sources.queue?.settled() ?? Promise.resolve();
+        },
+
         explain(target: ExplainTarget): StyleExplanation {
             return explainStyle(target, explainSources);
         },
 
         toDocument(): StyleDocument {
+            const layers = stack.filter((entry) => !entry.layer.locked).map((entry) => specOf(entry.layer));
+            const carried = carriedPalettes(layers);
+
             return Object.freeze({
                 version: DOCUMENT_VERSION,
-                layers: Object.freeze(
-                    stack.filter((entry) => !entry.layer.locked).map((entry) => specOf(entry.layer)),
-                ),
+                layers: Object.freeze(layers),
+                // Written only when there is something to write, so a look that uses nothing but
+                // the element's own palettes saves byte for byte what it saved before.
+                ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
             });
         },
     };

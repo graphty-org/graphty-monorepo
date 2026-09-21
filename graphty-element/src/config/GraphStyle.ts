@@ -13,7 +13,17 @@ const GraphBackgroundSkybox = z.strictObject({
     data: ImageData,
 });
 
-const GraphBackground = z.discriminatedUnion("backgroundType", [GraphBackgroundColor, GraphBackgroundSkybox]);
+/**
+ * What the graph is drawn against: a flat colour, or a photo-dome skybox built from an image.
+ *
+ * The colour accepts any CSS colour the element understands and is normalised to hex on parse;
+ * the skybox's `data` is an image URL or a base64 PNG. It is the shape `element.background` and
+ * `graph.setBackground()` take.
+ */
+export const GraphBackground = z.discriminatedUnion("backgroundType", [GraphBackgroundColor, GraphBackgroundSkybox]);
+
+/** The graph background as it parses. See {@link GraphBackground}. */
+export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
 
 const GraphEffects = z.strictObject({
     // https://doc.babylonjs.com/features/featuresDeepDive/postProcesses/motionBlurPostProcess/
@@ -30,6 +40,12 @@ const GraphEffects = z.strictObject({
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
 export const GraphStyle = z.strictObject({
+    /**
+     * ACCEPTED AND IGNORED. It used to decide whether the element unshifted a default layer onto
+     * the 1.x layer stack; that stack is gone, and the session's two locked base layers give
+     * every graph its defaults unconditionally. The key stays because this object is strict, so
+     * dropping it would turn every document that still carries it into a parse error.
+     */
     addDefaultStyle: z.boolean().default(true),
     background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     effects: GraphEffects.optional(),

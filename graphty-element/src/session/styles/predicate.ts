@@ -1057,6 +1057,22 @@ function compileTest(node: ExpressionNode, columns: ElementColumns): ElementPred
  * "bipartite-matching" -- so a key pasted into an expression unquoted lexes the hyphen as
  * arithmetic and the whole selector is refused. That is not a hypothetical: it took the picture
  * off every highlight-shaped algorithm whose name has a hyphen in it.
+ *
+ * Published so that nobody outside the element has to rediscover that. Any path going into an
+ * expression goes through here first -- a result path, an attribute path, anything:
+ *
+ * ```ts
+ * import { quotePath, resultPath } from "@graphty/graphty-element/session";
+ *
+ * const layer = {
+ *     selector: { match: "expression", where: `${quotePath(resultPath(run.id, "value"))} >= \`3\`` },
+ * };
+ * ```
+ *
+ * Takes a PATH and gives back expression source, so it is applied exactly once, to the raw key:
+ * running it over its own output would quote the quotes. Nothing throws and a path that needed
+ * no quoting comes back unchanged, so it costs nothing to call on a path that turns out to be
+ * plain.
  * @param path - The column key.
  * @returns The same key, with every segment that is not an unquoted name written as a JSON string.
  */

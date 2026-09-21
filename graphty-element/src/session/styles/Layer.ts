@@ -45,6 +45,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
 import type {
     Binding,
     ChannelValue,
@@ -702,6 +703,21 @@ function checkBinding(
             message: `There is no scale called "${binding.scale}".`,
             path: `${path}.scale`,
             candidates: options.scales.names(),
+        });
+    }
+
+    /* A PALETTE IS CHECKED HERE, WHERE THE SCALE IS, AND FOR THE SAME REASON. Without this a
+       layer naming a palette nothing registered was accepted at the edit, written onto the layer,
+       and then failed one repaint later as a layer that paints nothing -- with the failure
+       arriving somewhere a settings form is not listening. The list of candidates is read from
+       the catalogue, so a reader who registered their own palette and mistyped it is shown their
+       own palette among the near misses rather than only the element's seventeen. */
+    if (binding.palette !== undefined && paletteDescriptor(binding.palette) === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_PALETTE",
+            message: `There is no palette called "${binding.palette}".`,
+            path: `${path}.palette`,
+            candidates: knownPaletteIds(),
         });
     }
 

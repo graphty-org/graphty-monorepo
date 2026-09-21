@@ -267,6 +267,16 @@ export interface EngineVersions {
     readonly algorithms: string;
     /** The layout package version. */
     readonly layout: string;
+    /**
+     * The versions of any registered extensions that produced these numbers, by catalogue key.
+     *
+     * WHY IT IS HERE. The three fixed fields above name the element and its two sibling packages,
+     * which is everything when the element's own algorithm did the work. A run of a THIRD PARTY's
+     * algorithm used to record those same three and nothing at all identifying the code that
+     * actually computed the result -- which is the field's whole purpose. Filled from an optional
+     * `static version` on the registered class, and absent when the class declares none.
+     */
+    readonly plugins?: Readonly<Record<string, string>>;
 }
 
 // ---------------------------------------------------------------------------------------------

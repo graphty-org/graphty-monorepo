@@ -20,8 +20,8 @@ import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
-import { GraphtyError } from "../errors";
-import { SESSION_CATALOG } from "./catalog";
+import { GraphtyError, isGraphtyError } from "../errors";
+import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { SessionData } from "./data";
 import { estimateCommand, type Plan, planCommand, type PlanningContext, type SessionCommand } from "./planning";
@@ -134,6 +134,8 @@ const ATTRIBUTE_PREFIX = "data.";
 interface SessionParts {
     /** The store to read, whoever built it. */
     readonly store: SessionGraphStore;
+    /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
+    readonly catalog: SessionCatalogApi;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
     /** The data surface over that store. */
@@ -208,7 +210,7 @@ function refuseToExecute(context: RunExecutionContext): Promise<RunOutcome> {
  */
 class Session implements ElementSession {
     readonly data: SessionDataApi;
-    readonly catalog: SessionCatalogApi = SESSION_CATALOG;
+    readonly catalog: SessionCatalogApi;
     readonly runs: RunsApi;
     readonly results: ResultsApi;
     readonly scope: ScopeApi;
@@ -241,6 +243,7 @@ class Session implements ElementSession {
         this.ownedStore = parts.ownedStore;
         this.sessionData = parts.data;
         this.data = parts.data;
+        this.catalog = parts.catalog;
         this.readData = parts.readData;
         this.accelerationConfig = parts.accelerationConfig;
         this.acceleration = parts.acceleration;
@@ -264,6 +267,16 @@ class Session implements ElementSession {
      */
     get positions(): ElementPositions {
         return this.store.positions;
+    }
+
+    /**
+     * How many nodes the data arrived carrying a coordinate for.
+     *
+     * See the interface: this is the importer's own count, which a running layout does not move.
+     * @returns the count
+     */
+    get seededNodeCount(): number {
+        return this.store.seededNodeCount;
     }
 
     /**
@@ -852,7 +865,12 @@ function edgeIndexOf(readSnapshot: () => GraphSnapshot): (id: EdgeId) => number 
 function repaintAgainstCurrentData(
     engine: RepaintEngine,
     readSnapshot: () => GraphSnapshot,
-): { paint: ElementPaint; repaint: RepaintEngine["repaint"]; invalidate: () => void } {
+): {
+    paint: ElementPaint;
+    repaint: RepaintEngine["repaint"];
+    encoding: RepaintEngine["encoding"];
+    invalidate: () => void;
+} {
     let painted: GraphSnapshot | null = null;
 
     /**
@@ -892,6 +910,14 @@ function repaintAgainstCurrentData(
 
             return engine.repaint(request, context);
         },
+        // A READ, so it does NOT re-prepare against current data first. Two reasons, and the
+        // second is the load-bearing one. `againstCurrentData` would forget what the pass
+        // prepared, and a legend asked for between a data change and the repaint that answers it
+        // would report nothing about a picture that is still on screen -- which happens on an
+        // ordinary re-run, where the auto-apply policy declines and nothing repaints. And a
+        // domain is settled against the element count the pass last sized its stores to, so
+        // preparing here rather than in a pass would invent one.
+        encoding: (entry) => engine.encoding(entry),
         invalidate: (): void => {
             engine.invalidate();
             painted = null;
@@ -1013,7 +1039,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
     const runs = createRunsApi({
         queue,
-        catalog: SESSION_CATALOG,
+        catalog: SESSION_CATALOG_TABLES,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         execute: runsOptions.execute ?? refuseToExecute,
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
@@ -1026,7 +1052,58 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         // one API, and a decision made at the doors is a decision made more than once.
         styling: createAutoApplyPolicy({
             styles: () => stack ?? undefined,
+            // WHERE A REFUSAL GOES WHEN NOBODY IS AWAITING IT. The element paints a run's
+            // suggestion on the run's own completion, fire-and-forget, because a consumer must
+            // not have to await the picture in order to have started the work. That leaves a
+            // refusal with nowhere to arrive: not at a call site, because there was no call.
+            // Unwired, it was swallowed, and a graph kept the picture it already had while the
+            // element believed it had painted a new one -- which is the silent failure the whole
+            // style system exists to replace.
+            onProblem: (runId, error) => {
+                publish(watchers, "style:problem", {
+                    runId,
+                    error: isGraphtyError(error)
+                        ? error
+                        : new GraphtyError({
+                              code: "E_INTERNAL",
+                              message: `Applying the styling suggested by run "${runId}" failed.`,
+                              source: "style",
+                              target: { kind: "run", id: runId },
+                              cause: error,
+                          }),
+                });
+            },
         }),
+        // WHICH LAYERS READ A RUN, which is the question behind "Removes 2 style layers" on a
+        // confirmation dialog and behind not leaving a layer pointing at a column that has gone.
+        // A layer records the run it came from in its own `source`, so this is a read of the
+        // stack rather than a second register that could disagree with it. Late-bound for the
+        // same reason the policy above is: the stack is built from this API and cannot exist yet.
+        layers: {
+            bindings: (runId) =>
+                (stack?.list() ?? [])
+                    .filter((layer) => layer.source.by === "run" && layer.source.runId === runId)
+                    .map((layer) => layer.id),
+            remove: (layerIds) => {
+                for (const layerId of layerIds) {
+                    // Fire and forget with the refusal reported, on the same terms as every other
+                    // style edit the element starts on a consumer's behalf: removing the run is
+                    // what was asked for, and it must not wait on the repaint that follows.
+                    void stack?.remove(layerId).then(
+                        () => undefined,
+                        (error: unknown) => {
+                            // Said out loud rather than swallowed. A run layer is never locked,
+                            // so a refusal here means something unexpected about the stack, and a
+                            // layer left behind reads a column whose run has gone.
+                            console.error(
+                                `[graphty] Could not remove style layer "${layerId}" with the run that produced it.`,
+                                error,
+                            );
+                        },
+                    );
+                }
+            },
+        },
         onChange: (change) => {
             if (change.phase === "end") {
                 // A run that has just published has replaced the column a style layer bound to
@@ -1094,6 +1171,10 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
         repaint: painter.repaint,
+        // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
+        // painted from. Without it both verbs fall back to "nothing is prepared" and report an
+        // empty picture on a graph that is plainly painted.
+        encoding: painter.encoding,
         // THE SAME QUEUE the runs and the filters take their turn in. A style write that ran
         // beside a load would paint half a graph and then be handed the other half.
         queue,
@@ -1106,10 +1187,26 @@ function buildSession(options: CreateGraphSessionOptions): Session {
 
     stack = styles;
 
+    const planning = planningContext(
+        runsOptions,
+        data,
+        (spec: Scope) => scope.resolveNow(spec),
+        defaultScope,
+        acceleration.acceleration,
+    );
+
     return new Session({
         store: store.store,
         ownedStore: store.owned,
         data,
+        // THE SAME COST MODEL THE BUTTON ASKS. A metric listing quotes the number a run of that
+        // metric would be estimated at, so it is produced by the estimate rather than by a second
+        // model beside it: one source, consulted twice, cannot disagree with itself.
+        catalog: createSessionCatalog({
+            algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
+            estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
+            runs: () => runs.list(),
+        }),
         readData,
         accelerationConfig: Object.freeze({ policy, minNodes }),
         acceleration: acceleration.acceleration,
@@ -1121,13 +1218,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         visibility,
         styles,
         paint: painter.paint,
-        planning: planningContext(
-            runsOptions,
-            data,
-            (spec: Scope) => scope.resolveNow(spec),
-            defaultScope,
-            acceleration.acceleration,
-        ),
+        planning,
         watchers,
     });
 }
@@ -1230,7 +1321,7 @@ function planningContext(
     const defaultCaveats: Caveats = runsOptions.defaultCaveats ?? PLANNED_CAVEATS;
 
     return {
-        algorithms: () => SESSION_CATALOG.algorithms(),
+        algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
         statistics: () => data.statistics(),
         resolveScope,
         defaultScope,

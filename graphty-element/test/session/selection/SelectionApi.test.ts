@@ -18,7 +18,7 @@ import {
     type SetOp,
 } from "../../../src/session/selection/index";
 import type { SessionRecordSource } from "../../../src/session/types";
-import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
 /** A session with data in it. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = [], directed?: boolean): Harness {
@@ -70,10 +70,10 @@ describe("two sets rather than one node", () => {
         const harness = line();
         const selection: SelectionApi = selectionOf(harness);
 
-        const delta = await selection.apply({ nodes: ["a", "c"], edges: ["a:b"] });
+        const delta = await selection.apply({ nodes: ["a", "c"], edges: [edgeBetween(harness, "a", "b")] });
 
         assert.deepStrictEqual([...selection.nodes], ["a", "c"]);
-        assert.deepStrictEqual([...selection.edges], ["a:b"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b")]);
         assert.strictEqual(selection.size, 3, "the size counts both halves");
         assert.strictEqual(delta.nodes, 2);
         assert.strictEqual(delta.edges, 1);
@@ -105,10 +105,10 @@ describe("two sets rather than one node", () => {
         const harness = line();
         const selection = selectionOf(harness);
 
-        selection.applyNow({ nodes: ["a", "gone"], edges: ["a:b", "a:d"] });
+        selection.applyNow({ nodes: ["a", "gone"], edges: [edgeBetween(harness, "a", "b"), "999"] });
 
         assert.deepStrictEqual([...selection.nodes], ["a"]);
-        assert.deepStrictEqual([...selection.edges], ["a:b"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 });
@@ -160,7 +160,7 @@ describe("the five set operations", () => {
         // anything else would make replace and intersect do something no set operation does.
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ nodes: ["a", "b"], edges: ["a:b"] });
+        selection.applyNow({ nodes: ["a", "b"], edges: [edgeBetween(harness, "a", "b")] });
 
         selection.applyNow({ nodes: ["a"] }, "intersect");
 
@@ -172,12 +172,12 @@ describe("the five set operations", () => {
     it("empties on clear", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ nodes: ["a"], edges: ["a:b"] });
+        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "a", "b")] });
 
         const delta = selection.clear();
 
         assert.strictEqual(selection.size, 0);
-        assert.deepStrictEqual([...delta.removed], ["a", "a:b"]);
+        assert.deepStrictEqual([...delta.removed], ["a", edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
@@ -210,9 +210,9 @@ describe("the delta every mutation answers with", () => {
         const harness = line();
         const selection = selectionOf(harness);
 
-        const delta = selection.applyNow({ nodes: ["b"], edges: ["a:b", "b:c"] });
+        const delta = selection.applyNow({ nodes: ["b"], edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")] });
 
-        assert.deepStrictEqual([...delta.added], ["b", "a:b", "b:c"]);
+        assert.deepStrictEqual([...delta.added], ["b", edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")]);
         harness.session.dispose();
     });
 
@@ -271,7 +271,7 @@ describe("the id arrays", () => {
     it("are frozen", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ nodes: ["a"], edges: ["a:b"] });
+        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "a", "b")] });
 
         assert.isTrue(Object.isFrozen(selection.nodes));
         assert.isTrue(Object.isFrozen(selection.edges));
@@ -315,12 +315,12 @@ describe("membership testing", () => {
     it("answers for a node and for an edge", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ nodes: ["a"], edges: ["b:c"] });
+        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "b", "c")] });
 
         assert.isTrue(selection.has("a"));
-        assert.isTrue(selection.has("b:c"));
+        assert.isTrue(selection.has(edgeBetween(harness, "b", "c")));
         assert.isFalse(selection.has("b"));
-        assert.isFalse(selection.has("a:b"));
+        assert.isFalse(selection.has(edgeBetween(harness, "a", "b")));
         harness.session.dispose();
     });
 
@@ -337,7 +337,7 @@ describe("membership testing", () => {
                 return harness.store.getSnapshot();
             },
         });
-        selection.applyNow({ nodes: ["a"], edges: ["a:b"] });
+        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "a", "b")] });
         const materialised = selection.nodes;
         const reads = snapshotReads;
 
@@ -345,7 +345,7 @@ describe("membership testing", () => {
             selection.has("a");
             selection.has("nobody");
             selection.has(7);
-            selection.has("a:b");
+            selection.has(edgeBetween(harness, "a", "b"));
         }
 
         assert.strictEqual(snapshotReads, reads, "membership never went back to the store");
@@ -358,7 +358,7 @@ describe("membership testing", () => {
         const selection = selectionOf(harness);
         selection.applyNow({ nodes: ["a"] });
 
-        assert.isFalse(selection.has("a:b"), "no edge is selected, so no edge can be a member");
+        assert.isFalse(selection.has(edgeBetween(harness, "a", "b")), "no edge is selected, so no edge can be a member");
         assert.isFalse(selection.has(1), "a number is never an edge id, so the edge half is not asked");
         harness.session.dispose();
     });
@@ -368,7 +368,7 @@ describe("the masks the model is built on", () => {
     it("hands out one byte per element, as a detached copy", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ nodes: ["a", "c"], edges: ["b:c"] });
+        selection.applyNow({ nodes: ["a", "c"], edges: [edgeBetween(harness, "b", "c")] });
 
         const nodes = selection.nodeMask();
         const edges = selection.edgeMask();
@@ -427,7 +427,7 @@ describe("the masks the model is built on", () => {
     it("follows a freeze that renumbered the edges", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ edges: ["a:b", "c:d"] });
+        selection.applyNow({ edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "c", "d")] });
 
         selection.remapEdges(Uint32Array.from([0, INVALID_INDEX, 1]), 2);
 
@@ -475,8 +475,8 @@ describe("the cap", () => {
         const first = selectionOf(harness, { cap: () => 3 });
         const second = selectionOf(harness, { cap: () => 3 });
 
-        first.applyNow({ nodes: ["a", "b", "c"], edges: ["a:b", "b:c"] });
-        second.applyNow({ nodes: ["c", "b", "a"], edges: ["b:c", "a:b"] });
+        first.applyNow({ nodes: ["a", "b", "c"], edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")] });
+        second.applyNow({ nodes: ["c", "b", "a"], edges: [edgeBetween(harness, "b", "c"), edgeBetween(harness, "a", "b")] });
 
         assert.deepStrictEqual([...first.nodes], ["a", "b", "c"]);
         assert.deepStrictEqual([...first.edges], [], "the cap was reached before the edge half");
@@ -605,7 +605,7 @@ describe("keeping a selection under a name", () => {
         const harness = line();
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
         const selection = selectionOf(harness, { scope });
-        selection.applyNow({ nodes: ["a", "b"], edges: ["a:b"] });
+        selection.applyNow({ nodes: ["a", "b"], edges: [edgeBetween(harness, "a", "b")] });
 
         const id = selection.promote("Core hosts");
 
@@ -640,7 +640,7 @@ describe("what a scope reads off the selection", () => {
         const resolved = scope.resolveNow("selection");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...resolved.edges], ["a:b"], "a scope's edges are induced from its nodes");
+        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")], "a scope's edges are induced from its nodes");
 
         selection.applyNow({ nodes: ["c"] }, "add");
 

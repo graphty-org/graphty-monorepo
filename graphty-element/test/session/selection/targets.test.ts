@@ -23,7 +23,7 @@ import {
     type TargetContext,
     type TargetMembers,
 } from "../../../src/session/selection/index";
-import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
 const CAVEATS: Caveats = {
     exact: true,
@@ -57,6 +57,18 @@ const NODE_METRIC: RunResult = createRunResult({
     durationMs: 1,
 });
 
+/**
+ * The element's ids for the first two edges of the `line()` fixture.
+ *
+ * `line()` adds a->b, b->c and c->d in that order, and the element stamps its edge counter in
+ * arrival order, so these are the ids those edges are addressed by. They are written out rather
+ * than resolved from a session because the fixtures below are built at module scope, before any
+ * session exists.
+ */
+const AB = "0";
+/** The id of the b->c edge. See {@link AB}. */
+const BC = "1";
+
 /** A finished metric over two of the edges. */
 const EDGE_METRIC: RunResult = createRunResult({
     runId: "weight",
@@ -64,8 +76,8 @@ const EDGE_METRIC: RunResult = createRunResult({
     fields: [field({ name: "value", plainName: "Weight", technicalName: "weight", kind: "edge", type: "number" })],
     measured: { nodes: 0, edges: 2 },
     edges: [
-        { id: "a:b", values: { value: 5 } },
-        { id: "b:c", values: { value: 1 } },
+        { id: AB, values: { value: 5 } },
+        { id: BC, values: { value: 1 } },
     ],
     caveats: CAVEATS,
     durationMs: 1,
@@ -128,12 +140,12 @@ describe("elements named outright", () => {
     it("takes the nodes and the edges a caller already holds", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        const target: ElementIdTarget = { nodes: ["a", "d"], edges: ["b:c"] };
+        const target: ElementIdTarget = { nodes: ["a", "d"], edges: [edgeBetween(harness, "b", "c")] };
 
         selection.applyNow(target);
 
         assert.deepStrictEqual([...selection.nodes], ["a", "d"]);
-        assert.deepStrictEqual([...selection.edges], ["b:c"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "b", "c")]);
         harness.session.dispose();
     });
 
@@ -180,10 +192,12 @@ describe("a pasted list of ids", () => {
         const harness = harnessOf([{ id: "a" }, { id: 42 }], [{ src: "a", dst: 42 }]);
         const selection = selectionOf(harness);
 
-        const delta = selection.applyNow({ ids: ["a", "a:42", "42", "nobody"] });
+        // "0" is the element's id for the one edge; "42" is a NODE id that happens to look like
+        // a counter, and the resolver has to try both spaces rather than assuming one.
+        const delta = selection.applyNow({ ids: ["a", "0", "42", "nobody"] });
 
         assert.deepStrictEqual([...selection.nodes], ["a", 42], "\"42\" found the node loaded under the number 42");
-        assert.deepStrictEqual([...selection.edges], ["a:42"]);
+        assert.deepStrictEqual([...selection.edges], ["0"]);
         assert.deepStrictEqual(delta.unmatched === undefined ? [] : [...delta.unmatched], ["nobody"]);
         harness.session.dispose();
     });
@@ -217,7 +231,7 @@ describe("a predicate and a text search", () => {
     const match = (where: Query): SelectionMatch =>
         where === "unanswerable"
             ? { unresolvedPaths: ["results.betwenness.value"] }
-            : { nodes: ["a", "c"], edges: ["a:b"] };
+            : { nodes: ["a", "c"], edges: [AB] };
 
     it("selects whatever the query engine matched, in both halves", () => {
         const harness = line();
@@ -226,7 +240,7 @@ describe("a predicate and a text search", () => {
         selection.applyNow({ where: "anything" });
 
         assert.deepStrictEqual([...selection.nodes], ["a", "c"]);
-        assert.deepStrictEqual([...selection.edges], ["a:b"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
@@ -247,7 +261,7 @@ describe("a predicate and a text search", () => {
         const find = (text: string, mode: SelectionTextMode): readonly SelectionSearchHit[] => {
             modes.push(mode);
 
-            return text === "edge" ? [{ id: "a:b", kind: "edge" }] : [{ id: "a", kind: "node" }];
+            return text === "edge" ? [{ id: edgeBetween(harness, "a", "b"), kind: "edge" }] : [{ id: "a", kind: "node" }];
         };
         const selection = selectionOf(harness, { find });
 
@@ -255,7 +269,7 @@ describe("a predicate and a text search", () => {
         assert.deepStrictEqual([...selection.nodes], ["a"]);
 
         selection.applyNow({ text: "edge", mode: "exact" });
-        assert.deepStrictEqual([...selection.edges], ["a:b"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b")]);
         assert.deepStrictEqual(modes, ["substring", "exact"]);
         harness.session.dispose();
     });
@@ -279,7 +293,7 @@ describe("a scope", () => {
         selection.applyNow({ scope: { nodes: ["a", "b", "c"] } });
 
         assert.deepStrictEqual([...selection.nodes], ["a", "b", "c"]);
-        assert.deepStrictEqual([...selection.edges], ["a:b", "b:c"], "a scope's edges come with it");
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "a scope's edges come with it");
         harness.session.dispose();
     });
 
@@ -388,7 +402,7 @@ describe("a finished run's ranking", () => {
         selection.applyNow({ top: { run: "weight", field: "value", n: 1 } });
 
         assert.deepStrictEqual([...selection.nodes], []);
-        assert.deepStrictEqual([...selection.edges], ["a:b"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
@@ -452,7 +466,7 @@ describe("the two targets that are relative to the selection", () => {
         selection.applyNow({ edgesBetween: true }, "add");
 
         assert.deepStrictEqual([...selection.nodes], ["a", "b", "c"]);
-        assert.deepStrictEqual([...selection.edges], ["a:b", "b:c"], "c:d leaves the selection, so it is not between");
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "c:d leaves the selection, so it is not between");
         harness.session.dispose();
     });
 
@@ -464,19 +478,19 @@ describe("the two targets that are relative to the selection", () => {
         selection.applyNow({ edgesBetween: true });
 
         assert.deepStrictEqual([...selection.nodes], []);
-        assert.deepStrictEqual([...selection.edges], ["a:b"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
     it("inverts both halves", () => {
         const harness = line();
         const selection = selectionOf(harness);
-        selection.applyNow({ nodes: ["a"], edges: ["a:b"] });
+        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "a", "b")] });
 
         selection.applyNow({ invert: true });
 
         assert.deepStrictEqual([...selection.nodes], ["b", "c", "d"]);
-        assert.deepStrictEqual([...selection.edges], ["b:c", "c:d"]);
+        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "b", "c"), edgeBetween(harness, "c", "d")]);
         harness.session.dispose();
     });
 

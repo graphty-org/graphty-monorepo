@@ -111,6 +111,9 @@ function makeHarness(rows: readonly Row[] = NODES, extra: Partial<RepaintSources
         elements,
         base: [ELEMENT_BASE],
         repaint: engine.repaint,
+        // The real wiring: the stack reads what the pass prepared, so `legend()` and `explain()`
+        // are exercised here through the same seam a session uses rather than through a stub.
+        encoding: engine.encoding,
         onChange: (change) => {
             changes.push(change);
         },
@@ -696,5 +699,142 @@ describe("a binding prepared against a column that has moved", () => {
         await harness.paintAll();
 
         assert.strictEqual(harness.engine.styleOf("node", 1)["node.size"], 25, "the domain was read again");
+    });
+});
+
+/**
+ * WHAT THE LAST PASS PAINTED FROM, WHICH IS WHAT A LEGEND IS ALLOWED TO SAY.
+ *
+ * `styles.legend()` and `styles.explain()` are reads of the prepared bindings the repaint
+ * painted from -- the scale, the domain it settled against the column, the palette. That is what
+ * makes them a reading of the object that made the picture instead of a second guess at it, and
+ * it is why the pass publishes them through `RepaintEngine.encoding` rather than preparing a
+ * fresh set on demand. A fresh set would be wrong as well as slow: a domain is settled against
+ * the element count the pass last sized its stores to, so preparing outside a pass invents one.
+ *
+ * Two properties of that read are not obvious, and both were wrong in a first attempt at it.
+ */
+describe("the bindings the last pass painted from", () => {
+    it("reports the scale and the domain the pass settled, per layer", async () => {
+        const harness = makeHarness();
+        const layer = await harness.styles.add({
+            name: "Weight",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", scale: "linear", range: [0, 100] } },
+        });
+
+        const entry = harness.stack().find((candidate) => candidate.layer.id === layer.id);
+
+        assert.isDefined(entry);
+
+        const [binding] = harness.engine.encoding(entry);
+
+        assert.isDefined(binding, "a layer that painted reports what it painted from");
+        assert.strictEqual(binding.channel, "node.size");
+        // 0 to 12 across the four nodes that carry a weight: read off the column by the pass, not
+        // declared by the layer, which is the whole reason a legend has to ask the pass.
+        assert.deepStrictEqual(binding.domain, [0, 12]);
+    });
+
+    it("reports nothing for a layer that was never painted", async () => {
+        const harness = makeHarness();
+        const layer = await harness.styles.add({
+            name: "Nobody",
+            selector: { match: "has", path: "results.nothing.here" },
+            set: { "node.color": "#ff0000" },
+        });
+
+        const entry = harness.stack().find((candidate) => candidate.layer.id === layer.id);
+
+        assert.isDefined(entry);
+        assert.deepStrictEqual(
+            harness.engine.encoding(entry),
+            [],
+            "a layer whose selector matched nothing was never prepared, and a legend row for it would be invented",
+        );
+    });
+
+    /**
+     * A LAYER ID IS RECYCLED, so the record cannot be kept under one.
+     *
+     * An id is a slug of the layer's name plus the lowest number no layer in the stack is using,
+     * and "in the stack" is worked out fresh on every mint. So removing a layer puts its id back
+     * in circulation, and the next layer of the same name takes it. An index keyed by id would
+     * hand the new layer the removed one's bindings, and the legend would name one layer while
+     * reporting another layer's channel, domain and palette -- which is exactly the false claim
+     * the legend is built to avoid making.
+     */
+    it("does not hand a new layer the bindings of a removed layer that had its id", async () => {
+        const harness = makeHarness();
+        const first = await harness.styles.add({
+            name: "Weight",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", scale: "linear", range: [0, 100] } },
+        });
+
+        await harness.paintAll();
+        await harness.styles.remove(first.id);
+
+        // The same name, so the same id -- and a selector that matches nothing, so the pass never
+        // prepares it and there is nothing of its own for it to report.
+        const second = await harness.styles.add({
+            name: "Weight",
+            selector: { match: "has", path: "results.nothing.here" },
+            set: { "node.color": "#00ff00" },
+        });
+
+        assert.strictEqual(second.id, first.id, "the id really was reissued, which is what makes this a trap");
+
+        const entry = harness.stack().find((candidate) => candidate.layer.id === second.id);
+
+        assert.isDefined(entry);
+        assert.deepStrictEqual(harness.engine.encoding(entry), [], "and it reports its own nothing, not the old layer's size ramp");
+    });
+
+    /**
+     * INVALIDATING IS NOT FORGETTING WHAT IS ON SCREEN.
+     *
+     * `invalidate()` says "the next pass must settle its domains again", which is true the moment
+     * the data behind a column moves. It does not say "nothing is painted": the pixels the last
+     * pass produced are still there until something repaints them, and there are ordinary paths
+     * where nothing does -- a run announces its end before the auto-apply policy is consulted,
+     * and the policy declines a re-run because it keeps its id and already has its layers.
+     * Clearing the record here would blank the legend over a graph that is visibly painted.
+     */
+    it("keeps describing the picture after invalidate, until a pass replaces it", async () => {
+        const rows: Row[] = NODES.map((row) => ({ ...row }));
+        const harness = makeHarness(rows);
+        const layer = await harness.styles.add({
+            name: "Weight",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", scale: "linear", range: [0, 100] } },
+        });
+
+        await harness.paintAll();
+
+        const entryOf = (): CompiledLayer => {
+            const found = harness.stack().find((candidate) => candidate.layer.id === layer.id);
+
+            assert.isDefined(found);
+
+            return found;
+        };
+
+        harness.engine.invalidate();
+
+        assert.deepStrictEqual(
+            harness.engine.encoding(entryOf())[0].domain,
+            [0, 12],
+            "the screen still shows the picture this domain produced",
+        );
+
+        rows[3] = { "data.kind": "switch", "data.weight": 40 };
+        await harness.paintAll();
+
+        assert.deepStrictEqual(
+            harness.engine.encoding(entryOf())[0].domain,
+            [0, 40],
+            "and the pass that repainted it is what moves the story on",
+        );
     });
 });

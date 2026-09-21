@@ -24,7 +24,7 @@ import {
     type SelectorSourceParts,
     type SessionSelectorSource,
 } from "../../../src/session/styles/sources";
-import { type Harness, makeSession } from "../helpers";
+import { edgeBetween, type Harness, makeSession } from "../helpers";
 
 /** What qualifies the numbers a test run publishes. */
 const CAVEATS: Caveats = {
@@ -91,6 +91,18 @@ function flows(entries: readonly (readonly [string, number])[]) {
             }),
         });
 }
+
+/**
+ * The element's ids for two of the fixture's three edges.
+ *
+ * The fixture adds a->b, b->c and c->d in that order, and the element stamps its edge counter in
+ * arrival order, so these are the ids those two edges are addressed by everywhere. They are
+ * written out rather than resolved from the session because a run executor is built BEFORE the
+ * session it will run inside exists.
+ */
+const AB = "0";
+/** The id of the c->d edge. See {@link AB}. */
+const CD = "2";
 
 /** A session, the source over it, and the store behind both. */
 interface Fixture {
@@ -285,8 +297,8 @@ describe("a selector source over what a run published", () => {
     it("reads an edge result through the edge id the element mints", async () => {
         const { harness, source } = fixture({
             execute: flows([
-                ["a:b", 3],
-                ["c:d", 7],
+                [AB, 3],
+                [CD, 7],
             ]),
         });
         await harness.session.runs.start("max-flow", undefined, { as: "flow" });
@@ -362,8 +374,8 @@ describe("a selector source reading past what it holds", () => {
 
         assert.strictEqual(source.nodeIdOf(0), "a");
         assert.strictEqual(source.nodeIdOf(3), "d");
-        assert.strictEqual(source.edgeIdOf(0), "a:b");
-        assert.strictEqual(source.edgeIdOf(2), "c:d");
+        assert.strictEqual(source.edgeIdOf(0), edgeBetween(harness, "a", "b"));
+        assert.strictEqual(source.edgeIdOf(2), edgeBetween(harness, "c", "d"));
         harness.session.dispose();
     });
 
@@ -429,8 +441,8 @@ describe("the measured column a run-bound layer walks", () => {
     it("names the edges a run measured by their dense index", async () => {
         const { harness, source } = fixture({
             execute: flows([
-                ["c:d", 7],
-                ["a:b", 3],
+                [CD, 7],
+                [AB, 3],
             ]),
         });
         await harness.session.runs.start("max-flow", undefined, { as: "flow" });
@@ -524,13 +536,13 @@ describe("a freeze that renumbers the rows", () => {
         const { harness, source } = fixture();
 
         assert.strictEqual(source.nodeIdOf(0), "a");
-        assert.strictEqual(source.edgeIdOf(0), "a:b");
+        assert.strictEqual(source.edgeIdOf(0), edgeBetween(harness, "a", "b"));
 
         harness.store.builder.removeNode("a");
         harness.store.touch();
 
         assert.strictEqual(source.nodeIdOf(0), "b");
-        assert.strictEqual(source.edgeIdOf(0), "b:c", "the a->b edge died with a, so b->c slid down");
+        assert.strictEqual(source.edgeIdOf(0), edgeBetween(harness, "b", "c"), "the a->b edge died with a, so b->c slid down");
         harness.session.dispose();
     });
 
@@ -580,8 +592,8 @@ describe("a freeze that renumbers the rows", () => {
     it("rebuilds an edge run's measured column when the edges are renumbered", async () => {
         const { harness, source } = fixture({
             execute: flows([
-                ["a:b", 3],
-                ["c:d", 7],
+                [AB, 3],
+                [CD, 7],
             ]),
         });
         await harness.session.runs.start("max-flow", undefined, { as: "flow" });

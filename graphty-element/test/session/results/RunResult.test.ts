@@ -165,7 +165,8 @@ describe("a result that measured nothing", () => {
         assert.strictEqual(result.column("value").length, 0);
         assert.isNaN(result.column("value").min);
         assert.deepStrictEqual(result.ranking("value"), []);
-        assert.deepStrictEqual(result.histogram("value"), []);
+        assert.deepStrictEqual(result.histogram("value").bins, []);
+        assert.strictEqual(result.histogram("value").binning, "empty");
         assert.strictEqual(summary.min, null);
         assert.strictEqual(summary.max, null);
         assert.strictEqual(summary.median, null);
@@ -180,7 +181,7 @@ describe("a result with one element", () => {
         const result = metricResult([4]);
 
         assert.deepStrictEqual(result.ranking("value"), [{ id: "n0", value: 4, rank: 1, percentile: 1 }]);
-        assert.deepStrictEqual(result.histogram("value"), [{ from: 4, to: 4, count: 1 }]);
+        assert.deepStrictEqual(result.histogram("value").bins, [{ from: 4, to: 4, count: 1 }]);
         assert.strictEqual(result.summary().min, 4);
         assert.strictEqual(result.summary().max, 4);
     });
@@ -197,7 +198,7 @@ describe("a result where every value is identical", () => {
         assert.strictEqual(result.summary().tiedAtMin, 4);
         assert.strictEqual(result.summary().min, 3);
         assert.strictEqual(result.summary().max, 3);
-        assert.deepStrictEqual(result.histogram("value"), [{ from: 3, to: 3, count: 4 }]);
+        assert.deepStrictEqual(result.histogram("value").bins, [{ from: 3, to: 3, count: 4 }]);
     });
 });
 
@@ -212,10 +213,59 @@ describe("a result spanning many orders of magnitude", () => {
         const linear = result.histogram("value", { bins: 20, scale: "linear" });
 
         assert.strictEqual(
-            log.reduce((total, bin) => total + bin.count, 0),
+            log.bins.reduce((total, bin) => total + bin.count, 0),
             1000,
         );
-        assert.isBelow(log[0].count, linear[0].count);
+        assert.isBelow(log.bins[0].count, linear.bins[0].count);
+        assert.strictEqual(log.scale, "log", "the scale asked for was the scale applied");
+        assert.strictEqual(linear.scale, "linear");
+        assert.strictEqual(log.binning, "banded");
+    });
+
+    /**
+     * WHAT A CAPTION IS ALLOWED TO CLAIM.
+     *
+     * A logarithmic layout needs positive values spanning more than one magnitude. A column with
+     * neither is drawn linearly rather than refused, because refusing to draw a distribution is
+     * worse than drawing it on the other axis -- but a caption written from the REQUEST then says
+     * "log scale" over a linear chart, and nothing a consumer can read would contradict it. So
+     * the histogram reports the scale it applied, and that is what a caption reads.
+     */
+    it("says linear when a log layout was asked for and could not be built", () => {
+        // Nothing positive, so there is no logarithm to take: a column of debts, a column of
+        // offsets from a baseline. Two hundred distinct values, so it bands rather than taking
+        // the bar-per-value path, which is the case where the scale is a real choice.
+        const result = metricResult(Array.from({ length: 200 }, (_unused, index) => -index / 100));
+        const asked = result.histogram("value", { bins: 20, scale: "log" });
+
+        assert.strictEqual(asked.binning, "banded", "the case where a scale is applied at all");
+        assert.strictEqual(asked.scale, "linear", "a column with no positive values has no logarithmic layout");
+        assert.strictEqual(asked.suggestedScale, "linear", "and it does not argue for one either");
+        assert.isNotEmpty(asked.bins, "it is still drawn, rather than refused");
+    });
+
+    it("takes the scale the column argues for when asked for auto", () => {
+        const values = [
+            ...Array.from({ length: 800 }, (_unused, index) => 0.001 + index / 100000),
+            ...Array.from({ length: 200 }, (_unused, index) => 10 ** (index % 4) + index / 10),
+        ];
+        const result = metricResult(values);
+        const auto = result.histogram("value", { bins: 20, scale: "auto" });
+
+        assert.strictEqual(auto.suggestedScale, "log", "this spread collapses onto one bar linearly");
+        assert.strictEqual(auto.scale, "log", "and auto applied what it suggested");
+    });
+
+    it("reports a per-value layout as neither axis, because it has no bands to space", () => {
+        const result = metricResult([1, 1, 2, 3, 3, 3]);
+        const drawn = result.histogram("value", { bins: 20, scale: "log" });
+
+        assert.strictEqual(drawn.binning, "per-value");
+        assert.strictEqual(drawn.scale, "linear", "a bar per value is not on a logarithmic axis");
+        assert.deepStrictEqual(
+            drawn.bins.map((bin) => bin.count),
+            [2, 1, 3],
+        );
     });
 });
 
@@ -582,13 +632,25 @@ describe("an edge-metric result", () => {
 });
 
 describe("the plain-language reading", () => {
-    it("refuses to invent a sentence when no generator is installed", () => {
-        try {
-            metricResult([1, 2]).reading();
-            assert.fail("a result with no generator should not produce a sentence");
-        } catch (error) {
-            assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_UNSUPPORTED");
-        }
+    /**
+     * This verb used to throw on every call of the shipped element: it took a generator and no
+     * caller supplied one, so a published member could not be used. The element brings its own
+     * now, and a host that wants different words still replaces it.
+     */
+    it("writes a sentence out of the element's own generator", () => {
+        const sentence = metricResult([1, 2, 9]).reading();
+
+        assert.isNotEmpty(sentence);
+        // The figures in the sentence are the result's own, so a reader can check it against the
+        // chart beside it. Nothing here is rounded to make the phrase read better.
+        assert.include(sentence, "9", "the highest value it measured");
+        assert.include(sentence, "2", "and the middle one");
+    });
+
+    it("says that nothing was measured rather than reporting zeros", () => {
+        const sentence = metricResult([]).reading();
+
+        assert.include(sentence.toLowerCase(), "nothing was measured");
     });
 
     it("hands the installed generator the finished result", () => {

@@ -18,7 +18,7 @@
  * interfaces, published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, Path, ResultShape, RunId } from "../../catalog/types";
+import type { EdgeId, FieldDescriptor, NodeId, Path, Query, ResultShape, RunId } from "../../catalog/types";
 import type { Caveats, Run } from "../runs/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -38,6 +38,23 @@ export const RESULT_PATH_RUN_PLACEHOLDER = "$";
 
 /**
  * The published path of one run's field.
+ *
+ * This is the PATH form, which is what the `path` member of a selector takes:
+ *
+ * ```ts
+ * { match: "has", path: resultPath(run.id, "value") }
+ * ```
+ *
+ * **Inside an expression it must be quoted first.** A run id carries its algorithm's name, a
+ * great many algorithm names carry a hyphen -- "shortest-path", "min-cut" -- and the expression
+ * lexer reads a bare hyphen as arithmetic, so the whole selector is refused. Wrap it once and
+ * the problem cannot arise:
+ *
+ * ```ts
+ * import { quotePath, resultPath } from "@graphty/graphty-element/session";
+ *
+ * const where = `${quotePath(resultPath(run.id, "value"))} >= \`3\``;
+ * ```
  * @param runId - The run that produced the value.
  * @param field - The field name; omit it to address the run's whole result object.
  * @returns The path, such as "results.louvain.group".
@@ -608,12 +625,53 @@ export interface HistogramBin {
     readonly count: number;
 }
 
+/** How a column's bars were laid out, which is not always how a caller asked for them. */
+export type HistogramBinning = "per-value" | "banded" | "empty";
+
+/**
+ * A field's distribution, and how it was actually drawn.
+ *
+ * THE LAYOUT IS REPORTED BECAUSE IT IS NOT ALWAYS THE ONE ASKED FOR. A column with no positive
+ * values, or whose positive values all sit at one magnitude, has no logarithmic layout -- so a
+ * request for `"log"` is laid out linearly rather than refused, because refusing to draw a
+ * distribution is worse than drawing it on the other axis. A caption written from the REQUEST
+ * then says "log scale" over a linear chart, which is a false claim about the data, and it is
+ * a claim a consumer cannot check without recomputing the column. So {@link Histogram.scale}
+ * says what was applied, and a caption reads that.
+ */
+export interface Histogram {
+    /** The bars, in ascending order. */
+    readonly bins: readonly HistogramBin[];
+    /** The scale the bars are really on. */
+    readonly scale: "linear" | "log";
+    /**
+     * The scale this column's spread argues for, whatever was asked for.
+     *
+     * A recommendation and nothing acts on it: which axis to draw is the reader's choice, and a
+     * chart that silently changed scale would be claiming a shape nobody asked for. It is
+     * "linear" whenever a logarithmic layout could not be applied anyway, so passing it straight
+     * back in {@link HistogramOptions.scale} always yields the scale it named.
+     */
+    readonly suggestedScale: "linear" | "log";
+    /**
+     * Whether every distinct value got a bar of its own, bands were laid out, or nothing was
+     * measured. A per-value histogram ignores the scale, because it has no bands to space.
+     */
+    readonly binning: HistogramBinning;
+}
+
 /** How a histogram is cut. */
 export interface HistogramOptions {
     /** How many bins to produce. The element picks a sensible number when this is absent. */
     readonly bins?: number;
-    /** Whether the bin edges are evenly spaced or logarithmic. */
-    readonly scale?: "linear" | "log";
+    /**
+     * Whether the bin edges are evenly spaced or logarithmic.
+     *
+     * `"auto"` takes whichever the column's own spread argues for, which is what a chart drawn
+     * without a reader's instruction should do. Whatever is asked for,
+     * {@link Histogram.scale} reports what was applied.
+     */
+    readonly scale?: "linear" | "log" | "auto";
 }
 
 /** How the plain-language reading is written. */
@@ -739,7 +797,7 @@ export interface RunResult {
      * @param options - How to cut the bins.
      * @returns The bins, in ascending order.
      */
-    histogram(field: string, options?: HistogramOptions): readonly HistogramBin[];
+    histogram(field: string, options?: HistogramOptions): Histogram;
     /**
      * The bounded form of this result.
      * @returns The summary.
@@ -795,6 +853,22 @@ export interface ResultsApi {
      * @returns The path.
      */
     path(run: RunRef, field?: string): Path;
+    /**
+     * The same field, written so a selector expression can read it.
+     *
+     * USE THIS ONE INSIDE AN EXPRESSION, and {@link ResultsApi.path} for a selector's `path`
+     * member. The difference is not cosmetic. A run id carries its algorithm's name, and ten of
+     * the element's twenty-four catalogue algorithms are hyphenated -- `shortest-path`,
+     * `min-cut`, `bipartite-matching` -- while the expression grammar reads a bare hyphen as
+     * subtraction. So `` `${results.path(run)} >= \`3\`` `` is not a comparison at all on those
+     * runs: it parses as one column minus another, and the layer is refused outright. Degree has
+     * no hyphen, which is why writing it by hand appears to work right up until the metric
+     * changes.
+     * @param run - The run, its result, or its id.
+     * @param field - The field name; the shape's primary field when absent.
+     * @returns The path with every segment quoted that needs it, ready to interpolate.
+     */
+    term(run: RunRef, field?: string): Query;
     /**
      * One run's result.
      * @param run - The run, its result, or its id.

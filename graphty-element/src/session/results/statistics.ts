@@ -27,7 +27,7 @@
 
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { HistogramBin, HistogramOptions, Normalization, NumericColumnView, RankingEntry } from "./types";
+import type { Histogram, HistogramBin, HistogramOptions, Normalization, NumericColumnView, RankingEntry } from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The bounds
@@ -58,6 +58,9 @@ export const HISTOGRAM_BIN_CAP = 100;
  * the test; nothing applies it on a caller's behalf.
  */
 export const LOG_SCALE_RATIO_THRESHOLD = 100;
+
+/** What a histogram of a column that measured nothing carries. */
+const NO_BINS: readonly HistogramBin[] = Object.freeze([]);
 
 /** The ways a metric's values are scaled before they are published. */
 const NORMALIZATIONS: readonly Normalization[] = Object.freeze(["max", "min-max", "none"]);
@@ -403,10 +406,11 @@ export function canBandLogarithmically(statistics: ColumnStatistics): boolean {
 /**
  * Say whether a column's spread wants a logarithmic axis.
  *
- * This is a recommendation and nothing applies it on a caller's behalf, because which scale to
- * draw is the reader's choice and a chart that silently changed scale would be claiming a shape
- * the reader never asked for. Pass the answer back in {@link HistogramOptions.scale} to act on
- * it.
+ * This is a recommendation, and it is applied only when a caller asks for it by name:
+ * {@link HistogramOptions.scale} `"auto"` takes it, `"linear"` and `"log"` do not. Which axis to
+ * draw is the reader's choice, and a chart that changed scale without being asked would be
+ * claiming a shape nobody chose -- so "auto" is the asking, and the histogram reports which
+ * scale it ended up on either way.
  *
  * The test is the highest value over the middle one, with a middle above zero so that the ratio
  * means something, and the answer is "linear" whenever a logarithmic layout could not be applied
@@ -636,31 +640,45 @@ function countDistinct(column: NumericColumnSource, limit: number): Map<number, 
  * @returns The bins, in ascending order.
  * @throws A GraphtyError coded E_OPTION_RANGE when `bins` is outside the permitted range.
  */
-export function buildHistogram(
-    column: NumericColumnSource,
-    options?: HistogramRequest,
-): readonly HistogramBin[] {
+export function buildHistogram(column: NumericColumnSource, options?: HistogramRequest): Histogram {
     const binCount = resolveBinCount(options?.bins);
     const integerValued = options?.integerValued ?? false;
+    const statistics = computeColumnStatistics(column);
+    const suggestedScale = suggestHistogramScale(statistics);
     const distinct = countDistinct(column, binCount);
 
     if (distinct !== null) {
         if (distinct.size === 0) {
-            return Object.freeze([]);
+            return Object.freeze({
+                bins: NO_BINS,
+                // Nothing was measured, so nothing is on any axis. Reported as linear rather
+                // than as the request, because "log scale" over an empty chart is the same false
+                // caption this whole return type exists to prevent.
+                scale: "linear",
+                suggestedScale: "linear",
+                binning: "empty",
+            });
         }
 
         const bins = [...distinct.entries()]
             .sort((left, right) => left[0] - right[0])
             .map(([value, count]) => Object.freeze({ from: value, to: value, count }));
 
-        return Object.freeze(bins);
+        return Object.freeze({
+            bins: Object.freeze(bins),
+            // One bar per distinct value has no bands to space, so neither axis was applied to
+            // it. Saying "linear" here is what stops a caption claiming a logarithmic layout of
+            // a chart that has none.
+            scale: "linear",
+            suggestedScale,
+            binning: "per-value",
+        });
     }
 
-    const statistics = computeColumnStatistics(column);
-    const plan =
-        options?.scale === "log"
-            ? logBandPlan(statistics.min, statistics.max, statistics.smallestPositive, binCount, integerValued)
-            : null;
+    const wantsLog = options?.scale === "log" || (options?.scale === "auto" && suggestedScale === "log");
+    const plan = wantsLog
+        ? logBandPlan(statistics.min, statistics.max, statistics.smallestPositive, binCount, integerValued)
+        : null;
     const applied = plan ?? linearBandPlan(statistics.min, statistics.max, binCount, integerValued);
     const counts = new Array<number>(applied.binCount).fill(0);
 
@@ -671,11 +689,18 @@ export function buildHistogram(
         }
     }
 
-    return Object.freeze(
-        counts.map((count, index) => {
-            const [from, to] = applied.rangeOf(index);
+    return Object.freeze({
+        bins: Object.freeze(
+            counts.map((count, index) => {
+                const [from, to] = applied.rangeOf(index);
 
-            return Object.freeze({ from, to, count });
-        }),
-    );
+                return Object.freeze({ from, to, count });
+            }),
+        ),
+        // `plan` is null exactly when a logarithmic layout was asked for and could not be built,
+        // which is the case a caption must not get wrong.
+        scale: plan === null ? "linear" : "log",
+        suggestedScale,
+        binning: "banded",
+    });
 }

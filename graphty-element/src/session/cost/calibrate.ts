@@ -279,7 +279,7 @@ function defaultYield(): Promise<void> {
  *
  * It never throws and it never exceeds its budget: a workload that cannot be timed inside the
  * time it is given produces no rate, and a calibration missing any rate reports
- * `basis: "defaults"` and carries {@link DEFAULT_COST_RATES}. That is the difference between a
+ * `basis: "defaults"` and carries `DEFAULT_COST_RATES`. That is the difference between a
  * calibration a consumer can trust and one that merely always succeeds.
  *
  * The cubic rate is not probed. No cubic algorithm has ever been timed here, so it is set to the

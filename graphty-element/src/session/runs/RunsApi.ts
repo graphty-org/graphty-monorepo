@@ -19,6 +19,7 @@
  * renderer's manager to talk to it.
  */
 
+import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type {
     AlgorithmDescriptor,
     AlgorithmKey,
@@ -93,6 +94,19 @@ export interface RunQueue {
         options?: { description?: string },
     ): string;
     /**
+     * Resolve once nothing is queued or running.
+     *
+     * WHAT THIS EXISTS TO ANSWER. The element starts work of its own that nobody awaited -- a
+     * run's suggested encoding lands on the run's first completion, deliberately without making a
+     * consumer await the picture in order to have started the run. So `await runs.start(...)`
+     * hands back the numbers while the paint is still on its way, and a consumer that read the
+     * layer stack or the legend right then saw the picture as it stood a moment ago. Working that
+     * out by counting turns is coordination code, and coordination code the element should not be
+     * shipping to a consumer.
+     * @returns A promise that resolves when the queue is empty.
+     */
+    settled(): Promise<void>;
+    /**
      * Stop one queued or running operation.
      * @param operationId - The id `queueOperation` returned.
      * @returns True when there was something to stop.
@@ -112,9 +126,8 @@ interface RunCatalog {
 /**
  * The style layers that read runs.
  *
- * Optional, and absent until the style layer system moves its selectors onto `results.<runId>`.
- * While it is absent, removing a run removes no layers and says so honestly rather than
- * pretending it checked.
+ * Optional, because a session can be built without a style stack at all. While it is absent,
+ * removing a run removes no layers and says so honestly rather than pretending it checked.
  */
 interface RunLayerBindings {
     /**
@@ -283,6 +296,23 @@ function formatParamValue(value: unknown): string {
     }
 
     return canonicalize(value);
+}
+
+/**
+ * The versions to record on a run, with the registered algorithm's own version beside them.
+ *
+ * A run records the versions of the code that produced its numbers, and the three fixed fields
+ * name the element and its two sibling packages -- which says nothing at all about a third
+ * party's algorithm. The version is read from an optional `static version` on the registered
+ * class, so an algorithm that declares none leaves the record exactly as it was.
+ * @param key - The catalogue key the run was started by.
+ * @param base - The element's own versions.
+ * @returns The versions to record on this run.
+ */
+function engineVersionsFor(key: AlgorithmKey, base: EngineVersions): EngineVersions {
+    const version = registeredAlgorithmByKey(key)?.version;
+
+    return version === undefined ? base : Object.freeze({ ...base, plugins: Object.freeze({ [key]: version }) });
 }
 
 /**
@@ -490,8 +520,13 @@ class Runs implements SessionRunsApi {
 
     /**
      * Which style layers read a run.
+     *
+     * Answered from the layers themselves -- a layer built from a run records the run in its own
+     * `source` -- rather than from a register kept beside them, so the two cannot disagree. A run
+     * whose suggested styling has not landed yet reports none, which is the truthful answer
+     * rather than a promise about a layer that does not exist.
      * @param id - The run id.
-     * @returns The layer ids, empty while the style layer system still selects on the old path.
+     * @returns The layer ids, bottom of the stack first.
      */
     bindings(id: RunId): readonly LayerId[] {
         return Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
@@ -607,7 +642,7 @@ class Runs implements SessionRunsApi {
             style: options.style ?? true,
             shape: descriptor.shape,
             fields: descriptor.fields,
-            engine: this.options.engine,
+            engine: engineVersionsFor(descriptor.key, this.options.engine),
             caveats: Object.freeze({
                 ...this.defaultCaveats,
                 seed: identity.seed,

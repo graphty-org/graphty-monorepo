@@ -83,6 +83,9 @@ function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string
         graphResults: undefined as Record<string, Record<string, Record<string, unknown>>> | undefined,
         getSnapshot: (): GraphSnapshot => store.getSnapshot(),
         undirected: (snapshot: GraphSnapshot): DerivedGraph => store.undirected(snapshot),
+        // The two doors the executor used to force a whole-graph re-resolution through at the
+        // end of every run. They are here so a run that reaches for one is caught; see the
+        // executor test below for why nothing should.
         applyStylesToExistingNodes: (): void => {
             repaints += 1;
         },
@@ -145,7 +148,14 @@ describe("the run executor", () => {
         assert.strictEqual(outcome.result.node("b")?.value, 2, "b sits between a and c");
         assert.strictEqual(outcome.result.node("a")?.value, 1);
         assert.strictEqual(outcome.result.runId, "degree");
-        assert.isAbove(graph.repaints(), 0, "the elements carrying a new value are visited again");
+        // THE EXECUTOR DOES NOT PAINT. It used to walk every node and every edge at the end of
+        // every run, because a 1.x selector read `algorithmResults.<namespace>.<type>` and only
+        // re-resolving an element made a new value visible to it. A selector reads
+        // `results.<runId>.<field>` now, and the repaint hangs off the run finishing -- in the
+        // element's own wiring, on the `algorithm-run` queue trigger, where it can be scheduled
+        // with the rest of the frame's work. `test/browser/session-style-paint.test.ts` pins
+        // that the picture really does catch up.
+        assert.strictEqual(graph.repaints(), 0, "a run publishes a result; drawing it is the style stack's job");
     });
 
     it("fills the ranking, the range and the summary nobody computed by hand", async () => {

@@ -27,6 +27,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Query, Scope, ScopeId } from "../../catalog/types";
+import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
 import { canonicalize } from "../runs/runId";
 import type { ResolvedScope } from "../runs/types";
@@ -138,20 +139,6 @@ export function membershipDigest(nodes: readonly NodeId[], edges: readonly EdgeI
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The id one edge is addressed by, which is its two endpoints.
- *
- * The same key the result object, the style selector and the scope all name an edge by. The
- * element refuses a second edge between the same ordered pair, so the pair is an identity rather
- * than a collision.
- * @param source - The id of the node the edge leaves.
- * @param target - The id of the node the edge enters.
- * @returns The edge id.
- */
-function edgeIdOf(source: NodeId, target: NodeId): EdgeId {
-    return `${String(source)}:${String(target)}`;
-}
-
-/**
  * One snapshot's node identity space, for a mask over its nodes.
  * @param snapshot - The snapshot to read.
  * @returns The space, which is the snapshot's own id map.
@@ -166,46 +153,29 @@ export function nodeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<NodeId> {
 /**
  * One snapshot's edge identity space, for a mask over its edges.
  *
- * There is one of these rather than one per mask owner because the edge id convention -- the two
- * endpoint ids joined by a colon -- has to have exactly one implementation. A second one written
- * by hand somewhere else is how a filter and a selector end up disagreeing about what an edge is
- * called.
+ * It READS the element-assigned counter the store stamped into every edge's `graphty.edgeId`
+ * column rather than minting an id out of the endpoints, and that is the whole difference. A
+ * minted pair string could not name two edges between one pair -- so under parallel edges only the
+ * last of a repeated pair was addressable at all -- and it collided for any node id containing a
+ * colon.
  *
- * The endpoint-pair index behind `indexOf` is built on the first lookup and not before: a mask
- * that is only ever asked for ids never pays for it.
+ * The reverse lookup is `snapshot.edgeIndexOf`, a lazily built index graph-format already owns
+ * over the same column, so there is no hand-built map here to fall out of step with it.
  * @param snapshot - The snapshot to read.
  * @returns The space.
  */
 export function edgeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<EdgeId> {
-    const list = snapshot.edgeList();
-    let byId: Map<EdgeId, number> | null = null;
-
-    /**
-     * The id of one logical edge.
-     * @param edge - The logical edge index.
-     * @returns The edge id.
-     */
-    const idOf = (edge: number): EdgeId => edgeIdOf(snapshot.ids.idOf(list.src[edge]), snapshot.ids.idOf(list.dst[edge]));
-
-    /**
-     * The endpoint-pair index, built once.
-     * @returns The map from edge id to logical edge index.
-     */
-    const index = (): Map<EdgeId, number> => {
-        if (byId === null) {
-            byId = new Map<EdgeId, number>();
-
-            for (let edge = 0; edge < snapshot.edgeCount; edge++) {
-                byId.set(idOf(edge), edge);
-            }
-        }
-
-        return byId;
-    };
+    const column = snapshot.edges.byRole("id");
 
     return {
-        indexOf: (id: EdgeId): number => index().get(id) ?? INVALID_INDEX,
-        idOf,
+        indexOf: (id: EdgeId): number => {
+            const counter = edgeCounterOf(id);
+            return counter === INVALID_INDEX ? INVALID_INDEX : snapshot.edgeIndexOf(counter);
+        },
+        idOf: (edge: number): EdgeId => {
+            const counter = column !== null && column.isSet(edge) ? column.value(edge) : undefined;
+            return edgeIdOf(typeof counter === "number" ? counter : INVALID_INDEX);
+        },
     };
 }
 

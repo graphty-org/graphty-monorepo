@@ -76,6 +76,21 @@ export class FakeQueue implements RunQueue {
         return id;
     }
 
+    /**
+     * Resolve once nothing is queued or running.
+     *
+     * A turn, then the pending list. The fake drains the same way the real local queue does, so
+     * "settled" means the same thing here as it does there.
+     * @returns A promise that resolves when nothing is waiting.
+     */
+    async settled(): Promise<void> {
+        do {
+            await new Promise<void>((resolve) => {
+                queueMicrotask(resolve);
+            });
+        } while (this.pending.length > 0);
+    }
+
     cancelOperation(operationId: string): boolean {
         const found = this.pending.find((operation) => operation.id === operationId);
 
@@ -237,7 +252,7 @@ export function stubResult(runId: RunId): RunResult {
         edge: () => undefined,
         column: () => ({ length: 0, get: () => Number.NaN, min: Number.NaN, max: Number.NaN, mean: Number.NaN, median: Number.NaN }),
         ranking: () => [],
-        histogram: () => [],
+        histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
     };

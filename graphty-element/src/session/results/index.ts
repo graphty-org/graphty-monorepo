@@ -11,11 +11,14 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+export { defaultReading } from "./reading";
 export { createResultsApi, type ResultsRunEntry } from "./ResultsApi";
 export { createRunResult, type ResultElementValues } from "./RunResult";
 export {
     checkShapeContract,
+    type Histogram,
     type HistogramBin,
+    type HistogramBinning,
     type HistogramOptions,
     type Normalization,
     type NumericColumnView,

@@ -1,6 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { FieldDescriptor, LayerId, LayerSource, Path, ResultShape, RunId } from "../../../src/catalog/types";
+import { createGraphSession } from "../../../src/session/GraphSession";
 import type { RunRef } from "../../../src/session/results/types";
 import { createRunsApi, type RunStatus } from "../../../src/session/runs";
 import {
@@ -19,7 +20,8 @@ import {
     type SessionStylesApi,
 } from "../../../src/session/styles/index";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
-import { CAVEATS, descriptor, ENGINE, FakeGraph, FakeQueue, spyExecutor } from "../runs/harness";
+import type { StyleProblem } from "../../../src/session/types";
+import { CAVEATS, descriptor, ENGINE, FakeGraph, FakeQueue, spyExecutor, stubResult } from "../runs/harness";
 
 // ---------------------------------------------------------------------------------------------
 // The runs these tests finish
@@ -511,7 +513,7 @@ describe("what the policy leaves in a real stack", () => {
 
         const derived = styles.list()[1];
 
-        await styles.encode({ run: "betweenness", channel: "node.color", palette: "magma" });
+        await styles.encode({ run: "betweenness", channel: "node.color", palette: "inferno" });
 
         const layers = styles.list();
 
@@ -520,7 +522,7 @@ describe("what the policy leaves in a real stack", () => {
         assert.deepStrictEqual(layers[1].encode?.["node.color"], {
             by: "results.betweenness.value",
             scale: "linear",
-            palette: "magma",
+            palette: "inferno",
         });
     });
 
@@ -656,5 +658,84 @@ describe("what a session's runs fire", () => {
         await runs.start("degree");
 
         assert.lengthOf(harness.encoded, 2);
+    });
+});
+
+/**
+ * WHERE A REFUSAL GOES WHEN NOBODY IS AWAITING IT.
+ *
+ * The tests above drive the policy directly, so they can see a refusal because the harness hands
+ * one back. A real session is the case that matters and the case that was broken: the element
+ * paints a run's suggestion on the run's own completion, without anybody awaiting the edit,
+ * because a consumer must not have to await the picture in order to have started the work. That
+ * leaves a refusal with no call site to arrive at. The session declared a channel for it and
+ * passed no handler, so it was swallowed -- and a graph kept the picture it already had while the
+ * element believed it had painted a new one, which is the silent failure the whole style system
+ * exists to replace.
+ */
+/**
+ * WHEN THE PICTURE HAS CAUGHT UP WITH THE NUMBERS.
+ *
+ * `await runs.start(...)` hands back the result, and the suggested encoding is still on its way:
+ * the element deliberately does not make a caller await the paint in order to have started the
+ * work. So a consumer reading the stack in that same turn sees the picture as it stood a moment
+ * earlier and can reasonably conclude the element painted nothing. Counting turns to work that
+ * out is coordination code, which is exactly what a consumer should never have to write against
+ * this element -- so the element answers it.
+ */
+describe("when the element has finished painting a run", () => {
+    it("has not painted yet when the run resolves, and has once the stack has settled", async () => {
+        const session = createGraphSession({
+            runs: { execute: (context) => Promise.resolve({ result: stubResult(context.runId) }) },
+        });
+
+        const before = session.styles.list().length;
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+
+        assert.strictEqual(session.styles.list().length, before, "the numbers arrive before the picture");
+
+        await session.styles.settled();
+
+        assert.isAbove(session.styles.list().length, before, "and the picture has landed by now");
+        session.dispose();
+    });
+
+    it("resolves at once on a session with nothing in flight", async () => {
+        const session = createGraphSession();
+
+        await session.styles.settled();
+
+        assert.isNotEmpty(session.styles.list(), "the element's own layers are there from the start");
+        session.dispose();
+    });
+});
+
+describe("a refusal in a real session", () => {
+    it("reaches a listener rather than being swallowed", async () => {
+        const session = createGraphSession({
+            runs: { execute: (context) => Promise.resolve({ result: stubResult(context.runId) }) },
+        });
+        const problems: StyleProblem[] = [];
+        const stop = session.on("style:problem", (problem) => {
+            problems.push(problem);
+        });
+
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+
+        /* Removed while its own picture is still on the way. The element starts that edit
+           fire-and-forget on the run's completion, and the edit resolves the run when the queue
+           reaches it -- so a reader who deletes a result the moment it lands is racing the
+           element's own paint, and the paint loses. That is not a contrived failure: it is the
+           ordinary consequence of not making a consumer await the picture. */
+        session.runs.remove(run.id);
+        await settle();
+        stop();
+
+        assert.lengthOf(problems, 1, "the element tried to paint, was refused, and said so");
+        assert.strictEqual(problems[0].runId, "degree");
+        assert.strictEqual(problems[0].error.source, "style");
+        session.dispose();
     });
 });

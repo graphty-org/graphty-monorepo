@@ -13,13 +13,20 @@
  * count, coordinates and statistics do not.
  */
 
-import type { DerivedGraph, EdgeId, GraphSnapshot, NodeId } from "@graphty/graph-format";
+import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
 import type { z } from "zod/v4";
 
 import type { AccelerationCapabilities, AccelerationPolicy } from "../acceleration";
-import type { AlgorithmKey, AttributeDescriptor, CatalogApi, Scope } from "../catalog/types";
+// EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
+// that makes `const id: EdgeId = record.id` type-check. This entry point used to publish two
+// different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
+// `string` everywhere else -- so assigning one to the other was an error on the element's own
+// published surface.
+import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { ElementPositions } from "../data/positions";
+import type { ImportReport } from "../data/report";
+import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
@@ -72,7 +79,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface ComponentStatistics {
     /** How many connected components the graph has, counting isolated nodes as components. */
     readonly count: number;
-    /** Component sizes, descending, capped at {@link COMPONENT_SIZE_CAP} entries. */
+    /** Component sizes, descending, capped at `COMPONENT_SIZE_CAP` entries. */
     readonly sizes: readonly number[];
     /** The size of the largest component; zero for an empty graph. */
     readonly largestSize: number;
@@ -86,6 +93,37 @@ export interface ComponentStatistics {
      * @returns the component number, or undefined when the graph has no such node
      */
     componentOf(id: NodeId): number | undefined;
+}
+
+/**
+ * How the graph's direction came to be what it is.
+ *
+ * WHY THE SOURCE IS PUBLISHED AND NOT ONLY THE ANSWER. "This graph is directed" and "this file
+ * said it is directed" are different claims, and a reader deciding whether to trust the first one
+ * needs the second. A properties panel that prints "Directed" on a CSV nobody labelled is stating
+ * the element's own default as though it were a fact about the data; the same word on a GEXF file
+ * whose header says so is reporting what the author wrote. Without this, a consumer cannot tell
+ * those apart, and the only alternative is to re-parse the file they already handed over.
+ */
+export interface DirectionProvenance {
+    /**
+     * What settled the direction.
+     *
+     * `"file"` when an importer read it out of the data -- from a header the file wrote, or from
+     * the default its format's own specification assigns to a file that omits that header.
+     * `"configuration"` when `data.directed` was set to a boolean, which no file can overrule.
+     * `"unsettled"` when nothing has said yet, which is an empty graph under `"auto"`, and a graph
+     * loaded entirely from formats that state nothing.
+     */
+    readonly by: "file" | "configuration" | "unsettled";
+    /**
+     * The text that said so, ready to show a reader: `defaultedgetype="undirected"`, `digraph`,
+     * `*Arcs`, `the GML default for an absent directed key (undirected)`.
+     *
+     * Null whenever no file settled it, so a consumer can render "Directed" and "Directed (from
+     * `digraph`)" from the same two fields without a second lookup.
+     */
+    readonly statedBy: string | null;
 }
 
 /**
@@ -113,6 +151,8 @@ export interface GraphStatistics {
      * snapshot carries one flag for the whole graph.
      */
     readonly directedness: "directed" | "undirected" | "mixed" | "unknown";
+    /** Where {@link GraphStatistics.directedness} came from, so a reader can qualify the claim. */
+    readonly directednessSource: DirectionProvenance;
     /** True when any edge carries a weight other than 1. */
     readonly weighted: boolean;
     /** Edges whose two endpoints are the same node. */
@@ -121,6 +161,16 @@ export interface GraphStatistics {
     readonly repeatedEdgeCount: number;
     /** The smallest and the largest total degree in the graph; `[0, 0]` when there are no nodes. */
     readonly degreeRange: readonly [number, number];
+    /**
+     * The mean total degree, over the same measure {@link GraphStatistics.degreeRange} summarises:
+     * both ends of every edge counted, so a self-loop contributes two. Zero for an empty graph.
+     *
+     * It is published because the alternative is every consumer deriving it from the edge count,
+     * and `2m / n` is the undirected reading: on a directed graph it double-counts, and on any
+     * graph it disagrees with the range printed beside it the moment self-loops are involved. One
+     * number measured from the same vector as the range cannot drift from it.
+     */
+    readonly meanDegree: number;
     /** The connected-component shape. */
     readonly components: ComponentStatistics;
 }
@@ -180,6 +230,33 @@ export interface SessionGraphStore {
     undirected(snapshot: GraphSnapshot): DerivedGraph;
     /** The element-owned node coordinates, indexed by dense node index. */
     readonly positions: ElementPositions;
+    /**
+     * How many nodes the DATA arrived carrying a coordinate for.
+     *
+     * THE HONEST ANSWER to "did the file that loaded this graph place its nodes", which
+     * {@link ElementPositions.placedCount} cannot give: the position array is written by the
+     * importer AND by every running layout, so a moment after a file with no coordinates loads,
+     * every node carries a position because the layout put it there. This counts the importer's
+     * own seed column, which nothing but the importer writes.
+     * @returns the count, zero for a graph with no data
+     */
+    readonly seededNodeCount: number;
+    /**
+     * How the direction of the graph in this store was settled, and by what text.
+     *
+     * The store is where the answer lives because the snapshot cannot carry it: a snapshot holds
+     * one direction FLAG and no record of who set it, and by the time statistics are computed the
+     * importer that read the file has been thrown away.
+     */
+    readonly directionSettledBy: DirectionProvenance;
+    /**
+     * What the last load into this store did: which endpoint spelling answered, how many repeated
+     * edges were seen and what the policy did with them, and how many edges the graph holds.
+     *
+     * Optional because a store built by a session that nothing ever imported into has never had a
+     * load to report on.
+     */
+    readonly lastImport?: ImportReport | null;
 }
 
 /**
@@ -246,6 +323,15 @@ export interface SessionDataApi {
      */
     edge(id: EdgeId): EdgeRecord | undefined;
     /**
+     * What the last load did: which endpoint spelling the element resolved, how many repeated
+     * edges it saw and what the policy did with them, and how many edges the graph actually holds.
+     *
+     * A door as well as the two load events, because those are fire-and-forget: a consumer that
+     * subscribed after the load has no other way to ask.
+     * @returns the report, or null when nothing has been loaded into this graph
+     */
+    lastImport(): ImportReport | null;
+    /**
      * Every attribute the graph's records carry, with its type, how complete it is and a few
      * sample values. Walked once per snapshot and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -265,15 +351,30 @@ export interface SessionDataApi {
 }
 
 /**
- * The part of the catalogue a session can answer today: the static tables, which are plain data
- * and need no graph.
+ * The part of the catalogue a session can answer today: the seven capability tables, which are
+ * plain data and need no graph, plus `metrics()`, which needs one.
  *
- * The graph-dependent half of {@link CatalogApi} -- which metrics apply to THIS graph, what an
- * option's bounds resolve to over a scope, whether an expression references anything real -- is
- * absent rather than stubbed, because the runs and the query engine it reads do not exist yet.
- * A consumer discovers the gap by autocomplete finding nothing, not by a call that throws.
+ * Six of the seven -- algorithms, cameras, formats, layouts, log destinations and palettes --
+ * carry the element's own entries followed by whatever a third party registered, because those
+ * are the six supported extension points and an extension a picker cannot find is half an
+ * extension. `scales` is the element's own table alone.
+ *
+ * `metrics()` is the graph-dependent half's first member, and it is here because everything it
+ * reads now exists: the catalogue declares what each algorithm requires of a graph, the cost model
+ * answers what one would take over the scope a run would cover and reports a requirement the graph
+ * does not meet as an unavailability rather than a throw, and the runs API holds what has already
+ * been run. A consumer wanting only the metrics that CAN run filters on `available`; both lists
+ * come off one call rather than two that could disagree.
+ *
+ * The rest of the graph-dependent half of {@link CatalogApi} -- what an option's bounds resolve to
+ * over a scope, whether an expression references anything real -- is still absent rather than
+ * stubbed, because the query engine it reads does not exist yet. A consumer discovers that gap by
+ * autocomplete finding nothing, not by a call that throws.
  */
-export type SessionCatalogApi = Pick<CatalogApi, "algorithms" | "formats" | "layouts" | "palettes" | "scales">;
+export type SessionCatalogApi = Pick<
+    CatalogApi,
+    "algorithms" | "cameras" | "formats" | "layouts" | "logSinks" | "metrics" | "palettes" | "scales"
+>;
 
 /** The configuration a session carries. */
 export interface SessionConfig {
@@ -316,6 +417,35 @@ export interface SessionEventMap {
      * consumer undoes, records and mirrors.
      */
     "style:changed": StyleChange;
+    /**
+     * The element tried to paint something of its own and was refused.
+     *
+     * THE ONLY STYLE FAILURE A CONSUMER CANNOT OTHERWISE SEE. A style edit a consumer asks for
+     * rejects the promise it handed back, so the refusal arrives at the call that caused it. The
+     * element also paints on its own account -- a run's suggested encoding lands on the run's
+     * first completion, without anybody awaiting it -- and a refusal there had nowhere to go:
+     * the work is fire-and-forget by design, because the element must not make a consumer await
+     * the picture in order to have started the run. So it arrives here instead.
+     *
+     * A graph that quietly kept the picture it had while the element believed it had painted a
+     * new one is the exact defect this whole style system replaces. Subscribe to this and a
+     * consumer can say "the degree colouring could not be applied" instead of leaving a reader
+     * looking at an old picture that reads as an answer.
+     */
+    "style:problem": StyleProblem;
+}
+
+/**
+ * A painting the element started for itself, and why it did not land.
+ *
+ * Structured-cloneable: the run's id and a `GraphtyError`, so it survives being posted to a
+ * worker or written to a log.
+ */
+export interface StyleProblem {
+    /** The run whose suggested styling was refused. */
+    readonly runId: RunId;
+    /** Why it was refused. */
+    readonly error: GraphtyError;
 }
 
 /**
@@ -379,6 +509,15 @@ export interface GraphSession {
      * layout, a drag and a GPU readback all write into.
      */
     readonly positions: ElementPositions;
+    /**
+     * How many nodes the DATA arrived carrying a coordinate for.
+     *
+     * Ask this, not `positions.placedCount`, whenever the question is "did the file place these
+     * nodes". The array above is written by the importer AND by every running layout, so one
+     * frame after a file with no coordinates loads, every node carries a position because the
+     * layout put it there. This counts the importer's own column, which nothing else writes.
+     */
+    readonly seededNodeCount: number;
     /** The O(1) facts, always current. */
     readonly status: SessionStatus;
     /** Everything the element can offer, as data. */

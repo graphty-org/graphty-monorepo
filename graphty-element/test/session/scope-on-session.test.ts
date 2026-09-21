@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
 import type { Filter } from "../../src/session/visibility";
-import { type Harness, makeSession } from "./helpers";
+import { edgeBetween, type Harness, makeSession } from "./helpers";
 
 /** Three hosts, two services, and four edges between them. */
 function harnessOf(): Harness {
@@ -49,7 +49,7 @@ describe("session.scope", () => {
         assert.strictEqual(whole.nodeCount, 5);
         assert.strictEqual(whole.edgeCount, 4);
         assert.deepStrictEqual([...whole.nodes].sort(), ["a", "b", "c", "d", "e"]);
-        assert.isTrue(whole.edges.has("a:b"), "an edge is addressed by its endpoints");
+        assert.isTrue(whole.edges.has(edgeBetween(harness, "a", "b")), "an edge is addressed by its endpoints");
         harness.session.dispose();
     });
 
@@ -75,7 +75,7 @@ describe("session.scope", () => {
         const whole = await harness.session.scope.resolve("graph");
 
         assert.deepStrictEqual([...visible.nodes].sort(), ["a", "b", "c"]);
-        assert.deepStrictEqual([...visible.edges].sort(), ["a:b", "b:c"], "an edge needs both endpoints");
+        assert.deepStrictEqual([...visible.edges].sort(), [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "an edge needs both endpoints");
         assert.strictEqual(whole.nodeCount, 5);
         harness.session.dispose();
     });
@@ -87,7 +87,7 @@ describe("session.scope", () => {
         const scope = await harness.session.scope.resolve("selection");
 
         assert.deepStrictEqual([...scope.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...scope.edges], ["a:b"], "a scope's edges are induced from its nodes");
+        assert.deepStrictEqual([...scope.edges], [edgeBetween(harness, "a", "b")], "a scope's edges are induced from its nodes");
         harness.session.dispose();
     });
 

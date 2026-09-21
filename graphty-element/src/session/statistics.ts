@@ -9,7 +9,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
 
-import { COMPONENT_SIZE_CAP, type ComponentStatistics, type GraphStatistics } from "./types";
+import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
 /**
  * Label every node with the connected component it belongs to, ignoring arc direction.
@@ -150,17 +150,23 @@ function countRepeatedEdges(snapshot: GraphSnapshot): number {
 }
 
 /**
- * The smallest and largest total degree in the graph.
+ * The smallest, largest and mean total degree in the graph.
+ *
+ * All three come out of ONE pass over the same vector, which is the point: a mean derived from the
+ * edge count instead would be `2m / n`, and that is the undirected reading of a quantity the range
+ * beside it measures directly. Two numbers that are supposed to describe the same distribution
+ * must not be able to disagree about it.
  * @param degrees - the snapshot's degree vector
- * @returns the range, `[0, 0]` when there are no nodes
+ * @returns the range and the mean; `[0, 0]` and 0 when there are no nodes
  */
-function degreeRange(degrees: U32): readonly [number, number] {
+function degreeSummary(degrees: U32): { range: readonly [number, number]; mean: number } {
     if (degrees.length === 0) {
-        return [0, 0];
+        return { range: [0, 0], mean: 0 };
     }
 
     let low = degrees[0];
     let high = degrees[0];
+    let total = 0;
     for (const degree of degrees) {
         if (degree < low) {
             low = degree;
@@ -169,9 +175,11 @@ function degreeRange(degrees: U32): readonly [number, number] {
         if (degree > high) {
             high = degree;
         }
+
+        total += degree;
     }
 
-    return [low, high];
+    return { range: [low, high], mean: total / degrees.length };
 }
 
 /**
@@ -244,20 +252,29 @@ function directedness(snapshot: GraphSnapshot, directedConfig: boolean | "auto")
  * @param snapshot - the snapshot to measure
  * @param directedConfig - the element's `data.directed` setting, which is what distinguishes a
  *     graph that is undirected from a graph nothing has told us about yet
+ * @param directednessSource - how the direction was settled, which the store remembers because the
+ *     snapshot carries the flag and not the reason
  * @returns the statistics
  */
-export function computeStatistics(snapshot: GraphSnapshot, directedConfig: boolean | "auto"): GraphStatistics {
+export function computeStatistics(
+    snapshot: GraphSnapshot,
+    directedConfig: boolean | "auto",
+    directednessSource: DirectionProvenance,
+): GraphStatistics {
     const { labels, count } = labelComponents(snapshot);
+    const degrees = degreeSummary(snapshot.degree());
 
     return Object.freeze({
         nodeCount: snapshot.nodeCount,
         edgeCount: snapshot.edgeCount,
         density: density(snapshot),
         directedness: directedness(snapshot, directedConfig),
+        directednessSource: Object.freeze(directednessSource),
         weighted: isWeighted(snapshot),
         selfLoopCount: snapshot.selfLoopCount,
         repeatedEdgeCount: countRepeatedEdges(snapshot),
-        degreeRange: Object.freeze(degreeRange(snapshot.degree())),
+        degreeRange: Object.freeze(degrees.range),
+        meanDegree: degrees.mean,
         components: Object.freeze(summariseComponents(snapshot, labels, count)),
     } satisfies GraphStatistics);
 }

@@ -11,6 +11,10 @@
  */
 
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
+export { recommendLayout } from "./layout";
+export type { DefaultableLimits } from "./limits";
+export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
 export type {
@@ -31,5 +35,6 @@ export type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    StyleProblem,
 } from "./types";
 export { COMPONENT_SIZE_CAP } from "./types";

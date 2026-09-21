@@ -126,7 +126,7 @@ describe("a session's ownership of what it holds", () => {
 });
 
 describe("what a session publishes without being asked to compute", () => {
-    it("carries the catalogue, which is the same data for every session", () => {
+    it("carries the catalogue, whose tables are the same data for every session", () => {
         const first = createGraphSession();
         const second = createGraphSession();
 
@@ -135,7 +135,17 @@ describe("what a session publishes without being asked to compute", () => {
         assert.isAbove(first.catalog.formats().length, 0);
         assert.isAbove(first.catalog.palettes().length, 0);
         assert.isAbove(first.catalog.scales().length, 0);
-        assert.strictEqual(first.catalog, second.catalog);
+
+        // THE TABLES, not the catalogue object. What the element CAN do does not depend on which
+        // graph is loaded, so all five are the same frozen arrays for both sessions, and two
+        // sessions that disagreed about which algorithms exist would be a bug. The catalogue
+        // itself is per session because `metrics()` is about THIS graph -- see metrics.test.ts,
+        // which pins both halves of that.
+        assert.strictEqual(first.catalog.algorithms(), second.catalog.algorithms());
+        assert.strictEqual(first.catalog.layouts(), second.catalog.layouts());
+        assert.strictEqual(first.catalog.formats(), second.catalog.formats());
+        assert.strictEqual(first.catalog.palettes(), second.catalog.palettes());
+        assert.strictEqual(first.catalog.scales(), second.catalog.scales());
 
         first.dispose();
         second.dispose();

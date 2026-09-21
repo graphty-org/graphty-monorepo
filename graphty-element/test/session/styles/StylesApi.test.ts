@@ -1,7 +1,8 @@
 import { assert, describe, it } from "vitest";
 
+import { clearRegisteredPalettesForTesting, registerPalette } from "../../../src/catalog/paletteRegistry";
 import { paletteDescriptor } from "../../../src/catalog/palettes";
-import type { Channel, FieldDescriptor, LayerSpec, Path, RunId, StyleDocument } from "../../../src/catalog/types";
+import type { Channel, FieldDescriptor, LayerSpec, PaletteDescriptor, Path, RunId, StyleDocument } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import type { RunRef } from "../../../src/session/results/types";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
@@ -10,7 +11,6 @@ import {
     type CompiledLayer,
     createStylesApi,
     type ElementLayerSpec,
-    type EncodingLookup,
     type EncodingRun,
     type EncodingSource,
     type EncodingSpec,
@@ -201,15 +201,18 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
 }
 
 /**
- * Read one layer's prepared bindings from the stack as it stands now.
+ * Prepare one COMPILED layer's bindings, the way the real pass keys them.
  *
- * Late rather than captured, so a layer that has just been updated is read through its new
- * binding rather than through the one it replaced -- which is what a repaint pass does too.
- * @param styles - Where the stack is, once it exists.
- * @returns The lookup a legend and an explanation read.
+ * Keyed by the compiled layer object rather than by an id, because that is the shape the real
+ * source has: a layer id is recycled when a layer of the same name is added after one is
+ * removed, and an index keyed by id would answer for the layer that has gone. Reading the entry
+ * handed in also makes this late rather than captured, so a layer that has just been updated is
+ * read through its new binding -- which is what a repaint pass does too.
+ * @param entry - The compiled layer the stack holds.
+ * @returns The bindings a legend and an explanation read.
  */
-function liveEncoding(styles: () => StylesApi): EncodingLookup {
-    return (layerId) => prepareLayer(styles().get(layerId));
+function liveEncoding(entry: CompiledLayer): readonly PreparedBinding[] {
+    return prepareLayer(entry.layer);
 }
 
 /**
@@ -277,7 +280,7 @@ function makeStyles(extra: Partial<StylesSources> = {}): Harness {
         paths: DIRECTORY,
         repaint,
         runs: RUN_SOURCE,
-        encoding: liveEncoding(() => built.styles),
+        encoding: liveEncoding,
         nodeIndex: (id) => {
             const at = Number(String(id).slice(1));
 
@@ -899,7 +902,7 @@ describe("encode(), the one path an analysis layer takes", () => {
         const second = await styles.encode({
             run: "betweenness",
             channel: "node.color",
-            palette: "magma",
+            palette: "inferno",
             name: "By betweenness",
         });
 
@@ -907,7 +910,21 @@ describe("encode(), the one path an analysis layer takes", () => {
 
         assert.strictEqual(second.id, first.id);
         assert.deepStrictEqual(namesOf(styles), ["Default", "By betweenness", "Mine"]);
-        assert.strictEqual(rebound !== undefined && "by" in rebound ? rebound.palette : null, "magma");
+        assert.strictEqual(rebound !== undefined && "by" in rebound ? rebound.palette : null, "inferno");
+    });
+
+    it("refuses a palette nothing registered, at the call rather than at the repaint", async () => {
+        // The palette used to be written onto the layer unchecked, so a misspelling became a
+        // layer that painted nothing one frame later, with the failure arriving somewhere a
+        // settings form is not listening.
+        const { styles } = makeStyles();
+
+        const code = await codeOfRejection(
+            styles.encode({ run: "betweenness", channel: "node.color", palette: "no-such-palette" }),
+        );
+
+        assert.strictEqual(code, "E_UNKNOWN_PALETTE");
+        assert.deepStrictEqual(namesOf(styles), ["Default"], "and nothing was added");
     });
 
     it("takes over the layer the element derived, and the layer stops being the element's", async () => {
@@ -1168,6 +1185,19 @@ describe("resolveToStatic, which makes a rule editable by ending it", () => {
 });
 
 /** A document with one layer this session can answer and one it cannot. */
+/**
+ * A palette no build of the element ships, so a document naming it is meaningful only on a page
+ * that registered it -- which is the whole question the two tests below ask.
+ */
+const DOCUMENT_PALETTE: PaletteDescriptor = {
+    id: "house-style",
+    plainName: "House Style",
+    kind: "categorical",
+    colors: ["#112233", "#445566"],
+    capacity: 2,
+    colorblindSafe: [],
+};
+
 const DOCUMENT: StyleDocument = {
     version: 1,
     layers: [
@@ -1292,8 +1322,63 @@ describe("a style document, out and back in", () => {
             }),
         );
 
-        assert.strictEqual(code, "E_UNSUPPORTED");
+        assert.strictEqual(code, "E_UNKNOWN_PALETTE");
         assert.deepStrictEqual(namesOf(styles), ["Default"]);
+    });
+
+    it("applies a document that carries a palette this page has registered", async () => {
+        // The other half of the same rule. A document may describe the palettes its layers name,
+        // and one already registered here is not a reason to refuse the whole document. The
+        // refusal above and this acceptance are the same check reading the same registry.
+        registerPalette(DOCUMENT_PALETTE);
+
+        try {
+            const { styles } = makeStyles();
+
+            await styles.applyTemplate({
+                version: 1,
+                layers: [...DOCUMENT.layers],
+                palettes: [DOCUMENT_PALETTE],
+            });
+
+            assert.deepStrictEqual(namesOf(styles), ["Default", "Ranked", "Waiting"]);
+        } finally {
+            // The registry is global and there is no unregister, so a test that registers
+            // something owes the next one the registry it found.
+            clearRegisteredPalettesForTesting();
+        }
+    });
+
+    it("writes the palettes its layers name that the element does not ship, so a saved look is self-describing", async () => {
+        registerPalette(DOCUMENT_PALETTE);
+
+        try {
+            const { styles } = makeStyles();
+
+            await styles.add({
+                name: "By rank",
+                target: "node",
+                selector: { match: "has", path: "data.rank" },
+                encode: { "node.color": { by: "data.rank", palette: DOCUMENT_PALETTE.id } },
+            });
+            await styles.add({
+                name: "By rank again",
+                target: "node",
+                selector: { match: "has", path: "data.rank" },
+                encode: { "node.color": { by: "data.rank", palette: "viridis" } },
+            });
+
+            const document = styles.toDocument();
+
+            assert.deepStrictEqual(
+                document.palettes,
+                [DOCUMENT_PALETTE],
+                "the registered palette travels with the document; the element's own does not, " +
+                    "because viridis means the same thing on every page",
+            );
+        } finally {
+            clearRegisteredPalettesForTesting();
+        }
     });
 
     it("refuses a version it does not read", async () => {

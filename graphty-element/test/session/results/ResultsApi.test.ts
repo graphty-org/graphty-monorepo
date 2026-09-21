@@ -180,3 +180,34 @@ describe("did you mean", () => {
         assert.deepStrictEqual(suggestResultPaths("results.fact", roots, 1), ["results.facts"]);
     });
 });
+
+/**
+ * WHAT GOES INTO AN EXPRESSION, as distinct from what goes into a selector's `path`.
+ *
+ * A run id carries its algorithm's name and ten of the catalogue's twenty-four algorithms are
+ * hyphenated, while the expression grammar reads a bare hyphen as subtraction. A path pasted into
+ * an expression unquoted is therefore a refused selector rather than a comparison -- and degree,
+ * which has no hyphen, works right up until the metric changes.
+ */
+describe("addressing a result inside an expression", () => {
+    it("quotes a hyphenated run id so the comparison is a comparison", () => {
+        const api = createResultsApi({ entry: () => undefined, entries: () => [] });
+
+        assert.strictEqual(api.term("shortest-path_3k1f", "value"), 'results."shortest-path_3k1f".value');
+        assert.notInclude(api.term("shortest-path_3k1f", "value"), "results.shortest-path");
+    });
+
+    it("leaves a path that needs no quoting exactly as it is", () => {
+        const api = createResultsApi({ entry: () => undefined, entries: () => [] });
+
+        assert.strictEqual(api.term("degree", "value"), "results.degree.value");
+    });
+
+    it("names the same column its path verb names, so the two cannot drift", () => {
+        const api = createResultsApi({ entry: () => undefined, entries: () => [] });
+
+        assert.include(api.term("min-cut_2", "rank"), "rank");
+        assert.strictEqual(api.term("min-cut_2", "rank"), 'results."min-cut_2".rank');
+        assert.strictEqual(api.path("min-cut_2", "rank"), "results.min-cut_2.rank");
+    });
+});

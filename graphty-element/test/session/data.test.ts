@@ -49,12 +49,19 @@ describe("reading one node or one edge", () => {
         const harness = makeSession();
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", kind: "knows" }]);
 
-        // The store stamps a counter into its role-"id" edge column, starting at 0.
-        const edge = harness.session.data.edge(0);
+        // The store stamps a counter into its role-"id" edge column, starting at 0, and the
+        // element's edge id is that counter printed.
+        const edge = harness.session.data.edge("0");
         assert.isDefined(edge);
         assert.strictEqual(edge?.source, "a");
         assert.strictEqual(edge?.target, "b");
         assert.strictEqual(edge?.kind, "knows");
+        // The record carries source and target ONCE, under the canonical names. The keys the
+        // record arrived with are stripped at the seam that builds the bag, so a consumer that
+        // derives its columns from the keys -- the application's data table does -- does not
+        // render the same fact twice under two spellings.
+        assert.notProperty(edge, "src");
+        assert.notProperty(edge, "dst");
         harness.session.dispose();
     });
 
@@ -62,7 +69,8 @@ describe("reading one node or one edge", () => {
         const harness = makeSession();
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);
 
-        assert.isUndefined(harness.session.data.edge(99));
+        assert.isUndefined(harness.session.data.edge("99"));
+        assert.isUndefined(harness.session.data.edge("not-a-counter"), "and a malformed id is a miss, not a throw");
         harness.session.dispose();
     });
 

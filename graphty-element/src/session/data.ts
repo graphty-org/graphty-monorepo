@@ -8,9 +8,11 @@
  * else in the same revision reads a field.
  */
 
-import { type DerivedGraph, type EdgeId, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
-import type { AttributeDescriptor } from "../catalog/types";
+import type { AttributeDescriptor, EdgeId } from "../catalog/types";
+import { edgeCounterOf } from "../data/edgeIdentity";
+import type { ImportReport } from "../data/report";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -114,7 +116,10 @@ export class SessionData implements SessionDataApi {
      */
     edge(id: EdgeId): EdgeRecord | undefined {
         const snapshot = this.snapshot();
-        const index = snapshot.edgeIndexOf(id);
+        const counter = edgeCounterOf(id);
+        // The id column holds the counter as a NUMBER, and `edgeIndexOf` keys its index on
+        // SameValueZero, so handing it the string form would miss every edge with no error.
+        const index = counter === INVALID_INDEX ? INVALID_INDEX : snapshot.edgeIndexOf(counter);
         if (index === INVALID_INDEX) {
             return undefined;
         }
@@ -125,6 +130,16 @@ export class SessionData implements SessionDataApi {
             source: snapshot.ids.idOf(snapshot.edgeSource(index)),
             target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
         });
+    }
+
+    /**
+     * What the last load did.
+     * @returns the report, or null when nothing has been loaded into this graph
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    lastImport(): ImportReport | null {
+        this.requireLive("lastImport");
+        return this.store.lastImport ?? null;
     }
 
     /**
@@ -145,7 +160,7 @@ export class SessionData implements SessionDataApi {
      */
     statistics(): GraphStatistics {
         const derived = this.derivedFor(this.snapshot());
-        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed);
+        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed, this.store.directionSettledBy);
         return derived.statistics;
     }
 

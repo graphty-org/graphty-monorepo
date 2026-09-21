@@ -98,6 +98,22 @@ class LocalRunQueue implements RunQueue {
         return true;
     }
 
+    /**
+     * Resolve once nothing is queued or running.
+     *
+     * The queue drains on a microtask, so a caller that asks the instant after queueing has to be
+     * given a turn before the answer means anything: an empty queue that has not started draining
+     * yet is not a settled one. Hence the turn before the check rather than an immediate return.
+     * @returns A promise that resolves when the queue is empty.
+     */
+    async settled(): Promise<void> {
+        do {
+            await new Promise<void>((resolve) => {
+                queueMicrotask(resolve);
+            });
+        } while (this.#draining || this.#pending.length > 0);
+    }
+
     /** Run what is waiting, one at a time, until nothing is left. */
     async #drain(): Promise<void> {
         if (this.#draining) {

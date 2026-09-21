@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { SelectionDelta } from "../../src/session/selection";
-import { type Harness, makeSession } from "./helpers";
+import { edgeBetween, type Harness, makeSession } from "./helpers";
 
 /** Five nodes in a line, with a department on each so the statistics have something to say. */
 function harnessOf(): Harness {
@@ -42,13 +42,13 @@ describe("session.selection", () => {
         assert.strictEqual(harness.session.selection.size, 0);
         assert.deepStrictEqual([...harness.session.selection.nodes], []);
 
-        await harness.session.selection.apply({ nodes: ["a", "b"], edges: ["c:d"] });
+        await harness.session.selection.apply({ nodes: ["a", "b"], edges: [edgeBetween(harness, "c", "d")] });
 
         assert.deepStrictEqual([...harness.session.selection.nodes], ["a", "b"]);
-        assert.deepStrictEqual([...harness.session.selection.edges], ["c:d"]);
+        assert.deepStrictEqual([...harness.session.selection.edges], [edgeBetween(harness, "c", "d")]);
         assert.strictEqual(harness.session.selection.size, 3);
         assert.isTrue(harness.session.selection.has("b"));
-        assert.isTrue(harness.session.selection.has("c:d"), "an edge can be selected, which it never could before");
+        assert.isTrue(harness.session.selection.has(edgeBetween(harness, "c", "d")), "an edge can be selected, which it never could before");
         harness.session.dispose();
     });
 

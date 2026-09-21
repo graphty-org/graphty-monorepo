@@ -18,7 +18,7 @@ import {
     type TimeWindow,
     type VisibilityPass,
 } from "../../../src/session/visibility/index";
-import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
     const harness = makeSession();
@@ -207,7 +207,7 @@ describe("edges", () => {
         const shown = applied(harness, { kind: "expression", where: "q" }, null, { match: () => ["a", "b"] });
 
         assert.deepStrictEqual(shown.nodes, ["a", "b"]);
-        assert.deepStrictEqual(shown.edges, ["a:b"], "b:c has an endpoint that is hidden");
+        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")], "b:c has an endpoint that is hidden");
         harness.session.dispose();
     });
 
@@ -220,10 +220,10 @@ describe("edges", () => {
             ],
         );
 
-        const shown = applied(harness, { kind: "edges", where: "q" }, null, { matchEdges: () => ["a:b"] });
+        const shown = applied(harness, { kind: "edges", where: "q" }, null, { matchEdges: () => [edgeBetween(harness, "a", "b")] });
 
         assert.deepStrictEqual(shown.nodes, ["a", "b", "c"], "an edge filter says nothing about nodes");
-        assert.deepStrictEqual(shown.edges, ["a:b"]);
+        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
@@ -246,10 +246,10 @@ describe("edges", () => {
                 ],
             },
             null,
-            { match: () => ["a", "b"], matchEdges: () => ["a:b", "b:c"] },
+            { match: () => ["a", "b"], matchEdges: () => [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")] },
         );
 
-        assert.deepStrictEqual(shown.edges, ["a:b"], "the edge query named b:c, but c is hidden");
+        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")], "the edge query named b:c, but c is hidden");
         harness.session.dispose();
     });
 });
@@ -278,11 +278,11 @@ describe("combining filters", () => {
                 ],
             },
             null,
-            { matchEdges: () => ["a:c"], values: valuesOf(harness) },
+            { matchEdges: () => [edgeBetween(harness, "a", "c")], values: valuesOf(harness) },
         );
 
         assert.deepStrictEqual(shown.nodes, ["a", "c"]);
-        assert.deepStrictEqual(shown.edges, ["a:c"]);
+        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "c")]);
         harness.session.dispose();
     });
 
@@ -340,7 +340,7 @@ describe("combining filters", () => {
         const shown = applied(harness, { kind: "all", of: [] }, null);
 
         assert.deepStrictEqual(shown.nodes, ["a", "b"]);
-        assert.deepStrictEqual(shown.edges, ["a:b"]);
+        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 });
@@ -393,7 +393,7 @@ describe("a time window", () => {
         });
 
         assert.deepStrictEqual(shown.nodes, ["a", "b", "c"], "no timestamp means the window says nothing");
-        assert.deepStrictEqual(shown.edges, ["a:b"]);
+        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
@@ -574,7 +574,7 @@ describe("running the pass in slices", () => {
         });
 
         assert.deepStrictEqual([...nodes.ids()].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...edges.ids()], ["a:b"]);
+        assert.deepStrictEqual([...edges.ids()], [edgeBetween(harness, "a", "b")]);
         assert.isAtLeast(seen.length, 1);
         assert.deepStrictEqual(seen.at(-1), { completed: 5, total: 5 }, "three nodes and two edges");
         harness.session.dispose();

@@ -7,7 +7,7 @@ import { createRunResult } from "../../src/session/results";
 import { createLocalRunQueue, type RunExecutionContext, type RunOutcome, type RunQueue } from "../../src/session/runs";
 import type { StyleChange } from "../../src/session/styles";
 import type { SessionRunsOptions } from "../../src/session/types";
-import { type Harness, makeSession } from "./helpers";
+import { edgeBetween, type Harness, makeSession } from "./helpers";
 
 /**
  * Three hosts and two services, wired in a line.
@@ -101,6 +101,7 @@ function recordingQueue(): { queue: RunQueue; descriptions: string[] } {
                 return inner.queueOperation(category, execute, options);
             },
             cancelOperation: (operationId: string): boolean => inner.cancelOperation(operationId),
+            settled: (): Promise<void> => inner.settled(),
         },
     };
 }
@@ -337,7 +338,7 @@ describe("session.styles", () => {
 
         assert.isNull(syncCodeOf(() => harness.session.styles.explain({ node: "a" })));
         assert.strictEqual(syncCodeOf(() => harness.session.styles.explain({ node: "zz" })), "E_BAD_COMMAND");
-        assert.isNull(syncCodeOf(() => harness.session.styles.explain({ edge: "a:b" })));
+        assert.isNull(syncCodeOf(() => harness.session.styles.explain({ edge: edgeBetween(harness, "a", "b") })));
         harness.session.dispose();
     });
 

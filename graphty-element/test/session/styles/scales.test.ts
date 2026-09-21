@@ -509,7 +509,13 @@ describe("binding a palette to a scale", () => {
     });
 
     it("refuses a palette the element does not have, and says what it does have", () => {
-        assert.strictEqual(codeOf(() => prepareRamp({ domain: [0, 1], palette: "rainbow" }, registry)), "E_BAD_LAYER");
+        // E_UNKNOWN_PALETTE rather than E_BAD_LAYER: the layer is well formed, and what is wrong
+        // is that nothing on this page answers to the name -- the same failure a consumer already
+        // switches on for an unknown algorithm, layout or format.
+        assert.strictEqual(
+            codeOf(() => prepareRamp({ domain: [0, 1], palette: "rainbow" }, registry)),
+            "E_UNKNOWN_PALETTE",
+        );
     });
 
     it("refuses a scale nobody registered", () => {

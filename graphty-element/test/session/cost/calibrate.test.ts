@@ -22,10 +22,12 @@ function statistics(over: Partial<GraphStatistics> = {}): GraphStatistics {
         edgeCount: 4000,
         density: 0.004,
         directedness: "directed",
+        directednessSource: { by: "unsettled", statedBy: null },
         weighted: false,
         selfLoopCount: 0,
         repeatedEdgeCount: 0,
         degreeRange: [0, 40],
+        meanDegree: 0,
         components: {
             count: 1,
             sizes: [nodeCount],

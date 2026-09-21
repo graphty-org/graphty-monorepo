@@ -22,6 +22,7 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { Caveats } from "../runs/types";
+import { defaultReading } from "./reading";
 import { nearestNames } from "./ResultsApi";
 import {
     analyzeColumn,
@@ -32,7 +33,7 @@ import {
     rankEntries,
 } from "./statistics";
 import {
-    type HistogramBin,
+    type Histogram,
     type HistogramOptions,
     type Normalization,
     type NumericColumnView,
@@ -585,7 +586,7 @@ class Result implements RunResult {
     readonly #caveats: Caveats;
     readonly #durationMs: number;
     readonly #labelOf: (id: NodeId) => string | undefined;
-    readonly #reading: ResultReadingGenerator | undefined;
+    readonly #reading: ResultReadingGenerator;
     readonly #columns = new Map<string, AnalyzedColumn>();
     readonly #rankings = new Map<string, readonly RankingEntry[]>();
     #summary: ResultSummary | undefined;
@@ -613,7 +614,10 @@ class Result implements RunResult {
         this.#caveats = init.caveats;
         this.#durationMs = init.durationMs;
         this.#labelOf = init.labelOf ?? ((): undefined => undefined);
-        this.#reading = init.reading;
+        // The element's own generator unless a host supplied one. It used to be left undefined,
+        // which made `reading()` throw on every run of the shipped element: a published verb that
+        // could not be called. A host that wants different words still supplies its own.
+        this.#reading = init.reading ?? defaultReading;
     }
 
     /**
@@ -688,12 +692,12 @@ class Result implements RunResult {
      * count metric gets whole-number band edges without the caller knowing that it should.
      * @param field - The field to bin.
      * @param options - How to cut the bins.
-     * @returns The bins, in ascending order.
+     * @returns The distribution, carrying the scale that was applied as well as the bars.
      * @throws A GraphtyError coded E_OPTION_RANGE when the bin count is outside the permitted
      *   range, E_UNKNOWN_ATTRIBUTE when the run published no such field, or E_BAD_COMMAND when
      *   the field is not a number published per element.
      */
-    histogram(field: string, options?: HistogramOptions): readonly HistogramBin[] {
+    histogram(field: string, options?: HistogramOptions): Histogram {
         const descriptor = this.#descriptorFor(field);
         const table = descriptor.kind === "edge" ? this.#edges : this.#nodes;
 
@@ -720,19 +724,8 @@ class Result implements RunResult {
      * What this result means, in one sentence of plain language.
      * @param options - The locale and how technical to be.
      * @returns The sentence.
-     * @throws A GraphtyError coded E_UNSUPPORTED when no reading generator is installed.
      */
     reading(options?: ReadingOptions): string {
-        if (this.#reading === undefined) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                source: "run",
-                message: `This build has no plain-language generator, so run "${this.runId}" cannot be read aloud.`,
-                details: { reason: "no reading generator is installed" },
-                target: { kind: "run", id: this.runId },
-            });
-        }
-
         return this.#reading(this, options ?? {});
     }
 

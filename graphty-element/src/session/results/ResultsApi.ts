@@ -16,7 +16,11 @@
  * published from the Node-safe `./session` entry point.
  */
 
-import type { FieldDescriptor, Path, ResultShape, RunId } from "../../catalog/types";
+import type { FieldDescriptor, Path, Query, ResultShape, RunId } from "../../catalog/types";
+// The DEEP path on purpose. `../styles` re-exports StylesApi, which imports this file, so
+// importing the barrel here closes a cycle; `predicate` itself reaches only a type and the error
+// class, so this edge is one-way.
+import { quotePath } from "../styles/predicate";
 import {
     RESULT_ROOT,
     resultPath,
@@ -233,6 +237,22 @@ class Results implements ResultsApi {
         const primary = shape === undefined ? null : resultShapeContract(shape).primaryField;
 
         return primary === null ? resultPath(id) : resultPath(id, primary);
+    }
+
+    /**
+     * The same field, written so a selector expression can read it.
+     *
+     * The quoting is the whole point: a run id carries its algorithm's name, and a hyphenated
+     * name lexes its hyphen as subtraction, so a path pasted into an expression unquoted is a
+     * refused selector rather than a comparison. Nothing here decides WHICH field -- that is
+     * {@link ResultsApi.path}'s job and this defers to it -- so the two can never name different
+     * columns.
+     * @param run - The run, its result, or its id.
+     * @param field - The field name; the shape's primary field when absent.
+     * @returns The path with every segment quoted that needs it.
+     */
+    term(run: RunRef, field?: string): Query {
+        return quotePath(field === undefined ? this.path(run) : this.path(run, field));
     }
 
     /**

@@ -20,7 +20,7 @@ import {
     type ScopeSources,
     type ScopeVisibilitySource,
 } from "../../../src/session/scope/index";
-import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
 /** A session with data in it, plus the resolver reading the same store. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
@@ -78,7 +78,7 @@ describe("resolving a scope", () => {
         const resolved = await scope.resolve("graph");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b", "c"]);
-        assert.deepStrictEqual([...resolved.edges], ["a:b"], "an edge is addressed by its endpoints");
+        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")], "an edge is addressed by its endpoints");
         assert.strictEqual(resolved.nodeCount, 3);
         assert.strictEqual(resolved.edgeCount, 1);
         assert.strictEqual(resolved.spec, "graph");
@@ -101,7 +101,7 @@ describe("resolving a scope", () => {
         const resolved = await scope.resolve({ nodes: ["a", "b"] });
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...resolved.edges], ["a:b"]);
+        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")]);
         harness.session.dispose();
     });
 
@@ -219,14 +219,14 @@ describe("resolving against what is visible and what is selected", () => {
             ],
         );
         const nodes = fillWith(nodeMaskOf(harness), ["a", "b", "c"]);
-        const edges = fillWith(edgeMaskOf(harness), ["a:b"]);
+        const edges = fillWith(edgeMaskOf(harness), [edgeBetween(harness, "a", "b")]);
         const visibility: ScopeVisibilitySource = { nodes: () => nodes, edges: () => edges };
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot(), visibility });
 
         const resolved = await scope.resolve("visible");
 
         assert.strictEqual(resolved.nodeCount, 3);
-        assert.deepStrictEqual([...resolved.edges], ["a:b"], "b:c is filtered out even though b and c show");
+        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")], "b:c is filtered out even though b and c show");
         harness.session.dispose();
     });
 
@@ -290,7 +290,7 @@ describe("resolving the largest component and a predicate", () => {
         const resolved = await scope.resolve("largest-component");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["c", "d", "e"]);
-        assert.deepStrictEqual([...resolved.edges].sort(), ["c:d", "d:e"]);
+        assert.deepStrictEqual([...resolved.edges].sort(), [edgeBetween(harness, "c", "d"), edgeBetween(harness, "d", "e")]);
         harness.session.dispose();
     });
 
@@ -559,8 +559,8 @@ describe("the identity spaces a mask is built over", () => {
         const edges = edgeSpaceOf(snapshot);
 
         assert.strictEqual(nodes.idOf(nodes.indexOf("b")), "b");
-        assert.strictEqual(edges.idOf(0), "a:b");
-        assert.strictEqual(edges.indexOf("a:b"), 0);
+        assert.strictEqual(edges.idOf(0), edgeBetween(harness, "a", "b"));
+        assert.strictEqual(edges.indexOf(edgeBetween(harness, "a", "b")), 0);
         harness.session.dispose();
     });
 
@@ -569,7 +569,11 @@ describe("the identity spaces a mask is built over", () => {
         const snapshot = harness.store.getSnapshot();
 
         assert.strictEqual(nodeSpaceOf(snapshot).indexOf("gone"), INVALID_INDEX);
-        assert.strictEqual(edgeSpaceOf(snapshot).indexOf("b:a"), INVALID_INDEX, "the pair is ordered");
+        // An id nothing was stamped with, and an id that is not a counter at all: both are a
+        // miss rather than a throw, because a saved scope or a pasted list carries whatever the
+        // reader had.
+        assert.strictEqual(edgeSpaceOf(snapshot).indexOf("99"), INVALID_INDEX);
+        assert.strictEqual(edgeSpaceOf(snapshot).indexOf("b:a"), INVALID_INDEX, "an old pair-string id names nothing");
         harness.session.dispose();
     });
 
@@ -581,18 +585,18 @@ describe("the identity spaces a mask is built over", () => {
                 { src: "b", dst: "c" },
             ],
         );
-        const mask = fillWith(edgeMaskOf(harness), ["b:c"]);
+        const mask = fillWith(edgeMaskOf(harness), [edgeBetween(harness, "b", "c")]);
 
-        assert.isTrue(mask.hasId("b:c"));
-        assert.isFalse(mask.hasId("a:b"));
-        assert.deepStrictEqual([...mask.ids()], ["b:c"]);
+        assert.isTrue(mask.hasId(edgeBetween(harness, "b", "c")));
+        assert.isFalse(mask.hasId(edgeBetween(harness, "a", "b")));
+        assert.deepStrictEqual([...mask.ids()], [edgeBetween(harness, "b", "c")]);
         harness.session.dispose();
     });
 });
 
 describe("the membership digest on its own", () => {
     it("does not care what order the ids came out in", () => {
-        assert.strictEqual(membershipDigest(["a", "b"], ["a:b"]), membershipDigest(["b", "a"], ["a:b"]));
+        assert.strictEqual(membershipDigest(["a", "b"], ["0"]), membershipDigest(["b", "a"], ["0"]));
     });
 
     it("tells a node apart from an edge that happens to share its name", () => {

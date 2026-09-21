@@ -14,7 +14,7 @@ import {
     type VisibilitySources,
     type VisibilitySummary,
 } from "../../../src/session/visibility/index";
-import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
     const harness = makeSession();
@@ -86,7 +86,7 @@ describe("what is visible before anything hides anything", () => {
         assert.strictEqual(visibility.filter, null);
         assert.strictEqual(visibility.window, null);
         assert.isTrue(visibility.isVisible("a"));
-        assert.isTrue(visibility.isVisible("a:b"));
+        assert.isTrue(visibility.isVisible(edgeBetween(harness, "a", "b")));
         harness.session.dispose();
     });
 
@@ -120,7 +120,7 @@ describe("applying a filter", () => {
         assert.deepStrictEqual(result.visible, { edges: 1, nodes: 2 });
         assert.deepStrictEqual(result.total, { edges: 2, nodes: 3 });
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...visibility.edges], ["a:b"], "b:c lost an endpoint");
+        assert.deepStrictEqual([...visibility.edges], [edgeBetween(harness, "a", "b")], "b:c lost an endpoint");
         assert.isFalse(visibility.isVisible("c"));
         assert.strictEqual(visibility.filter, HOSTS);
         harness.session.dispose();
@@ -421,7 +421,7 @@ describe("what the scope resolver reads", () => {
         const resolved = await scope.resolve("visible");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...resolved.edges], ["a:b"]);
+        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")]);
         assert.notStrictEqual(
             resolved.digest,
             (await scope.resolve("graph")).digest,

@@ -258,25 +258,26 @@ describe("normalizeValue", () => {
 
 describe("buildHistogram", () => {
     it("draws no bins at all for a column that measured nothing", () => {
-        assert.deepStrictEqual(buildHistogram(arrayColumn([])), []);
+        assert.deepStrictEqual(buildHistogram(arrayColumn([])).bins, []);
+        assert.strictEqual(buildHistogram(arrayColumn([])).binning, "empty");
     });
 
     it("draws one bin for one element", () => {
-        const bins = buildHistogram(arrayColumn([4]));
+        const {bins} = buildHistogram(arrayColumn([4]));
 
         assert.strictEqual(bins.length, 1);
         assert.deepStrictEqual(bins[0], { from: 4, to: 4, count: 1 });
     });
 
     it("draws one bin when every value is identical", () => {
-        const bins = buildHistogram(arrayColumn([3, 3, 3, 3]));
+        const {bins} = buildHistogram(arrayColumn([3, 3, 3, 3]));
 
         assert.strictEqual(bins.length, 1);
         assert.deepStrictEqual(bins[0], { from: 3, to: 3, count: 4 });
     });
 
     it("draws one bar per distinct value while they fit, ascending", () => {
-        const bins = buildHistogram(arrayColumn([3, 1, 3, 2, 1, 1]), { bins: 5 });
+        const {bins} = buildHistogram(arrayColumn([3, 1, 3, 2, 1, 1]), { bins: 5 });
 
         assert.deepStrictEqual(bins, [
             { from: 1, to: 1, count: 3 },
@@ -287,7 +288,7 @@ describe("buildHistogram", () => {
 
     it("bands once there are more distinct values than bins, and accounts for every element", () => {
         const values = Array.from({ length: 500 }, (_unused, index) => index);
-        const bins = buildHistogram(arrayColumn(values), { bins: 10, integerValued: true });
+        const {bins} = buildHistogram(arrayColumn(values), { bins: 10, integerValued: true });
 
         assert.isAtMost(bins.length, 10);
         assert.strictEqual(binned(bins), 500);
@@ -295,7 +296,7 @@ describe("buildHistogram", () => {
 
     it("keeps whole-number band edges apart for a field that counts things", () => {
         const values = Array.from({ length: 500 }, (_unused, index) => index + 1);
-        const bins = buildHistogram(arrayColumn(values), { bins: 10, integerValued: true });
+        const {bins} = buildHistogram(arrayColumn(values), { bins: 10, integerValued: true });
 
         for (const bin of bins) {
             assert.strictEqual(bin.from, Math.round(bin.from));
@@ -309,7 +310,7 @@ describe("buildHistogram", () => {
 
     it("cuts a continuous field into the number of bands asked for, covering the whole range", () => {
         const values = Array.from({ length: 400 }, (_unused, index) => index / 7);
-        const bins = buildHistogram(arrayColumn(values), { bins: 8 });
+        const {bins} = buildHistogram(arrayColumn(values), { bins: 8 });
 
         assert.strictEqual(bins.length, 8);
         assert.strictEqual(bins[0].from, 0);
@@ -324,8 +325,8 @@ describe("buildHistogram", () => {
             ...Array.from({ length: 900 }, (_unused, index) => 1 + index / 100),
             ...Array.from({ length: 100 }, (_unused, index) => 10 ** (1 + (index % 4)) + index / 10),
         ];
-        const linear = buildHistogram(arrayColumn(values), { bins: 20, scale: "linear" });
-        const log = buildHistogram(arrayColumn(values), { bins: 20, scale: "log" });
+        const linear = buildHistogram(arrayColumn(values), { bins: 20, scale: "linear" }).bins;
+        const log = buildHistogram(arrayColumn(values), { bins: 20, scale: "log" }).bins;
 
         assert.strictEqual(binned(linear), 1000);
         assert.strictEqual(binned(log), 1000);
@@ -341,7 +342,7 @@ describe("buildHistogram", () => {
         // The defect this replaces: banding on log10(value + 1) is very nearly linear below 1,
         // so normalised scores came out in one bar under a caption reading "log scale".
         const values = Array.from({ length: 600 }, (_unused, index) => 10 ** -(1 + (index % 6)) * (1 + (index % 7)));
-        const bins = buildHistogram(arrayColumn(values), { bins: 20, scale: "log" });
+        const {bins} = buildHistogram(arrayColumn(values), { bins: 20, scale: "log" });
 
         assert.strictEqual(binned(bins), 600);
         assert.isBelow(bins[0].count, 200, "no single band owns a third of a six-decade column");
@@ -350,7 +351,7 @@ describe("buildHistogram", () => {
 
     it("gives everything at or below zero a leading bin of its own on a log scale", () => {
         const values = [...Array.from({ length: 200 }, () => 0), ...Array.from({ length: 400 }, (_unused, index) => 10 ** (index % 5) + (index % 13))];
-        const bins = buildHistogram(arrayColumn(values), { bins: 12, scale: "log" });
+        const {bins} = buildHistogram(arrayColumn(values), { bins: 12, scale: "log" });
 
         assert.strictEqual(bins[0].from, 0);
         assert.strictEqual(bins[0].to, 0);
@@ -360,7 +361,7 @@ describe("buildHistogram", () => {
 
     it("lays a column with no logarithmic spread out linearly rather than refusing to draw it", () => {
         const values = Array.from({ length: 200 }, (_unused, index) => 5 + index / 1000);
-        const bins = buildHistogram(arrayColumn(values), { bins: 10, scale: "log" });
+        const {bins} = buildHistogram(arrayColumn(values), { bins: 10, scale: "log" });
 
         assert.strictEqual(binned(bins), 200);
         assert.strictEqual(bins.length, 10);
@@ -368,7 +369,7 @@ describe("buildHistogram", () => {
 
     it("defaults to a readable number of bins", () => {
         const values = Array.from({ length: 5000 }, (_unused, index) => index * 1.5);
-        const bins = buildHistogram(arrayColumn(values));
+        const {bins} = buildHistogram(arrayColumn(values));
 
         assert.strictEqual(bins.length, DEFAULT_HISTOGRAM_BINS);
     });

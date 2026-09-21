@@ -28,6 +28,7 @@
  * published from the Node-safe `./session` entry point.
  */
 
+import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type { AlgorithmDescriptor, AlgorithmKey, CostClass, ResultShape, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { GraphStatistics } from "../types";
@@ -130,7 +131,7 @@ export const DEFAULT_COST_RATES: Readonly<CostRates> = Object.freeze({
  * This machine's measured throughput, or the record that it could not be measured.
  *
  * `basis` is the honest half: `"probe"` means the rates were timed here, `"defaults"` means the
- * probe could not run and {@link DEFAULT_COST_RATES} apply. An estimate reports the difference
+ * probe could not run and `DEFAULT_COST_RATES` apply. An estimate reports the difference
  * through its confidence rather than pretending the two are the same.
  */
 export interface MachineCalibration {
@@ -653,11 +654,18 @@ function modelFromRates(
     sampleFactor: number,
     calibration: MachineCalibration | undefined,
 ): ModelledSeconds {
-    if (descriptor.cost !== undefined) {
+    /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
+       model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
+       `postMessage` -- so the model lives beside the class reference in the registry, read from
+       `static cost`, and `descriptor.cost` is only still consulted for the element's own older
+       shape. */
+    const model = registeredAlgorithmByKey(descriptor.key)?.cost ?? descriptor.cost;
+
+    if (model !== undefined) {
         // A declared cost model is written over the whole graph, so a sampled run is scaled by
         // the same share the rate model uses rather than being handed a smaller graph the author
         // never wrote the model against.
-        const declared = descriptor.cost(nodes, edges);
+        const declared = model(nodes, edges);
         if (isUsableCount(declared)) {
             return {
                 seconds: declared * sampleFactor,

@@ -46,9 +46,10 @@
  * no algorithm executor -- every algorithm this package ships is built from the renderer -- so
  * `runs.start` on a standalone session answers `E_UNSUPPORTED` unless one was handed in; and the
  * style stack resolves what every element shows without anything yet DRAWING it, so a layer
- * added here changes the model and does not change the screen. The catalogue is here in its
- * static half only: which metrics apply to THIS graph, and what an option's bounds resolve to
- * over a scope, wait on the query engine.
+ * added here changes the model and does not change the screen. The catalogue is here with its
+ * five static tables and `metrics()`, which says which metrics this graph can support, what each
+ * would cost and which have already been run; what an option's bounds resolve to over a scope,
+ * and whether an expression references anything real, still wait on the query engine.
  *
  * Node-safety is enforced by a test: `test/packaging/node-safe-entries.test.ts` resolves this
  * module's import graph and fails if Babylon.js, Lit or a DOM global appears in it.
@@ -75,8 +76,40 @@ export type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    StyleProblem,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
+
+/**
+ * What the element has to say about a load, once the load is over: which record keys named the
+ * endpoints and how that was decided, what the repeat policy did, and how many edges the graph
+ * actually holds -- as distinct from how many records arrived, which is the number the element
+ * used to publish under the name `edgesLoaded` while the two disagreed by a whole file.
+ *
+ * Read it at any time from `session.data.lastImport()`, or take it off the detail of
+ * `data-loaded` and `data-loading-complete`.
+ */
+export type { EndpointSpelling } from "./src/data/endpoints";
+export type { ImportReport, RepeatedEdgeCounts } from "./src/data/report";
+
+// ---------------------------------------------------------------------------------------------
+// The node coordinates
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The type of `session.positions`, so that a consumer holding one can name it.
+ *
+ * The type only, not the constructor: the coordinates belong to the graph the element froze, and
+ * a second array built beside it would be lent to nothing.
+ */
+export type { ElementPositions } from "./src/data/positions";
+
+// ---------------------------------------------------------------------------------------------
+// Which arrangement suits a graph
+// ---------------------------------------------------------------------------------------------
+
+export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
+export { recommendLayout } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
@@ -128,7 +161,9 @@ export {
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    Histogram,
     HistogramBin,
+    HistogramBinning,
     HistogramOptions,
     Normalization,
     NumericColumnView,
@@ -141,7 +176,7 @@ export type {
     SummaryEntry,
     SummaryGroup,
 } from "./src/session/results";
-export { RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export { defaultReading, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
 
 // ---------------------------------------------------------------------------------------------
 // Which elements a piece of work is allowed to look at
@@ -261,6 +296,7 @@ export type {
     UnboundLayer,
     ValidationResult,
 } from "./src/session/styles";
+export { quotePath } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
 // What a host may ask this session for before it offers a feature
@@ -277,6 +313,8 @@ export type {
     WorkerCapability,
     XrCapability,
 } from "./src/acceleration";
+export type { DefaultableLimits } from "./src/session";
+export { DEFAULT_LIMITS } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // How every failure arrives

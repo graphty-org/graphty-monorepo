@@ -143,6 +143,92 @@ describe("the shape of the graph", () => {
     });
 });
 
+describe("the mean degree", () => {
+    it("is the average of the same measure the range summarises", () => {
+        const harness = makeSession();
+        // Degrees over four nodes: n0 has 2, n1 has 2, n2 has 1, n3 has 1. Six edge ends, four
+        // nodes, so the mean is 1.5 and it sits inside the range printed beside it.
+        const { nodes, edges } = graph(4, [[0, 1], [1, 2], [0, 3]]);
+        harness.add(nodes, edges);
+
+        const stats = harness.session.data.statistics();
+        assert.deepEqual(stats.degreeRange, [1, 2]);
+        assert.strictEqual(stats.meanDegree, 1.5);
+        harness.session.dispose();
+    });
+
+    it("counts both ends of an edge, so a self-loop adds two to one node", () => {
+        const harness = makeSession({ directed: true });
+        const { nodes, edges } = graph(2, [[0, 0]]);
+        harness.add(nodes, edges);
+
+        // One self-loop on n0: its degree is 2, n1's is 0, so the mean over two nodes is 1. A
+        // consumer deriving this from the edge count as 2m/n would agree here by coincidence and
+        // stop agreeing the moment a second, ordinary edge arrives.
+        assert.strictEqual(harness.session.data.statistics().meanDegree, 1);
+        harness.session.dispose();
+    });
+
+    it("is zero for an empty graph rather than NaN", () => {
+        const harness = makeSession();
+
+        assert.strictEqual(harness.session.data.statistics().meanDegree, 0);
+        harness.session.dispose();
+    });
+
+    it("does not double-count a directed edge the way 2m / n does", () => {
+        const harness = makeSession({ directed: true });
+        const { nodes, edges } = graph(3, [[0, 1], [1, 2]]);
+        harness.add(nodes, edges);
+
+        const stats = harness.session.data.statistics();
+        // Total degree counts both ends, so four edge ends over three nodes: 4/3. The number a
+        // consumer must not have to reconstruct is that this agrees with degreeRange, which is
+        // measured from the same vector -- [1, 2] here, and 4/3 falls inside it.
+        assert.strictEqual(stats.meanDegree, 4 / 3);
+        assert.deepEqual(stats.degreeRange, [1, 2]);
+        harness.session.dispose();
+    });
+});
+
+describe("where the direction came from", () => {
+    it("says nothing settled it on an empty graph under auto", () => {
+        const harness = makeSession();
+
+        assert.deepStrictEqual(harness.session.data.statistics().directednessSource, {
+            by: "unsettled",
+            statedBy: null,
+        });
+        harness.session.dispose();
+    });
+
+    it("credits the consumer when the configuration named the direction", () => {
+        const harness = makeSession({ directed: true });
+        const { nodes, edges } = graph(3, [[0, 1]]);
+        harness.add(nodes, edges);
+
+        const stats = harness.session.data.statistics();
+        assert.strictEqual(stats.directedness, "directed");
+        // The claim and its source are separate: "directed" here is the consumer's instruction
+        // being reported back, not something read out of any data, and a reader is entitled to
+        // know which of those they are looking at.
+        assert.deepStrictEqual(stats.directednessSource, { by: "configuration", statedBy: null });
+        harness.session.dispose();
+    });
+
+    it("stays unsettled when records arrive that carry no header to read", () => {
+        const harness = makeSession();
+        const { nodes, edges } = graph(3, [[0, 1], [1, 2]]);
+        harness.add(nodes, edges);
+
+        // Records pushed straight in have no file around them, so nothing has stated a direction
+        // even though the graph now has a flag. This is the case a properties panel must not
+        // print as "Directed (from file)".
+        assert.strictEqual(harness.session.data.statistics().directednessSource.by, "unsettled");
+        harness.session.dispose();
+    });
+});
+
 describe("the connected components", () => {
     it("finds the pieces and orders their sizes largest first", () => {
         const harness = makeSession();

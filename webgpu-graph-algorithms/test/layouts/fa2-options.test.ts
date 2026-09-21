@@ -17,7 +17,7 @@ import { type GpuContext } from "../../src/context.js";
 import { WebGpuGraphError, type WebGpuGraphErrorCode } from "../../src/errors.js";
 import { type CommandBatch } from "../../src/kernel/batch.js";
 import { FA2_STATE, FA2_TRACE, KERNELS, kernelSpec } from "../../src/kernels.js";
-import { ForceSimulation, type StateWriter } from "../../src/layouts/force-simulation.js";
+import { ForceSimulation, type StateWriter, tierFor } from "../../src/layouts/force-simulation.js";
 import {
     createForceAtlas2,
     ForceAtlas2Model,
@@ -33,10 +33,6 @@ import { noiseFloorFor } from "../helpers/noise-floor.js";
 import { matrixCovers } from "../helpers/override-matrix.js";
 import { ForceAtlas2Oracle } from "../oracle/forceatlas2.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
-
-// ============================================================ helpers
-
-type Fa2Sim = ForceSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
 
 /** A JS-shaped option record (out-of-type values for the range tests). */
 function loose(record: Record<string, unknown>): ForceAtlas2Options & GpuLayoutTuning {
@@ -64,19 +60,9 @@ function expectCode(fn: () => unknown, code: WebGpuGraphErrorCode, details?: Rec
     assertCode(caught, code, details);
 }
 
-async function expectRejects(
-    promise: Promise<unknown>,
-    code: WebGpuGraphErrorCode,
-    details?: Record<string, unknown>,
-): Promise<void> {
-    let caught: unknown = null;
-    try {
-        await promise;
-    } catch (err) {
-        caught = err;
-    }
-    assertCode(caught, code, details);
-}
+// ============================================================ helpers
+
+type Fa2Sim = ForceSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
 
 /** Narrows the public simulation to the class so the @internal members (model, options, inspect, debugRunStages) are reachable. */
 function asSim(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>): Fa2Sim {
@@ -215,12 +201,14 @@ const P3_ENTRIES: Record<(typeof P3_IDS)[number], EntryTable> = {
             [1, 0, "partials", "storage-ro", "array<Fa2Partial>"],
             [1, 1, "S", "storage", "Fa2State"],
             [1, 2, "T", "storage", "array<Fa2Trace>"],
+            [1, 3, "cellHist", "storage-ro", "array<u32>"],
+            [1, 4, "hubCounters", "storage", "array<atomic<u32>>"],
             [2, 0, "P", "uniform", "Fa2Params"],
         ],
         overrides: ["STATS_MODE:u32=0"],
         uniforms: ["Fa2Params", "Fa2State", "Fa2Trace", "Fa2Partial"],
         needs: ["subgroups"],
-        storage: 3,
+        storage: 5,
     },
     "fa2-attraction": {
         entryPoint: "attraction",
@@ -232,7 +220,7 @@ const P3_ENTRIES: Record<(typeof P3_IDS)[number], EntryTable> = {
         ],
         overrides: ["LINLOG:bool=false", "DISTRIBUTED:bool=false", "TIER:u32=0", "LAW:u32=0"],
         uniforms: ["Fa2Params"],
-        needs: [],
+        needs: ["subgroups"],
         storage: 6,
     },
     "fa2-integrate": {
@@ -461,6 +449,7 @@ describe("resolveLayoutTuning (contract 3.13; spec 7.14)", () => {
             [{ exactMaxNodes: 0 }, "exactMaxNodes"],
             [{ exactMaxNodes: 1.5 }, "exactMaxNodes"],
             [{ nearMax: 0 }, "nearMax"],
+            [{ nearMax: 1 }, "nearMax"],
             [{ gridMax2D: 0 }, "gridMax2D"],
             [{ gridMax3D: -1 }, "gridMax3D"],
             [{ extentFactor: 0 }, "extentFactor"],
@@ -483,7 +472,21 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
 
     it("has the FA2 kind, stages, blocks and the three model buffers", () => {
         expect(paper.kind).toBe("forceatlas2");
-        expect(paper.stages).toEqual(["K1", "K2", "K3", "K4", "K5", "toScene"]);
+        expect(paper.stages).toEqual([
+            "K1",
+            "K2",
+            "K3",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "K4",
+            "K5",
+            "toScene",
+        ]);
         expect(paper.params.name).toBe("Fa2Params");
         expect(paper.state.name).toBe("Fa2State");
         expect(paper.trace.name).toBe("Fa2Trace");
@@ -494,9 +497,31 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
             ["force", 408, true],
             ["oldForce", 408, true],
             ["fillParams", 256, false],
+            ["hubCounters", 16, true],
         ]);
-        expect(networkx.buffers(34, 3).map((b) => b.name)).toEqual(["force", "oldForce", "fillParams"]);
-        expect(paper.buffers(0, 2).map((b) => b.byteLength)).toEqual([12, 12, 256]);
+        expect(networkx.buffers(34, 3).map((b) => b.name)).toEqual(["force", "oldForce", "fillParams", "hubCounters"]);
+        expect(paper.buffers(0, 2).map((b) => b.byteLength)).toEqual([12, 12, 256, 16]);
+        // the grid tier (P4 PD-18): the same rule load() applies decides the grid buffers
+        const grid = new ForceAtlas2Model(
+            resolveLayoutTuning({ repulsion: "grid" }),
+            resolveForceAtlas2Options(undefined),
+        );
+        expect(grid.buffers(34, 2).map((b) => b.name)).toEqual([
+            "force",
+            "oldForce",
+            "fillParams",
+            "hubCounters",
+            "cellKey",
+            "cellVal",
+            "sortedKey",
+            "sortedIdx",
+            "cellHist",
+            "cellStart",
+            "hubList",
+            "hubArgs",
+            "pyramid",
+        ]);
+        expect(grid.stages).toEqual(paper.stages);
     });
 
     it("compiles the option record to the override set of spec 7.2 with the 4.6 corrections in networkx mode", () => {
@@ -709,31 +734,42 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
         });
     });
 
-    it("inputs() applies the tier rule itself (ForceSimulation.load() checks first, so this is the model's own guard)", () => {
+    it("inputs() returns the inputs on both tiers; tierFor reports the tier the 7.8 rule selects (P4 PD-18)", () => {
         const ten = snapshotOf(pathEdges(10));
         const options = resolveForceAtlas2Options(undefined);
         const modelFor = (tuning: GpuLayoutTuning): ForceAtlas2Model =>
             new ForceAtlas2Model(resolveLayoutTuning(tuning), options);
-        expectCode(() => modelFor({ exactMaxNodes: 8 }).inputs(ten, options), "E_UNSUPPORTED", {
-            feature: "repulsion.grid",
-        });
-        expectCode(() => modelFor({ exactMaxNodes: 8, repulsion: "auto" }).inputs(ten, options), "E_UNSUPPORTED", {
-            feature: "repulsion.grid",
-        });
-        expectCode(() => modelFor({ repulsion: "grid" }).inputs(ten, options), "E_UNSUPPORTED", {
-            feature: "repulsion.grid",
-        });
-        expectCode(() => modelFor({ exactMaxNodes: 64, repulsion: "grid" }).inputs(ten, options), "E_UNSUPPORTED", {
-            feature: "repulsion.grid",
-        });
+        const gridCases: GpuLayoutTuning[] = [
+            { exactMaxNodes: 8 },
+            { exactMaxNodes: 8, repulsion: "auto" },
+            { repulsion: "grid" },
+            { exactMaxNodes: 64, repulsion: "grid" },
+        ];
+        for (const tuning of gridCases) {
+            const model = modelFor(tuning);
+            expect(tierFor(model.tuning, 10)).toBe("grid");
+            expect(model.inputs(ten, options).mass).toHaveLength(10);
+            // the grid specs join the list once a grid load has been resolved (the pipeline key carries no geometry);
+            // G6 / G7 carry the FA2 law (P4-T13, PD-22)
+            const specs = model.specs(model.overrides(options), true);
+            expect(specs.map((s) => s.id)).toContain("grid-near-field");
+            expect(specs.find((s) => s.id === "grid-far-field")?.overrides).toEqual({ LAW: 0 });
+            expect(specs.find((s) => s.id === "grid-near-field")?.overrides).toEqual({
+                SWING_MODE: 0,
+                STRONG_GRAVITY: false,
+                GRAVITY_CENTER: 0,
+                LAW: 0,
+            });
+        }
+        expect(tierFor(modelFor({ exactMaxNodes: 10 }).tuning, 10)).toBe("exact");
         expect(modelFor({ exactMaxNodes: 10 }).inputs(ten, options).mass).toHaveLength(10);
         expect(modelFor({ exactMaxNodes: 8, repulsion: "exact" }).inputs(ten, options).mass).toHaveLength(10);
         const inputs = modelFor({}).inputs(ten, options);
         expect(inputs.mass).toHaveLength(10);
         expect(inputs.weights).toEqual({ data: null, source: "none", column: null });
-        // recordIteration refuses the grid tier before it touches the batch or the resources (never bound here)
-        expectCode(() => modelFor({}).recordIteration({} as CommandBatch, 0, "grid"), "E_UNSUPPORTED", {
-            feature: "repulsion.grid",
+        // recordIteration before bind() is E_NOT_LOADED on either tier (never a silent no-op)
+        expectCode(() => modelFor({}).recordIteration({} as CommandBatch, 0, "grid"), "E_NOT_LOADED", {
+            state: "created",
         });
     });
 });
@@ -776,39 +812,29 @@ describe("createForceAtlas2: creation errors and the repulsion tier rule (spec 7
         expectCode(() => createForceAtlas2(ctx), "E_DISPOSED");
     });
 
-    it("applies the tier rule at load(): auto above exactMaxNodes and an explicit grid throw E_UNSUPPORTED { feature }, exact never", async (t) => {
+    it("applies the tier rule at load(): auto above exactMaxNodes and an explicit grid select the grid tier, exact never (spec 7.8)", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
         const ten = snapshotOf(pathEdges(10));
         expect(ten.nodeCount).toBe(10);
-        const cases: [GpuLayoutTuning, boolean][] = [
-            [{ exactMaxNodes: 8 }, false],
-            [{ exactMaxNodes: 8, repulsion: "auto" }, false],
-            [{ exactMaxNodes: 8, repulsion: "grid" }, false],
-            [{ exactMaxNodes: 64, repulsion: "grid" }, false],
-            [{ exactMaxNodes: 10 }, true],
-            [{ exactMaxNodes: 8, repulsion: "exact" }, true],
-            [{}, true],
+        const cases: [GpuLayoutTuning, "exact" | "grid"][] = [
+            [{ exactMaxNodes: 8 }, "grid"],
+            [{ exactMaxNodes: 8, repulsion: "auto" }, "grid"],
+            [{ exactMaxNodes: 8, repulsion: "grid" }, "grid"],
+            [{ exactMaxNodes: 64, repulsion: "grid" }, "grid"],
+            [{ exactMaxNodes: 10 }, "exact"],
+            [{ exactMaxNodes: 8, repulsion: "exact" }, "exact"],
+            [{}, "exact"],
         ];
-        for (const [tuning, ok] of cases) {
+        for (const [tuning, tier] of cases) {
             const sim = createForceAtlas2(ctx, tuning);
             const positions = nanPositions(10);
-            if (ok) {
-                sim.load(ten, positions);
-                await sim.step(1);
-                expect(sim.stats.repulsionTier).toBe("exact");
-                for (const v of positions) {
-                    expect(Number.isFinite(v)).toBe(true);
-                }
-            } else {
-                expectCode(
-                    () => {
-                        sim.load(ten, positions);
-                    },
-                    "E_UNSUPPORTED",
-                    { feature: "repulsion.grid" },
-                );
-                await expectRejects(sim.step(1), "E_NOT_LOADED");
+            sim.load(ten, positions);
+            expect(asSim(sim).tier).toBe(tier);
+            await sim.step(1);
+            expect(sim.stats.repulsionTier).toBe(tier);
+            for (const v of positions) {
+                expect(Number.isFinite(v)).toBe(true);
             }
             sim.dispose();
         }

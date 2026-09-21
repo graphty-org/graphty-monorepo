@@ -13,13 +13,17 @@
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
+import { STORAGE_ALIGN } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { type UniformBlock, type UniformValues } from "../../src/kernel/struct-block.js";
+import { GraphResidency } from "../../src/memory/residency.js";
+import { degreeTiersOf } from "../../src/primitives/core-shape.js";
 import { type ReduceOp, type ReduceScope } from "../../src/primitives/reduce.js";
 import { prepareSegmentedReduce } from "../../src/primitives/segmented-reduce.js";
 import { type Binding } from "../../src/types/memory.js";
 import { segmentedReduceOracle } from "../oracle/segmented-reduce.js";
+import { fakeCaps } from "./caps-tables.js";
 import { type EdgeSpec, randomEdges, snapshotOf } from "./graphs.js";
 import { maxRelError } from "./matchers.js";
 import { SEGMENTED_REDUCE_SNIPPETS } from "./override-matrix.js";
@@ -183,17 +187,69 @@ export interface RunOptions {
     readonly accumulate?: boolean | undefined;
     /** The out contents before the dispatch (default: every row SR_SENTINEL). */
     readonly initial?: F32 | undefined;
+    /** "auto": the degree tiers of the snapshot's degreeOrder view (degreeTiersOf); omitted: tiers null (one thread-per-row dispatch). */
+    readonly tiers?: "auto" | undefined;
+    /** A FAKED maxStorageBufferBindingSize in bytes: the core is uploaded by a GraphResidency over fakeCaps, so it is windowed (P4-T7); omitted: the context's residency. */
+    readonly bindingLimit?: number | undefined;
 }
 
 /**
- * Uploads the core, prepares the thread-per-row planner, records ONE dispatch into a fresh encoder, submits and reads
- * out[0..n) back. The out buffer starts as SR_SENTINEL so an unwritten row is visible. The snapshot stays resident
- * (the caller releases it).
+ * The windowed fixture of P4-T7: 2048 nodes, node 0 carrying 30,000 parallel weighted edges to random nodes (a row of
+ * 30k arcs: the planner's rowPtr must fit the faked binding, so the split row must be longer than rowPtr's 8,196
+ * bytes), nodes 1..64 carrying 100 each (the mid tier), every node 4 random edges (the low tier); undirected,
+ * weights in [0.25, 4) from an LCG, parallels kept (graph-format accepts them, the oracle folds per arc).
+ * @returns the snapshot
+ */
+export function windowedHub(): GraphSnapshot {
+    const n = 2048;
+    let state = 97;
+    const next = (): number => {
+        state = (state * 1664525 + 1013904223) % 4294967296;
+        return state / 4294967296;
+    };
+    const edges: EdgeSpec[] = [];
+    const push = (u: number): void => {
+        let v = Math.floor(next() * n);
+        if (v === u) {
+            v = (v + 1) % n;
+        }
+        edges.push([u, v, Math.fround(0.25 + 3.75 * next())]);
+    };
+    for (let i = 0; i < 30_000; i++) {
+        push(0);
+    }
+    for (let u = 1; u <= 64; u++) {
+        for (let i = 0; i < 100; i++) {
+            push(u);
+        }
+    }
+    for (let u = 0; u < n; u++) {
+        for (let i = 0; i < 4; i++) {
+            push(u);
+        }
+    }
+    return snapshotOf(edges, { weighted: true, nodeCount: n, label: "windowed-hub" });
+}
+
+/**
+ * The smallest faked maxStorageBufferBindingSize a snapshot's rowPtr fits (the planner rejects a rowPtr above the
+ * binding limit), so every arc window holds at most as many bytes as rowPtr and a row longer than rowPtr is split.
+ * @param s - the snapshot
+ * @returns the limit in bytes, a multiple of STORAGE_ALIGN
+ */
+export function windowedBindingLimit(s: GraphSnapshot): number {
+    return Math.ceil((4 * (s.nodeCount + 1)) / STORAGE_ALIGN) * STORAGE_ALIGN;
+}
+
+/**
+ * Uploads the core, prepares the planner (thread-per-row, or the degree tiers under `tiers: "auto"`), records its
+ * dispatches into a fresh encoder, submits and reads out[0..n) back. The out buffer starts as SR_SENTINEL so an
+ * unwritten row is visible. The snapshot stays resident (the caller releases it).
  * @param ctx - the context
  * @param s - the snapshot
  * @param op - the operator
  * @param snippet - the VALUE snippet
- * @param options - accumulate / initial
+ * @param options - accumulate / initial / tiers
  * @returns the n results
  */
 export async function runSegmentedReduce(
@@ -204,7 +260,19 @@ export async function runSegmentedReduce(
     options?: RunOptions,
 ): Promise<F32> {
     const n = s.nodeCount;
-    const core = ctx.residency.core(s);
+    const limit = options?.bindingLimit;
+    const faked =
+        limit === undefined
+            ? null
+            : new GraphResidency(
+                  ctx.device,
+                  fakeCaps(ctx.caps, { maxStorageBufferBindingSize: limit }),
+                  ctx.allocator,
+                  {
+                      warnUnreleasedSnapshots: 2,
+                  },
+              );
+    const core = (faked ?? ctx.residency).core(s);
     const scope = testReduceScope(ctx);
     try {
         const out = scope.scratch(Math.max(4, 4 * n), "segmented-reduce/out");
@@ -212,10 +280,11 @@ export async function runSegmentedReduce(
             const initial = options?.initial ?? new Float32Array(n).fill(SR_SENTINEL);
             ctx.device.queue.writeBuffer(out, 0, initial);
         }
+        const tiers = options?.tiers === "auto" && n > 0 ? degreeTiersOf(ctx.residency.view(s, "degreeOrder")) : null;
         const planner = await prepareSegmentedReduce(scope, core, {
             op,
             valueSnippet: snippet,
-            tiers: null,
+            tiers,
             accumulate: options?.accumulate,
         });
         const encoder = ctx.device.createCommandEncoder({ label: "segmented-reduce/test" });
@@ -229,6 +298,7 @@ export async function runSegmentedReduce(
         return await readF32(ctx, out, n);
     } finally {
         scope.dispose();
+        faked?.destroyAll();
     }
 }
 
@@ -292,6 +362,50 @@ export function sabotageChecks(): readonly SrCheck[] {
             snippet: SEGMENTED_REDUCE_SNIPPETS.weight,
         },
     ];
+}
+
+/**
+ * The tier check of test/primitives/tiers.test.ts and test/sabotage/tiers.test.ts: sum / min / max of the `weight`
+ * snippet over the snapshot's degree tiers (`tiers: "auto"`), the worst error factor against the f64 oracle (the
+ * real kernel is below 1, a tier mutant must reach its minFactor). The snapshot stays resident (the caller releases
+ * it).
+ * @param ctx - the context
+ * @param s - the snapshot (rmat14 in both suites: every tier populated)
+ * @returns max over the three operators of errorFactor
+ */
+export async function tieredWorstFactor(ctx: GpuContext, s: GraphSnapshot): Promise<number> {
+    let worst = 0;
+    for (const op of ["sum", "min", "max"] as const) {
+        const actual = await runSegmentedReduce(ctx, s, op, SEGMENTED_REDUCE_SNIPPETS.weight, { tiers: "auto" });
+        const expected = segmentedReduceOracle(s, oracleValueOf(SEGMENTED_REDUCE_SNIPPETS.weight), op);
+        worst = Math.max(worst, errorFactor(actual, expected, s, op));
+    }
+    return worst;
+}
+
+/**
+ * The windowed check of the `accumulate-ignored` row (P4-T7, PD-8): sum / min / max of the `weight` snippet over the
+ * windowedHub fixture at the binding limit its rowPtr fits (its hub row spans many windows), untiered and over the
+ * degree tiers, the worst error factor against the f64 oracle; the fixture is released afterwards.
+ * @param ctx - the context
+ * @returns max over the operators and both tier modes of errorFactor
+ */
+export async function windowedWorstFactor(ctx: GpuContext): Promise<number> {
+    const s = windowedHub();
+    const bindingLimit = windowedBindingLimit(s);
+    let worst = 0;
+    for (const op of ["sum", "min", "max"] as const) {
+        const expected = segmentedReduceOracle(s, oracleValueOf(SEGMENTED_REDUCE_SNIPPETS.weight), op);
+        for (const tiers of [undefined, "auto"] as const) {
+            const actual = await runSegmentedReduce(ctx, s, op, SEGMENTED_REDUCE_SNIPPETS.weight, {
+                tiers,
+                bindingLimit,
+            });
+            worst = Math.max(worst, errorFactor(actual, expected, s, op));
+        }
+    }
+    ctx.release(s);
+    return worst;
 }
 
 /**

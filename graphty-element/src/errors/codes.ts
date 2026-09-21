@@ -108,6 +108,23 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_FORMAT"
     /**
+     * A binding, an `encode` call or a saved document names a palette nothing registered.
+     * `details.available` lists the known palette ids and `details.candidates` the nearest few.
+     * The caller picks a palette from the catalogue or registers its own first.
+     */
+    | "E_UNKNOWN_PALETTE"
+    /**
+     * A camera view name is not one the element knows. `details.available` lists the registered
+     * view ids. The caller picks one of those or registers its own view first.
+     */
+    | "E_UNKNOWN_CAMERA"
+    /**
+     * A logging configuration names a log destination nothing registered. `details.available`
+     * lists the registered sink ids. The caller registers the sink before naming it, which is
+     * what makes a destination configurable by name rather than by holding a live object.
+     */
+    | "E_UNKNOWN_SINK"
+    /**
      * A selector, encoding or document refers to a run id that this session does not hold --
      * usually a saved artifact re-opened against a session where the run has not been started.
      * `details.candidates` carry the nearest run ids. The caller re-runs the algorithm or
@@ -126,6 +143,12 @@ export type GraphtyErrorCode =
      * `details.id` names it. The caller chooses another id or asks for merge behaviour.
      */
     | "E_DUPLICATE_ID"
+    /**
+     * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
+     * is `"error"`. `details` name both endpoints and the index of the edge already present. The
+     * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
+     */
+    | "E_DUPLICATE_EDGE"
     /**
      * A plugin is registered twice under one kind and name with a different implementation, and
      * the registration asked for strict behaviour. `details` name the kind and the name. The
@@ -273,9 +296,13 @@ const CODE_TABLE = {
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",
+    E_UNKNOWN_PALETTE: "E_UNKNOWN_PALETTE",
+    E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
+    E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
+    E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
     E_DUPLICATE_PLUGIN: "E_DUPLICATE_PLUGIN",
     E_PROTECTED: "E_PROTECTED",
     E_FETCH_FAILED: "E_FETCH_FAILED",

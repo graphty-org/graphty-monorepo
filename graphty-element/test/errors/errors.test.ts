@@ -32,9 +32,13 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
     "E_UNKNOWN_FORMAT",
+    "E_UNKNOWN_PALETTE",
+    "E_UNKNOWN_CAMERA",
+    "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
+    "E_DUPLICATE_EDGE",
     "E_DUPLICATE_PLUGIN",
     "E_PROTECTED",
     "E_FETCH_FAILED",
@@ -79,10 +83,14 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":
         case "E_UNKNOWN_FORMAT":
+        case "E_UNKNOWN_PALETTE":
+        case "E_UNKNOWN_CAMERA":
+        case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
+        case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
         case "E_READONLY":

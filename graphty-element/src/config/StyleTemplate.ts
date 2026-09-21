@@ -6,26 +6,41 @@ import { GraphBehaviorOpts } from "./GraphBehavior";
 import { GraphStyle } from "./GraphStyle";
 import { NodeStyle } from "./NodeStyle";
 
-const AllowedInputPaths = z.string().regex(/^data\.|algorithmResults\./);
-const AllowedOuputPaths = z.string().startsWith("style.");
-
-export const CalculatedStyle = z.strictObject({
-    inputs: z.array(AllowedInputPaths),
-    output: AllowedOuputPaths,
-    expr: z.string(),
+/**
+ * A 1.x calculated style, which is accepted and then ignored.
+ *
+ * `expr` was a string of JavaScript compiled with the `Function` constructor and run once per
+ * element per repaint, with no try/catch anywhere on the path -- so one throw aborted the repaint
+ * part way through and every element after it silently kept its old style, and under a Content
+ * Security Policy without `unsafe-eval` the whole mechanism died and took every algorithm's
+ * colouring with it, in silence. It is deleted rather than sandboxed: a declarative encoding
+ * (`session.styles.encode()`) has no evaluator, can be validated, diffed, legended and retargeted
+ * at another dataset, and a string of JavaScript can do none of those.
+ *
+ * THE SHAPE STILL PARSES so that a template saved by 1.x loads instead of being refused at the
+ * door; {@link Styles} warns once for every layer carrying one, naming the layer. Nothing reads
+ * the value. Bind a value to a channel with `session.styles.encode()` instead.
+ */
+export const CalculatedStyle = z.looseObject({
+    inputs: z.array(z.string()).optional(),
+    output: z.string().optional(),
+    expr: z.string().optional(),
 });
 
+/** A 1.x calculated style as it parses. Accepted, never applied -- see {@link CalculatedStyle}. */
 export type CalculatedStyleConfig = z.infer<typeof CalculatedStyle>;
 
 const AppliedNodeStyle = z.strictObject({
     selector: z.string(),
     style: NodeStyle,
+    /** Removed in 2.0: accepted so a 1.x template loads, never applied. */
     calculatedStyle: CalculatedStyle.optional(),
 });
 
 const AppliedEdgeStyle = z.strictObject({
     selector: z.string(),
     style: EdgeStyle,
+    /** Removed in 2.0: accepted so a 1.x template loads, never applied. */
     calculatedStyle: CalculatedStyle.optional(),
 });
 

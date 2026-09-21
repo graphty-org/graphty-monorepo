@@ -89,7 +89,7 @@ describe("Graphty API Parity", () => {
         });
 
         describe("Style Methods", () => {
-            const styleMethods = ["setStyleTemplate", "getStyleManager"];
+            const styleMethods = ["setStyleTemplate", "getStyles"];
 
             for (const method of styleMethods) {
                 it(`has ${method} method`, () => {

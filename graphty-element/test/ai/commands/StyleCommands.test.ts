@@ -484,24 +484,18 @@ describe("StyleCommands", () => {
     });
 
     /**
-     * Regression test for Issue #1: Style commands should use StyleManager
-     * Bug: Style changes were not triggering node/edge visual updates because
-     * the commands were calling styles.addLayer() directly instead of going
-     * through StyleManager.addLayer() which handles cache invalidation and
-     * event emission.
+     * Regression test for Issue #1: a style command must go through the graph's layer verb.
+     *
+     * The bug: the commands called `styles.addLayer()` directly, which mutates the stack and
+     * emits nothing, so the nodes and edges already on screen were never repainted. The verb on
+     * the graph adds the layer AND announces the change, which is why it is the only door.
      */
-    describe("regression: style commands use StyleManager (Issue #1)", () => {
-        it("findAndStyleNodes uses StyleManager.addLayer not styles.addLayer directly", async () => {
-            // Track whether styleManager.addLayer was called
-            let styleManagerAddLayerCalled = false;
-            const originalStyleManager = graph.getStyleManager();
-
-            // Spy on styleManager.addLayer
-            const originalAddLayer = originalStyleManager.addLayer.bind(originalStyleManager);
-            originalStyleManager.addLayer = (layer) => {
-                styleManagerAddLayerCalled = true;
-                originalAddLayer(layer);
-            };
+    describe("regression: style commands repaint what they style (Issue #1)", () => {
+        it("findAndStyleNodes adds its layer through the graph, which announces the change", async () => {
+            let announced = 0;
+            graph.eventManager.addListener("style-changed", () => {
+                announced++;
+            });
 
             await findAndStyleNodes.execute(
                 graph,
@@ -513,24 +507,14 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            assert.strictEqual(
-                styleManagerAddLayerCalled,
-                true,
-                "findAndStyleNodes should use StyleManager.addLayer() to ensure style updates are propagated",
-            );
+            assert.strictEqual(announced, 1, "adding a style layer must announce the change so the graph repaints");
         });
 
-        it("findAndStyleEdges uses StyleManager.addLayer not styles.addLayer directly", async () => {
-            // Track whether styleManager.addLayer was called
-            let styleManagerAddLayerCalled = false;
-            const originalStyleManager = graph.getStyleManager();
-
-            // Spy on styleManager.addLayer
-            const originalAddLayer = originalStyleManager.addLayer.bind(originalStyleManager);
-            originalStyleManager.addLayer = (layer) => {
-                styleManagerAddLayerCalled = true;
-                originalAddLayer(layer);
-            };
+        it("findAndStyleEdges adds its layer through the graph, which announces the change", async () => {
+            let announced = 0;
+            graph.eventManager.addListener("style-changed", () => {
+                announced++;
+            });
 
             await findAndStyleEdges.execute(
                 graph,
@@ -542,11 +526,7 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            assert.strictEqual(
-                styleManagerAddLayerCalled,
-                true,
-                "findAndStyleEdges should use StyleManager.addLayer() to ensure style updates are propagated",
-            );
+            assert.strictEqual(announced, 1, "adding a style layer must announce the change so the graph repaints");
         });
     });
 });

@@ -44,7 +44,10 @@ describe("Camera Presets - 3D", () => {
                     edgeDstIdPath: "dst",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {
@@ -156,8 +159,8 @@ describe("Camera Presets - 3D", () => {
         assert.ok(presetState.alpha !== undefined);
         assert.ok(presetState.beta !== undefined);
 
-        // Classic isometric: alpha ≈ 45°, beta ≈ 35.264°
+        // Classic isometric: alpha ~= 45 deg, beta ~= 35.264 deg
         assert.approximately(presetState.alpha, Math.PI / 4, 0.1);
-        assert.approximately(presetState.beta, 0.615, 0.1); // ≈35.264° in radians
+        assert.approximately(presetState.beta, 0.615, 0.1); // ~= 35.264 deg in radians
     });
 });

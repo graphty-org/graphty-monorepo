@@ -2,7 +2,7 @@ import assert from "node:assert";
 
 import { describe, it } from "vitest";
 
-import { StyleHelpers } from "../../src/config";
+import { StyleHelpers } from "../helpers/styleHelpers";
 
 describe("StyleHelpers.edgeWidth.linear", () => {
     it("returns minWidth (0.5) for value 0 with default params", () => {

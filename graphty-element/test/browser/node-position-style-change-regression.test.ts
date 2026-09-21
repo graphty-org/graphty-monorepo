@@ -140,9 +140,8 @@ describe("Node position preservation during style changes (regression)", () => {
         // Verify we have non-zero positions (layout has actually positioned nodes)
         verifyNonZeroPositions(positionsBefore);
 
-        // Apply style change via StyleManager (simulates what AI commands do)
-        const styleManager = graph.getStyleManager();
-        styleManager.addLayer({
+        // Apply a style change the way the AI commands do
+        graph.addStyleLayer({
             node: {
                 selector: "type == 'server'",
                 style: {
@@ -176,8 +175,7 @@ describe("Node position preservation during style changes (regression)", () => {
         await waitForLayoutSettle();
 
         // Apply initial style
-        const styleManager = graph.getStyleManager();
-        styleManager.addLayer({
+        graph.addStyleLayer({
             node: {
                 selector: "",
                 style: {
@@ -197,7 +195,7 @@ describe("Node position preservation during style changes (regression)", () => {
         const positionsBefore = getNodePositions();
 
         // Clear styles (which triggers another style update)
-        styleManager.removeLayersByMetadata((metadata) => {
+        graph.removeStyleLayersByMetadata((metadata: unknown) => {
             const meta = metadata as { name?: string } | null;
             return meta?.name === "test-layer";
         });
@@ -229,11 +227,10 @@ describe("Node position preservation during style changes (regression)", () => {
         // Record original positions
         const originalPositions = getNodePositions();
 
-        const styleManager = graph.getStyleManager();
 
         // Apply multiple style changes in quick succession
         for (let i = 0; i < 5; i++) {
-            styleManager.addLayer({
+            graph.addStyleLayer({
                 node: {
                     selector: "",
                     style: {
@@ -275,8 +272,7 @@ describe("Node position preservation during style changes (regression)", () => {
         verifyNonZeroPositions(positionsBefore);
 
         // Change shape (this forces mesh recreation)
-        const styleManager = graph.getStyleManager();
-        styleManager.addLayer({
+        graph.addStyleLayer({
             node: {
                 selector: "",
                 style: {

@@ -26,7 +26,6 @@ import { EventManager } from "../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphContext";
 import { LayoutManager } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
-import { StyleManager } from "../src/managers/StyleManager";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { Node } from "../src/Node";
 import { Styles } from "../src/Styles";
@@ -81,14 +80,13 @@ function createHarness(): Harness {
     const styles = Styles.default();
     const eventManager = new EventManager();
     const statsManager = new StatsManager(eventManager);
-    const styleManager = new StyleManager(eventManager, styles);
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     const layoutEngine = new FixedTestLayout();
     layoutManager.layoutEngine = layoutEngine;
 
     const context = new DefaultGraphContext(
-        styleManager,
+        () => styles,
         dataManager,
         layoutManager,
         meshCache,

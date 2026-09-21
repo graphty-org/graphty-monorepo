@@ -16,7 +16,6 @@
 
 import { assert, describe, it, vi } from "vitest";
 
-import type { AdHocData } from "../../src/config";
 import type { Node } from "../../src/Node";
 
 describe("Node.update() mesh disposal regression", () => {
@@ -67,7 +66,6 @@ describe("Node.update() mesh disposal regression", () => {
         const mockNode = {
             mesh: mockMesh,
             styleId: nodeStyleId,
-            styleUpdates: {} as unknown as AdHocData,
             dragging: false,
             context: mockContext,
 
@@ -85,16 +83,6 @@ describe("Node.update() mesh disposal regression", () => {
                 // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it
                 if (this.mesh.isDisposed()) {
                     this.updateStyle(this.styleId);
-                }
-
-                const newStyleKeys = Object.keys(this.styleUpdates);
-                if (newStyleKeys.length > 0) {
-                    // Simplified - just call updateStyle with current styleId
-                    this.updateStyle(this.styleId);
-                    for (const key of newStyleKeys) {
-                        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-                        delete (this.styleUpdates as Record<string, unknown>)[key];
-                    }
                 }
 
                 if (this.dragging) {
@@ -164,32 +152,6 @@ describe("Node.update() mesh disposal regression", () => {
             );
         });
 
-        it("should call updateStyle when there are style updates (normal case)", () => {
-            const { node, updateStyleCalls } = createMockNode();
-
-            // Add a style update
-            (node.styleUpdates as Record<string, unknown>).color = "red";
-
-            node.update?.();
-
-            assert.strictEqual(updateStyleCalls.length, 1, "updateStyle should be called for style updates");
-        });
-
-        it("should call updateStyle twice when mesh is disposed AND there are style updates", () => {
-            const { node, updateStyleCalls } = createMockNode();
-
-            // Dispose mesh AND add style update
-            (node as { _disposeMeshForTesting: () => void })._disposeMeshForTesting();
-            (node.styleUpdates as Record<string, unknown>).color = "red";
-
-            node.update?.();
-
-            // Should be called twice: once for disposed mesh, once for style update
-            // (In practice, the second call might be optimized away if styleId is same,
-            // but our test mock always increments the call count)
-            assert.ok(updateStyleCalls.length >= 1, "updateStyle should be called at least once");
-        });
-
         it("should update position after mesh is recreated", () => {
             const { node } = createMockNode();
 
@@ -226,17 +188,5 @@ describe("Node.update() mesh disposal regression", () => {
             assert.strictEqual(node.mesh?.position.x, 0);
         });
 
-        it("should clear styleUpdates after processing", () => {
-            const { node } = createMockNode();
-
-            // Add style updates
-            (node.styleUpdates as Record<string, unknown>).color = "red";
-            (node.styleUpdates as Record<string, unknown>).size = 5;
-
-            node.update?.();
-
-            // Style updates should be cleared
-            assert.strictEqual(Object.keys(node.styleUpdates ?? {}).length, 0);
-        });
     });
 });

@@ -413,12 +413,14 @@ export class NodeDragHandler {
             selectionManager.select(this.node);
         }
 
-        // Pin the node to prevent layout drift during selection styling
-        // This matches the behavior of drag (which pins after drag end)
-        if (this.node.pinOnDrag) {
-            this.node.pin();
-        }
-
+        // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user
+        // placed it, and placing is dragging. Pinning here as well made every node a reader merely
+        // clicked on permanently fixed -- nothing in the element releases a pin, so a session spent
+        // inspecting nodes ended with the layout frozen one node at a time, and the reader had no
+        // way to tell which nodes were stuck or why. It was done to stop the layout drifting under
+        // the selection styling; a moving node keeps its own highlight, so what that bought was a
+        // still node, at the price of a pin the reader never asked for.
+        //
         // Emit node-click event
         const eventManager = context.getEventManager?.();
         if (eventManager && this.clickState?.pointerEvent) {

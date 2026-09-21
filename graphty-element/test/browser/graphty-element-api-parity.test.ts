@@ -45,7 +45,7 @@ describe("Graphty API Parity", () => {
         describe("Style Methods", () => {
             it("has style methods", () => {
                 assert.isFunction(Graphty.prototype.setStyleTemplate);
-                assert.isFunction(Graphty.prototype.getStyleManager);
+                assert.isFunction(Graphty.prototype.getStyles);
             });
         });
 

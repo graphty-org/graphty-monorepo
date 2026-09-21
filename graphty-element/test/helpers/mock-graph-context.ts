@@ -143,6 +143,30 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
     };
 
+    // The listeners a test attaches, and the one way this mock tells them anything. The layer
+    // verbs below announce through it for the same reason the real graph does: a layer that is
+    // added without the change being announced is a layer nothing repaints from.
+    const listeners = new Map<string, ((event: { type: string }) => void)[]>();
+
+    /**
+     * Tell whoever is listening that something changed.
+     * @param type - The event type.
+     */
+    function announce(type: string): void {
+        for (const listener of listeners.get(type) ?? []) {
+            listener({ type });
+        }
+    }
+
+    const mockEventManager = {
+        addListener(type: string, listener: (event: { type: string }) => void): void {
+            listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+        },
+        emitGraphEvent(type: string): void {
+            announce(type);
+        },
+    };
+
     // Create mock style layers array
     const mockStyleLayers: {
         node?: { selector: string; style: object };
@@ -179,32 +203,6 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
     };
 
-    // Create mock style manager (wraps styles with cache/event handling)
-    const mockStyleManager = {
-        getStyles: () => mockStyles,
-        addLayer(layer: (typeof mockStyleLayers)[0]): void {
-            mockStyles.addLayer(layer);
-            // In the real StyleManager, this also clears cache and emits style-changed event
-        },
-        insertLayer(position: number, layer: (typeof mockStyleLayers)[0]): void {
-            mockStyleLayers.splice(position, 0, layer);
-        },
-        removeLayersByMetadata(predicate: (metadata: unknown) => boolean): void {
-            // Filter out layers matching the predicate
-            const originalLength = mockStyleLayers.length;
-            for (let i = mockStyleLayers.length - 1; i >= 0; i--) {
-                if (predicate(mockStyleLayers[i].metadata)) {
-                    mockStyleLayers.splice(i, 1);
-                }
-            }
-
-            void originalLength; // Suppress unused variable warning
-        },
-        clearCache: () => {
-            // Mock implementation - no-op for testing
-        },
-    };
-
     // Create the mock graph object
     const mockGraph = {
         // Data access
@@ -213,7 +211,36 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         getDataManager: () => mockDataManager,
         getLayoutManager: () => mockLayoutManager,
         getStyles: () => mockStyles,
-        getStyleManager: () => mockStyleManager,
+
+        // The layer verbs the graph owns now that there is no style manager between them and the
+        // stack. The real ones announce the change so the elements already drawn are repainted;
+        // the mock records the layer, which is what the command tests read back.
+        addStyleLayer(layer: (typeof mockStyleLayers)[0]): void {
+            mockStyleLayers.push(layer);
+            announce("style-changed");
+        },
+        insertStyleLayer(position: number, layer: (typeof mockStyleLayers)[0]): void {
+            mockStyleLayers.splice(position, 0, layer);
+            announce("style-changed");
+        },
+        removeStyleLayersByMetadata(predicate: (metadata: unknown) => boolean): boolean {
+            const before = mockStyleLayers.length;
+
+            for (let i = mockStyleLayers.length - 1; i >= 0; i--) {
+                if (predicate(mockStyleLayers[i].metadata)) {
+                    mockStyleLayers.splice(i, 1);
+                }
+            }
+
+            const removed = mockStyleLayers.length !== before;
+
+            if (removed) {
+                announce("style-changed");
+            }
+
+            return removed;
+        },
+        getLayers: () => [...mockStyleLayers],
 
         // Layout methods
         setLayout(type: string): void {
@@ -293,6 +320,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         // Event handling (mock)
         on: (): void => undefined,
         addListener: (): void => undefined,
+        eventManager: mockEventManager,
 
         // Screenshot capture (mock)
         captureScreenshot() {

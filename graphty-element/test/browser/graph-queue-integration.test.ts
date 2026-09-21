@@ -90,7 +90,10 @@ describe("Graph Queue Integration", () => {
                     edgeDstIdPath: "target",
                     edgeWeightPath: null,
                     edgeTimePath: null,
+                    positionScale: 1,
+                    idCoercion: "canonical",
                 },
+                directed: "auto",
             },
             behavior: {
                 layout: {
@@ -313,7 +316,12 @@ describe("Graph Queue Integration", () => {
 
     describe("Algorithms", () => {
         it("should queue algorithm operations", async () => {
-            const queueSpy = vi.spyOn(graph.operationQueue, "queueOperationAsync");
+            // `queueOperation` rather than `queueOperationAsync`: the latter is a thin wrapper
+            // that calls the former, and a run now reaches the queue through the primitive. What
+            // this test is for is that algorithm work takes its turn in the element's queue --
+            // where it is ordered against loads, layouts and style passes -- and that is still
+            // exactly what happens, on the same queue object, under the same category.
+            const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
             // Add nodes first
             await graph.addNodes([
@@ -343,6 +351,7 @@ describe("Graph Queue Integration", () => {
                 "algorithm-run",
                 expect.any(Function),
                 expect.objectContaining({
+                    // The run's own id, which for a built-in algorithm is derived from its key.
                     description: expect.stringContaining("degree"),
                 }),
             );

@@ -349,10 +349,8 @@ export const findAndStyleNodes: GraphCommand = {
                 },
             };
 
-            // Add the layer through StyleManager to ensure proper cache invalidation
-            // and event emission for style updates
-            const styleManager = graph.getStyleManager();
-            styleManager.addLayer(styleLayer);
+            // Added through the graph so the repaint is triggered for us.
+            graph.addStyleLayer(styleLayer);
 
             // Track the layer for removal (using styles reference for layer access)
             const { styles } = graph;
@@ -446,10 +444,8 @@ export const findAndStyleEdges: GraphCommand = {
                 },
             };
 
-            // Add the layer through StyleManager to ensure proper cache invalidation
-            // and event emission for style updates
-            const styleManager = graph.getStyleManager();
-            styleManager.addLayer(styleLayer);
+            // Added through the graph so the repaint is triggered for us.
+            graph.addStyleLayer(styleLayer);
 
             // Track the layer for removal (using styles reference for layer access)
             const { styles } = graph;
@@ -490,14 +486,12 @@ export const clearStyles: GraphCommand = {
         const { layerName } = params as { layerName?: string };
 
         try {
-            const styleManager = graph.getStyleManager();
-
             if (layerName) {
                 // Clear specific layer by name
                 const layerExists = graph.styles.layers.some((layer) => layer.metadata?.name === layerName);
 
                 if (layerExists) {
-                    styleManager.removeLayersByMetadata((metadata) => {
+                    graph.removeStyleLayersByMetadata((metadata: unknown) => {
                         const metaObj = metadata as { name?: string } | null;
                         return metaObj?.name === layerName;
                     });
@@ -521,7 +515,7 @@ export const clearStyles: GraphCommand = {
             }).length;
 
             // Clear all dynamic layers (those with ai- prefix in metadata.name)
-            styleManager.removeLayersByMetadata((metadata) => {
+            graph.removeStyleLayersByMetadata((metadata: unknown) => {
                 const metaObj = metadata as { name?: string } | null;
                 const name = metaObj?.name;
                 return (name?.startsWith("ai-") ?? false) || (name !== undefined && dynamicLayers.has(name));

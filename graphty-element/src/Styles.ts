@@ -1,7 +1,6 @@
 import jmespath from "jmespath";
 import { defaultsDeep, isEqual } from "lodash";
 
-import { CalculatedValue } from "./CalculatedValue";
 import {
     AdHocData,
     AppliedNodeStyleConfig,
@@ -16,16 +15,31 @@ import {
     StyleTemplate,
 } from "./config";
 
-export interface StylesOpts {
-    layers?: object;
-    addDefaultStyle?: boolean;
-}
-
 export type NodeStyleId = number & { __brand: "NodeStyleId" };
 export type EdgeStyleId = number & { __brand: "EdgeStyleId" };
 
 /**
  * Manages style layers and computes styles for nodes and edges.
+ *
+ * THE 1.x STACK, AND THE ONLY THING STILL HOLDING IT UP. Every layer it resolves comes from the
+ * `layers` array of a style template, and it resolves them by calling `jmespath.search()` once per
+ * element per layer -- which re-parses the expression on every call. The session's own stack
+ * (`src/session/styles/`) compiles a selector once into a closure and repaints from a columnar
+ * dirty set instead, and `StylePainter` decides which of the two draws: the session's, unless a
+ * template put layers here.
+ *
+ * WHAT BLOCKS DELETING THIS FILE, precisely. A template layer's `style` is a `NodeStyleConfig` or
+ * an `EdgeStyleConfig` -- the element's whole drawing vocabulary, including the ~50-field
+ * `RichTextStyle` behind a label, a gradient `texture.color`, arrow head and tail decoration and
+ * their own rich-text captions. The session's layers write CHANNELS, and the channel set is
+ * closed: it has no spelling for any of those. Translating a template layer into channels would
+ * therefore silently stop drawing things the element draws today. Closing that gap is an API
+ * decision -- new channels, and a `LabelStyle` that carries what the element's labels can
+ * actually do -- not a deletion, so it is not made here.
+ *
+ * NOT EXPORTED FROM THE PACKAGE. `Styles`, `StylesOpts`, `NodeStyleId` and `EdgeStyleId` left the
+ * published surface with the 2.0 style system; a consumer reads and writes layers through
+ * `session.styles`.
  */
 export class Styles {
     readonly config: StyleSchemaV1;
@@ -50,6 +64,7 @@ export class Styles {
         this.#layers = config.layers;
         this.#emptyNodeStyle = NodeStyle.parse({});
         this.#emptyEdgeStyle = EdgeStyle.parse({});
+        warnAboutCalculatedStyles(this.#layers);
 
         if (this.config.graph.addDefaultStyle) {
             this.#layers.unshift({
@@ -234,112 +249,6 @@ export class Styles {
     }
 
     /**
-     * Retrieves calculated style values for a node from every layer whose node selector matches.
-     *
-     * THE RETURNED ARRAY IS IN ASCENDING LAYER ORDER -- bottom layer first, top layer last -- and
-     * that is the OPPOSITE of the order `getStyleForNode` builds. Both orders exist to produce the
-     * SAME precedence rule, "the top layer wins", because the two arrays feed consumers with
-     * opposite merge semantics:
-     *
-     * - `getStyleForNode` hands its array to lodash `defaultsDeep`, which is FIRST-wins. So it
-     *   unshifts, putting the topmost matching layer at index 0.
-     * - This array is handed to `ChangeManager.loadCalculatedValues`, which inserts it into a Set
-     *   in array order; `runAllCalculatedValues` then iterates that Set in insertion order and
-     *   every `CalculatedValue.run` ends in an unconditional `deepSet` into the node's
-     *   `styleUpdates` (CalculatedValue.ts:84). That is LAST-writer-wins. So this method pushes,
-     *   putting the topmost matching layer last, where its write lands on top.
-     *
-     * THE DEFECT THIS FIXES. This method used to `unshift`, copying `getStyleForNode`'s descending
-     * order without copying its first-wins consumer. The two halves of one layer stack therefore
-     * disagreed about which layer was on top: two live layers both writing `style.texture.color`
-     * through `calculatedStyle` gave the colour to the BOTTOM one, while the same two layers
-     * writing it through `style` gave it to the TOP one.
-     *
-     * THE SHIPPED CASE, which an earlier version of this comment wrongly said did not exist:
-     * `DegreeAlgorithm` and `LouvainAlgorithm` BOTH write `style.texture.color` through
-     * `calculatedStyle`, and the Algorithms/Combined stories stack them deliberately --
-     * `CommunityStructureWithPath` even comments that louvain "overrides degree colour". Under the
-     * old `unshift` the bottom layer won, so degree's viridis ramp beat louvain's community
-     * colours: the opposite of what the stack asked for. Correcting the order also promoted the
-     * TOP layer of that stack to last writer, which is how it surfaced that a highlight layer was
-     * repainting every element it did not highlight (see the scoped selectors in
-     * `src/algorithms/*.ts`).
-     *
-     * WHY THIS ONLY BECAME MEANINGFUL RECENTLY. Until `ChangeManager.loadCalculatedValues` began
-     * clearing `calculatedValues` as well as `watchedInputs`, the Set held every value the node had
-     * ever been handed and iterated in accumulation order ACROSS loads -- an order this method did
-     * not control at all. Now that a load replaces the set, the order built here is exactly the
-     * order the values run in, so it is load-bearing.
-     * @param data - Node data for selector matching
-     * @param algorithmResults - Optional algorithm results for selector matching
-     * @returns Calculated values to apply to the node, in ascending layer order (bottom first), so
-     * that the last one to run -- the topmost matching layer -- wins a shared output path
-     */
-    getCalculatedStylesForNode(data: AdHocData, algorithmResults?: AdHocData): CalculatedValue[] {
-        // Combine data and algorithmResults for selector matching
-        const combinedData = algorithmResults ? { ...data, algorithmResults } : data;
-
-        const ret: CalculatedValue[] = [];
-        for (const layer of this.layers) {
-            const { node } = layer;
-
-            const nodeMatch = selectorMatchesNode(node, combinedData);
-
-            if (nodeMatch && node?.calculatedStyle) {
-                const { inputs, output, expr } = node.calculatedStyle;
-                const cv = new CalculatedValue(inputs, output, expr);
-                ret.push(cv);
-            }
-        }
-
-        return ret;
-    }
-
-    /**
-     * Retrieves calculated style values for an edge from every layer whose edge selector matches.
-     *
-     * THE RETURNED ARRAY IS IN ASCENDING LAYER ORDER -- bottom layer first, top layer last -- for
-     * the same reason as `getCalculatedStylesForNode`, and it is deliberately the OPPOSITE of the
-     * order `getStyleForEdge` builds. `getStyleForEdge` feeds lodash `defaultsDeep`, which is
-     * FIRST-wins, so it unshifts. This array is fed to `ChangeManager.loadCalculatedValues` ->
-     * `runAllCalculatedValues` -> `CalculatedValue.run`, which ends in an unconditional `deepSet`
-     * (CalculatedValue.ts:84) and is therefore LAST-writer-wins, so it pushes. Two opposite array
-     * orders, one precedence rule: the top layer wins.
-     *
-     * THE DEFECT THIS FIXES. This method used to `unshift` like its static sibling, so the BOTTOM
-     * layer won a shared calculated output path -- `style.line.color`, say -- while the TOP layer
-     * won a shared static one. One layer stack, two contradictory answers to "which layer is on
-     * top".
-     * @param data - Edge data for selector matching
-     * @returns Calculated values to apply to the edge, in ascending layer order (bottom first), so
-     * that the last one to run -- the topmost matching layer -- wins a shared output path
-     */
-    getCalculatedStylesForEdge(data: AdHocData): CalculatedValue[] {
-        const ret: CalculatedValue[] = [];
-        for (const layer of this.layers) {
-            const { edge } = layer;
-
-            // Check if edge selector matches (empty selector matches all)
-            let edgeMatch = edge?.selector === "";
-            if (!edgeMatch && edge?.selector) {
-                // try JMES match
-                const searchResult = jmespath.search(data, `[${edge.selector}]`);
-                if (Array.isArray(searchResult) && typeof searchResult[0] === "boolean") {
-                    edgeMatch = searchResult[0];
-                }
-            }
-
-            if (edgeMatch && edge?.calculatedStyle) {
-                const { inputs, output, expr } = edge.calculatedStyle;
-                const cv = new CalculatedValue(inputs, output, expr);
-                ret.push(cv);
-            }
-        }
-
-        return ret;
-    }
-
-    /**
      * Computes the merged style for an edge by applying matching layers.
      * @param data - Edge data for selector matching
      * @param algorithmResults - Optional algorithm results for selector matching
@@ -459,4 +368,31 @@ function selectorMatchesNode(node: AppliedNodeStyleConfig | undefined, data: AdH
     }
 
     return nodeMatch;
+}
+
+/**
+ * Say, once per layer, that a `calculatedStyle` in a loaded template is not being applied.
+ *
+ * ANNOUNCED RATHER THAN SWALLOWED. The mechanism it replaces failed silently in both of its two
+ * failure modes -- a throw part way through a repaint, and a Content Security Policy that refused
+ * the evaluator outright -- and a capability that vanishes without a word is the outcome this
+ * whole migration exists to stop. The template still loads, and everything else in it still
+ * applies; only the expression is gone, and the layer is named so the reader knows which picture
+ * changed.
+ * @param layers - The layers the template carried.
+ */
+function warnAboutCalculatedStyles(layers: readonly StyleLayerType[]): void {
+    for (const [at, layer] of layers.entries()) {
+        if (layer.node?.calculatedStyle === undefined && layer.edge?.calculatedStyle === undefined) {
+            continue;
+        }
+
+        const name = layer.metadata?.name ?? `layer ${String(at)}`;
+
+        console.warn(
+            `[graphty] The style layer "${name}" carries a calculatedStyle, which was removed in 2.0 and is not applied. ` +
+                "An expression string cannot be validated, legended or run under a Content Security Policy; " +
+                "bind the value to a channel with session.styles.encode() instead.",
+        );
+    }
 }

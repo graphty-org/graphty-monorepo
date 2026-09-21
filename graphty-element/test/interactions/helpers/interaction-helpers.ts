@@ -179,7 +179,10 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
                 edgeDstIdPath: "dst",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                positionScale: 1,
+                idCoercion: "canonical",
             },
+            directed: "auto",
         },
         behavior: {
             layout: {

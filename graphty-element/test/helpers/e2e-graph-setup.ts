@@ -118,7 +118,10 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
                 edgeDstIdPath: "dst",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                positionScale: 1,
+                idCoercion: "canonical",
             },
+            directed: "auto",
         },
         behavior: {
             layout: {

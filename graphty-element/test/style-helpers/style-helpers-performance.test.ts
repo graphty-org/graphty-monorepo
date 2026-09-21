@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { StyleHelpers } from "../../src/config/StyleHelpers";
+import { StyleHelpers } from "../helpers/styleHelpers";
 
 /**
  * Performance benchmarking tests

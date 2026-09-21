@@ -8,8 +8,6 @@ export type { NodeStyleConfig } from "./NodeStyle";
 export { defaultNodeStyle, NodeShapes, NodeStyle } from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
-export type { StyleHelpersType } from "./StyleHelpers";
-export { StyleHelpers } from "./StyleHelpers";
 export type {
     AppliedEdgeStyleConfig,
     AppliedNodeStyleConfig,
@@ -19,13 +17,6 @@ export type {
     StyleSchemaV1,
 } from "./StyleTemplate";
 export { CalculatedStyle, StyleTemplate } from "./StyleTemplate";
-export type {
-    ApplySuggestedStylesOptions,
-    SuggestedStyleLayer,
-    SuggestedStyleLayerMetadata,
-    SuggestedStylesConfig,
-    SuggestedStylesProvider,
-} from "./SuggestedStyles";
 export type { ViewMode } from "./ViewMode";
 export { DEFAULT_VIEW_MODE, isViewMode, VIEW_MODE_VALUES } from "./ViewMode";
 export type { XRConfig, XRInputConfig, XRModeConfig, XRTeleportationConfig, XRUIConfig } from "./XRConfig";

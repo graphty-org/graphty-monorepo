@@ -95,23 +95,27 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(event.currentNode?.id, "node1");
         });
 
-        it("selected node has algorithmResults.graphty.selected set to true", async () => {
+        it("clicking a node selects it and writes nothing onto the node's data", async () => {
             // Click to select
             await clickOnNode(graph, "node1");
 
             const node = graph.getNode("node1");
             assert.isNotNull(node);
-            assert.isTrue(node?.algorithmResults.graphty?.selected);
+            assert.isTrue(node?.isSelected());
+            // The highlight is a halo the element draws by construction, so nothing a selector
+            // could match is written onto the node to produce it.
+            assert.isUndefined((node?.data as Record<string, unknown> | undefined)?.selected);
         });
 
-        it("deselected node has algorithmResults.graphty.selected set to false", async () => {
+        it("clicking the background deselects and still leaves the node's data alone", async () => {
             // Select then deselect
             await clickOnNode(graph, "node1");
             await clickOnBackground(graph);
 
             const node = graph.getNode("node1");
             assert.isNotNull(node);
-            assert.isFalse(node?.algorithmResults.graphty?.selected);
+            assert.isFalse(node?.isSelected());
+            assert.isUndefined((node?.data as Record<string, unknown> | undefined)?.selected);
         });
     });
 

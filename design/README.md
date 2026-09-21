@@ -11,7 +11,7 @@ This directory contains design documents, implementation plans, research, and co
 | [`architecture/`](architecture/) | Core architecture - state management, async patterns, RxJS, dependency batching | 10 |
 | [`code-reviews/`](code-reviews/) | Code review findings and implementation plans (prefixed by package name) | 14 |
 | [`data/`](data/) | Data handling - formats, loading, sources, validation | 4 |
-| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 13 |
+| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 20 |
 | [`graph-format/`](graph-format/) | The shared frozen CSR graph format: design, landing status, conformance record | 3 |
 | [`layout-pkg/`](layout-pkg/) | @graphty/layout package - layout algorithm research and implementation | 1 |
 | [`monorepo/`](monorepo/) | Monorepo infrastructure - Nx, releases, CI/CD, ESLint configuration | 13 |

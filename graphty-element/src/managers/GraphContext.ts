@@ -18,16 +18,20 @@ import type { StylePainter } from "./StylePainter";
  */
 export interface GraphContext {
     /**
-     * Get the style layer stack and the element's configuration document.
+     * Get the element's configuration document: the id paths, the view mode, the background, the
+     * layout and its options, the run-on-load algorithms and the behaviour settings.
+     *
+     * It carries no style layers. Layers live in `session.styles`, and what one element is
+     * painted is answered by {@link GraphContext.getStylePainter}.
      */
     getStyles(): Styles;
 
     /**
      * Get the painter that answers what the session's style stack resolved for one element.
      *
-     * Absent, or present and not owning, means the legacy stack paints this graph. Node and Edge
-     * ask it first and fall back to their style id, which is what keeps exactly one of the two
-     * systems writing an element's style -- see StylePainter for the rule it answers.
+     * Optional, because a context can be built without one -- a headless test, or a Node built
+     * outside a graph. Absent, or present with no style pass bound, an element draws itself from
+     * the element's own defaults; see `bootstrapNodePaint` in StylePainter.
      */
     getStylePainter?(): StylePainter | undefined;
 
@@ -140,9 +144,8 @@ export interface GraphContextConfig {
 export class DefaultGraphContext implements GraphContext {
     /**
      * Creates an instance of DefaultGraphContext
-     * @param styles - Reads the current style stack. A function rather than the instance, because
-     *     loading a style template REPLACES it and a captured one would answer for the template
-     *     that was in force when the context was built.
+     * @param styles - Reads the element's configuration document. A function rather than the
+     *     instance, so a reader always sees the document the graph holds now.
      * @param dataManager - DataManager instance for node/edge operations
      * @param layoutManager - LayoutManager instance for layout operations
      * @param meshCache - MeshCache instance for mesh creation and caching
@@ -174,8 +177,8 @@ export class DefaultGraphContext implements GraphContext {
     }
 
     /**
-     * Get the style layer stack and the element's configuration document.
-     * @returns The stack as it stands now.
+     * Get the element's configuration document.
+     * @returns The document as it stands now.
      */
     getStyles(): Styles {
         return this.styles();

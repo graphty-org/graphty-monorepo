@@ -2,7 +2,9 @@ import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
+import type { EdgeId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
+import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
 import type { Node } from "./Node";
@@ -29,6 +31,7 @@ export type GraphEvent =
     | DataLoadingErrorEvent
     | DataLoadingErrorSummaryEvent
     | DataLoadingCompleteEvent
+    | ElementsRemovedEvent
     | SelectionChangedEvent;
 
 /**
@@ -77,6 +80,8 @@ export interface GraphDataLoadedEvent {
     details: {
         chunksLoaded: number;
         dataSourceType: string;
+        /** What the load did: the endpoint spelling it resolved, and the counts it produced. */
+        report: ImportReport;
     };
 }
 
@@ -144,7 +149,11 @@ export interface GraphGenericEvent {
         | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
-        | "style-changed";
+        | "style-changed"
+        // Emitted when auto-framing has finished moving the camera around the whole graph. It
+        // was emitted and not declared, so `addListener` could not name it and no consumer could
+        // subscribe to an event the element was already sending.
+        | "zoom-to-fit-complete";
     [key: string]: unknown;
 }
 
@@ -155,8 +164,27 @@ export interface DataLoadingProgressEvent {
     bytesProcessed: number;
     totalBytes?: number;
     percentage?: number;
-    nodesLoaded: number;
-    edgesLoaded: number;
+    /**
+     * How many node RECORDS the source has handed over so far.
+     *
+     * Named for records because that is what it counts, and because the number the load finishes
+     * with is a different one: an edge naming a node the file never declares creates that node, so
+     * the graph can hold more nodes than any source handed over.
+     */
+    nodeRecordsLoaded: number;
+    /**
+     * How many edge RECORDS the source has handed over so far.
+     *
+     * Mid-load is before the endpoint spelling has been settled for every chunk and before a
+     * rejected or merged record has been resolved into an edge or into nothing, so this is the
+     * only edge number that can honestly be published while a load is running. A load of three
+     * records that produces two edges progresses to three here and completes at two.
+     *
+     * Both halves of this event used to be called `nodesLoaded` and `edgesLoaded`, the same names
+     * `data-loading-complete` carries for two different numbers -- which is the confusion the
+     * import report exists to end, repeated one level down.
+     */
+    edgeRecordsLoaded: number;
     chunksProcessed: number;
 }
 
@@ -184,12 +212,47 @@ export interface DataLoadingErrorSummaryEvent {
 export interface DataLoadingCompleteEvent {
     type: "data-loading-complete";
     format: string;
+    /**
+     * How many nodes the graph HOLDS after the load.
+     *
+     * It used to count the node records the source handed over, which is a different number
+     * whenever an edge names a node the file never declares -- the graph creates that node, and
+     * the event then disagreed with `session.status.counts.nodes` about a graph neither of them
+     * was wrong about. Both numbers are still published: the record count is
+     * `report.counts.nodeRecords`.
+     */
     nodesLoaded: number;
+    /**
+     * How many edges the graph HOLDS after the load.
+     *
+     * It used to count edge records handed over, which is a different number and was wrong by the
+     * whole file whenever the endpoint columns did not resolve: `miserables.json` reported 254
+     * next to a graph holding zero. The record count is still published, under the name that says
+     * what it is, as `report.counts.edgeRecords`.
+     */
     edgesLoaded: number;
     duration: number; // milliseconds
     errors: number;
     warnings: number;
     success: boolean;
+    /** What the load did: the endpoint spelling, the repeat policy, and every count. */
+    report: ImportReport;
+}
+
+/**
+ * Emitted once per `removeNodes` call, naming everything that went.
+ *
+ * Removing a node removes the edges attached to it, and before this event there was no removal
+ * notification of any kind -- so a consumer watching the element saw its counts change underneath
+ * it with nothing to say why, and a status bar built on the load events stayed stale until the
+ * next load. The detail is ids only, so it survives structured cloning.
+ */
+export interface ElementsRemovedEvent {
+    type: "elements-removed";
+    /** The nodes the caller asked to remove, in the order they were removed. */
+    nodes: NodeId[];
+    /** Every edge that was attached to one of them, and therefore went with it. */
+    edges: EdgeId[];
 }
 
 // Selection events
@@ -250,6 +313,8 @@ export interface NodeDragStartEvent {
     type: "node-drag-start";
     node: Node;
     position: { x: number; y: number; z: number };
+    /** Whether this node was already pinned when the drag began. */
+    pinned: boolean;
 }
 
 /**
@@ -260,10 +325,85 @@ export interface NodeDragEndEvent {
     type: "node-drag-end";
     node: Node;
     position: { x: number; y: number; z: number };
+    /** Whether the node is pinned now the drag has finished, which `pinOnDrag` decides. */
+    pinned: boolean;
+}
+
+/**
+ * What a `graphty-node-click`, `graphty-node-hover`, `graphty-node-drag-start` or
+ * `graphty-node-drag-end` DOM event carries.
+ *
+ * It is NOT the internal node event. The internal one carries a live `Node` -- a Babylon mesh, a
+ * material and a scene -- and a `CustomEvent` detail crosses to listeners that may structure-clone
+ * it or post it to a worker, where a live handle either throws on the way out or hands a listener
+ * something the renderer is about to dispose. So the detail carries the node's ID, and a consumer
+ * that wants the record looks it up. This is the same rule the selection and run mirrors follow.
+ */
+export interface NodeEventDetail {
+    /** The node the pointer was on, as `session.data.node()` takes it. */
+    nodeId: NodeIdType;
+    /** The node's own record data, as the importer supplied it. Absent on the drag events. */
+    data?: Record<string, unknown>;
+    /** Where the node is in world space. Present on the drag events only. */
+    position?: { x: number; y: number; z: number };
+    /**
+     * Whether the node is pinned. On `graphty-node-drag-start` this is the pin as it was when the
+     * drag began; on `graphty-node-drag-end` it is the pin after `pinOnDrag` has acted.
+     */
+    pinned?: boolean;
+    /** Which pointer button produced a click, in the DOM's own numbering. */
+    button?: number;
+    /** The modifier keys held during a click, for a consumer distinguishing shift-click. */
+    modifiers?: { shift: boolean; ctrl: boolean; alt: boolean; meta: boolean };
+}
+
+/** The DOM event name one internal node event is mirrored under. */
+export const NODE_EVENT_DOM_NAMES: Readonly<Record<string, string>> = {
+    "node-click": "graphty-node-click",
+    "node-hover": "graphty-node-hover",
+    "node-drag-start": "graphty-node-drag-start",
+    "node-drag-end": "graphty-node-drag-end",
+};
+
+/**
+ * Reduce one internal node event to a detail that can leave the element.
+ * @param event - the internal node event about to be mirrored
+ * @returns the detail, or null for an internal node event that does not go to the DOM
+ */
+export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
+    switch (event.type) {
+        case "node-click":
+            return {
+                nodeId: event.node.id,
+                data: event.data,
+                button: event.event.button,
+                modifiers: {
+                    shift: event.event.shiftKey,
+                    ctrl: event.event.ctrlKey,
+                    alt: event.event.altKey,
+                    meta: event.event.metaKey,
+                },
+            };
+        case "node-hover":
+            return { nodeId: event.node.id, data: event.data };
+        case "node-drag-start":
+        case "node-drag-end":
+            return { nodeId: event.node.id, position: event.position, pinned: event.pinned };
+        default:
+            // node-add-before, node-update-before and node-update-after are the element's own
+            // update pipeline. They fire once per node per repaint and carry render objects, so
+            // they stay inside.
+            return null;
+    }
 }
 
 // edge events
-export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent | EdgeClickEvent;
+// There is deliberately no edge-click event. Edge meshes are unpickable in three places, so
+// nothing could emit one, and the type that used to be declared here described a detail carrying a
+// live `Edge` -- a Babylon mesh -- which cannot be structure-cloned and so could never have left
+// the element. A declared event that never fires is a documented lie; it comes back, with a
+// serialisable detail, when edge picking lands.
+export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
 
 export interface EdgeGenericEvent {
     type: "edge-update-after" | "edge-update-before";
@@ -275,17 +415,6 @@ export interface EdgeAddEvent {
     srcNodeId: NodeIdType;
     dstNodeId: NodeIdType;
     metadata: object;
-}
-
-/**
- * Emitted when an edge is clicked.
- * @since 1.5.0
- */
-export interface EdgeClickEvent {
-    type: "edge-click";
-    edge: Edge;
-    data: Record<string, unknown>;
-    event: PointerEvent;
 }
 
 // AI events (Phase 7)

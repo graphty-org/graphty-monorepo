@@ -101,7 +101,7 @@ export type { VoiceStartCallback } from "./src/ai/input/VoiceInputAdapter";
 
 // AI Schema Discovery
 export type {
-    HistogramBin,
+    AttributeHistogramBin,
     NumericStatistics,
     PropertySummary,
     PropertyType,

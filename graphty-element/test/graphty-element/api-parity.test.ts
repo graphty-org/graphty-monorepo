@@ -89,13 +89,41 @@ describe("Graphty API Parity", () => {
         });
 
         describe("Style Methods", () => {
-            const styleMethods = ["setStyleTemplate", "getStyles"];
+            it("has getStyles method", () => {
+                assert.ok(hasMethod(graphtyContent, "getStyles"), "Graphty should have getStyles method");
+            });
 
-            for (const method of styleMethods) {
-                it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
-                });
-            }
+            /**
+             * The style template is gone, and what it carried has to be reachable without it.
+             *
+             * `setStyleTemplate` was one door onto a dozen unrelated settings -- the id paths,
+             * the view mode, the background, the layout, the run-on-load algorithms -- and a
+             * caller who wanted one of them rewrote all of them. Each is its own property now,
+             * and style layers are `session.styles`.
+             */
+            it("has a property for everything the style template used to carry", () => {
+                assert.notOk(
+                    hasMethod(graphtyContent, "setStyleTemplate"),
+                    "setStyleTemplate is gone, not deprecated",
+                );
+
+                for (const property of [
+                    "viewMode",
+                    "background",
+                    "startingCameraDistance",
+                    "layout",
+                    "layoutConfig",
+                    "nodeIdPath",
+                    "edgeSrcIdPath",
+                    "edgeDstIdPath",
+                    "runAlgorithmsOnLoad",
+                ]) {
+                    assert.ok(
+                        new RegExp(`^\\s*get ${property}\\(`, "m").test(graphtyContent),
+                        `Graphty should have a ${property} property`,
+                    );
+                }
+            });
         });
 
         describe("Layout Methods", () => {

@@ -251,6 +251,11 @@ export class UpdateManager implements Manager {
         if (edgesMoved) {
             for (const edge of this.dataManager.edges.values()) {
                 const { index } = edge;
+                // `!placed` now means only "this edge is mid-teardown", which is a state lasting
+                // less than one statement. It used to mean "this edge outlived the node it was
+                // attached to", and forcing those visible is what made a removed node's edges
+                // permanently on screen with no filter able to reach them -- removing a node now
+                // removes them instead.
                 const placed = index !== INVALID_INDEX;
 
                 edge.setRenderVisible(edgeVisibility === null || !placed || edgeVisibility.has(index));
@@ -275,10 +280,6 @@ export class UpdateManager implements Manager {
      * would buy nothing. So the painter hands back exactly the indices the pass repainted, and a
      * layer over 300 elements costs 300 elements whatever the graph's size.
      *
-     * NOTHING HAPPENS WHILE THE LEGACY STACK OWNS THE PAINT. Two style systems are alive during
-     * the migration and exactly one of them draws; see StylePainter for the rule. This is the
-     * read side of it, and it is why an element is never written by both.
-     *
      * An element whose paint has not changed still costs nothing: `Node.applySessionPaint` and
      * `Edge.applySessionPaint` compare the source mesh they are handed with the one already on
      * screen and rebuild only when it differs, so a colour change on a node is one buffer write
@@ -287,7 +288,7 @@ export class UpdateManager implements Manager {
     syncStyles(): void {
         const painter = this.graphContext.getStylePainter?.();
 
-        if (painter === undefined || !painter.owns || !painter.hasPending) {
+        if (painter === undefined || !painter.hasPending) {
             return;
         }
 

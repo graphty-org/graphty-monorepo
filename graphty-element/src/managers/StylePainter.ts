@@ -9,7 +9,7 @@ import {
     NodeStyle,
     type NodeStyleConfig,
 } from "../config";
-import { CHANNEL_DESCRIPTORS, type ColorValue } from "../session/styles/channels";
+import { CHANNEL_DESCRIPTORS, type ColorValue, toColorValue } from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -47,14 +47,6 @@ export interface EdgePaint {
     /** The style the line, the arrows and the label are built from. */
     readonly style: EdgeStyleConfig;
 }
-
-/**
- * The legacy stack, as the ownership rule reads it.
- *
- * A function rather than the object, because applying a style template REPLACES the `Styles`
- * instance: a captured one would answer for the stack that was in force when the graph was built.
- */
-type LegacyLayerCount = () => number;
 
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
@@ -267,21 +259,96 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number): EdgePaint {
 }
 
 /**
+ * The paint a node or an edge is built from before the session has anything to say about it.
+ *
+ * WHY THIS EXISTS AT ALL. A Node is constructed, and only then does the store hand it the dense
+ * row index the session's paint is addressed by -- so for the length of that gap there is no
+ * index to ask the painter about, and a Node with no mesh is a Node that cannot be positioned,
+ * picked or given an edge. The element's own defaults fill the gap, and the first repaint
+ * replaces them.
+ *
+ * MODULE-LEVEL RATHER THAN A METHOD, because `GraphContext.getStylePainter` is optional: a
+ * context built without a painter still has to be able to build a node, so the bootstrap cannot
+ * be reached through one.
+ *
+ * NEUTRAL MATERIAL, COLOUR BESIDE IT -- the same split {@link nodePaintOf} produces, and for the
+ * same reason. A bootstrap built straight from `NodeStyle.parse(defaultNodeStyle)` would put the
+ * colour in the source mesh's material, which is a material the session's own neutral one can
+ * never match, so the first repaint would rebuild every node's mesh rather than write one buffer
+ * value per node.
+ *
+ * ITS KEY IS RESERVED AND MATCHES NOTHING THE SESSION MINTS. The interner's keys are `s0`, `s1`
+ * and so on in the order a style was first seen, and they are session-local: a bootstrap that
+ * borrowed `s0` would be handed back out of the mesh cache for whatever style the session
+ * happened to intern first, which is the bootstrap's geometry drawn under another style's name.
+ * The cost of a distinct key is one rebuild per element on the first repaint, paid once at load;
+ * the cost of a collision is a graph drawn at the wrong size with nothing to see it.
+ *
+ * ONE OBJECT, SHARED BY EVERY ELEMENT. An edge asks what it looks like on nearly every frame, so
+ * an allocation here would be one per edge per frame; and a copy held per element would be a
+ * copy of the whole style schema for every element in the graph. The style table these replace
+ * shared its objects the same way, and nothing on the drawing path writes to a resolved style --
+ * every reader takes values out of it and builds a mesh, a material or a label from them.
+ */
+const BOOTSTRAP_MESH_KEY = "graphty-bootstrap";
+
+/** The one node paint every unpainted node is drawn from, built on first use. */
+let bootstrapNode: NodePaint | null = null;
+
+/** The one edge paint every unpainted edge is drawn from, built on first use. */
+let bootstrapEdge: EdgePaint | null = null;
+
+/**
+ * What a node looks like between its construction and the first repaint.
+ *
+ * Built on first use rather than at module load, because `defaultNodeStyle` is a mutable exported
+ * object: a constant built when this module was first imported would freeze whatever it happened
+ * to say then, which is the same reason the session builds its base layers per session.
+ * @returns The element's own default node paint. The same object every call.
+ */
+export function bootstrapNodePaint(): NodePaint {
+    if (bootstrapNode === null) {
+        const style = cloneDeep(NODE_BASE);
+        const painted = toColorValue(typeof style.texture?.color === "string" ? style.texture.color : undefined);
+
+        setAtPath(style as unknown as Record<string, unknown>, "texture.color", NEUTRAL_HEX);
+
+        bootstrapNode = {
+            meshKey: BOOTSTRAP_MESH_KEY,
+            style,
+            color: painted === null ? null : { r: painted.r, g: painted.g, b: painted.b, a: painted.a },
+        };
+    }
+
+    return bootstrapNode;
+}
+
+/**
+ * What an edge looks like between its construction and the first repaint.
+ *
+ * The colour stays IN the style here, because the edge renderer has no per-instance state to
+ * carry one. See {@link EdgePaint}.
+ * @returns The element's own default edge paint. The same object every call.
+ */
+export function bootstrapEdgePaint(): EdgePaint {
+    bootstrapEdge ??= { meshKey: BOOTSTRAP_MESH_KEY, style: cloneDeep(EDGE_BASE) };
+
+    return bootstrapEdge;
+}
+
+/**
  * Who paints an element, and what they paint it.
  *
- * ONE OWNER PER GRAPH, STATED RATHER THAN RACED. Two style systems are alive while the migration
- * runs -- the jmespath layers on `Styles`, and the session's compiled stack -- and an element
- * painted by both is painted by whichever one wrote last, which is not a rule anybody can reason
- * about. So {@link StylePainter.owns} answers it once, for the whole graph:
+ * THE SESSION'S STYLE STACK IS THE ONLY ONE. There used to be two -- the jmespath layers a 1.x
+ * style template carried, and the session's compiled stack -- and this class held the rule that
+ * decided which of them drew a graph, because an element painted by both is painted by whichever
+ * one wrote last. The template is gone, so the question is gone with it: {@link StylePainter.owns}
+ * now asks only whether a session is bound at all, which is false for the moment between a graph
+ * being built and its first style pass and for a graph constructed with no session behind it.
  *
- * **The session's stack owns the paint exactly while the legacy stack holds nothing but the
- * element's own default layer.** Add a style template, an algorithm's suggested styles or an AI
- * style command and the legacy stack takes the graph back, because those layers are not in the
- * session's stack and a graph painted half from each would be a picture neither system describes.
- *
- * That rule also settles the calculated values, and settles them by construction rather than by
- * care: `calculatedStyle` lives on a legacy layer, so a graph the session owns has none to run,
- * and `Node.styleUpdates` is empty for exactly as long as the session is the owner.
+ * What fills that moment is {@link bootstrapNodePaint} and {@link bootstrapEdgePaint}: the
+ * element's own defaults, in the shape a session pass produces, so the first pass writes a colour
+ * rather than rebuilding a graph.
  */
 export class StylePainter {
     /** What the last pass painted, or null while no session is bound. */
@@ -294,19 +361,9 @@ export class StylePainter {
     private readonly pendingEdges = new Set<number>();
 
     /**
-     * Build the painter.
-     * @param legacyLayerCount - How many layers the legacy stack holds, read live.
-     * @param legacyBaseLayers - How many of those the element put there itself.
-     */
-    constructor(
-        private readonly legacyLayerCount: LegacyLayerCount,
-        private readonly legacyBaseLayers: () => number,
-    ) {}
-
-    /**
      * Say where the renderer reads its paint from.
      *
-     * Passing null unbinds it, which hands every element back to the legacy stack.
+     * Passing null unbinds it, which puts every element back on the element's own defaults.
      * @param paint - What the last style pass painted, or null.
      */
     bind(paint: ElementPaint | null): void {
@@ -316,11 +373,11 @@ export class StylePainter {
     }
 
     /**
-     * Whether the session's style stack is what paints this graph.
-     * @returns True when the session owns the paint.
+     * Whether a session's style stack is bound and therefore has something to say.
+     * @returns True when a style pass has been bound to this painter.
      */
     get owns(): boolean {
-        return this.paint !== null && this.legacyLayerCount() <= this.legacyBaseLayers();
+        return this.paint !== null;
     }
 
     /**

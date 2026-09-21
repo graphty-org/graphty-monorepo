@@ -5,7 +5,6 @@
 
 import { z } from "zod";
 
-import type { StyleSchema } from "../../config";
 import type { Graph } from "../../Graph";
 import type { CommandResult, GraphCommand } from "./types";
 
@@ -102,30 +101,14 @@ export const setDimension: GraphCommand = {
         const { dimension } = params as { dimension: "2d" | "3d" };
 
         try {
-            // Convert dimension string to boolean
             const is2D = dimension === "2d";
             const dimensionLabel = is2D ? "2D" : "3D";
 
-            // Get current config and build a complete StyleSchema with only twoD changed
-            const currentConfig = graph.styles.config;
-            const styleTemplate: StyleSchema = {
-                graphtyTemplate: true,
-                majorVersion: "1",
-                graph: {
-                    addDefaultStyle: currentConfig.graph.addDefaultStyle,
-                    background: currentConfig.graph.background,
-                    startingCameraDistance: currentConfig.graph.startingCameraDistance,
-                    viewMode: is2D ? "2d" : "3d",
-                    twoD: is2D,
-                    layout: currentConfig.graph.layout,
-                    layoutOptions: currentConfig.graph.layoutOptions,
-                },
-                layers: [],
-                data: currentConfig.data,
-                behavior: currentConfig.behavior,
-            };
-
-            await graph.setStyleTemplate(styleTemplate);
+            // The view mode is its own setting, so this says only that. It used to rebuild a whole
+            // style template around the one field it wanted to change, which meant a dimension
+            // switch also rewrote the background, the layout and the column roles to whatever the
+            // rebuild happened to copy.
+            await graph.setViewMode(is2D ? "2d" : "3d");
 
             return {
                 success: true,

@@ -52,36 +52,34 @@ export type {
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
-// The 1.10 style configuration: the shapes, the defaults and the helpers
+// The style configuration: the shapes, the defaults and the helpers
+//
+// The 1.x style template left this entry point with the stack it described: `StyleSchema`,
+// `StyleSchemaV1`, `StyleLayerType`, `StyleTemplate` and the applied- and calculated-style types
+// are no longer published. A saved stack of layers is a `StyleDocument`, declared above.
 // ---------------------------------------------------------------------------------------------
 
 export type {
     AdHocData,
-    AppliedEdgeStyleConfig,
-    AppliedNodeStyleConfig,
-    CalculatedStyleConfig,
     EdgeStyleConfig,
+    GraphBackgroundConfig,
     ImageData,
     NodeStyleConfig,
     RichTextStyleType,
-    StyleLayerType,
-    StyleSchema,
-    StyleSchemaV1,
     ViewMode,
 } from "./src/config/index";
 export {
-    CalculatedStyle,
     colorToHex,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
     defaultNodeStyle,
     defaultRichTextLabelStyle,
     EdgeStyle,
+    GraphBackground,
     isViewMode,
     NodeShapes,
     NodeStyle,
     RichTextStyle,
-    StyleTemplate,
     VIEW_MODE_VALUES,
 } from "./src/config/index";
 

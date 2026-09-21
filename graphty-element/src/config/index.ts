@@ -2,21 +2,17 @@ export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
 export type { EdgeStyleConfig } from "./EdgeStyle";
 export { defaultEdgeStyle, EdgeStyle } from "./EdgeStyle";
-export type { FetchEdgesFn, FetchNodesFn } from "./GraphBehavior";
+export type { FetchEdgesFn, FetchNodesFn, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
+export { GraphBehaviorOpts } from "./GraphBehavior";
+export type { GraphBackgroundConfig } from "./GraphStyle";
+export { GraphBackground } from "./GraphStyle";
 export type { NodeStyleConfig } from "./NodeStyle";
 export { defaultNodeStyle, NodeShapes, NodeStyle } from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
-export type {
-    AppliedEdgeStyleConfig,
-    AppliedNodeStyleConfig,
-    CalculatedStyleConfig,
-    StyleLayerType,
-    StyleSchema,
-    StyleSchemaV1,
-} from "./StyleTemplate";
-export { CalculatedStyle, StyleTemplate } from "./StyleTemplate";
+export type { StyleSchemaV1 } from "./StyleTemplate";
+export { StyleTemplate } from "./StyleTemplate";
 export type { ViewMode } from "./ViewMode";
 export { DEFAULT_VIEW_MODE, isViewMode, VIEW_MODE_VALUES } from "./ViewMode";
 export type { XRConfig, XRInputConfig, XRModeConfig, XRTeleportationConfig, XRUIConfig } from "./XRConfig";

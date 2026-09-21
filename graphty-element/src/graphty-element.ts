@@ -2,17 +2,18 @@
 // See: https://github.com/graphty-org/graphty-element/issues/54
 import "@babylonjs/core/Meshes/instancedMesh";
 
+import type { DuplicatePolicy } from "@graphty/graph-format";
 import { LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
 import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
-import type { AlgorithmKey } from "./catalog/types";
-import type { StyleSchema, ViewMode } from "./config";
+import type { AlgorithmKey, Scope } from "./catalog/types";
+import type { GraphBackgroundConfig, GraphBehaviorConfig, ViewMode } from "./config";
+import { REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
-import { isDomForwardableEvent } from "./events";
+import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph } from "./Graph";
-import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "./logging";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import type { Run, RunChange, StartOptions } from "./session/runs";
@@ -228,8 +229,12 @@ export class Graphty extends LitElement {
         });
         this.#resizeObserver.observe(this);
 
-        // Parse URL parameters
-        this.parseURLParams();
+        // NOTHING IS READ OFF THE PAGE'S QUERY STRING. Mounting the element used to reconfigure
+        // GLOBAL logging and switch on detailed profiling because of parameters in the URL of the
+        // page the element happens to be on -- so an element embedded in a host application
+        // changed that application's logging whenever a reader's link carried the parameter, and
+        // two elements on one page raced to configure it. Logging is configured through
+        // `GraphtyLogger.configure`, and profiling through `enableDetailedProfiling`.
 
         // Look for an accelerator. Nothing is registered unless the consumer imported
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
@@ -253,26 +258,6 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
-    }
-
-    private parseURLParams(): void {
-        const urlParams = new URLSearchParams(window.location.search);
-
-        // Check for profiling parameter
-        if (urlParams.get("profiling") === "true") {
-            this.enableDetailedProfiling = true;
-        }
-
-        // Parse logging params
-        const loggingParams = parseLoggingURLParams();
-        if (loggingParams?.enabled) {
-            void GraphtyLogger.configure({
-                enabled: true,
-                modules: loggingParams.modules,
-                level: loggingParams.level ?? LogLevel.INFO,
-                format: { timestamp: true, module: true, colors: true },
-            });
-        }
     }
 
     /**
@@ -306,6 +291,30 @@ export class Graphty extends LitElement {
             this.dispatchEvent(
                 new CustomEvent(event.type, {
                     detail: event,
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
+
+        // Node events reach the DOM too, and under a prefixed name with a reduced detail.
+        //
+        // They used to reach nobody at all: the node observable was private, the element forwarded
+        // only the graph observable, and `addListener` had no case for a click, a hover or a drag
+        // -- so four events the guide documents were emitted into a closed room. They cannot be
+        // forwarded verbatim the way graph events are, because the internal event carries a live
+        // `Node`; `nodeEventDetail` reduces each one to ids and numbers a listener can clone.
+        this.#graph.eventManager.onNodeEvent.add((event) => {
+            const name = NODE_EVENT_DOM_NAMES[event.type];
+            const detail = nodeEventDetail(event);
+
+            if (name === undefined || detail === null) {
+                return;
+            }
+
+            this.dispatchEvent(
+                new CustomEvent(name, {
+                    detail,
                     bubbles: true,
                     composed: true,
                 }),
@@ -371,10 +380,17 @@ export class Graphty extends LitElement {
     #nodeIdPath?: string;
     #edgeSrcIdPath?: string;
     #edgeDstIdPath?: string;
+    #edgeIdPath?: string;
+    #repeatedEdges?: DuplicatePolicy;
     #layout?: string;
     #layoutConfig?: Record<string, unknown>;
     #viewMode?: ViewMode;
-    #styleTemplate?: StyleSchema;
+    #background?: GraphBackgroundConfig;
+    #startingCameraDistance?: number;
+
+    #layoutBehavior?: GraphBehaviorConfig;
+
+    #algorithmsOnLoad?: readonly string[];
     #runAlgorithmsOnLoad?: boolean;
     #xr?: PartialXRConfig;
 
@@ -405,7 +421,48 @@ export class Graphty extends LitElement {
      * ```
      * @returns Array of node data objects or undefined if not set
      */
-    @property({ attribute: "node-data" })
+    @property({
+        /*
+         * A JSON converter, because the documented HTML form above is a JSON array and Lit's
+         * default converter hands a setter the raw attribute TEXT. Without this the setter
+         * received a string, `Array.isArray` was false, and every row was dropped with no error
+         * -- so the element's own getting-started example drew an empty graph. The same reason
+         * the `background` property below carries one.
+         */
+        attribute: "node-data",
+        converter: {
+            fromAttribute: (value: string | null): Record<string, unknown>[] | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                let parsed: unknown;
+                try {
+                    parsed = JSON.parse(value);
+                } catch {
+                    console.error(
+                        `<graphty-element>: the node-data attribute must be a JSON array, not ` +
+                            `"${value}". Keeping the nodes already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                if (!Array.isArray(parsed)) {
+                    console.error(
+                        `<graphty-element>: the node-data attribute must be a JSON ARRAY of records. ` +
+                            `Keeping the nodes already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                return parsed as Record<string, unknown>[];
+            },
+            toAttribute: (value: Record<string, unknown>[] | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
     get nodeData(): Record<string, unknown>[] | undefined {
         return this.#nodeData;
     }
@@ -418,7 +475,9 @@ export class Graphty extends LitElement {
 
         // Forward to Graph method (which queues operation)
         if (value && Array.isArray(value)) {
-            void this.#graph.addNodes(value);
+            this.#graph.addNodes(value).catch((error: unknown) => {
+                this.#reportLoadFailure(error);
+            });
         }
 
         this.requestUpdate("nodeData", oldValue);
@@ -427,7 +486,7 @@ export class Graphty extends LitElement {
     /**
      * Array of edge data objects defining connections between nodes.
      * @remarks
-     * Setting this property replaces all existing edges. For incremental
+     * Setting this property REPLACES all existing edges. For incremental
      * updates, use the `graph.addEdges()` method instead.
      *
      * Each edge object should have source and target fields (default: "source", "target").
@@ -451,7 +510,48 @@ export class Graphty extends LitElement {
      * ```
      * @returns Array of edge data objects or undefined if not set
      */
-    @property({ attribute: "edge-data" })
+    @property({
+        /*
+         * A JSON converter, because the documented HTML form above is a JSON array and Lit's
+         * default converter hands a setter the raw attribute TEXT. Without this the setter
+         * received a string, `Array.isArray` was false, and every row was dropped with no error
+         * -- so the element's own getting-started example drew an empty graph. The same reason
+         * the `background` property below carries one.
+         */
+        attribute: "edge-data",
+        converter: {
+            fromAttribute: (value: string | null): Record<string, unknown>[] | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                let parsed: unknown;
+                try {
+                    parsed = JSON.parse(value);
+                } catch {
+                    console.error(
+                        `<graphty-element>: the edge-data attribute must be a JSON array, not ` +
+                            `"${value}". Keeping the edges already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                if (!Array.isArray(parsed)) {
+                    console.error(
+                        `<graphty-element>: the edge-data attribute must be a JSON ARRAY of records. ` +
+                            `Keeping the edges already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                return parsed as Record<string, unknown>[];
+            },
+            toAttribute: (value: Record<string, unknown>[] | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
     get edgeData(): Record<string, unknown>[] | undefined {
         return this.#edgeData;
     }
@@ -462,9 +562,12 @@ export class Graphty extends LitElement {
         const oldValue = this.#edgeData;
         this.#edgeData = value;
 
-        // Forward to Graph method (which queues operation)
+        // REPLACE, not append. Two edges between one pair are now two edges, so an additive
+        // setter would double every edge each time a host re-assigned the property.
         if (value && Array.isArray(value)) {
-            void this.#graph.addEdges(value);
+            this.#graph.setEdges(value).catch((error: unknown) => {
+                this.#reportLoadFailure(error);
+            });
         }
 
         this.requestUpdate("edgeData", oldValue);
@@ -543,6 +646,30 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Publish a failure from work that a property or an attribute assignment started.
+     *
+     * Assigning `node-data`, `edge-data` or the data-source pair hands the caller no promise, so a
+     * rejection from the load it starts reaches the page as an UNHANDLED rejection: it trips the
+     * host's global error handler and puts a dev server's error overlay over the whole
+     * application. That is reachable now that a file naming no endpoint column FAILS rather than
+     * quietly loading zero edges, which is the point of this release -- and on the record setters
+     * it used to be the only sign anything had gone wrong at all, because nothing else reported.
+     *
+     * So the element says it on the channel it already publishes loading failures on, and a
+     * consumer has one place to listen whichever way the data arrived. A caller who wants the
+     * throw calls the method -- `addNodes`, `setEdges`, `addDataFromSource` -- and awaits it.
+     * @param error - whatever the load rejected with
+     */
+    #reportLoadFailure(error: unknown): void {
+        this.#graph.eventManager.emitDataLoadingError(
+            error instanceof Error ? error : new Error(String(error)),
+            "validation",
+            "records",
+            { canContinue: false },
+        );
+    }
+
+    /**
      * Helper method to initialize data source only when both properties are set
      */
     #dataSourceInitialized = false;
@@ -552,7 +679,18 @@ export class Graphty extends LitElement {
         // is what stops one assignment of the pair from starting two loads.
         if (!this.#dataSourceInitialized && this.#dataSource && this.#dataSourceConfig) {
             this.#dataSourceInitialized = true;
-            void this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig);
+            // A load started by an attribute or a property assignment hands the caller no promise,
+            // so a rejection here reaches the page as an UNHANDLED rejection: it trips the host's
+            // global error handler, and a Vite dev server puts its error overlay over the whole
+            // application, for a file the element has already reported through its own channel.
+            // That became reachable the moment a file naming no endpoint column started failing
+            // instead of quietly loading zero edges, which is the point of this release.
+            //
+            // The failure is not swallowed. `addDataFromSource` emits `data-loading-error`
+            // carrying the coded error and a `graph-error` beside it, and logs the whole thing,
+            // all before it throws; those are the channels the declarative path publishes on. A
+            // caller who wants the promise calls `element.addDataFromSource` and gets the throw.
+            this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig).catch(() => undefined);
         }
     }
 
@@ -583,7 +721,11 @@ export class Graphty extends LitElement {
     /**
      * Similar to the nodeIdPath property / node-id-path attribute, this is a
      * jmespath that describes where to find the source node identifier for this edge.
-     * Defaults to "src", as in `{src: 42, dst: 31337}`
+     *
+     * Unset by default, which means PROBE: the element reads `source`/`target`, then `src`/`dst`,
+     * then `from`/`to`, deciding once per batch of edge records. Setting this settles the question
+     * and turns the probe off, and a record that does not answer it is then a rejected record
+     * rather than a reason to guess again.
      * @returns JMESPath string or undefined if not set
      */
     @property({ attribute: "edge-src-id-path" })
@@ -606,8 +748,9 @@ export class Graphty extends LitElement {
 
     /**
      * Similar to the nodeIdPath property / node-id-path attribute, this is a
-     * jmespath that describes where to find the desination node identifier for this edge.
-     * Defaults to "dst", as in `{src: 42, dst: 31337}`
+     * jmespath that describes where to find the destination node identifier for this edge.
+     *
+     * Unset by default, which means PROBE; see {@link edgeSrcIdPath}.
      * @returns JMESPath string or undefined if not set
      */
     @property({ attribute: "edge-dst-id-path" })
@@ -626,6 +769,89 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("edgeDstIdPath", oldValue);
+    }
+
+    /**
+     * A JMESPath naming the record key that identifies an edge, for data whose edges carry
+     * genuine identifiers of their own.
+     *
+     * Two records sharing one value are then the SAME edge rather than two edges between the same
+     * pair, and the repeat policy decides what happens to the second. Unset -- the default --
+     * means the records carry no edge identity and a repeat is decided by its ordered endpoint
+     * pair alone.
+     *
+     * This does not name the edge: `Edge.id` is always the element's own counter.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element edge-id-path="edgeId"></graphty-element>
+     * ```
+     * @returns JMESPath string or undefined if not set
+     */
+    @property({ attribute: "edge-id-path" })
+    get edgeIdPath(): string | undefined {
+        return this.#edgeIdPath;
+    }
+    /**
+     * Sets the JMESPath for edge identity. Updates graph configuration.
+     */
+    set edgeIdPath(value: string | undefined) {
+        const oldValue = this.#edgeIdPath;
+        this.#edgeIdPath = value;
+
+        if (value) {
+            setDeep(this.#graph.styles.config, "data.knownFields.edgeIdPath", value);
+        }
+
+        this.requestUpdate("edgeIdPath", oldValue);
+    }
+
+    /**
+     * What happens to a second edge record naming an ordered pair the graph already holds.
+     *
+     * `"keep"` -- the default -- makes it a second edge with its own id, weight and attributes.
+     * `"first"` discards it, `"last"` lets it replace what is there, `"sum"`, `"min"` and `"max"`
+     * fold its weight into the edge already present, and `"error"` throws `E_DUPLICATE_EDGE`
+     * naming both endpoints.
+     *
+     * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms as
+     * `background` and `acceleration`: this setter is reached from `attributeChangedCallback`,
+     * where a throw escapes as an unhandled rejection that reaches nobody.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element repeated-edges="sum"></graphty-element>
+     * ```
+     * @returns The policy, or undefined when none has been set on this element
+     */
+    @property({ attribute: "repeated-edges" })
+    get repeatedEdges(): DuplicatePolicy | undefined {
+        return this.#repeatedEdges;
+    }
+    /**
+     * Sets the repeat policy. Updates graph configuration.
+     */
+    set repeatedEdges(value: DuplicatePolicy | undefined) {
+        const oldValue = this.#repeatedEdges;
+
+        if (value !== undefined && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
+            console.error(
+                `<graphty-element>: repeated-edges must be one of ` +
+                    `${REPEATED_EDGE_POLICIES.join(", ")}, not "${value}". ` +
+                    `Keeping "${oldValue ?? "keep"}". ` +
+                    "See https://graphty.app/docs/graphty-element/attributes#repeated-edges",
+            );
+
+            return;
+        }
+
+        this.#repeatedEdges = value;
+
+        if (value) {
+            setDeep(this.#graph.styles.config, "data.knownFields.repeatedEdges", value);
+        }
+
+        this.requestUpdate("repeatedEdges", oldValue);
     }
 
     /**
@@ -698,6 +924,85 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("layoutConfig", oldValue);
+    }
+
+    /**
+     * How the element DRIVES the layout, as distinct from what the layout engine is configured
+     * with.
+     * @remarks
+     * `layoutConfig` is the engine's own options; this is the element's handling of it.
+     * `layout.preSteps` runs the simulation that many times before the first frame is drawn,
+     * which is what makes a screenshot of a physics layout the same picture twice -- an
+     * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
+     * the picture was taken. `layout.stepMultiplier`, `layout.minDelta` and
+     * `layout.zoomStepInterval` pace the rest of it, and `node.pinOnDrag` decides whether a node
+     * a reader drags stays where they put it.
+     *
+     * Merged over what is already set, so naming one field leaves the others alone.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.layoutBehavior = { layout: { preSteps: 1000 } };
+     * ```
+     * @returns The behaviour settings, or undefined when none have been set on this element
+     */
+    @property({ attribute: false })
+    get layoutBehavior(): GraphBehaviorConfig | undefined {
+        return this.#layoutBehavior;
+    }
+    /**
+     * Sets how the element drives the layout.
+     *
+     * A value the schema refuses is reported and dropped rather than thrown, on the same terms
+     * as `background` and `acceleration`.
+     */
+    set layoutBehavior(value: GraphBehaviorConfig | undefined) {
+        const oldValue = this.#layoutBehavior;
+
+        if (value !== undefined) {
+            try {
+                this.#graph.setLayoutBehavior(value);
+            } catch (error: unknown) {
+                console.error(
+                    "<graphty-element>: the layout behaviour was refused. Keeping the one already set.",
+                    error,
+                );
+
+                return;
+            }
+        }
+
+        this.#layoutBehavior = value;
+        this.requestUpdate("layoutBehavior", oldValue);
+    }
+
+    /**
+     * Which algorithms to run once data has finished loading.
+     * @remarks
+     * Catalogue keys, run in the order given. This is the LIST; `runAlgorithmsOnLoad` is the
+     * switch that decides whether the list is honoured, and a switch with an empty list beside
+     * it does nothing -- which is what happened when the style template that used to carry the
+     * list was removed and nothing replaced it.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.algorithmsOnLoad = ["degree"];
+     * element.runAlgorithmsOnLoad = true;
+     * ```
+     * @returns The keys, or undefined when none have been set on this element
+     */
+    @property({ attribute: false })
+    get algorithmsOnLoad(): readonly string[] | undefined {
+        return this.#algorithmsOnLoad;
+    }
+    /**
+     * Sets which algorithms run once data has finished loading.
+     */
+    set algorithmsOnLoad(value: readonly string[] | undefined) {
+        const oldValue = this.#algorithmsOnLoad;
+        this.#algorithmsOnLoad = value;
+        this.#graph.styles.config.data.algorithms = value === undefined ? undefined : [...value];
+        this.requestUpdate("algorithmsOnLoad", oldValue);
     }
 
     /**
@@ -774,47 +1079,115 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Style template configuration for the graph visualization.
+     * What the graph is drawn against: a flat colour, or a photo-dome skybox.
      * @remarks
-     * Style templates define the visual appearance of nodes, edges, and the graph
-     * background. They can include colors, sizes, shapes, labels, and selection styles.
-     *
-     * Templates can be:
-     * - A string name (e.g., "default", "dark")
-     * - A partial configuration object to override defaults
-     * - A complete StyleSchema configuration
-     * @since 1.0.0
-     * @see {@link https://graphty.app/storybook/element/?path=/story/graphstyles--default | Style Examples}
-     * @example
+     * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
+     * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
+     * from an image, given as a URL or a base64 PNG, and the element emits
+     * `graphty-skybox-loaded` once its texture has arrived.
+     * @since 2.0.0
+     * @example JavaScript property
      * ```typescript
-     * // Apply dark theme
-     * element.styleTemplate = 'dark';
-     *
-     * // Custom node colors
-     * element.styleTemplate = {
-     *   node: { color: '#ff6600', size: 1.5 },
-     *   edge: { color: '#cccccc' }
-     * };
+     * element.background = { backgroundType: 'color', color: '#101014' };
+     * element.background = { backgroundType: 'skybox', data: 'https://example.com/sky.jpg' };
      * ```
-     * @returns Style template configuration or undefined if not set
+     * @example HTML attribute (JSON string)
+     * ```html
+     * <graphty-element background='{"backgroundType":"color","color":"black"}'></graphty-element>
+     * ```
+     * @returns The background, or undefined when none has been set on this element
      */
-    @property({ attribute: "style-template" })
-    get styleTemplate(): StyleSchema | undefined {
-        return this.#styleTemplate;
+    @property({
+        /*
+         * A JSON converter, because the documented HTML form above is a JSON object and Lit's
+         * default converter hands a setter the raw attribute TEXT. Without this the attribute
+         * form threw a schema error out of `attributeChangedCallback`, where it escaped as an
+         * unhandled rejection rather than reaching anybody who could act on it -- the element's
+         * own example for this property did not work.
+         */
+        converter: {
+            fromAttribute: (value: string | null): GraphBackgroundConfig | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                try {
+                    return JSON.parse(value) as GraphBackgroundConfig;
+                } catch {
+                    console.error(
+                        `<graphty-element>: the background attribute must be a JSON object, not ` +
+                            `"${value}". Keeping the background already set. ` +
+                            "See https://graphty.app/docs/graphty-element/attributes#background",
+                    );
+
+                    return undefined;
+                }
+            },
+            toAttribute: (value: GraphBackgroundConfig | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
+    get background(): GraphBackgroundConfig | undefined {
+        return this.#background;
     }
     /**
-     * Sets the style template. Applies visual styling to the graph.
+     * Sets the graph background. Applies it to the scene immediately.
+     *
+     * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
+     * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
+     * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
+     * element that never rendered. A wrong colour in markup must not take the graph down.
      */
-    set styleTemplate(value: StyleSchema | undefined) {
-        const oldValue = this.#styleTemplate;
-        this.#styleTemplate = value;
+    set background(value: GraphBackgroundConfig | undefined) {
+        const oldValue = this.#background;
 
-        // Forward to Graph method (which queues operation)
-        if (value) {
-            void this.#graph.setStyleTemplate(value);
+        if (value !== undefined) {
+            try {
+                this.#graph.setBackground(value);
+            } catch (error: unknown) {
+                console.error(
+                    "<graphty-element>: the background was refused. Keeping the one already set.",
+                    error,
+                );
+
+                return;
+            }
         }
 
-        this.requestUpdate("styleTemplate", oldValue);
+        this.#background = value;
+        this.requestUpdate("background", oldValue);
+    }
+
+    /**
+     * How far the camera starts from the graph.
+     * @remarks
+     * It is carried in the element's configuration document. NOTHING READS IT YET -- no camera
+     * is placed from it today, and that was true before this property existed; the property
+     * makes the setting reachable again rather than newly effective. A graph that has settled is
+     * framed by `zoomToFit()`.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.startingCameraDistance = 60;
+     * ```
+     * @returns The distance, or undefined when none has been set on this element
+     */
+    @property({ attribute: "starting-camera-distance", type: Number })
+    get startingCameraDistance(): number | undefined {
+        return this.#startingCameraDistance;
+    }
+    /**
+     * Sets the starting camera distance.
+     */
+    set startingCameraDistance(value: number | undefined) {
+        const oldValue = this.#startingCameraDistance;
+        this.#startingCameraDistance = value;
+
+        if (value !== undefined) {
+            setDeep(this.#graph.styles.config, "graph.startingCameraDistance", value);
+        }
+
+        this.requestUpdate("startingCameraDistance", oldValue);
     }
 
     /**
@@ -1341,9 +1714,7 @@ export class Graphty extends LitElement {
     /**
      * Add a single edge to the graph.
      * @param edge - Edge data object to add
-     * @param srcIdPath - Path to source node ID (default: "source")
-     * @param dstIdPath - Path to target node ID (default: "target")
-     * @param options - Queue options for operation ordering
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves when edge is added
      * @since 1.5.0
      * @example
@@ -1353,19 +1724,19 @@ export class Graphty extends LitElement {
      */
     async addEdge(
         edge: import("./config").AdHocData,
-        srcIdPath?: string,
-        dstIdPath?: string,
-        options?: import("./utils/queue-migration").QueueableOptions,
+        options?: import("./managers").AddEdgesOptions & import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
-        return this.#graph.addEdge(edge, srcIdPath, dstIdPath, options);
+        return this.#graph.addEdge(edge, options);
     }
 
     /**
      * Add multiple edges to the graph.
+     * @remarks
+     * With no `source` and `target` named, the element reads `source`/`target`, then `src`/`dst`,
+     * then `from`/`to`, deciding once for the whole batch. A batch that answers none of them
+     * throws `E_EDGE_ENDPOINTS_UNRESOLVED` rather than adding a graph with no edges.
      * @param edges - Array of edge data objects to add
-     * @param srcIdPath - Path to source node ID (default: "source")
-     * @param dstIdPath - Path to target node ID (default: "target")
-     * @param options - Queue options for operation ordering
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves when edges are added
      * @since 1.5.0
      * @example
@@ -1378,11 +1749,9 @@ export class Graphty extends LitElement {
      */
     async addEdges(
         edges: import("./config").AdHocData[],
-        srcIdPath?: string,
-        dstIdPath?: string,
-        options?: import("./utils/queue-migration").QueueableOptions,
+        options?: import("./managers").AddEdgesOptions & import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
-        return this.#graph.addEdges(edges, srcIdPath, dstIdPath, options);
+        return this.#graph.addEdges(edges, options);
     }
 
     /**
@@ -1444,8 +1813,9 @@ export class Graphty extends LitElement {
      * @param options - Loading options
      * @param options.format - Data format (e.g., "json", "csv", "graphml")
      * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSrcIdPath - JMESPath for edge source ID field
-     * @param options.edgeDstIdPath - JMESPath for edge destination ID field
+     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
+     *     unset, the element reads `source`, then `src`, then `from`
+     * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @returns Promise that resolves when data is loaded
      * @since 1.5.0
      * @example
@@ -1458,8 +1828,8 @@ export class Graphty extends LitElement {
         options?: {
             format?: string;
             nodeIdPath?: string;
-            edgeSrcIdPath?: string;
-            edgeDstIdPath?: string;
+            edgeSource?: string;
+            edgeTarget?: string;
         },
     ): Promise<void> {
         return this.#graph.loadFromUrl(url, options);
@@ -1471,8 +1841,9 @@ export class Graphty extends LitElement {
      * @param options - Loading options
      * @param options.format - Data format (e.g., "json", "csv", "graphml")
      * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSrcIdPath - JMESPath for edge source ID field
-     * @param options.edgeDstIdPath - JMESPath for edge destination ID field
+     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
+     *     unset, the element reads `source`, then `src`, then `from`
+     * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @returns Promise that resolves when data is loaded
      * @since 1.5.0
      * @example
@@ -1487,11 +1858,78 @@ export class Graphty extends LitElement {
         options?: {
             format?: string;
             nodeIdPath?: string;
-            edgeSrcIdPath?: string;
-            edgeDstIdPath?: string;
+            edgeSource?: string;
+            edgeTarget?: string;
         },
     ): Promise<void> {
         return this.#graph.loadFromFile(file, options);
+    }
+
+    /**
+     * Pin nodes where they are, so no layout moves them again.
+     *
+     * A pin survives a layout change, a 2D/3D switch and a template apply, which is what makes it
+     * worth having a door for: `pinOnDrag` is on by default, so every node a reader has ever
+     * dragged is pinned, and until now the only way back out was through `element.graph`.
+     * @param ids - one node id, or several
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.pin("alice");
+     * element.pin(["bob", "carol"]);
+     * ```
+     */
+    pin(ids: (string | number) | readonly (string | number)[]): void {
+        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
+            this.#graph.getNode(id)?.pin();
+        }
+    }
+
+    /**
+     * Release nodes a reader or a drag pinned, so the layout arranges them again.
+     * @param ids - one node id, or several
+     * @since 2.0.0
+     */
+    unpin(ids: (string | number) | readonly (string | number)[]): void {
+        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
+            this.#graph.getNode(id)?.unpin();
+        }
+    }
+
+    /**
+     * Whether one node is pinned.
+     *
+     * One lookup, for the question a node inspector actually asks. Reading
+     * {@link Graphty.pinnedNodes} to answer it walks every node in the graph, which on a large
+     * one is a full pass per selection change.
+     * @param id - the node id, in either spelling an integer id may be written in
+     * @returns true when that node is pinned, false when it is not or when nothing answers to
+     *     that id
+     * @since 2.0.0
+     */
+    isPinned(id: string | number): boolean {
+        return this.#graph.getNode(id)?.isPinned() ?? false;
+    }
+
+    /**
+     * Which nodes are pinned right now.
+     *
+     * Ids as the graph holds them, which is the form its own data carried: a sample whose file
+     * spelled its ids as integers answers with numbers. {@link Graphty.isPinned} takes either
+     * spelling, so a consumer comparing against an id it has printed should ask that instead of
+     * testing this set for membership.
+     * @returns the pinned node ids
+     * @since 2.0.0
+     */
+    get pinnedNodes(): ReadonlySet<string | number> {
+        const pinned = new Set<string | number>();
+        for (const node of this.#graph.getDataManager().nodes.values()) {
+            if (node.isPinned()) {
+                pinned.add(node.id);
+            }
+        }
+
+        return pinned;
     }
 
     /**
@@ -1704,30 +2142,6 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Style
-    // ============================================================================
-
-    /**
-     * Set the style template.
-     * @param template - Style template configuration
-     * @param options - Queue options
-     * @returns Promise that resolves with the applied styles
-     * @since 1.5.0
-     * @example
-     * ```typescript
-     * await element.setStyleTemplate({
-     *   node: { color: '#ff6600', size: 1.5 }
-     * });
-     * ```
-     */
-    async setStyleTemplate(
-        template: StyleSchema,
-        options?: import("./utils/queue-migration").QueueableOptions,
-    ): Promise<import("./Styles").Styles> {
-        return this.#graph.setStyleTemplate(template, options);
-    }
-
-    // ============================================================================
     // Phase 7a: High Priority Methods - Layout
     // ============================================================================
 
@@ -1911,9 +2325,15 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Resolve a camera preset to a CameraState.
-     * @param preset - Preset name (e.g., "fitToGraph", "topView")
-     * @returns The resolved camera state
+     * Work out where a named camera view would put the viewer, without moving anything.
+     *
+     * The name may be one the element ships, one a third party registered with
+     * `registerCameraView`, or a snapshot saved with `saveCameraPreset`.
+     * @param preset - The view's name, for example "fitToGraph" or "topView".
+     * @param options - What to frame and how to configure the view.
+     * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
+     * @param options.params - The view's own options, filled in from its declared defaults.
+     * @returns The resolved camera state.
      * @since 1.5.0
      * @example
      * ```typescript
@@ -1921,8 +2341,37 @@ export class Graphty extends LitElement {
      * await element.setCameraState(state, { animate: true });
      * ```
      */
-    resolveCameraPreset(preset: string): import("./screenshot/types.js").CameraState {
-        return this.#graph.resolveCameraPreset(preset);
+    resolveCameraPreset(
+        preset: string,
+        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+    ): import("./screenshot/types.js").CameraState {
+        return this.#graph.resolveCameraPreset(preset, options);
+    }
+
+    /**
+     * Put the viewer where a named camera view says they should stand.
+     *
+     * The route that frames a SUBSET: the element measures the box over whatever the scope covers
+     * and hands the smaller box to the view, so a view frames a selection with no code of its own.
+     * @param id - The view's name.
+     * @param options - The scope to frame, the view's own options, and how to get there.
+     * @param options.scope - What to frame. Absent frames the whole graph.
+     * @param options.params - The view's own options, filled in from its declared defaults.
+     * @returns A promise that resolves once the camera has arrived.
+     * @since 1.5.0
+     * @example
+     * ```typescript
+     * await element.applyCameraView('isometric', { scope: 'selection', animate: true });
+     * ```
+     */
+    async applyCameraView(
+        id: string,
+        options?: {
+            scope?: Scope;
+            params?: Readonly<Record<string, unknown>>;
+        } & import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.applyCameraView(id, options);
     }
 
     // ============================================================================

@@ -1,5 +1,8 @@
 import { Algorithm } from "../algorithms/Algorithm";
+import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
+import { registeredAlgorithmByKey } from "../catalog/registry";
+import type { AlgorithmDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
@@ -116,7 +119,16 @@ export class AlgorithmManager implements Manager {
      * @throws A `GraphtyError` when nothing registers the key, or whatever the work threw.
      */
     async execute(context: RunExecutionContext, descriptor?: BuiltInAlgorithmDescriptor): Promise<RunOutcome> {
-        if (descriptor === undefined) {
+        /* A REGISTERED PLUGIN IS RESOLVED THE SAME WAY A BUILT-IN IS, and that is the whole point
+           of it being in the catalogue. The built-in table is a compile-time constant, so the
+           caller that hands a descriptor in looks it up there; a plugin arrives when somebody
+           imports it, so its address is looked up here instead. Everything after this line is
+           identical for both, which is what makes a plugin startable as a run rather than
+           something the element treats as a lesser kind of algorithm. */
+        const registered = descriptor === undefined ? registeredAlgorithmByKey(context.algorithm) : undefined;
+        const published: AlgorithmDescriptor | undefined = descriptor ?? registered?.descriptor;
+
+        if (published === undefined) {
             throw new GraphtyError({
                 code: "E_UNKNOWN_ALGORITHM",
                 message: `No algorithm is registered under "${context.algorithm}".`,
@@ -126,7 +138,10 @@ export class AlgorithmManager implements Manager {
             });
         }
 
-        const target = this.targetFor(descriptor, context.params);
+        const target =
+            descriptor === undefined && registered !== undefined
+                ? { namespace: registered.namespace, type: registered.type, options: context.params }
+                : this.targetFor(descriptor as BuiltInAlgorithmDescriptor, context.params);
         const algorithm = Algorithm.get(this.graph, target.namespace, target.type, target.options);
 
         if (algorithm === null) {
@@ -139,23 +154,39 @@ export class AlgorithmManager implements Manager {
             });
         }
 
-        const result = await this.compute(algorithm, context, descriptor);
+        const result = await this.compute(algorithm, context, published);
 
-        // Style layers still select on `algorithmResults.<namespace>.<type>.<field>`, which the
-        // algorithm has just written, so the elements carrying a new value have to be visited
-        // again for the selector to see it.
-        //
-        // REMOVED BY: the style layer migration. Once a selector reads `results.<runId>.<field>`
-        // the repaint is the layer system's to schedule from the run finishing, not the run
-        // executor's to force.
-        this.graph.getDataManager().applyStylesToExistingNodes();
-        this.graph.getDataManager().applyStylesToExistingEdges();
+        // NO REPAINT IS FORCED HERE, and that is the point. A run used to have to walk every node
+        // and every edge itself, because a 1.x selector read `algorithmResults.<namespace>.<type>`
+        // off the element and only a re-resolution could make the new value visible. A session
+        // selector reads `results.<runId>.<field>`, so painting the new values is the style
+        // stack's work, scheduled from the run finishing: the `algorithm-run` trigger Graph
+        // registers repaints from the session's stack once the run leaves the queue.
+
+        // A run over a multigraph is a run over the SIMPLIFIED graph -- `@graphty/algorithms`
+        // cannot hold two edges between one pair -- and a reader has no other way to learn that.
+        // The note is appended here rather than in each algorithm because the merge is the
+        // element's doing, not any one algorithm's.
+        const { caveats } = result.summary();
+        const merged = mergedParallelEdges(this.graph.getDataManager());
+        const noted =
+            merged === 0
+                ? caveats
+                : {
+                      ...caveats,
+                      notes: [
+                          ...caveats.notes,
+                          `${String(merged)} parallel ${merged === 1 ? "edge was" : "edges were"} merged, with weights summed, ` +
+                              `because this algorithm runs over a graph that holds one edge per pair. Every member of a merged ` +
+                              `group carries the merged value.`,
+                      ],
+                  };
 
         return {
             result,
             fields: result.fields,
             summary: result.summary(),
-            caveats: result.summary().caveats,
+            caveats: noted,
         };
     }
 
@@ -231,10 +262,10 @@ export class AlgorithmManager implements Manager {
 
             await alg.run(this.graph);
 
-            // Re-apply styles to all nodes and edges after algorithm completes
-            // This ensures algorithm results are used in style selector matching
-            this.graph.getDataManager().applyStylesToExistingNodes();
-            this.graph.getDataManager().applyStylesToExistingEdges();
+            // As in `execute`: the repaint belongs to the style stack and is scheduled from the
+            // run finishing, not forced from here. A plugin algorithm writes its results onto the
+            // element's own node and edge records, which the session reads as attributes, so a
+            // layer selecting on one of those paths is repainted by the same trigger.
         } catch (error) {
             // Emit error event for any error (not found or execution)
             const algorithmError = error instanceof Error ? error : new Error(String(error));
@@ -309,7 +340,7 @@ export class AlgorithmManager implements Manager {
     private async compute(
         algorithm: Algorithm,
         context: RunExecutionContext,
-        descriptor: BuiltInAlgorithmDescriptor,
+        descriptor: AlgorithmDescriptor,
     ): Promise<RunResult> {
         const published = await algorithm.publishResult(
             {
@@ -353,7 +384,7 @@ function yieldToHost(): Promise<void> {
  * @param descriptor - The algorithm's catalogue entry.
  * @returns An empty result of the right shape.
  */
-function emptyResult(context: RunExecutionContext, descriptor: BuiltInAlgorithmDescriptor): RunResult {
+function emptyResult(context: RunExecutionContext, descriptor: AlgorithmDescriptor): RunResult {
     return createRunResult({
         runId: context.runId,
         shape: descriptor.shape,

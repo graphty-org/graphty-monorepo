@@ -686,6 +686,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Resolve once nothing is queued or running.
+     *
+     * The same wait as {@link OperationQueueManager.waitForCompletion}, under the name the
+     * session's queue contract uses. Both exist so that this manager satisfies `RunQueue`
+     * STRUCTURALLY, with no cast and no adapter: the session must be able to talk to the
+     * renderer's queue without importing it, which is the whole reason that contract is shaped
+     * the way it is.
+     * @returns A promise that resolves when the queue is idle.
+     */
+    async settled(): Promise<void> {
+        return this.waitForCompletion();
+    }
+
+    /**
      * Get queue statistics
      * @returns Current queue state including pending operations, size, and pause status
      */

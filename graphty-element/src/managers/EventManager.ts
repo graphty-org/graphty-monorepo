@@ -1,12 +1,15 @@
 import { Observable } from "@babylonjs/core";
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
+import type { EdgeId, NodeId } from "../catalog/types";
+import type { ImportReport } from "../data/report";
 import type {
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
     DataLoadingErrorSummaryEvent,
     DataLoadingProgressEvent,
     EdgeEvent,
+    ElementsRemovedEvent,
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
@@ -41,6 +44,19 @@ export class EventManager implements Manager {
      */
     get onGraphEvent(): Observable<GraphEvent> {
         return this.graphObservable;
+    }
+
+    /**
+     * Gets the node event observable for direct subscription.
+     *
+     * The element forwards it to the DOM the way it forwards {@link EventManager.onGraphEvent},
+     * which is what makes a click, a hover and a drag reachable by a consumer holding only the
+     * tag. Before that forwarder existed, every node event was emitted onto a private observable
+     * and landed nowhere.
+     * @returns Observable for node events
+     */
+    get onNodeEvent(): Observable<NodeEvent> {
+        return this.nodeObservable;
     }
 
     /**
@@ -135,15 +151,36 @@ export class EventManager implements Manager {
      * @param graph - Graph or GraphContext instance
      * @param chunksLoaded - Number of data chunks loaded
      * @param dataSourceType - Type of data source used
+     * @param report - What the load did, including which endpoint spelling resolved
      */
-    emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string): void {
+    emitGraphDataLoaded(
+        graph: Graph | GraphContext,
+        chunksLoaded: number,
+        dataSourceType: string,
+        report: ImportReport,
+    ): void {
         const event: GraphDataLoadedEvent = {
             type: "data-loaded",
             graph: graph as Graph,
             details: {
                 chunksLoaded,
                 dataSourceType,
+                report,
             },
+        };
+        this.graphObservable.notifyObservers(event);
+    }
+
+    /**
+     * Emits the removal event naming every node and edge one removal call took away.
+     * @param nodes - the nodes that were removed
+     * @param edges - every edge that was attached to one of them
+     */
+    emitElementsRemoved(nodes: NodeId[], edges: EdgeId[]): void {
+        const event: ElementsRemovedEvent = {
+            type: "elements-removed",
+            nodes,
+            edges,
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -232,16 +269,16 @@ export class EventManager implements Manager {
      * @param format - Data format being loaded
      * @param bytesProcessed - Number of bytes processed so far
      * @param totalBytes - Total bytes to process (if known)
-     * @param nodesLoaded - Number of nodes loaded so far
-     * @param edgesLoaded - Number of edges loaded so far
+     * @param nodeRecordsLoaded - How many node RECORDS the source has handed over so far
+     * @param edgeRecordsLoaded - How many edge RECORDS the source has handed over so far
      * @param chunksProcessed - Number of data chunks processed
      */
     emitDataLoadingProgress(
         format: string,
         bytesProcessed: number,
         totalBytes: number | undefined,
-        nodesLoaded: number,
-        edgesLoaded: number,
+        nodeRecordsLoaded: number,
+        edgeRecordsLoaded: number,
         chunksProcessed: number,
     ): void {
         const event: DataLoadingProgressEvent = {
@@ -250,8 +287,8 @@ export class EventManager implements Manager {
             bytesProcessed,
             totalBytes,
             percentage: totalBytes ? (bytesProcessed / totalBytes) * 100 : undefined,
-            nodesLoaded,
-            edgesLoaded,
+            nodeRecordsLoaded,
+            edgeRecordsLoaded,
             chunksProcessed,
         };
         this.graphObservable.notifyObservers(event);
@@ -321,12 +358,13 @@ export class EventManager implements Manager {
     /**
      * Emits a data loading complete event when import finishes
      * @param format - Data format that was loaded
-     * @param nodesLoaded - Number of nodes loaded
-     * @param edgesLoaded - Number of edges loaded
+     * @param nodesLoaded - How many nodes the graph HOLDS, not how many records arrived
+     * @param edgesLoaded - How many edges the graph HOLDS, not how many records arrived
      * @param duration - Time taken to load in milliseconds
      * @param errors - Number of errors encountered
      * @param warnings - Number of warnings encountered
      * @param success - Whether loading was successful
+     * @param report - What the load did, including which endpoint spelling resolved
      */
     emitDataLoadingComplete(
         format: string,
@@ -336,6 +374,7 @@ export class EventManager implements Manager {
         errors: number,
         warnings: number,
         success: boolean,
+        report: ImportReport,
     ): void {
         const event: DataLoadingCompleteEvent = {
             type: "data-loading-complete",
@@ -346,6 +385,7 @@ export class EventManager implements Manager {
             errors,
             warnings,
             success,
+            report,
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -432,6 +472,8 @@ export class EventManager implements Manager {
             case "data-loading-error":
             case "data-loading-error-summary":
             case "data-loading-complete":
+            case "zoom-to-fit-complete":
+            case "elements-removed":
             case "selection-changed": {
                 const observer = this.graphObservable.add((event) => {
                     if (event.type === type) {
@@ -448,7 +490,11 @@ export class EventManager implements Manager {
 
             case "node-update-after":
             case "node-update-before":
-            case "node-add-before": {
+            case "node-add-before":
+            case "node-click":
+            case "node-hover":
+            case "node-drag-start":
+            case "node-drag-end": {
                 const observer = this.nodeObservable.add((event) => {
                     if (event.type === type) {
                         callback(event);

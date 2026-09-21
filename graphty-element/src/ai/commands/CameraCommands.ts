@@ -6,16 +6,39 @@
 import jmespath from "jmespath";
 import { z } from "zod";
 
-import { BUILTIN_PRESETS } from "../../camera/presets";
+import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
+import { CAMERA_DESCRIPTORS,cameraDescriptor } from "../../catalog/cameras";
 import type { Graph } from "../../Graph";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
- * Built-in camera preset names.
+ * Every camera view that can be named right now, the element's own first.
+ *
+ * Read at call time rather than captured at import time, because a third party's view is
+ * registered while the page is running: a list baked into a schema when this module loaded could
+ * never name one.
+ * @returns The view names.
+ */
+function cameraViewNames(): string[] {
+    return [
+        ...CAMERA_DESCRIPTORS.map((descriptor) => descriptor.id),
+        ...registeredCameraDescriptors().map((descriptor) => descriptor.id),
+    ];
+}
+
+/*
+ * THE PARAMETER IS A STRING, NOT AN ENUM, AND THAT IS THE POINT. It used to be a Zod enum spread
+ * from the five built-in names and then re-validated against the same array, so a registered
+ * camera view could not be named here even once registration existed. The names the element
+ * ships are still listed in the description, where they guide the model; the refusal below reads
+ * the catalogue, so a view a third party registered is offerable and nameable.
  */
 const CameraPresetSchema = z
-    .enum([...BUILTIN_PRESETS])
-    .describe("Built-in camera preset: 'fitToGraph', 'topView', 'sideView', 'frontView', 'isometric'");
+    .string()
+    .describe(
+        "Named camera view. The element ships 'fitToGraph', 'topView', 'sideView', 'frontView' and " +
+            "'isometric'; an application may have registered others.",
+    );
 
 /**
  * 3D position schema.
@@ -33,8 +56,21 @@ const Position3DSchema = z
  */
 export const setCameraPosition: GraphCommand = {
     name: "setCameraPosition",
-    description:
-        "Set the camera position using a preset (fitToGraph, topView, sideView, frontView, isometric) or specific coordinates. Presets automatically calculate the best view for the current graph. Animation can be enabled for smooth transitions.",
+    /*
+     * READ AT PROMPT TIME, NOT AT IMPORT TIME. The description is what the system prompt shows
+     * the model, and a fixed sentence naming the element's own five views is the only place the
+     * model ever learns a view name from -- so a registered view was nameable and never offered.
+     * A getter satisfies the same `readonly description: string` the command type declares and
+     * is evaluated each time the prompt is built, which is after a page's plugins have
+     * registered.
+     */
+    get description(): string {
+        return (
+            `Set the camera position using a preset (${cameraViewNames().join(", ")}) or specific coordinates. ` +
+            "Presets automatically calculate the best view for the current graph. " +
+            "Animation can be enabled for smooth transitions."
+        );
+    },
     parameters: z.object({
         preset: CameraPresetSchema.optional().describe("Named camera preset to apply"),
         position: Position3DSchema.optional().describe("Custom camera position (3D only)"),
@@ -60,7 +96,7 @@ export const setCameraPosition: GraphCommand = {
             target,
             animate = true,
         } = params as {
-            preset?: (typeof BUILTIN_PRESETS)[number];
+            preset?: string;
             position?: { x: number; y: number; z: number };
             target?: { x: number; y: number; z: number };
             animate?: boolean;
@@ -77,11 +113,12 @@ export const setCameraPosition: GraphCommand = {
 
             // Use preset if provided
             if (preset) {
-                // Validate preset is known
-                if (!BUILTIN_PRESETS.includes(preset)) {
+                // Validate against the catalogue rather than a fixed list, so a registered view
+                // is as nameable here as a built-in one.
+                if (!cameraDescriptor(preset)) {
                     return {
                         success: false,
-                        message: `Unknown camera preset "${preset}". Available presets: ${BUILTIN_PRESETS.join(", ")}.`,
+                        message: `Unknown camera view "${preset}". Available views: ${cameraViewNames().join(", ")}.`,
                     };
                 }
 
@@ -211,12 +248,14 @@ export const zoomToNodes: GraphCommand = {
                 };
             }
 
-            // For now, we use the fitToGraph preset which fits all nodes
-            // In a full implementation, we would calculate bounding box for matched nodes only
-            await graph.setCameraState(
-                { preset: "fitToGraph" },
-                { animate, description: `Zooming to fit ${selector ? "matching nodes" : "all nodes"}` },
-            );
+            // Frame the matched nodes and nothing else. A camera view is handed the box the
+            // element measured rather than measuring one itself, so scoping the box is all it
+            // takes -- which is why this used to fit the whole graph and no longer does.
+            await graph.applyCameraView("fitToGraph", {
+                ...(selector && selector.length > 0 ? { scope: { nodes: matchingIds } } : {}),
+                animate,
+                description: `Zooming to fit ${selector ? "matching nodes" : "all nodes"}`,
+            });
 
             const nodeCount = selector ? matchingIds.length : graph.getNodeCount();
             return {

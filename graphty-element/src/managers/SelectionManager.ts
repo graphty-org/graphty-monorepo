@@ -20,6 +20,7 @@
  * reader's styling, and never touches a material.
  */
 
+import type { EdgeId } from "../catalog/types";
 import type { Node, NodeIdType } from "../Node";
 import type { SelectionCause, SelectionOwner } from "../session/selection";
 import type { DataManager } from "./DataManager";
@@ -212,6 +213,22 @@ export class SelectionManager implements Manager {
         // listener a reference to something that is about to be disposed.
         this.selectedNodes.delete(node.id);
         this.selection?.applyNow({ nodes: [node.id] }, "remove", "api");
+    }
+
+    /**
+     * Handle edge removal, which is what removing a node now cascades into.
+     *
+     * The session's masks are keyed by dense index and self-heal at the next COMPACTING freeze,
+     * but a removal that triggers no freeze would leave a removed edge in the selection until
+     * something else forced one -- so the selection would report an edge the graph no longer has.
+     * @param ids - The ids of the edges that were removed.
+     */
+    onEdgesRemoved(ids: readonly EdgeId[]): void {
+        if (ids.length === 0) {
+            return;
+        }
+
+        this.selection?.applyNow({ edges: [...ids] }, "remove", "api");
     }
 
     /**

@@ -25,31 +25,35 @@ import { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
-import {
-    BUILTIN_PRESETS,
-    calculateFitToGraph,
-    calculateFrontView,
-    calculateIsometric,
-    calculateSideView,
-    calculateTopView,
-} from "./camera/presets.js";
+
+/** What the scene is cleared to when the configured background names no colour. Whitesmoke. */
+const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+import { measureBounds } from "./camera/bounds.js";
+import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
+import type { CameraState, DrawingMode, GraphBounds } from "./camera/types.js";
 import { type CameraController, type CameraKey, CameraManager } from "./cameras/CameraManager";
-import { algorithmByKey, algorithmByLegacyKey, type LegacyAlgorithmMapping } from "./catalog/algorithms";
-import type { AlgorithmKey } from "./catalog/types";
+import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
+import { undetectedFormat } from "./catalog/detect";
+import { registeredAlgorithmByKey } from "./catalog/registry";
+import type { AlgorithmKey, Scope } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
-    StyleLayerType,
-    StyleSchema,
+    GraphBackground,
+    type GraphBackgroundConfig,
+    type GraphBehaviorConfig,
+    GraphBehaviorOpts,
     type ViewMode,
     type XRConfig,
 } from "./config";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { Edge } from "./Edge";
+import { GraphtyError } from "./errors";
 import { EventCallbackType, EventType } from "./events";
 import {
+    type AddEdgesOptions,
     AlgorithmManager,
     DataManager,
     DefaultGraphContext,
@@ -74,7 +78,6 @@ import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
-import { ScreenshotError, ScreenshotErrorCode } from "./screenshot/ScreenshotError.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import type { Run, StartOptions } from "./session/runs";
@@ -88,6 +91,57 @@ import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions } from "./utils/queue-migration";
 import { XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
+
+/**
+ * A catalogue key the element can start as a run, and the parameters that go with it.
+ *
+ * Deliberately narrower than a catalogue entry: the key and the parameters are all the run path
+ * reads, and a registered plugin has no entry in the built-in table to offer.
+ */
+interface RunnableAlgorithm {
+    /** The catalogue entry, of which only the key is read. */
+    readonly descriptor: { readonly key: AlgorithmKey };
+    /** The parameters that reproduce what the address being translated used to do. */
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One edge's attribute bag as the session reads it: the raw record with the two keys that named
+ * its endpoints taken out.
+ *
+ * The session writes `id`, `source` and `target` over the bag itself, so leaving the record's own
+ * endpoint keys in would publish the same two facts twice under two spellings -- and a consumer
+ * that derives its columns from the keys a record carries, as the application's data table does,
+ * would render both.
+ *
+ * Only PLAIN property names are stripped. An endpoint named by a real JMESPath expression --
+ * `endpoints.from`, say -- names no top-level key, so there is nothing to take out and nothing to
+ * guess about.
+ * @param data - the element's data manager
+ * @param index - the dense (logical) edge index
+ * @returns the attribute bag, or undefined when no render object holds that row
+ */
+function stripEndpointKeys(data: DataManager, index: number): Record<string, unknown> | undefined {
+    const record = data.edgesByIndex[index]?.data;
+    if (record === undefined) {
+        return undefined;
+    }
+
+    const endpoints = data.lastImport?.endpoints;
+    if (endpoints === undefined) {
+        return record;
+    }
+
+    const dropped = new Set([endpoints.source, endpoints.target].filter((name) => PLAIN_KEY.test(name)));
+    if (dropped.size === 0) {
+        return record;
+    }
+
+    return Object.fromEntries(Object.entries(record).filter(([key]) => !dropped.has(key)));
+}
+
+/** A JMESPath expression that is nothing but a top-level property name. */
+const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * Main orchestrator class for graph visualization and interaction.
@@ -185,17 +239,12 @@ export class Graph implements GraphContext {
             autoStart: true,
         });
 
-        // The 1.x layer stack and the element's configuration document. Replaced wholesale by
-        // `setStyleTemplate`, which is why everything that reads it reads it through a thunk.
+        // The element's configuration document: id paths, view mode, background, layout and its
+        // options, the run-on-load algorithms and the behaviour settings. It carries no style
+        // layers -- those are `session.styles`.
         this.styles = Styles.default();
 
-        // Both halves are read LIVE rather than captured: applying a style template replaces the
-        // `Styles` instance, and an ownership rule answered from the stack that was in force when
-        // the graph was built would keep painting from a stack nobody is looking at.
-        this.stylePainter = new StylePainter(
-            () => this.styles.layers.length,
-            () => (this.styles.config.graph.addDefaultStyle ? 1 : 0),
-        );
+        this.stylePainter = new StylePainter();
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {
@@ -253,10 +302,16 @@ export class Graph implements GraphContext {
             store: this.dataManager,
             records: {
                 nodeAttributes: (_index, id) => this.dataManager.getNode(id)?.data,
-                edgeAttributes: (index) => this.dataManager.edgesByIndex[index]?.data,
+                // The endpoint keys are stripped HERE, at the one seam that builds the session's
+                // attribute bag, rather than on the render object: `Edge.data` is the raw record
+                // and that is its contract for anyone reaching through `element.graph`. Without
+                // this a record pushed in spelled `src`/`dst` would show up in the data table as a
+                // `src` column beside the canonical `source` one, saying the same thing twice.
+                edgeAttributes: (index) => stripEndpointKeys(this.dataManager, index),
             },
-            // Read, not captured: applying a style template REPLACES this.styles, so a captured
-            // configuration would be the one that was in force when the graph was built.
+            // Read, not captured: the configuration document is written in place by the
+            // element's own property setters, so a captured copy would be the one that was in
+            // force when the graph was built rather than the one a consumer has since set.
             config: { data: () => this.styles.config.data },
             runs: {
                 // The element's own queue, so a run takes its turn among the loads, the layouts
@@ -269,11 +324,9 @@ export class Graph implements GraphContext {
             },
         });
 
-        // The renderer reads its paint from the session's stack from here on. Binding is not the
-        // same as owning: the painter answers `owns` from the legacy stack's contents, so a graph
-        // that has been handed a style template is still drawn by the old system -- see
-        // StylePainter for the rule and for why there is exactly one owner rather than two
-        // writers.
+        // The renderer reads its paint from the session's stack from here on. Until the first
+        // pass has run, an element draws itself from the element's own defaults; see
+        // `bootstrapNodePaint` in StylePainter.
         this.stylePainter.bind(this.session.paint);
 
         // A style edit is a queued run that repaints BEFORE it commits, so by the time this fires
@@ -298,6 +351,34 @@ export class Graph implements GraphContext {
             },
             description: "Repaint from the session style stack after data add",
         }));
+
+        // Bring the paint up to date once a run has finished and its measurements exist. A layer
+        // bound to `results.<runId>.<field>` reads a column the run has only just written, so the
+        // run finishing is what the repaint hangs off -- and it hangs off it HERE, in the element's
+        // own wiring, rather than being forced by the run executor at the end of every algorithm.
+        //
+        // OFF THE RUN, NOT OFF THE QUEUE CATEGORY, and the difference is a whole-graph pass per
+        // edit. Three unrelated features queue work as "algorithm-run": algorithm runs, style
+        // writes and visibility changes. A trigger on the category therefore fired for every
+        // `add`, `update`, `remove`, `move`, `encode` and mask edit -- each of which had ALREADY
+        // repainted exactly the elements it touched -- and put a full pass over the graph on top
+        // of it. That is precisely the cost the dirty set exists to avoid, paid on the commonest
+        // operation there is. The session announces a run reaching its end, which is the fact
+        // this actually depends on, so it hangs off that instead.
+        this.session.on("run:changed", (change) => {
+            if (change.phase !== "end") {
+                return;
+            }
+
+            void this.repaintFromSession().catch((error: unknown) => {
+                this.eventManager.emitGraphError(
+                    this,
+                    error instanceof Error ? error : new Error(String(error)),
+                    "other",
+                    { component: "Graph.repaintAfterRun" },
+                );
+            });
+        });
 
         // Register layout-update trigger to handle positioning nodes when data is added
         this.operationQueue.registerTrigger("data-add", () => ({
@@ -472,26 +553,6 @@ export class Graph implements GraphContext {
             }
         });
 
-        // Reapply the layer stack to every element when it changes -- the AI style commands and
-        // `setStyleTemplate` both land here. Read live rather than captured: the instance is
-        // replaced when a template is loaded.
-        this.eventManager.addListener("style-changed", () => {
-            // Skip if the graph isn't fully initialized yet
-            if (!this.initialized) {
-                return;
-            }
-
-            const currentStyles = this.styles;
-
-            for (const n of this.dataManager.nodes.values()) {
-                n.updateStyle(currentStyles.getStyleForNode(n.data));
-            }
-
-            for (const e of this.dataManager.edges.values()) {
-                e.updateStyle(currentStyles.getStyleForEdge(e.data));
-            }
-        });
-
         // Default layout is now queued in constructor to ensure proper obsolescence ordering
     }
 
@@ -570,10 +631,10 @@ export class Graph implements GraphContext {
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
 
-            // Apply default background color if no styleTemplate was explicitly set
-            // This ensures stories without styleTemplate get the correct background
+            // The configured background reaches the scene here, whether it was set through
+            // `element.background` before the element was attached or left at its default.
             if (this.styles.config.graph.background.backgroundType === "color") {
-                const backgroundColor = this.styles.config.graph.background.color ?? "#F5F5F5";
+                const backgroundColor = this.styles.config.graph.background.color ?? DEFAULT_BACKGROUND_COLOR;
                 this.scene.clearColor = Color4.FromHexString(backgroundColor);
             }
 
@@ -683,206 +744,60 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Sets the style template for the graph, applying visual and behavioral configurations.
-     * @param t - Style schema containing configuration for graph appearance and behavior
-     * @param options - Optional queueing options for batch processing
-     * @returns The updated Styles instance
+     * Set what the graph is drawn against: a flat colour, or a photo-dome skybox.
+     *
+     * The colour reaches the scene's clear colour and a skybox builds a `PhotoDome` around the
+     * graph, announcing `skybox-loaded` once its texture has arrived. The value is also written
+     * into the configuration document, so a later read of `styles.config.graph.background` and a
+     * rebuild of the scene both see what was asked for.
+     * @param background - A colour (`{backgroundType: "color", color}`) or a skybox
+     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG.
      */
-    async setStyleTemplate(t: StyleSchema, options?: QueueableOptions): Promise<Styles> {
-        // Future enhancement: if t is a URL, fetch URL
+    setBackground(background: GraphBackgroundConfig): void {
+        // Parsed rather than trusted, because this is a public door: a CSS colour name arrives
+        // here and the renderer needs the hex the rest of the element works in.
+        const parsed = GraphBackground.parse(background);
 
-        // Skip queue if requested
-        if (options?.skipQueue) {
-            return this._setStyleTemplateInternal(t);
-        }
+        this.styles.config.graph.background = parsed;
 
-        // Clear completed status for style-init since we're explicitly re-initializing styles
-        // This ensures dependency ordering works correctly in batch mode
-        this.operationQueue.clearCategoryCompleted("style-init");
+        if (parsed.backgroundType === "skybox") {
+            const skyboxUrl = parsed.data;
+            const photoDome = new PhotoDome("testdome", skyboxUrl, { resolution: 32, size: 500 }, this.scene);
 
-        // Queue the operation using queueOperationAsync to properly handle batch mode
-        return this.operationQueue
-            .queueOperationAsync(
-                "style-init",
-                async (context) => {
-                    if (context.signal.aborted) {
-                        throw new Error("Operation cancelled");
-                    }
-
-                    await this._setStyleTemplateInternal(t);
-                },
-                {
-                    description: "Setting style template",
-                    ...options,
-                },
-            )
-            .then(() => this.styles);
-    }
-
-    private async _setStyleTemplateInternal(t: StyleSchema): Promise<Styles> {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
-        const previousTwoD = this.styles.config.graph.twoD;
-
-        // CRITICAL: Determine the target 2D mode FIRST from the template, BEFORE loading styles
-        // This allows us to set up camera and metadata before any mesh operations triggered by style loading
-        const templateGraph = t.graph as Record<string, unknown> | undefined;
-        const viewModeExplicitlySet = templateGraph !== undefined && "viewMode" in templateGraph;
-        const twoDExplicitlySet = templateGraph !== undefined && "twoD" in templateGraph;
-
-        // Calculate target twoD and viewMode from template (before styles are loaded)
-        let targetTwoD: boolean;
-        let targetViewMode: ViewMode;
-
-        if (viewModeExplicitlySet) {
-            targetViewMode = (templateGraph.viewMode as ViewMode | undefined) ?? "3d";
-            targetTwoD = targetViewMode === "2d";
-        } else if (twoDExplicitlySet) {
-            targetTwoD = (templateGraph.twoD as boolean | undefined) ?? false;
-            targetViewMode = targetTwoD ? "2d" : "3d";
-            if (targetTwoD !== previousTwoD) {
-                console.warn(
-                    "[Graph] graph.twoD is deprecated. Use graph.viewMode instead. " +
-                        'twoD: true → viewMode: "2d", twoD: false → viewMode: "3d"',
-                );
-            }
-        } else {
-            // No explicit mode in template, use schema defaults (3D mode)
-            // This ensures templates are idempotent - applying the same template
-            // always produces the same result regardless of previous state
-            targetTwoD = false;
-            targetViewMode = "3d";
-        }
-
-        // CRITICAL: Set up metadata and camera FIRST, before loading styles
-        // This ensures any mesh operations triggered by style loading see correct state
-        this.scene.metadata = this.scene.metadata ?? {};
-        this.scene.metadata.viewMode = targetViewMode;
-        this.scene.metadata.twoD = targetTwoD;
-
-        // Activate appropriate camera (must happen before style loading)
-        const cameraType = targetTwoD ? "2d" : "orbit";
-        this.camera.activateCamera(cameraType);
-
-        // Now load the styles (this may trigger "style-changed" event and mesh operations)
-        this.styles = Styles.fromObject(t);
-        this.eventManager.emitGraphEvent("style-changed", {});
-
-        // Synchronize styles config with our calculated values
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
-        this.styles.config.graph.twoD = targetTwoD;
-        this.styles.config.graph.viewMode = targetViewMode;
-
-        // Use these as current values for subsequent logic
-        const currentTwoD = targetTwoD;
-
-        // Clear mesh cache if switching between 2D and 3D modes
-        // This must happen AFTER metadata and camera are set up
-        const modeSwitching = previousTwoD !== currentTwoD;
-        if (modeSwitching) {
-            this.dataManager.meshCache.clear();
-
-            // Save Z positions BEFORE any updates that might change them
-            // (updateStyles calls node.update() which applies layout positions)
-            if (currentTwoD && !previousTwoD) {
-                // Switching from 3D to 2D: save current Z positions
-                for (const node of this.getNodes()) {
-                    this.savedZPositions.set(node.id, node.mesh.position.z);
-                }
-            }
-        }
-
-        // Update DataManager with new styles - this will apply styles to existing nodes/edges
-        // IMPORTANT: DataManager needs to be updated after this.styles is set because
-        // Node.updateStyle() calls this.parentGraph.styles
-        this.dataManager.updateStyles(this.styles);
-
-        // Update LayoutManager with new styles reference
-        this.layoutManager.updateStyles(this.styles);
-
-        // Handle Z-coordinate flattening/restoration AFTER style updates
-        // (style updates call node.update() which applies layout positions including Z)
-        if (modeSwitching) {
-            const nodes = this.getNodes();
-            if (currentTwoD && !previousTwoD) {
-                // Switching from 3D to 2D: flatten Z positions to 0
-                for (const node of nodes) {
-                    node.mesh.position.z = 0;
-                }
-            } else if (!currentTwoD && previousTwoD) {
-                // Switching from 2D to 3D: restore saved Z positions (or leave at 0)
-                for (const node of nodes) {
-                    const savedZ = this.savedZPositions.get(node.id);
-                    if (savedZ !== undefined) {
-                        node.mesh.position.z = savedZ;
-                    }
-                    // If no saved Z, leave at current position (0)
-                }
-                // Clear saved positions after restoration
-                this.savedZPositions.clear();
-            }
-        }
-
-        // setup PhotoDome Skybox
-        if (
-            this.styles.config.graph.background.backgroundType === "skybox" &&
-            typeof this.styles.config.graph.background.data === "string"
-        ) {
-            const skyboxUrl = this.styles.config.graph.background.data;
-            const photoDome = new PhotoDome(
-                "testdome",
-                skyboxUrl,
-                {
-                    resolution: 32,
-                    size: 500,
-                },
-                this.scene,
-            );
-            // Emit event when skybox texture is loaded
             photoDome.texture.onLoadObservable.addOnce(() => {
                 this.eventManager.emitGraphEvent("skybox-loaded", {
                     graph: this,
                     url: skyboxUrl,
                 });
             });
+
+            return;
         }
 
-        // background color - always set a default
-        const DEFAULT_BACKGROUND = "#F5F5F5"; // whitesmoke
+        this.scene.clearColor = Color4.FromHexString(parsed.color ?? DEFAULT_BACKGROUND_COLOR);
+    }
 
-        if (
-            this.styles.config.graph.background.backgroundType === "color" &&
-            this.styles.config.graph.background.color
-        ) {
-            this.scene.clearColor = Color4.FromHexString(this.styles.config.graph.background.color);
-        } else {
-            // Apply default background color when no background is specified
-            this.scene.clearColor = Color4.FromHexString(DEFAULT_BACKGROUND);
-        }
+    /**
+     * Set how the element drives the layout.
+     *
+     * MERGED, NOT REPLACED, and one level deep on purpose: a caller naming `layout.preSteps`
+     * means that field and not "reset every other pacing setting to its default", which is what
+     * parsing a partial document against a schema of defaults would do.
+     *
+     * The settings take effect on the next layout the element runs. `preSteps` is read when a
+     * layout starts, so setting it after a graph has already settled changes nothing that is
+     * already on screen.
+     * @param behavior - The fields to change. Anything omitted keeps its current value.
+     */
+    setLayoutBehavior(behavior: GraphBehaviorConfig): void {
+        const current = this.styles.config.behavior;
 
-        // TODO: graph styles - background, etc
-        // const mb = new MotionBlurPostProcess("mb", this.scene, 1.0, this.camera);
-        // mb.motionStrength = 1;
-        // default rendering pipeline?
-        // https://doc.babylonjs.com/features/featuresDeepDive/postProcesses/defaultRenderingPipeline/
-
-        // Request zoom to fit when switching between 2D/3D modes
-        if (previousTwoD !== currentTwoD) {
-            this.updateManager.enableZoomToFit();
-        }
-
-        // Update layout dimension if it supports it and twoD mode changed
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
-        await this.layoutManager.updateLayoutDimension(this.styles.config.graph.twoD);
-
-        // Apply layout from template if specified
-        await this.layoutManager.applyTemplateLayout(
-            this.styles.config.graph.layout,
-            this.styles.config.graph.layoutOptions,
-        );
-
-        // Don't run algorithms here - they should run after data is loaded
-
-        return this.styles;
+        this.styles.config.behavior = GraphBehaviorOpts.parse({
+            ...current,
+            ...behavior,
+            layout: { ...current.layout, ...(behavior.layout ?? {}) },
+            node: { ...current.node, ...(behavior.node ?? {}) },
+        });
     }
 
     /**
@@ -901,16 +816,17 @@ export class Graph implements GraphContext {
      * @param options - Loading options
      * @param options.format - Explicit format override (e.g., "graphml", "json")
      * @param options.nodeIdPath - JMESPath for node ID extraction
-     * @param options.edgeSrcIdPath - JMESPath for edge source ID extraction
-     * @param options.edgeDstIdPath - JMESPath for edge destination ID extraction
+     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
+     *     unset, the element reads `source`, then `src`, then `from`
+     * @param options.edgeTarget - Where the node an edge ends at is named in the record
      */
     async loadFromFile(
         file: File,
         options?: {
             format?: string;
             nodeIdPath?: string;
-            edgeSrcIdPath?: string;
-            edgeDstIdPath?: string;
+            edgeSource?: string;
+            edgeTarget?: string;
         },
     ): Promise<void> {
         const { detectFormat } = await import("./data/format-detection.js");
@@ -924,11 +840,7 @@ export class Graph implements GraphContext {
             const detected = detectFormat(file.name, sample);
 
             if (!detected) {
-                throw new Error(
-                    `Could not detect file format from '${file.name}'. ` +
-                        "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek. " +
-                        'Try specifying format explicitly: loadFromFile(file, { format: "graphml" })',
-                );
+                throw undetectedFormat(file.name, 'loadFromFile(file, { format: "graphml" })');
             }
 
             format = detected;
@@ -957,8 +869,9 @@ export class Graph implements GraphContext {
      * @param options - Loading options
      * @param options.format - Explicit format override (e.g., "graphml", "json")
      * @param options.nodeIdPath - JMESPath for node ID extraction
-     * @param options.edgeSrcIdPath - JMESPath for edge source ID extraction
-     * @param options.edgeDstIdPath - JMESPath for edge destination ID extraction
+     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
+     *     unset, the element reads `source`, then `src`, then `from`
+     * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @example
      * ```typescript
      * // Auto-detect format from extension
@@ -976,8 +889,8 @@ export class Graph implements GraphContext {
         options?: {
             format?: string;
             nodeIdPath?: string;
-            edgeSrcIdPath?: string;
-            edgeDstIdPath?: string;
+            edgeSource?: string;
+            edgeTarget?: string;
         },
     ): Promise<void> {
         const { detectFormat } = await import("./data/format-detection.js");
@@ -1004,11 +917,7 @@ export class Graph implements GraphContext {
                 const detectedFromContent = detectFormat(url, sample);
 
                 if (!detectedFromContent) {
-                    throw new Error(
-                        `Could not detect file format from '${url}'. ` +
-                            "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek. " +
-                            'Try specifying format explicitly: loadFromUrl(url, { format: "graphml" })',
-                    );
+                    throw undetectedFormat(url, 'loadFromUrl(url, { format: "graphml" })');
                 }
 
                 format = detectedFromContent;
@@ -1016,10 +925,16 @@ export class Graph implements GraphContext {
         }
 
         // Merge graph config with explicit options (explicit options take precedence)
+        // A key is only carried when there is something to say. `edgeSource: undefined` would
+        // reach the load as a declared-and-empty override and turn the probe off for a file that
+        // named nothing, which is the failure this release exists to remove.
+        const configured = this.styles.config.data.knownFields;
+        const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
+        const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
         const mergedOptions = {
-            nodeIdPath: options?.nodeIdPath ?? this.styles.config.data.knownFields.nodeIdPath,
-            edgeSrcIdPath: options?.edgeSrcIdPath ?? this.styles.config.data.knownFields.edgeSrcIdPath,
-            edgeDstIdPath: options?.edgeDstIdPath ?? this.styles.config.data.knownFields.edgeDstIdPath,
+            nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
+            ...(edgeSource === null ? {} : { edgeSource }),
+            ...(edgeTarget === null ? {} : { edgeTarget }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch
@@ -1111,12 +1026,10 @@ export class Graph implements GraphContext {
     /**
      * Add a single edge to the graph.
      * @param edge - Edge data object to add
-     * @param srcIdPath - Key to use for edge source ID (default: "source")
-     * @param dstIdPath - Key to use for edge destination ID (default: "target")
-     * @param options - Queue options for operation ordering
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering
      */
-    async addEdge(edge: AdHocData, srcIdPath?: string, dstIdPath?: string, options?: QueueableOptions): Promise<void> {
-        await this.addEdges([edge], srcIdPath, dstIdPath, options);
+    async addEdge(edge: AdHocData, options?: AddEdgesOptions & QueueableOptions): Promise<void> {
+        await this.addEdges([edge], options);
     }
 
     /**
@@ -1129,9 +1042,10 @@ export class Graph implements GraphContext {
      * Edges connect nodes and can optionally store additional data accessible
      * via `edge.data`.
      * @param edges - Array of edge data objects to add
-     * @param srcIdPath - Path to source node ID in edge data (default: "source")
-     * @param dstIdPath - Path to target node ID in edge data (default: "target")
-     * @param options - Queue options for operation ordering
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering. With no
+     *     `source` and `target` named, the element reads `source`/`target`, then `src`/`dst`, then
+     *     `from`/`to`, deciding once for the whole batch and throwing
+     *     `E_EDGE_ENDPOINTS_UNRESOLVED` when none of them answers
      * @returns Promise that resolves when edges are added
      * @since 1.0.0
      * @see {@link addNodes} for adding nodes first
@@ -1144,11 +1058,10 @@ export class Graph implements GraphContext {
      *   { source: 'node-2', target: 'node-3', weight: 2.0 }
      * ]);
      *
-     * // Add edges with custom field names
+     * // Add edges naming the endpoint fields explicitly
      * await graph.addEdges(
-     *   [{ from: 'a', to: 'b', label: 'connects' }],
-     *   'from',
-     *   'to'
+     *   [{ start: 'a', end: 'b', label: 'connects' }],
+     *   { source: 'start', target: 'end' }
      * );
      *
      * // Add nodes and edges together
@@ -1158,12 +1071,10 @@ export class Graph implements GraphContext {
      */
     async addEdges(
         edges: Record<string | number, unknown>[],
-        srcIdPath?: string,
-        dstIdPath?: string,
-        options?: QueueableOptions,
+        options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
         if (options?.skipQueue) {
-            this.dataManager.addEdges(edges, srcIdPath, dstIdPath);
+            this.dataManager.addEdges(edges, options);
             return;
         }
 
@@ -1174,10 +1085,55 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                this.dataManager.addEdges(edges, srcIdPath, dstIdPath);
+                this.dataManager.addEdges(edges, options);
             },
             {
                 description: `Adding ${edges.length} edges`,
+                ...options,
+            },
+        );
+    }
+
+    /**
+     * Replace every edge in the graph with a new set.
+     *
+     * This is what the `edge-data` property does, and it has to REPLACE rather than append. Under
+     * the repeat policy's `keep` default, an additive setter would double every edge already
+     * present each time a host re-assigned the property -- and a host that re-renders on state
+     * change re-assigns it constantly. The old drop guard was silently doing this job; deleting the
+     * guard without this would have turned "assign the same edges twice" into "hold them twice".
+     * @param edges - the edges the graph should hold afterwards
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering
+     * @returns Promise that resolves once the graph holds exactly these edges
+     */
+    async setEdges(
+        edges: Record<string | number, unknown>[],
+        options?: AddEdgesOptions & QueueableOptions,
+    ): Promise<void> {
+        const replace = (): void => {
+            for (const id of [...this.dataManager.edges.keys()]) {
+                this.dataManager.removeEdge(id);
+            }
+
+            this.dataManager.addEdges(edges, options);
+        };
+
+        if (options?.skipQueue) {
+            replace();
+            return;
+        }
+
+        await this.operationQueue.queueOperationAsync(
+            "data-add",
+            (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+
+                replace();
+            },
+            {
+                description: `Replacing the graph's edges with ${edges.length}`,
                 ...options,
             },
         );
@@ -1246,11 +1202,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Run a graph algorithm and store results on nodes/edges.
+     * Run a graph algorithm, addressed the 1.10 way.
      * @remarks
-     * Algorithms are identified by namespace and type (e.g., `graphty:degree`).
-     * Results are stored on each node's `algorithmResults` property and can be
-     * accessed in style selectors.
+     * Algorithms are identified by namespace and type (e.g., `graphty:degree`). What the run
+     * produces is published on the run itself and addressed at `results.<runId>.<field>`, which
+     * is what a style selector reads; nothing is written onto a node.
      *
      * Available algorithms by category:
      * - **Centrality**: degree, betweenness, closeness, pagerank, eigenvector
@@ -1262,9 +1218,9 @@ export class Graph implements GraphContext {
      * - **Flow**: max-flow, min-cut
      * @deprecated Since 2.0. Use {@link Graph.run}, which returns a `Run`: the result is on the
      *   object the call hands back, the work reports progress and can be cancelled, and the
-     *   result is addressed at `results.<runId>.<field>` rather than found by walking
-     *   `algorithmResults`. This method still works and is expressed in terms of `run`; it goes
-     *   with the style layer migration, which moves selectors onto the new result path.
+     *   result is addressed at `results.<runId>.<field>`. This method still works and is
+     *   expressed in terms of `run`, so it produces the same run and the same result; what it
+     *   cannot give back is the run object those three things hang off.
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "degree", "pagerank")
      * @param options - Algorithm options and queue settings
@@ -1276,24 +1232,20 @@ export class Graph implements GraphContext {
      * @see {@link https://graphty.app/storybook/element/?path=/story/algorithms-community--louvain | Community Detection}
      * @example
      * ```typescript
-     * // Run degree centrality
+     * // This entry point starts the work and hands nothing back. Everything below reads the
+     * // result through the session, which is where a run publishes what it measured.
      * await graph.runAlgorithm('graphty', 'degree');
      *
-     * // Access results
-     * const node = graph.getNode('node-1');
-     * console.log('Degree:', node.algorithmResults['graphty:degree']);
+     * const session = graph.getSession();
+     * const [run] = session.runs.list();
      *
-     * // Run with auto-styling
-     * await graph.runAlgorithm('graphty', 'pagerank', {
-     *   algorithmOptions: { damping: 0.85 },
-     *   applySuggestedStyles: true
-     * });
+     * // What it measured, per node and as a whole
+     * console.log(run.result?.node('node-1'));
+     * console.log(run.result?.summary().max);
      *
-     * // Use results in style selectors
-     * styleManager.addLayer({
-     *   selector: "[?algorithmResults.'graphty:degree' > `10`]",
-     *   styles: { node: { color: '#ff0000', size: 2.0 } }
-     * });
+     * // Paint from it. The selector is written by the element, scoped to the elements the run
+     * // measured, so a node the run never reached is not painted.
+     * await session.styles.encode({ run: run.id, channel: 'node.color' });
      * ```
      */
     async runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void> {
@@ -1319,18 +1271,44 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // A key the catalogue does not carry: a plugin registered through `Algorithm.register`,
-        // which publishes no descriptor and therefore cannot be started by key. It takes the 1.10
-        // path, which addresses the registry directly.
-        //
-        // REMOVED BY: plugin algorithms publishing a catalogue descriptor of their own. Once they
-        // do, every algorithm is startable as a run and this branch goes with the method.
+        /* A PLUGIN THAT PUBLISHED A DESCRIPTOR IS STARTED AS A RUN, exactly as a built-in is.
+           That is what declaring one buys: progress, cancellation, a cost estimate before the
+           click, a result object with a ranking and a summary and a reading, and the styling the
+           element derives from the result's shape. None of it was reachable while the catalogue
+           was closed, so a plugin could compute something and nothing could ask for it. */
+        const registered = registeredAlgorithmByKey(`${namespace}:${type}`) ?? registeredAlgorithmByKey(type);
+
+        if (registered !== undefined) {
+            await this.runLegacyAsRun(
+                { descriptor: registered.descriptor, params: {} },
+                namespace,
+                type,
+                options,
+            );
+
+            return;
+        }
+
+        // A key nothing in the catalogue carries: a plugin registered through `Algorithm.register`
+        // that declared no descriptor. It takes the 1.10 path, which addresses the registry
+        // directly, and gets none of what a run offers -- which is the trade its author made by
+        // not declaring one.
+        /* A PLUGIN'S WRITES NEED THE REPAINT ASKED FOR HERE. A catalogue algorithm runs as a
+           session run, and the session announcing that run's end is what brings the picture up
+           to date. A plugin has no run to announce: it writes straight onto the element's node
+           and edge records, which the session reads as attributes, so a layer selecting on one
+           of those paths would go on showing the picture from before the algorithm without this.
+           Asked for HERE, where a plugin is known to have just written, rather than from a
+           trigger on the whole queue category -- style writes and visibility edits share that
+           category, and each had already repainted exactly what it touched. */
         if (options?.skipQueue) {
             await this.algorithmManager.runAlgorithm(namespace, type, options.algorithmOptions);
 
             if (options.applySuggestedStyles) {
                 this.applySuggestedStyles(`${namespace}:${type}`);
             }
+
+            await this.repaintFromSession();
 
             return;
         }
@@ -1346,6 +1324,8 @@ export class Graph implements GraphContext {
                 if (options?.applySuggestedStyles) {
                     this.applySuggestedStyles(`${namespace}:${type}`);
                 }
+
+                await this.repaintFromSession();
             },
             {
                 description: `Running ${namespace}:${type} algorithm`,
@@ -1382,16 +1362,20 @@ export class Graph implements GraphContext {
     /**
      * Run a 1.10 algorithm key through the run machinery.
      *
-     * One implementation, reached two ways: the old address is translated into the catalogue key
-     * and the parameters that reproduce what that address used to do -- `scc` is `components` at
-     * `{ strength: "strong" }`, not a rename -- and everything after that is an ordinary run.
-     * @param mapping - The catalogue entry the 1.10 key became, and the parameters it needs.
+     * One implementation, reached three ways: a built-in's old address translated into the
+     * catalogue key and the parameters that reproduce what that address used to do -- `scc` is
+     * `components` at `{ strength: "strong" }`, not a rename -- and a registered plugin, whose
+     * key needs no translation. Everything after that is an ordinary run.
+     *
+     * Takes the KEY and the parameters rather than a built-in catalogue entry, because those two
+     * are all it reads and a plugin has no entry in that table to offer.
+     * @param mapping - The catalogue key to start, and the parameters it needs.
      * @param namespace - The 1.10 namespace, for the error event and the suggested styles.
      * @param type - The 1.10 type, for the same two.
      * @param options - What the caller passed.
      */
     private async runLegacyAsRun(
-        mapping: LegacyAlgorithmMapping,
+        mapping: RunnableAlgorithm,
         namespace: string,
         type: string,
         options?: RunAlgorithmOptions,
@@ -1518,25 +1502,59 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Remove nodes from the graph by their IDs.
+     * Remove nodes from the graph by their IDs, and with them every edge attached to one.
+     *
+     * One `elements-removed` event is emitted per call, naming the nodes and every edge
+     * that went with them. A removal used to be silent, so a consumer watching the element saw its
+     * counts change with nothing to say why; cascading the incident edges made that gap bigger,
+     * which is why the notification lands with the cascade rather than after it.
      * @param nodeIds - Array of node IDs to remove
      * @param options - Queue options for operation ordering
      */
     async removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void> {
-        const removeNodeWithSelectionCheck = (id: string | number): void => {
-            // Check if the node being removed is selected
-            const node = this.dataManager.getNode(id);
-            if (node) {
-                this.selectionManager.onNodeRemoved(node);
+        const removeAll = (): void => {
+            // THE SELECTION IS TOLD FIRST, and that ordering is the whole of it. The session's
+            // masks are keyed by dense index; an id is resolved to an index through the current
+            // snapshot. Once the builder has tombstoned these rows, the next freeze compacts and
+            // every surviving edge slides down -- so a mask still holding the dead indices would
+            // silently be holding the SURVIVORS instead, and a removal would leave two edges the
+            // reader never selected highlighted on screen.
+            const doomedNodes = new Set<string | number>(nodeIds);
+            const doomedEdges: string[] = [];
+            for (const edge of this.dataManager.edges.values()) {
+                if (doomedNodes.has(edge.srcId) || doomedNodes.has(edge.dstId)) {
+                    doomedEdges.push(edge.id);
+                }
             }
 
-            this.dataManager.removeNode(id);
+            this.selectionManager.onEdgesRemoved(doomedEdges);
+
+            const removedNodes: NodeIdType[] = [];
+            const removedEdges: string[] = [];
+
+            for (const id of nodeIds) {
+                // Check if the node being removed is selected
+                const node = this.dataManager.getNode(id);
+                if (node) {
+                    this.selectionManager.onNodeRemoved(node);
+                }
+
+                const edges = this.dataManager.removeNodeAndIncidentEdges(id);
+                if (edges === null) {
+                    continue;
+                }
+
+                removedNodes.push(id);
+                removedEdges.push(...edges);
+            }
+
+            if (removedNodes.length > 0 || removedEdges.length > 0) {
+                this.eventManager.emitElementsRemoved(removedNodes, removedEdges);
+            }
         };
 
         if (options?.skipQueue) {
-            nodeIds.forEach((id) => {
-                removeNodeWithSelectionCheck(id);
-            });
+            removeAll();
             return;
         }
 
@@ -1547,9 +1565,7 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                nodeIds.forEach((id) => {
-                    removeNodeWithSelectionCheck(id);
-                });
+                removeAll();
             },
             {
                 description: `Removing ${nodeIds.length} nodes`,
@@ -1572,17 +1588,19 @@ export class Graph implements GraphContext {
                 const node = this.dataManager.getNode(update.id);
                 if (node) {
                     Object.assign(node.data, update);
-                    // Recompute style after data update
-                    const styleId = this.styles.getStyleForNode(node.data);
-                    node.updateStyle(styleId);
                 }
             });
+
+            // A layer can select on any of the values that just changed, so the whole stack is
+            // asked again rather than each node being re-resolved by hand.
+            await this.repaintFromSession();
+
             return;
         }
 
         await this.operationQueue.queueOperationAsync(
             "data-update",
-            (context) => {
+            async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("Operation cancelled");
                 }
@@ -1591,11 +1609,12 @@ export class Graph implements GraphContext {
                     const node = this.dataManager.getNode(update.id);
                     if (node) {
                         Object.assign(node.data, update);
-                        // Recompute style after data update
-                        const styleId = this.styles.getStyleForNode(node.data);
-                        node.updateStyle(styleId);
                     }
                 });
+
+                // See the skipQueue branch above: the values a layer selects on have moved, so
+                // the stack is asked again rather than each node being re-resolved by hand.
+                await this.repaintFromSession();
             },
             {
                 description: `Updating ${updates.length} nodes`,
@@ -1761,8 +1780,8 @@ export class Graph implements GraphContext {
      *
      * // Zoom to fit within batch operations
      * await graph.batchOperations(async () => {
-     *     await graph.setStyleTemplate({graph: {twoD: true}});
-     *     graph.zoomToFit(); // Will execute after style change
+     *     await graph.setViewMode("2d");
+     *     graph.zoomToFit(); // Will execute after the mode switch
      * });
      * ```
      */
@@ -1799,8 +1818,8 @@ export class Graph implements GraphContext {
      * edit. So this is the one place the whole stack is applied to the whole graph, and it runs
      * on the queue beside the loads and the layouts rather than beside them.
      *
-     * It does nothing while the legacy stack owns the paint: a pass whose answer nothing draws is
-     * a pass over the graph for no picture.
+     * It does nothing while no style pass is bound: a pass whose answer nothing draws is a pass
+     * over the graph for no picture.
      * @returns A promise that settles when the pass has finished.
      */
     private async repaintFromSession(): Promise<void> {
@@ -1813,101 +1832,6 @@ export class Graph implements GraphContext {
             report: () => undefined,
         });
         this.stylePainter.markPainted();
-    }
-
-    /**
-     * Get a copy of all style layers.
-     * @returns Array of style layers
-     */
-    getLayers(): StyleLayerType[] {
-        return [...this.styles.layers];
-    }
-
-    /**
-     * Add a style layer on top of the 1.x stack and repaint.
-     *
-     * The layer verbs live here rather than on a manager of their own: the wrapper that used to
-     * hold them cached a resolved style id against `JSON.stringify(data)` -- a string allocation
-     * per element per resolution -- and forwarded the other sixteen methods unchanged. The
-     * element's 2.0 stack is `session.styles`, which addresses a layer by a stable id instead of
-     * by its index; these five are what still speak the 1.x index vocabulary.
-     * @param layer - The layer to add.
-     */
-    addStyleLayer(layer: StyleLayerType): void {
-        this.styles.addLayer(layer);
-        this.eventManager.emitGraphEvent("style-changed", {});
-    }
-
-    /**
-     * Insert a style layer at a position in the 1.x stack and repaint.
-     * @param position - Where to insert it, 0 being the bottom.
-     * @param layer - The layer to insert.
-     */
-    insertStyleLayer(position: number, layer: StyleLayerType): void {
-        this.styles.insertLayer(position, layer);
-        this.eventManager.emitGraphEvent("style-changed", {});
-    }
-
-    /**
-     * Remove every 1.x layer whose metadata a predicate accepts, and repaint if any went.
-     * @param predicate - Tests one layer's metadata.
-     * @returns True when at least one layer was removed.
-     */
-    removeStyleLayersByMetadata(predicate: (metadata: unknown) => boolean): boolean {
-        const removed = this.styles.removeLayersByMetadata(predicate);
-
-        if (removed) {
-            this.eventManager.emitGraphEvent("style-changed", {});
-        }
-
-        return removed;
-    }
-
-    /**
-     * Remove the 1.x layer at an index, and repaint if it was there.
-     * @param index - Its place in the stack, 0 being the bottom.
-     * @returns True when a layer was removed.
-     */
-    removeStyleLayerByIndex(index: number): boolean {
-        const removed = this.styles.removeLayerByIndex(index);
-
-        if (removed) {
-            this.eventManager.emitGraphEvent("style-changed", {});
-        }
-
-        return removed;
-    }
-
-    /**
-     * Replace the 1.x layer at an index, and repaint if it was there.
-     * @param index - Its place in the stack, 0 being the bottom.
-     * @param layer - What to put there.
-     * @returns True when a layer was replaced.
-     */
-    updateStyleLayerByIndex(index: number, layer: StyleLayerType): boolean {
-        const updated = this.styles.updateLayerByIndex(index, layer);
-
-        if (updated) {
-            this.eventManager.emitGraphEvent("style-changed", {});
-        }
-
-        return updated;
-    }
-
-    /**
-     * Move one 1.x layer to another place in the stack, and repaint if it moved.
-     * @param fromIndex - Where it is now.
-     * @param toIndex - Where it should go.
-     * @returns True when the layer moved.
-     */
-    reorderStyleLayers(fromIndex: number, toIndex: number): boolean {
-        const reordered = this.styles.reorderLayers(fromIndex, toIndex);
-
-        if (reordered) {
-            this.eventManager.emitGraphEvent("style-changed", {});
-        }
-
-        return reordered;
     }
 
     /**
@@ -2229,9 +2153,8 @@ export class Graph implements GraphContext {
             this.initialCameraStateCaptured = false;
 
             // Force all nodes to recreate their meshes (they were disposed when cache was cleared)
-            // updateStyle() will detect the disposed mesh and create a new one
             for (const node of this.getNodes()) {
-                node.updateStyle(node.styleId);
+                node.updateStyle();
             }
 
             // Force all edges to recreate their meshes
@@ -2254,7 +2177,7 @@ export class Graph implements GraphContext {
                     edge.arrowTailMesh.dispose();
                 }
 
-                edge.updateStyle(edge.styleId);
+                edge.updateStyle();
             }
 
             // Save Z positions before any layout changes (3D→2D only)
@@ -2541,7 +2464,7 @@ export class Graph implements GraphContext {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         const pickInfo = this.scene.pick(screenPos.x, screenPos.y);
-         
+
         if (pickInfo?.pickedPoint) {
             return {
                 x: pickInfo.pickedPoint.x,
@@ -2567,7 +2490,10 @@ export class Graph implements GraphContext {
      * @returns The node's mesh or null if not found
      */
     getNodeMesh(nodeId: string): AbstractMesh | null {
-        const node = this.dataManager.nodes.get(nodeId);
+        // Through `getNode`, not the raw map, so an id printed as text still finds a node the
+        // file supplied as a number. Reading the map directly is what made Locate and Zoom to
+        // selection silent no-ops on every sample with numeric ids.
+        const node = this.dataManager.getNode(nodeId);
         return node?.mesh ?? null;
     }
 
@@ -3844,81 +3770,144 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Resolve a camera preset (built-in or user-defined) to a CameraState
-     * @param preset - Name of the preset to resolve
-     * @returns The resolved camera state
+     * The box the camera is being asked to frame, measured over whatever is in scope.
+     * @param nodeIds - The nodes to measure over. Undefined means every node in the graph.
+     * @returns The box, marked with how many nodes it was measured over.
      */
-    resolveCameraPreset(preset: string): import("./screenshot/types.js").CameraState {
+    private boundsToFrame(nodeIds?: Iterable<string | number>): GraphBounds {
+        const nodes =
+            nodeIds === undefined
+                ? this.getNodes()
+                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
+
+        return measureBounds(nodes.map((node) => node.getPosition()));
+    }
+
+    /**
+     * Everything a camera view is told: the box, the drawing mode, the viewport and where the
+     * camera is now.
+     * @param bounds - The box to frame.
+     * @param options - The view's own options, as the caller passed them.
+     * @returns The context to resolve a view against.
+     * @throws A plain `Error` when there is no camera to read the mode and the viewport from.
+     */
+    private cameraViewContext(bounds: GraphBounds, options?: Readonly<Record<string, unknown>>): CameraViewContext {
         const camera = this.scene.activeCamera;
         if (!camera) {
             throw new Error("No active camera");
         }
 
-        const is2D = camera.mode === Camera.ORTHOGRAPHIC_CAMERA;
+        const engine = camera.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const mode: DrawingMode = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? "2d" : "3d";
 
-        // Check built-in presets first
-        switch (preset) {
-            case "fitToGraph":
-                return calculateFitToGraph(this, camera);
+        // A perspective camera is the only one with a field of view to report. Passing the
+        // orthographic camera's inherited `fov` would hand a flat view a number that means
+        // nothing there, and a plugin would have no way to tell it was meaningless.
+        const fov = mode === "3d" && "fov" in camera && typeof camera.fov === "number" ? camera.fov : undefined;
 
-            case "topView":
-                return calculateTopView(this, camera);
-
-            case "sideView":
-                if (is2D) {
-                    throw new ScreenshotError(
-                        "sideView preset is only available for 3D cameras",
-                        ScreenshotErrorCode.CAMERA_PRESET_NOT_AVAILABLE_IN_2D,
-                    );
-                }
-
-                return calculateSideView(this);
-
-            case "frontView":
-                if (is2D) {
-                    throw new ScreenshotError(
-                        "frontView preset is only available for 3D cameras",
-                        ScreenshotErrorCode.CAMERA_PRESET_NOT_AVAILABLE_IN_2D,
-                    );
-                }
-
-                return calculateFrontView(this);
-
-            case "isometric":
-                if (is2D) {
-                    throw new ScreenshotError(
-                        "isometric preset is only available for 3D cameras",
-                        ScreenshotErrorCode.CAMERA_PRESET_NOT_AVAILABLE_IN_2D,
-                    );
-                }
-
-                return calculateIsometric(this);
-
-            default: {
-                // Check user-defined presets
-                const userPreset = this.userCameraPresets.get(preset);
-                if (!userPreset) {
-                    throw new ScreenshotError(
-                        `Unknown camera preset: ${preset}`,
-                        ScreenshotErrorCode.CAMERA_PRESET_NOT_FOUND,
-                    );
-                }
-
-                return userPreset;
-            }
-        }
+        return {
+            bounds,
+            mode,
+            aspect: height === 0 ? 1 : width / height,
+            viewport: { width, height },
+            ...(fov === undefined ? {} : { fov }),
+            current: this.getCameraState(),
+            ...(options === undefined ? {} : { options }),
+        };
     }
 
     /**
-     * Save current camera state as a named preset
-     * @param name - Name for the camera preset
+     * Work out where a named camera view would put the viewer, without moving anything.
+     *
+     * The name is resolved against the views the element ships and then the views a third party
+     * registered, so a plugin's view is named exactly the way `"isometric"` is. A name that is
+     * neither, and is not a snapshot this graph saved, is refused with `E_UNKNOWN_CAMERA`.
+     * @param preset - The view's name, or the name of a snapshot saved with `saveCameraPreset`.
+     * @param options - What to frame and how to configure the view.
+     * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
+     * @param options.params - The view's own options, filled in from its declared defaults.
+     * @returns The camera state the view computed.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
+     * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
+     * `E_UNKNOWN_OPTION` / `E_OPTION_RANGE` when `params` is not what the view declared.
+     */
+    resolveCameraPreset(
+        preset: string,
+        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+    ): CameraState {
+        /* A VIEW IS ASKED FIRST, AND ONLY THEN A SNAPSHOT. `saveCameraPreset` refuses a name a
+           view holds AT THE MOMENT OF SAVING, which leaves one order of events open: a consumer
+           saves "acme-corner" on Monday, a plugin registers a view under that name on Tuesday,
+           and from then on the name means a fixed position where a rule was intended -- with
+           nothing thrown and nothing logged. A built-in name is reserved from process start and
+           can never be shadowed this way, so asking the views first is what gives a registered
+           view the same protection the element's own five have. A snapshot whose name no view
+           holds is still reached by the name its author chose. */
+        if (!isCameraViewName(preset)) {
+            const snapshot = this.userCameraPresets.get(preset);
+            if (snapshot) {
+                return snapshot;
+            }
+        }
+
+        const context = this.cameraViewContext(this.boundsToFrame(options?.nodes), options?.params);
+
+        return resolveCameraView(preset, context);
+    }
+
+    /**
+     * Put the viewer where a named camera view says they should stand.
+     *
+     * This is the route that can frame a SUBSET. The element measures the box over whatever the
+     * scope covers and hands the smaller box to the view, so every view -- the element's own and
+     * a third party's alike -- frames a selection with no code of its own.
+     * @param id - The view's name.
+     * @param options - The scope to frame, the view's own options, and how to get there.
+     *   Animation follows the same rules as `setCameraState`.
+     * @param options.scope - What to frame. Absent frames the whole graph.
+     * @param options.params - The view's own options, filled in from its declared defaults.
+     * @returns A promise that resolves once the camera has arrived.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
+     * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.
+     */
+    async applyCameraView(
+        id: string,
+        options?: {
+            scope?: Scope;
+            params?: Readonly<Record<string, unknown>>;
+        } & import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const scope = options?.scope;
+        const nodes = scope === undefined ? undefined : (await this.getSession().scope.resolve(scope)).nodes;
+        const state = this.resolveCameraPreset(id, {
+            ...(nodes === undefined ? {} : { nodes }),
+            ...(options?.params === undefined ? {} : { params: options.params }),
+        });
+
+        return this.setCameraState(state, options);
+    }
+
+    /**
+     * Save where the camera is now under a name of the consumer's choosing.
+     *
+     * A snapshot records a POSITION, not a rule: it cannot re-derive itself for a different graph
+     * the way a camera view does. Which is why a name a view already holds -- the element's own
+     * or a registered one -- is refused rather than shadowed.
+     * @param name - The name to save it under.
+     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
      */
     saveCameraPreset(name: string): void {
-        if (BUILTIN_PRESETS.includes(name as (typeof BUILTIN_PRESETS)[number])) {
-            throw new ScreenshotError(
-                `Cannot overwrite built-in preset: ${name}`,
-                ScreenshotErrorCode.CANNOT_OVERWRITE_BUILTIN_PRESET,
-            );
+        if (isCameraViewName(name)) {
+            throw new GraphtyError({
+                code: "E_PROTECTED",
+                message:
+                    `"${name}" is a camera view, and a view recomputes itself for whatever is on screen. ` +
+                    "Saving a fixed position under the same name would silently replace a rule with a snapshot.",
+                source: "view",
+                details: { name, available: cameraViewIds() },
+            });
         }
 
         const currentState = this.getCameraState();
@@ -3939,14 +3928,20 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get all camera presets (built-in + user-defined)
-     * @returns Object mapping preset names to camera states or builtin marker
+     * Every name `loadCameraPreset` will answer to: the camera views, then this graph's snapshots.
+     *
+     * `{ builtin: true }` marks a name that is a VIEW -- a rule recomputed against whatever is on
+     * screen -- as against a snapshot, which is a fixed state and is returned as one. A view a
+     * third party registered is listed on the same terms as one the element ships, because a
+     * picker built from this list would otherwise offer the element's own views and silently omit
+     * everybody else's. What each view is called in plain words, and which drawing modes it works
+     * in, is in `session.catalog.cameras()`.
+     * @returns Every name, mapped to the snapshot it holds or to the computed-view marker.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
         const presets: Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> = {};
 
-        // Built-in presets (marked as builtin)
-        for (const name of BUILTIN_PRESETS) {
+        for (const name of cameraViewIds()) {
             presets[name] = { builtin: true };
         }
 
@@ -3976,8 +3971,11 @@ export class Graph implements GraphContext {
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
         for (const [name, state] of Object.entries(presets)) {
-            if (BUILTIN_PRESETS.includes(name as (typeof BUILTIN_PRESETS)[number])) {
-                console.warn(`Skipping import of built-in preset: ${name}`);
+            // A registered view is skipped for the same reason a built-in one is: the imported
+            // entry is a fixed position, and overwriting a view with it would quietly turn a rule
+            // that recomputes itself for the graph on screen into one that does not.
+            if (isCameraViewName(name)) {
+                console.warn(`Skipping import of camera preset "${name}": a camera view already answers to that name`);
                 continue;
             }
 

@@ -31,7 +31,7 @@ import { FA2_PARTIAL, FA2_STATE, type KernelId } from "../../src/kernels.js";
 import { ForceSimulation } from "../../src/layouts/force-simulation.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import type { ForceAtlas2Stats, ForceAtlas2TraceRecord, GpuLayoutTuning } from "../../src/types/layout.js";
-import type { ForceAtlas2Options } from "../../src/types/options.js";
+import type { CommonLayoutOptions, ForceAtlas2Options } from "../../src/types/options.js";
 import {
     ForceAtlas2Oracle,
     forceAtlas2Oracle,
@@ -314,7 +314,7 @@ export function caseOptions(c: ParityCase, s: GraphSnapshot): ForceAtlas2Options
  * @param unseeded - whether the array is left for load() to seed
  * @returns a fresh stride-3 array
  */
-export function startPositions(s: GraphSnapshot, options: ForceAtlas2Options, unseeded: boolean): F32 {
+export function startPositions(s: GraphSnapshot, options: CommonLayoutOptions, unseeded: boolean): F32 {
     if (unseeded) {
         const p = new Float32Array(3 * s.nodeCount);
         p.fill(Number.NaN);
@@ -515,7 +515,7 @@ interface PartialsSum {
  * @param raw - the readback (64 bytes per group)
  * @returns the fold
  */
-function readPartials(raw: Float32Array | Uint32Array): PartialsSum {
+export function readPartials(raw: Float32Array | Uint32Array): PartialsSum {
     const groups = Math.floor(raw.byteLength / PARTIAL_BYTES);
     const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
     const sum = [0, 0, 0, 0];
@@ -872,10 +872,25 @@ function stageResult(
 }
 
 /**
+ * Hands the worker's event loop back for one macrotask. A vitest worker that computes synchronously for more than
+ * 60 s cannot answer the main process's `onTaskUpdate` RPC in time and vitest reports an unhandled
+ * `[vitest-worker]: Timeout calling "onTaskUpdate"` error with every test green (exit code 1: the T4 lane runs
+ * 35547623119 and 35548431052 of pull request 16, docs/decisions/G5.md finding G5-F2). Every loop that runs the
+ * f64 oracles for tens of seconds -- the trajectory-sensitivity ensembles, the distributional admission layouts,
+ * the FA2 free-running traces on random1k -- awaits this between iterations.
+ * @returns resolves on the next macrotask
+ */
+export function yieldToEventLoop(): Promise<void> {
+    return new Promise((resolve) => {
+        setImmediate(resolve);
+    });
+}
+
+/**
  * Asserts the unit-identity precondition of a stage capture (scale 1, zero center).
  * @param options - the case options
  */
-function assertUnitStart(options: ForceAtlas2Options): void {
+export function assertUnitStart(options: CommonLayoutOptions): void {
     const center = options.center ?? [0, 0, 0];
     const zero = center.length <= 3 && Array.from({ length: center.length }, (_, k) => center[k]).every((v) => v === 0);
     if ((options.scale ?? 1) !== 1 || !zero) {
@@ -890,7 +905,7 @@ function assertUnitStart(options: ForceAtlas2Options): void {
  * @param dim - 2 or 3
  * @returns stride-3 f64 layout positions
  */
-function layoutStart(start: F32, n: number, dim: 2 | 3): F64 {
+export function layoutStart(start: F32, n: number, dim: 2 | 3): F64 {
     const out = Float64Array.from(start);
     if (dim === 2) {
         for (let i = 0; i < n; i++) {

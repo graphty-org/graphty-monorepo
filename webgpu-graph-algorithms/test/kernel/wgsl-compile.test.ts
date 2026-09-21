@@ -46,7 +46,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
             expected += EXPECTED_CASES_BY_PHASE[phase];
         }
         expect(OVERRIDE_MATRIX.length).toBe(expected);
-        expect(OVERRIDE_MATRIX.length).toBeGreaterThanOrEqual(89); // P1 (37) + P2 (52)
+        expect(OVERRIDE_MATRIX.length).toBeGreaterThanOrEqual(105); // P1 (53) + P2 (52)
     });
 
     it("pins the per-kernel counts of the P1 and P2 entries", () => {
@@ -58,7 +58,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("reduce")).toBe(19);
         expect(counts.get("fill")).toBe(1);
         expect(counts.get("segmented-reduce")).toBe(52);
-        expect(counts.get("fa2-repulsion-exact")).toBe(9);
+        expect(counts.get("fa2-repulsion-exact")).toBe(25);
         expect(counts.get("fa2-speed-finalize")).toBe(3);
     });
 

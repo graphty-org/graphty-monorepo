@@ -109,6 +109,8 @@
         "@vitest/coverage-v8": "^3.2.4",
         "@vitest/ui": "^3.2.4",
         "fast-check": "^4.2.0",
+        "ngraph.forcelayout": "^3.3.1",
+        "ngraph.graph": "^20.0.1",
         "playwright": "^1.54.1",
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",

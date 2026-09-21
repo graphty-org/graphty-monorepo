@@ -6,7 +6,7 @@
  * a signal, inspect / debugRunStages, dispose leak 0 and device loss.
  */
 
-import { type F32, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMask } from "@graphty/graph-format";
 
 import {
     LAYOUT_TUNING_DEFAULTS,
@@ -156,10 +156,13 @@ class FakeModel implements ForceModel<FakeOptions, FakeStats> {
     private boundTrace: BoundKernel | null = null;
     private boundHeader: BoundKernel | null = null;
     private boundScene: BoundKernel | null = null;
+    /** What inputs() returns as `fixed` (the FR `fixed` option seam, PD-6); null = absent. */
+    private readonly fixed: NodeMask | null;
 
-    constructor(blocks?: { readonly params?: UniformBlock; readonly state?: UniformBlock }) {
+    constructor(blocks?: { readonly params?: UniformBlock; readonly state?: UniformBlock; readonly fixed?: NodeMask | null }) {
         this.params = blocks?.params ?? FAKE_PARAMS;
         this.state = blocks?.state ?? FAKE_STATE;
+        this.fixed = blocks?.fixed ?? null;
     }
 
     buffers(_n: number, _dim: 2 | 3): readonly BufferSpec[] {
@@ -175,7 +178,7 @@ class FakeModel implements ForceModel<FakeOptions, FakeStats> {
 
     inputs(s: GraphSnapshot, _options: FakeOptions): ModelInputs {
         this.calls.inputs++;
-        return { mass: resolveNodeMass(s, null), weights: resolveWeights(s, null) };
+        return { mass: resolveNodeMass(s, null), weights: resolveWeights(s, null), fixed: this.fixed };
     }
 
     overrides(options: FakeOptions): Readonly<Record<string, number | boolean>> {
@@ -930,6 +933,38 @@ describe("ForceSimulation (fake model)", () => {
             expect(s.iterationsDone).toBe(0);
             await s.step(1);
             expect(Array.from((await s.inspect?.("fixed")) ?? [])).toEqual(Array.from(mask));
+        } finally {
+            ctx.debug.inspect = false;
+        }
+    });
+
+    it("inputs().fixed pins nodes at load without a reheat (PD-6): the words reach the device, a same-size reload keeps them, a short mask is E_INVALID_ARGUMENT", async (t) => {
+        requireGpu(t);
+        const ctx = await ctxOf();
+        ctx.debug.inspect = true;
+        try {
+            const mask = makeMask(8);
+            maskSet(mask, 2, true);
+            const fake = new FakeModel({ fixed: mask });
+            const s = makeSim(ctx, fake);
+            s.load(graph(8), nanPositions(8));
+            expect(fake.calls.reheat, "load() applied the mask without reheat()").toBe(0);
+            expect(s.iterationsDone).toBe(0);
+            await s.step(1);
+            const words = await s.inspect?.("fixed");
+            expect(words).toBeInstanceOf(Uint32Array);
+            expect(maskTest(words as NodeMask, 2)).toBe(true);
+            expect(maskTest(words as NodeMask, 3)).toBe(false);
+            // a same-size reload of the same fake keeps the pin (spec 7.12: cleared on a resize only)
+            s.load(graph(8), nanPositions(8));
+            await s.step(1);
+            expect(maskTest((await s.inspect?.("fixed")) as NodeMask, 2)).toBe(true);
+            // a resize to 40 nodes needs 2 words; the fake still returns the 1-word mask: rejected before any state moves
+            const err = errorOf(() => s.load(graph(40), nanPositions(40)));
+            expect(err.code).toBe("E_INVALID_ARGUMENT");
+            expect(err.details.argument).toBe("fixed");
+            expect(s.nodeCount, "the failed load changed nothing").toBe(8);
+            s.dispose();
         } finally {
             ctx.debug.inspect = false;
         }

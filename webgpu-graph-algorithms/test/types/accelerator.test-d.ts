@@ -1,10 +1,12 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
+import { type FruchtermanReingoldOptions, type SpringElectricalOptions } from "@graphty/layout";
 import {
     type AcceleratorOptions,
     type AlgorithmAccelerator,
     createAccelerator,
     type ForceAtlas2Options,
     type ForceAtlas2Stats,
+    type FruchtermanReingoldStats,
     type GpuAccelerator,
     type GpuContext,
     type GpuLayoutSimulation,
@@ -13,6 +15,7 @@ import {
     type LayoutSimulation,
     type LayoutStatsBase,
     type RunOptions,
+    type SpringElectricalStats,
 } from "@graphty/webgpu-graph-algorithms";
 import { expectTypeOf } from "vitest";
 
@@ -22,6 +25,8 @@ import { expectTypeOf } from "vitest";
 
 declare const ctx: GpuContext;
 type Fa2Sim = GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+type FrSim = GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
+type SeSim = GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
 
 // ---- forward direction (spec 9.1, D27): the accelerator satisfies both CPU-side interfaces structurally
 expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>();
@@ -46,6 +51,10 @@ expectTypeOf<GpuAccelerator["kind"]>().toEqualTypeOf<"webgpu">();
 expectTypeOf<GpuAccelerator["kind"]>().toMatchTypeOf<LayoutAccelerator["kind"]>();
 expectTypeOf<GpuAccelerator["kind"]>().toMatchTypeOf<AlgorithmAccelerator["kind"]>();
 expectTypeOf<GpuAccelerator["forceAtlas2"]>().toMatchTypeOf<NonNullable<LayoutAccelerator["forceAtlas2"]>>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().toMatchTypeOf<
+    NonNullable<LayoutAccelerator["fruchtermanReingold"]>
+>();
+expectTypeOf<GpuAccelerator["springElectrical"]>().toMatchTypeOf<NonNullable<LayoutAccelerator["springElectrical"]>>();
 expectTypeOf<GpuAccelerator["release"]>().toMatchTypeOf<NonNullable<LayoutAccelerator["release"]>>();
 expectTypeOf<GpuAccelerator["release"]>().toMatchTypeOf<NonNullable<AlgorithmAccelerator["release"]>>();
 expectTypeOf<GpuAccelerator["dispose"]>().toMatchTypeOf<NonNullable<LayoutAccelerator["dispose"]>>();
@@ -143,5 +152,21 @@ expectTypeOf(acc.connectedComponents).parameter(1).not.toBeNever(); // the extra
 // members P7 does not implement keep the mirror's optional type -- the dispatchers read them as `undefined`
 expectTypeOf(acc.breadthFirstSearch).toEqualTypeOf<AlgorithmAccelerator["breadthFirstSearch"]>();
 expectTypeOf(acc.betweennessCentrality).toEqualTypeOf<AlgorithmAccelerator["betweennessCentrality"]>();
-expectTypeOf(acc.fruchtermanReingold).toEqualTypeOf<LayoutAccelerator["fruchtermanReingold"]>();
-expectTypeOf(acc.springElectrical).toEqualTypeOf<LayoutAccelerator["springElectrical"]>();
+// the two P5 layout members (spec 3.3 lines 892-893; PD-19): functions, non-optional, the @graphty/layout option
+// type `| undefined` in and a LayoutSimulation (the GPU simulation) out; `createSimulation` routes on `!== undefined`
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().toBeFunction();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().parameter(0).toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toEqualTypeOf<FrSim>();
+expectTypeOf(acc.fruchtermanReingold).not.toEqualTypeOf<undefined>();
+expectTypeOf(acc.fruchtermanReingold).not.toEqualTypeOf<LayoutAccelerator["fruchtermanReingold"]>();
+expectTypeOf(createAccelerator(ctx).fruchtermanReingold()).toEqualTypeOf<FrSim>();
+expectTypeOf<GpuAccelerator["springElectrical"]>().toBeFunction();
+expectTypeOf<GpuAccelerator["springElectrical"]>().parameter(0).toEqualTypeOf<SpringElectricalOptions | undefined>();
+expectTypeOf<GpuAccelerator["springElectrical"]>().returns.toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<GpuAccelerator["springElectrical"]>().returns.toEqualTypeOf<SeSim>();
+expectTypeOf(acc.springElectrical).not.toEqualTypeOf<undefined>();
+expectTypeOf(acc.springElectrical).not.toEqualTypeOf<LayoutAccelerator["springElectrical"]>();
+expectTypeOf(createAccelerator(ctx).springElectrical()).toEqualTypeOf<SeSim>();
+expectTypeOf<FrSim["stats"]>().toEqualTypeOf<FruchtermanReingoldStats>();
+expectTypeOf<SeSim["stats"]>().toEqualTypeOf<SpringElectricalStats>();

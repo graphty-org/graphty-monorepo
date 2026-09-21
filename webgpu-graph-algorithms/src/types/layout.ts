@@ -43,6 +43,42 @@ export interface ForceAtlas2Stats extends LayoutStatsBase {
     readonly trace: ReadonlyArray<ForceAtlas2TraceRecord>;
 }
 
+/**
+ * One per-iteration trace record of the last completed batch of a Fruchterman-Reingold simulation (spec 3.3
+ * FruchtermanReingoldStats.trace element): K1 writes `temperature` from the iteration's uniform slot (spec 7.20).
+ * @public
+ */
+export interface FruchtermanReingoldTraceRecord {
+    readonly temperature: number;
+    readonly meanDisplacement: number;
+    readonly settledCount: number;
+}
+
+/** Spec 3.3 FruchtermanReingoldStats, verbatim: the cooling schedule's value replaces the controller fields. */
+export interface FruchtermanReingoldStats extends LayoutStatsBase {
+    readonly temperature: number;
+    readonly trace: ReadonlyArray<FruchtermanReingoldTraceRecord>;
+}
+
+/**
+ * One per-iteration trace record of the last completed batch of a spring-electrical simulation (spec 3.3
+ * SpringElectricalStats.trace element): `kineticEnergy` is `0.5 * sum m |v|^2` over the free nodes after the
+ * PREVIOUS iteration's integrate: K5 writes it into partials B and the NEXT iteration's K1 folds it (PD-4), so the
+ * first record after load() carries 0 and record i carries the energy of iteration i - 1.
+ * @public
+ */
+export interface SpringElectricalTraceRecord {
+    readonly kineticEnergy: number;
+    readonly meanDisplacement: number;
+    readonly settledCount: number;
+}
+
+/** Spec 3.3 SpringElectricalStats, verbatim; `kineticEnergy` is the last folded value, one iteration behind the last integrate (PD-4). */
+export interface SpringElectricalStats extends LayoutStatsBase {
+    readonly kineticEnergy: number;
+    readonly trace: ReadonlyArray<SpringElectricalTraceRecord>;
+}
+
 /** Options of GpuLayoutSimulation.run (spec 3.3). */
 export interface RunOptions {
     readonly maxIter?: number | undefined;

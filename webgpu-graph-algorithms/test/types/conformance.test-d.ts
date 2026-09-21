@@ -5,12 +5,18 @@ import type {
     PageRankResultLike,
     ScoresResultLike,
 } from "@graphty/algorithms";
-import type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout";
+import type {
+    FruchtermanReingoldOptions,
+    LayoutAccelerator,
+    LayoutSimulation,
+    SpringElectricalOptions,
+} from "@graphty/layout";
 import {
     type AlgorithmAccelerator as ReExportedAlgorithmAccelerator,
     createAccelerator,
     type ForceAtlas2Options,
     type ForceAtlas2Stats,
+    type FruchtermanReingoldStats,
     type GpuAccelerator,
     type GpuContext,
     type GpuLayoutSimulation,
@@ -18,6 +24,7 @@ import {
     type LayoutSimulation as ReExportedLayoutSimulation,
     type PageRankResultLike as ReExportedPageRankResultLike,
     type ScoresResultLike as ReExportedScoresResultLike,
+    type SpringElectricalStats,
 } from "@graphty/webgpu-graph-algorithms";
 import { expectTypeOf } from "vitest";
 
@@ -46,6 +53,13 @@ expectTypeOf(injected).toMatchTypeOf<LayoutAccelerator>();
 // ---- the GPU simulation satisfies the real LayoutSimulation, and that is what the element sees back
 expectTypeOf<GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["forceAtlas2"]>>>().toEqualTypeOf<LayoutSimulation>();
+// P5: the two other layout members route the same way (spec 9.3 lines 3018-3025; PD-19)
+expectTypeOf<GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>>().toEqualTypeOf<LayoutSimulation>();
+expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["springElectrical"]>>>().toEqualTypeOf<LayoutSimulation>();
+expectTypeOf(createAccelerator(ctx).fruchtermanReingold()).toMatchTypeOf<LayoutSimulation>();
+expectTypeOf(createAccelerator(ctx).springElectrical()).toMatchTypeOf<LayoutSimulation>();
 
 // ---- EQUALITY, not merely assignability: what this package re-exports IS layout's declaration (W1b: the D27
 // mirrors are deleted). expectTypeOf compares structurally, so a VERBATIM structural copy would still pass these
@@ -58,6 +72,12 @@ expectTypeOf<ReExportedLayoutSimulation>().toEqualTypeOf<LayoutSimulation>();
 // assertion has to name -- measured, not assumed: the bare form is a TS2344 against expectTypeOf's constraint.
 expectTypeOf<ForceAtlas2Options | undefined>().toEqualTypeOf<
     Parameters<NonNullable<LayoutAccelerator["forceAtlas2"]>>[0]
+>();
+expectTypeOf<FruchtermanReingoldOptions | undefined>().toEqualTypeOf<
+    Parameters<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>[0]
+>();
+expectTypeOf<SpringElectricalOptions | undefined>().toEqualTypeOf<
+    Parameters<NonNullable<LayoutAccelerator["springElectrical"]>>[0]
 >();
 
 // ---- the algorithms half of W1b (design 9.8's W1 row, G10). Forward: the GPU accelerator satisfies

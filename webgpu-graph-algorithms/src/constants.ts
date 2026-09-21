@@ -114,3 +114,73 @@ export const FA2_DISTANCE_FLOOR_SQ = 0.0001;
 export const FA2_COINCIDENT_SQ = 1e-8;
 /** Bits of Fa2Params.flags (contract 4.4). */
 export const FA2_FLAG_FIRST = 1;
+/** Fa2Params.flags bit: the Fruchterman-Reingold temperature is the adaptive one in the state block, not the uniform's (the `cooling: "adaptive"` option). */
+export const FA2_FLAG_ADAPTIVE = 2;
+/** The Fruchterman-Reingold loop's starting temperature (spec 7.20; `layout/src/simulation/fruchterman-reingold.ts:30`). */
+export const FR_START_TEMPERATURE = 0.1;
+/** The reheat point of spec 7.20: the temperature index a reheat restarts at, as a fraction of `iterations`. */
+export const FR_REHEAT_FRACTION = 0.7;
+/** Adaptive cooling (Yifan Hu 2005, section 3.2): the temperature is multiplied by this when the force energy rose, divided by it after FR_COOLING_PATIENCE consecutive falls. */
+export const FR_COOLING_STEP = 0.9;
+/** Adaptive cooling: consecutive iterations of falling energy before the temperature grows. */
+export const FR_COOLING_PATIENCE = 5;
+/** Adaptive cooling: the iteration budget when `iterations` is not given (the schedule no longer needs one; this is the cap on a run that never settles). */
+export const FR_ADAPTIVE_MAX_ITERATIONS = 10_000;
+/** Fruchterman-Reingold defaults (spec 7.20, 9.3; the CPU simulation's, `layout/src/simulation/fruchterman-reingold.ts:32`): `k` null = `1 / sqrt(n)`. */
+export const FR_DEFAULTS: Readonly<{
+    k: null;
+    iterations: 50;
+    fixed: null;
+    dim: 2;
+    scale: 1;
+    settleThreshold: 0.001;
+    settleWindow: 10;
+    iterationsPerStep: 1;
+    maxInFlight: 2;
+    cooling: "linear";
+}> = Object.freeze({
+    k: null,
+    iterations: 50,
+    fixed: null,
+    dim: 2,
+    scale: 1,
+    settleThreshold: 0.001,
+    settleWindow: 10,
+    iterationsPerStep: 1,
+    maxInFlight: 2,
+    cooling: "linear",
+});
+/**
+ * Spring-electrical size scaling: when `gravity` or `springCoefficient` is left to its default, ngraph's constant is
+ * multiplied by min(1, SE_SCALE_REFERENCE_NODES / n). ngraph's values were tuned for graphs of a few hundred nodes;
+ * on tens of thousands the per-node forces are so large that every node moves at the unit speed clamp and the layout
+ * never comes to rest (measured on the 58k-node Brightkite graph: 3,350 iterations to the settle rule with the
+ * kinetic energy still at the clamp; a uniform 1/1000 factor settled in 1,000 with the energy decayed 25x).
+ */
+export const SE_SCALE_REFERENCE_NODES = 300;
+/** Spring-electrical defaults: ngraph.forcelayout 3.3.1's (`lib/createPhysicsSimulator.js:29,34,40,54,59`; spec 7.20), plus the shared simulation defaults. `gravity` is ngraph's Coulomb constant: negative repels. */
+export const SE_DEFAULTS: Readonly<{
+    springLength: 10;
+    springCoefficient: 0.8;
+    gravity: -12;
+    dragCoefficient: 0.9;
+    timeStep: 0.5;
+    dim: 2;
+    scale: 1;
+    settleThreshold: 0.001;
+    settleWindow: 10;
+    iterationsPerStep: 1;
+    maxInFlight: 2;
+}> = Object.freeze({
+    springLength: 10,
+    springCoefficient: 0.8,
+    gravity: -12,
+    dragCoefficient: 0.9,
+    timeStep: 0.5,
+    dim: 2,
+    scale: 1,
+    settleThreshold: 0.001,
+    settleWindow: 10,
+    iterationsPerStep: 1,
+    maxInFlight: 2,
+});

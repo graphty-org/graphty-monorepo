@@ -14,6 +14,9 @@ import {
     FA2_DISTANCE_FLOOR,
     FA2_DISTANCE_FLOOR_SQ,
     FA2_FLAG_FIRST,
+    FR_DEFAULTS,
+    FR_REHEAT_FRACTION,
+    FR_START_TEMPERATURE,
     LAYOUT_TUNING_DEFAULTS,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
@@ -25,6 +28,7 @@ import {
     POOL_MAX_POW2_CLASS_BYTES,
     POOL_MIN_CLASS_BYTES,
     PROFILER_QUERY_SLOTS,
+    SE_DEFAULTS,
     STATE_HEADER_BYTES,
     STORAGE_ALIGN,
     TRACE_RECORD_BYTES,
@@ -177,5 +181,37 @@ describe("constants.ts (contract 3.2)", () => {
         expect(FA2_DISTANCE_FLOOR_SQ).toBe(FA2_DISTANCE_FLOOR * FA2_DISTANCE_FLOOR);
         expect(FA2_COINCIDENT_SQ).toBe(1e-8);
         expect(FA2_FLAG_FIRST).toBe(1);
+    });
+
+    it("pins the Fruchterman-Reingold and spring-electrical defaults (spec 7.20)", () => {
+        expect(FR_DEFAULTS).toEqual({
+            k: null,
+            iterations: 50,
+            fixed: null,
+            dim: 2,
+            scale: 1,
+            settleThreshold: 0.001,
+            settleWindow: 10,
+            iterationsPerStep: 1,
+            maxInFlight: 2,
+            cooling: "linear",
+        });
+        expect(Object.isFrozen(FR_DEFAULTS)).toBe(true);
+        expect(SE_DEFAULTS).toEqual({
+            springLength: 10,
+            springCoefficient: 0.8,
+            gravity: -12,
+            dragCoefficient: 0.9,
+            timeStep: 0.5,
+            dim: 2,
+            scale: 1,
+            settleThreshold: 0.001,
+            settleWindow: 10,
+            iterationsPerStep: 1,
+            maxInFlight: 2,
+        });
+        expect(Object.isFrozen(SE_DEFAULTS)).toBe(true);
+        expect(FR_START_TEMPERATURE).toBe(0.1);
+        expect(FR_REHEAT_FRACTION).toBe(0.7);
     });
 });

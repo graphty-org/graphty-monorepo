@@ -13,8 +13,8 @@
  *
  * PLAN DECISION (P2-T2, pending owner confirmation at G2): contract 5.2 / spec 5.1 describe OVERRIDE_MATRIX as an
  * explicit table of "the defaults, each override toggled alone, and the exact combinations the factories emit";
- * this file GENERATES the full product instead, which is a bounded superset of that table (P1 37 cases, P2 52, P3
- * 22 -- EXPECTED_CASES_BY_PHASE, pinned by test/kernel/wgsl-compile.test.ts) and compiles in full on every
+ * this file GENERATES the full product instead, which is a bounded superset of that table (P1 53 cases, P2 52, P3
+ * 61, P7 37 -- EXPECTED_CASES_BY_PHASE, pinned by test/kernel/wgsl-compile.test.ts) and compiles in full on every
  * compile-matrix context (four under Dawn, two under Chromium, SwiftShader included). The superset buys one
  * property the literal table lacks: a combination a factory starts emitting later is a case already, so the
  * teardown never fails for a legitimate variant. docs/decisions/G2.md records the case counts and the measured
@@ -59,19 +59,26 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
     SWING_MODE: [0, 1],
     GRAVITY_CENTER: [0, 1],
     NORM_MODE: [0, 1, 2, 3, 4],
+    LAW: [0, 1, 2],
+    APPLY: [0, 1, 2],
+    STATS_MODE: [0, 1, 2],
 });
 
 /**
- * The case count of each phase's kernels under the rule above, pinned by test/kernel/wgsl-compile.test.ts:
- * P1 = degree 5 + reduce 19 + fill 1 + K3 9 + K4 3; P2 = segmented-reduce 52 (4 snippets x (1 + 3 OP x 1 TIER x 4
- * pairs)); P3 = K1 1 + K2 17 + K5 3 + toScene 1; P7 = spmv-pull 17 (defaults + USE_PERM x HAS_WEIGHTS x
- * HAS_PERSONALIZATION x USE_DANGLING) + pr-scale 6 + pr-finalize 6 (defaults + 5 NORM_MODE values each) +
- * wcc-link-sample 5 + wcc-link-edges 1 + wcc-compress 1 + wcc-sample 1.
+ * The case count of each phase's kernels under the rule above, pinned by test/kernel/wgsl-compile.test.ts (P5's
+ * PD-9 arithmetic: every entry is 1 default case + the full product of its axes):
+ * P1 = degree 5 + reduce 19 + fill 1 + K3 25 (1 + 2 SWING_MODE x 2 STRONG_GRAVITY x 2 GRAVITY_CENTER x 3 LAW) +
+ * K4 3; P2 = segmented-reduce 52 (4 snippets x (1 + 3 OP x 1 TIER x 4 pairs)); P3 = K1 4 (1 + 3 STATS_MODE) +
+ * K2 49 (1 + 2 USE_PERM x 2 HAS_WEIGHTS x 2 LINLOG x 2 DISTRIBUTED x 1 TIER x 3 LAW) + K5 7 (1 + 2 SWING_MODE x
+ * 3 APPLY) + toScene 1; P7 = spmv-pull 17 (defaults + USE_PERM x HAS_WEIGHTS x HAS_PERSONALIZATION x USE_DANGLING)
+ * + pr-scale 6 + pr-finalize 6 (defaults + 5 NORM_MODE values each) + wcc-link-sample 5 + wcc-link-edges 1 +
+ * wcc-compress 1 + wcc-sample 1. The LAW != 0 x LINLOG / DISTRIBUTED combinations compile and no factory emits
+ * them: the matrix is a superset by design.
  */
 export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P7", number>> = Object.freeze({
-    P1: 37,
+    P1: 53,
     P2: 52,
-    P3: 22,
+    P3: 61,
     P7: 37,
 });
 

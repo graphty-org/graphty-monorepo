@@ -40,6 +40,14 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
 export interface FruchtermanReingoldOptions extends CommonLayoutOptions, SimulationOptions {
     readonly k?: number | null | undefined;
     readonly iterations?: number | undefined;
+    /**
+     * The cooling schedule (default "linear"). "linear": the temperature falls from 0.1 to 0 over `iterations`
+     * steps, so the run always lasts the whole budget. "adaptive": Yifan Hu's step control -- the temperature grows
+     * by 1 / 0.9 after five consecutive iterations whose total force energy fell and shrinks by 0.9 whenever it
+     * rose, so the run settles on its own, usually in a few hundred iterations whatever the graph size; `iterations`
+     * is then only a cap. GPU simulations only in v1; the CPU simulation ignores it.
+     */
+    readonly cooling?: "linear" | "adaptive" | undefined;
     /** A node mask (the bool-column bit layout) or the name of a bool node column with role "fixed". */
     readonly fixed?: NodeMask | string | null | undefined;
 }
@@ -47,8 +55,10 @@ export interface FruchtermanReingoldOptions extends CommonLayoutOptions, Simulat
 /** Design 9.3 SpringElectricalOptions (ngraph's names and defaults, design 7.20); no CPU simulation in v1. */
 export interface SpringElectricalOptions extends CommonLayoutOptions, SimulationOptions {
     readonly springLength?: number | undefined;
-    readonly springCoefficient?: number | undefined;
-    readonly gravity?: number | undefined;
+    /** Hooke's constant; null or absent: ngraph's 0.8 scaled down on graphs over a few hundred nodes (the GPU simulation's size rule). */
+    readonly springCoefficient?: number | null | undefined;
+    /** ngraph's Coulomb constant (negative repels); null or absent: ngraph's -12 scaled down the same way. */
+    readonly gravity?: number | null | undefined;
     readonly dragCoefficient?: number | undefined;
     readonly timeStep?: number | undefined;
 }

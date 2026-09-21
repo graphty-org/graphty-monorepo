@@ -1,5 +1,6 @@
 /**
- * Standalone browser demo of the exact-tier GPU ForceAtlas2 (P3) and GPU PageRank (P7): a canvas 2D renderer over
+ * Standalone browser demo of the exact-tier GPU layouts (ForceAtlas2 of P3, Fruchterman-Reingold and the
+ * spring-electrical preset of P5) and GPU PageRank (P7): a canvas 2D renderer over
  * the simulation's own stride-3 position array, stepped once per animation frame exactly the way graphty-element's
  * frame loop will (fire-and-forget step(), at most maxInFlight batches in flight), with drag / pin through
  * setPosition / setFixed; a "Run PageRank" button runs the device PageRank over the same resident snapshot, checks
@@ -15,8 +16,10 @@ import { pageRank } from "../src/algorithms/pagerank.js";
 import { requestGpuContext } from "../src/browser/index.js";
 import type { GpuContext } from "../src/context.js";
 import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
-import type { ForceAtlas2Stats, GpuLayoutSimulation, GpuLayoutTuning } from "../src/types/layout.js";
-import type { ForceAtlas2Options } from "../src/types/options.js";
+import { createFruchtermanReingold } from "../src/layouts/fruchterman-reingold.js";
+import { createSpringElectrical } from "../src/layouts/spring-electrical.js";
+import type { GpuLayoutSimulation, GpuLayoutTuning, LayoutStatsBase } from "../src/types/layout.js";
+import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "../src/types/options.js";
 
 // ------------------------------------------------------------------ graphs
 
@@ -213,7 +216,66 @@ function karateGraph(): Edges {
     };
 }
 
-function buildEdges(kind: string, seed: number): Edges {
+/**
+ * A SNAP edge list (https://snap.stanford.edu/data/): `#` comment lines, then one whitespace-separated pair of node
+ * ids per line. Ids are renumbered densely, self-loops dropped and each unordered pair kept once. The files are
+ * gzipped under tmp/datasets/ (gitignored; the download commands are in the README of the demo) and served by
+ * vite's /@fs/ route, which serves a `.gz` file with `Content-Encoding: gzip`, so fetch() hands back the inflated
+ * text.
+ */
+const DATASETS: Readonly<Record<string, string>> = {
+    brightkite: "loc-brightkite_edges.txt.gz",
+    gnutella: "p2p-Gnutella31.txt.gz",
+    enron: "email-Enron.txt.gz",
+    condmat: "ca-CondMat.txt.gz",
+};
+
+async function loadSnapEdges(file: string): Promise<Edges> {
+    const url = new URL(`../tmp/datasets/${file}`, import.meta.url);
+    const response = await fetch(url);
+    if (!response.ok || response.body === null) {
+        throw new Error(`${file}: HTTP ${response.status}`);
+    }
+    const text = await response.text();
+    const ids = new Map<number, number>();
+    const seen = new Set<number>();
+    const src: number[] = [];
+    const dst: number[] = [];
+    const renumber = (id: number): number => {
+        let index = ids.get(id);
+        if (index === undefined) {
+            index = ids.size;
+            ids.set(id, index);
+        }
+        return index;
+    };
+    for (const line of text.split("\n")) {
+        if (line.length === 0 || line.startsWith("#")) {
+            continue;
+        }
+        const tab = line.search(/\s/);
+        const a = renumber(Number(line.slice(0, tab)));
+        const b = renumber(Number(line.slice(tab + 1)));
+        if (a === b) {
+            continue;
+        }
+        const key = a < b ? a * 4_294_967_296 + b : b * 4_294_967_296 + a;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        src.push(a);
+        dst.push(b);
+    }
+    return { nodeCount: ids.size, src: Uint32Array.from(src), dst: Uint32Array.from(dst) };
+}
+
+async function buildEdges(kind: string, seed: number): Promise<Edges> {
+    const dataset = DATASETS[kind];
+    if (dataset !== undefined) {
+        setStatus(`loading ${dataset}...`);
+        return loadSnapEdges(dataset);
+    }
     switch (kind) {
         case "karate":
             return karateGraph();
@@ -244,10 +306,12 @@ function el<T extends HTMLElement>(id: string): T {
 
 const canvas = el<HTMLCanvasElement>("canvas");
 const graphSelect = el<HTMLSelectElement>("graph");
+const modelSelect = el<HTMLSelectElement>("model");
 const compatSelect = el<HTMLSelectElement>("compat");
 const ipsInput = el<HTMLInputElement>("ips");
 const linlogInput = el<HTMLInputElement>("linlog");
 const strongInput = el<HTMLInputElement>("strong");
+const adaptiveInput = el<HTMLInputElement>("adaptive");
 const edgesInput = el<HTMLInputElement>("edges");
 const playButton = el<HTMLButtonElement>("play");
 const restartButton = el<HTMLButtonElement>("restart");
@@ -275,7 +339,7 @@ function setStatus(text: string, error = false): void {
 interface Demo {
     readonly snapshot: GraphSnapshot;
     readonly edges: Edges;
-    readonly sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+    readonly sim: GpuLayoutSimulation<unknown, LayoutStatsBase>;
     readonly positions: Float32Array;
     readonly degree: Uint32Array;
     readonly fixed: U32;
@@ -289,6 +353,7 @@ interface Demo {
 
 let ctx: GpuContext | null = null;
 let demo: Demo | null = null;
+let createGeneration = 0;
 let seed = 1;
 const view = { scale: 1, cx: 0, cy: 0, fitted: false, zoom: 1 };
 const drag = { index: -1, wasFixed: false, moved: false };
@@ -313,7 +378,17 @@ async function createDemo(): Promise<void> {
         demo = null;
     }
     const kind = graphSelect.value;
-    const edges = buildEdges(kind, seed);
+    const generation = ++createGeneration;
+    let edges: Edges;
+    try {
+        edges = await buildEdges(kind, seed);
+    } catch (error) {
+        setStatus(`${kind}: ${error instanceof Error ? error.message : String(error)}`, true);
+        return;
+    }
+    if (generation !== createGeneration) {
+        return; // a newer createDemo() superseded this one while the dataset was loading
+    }
     const snapshot = fromEdgeArrays({ directed: false, nodeCount: edges.nodeCount, src: edges.src, dst: edges.dst });
     const n = snapshot.nodeCount;
     const positions = new Float32Array(3 * n).fill(Number.NaN); // NaN rows are seeded by the simulation's LCG
@@ -322,17 +397,34 @@ async function createDemo(): Promise<void> {
         exactMaxNodes: 65_536,
         compat: compatSelect.value === "networkx" ? "networkx" : "paper",
     };
-    const options: ForceAtlas2Options = {
+    const shared = {
         seed,
-        maxIter: 100_000,
         settleThreshold: 1e-3,
         settleWindow: 20,
         iterationsPerStep: Math.max(1, Math.min(64, Number(ipsInput.value) || 1)),
         maxInFlight: 2,
-        linlog: linlogInput.checked,
-        strongGravity: strongInput.checked,
+        ...tuning,
     };
-    const sim = createForceAtlas2(ctx, { ...options, ...tuning });
+    const model = modelSelect.value;
+    let sim: GpuLayoutSimulation<unknown, LayoutStatsBase>;
+    if (model === "fr") {
+        // linear cooling spends its whole budget, so it gets a long one; adaptive cooling settles on its own
+        const options: FruchtermanReingoldOptions = adaptiveInput.checked
+            ? { ...shared, cooling: "adaptive" }
+            : { ...shared, iterations: 2_000 };
+        sim = createFruchtermanReingold(ctx, options);
+    } else if (model === "se") {
+        const options: SpringElectricalOptions = { ...shared };
+        sim = createSpringElectrical(ctx, options);
+    } else {
+        const options: ForceAtlas2Options = {
+            ...shared,
+            maxIter: 100_000,
+            linlog: linlogInput.checked,
+            strongGravity: strongInput.checked,
+        };
+        sim = createForceAtlas2(ctx, options);
+    }
     sim.load(snapshot, positions);
     demo = {
         snapshot,
@@ -353,7 +445,7 @@ async function createDemo(): Promise<void> {
     colourSelect.value = "degree";
     playButton.textContent = "Pause";
     setStatus(
-        `${kind}: ${n.toLocaleString()} nodes, ${edges.src.length.toLocaleString()} edges; ${ctx.caps.vendor} / ${ctx.caps.architecture}${ctx.caps.software ? " (software adapter)" : ""}`,
+        `${kind} / ${model}: ${n.toLocaleString()} nodes, ${edges.src.length.toLocaleString()} edges; ${ctx.caps.vendor} / ${ctx.caps.architecture}${ctx.caps.software ? " (software adapter)" : ""}`,
     );
     console.log(
         `caps: features=${[...ctx.caps.features].join(",")} wgsl=${[...ctx.caps.wgslFeatures].join(",")} subgroups=${ctx.caps.subgroupMinSize}-${ctx.caps.subgroupMaxSize} maxComputeInvocationsPerWorkgroup=${ctx.caps.limits.maxComputeInvocationsPerWorkgroup} maxStorageBuffersPerShaderStage=${ctx.caps.limits.maxStorageBuffersPerShaderStage}`,
@@ -457,9 +549,7 @@ function draw(d: Demo): void {
     for (let i = 0; i < n; i++) {
         const [x, y] = toScreen(p[3 * i], p[3 * i + 1]);
         const t =
-            byScore !== null
-                ? (Math.log(Math.max(byScore[i], 1e-12)) - lo) / (hi - lo)
-                : Math.log1p(d.degree[i]) / hi;
+            byScore !== null ? (Math.log(Math.max(byScore[i], 1e-12)) - lo) / (hi - lo) : Math.log1p(d.degree[i]) / hi;
         const hue = 210 - 170 * t;
         const pinned = maskTest(d.fixed, i);
         const r = byScore !== null ? radius * (0.6 + 1.8 * t) : radius;
@@ -516,7 +606,9 @@ async function runPageRank(): Promise<void> {
             "top 10 by score",
             ...top,
         ].join("\n");
-        setStatus(`PageRank: ${gpu.iterations} iterations in ${gpuMs.toFixed(1)} ms on the GPU; max error vs f64 ${maxAbs.toExponential(2)}`);
+        setStatus(
+            `PageRank: ${gpu.iterations} iterations in ${gpuMs.toFixed(1)} ms on the GPU; max error vs f64 ${maxAbs.toExponential(2)}`,
+        );
     } catch (error) {
         prStatsBox.textContent = "";
         setStatus(`PageRank failed: ${error instanceof Error ? error.message : String(error)}`, true);
@@ -533,16 +625,35 @@ function renderStats(d: Demo): void {
         `in flight    ${d.sim.inFlight}`,
         `ms / iter    ${s.msPerIteration === null ? "-" : s.msPerIteration.toFixed(3)}`,
         `frame ms     ${d.lastFrameMs.toFixed(1)}`,
-        `speed        ${s.speed.toFixed(3)}`,
-        `efficiency   ${s.speedEfficiency.toFixed(3)}`,
-        `swing        ${s.swing.toExponential(2)}`,
-        `traction     ${s.traction.toExponential(2)}`,
+    ];
+    // The model-specific fields: FA2's controller, FR's temperature, the spring preset's kinetic energy.
+    for (const [key, value] of Object.entries(s)) {
+        if (typeof value === "number" && !(key in LAYOUT_STATS_BASE)) {
+            lines.push(
+                `${key.padEnd(12)} ${Math.abs(value) >= 1e3 || (Math.abs(value) < 1e-2 && value !== 0) ? value.toExponential(2) : value.toFixed(3)}`,
+            );
+        }
+    }
+    lines.push(
         `mean disp    ${s.meanDisplacement.toExponential(2)}`,
         `rms radius   ${s.rmsRadius.toFixed(2)}`,
         `tier         ${s.repulsionTier}`,
-    ];
+    );
     statsBox.textContent = lines.join("\n");
 }
+
+/** The LayoutStatsBase keys, so renderStats can print whatever a model adds without naming the models. */
+const LAYOUT_STATS_BASE: Record<keyof LayoutStatsBase, true> = {
+    iteration: true,
+    meanDisplacement: true,
+    rmsRadius: true,
+    layoutRadius: true,
+    centroid: true,
+    repulsionTier: true,
+    maxCellOccupancy: true,
+    outsideGrid: true,
+    msPerIteration: true,
+};
 
 // ------------------------------------------------------------------ frame loop (the element bridge, D6)
 
@@ -709,7 +820,7 @@ pagerankButton.addEventListener("click", () => {
     void runPageRank();
 });
 
-for (const input of [graphSelect, compatSelect, linlogInput, strongInput]) {
+for (const input of [graphSelect, modelSelect, compatSelect, linlogInput, strongInput, adaptiveInput]) {
     input.addEventListener("change", () => {
         void createDemo();
     });

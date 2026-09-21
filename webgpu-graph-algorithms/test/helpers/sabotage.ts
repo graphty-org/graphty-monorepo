@@ -12,7 +12,9 @@
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts. SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
- * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only).
+ * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
+ * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
+ * only, since the FA2 checks never reach those lines).
  */
 
 import { type GpuContext } from "../../src/context.js";
@@ -498,6 +500,201 @@ export const SABOTAGE_P3_ADDENDUM: Readonly<Partial<Record<KernelId, readonly Mu
             replace: "swing >= 2.0 * tr",
             minFactor: 10,
             test: TRACE_TEST,
+        },
+    ]),
+});
+
+const FR_INSPECT_TEST = "test/layouts/fr-inspect.test.ts";
+const FR_TRACE_TEST = "test/layouts/fr-trace.test.ts";
+const SE_INSPECT_TEST = "test/layouts/se-inspect.test.ts";
+const SE_TRACE_TEST = "test/layouts/se-trace.test.ts";
+
+/** The P5 rows (PD-8): the FR and spring-electrical BRANCHES of the four FA2 kernels; measured by test/sabotage/fr.test.ts and se.test.ts only, never against the FA2 checks (which never reach these lines). */
+export const SABOTAGE_P5: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
+    "fa2-attraction": Object.freeze([
+        {
+            name: "fr-attraction-k-multiplied",
+            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
+            replace: "if (LAW == 1u) { w = length(d) * P.frK; }",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-attraction-linear",
+            find: "w = length(d) / P.frK;",
+            replace: "w = 1.0 / P.frK;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-attraction-law-skipped",
+            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
+            replace: "if (LAW == 3u) { w = length(d) / P.frK; }",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "spring-rest-length-dropped",
+            find: "w = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "w = P.springCoefficient;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "spring-sign-flipped",
+            find: "w = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "w = P.springCoefficient * (P.springLength - len) / len;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "spring-law-skipped",
+            find: "if (LAW == 2u) { w = P.springCoefficient",
+            replace: "if (LAW == 3u) { w = P.springCoefficient",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+    ]),
+    "fa2-repulsion-exact": Object.freeze([
+        {
+            name: "fr-repulsion-inverse-square",
+            find: "f = f + d * (P.frK * P.frK / d2);",
+            replace: "f = f + d * (P.frK * P.frK / (d2 * sqrt(d2)));",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-repulsion-k-linear",
+            find: "(P.frK * P.frK / d2)",
+            replace: "(P.frK / d2)",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-repulsion-law-skipped",
+            find: "if (LAW == 1u) { f = f + d",
+            replace: "if (LAW == 3u) { f = f + d",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-sign-flipped",
+            find: "(-P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            replace: "(P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-inverse-linear",
+            find: "pi.w * o.w / (d2 * sqrt(d2))",
+            replace: "pi.w * o.w / d2",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-mass-dropped",
+            find: "(-P.coulomb * pi.w * o.w /",
+            replace: "(-P.coulomb /",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+    ]),
+    "fa2-integrate": Object.freeze([
+        {
+            name: "fr-temperature-cap-dropped",
+            find: "dp = f * (min(mag, t) / mag);",
+            replace: "dp = f;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-fixed-moves",
+            find: "if (mag > 0.0 && !fixed) {",
+            replace: "if (mag > 0.0) {",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-apply-skipped",
+            find: "if (APPLY == 1u) {",
+            replace: "if (APPLY == 3u) {",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "euler-drag-sign",
+            find: "let fd = f - P.dragCoefficient * v;",
+            replace: "let fd = f + P.dragCoefficient * v;",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+        // measured through the 10-iteration trajectory, not the one-iteration stages: from v = 0 the step (dt / m) F exceeds
+        // ngraph's unit speed clamp on every karate node in iteration 1, so the clamped velocity, dp and 0.5 m |v|^2 are the
+        // same whatever the mass; the mass reaches the output only once a node's |dt F / m| falls under 1 (P5-T7 finding)
+        {
+            name: "euler-mass-ignored",
+            find: "v = v + (P.timeStep / p.w) * fd;",
+            replace: "v = v + P.timeStep * fd;",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+        {
+            name: "euler-clamp-dropped",
+            find: "if (sp > 1.0) { v = v / sp; }",
+            replace: "if (sp > 1.0e30) { v = v / sp; }",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "euler-velocity-not-stored",
+            find: "if (!fixed) { store_old(i, v); }",
+            replace: "if (fixed) { store_old(i, v); }",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+    ]),
+    "fa2-stats-finalize": Object.freeze([
+        {
+            name: "fr-temperature-not-traced",
+            find: "T[P.iterationIndex].modelScalar = S.temperature;",
+            replace: "T[P.iterationIndex].modelScalar = 0.0;",
+            minFactor: 10,
+            test: FR_TRACE_TEST,
+        },
+        {
+            name: "fr-temperature-state-stale",
+            find: "S.temperature = P.temperature;",
+            replace: "S.temperature = S.temperature;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-stats-mode-skipped",
+            find: "if (STATS_MODE == 1u) {",
+            replace: "if (STATS_MODE == 3u) {",
+            minFactor: 10,
+            test: FR_TRACE_TEST,
+        },
+        {
+            name: "ke-not-folded",
+            find: "ke = ke + q.swingTraction.x;",
+            replace: "ke = ke + 0.0 * q.swingTraction.x;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "ke-state-not-written",
+            find: "S.kineticEnergy = tKe;",
+            replace: "S.kineticEnergy = 0.0;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "ke-stats-mode-skipped",
+            find: "if (STATS_MODE == 2u) {",
+            replace: "if (STATS_MODE == 3u) {",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
         },
     ]),
 });

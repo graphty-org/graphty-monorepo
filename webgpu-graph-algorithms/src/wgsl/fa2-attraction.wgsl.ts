@@ -3,7 +3,10 @@
  * attraction force over the undirected CSR rows (both arcs present, so the sum is symmetric with no atomics), the
  * linear or linlog law, the optional weights, the distributed-action division by the mass in `pos.w`, written as
  * the FIRST writer of `force` each iteration. P3 ships the thread-per-row tier over `[tierStart, tierEnd)` = `[0, n)`
- * with `USE_PERM = false`; the subgroup / workgroup tiers arrive with P4 (`TIER`).
+ * with `USE_PERM = false`; the subgroup / workgroup tiers arrive with P4 (`TIER`). `LAW` (P5, spec 7.20) picks the
+ * pair law: 0 = the FA2 text, 1 = Fruchterman-Reingold `d^2 / k` (unfloored), 2 = ngraph's Hooke spring
+ * `k_s (d - L)`; under 1 / 2 the models compile `LINLOG = false` and `HAS_WEIGHTS = false`, and the law overwrites
+ * `w` so weights are ignored either way.
  *
  * Body only (spec 3.5, D9); normative text (contract 4.5); the K2 sabotage mutations (P3-T5) are textual edits of it.
  */
@@ -29,6 +32,8 @@ fn attraction(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
         if (HAS_WEIGHTS) { w = weights[a]; }
         let d = pos[j].xyz - pi.xyz;                           // toward j
         let len = max(length(d), FA2_DIST_FLOOR);
+        if (LAW == 1u) { w = length(d) / P.frK; }              // LAW 1 (FR, 7.20): |F| = d^2 / k along d / d, unfloored; the linear select below applies w as is
+        if (LAW == 2u) { w = P.springCoefficient * (len - P.springLength) / len; }   // LAW 2 (spring, ngraph generateCreateSpringForce.js:33-36): Hooke k_s (d - L) toward j
         let mag = select(w, w * log(1.0 + len) / len, LINLOG); // linear: |F| = w len; linlog: |F| = w log(1 + len)
         f = f + d * mag;
     }

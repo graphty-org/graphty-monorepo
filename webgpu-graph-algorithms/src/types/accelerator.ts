@@ -37,8 +37,14 @@ import type {
     KatzOptions,
     PageRankOptions,
 } from "./algorithms.js";
-import type { ForceAtlas2Stats, GpuLayoutSimulation, GpuLayoutTuning } from "./layout.js";
-import type { ForceAtlas2Options } from "./options.js";
+import type {
+    ForceAtlas2Stats,
+    FruchtermanReingoldStats,
+    GpuLayoutSimulation,
+    GpuLayoutTuning,
+    SpringElectricalStats,
+} from "./layout.js";
+import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "./options.js";
 
 // ---- the real @graphty/layout interfaces (spec 9.3, D27): imported at W1b, re-exported so the package's public
 // surface is unchanged and src/types/layout.ts keeps resolving them from here. `export type`, never a bare
@@ -86,7 +92,9 @@ export interface AcceleratorOptions {
 }
 
 /**
- * The injectable object (spec 3.3): P3's forceAtlas2, release and dispose, plus P7's seven algorithm members
+ * The injectable object (spec 3.3): P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and
+ * springElectrical (the two other optional members of the real LayoutAccelerator, spec 9.3; the CPU option types in,
+ * the GPU simulations out), plus P7's seven algorithm members
  * (spec 8.2, 8.3; M8b-T8), non-optional here and returning the `Gpu*Result` shapes, which satisfy the `*ResultLike`
  * mirrors (spec 9.7: `precision` is an extra field, `F32` is a `NumericVector`). `connectedComponents` and
  * `weaklyConnectedComponents` are the same algorithm (spec 3.3: WCC semantics on directed input) under both names
@@ -100,6 +108,10 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     readonly ctx: GpuContext;
     readonly options: Readonly<AcceleratorOptions>;
     forceAtlas2(options?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+    fruchtermanReingold(
+        options?: FruchtermanReingoldOptions,
+    ): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
+    springElectrical(options?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
     pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<GpuPageRankResult>;
     personalizedPageRank(
         s: GraphSnapshot,

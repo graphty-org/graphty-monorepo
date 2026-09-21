@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>GPU ForceAtlas2 demo</title>
+        <title>GPU layout demo</title>
         <style>
             :root {
                 color-scheme: dark;
@@ -134,7 +134,7 @@
     <body>
         <div id="app">
             <div id="panel">
-                <h1>GPU ForceAtlas2 + PageRank</h1>
+                <h1>GPU layouts + PageRank</h1>
                 <label for="graph">Graph</label>
                 <select id="graph">
                     <option value="karate">Zachary karate club (34 / 78)</option>
@@ -144,6 +144,16 @@
                     <option value="random10k">Random G(10,000, 30,000)</option>
                     <option value="rmat">R-MAT hub graph (16,384 / 131,072)</option>
                     <option value="random30k">Random G(30,000, 90,000)</option>
+                    <option value="condmat">SNAP ca-CondMat (23k / 93k)</option>
+                    <option value="enron">SNAP email-Enron (37k / 184k)</option>
+                    <option value="brightkite">SNAP Brightkite (58k / 214k)</option>
+                    <option value="gnutella">SNAP Gnutella31 (63k / 148k)</option>
+                </select>
+                <label for="model">Layout model</label>
+                <select id="model">
+                    <option value="fa2" selected>ForceAtlas2</option>
+                    <option value="fr">Fruchterman-Reingold</option>
+                    <option value="se">spring-electrical (ngraph preset)</option>
                 </select>
                 <label for="compat">Formulas</label>
                 <select id="compat">
@@ -154,6 +164,7 @@
                 <input id="ips" type="number" min="1" max="64" value="2" />
                 <label><input id="linlog" type="checkbox" style="width: auto" /> linlog</label>
                 <label><input id="strong" type="checkbox" style="width: auto" /> strong gravity</label>
+                <label><input id="adaptive" type="checkbox" style="width: auto" checked /> adaptive cooling (FR)</label>
                 <label><input id="edges" type="checkbox" style="width: auto" checked /> draw edges</label>
                 <button id="play" class="primary">Pause</button>
                 <button id="restart">Restart (new seed)</button>

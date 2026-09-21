@@ -23,13 +23,16 @@
  * cadence) and calls no step() for `pauseTicks` ticks; a flush() that has not resolved when the window closes, a
  * pause that never starts, and every rejected promise are recorded in `errors`.
  *
+ * Model-agnostic (PD-18): the two generic parameters take any GpuLayoutSimulation, and the body reads only the
+ * simulation's shared surface (iterationsDone, inFlight, settled and the @internal counters), never a stats field.
+ *
  * Browser-safe: imports nothing from node:*.
  */
 
 import { type F32 } from "@graphty/graph-format";
 
-import { type ForceAtlas2Stats, type GpuLayoutSimulation } from "../../src/types/layout.js";
-import { type ForceAtlas2Options } from "../../src/types/options.js";
+import { type GpuLayoutSimulation, type LayoutStatsBase } from "../../src/types/layout.js";
+import { type CommonLayoutOptions, type SimulationOptions } from "../../src/types/options.js";
 
 /** Options of runFrameLoop (contract 5.2). */
 export interface FrameLoopOptions {
@@ -90,7 +93,9 @@ interface PositionWrite {
  * @param sim - the simulation under test
  * @returns the counters
  */
-function countersOf(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>): SimulationCounters {
+function countersOf<O extends CommonLayoutOptions & SimulationOptions, S extends LayoutStatsBase>(
+    sim: GpuLayoutSimulation<O, S>,
+): SimulationCounters {
     const candidate = sim as unknown as { readonly lastSubmittedBatchId?: unknown; readonly coalesced?: unknown };
     if (typeof candidate.lastSubmittedBatchId !== "number" || typeof candidate.coalesced !== "number") {
         throw new Error(
@@ -135,8 +140,8 @@ function rowHolds(positions: F32, write: PositionWrite): boolean {
  * @param options - ticks, iterations per step, maxInFlight, the optional pause, the scheduled writes and the hook
  * @returns the report of the run
  */
-export async function runFrameLoop(
-    sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>,
+export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOptions, S extends LayoutStatsBase>(
+    sim: GpuLayoutSimulation<O, S>,
     positions: F32,
     options: FrameLoopOptions,
 ): Promise<FrameLoopReport> {
@@ -300,8 +305,11 @@ export async function runFrameLoop(
  * @param maxRounds - the ceiling on rounds (default 10)
  * @returns the reports, in order
  */
-export async function runFrameLoopUntilSettled(
-    sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>,
+export async function runFrameLoopUntilSettled<
+    O extends CommonLayoutOptions & SimulationOptions,
+    S extends LayoutStatsBase,
+>(
+    sim: GpuLayoutSimulation<O, S>,
     positions: F32,
     options: FrameLoopOptions,
     maxRounds = 10,

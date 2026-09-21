@@ -17,6 +17,8 @@ import {
     type CorenessResultLike,
     createAccelerator,
     createForceAtlas2,
+    createFruchtermanReingold,
+    createSpringElectrical,
     degree,
     type EdgeScoresResultLike,
     eigenvectorCentrality,
@@ -26,7 +28,10 @@ import {
     type ForceAtlas2Options,
     type ForceAtlas2Stats,
     type ForceAtlas2TraceRecord,
+    FR_DEFAULTS,
     type FruchtermanReingoldOptions,
+    type FruchtermanReingoldStats,
+    type FruchtermanReingoldTraceRecord,
     type GpuAccelerator,
     type GpuCaps,
     GpuContext,
@@ -70,9 +75,12 @@ import {
     type RaisableLimit,
     type RunOptions,
     type ScoresResultLike,
+    SE_DEFAULTS,
     seedPositions,
     type SimulationOptions,
     type SpringElectricalOptions,
+    type SpringElectricalStats,
+    type SpringElectricalTraceRecord,
     type SsspResultLike,
     STORAGE_ALIGN,
     WebGpuGraphError,
@@ -105,6 +113,8 @@ declare const snapshot: GraphSnapshot;
 declare const positions: F32;
 declare const info: GPUAdapterInfo;
 type Fa2Sim = GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+type FrSim = GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
+type SeSim = GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
 
 // ---- errors (contract 3.1): construct, brand-check, narrow a code
 const err = new WebGpuGraphError("E_TOO_LARGE", "needs 3 GiB", {
@@ -172,6 +182,15 @@ expectTypeOf(LAYOUT_TUNING_DEFAULTS.repulsion).toEqualTypeOf<"auto">();
 expectTypeOf(LAYOUT_TUNING_DEFAULTS.compat).toEqualTypeOf<"paper">();
 expectTypeOf(LAYOUT_TUNING_DEFAULTS.exactMaxNodes).toBeNumber();
 expectTypeOf(LAYOUT_TUNING_DEFAULTS.deterministic).toEqualTypeOf<true>();
+// P5: the two model default tables (spec 7.20)
+expectTypeOf(FR_DEFAULTS.k).toEqualTypeOf<null>();
+expectTypeOf(FR_DEFAULTS.iterations).toEqualTypeOf<50>();
+expectTypeOf(FR_DEFAULTS.fixed).toEqualTypeOf<null>();
+expectTypeOf(SE_DEFAULTS.springLength).toEqualTypeOf<10>();
+expectTypeOf(SE_DEFAULTS.springCoefficient).toEqualTypeOf<0.8>();
+expectTypeOf(SE_DEFAULTS.gravity).toEqualTypeOf<-12>();
+expectTypeOf(SE_DEFAULTS.dragCoefficient).toEqualTypeOf<0.9>();
+expectTypeOf(SE_DEFAULTS.timeStep).toEqualTypeOf<0.5>();
 
 // ---- context and capabilities (contract 3.3, 3.5)
 expectTypeOf(GpuContext.probe).parameter(0).toEqualTypeOf<ProbeOptions>();
@@ -292,6 +311,29 @@ expectTypeOf<ForceAtlas2Stats["trace"]>().toEqualTypeOf<ReadonlyArray<ForceAtlas
 expectTypeOf<keyof ForceAtlas2TraceRecord>().toEqualTypeOf<
     "swing" | "traction" | "speed" | "speedEfficiency" | "meanDisplacement" | "settledCount"
 >();
+// P5 (spec 3.3 lines 846-847, 873-874): the two factories, their simulations and stats records
+expectTypeOf(createFruchtermanReingold).parameter(0).toEqualTypeOf<GpuContext>();
+expectTypeOf(createFruchtermanReingold)
+    .parameter(1)
+    .toEqualTypeOf<(FruchtermanReingoldOptions & GpuLayoutTuning) | undefined>();
+expectTypeOf(createFruchtermanReingold).returns.toEqualTypeOf<FrSim>();
+expectTypeOf<FrSim>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf(createSpringElectrical).parameter(0).toEqualTypeOf<GpuContext>();
+expectTypeOf(createSpringElectrical).parameter(1).toEqualTypeOf<(SpringElectricalOptions & GpuLayoutTuning) | undefined>();
+expectTypeOf(createSpringElectrical).returns.toEqualTypeOf<SeSim>();
+expectTypeOf<SeSim>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<FruchtermanReingoldStats>().toMatchTypeOf<LayoutStatsBase>();
+expectTypeOf<FruchtermanReingoldStats["temperature"]>().toBeNumber();
+expectTypeOf<FruchtermanReingoldStats["trace"]>().toEqualTypeOf<ReadonlyArray<FruchtermanReingoldTraceRecord>>();
+expectTypeOf<keyof FruchtermanReingoldTraceRecord>().toEqualTypeOf<"temperature" | "meanDisplacement" | "settledCount">();
+expectTypeOf<SpringElectricalStats>().toMatchTypeOf<LayoutStatsBase>();
+expectTypeOf<SpringElectricalStats["kineticEnergy"]>().toBeNumber();
+expectTypeOf<SpringElectricalStats["trace"]>().toEqualTypeOf<ReadonlyArray<SpringElectricalTraceRecord>>();
+expectTypeOf<keyof SpringElectricalTraceRecord>().toEqualTypeOf<"kineticEnergy" | "meanDisplacement" | "settledCount">();
+expectTypeOf<FrSim["stats"]>().toEqualTypeOf<FruchtermanReingoldStats>();
+expectTypeOf<FrSim["setParams"]>().parameter(0).toEqualTypeOf<Partial<FruchtermanReingoldOptions>>();
+expectTypeOf<SeSim["stats"]>().toEqualTypeOf<SpringElectricalStats>();
+expectTypeOf<SeSim["setParams"]>().parameter(0).toEqualTypeOf<Partial<SpringElectricalOptions>>();
 expectTypeOf<LayoutStatsBase["centroid"]>().toEqualTypeOf<readonly [number, number, number]>();
 expectTypeOf<LayoutStatsBase["repulsionTier"]>().toEqualTypeOf<"exact" | "grid">();
 expectTypeOf<LayoutStatsBase["maxCellOccupancy"]>().toEqualTypeOf<number | null>();
@@ -320,6 +362,11 @@ expectTypeOf<GpuAccelerator["connectedComponents"]>().parameter(1).toEqualTypeOf
 expectTypeOf<GpuAccelerator["connectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().parameter(1).toEqualTypeOf<ComponentsOptions | undefined>();
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
+// the two P5 layout members (spec 3.3 lines 892-893; PD-19): the CPU option type in, the GPU simulation out
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().parameter(0).toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toEqualTypeOf<FrSim>();
+expectTypeOf<GpuAccelerator["springElectrical"]>().parameter(0).toEqualTypeOf<SpringElectricalOptions | undefined>();
+expectTypeOf<GpuAccelerator["springElectrical"]>().returns.toEqualTypeOf<SeSim>();
 expectTypeOf<AcceleratorOptions["layout"]>().toEqualTypeOf<GpuLayoutTuning | undefined>();
 expectTypeOf<ScoresResultLike["scores"]>().toEqualTypeOf<NumericVector>();
 expectTypeOf<PageRankResultLike>().toMatchTypeOf<ScoresResultLike>();
@@ -354,6 +401,8 @@ expectTypeOf<NonNullable<AlgorithmAccelerator["triangleCount"]>>().returns.resol
     readonly total: number;
 }>();
 expectTypeOf<NonNullable<LayoutAccelerator["forceAtlas2"]>>().returns.toEqualTypeOf<LayoutSimulation>();
+expectTypeOf<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>().returns.toEqualTypeOf<LayoutSimulation>();
+expectTypeOf<NonNullable<LayoutAccelerator["springElectrical"]>>().returns.toEqualTypeOf<LayoutSimulation>();
 
 // ---- the two entries by their package names (contract 3.6, 3.7; the dist d.ts shims of 2.6)
 expectTypeOf(probeBrowserWebGpu).parameter(0).toEqualTypeOf<BrowserGpuOptions | undefined>();

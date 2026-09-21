@@ -49,6 +49,34 @@
  * two), the basis of fa2-twins.positions. Every pair is MEASURED (bump) before it is CHECKED (P3-T5): a comparison
  * above its cap still records its row, so a floor above the spec cap surfaces as the validation's "value >= its
  * floor" finding (spec 10.4) rather than as an unrecorded basis row that would abort every derivation.
+ *
+ * P5 members (P5-T4 Step 3; the P5 caps come from test/helpers/fr-parity.ts and se-parity.ts): for the
+ * Fruchterman-Reingold model on the UNSCALED random1k, fa2-attraction / fr-random1k-K2 (K2 under LAW 1, floored
+ * stride-3), fa2-repulsion-exact / fr-random1k-K3 (K3's force; its oracle-f64 row is the basis of fr-force-parity
+ * and fr-force-sum, its twin row of fr-twins.force), fa2-integrate / fr-random1k-K5 (positions), fr-random1k-K5-disp
+ * (the displacement, the G5 quantity), fr-random1k-K5-partials (13 folded values), fa2-to-scene / fr-random1k-toScene,
+ * fa2-stats-finalize / fr-random1k-K1 (the fold of iteration 2 plus the traced temperature); the twin rows of K5, its
+ * partials and K1 feed ONE row, fr-twins.positions.twin (FR has no controller, so no reduction result reaches a
+ * position: the positions are expected bitwise between the twins and the row measures the reductions that fold
+ * them); fa2-integrate / fr-grid10-traj10 (the free-running positions after 10 iterations, on grid10 -- the
+ * worst-conditioned graph the admission rule of fr-trace.test.ts admits at 10; random1k's f32 arithmetic is 3.9e-3
+ * .. 8.8e-3 from the f64 oracle there, above the cap, P5-T4 deviation), fa2-integrate / fr-karate-layout10 (karate
+ * after 10 iterations against @graphty/layout's CPU class, whose values carry the "oracle-f64" class: the CPU class
+ * IS the f64 reference of that member), fa2-integrate / fr-random1k-3d-metrics100 (the layoutMetrics record after
+ * 100 iterations in 3D -- no 2D candidate passes fr-distributional.test.ts's admission rule; the "distributional"
+ * metric uses the member's own key set). For the spring-electrical preset the se-* twins of each with
+ * se-random1k-K5-velocity (the velocity in the oldForce slot, PD-2) added, se-karate-traj10 (karate: the preset is
+ * chaotic on random1k from the unit-square start) and se-karate-metrics100 (karate 2D, the plan's fallback), and no
+ * layout-oracle member (the design's 9.3 table has no CPU spring simulation). Writers: fr-inspect / se-inspect
+ * (adapter + oracle-f64; se-inspect also the -no-subgroups twins), fr-twins (-no-subgroups), fr-trace / se-trace
+ * (traj10), fr-layout-oracle (layout10), fr-distributional / se-distributional (metrics100). fr-force-sum and
+ * se-force-sum have no member: their basis is the force-parity row, as fa2-force-sum's is. The WIDENING members
+ * (P5-T4 Step 5 finding, the states10 precedent): the seven FR and eight spring stages of karate (fr-karate-* /
+ * se-karate-*, whose 34-node sums near zero carry a larger relative noise in the partials, the K1 fold and their
+ * twin comparison than random1k's) and the seven FR stages of random1k under k 0.3 (fr-random1k-k03-*: K3 sums 999
+ * nearly cancelling terms under NVIDIA's 2.5-ulp division, 2e-5 where the k = auto member measured 6e-7, and the
+ * error carries through K5's direction into the displacement, positions and scene) feed the SAME rows, so every
+ * derived FR / spring tolerance covers the configurations its suite asserts.
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -69,15 +97,27 @@ import {
 import { bindingOf, readF32, scratchBuffer, uploadBuffer } from "./helpers/device.js";
 import {
     distributionalValuesError,
+    metricsValues,
     NOISE_FIXTURES,
     noiseMetricsKeys,
     ORACLE_F32_CLASS,
     P3_TOLERANCE_CAPS,
+    type ParityGraph,
+    paritySnapshot,
     resyncOracleClass,
     resyncValuesError,
+    startPositions,
 } from "./helpers/fa2-parity.js";
+import {
+    FR_K03_FIXTURES,
+    FR_KARATE_FIXTURES,
+    FR_NOISE_FIXTURES,
+    type FrNoiseFixtureName,
+    P5_TOLERANCE_CAPS,
+} from "./helpers/fr-parity.js";
 import { KARATE_EDGES, snapshotOf } from "./helpers/graphs.js";
 import { expectBitwiseEqual, flooredRelError, maxRelError } from "./helpers/matchers.js";
+import { layoutMetrics } from "./helpers/metrics.js";
 import {
     adapterClass,
     noiseFloorFor,
@@ -86,6 +126,7 @@ import {
     recordNoiseRow,
     writeNoiseFixture,
 } from "./helpers/noise-floor.js";
+import { SE_KARATE_FIXTURES, SE_NOISE_FIXTURES, SE_TOLERANCE_CAPS } from "./helpers/se-parity.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
 // ---------------------------------------------------------------- the file, the set and the caps
@@ -136,6 +177,8 @@ interface NoiseMember {
      * oracleF32Row rows), and the cross-adapter / twin pairs (free-running paper-mode traces) are printed only.
      */
     readonly resync?: boolean | undefined;
+    /** P5: the metric names of a "distributional" member's values (metricsValues over its own graph); absent: the P3 random1k 2D keys. */
+    readonly keys?: (() => readonly string[]) | undefined;
 }
 
 const NO_ROWS: Readonly<Record<Comparison, string | null>> = { "cross-adapter": null, twin: null, "oracle-f64": null };
@@ -303,7 +346,344 @@ const P3_NOISE_SET: readonly NoiseMember[] = [
     ),
 ];
 
-/** The P1 noise set (contract 5.6, G1: degree, reduce and the FA2 skeleton from every adapter) followed by the P3 set. */
+// ---------------------------------------------------------------- the P5 members (P5-T4)
+
+const P5_FR_STAGE_WRITERS =
+    "test/layouts/fr-inspect.test.ts (adapter + oracle-f64) and test/layouts/fr-twins.test.ts (-no-subgroups)";
+const P5_SE_STAGE_WRITERS = "test/layouts/se-inspect.test.ts (adapter + oracle-f64 and -no-subgroups)";
+const P5_K03_WRITER = "test/layouts/fr-inspect.test.ts (adapter + oracle-f64, k 0.3)";
+
+function p5Member(
+    name: FrNoiseFixtureName,
+    metric: Metric,
+    rows: Readonly<Record<Comparison, string | null>>,
+    tolerances: Readonly<Record<Comparison, string | null>>,
+    writer: string,
+    keys?: () => readonly string[],
+): NoiseMember {
+    return { kernel: name.kernel, fixture: name.fixture, dtype: "f32", metric, rows, tolerances, writer, keys };
+}
+
+/** The metric names of a distributional member (a property of its graph, not of the positions: `separation` is present iff it has two or more components). */
+function metricsKeysOf(graph: ParityGraph, dim: 2 | 3): () => readonly string[] {
+    return () => {
+        const s = paritySnapshot(graph, 1, false);
+        return metricsValues(layoutMetrics(s, startPositions(s, { seed: 7, dim }, false), dim)).keys;
+    };
+}
+
+/** The distributional rows / tolerances of a model: <stem>.cross and <stem>.oracle-f64 / <stem>, no twin. */
+function metricsRows(stem: string): Readonly<Record<Comparison, string | null>> {
+    return { "cross-adapter": `${stem}.cross`, twin: null, "oracle-f64": `${stem}.oracle-f64` };
+}
+
+function metricsTolerances(stem: string): Readonly<Record<Comparison, string | null>> {
+    return { "cross-adapter": `${stem}.cross`, twin: null, "oracle-f64": stem };
+}
+
+/** The P5 noise set (P5-T4 Step 3; the file header): ten FR members, then ten spring members, then the widening members. */
+const P5_NOISE_SET: readonly NoiseMember[] = [
+    p5Member(
+        FR_NOISE_FIXTURES.attraction,
+        "floored-stride3",
+        stageRows("fr-inspect.attraction", null),
+        stageTolerances("fr-inspect.attraction", null),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.force,
+        "floored-stride3",
+        stageRows("fr-force-parity", "fr-twins.force.twin"),
+        stageTolerances("fr-force-parity", "fr-twins.force"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("fr-inspect.positions", "fr-twins.positions.twin"),
+        stageTolerances("fr-inspect.positions", "fr-twins.positions"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.displacement,
+        "floored-stride3",
+        stageRows("fr-displacement", null),
+        stageTolerances("fr-displacement", null),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.partials,
+        "elementwise",
+        stageRows("fr-inspect.partials", "fr-twins.positions.twin"),
+        stageTolerances("fr-inspect.partials", "fr-twins.positions"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.scene,
+        "floored-stride3",
+        stageRows("fr-inspect.scene", null),
+        stageTolerances("fr-inspect.scene", null),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.k1,
+        "elementwise",
+        stageRows("fr-inspect.k1", "fr-twins.positions.twin"),
+        stageTolerances("fr-inspect.k1", "fr-twins.positions"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.traj10,
+        "floored-stride3",
+        stageRows("fr-trajectory", null),
+        stageTolerances("fr-trajectory", null),
+        "test/layouts/fr-trace.test.ts (adapter + oracle-f64)",
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.layout10,
+        "floored-stride3",
+        stageRows("fr-layout-oracle", null),
+        stageTolerances("fr-layout-oracle", null),
+        "test/layouts/fr-layout-oracle.test.ts (adapter + the CPU class as oracle-f64)",
+    ),
+    p5Member(
+        FR_NOISE_FIXTURES.metrics100,
+        "distributional",
+        metricsRows("fr-distributional"),
+        metricsTolerances("fr-distributional"),
+        "test/layouts/fr-distributional.test.ts (adapter + oracle-f64)",
+        metricsKeysOf("random1k", 3),
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.attraction,
+        "floored-stride3",
+        stageRows("se-inspect.attraction", null),
+        stageTolerances("se-inspect.attraction", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.force,
+        "floored-stride3",
+        stageRows("se-force-parity", "se-twins.force.twin"),
+        stageTolerances("se-force-parity", "se-twins.force"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("se-inspect.positions", "se-twins.positions.twin"),
+        stageTolerances("se-inspect.positions", "se-twins.positions"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.velocity,
+        "floored-stride3",
+        stageRows("se-inspect.velocity", null),
+        stageTolerances("se-inspect.velocity", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.displacement,
+        "floored-stride3",
+        stageRows("se-displacement", null),
+        stageTolerances("se-displacement", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.partials,
+        "elementwise",
+        stageRows("se-inspect.partials", "se-twins.positions.twin"),
+        stageTolerances("se-inspect.partials", "se-twins.positions"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.scene,
+        "floored-stride3",
+        stageRows("se-inspect.scene", null),
+        stageTolerances("se-inspect.scene", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.k1,
+        "elementwise",
+        stageRows("se-inspect.k1", "se-twins.positions.twin"),
+        stageTolerances("se-inspect.k1", "se-twins.positions"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.traj10,
+        "floored-stride3",
+        stageRows("se-trajectory", null),
+        stageTolerances("se-trajectory", null),
+        "test/layouts/se-trace.test.ts (adapter + oracle-f64)",
+    ),
+    p5Member(
+        SE_NOISE_FIXTURES.metrics100,
+        "distributional",
+        metricsRows("se-distributional"),
+        metricsTolerances("se-distributional"),
+        "test/layouts/se-distributional.test.ts (adapter + oracle-f64)",
+        metricsKeysOf("karate", 2),
+    ),
+    // the widening members (P5-T4 Step 5 finding; the FA2 precedent of states10): karate's seven / eight stages and
+    // K3 under k 0.3 on random1k feed the SAME rows as the random1k members, so every floor covers both geometries
+    p5Member(
+        FR_KARATE_FIXTURES.attraction,
+        "floored-stride3",
+        stageRows("fr-inspect.attraction", null),
+        stageTolerances("fr-inspect.attraction", null),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_KARATE_FIXTURES.force,
+        "floored-stride3",
+        stageRows("fr-force-parity", "fr-twins.force.twin"),
+        stageTolerances("fr-force-parity", "fr-twins.force"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_KARATE_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("fr-inspect.positions", "fr-twins.positions.twin"),
+        stageTolerances("fr-inspect.positions", "fr-twins.positions"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_KARATE_FIXTURES.displacement,
+        "floored-stride3",
+        stageRows("fr-displacement", null),
+        stageTolerances("fr-displacement", null),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_KARATE_FIXTURES.partials,
+        "elementwise",
+        stageRows("fr-inspect.partials", "fr-twins.positions.twin"),
+        stageTolerances("fr-inspect.partials", "fr-twins.positions"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_KARATE_FIXTURES.scene,
+        "floored-stride3",
+        stageRows("fr-inspect.scene", null),
+        stageTolerances("fr-inspect.scene", null),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_KARATE_FIXTURES.k1,
+        "elementwise",
+        stageRows("fr-inspect.k1", "fr-twins.positions.twin"),
+        stageTolerances("fr-inspect.k1", "fr-twins.positions"),
+        P5_FR_STAGE_WRITERS,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.attraction,
+        "floored-stride3",
+        stageRows("fr-inspect.attraction", null),
+        stageTolerances("fr-inspect.attraction", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.force,
+        "floored-stride3",
+        stageRows("fr-force-parity", null),
+        stageTolerances("fr-force-parity", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("fr-inspect.positions", null),
+        stageTolerances("fr-inspect.positions", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.displacement,
+        "floored-stride3",
+        stageRows("fr-displacement", null),
+        stageTolerances("fr-displacement", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.partials,
+        "elementwise",
+        stageRows("fr-inspect.partials", null),
+        stageTolerances("fr-inspect.partials", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.scene,
+        "floored-stride3",
+        stageRows("fr-inspect.scene", null),
+        stageTolerances("fr-inspect.scene", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        FR_K03_FIXTURES.k1,
+        "elementwise",
+        stageRows("fr-inspect.k1", null),
+        stageTolerances("fr-inspect.k1", null),
+        P5_K03_WRITER,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.attraction,
+        "floored-stride3",
+        stageRows("se-inspect.attraction", null),
+        stageTolerances("se-inspect.attraction", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.force,
+        "floored-stride3",
+        stageRows("se-force-parity", "se-twins.force.twin"),
+        stageTolerances("se-force-parity", "se-twins.force"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("se-inspect.positions", "se-twins.positions.twin"),
+        stageTolerances("se-inspect.positions", "se-twins.positions"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.velocity,
+        "floored-stride3",
+        stageRows("se-inspect.velocity", null),
+        stageTolerances("se-inspect.velocity", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.displacement,
+        "floored-stride3",
+        stageRows("se-displacement", null),
+        stageTolerances("se-displacement", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.partials,
+        "elementwise",
+        stageRows("se-inspect.partials", "se-twins.positions.twin"),
+        stageTolerances("se-inspect.partials", "se-twins.positions"),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.scene,
+        "floored-stride3",
+        stageRows("se-inspect.scene", null),
+        stageTolerances("se-inspect.scene", null),
+        P5_SE_STAGE_WRITERS,
+    ),
+    p5Member(
+        SE_KARATE_FIXTURES.k1,
+        "elementwise",
+        stageRows("se-inspect.k1", "se-twins.positions.twin"),
+        stageTolerances("se-inspect.k1", "se-twins.positions"),
+        P5_SE_STAGE_WRITERS,
+    ),
+];
+
+/** The P1 noise set (contract 5.6, G1: degree, reduce and the FA2 skeleton from every adapter) followed by the P3 and P5 sets. */
 const NOISE_SET: readonly NoiseMember[] = [
     {
         kernel: "degree",
@@ -368,9 +748,10 @@ const NOISE_SET: readonly NoiseMember[] = [
         writer: "test/layouts/skeleton.test.ts",
     },
     ...P3_NOISE_SET,
+    ...P5_NOISE_SET,
 ];
 
-/** Every tolerance the file carries: the spec cap it is derived under and the row it is derived from (the P1 entries, then the P3 caps of test/helpers/fa2-parity.ts, one table, never retyped). */
+/** Every tolerance the file carries: the spec cap it is derived under and the row it is derived from (the P1 entries, then the P3 caps of test/helpers/fa2-parity.ts and the P5 caps of fr-parity.ts / se-parity.ts, one table, never retyped). */
 const TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly basis: string }>> = {
     "fa2-skeleton.force": { cap: 1e-5, basis: "fa2-skeleton.force.oracle-f64" },
     "fa2-skeleton.trace": { cap: 1e-5, basis: "fa2-skeleton.trace.oracle-f64" },
@@ -379,6 +760,8 @@ const TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly b
     "fa2-skeleton.force.cross": { cap: 1e-5, basis: "fa2-skeleton.force.cross" },
     "fa2-skeleton.trace.cross": { cap: 1e-5, basis: "fa2-skeleton.trace.cross" },
     ...P3_TOLERANCE_CAPS,
+    ...P5_TOLERANCE_CAPS,
+    ...SE_TOLERANCE_CAPS,
 };
 
 interface NoiseAdapter {
@@ -464,7 +847,12 @@ interface PairError {
     readonly mismatches: number;
 }
 
-function pairError(metric: Metric, a: ArrayLike<number>, b: ArrayLike<number>): PairError {
+function pairError(
+    metric: Metric,
+    a: ArrayLike<number>,
+    b: ArrayLike<number>,
+    keys?: () => readonly string[],
+): PairError {
     expect(a.length, "the two fixtures hold the same number of values").toBe(b.length);
     let abs = 0;
     let mismatches = 0;
@@ -488,8 +876,13 @@ function pairError(metric: Metric, a: ArrayLike<number>, b: ArrayLike<number>): 
             };
         case "distributional":
             // the ONE implementation of the metrics100 comparison (test/helpers/fa2-parity.ts): the values are in
-            // the sorted key order of metricsValues(), reconstructed from the member's own graph
-            return { rel: distributionalValuesError(noiseMetricsKeys(), a, b), abs, mismatches };
+            // the sorted key order of metricsValues(), reconstructed from the member's own graph (the P3 random1k
+            // 2D keys unless the member names its own, P5)
+            return {
+                rel: distributionalValuesError(keys === undefined ? noiseMetricsKeys() : keys(), a, b),
+                abs,
+                mismatches,
+            };
         case "resync-trace":
             // the ONE implementation of the re-synchronised comparison (test/helpers/fa2-parity.ts): b is the oracle
             return { rel: resyncValuesError(a, b), abs, mismatches };
@@ -842,7 +1235,7 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
             const resync = member.resync === true;
             for (let i = 0; i < adapters.length; i++) {
                 for (let j = i + 1; j < adapters.length; j++) {
-                    const err = pairError(member.metric, adapters[i].values, adapters[j].values);
+                    const err = pairError(member.metric, adapters[i].values, adapters[j].values, member.keys);
                     console.warn(
                         `[noise-floor] ${label} cross ${adapters[i].adapterClass} vs ${adapters[j].adapterClass}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)}${resync ? " (free-running paper-mode traces: informational, G3-F3)" : ""}`,
                     );
@@ -874,7 +1267,7 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
                 if (twin === undefined || (member.rows.twin === null && !resync)) {
                     continue;
                 }
-                const err = pairError(member.metric, adapter.values, twin.values);
+                const err = pairError(member.metric, adapter.values, twin.values, member.keys);
                 console.warn(
                     `[noise-floor] ${label} twin ${adapter.adapterClass}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)}${resync ? " (free-running paper-mode traces: informational, G3-F3)" : ""}`,
                 );
@@ -909,7 +1302,7 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
                             `${label}: the ${oracleClass} fixture is missing (${member.writer} writes it under GRAPHTY_NOISE_FLOOR_WRITE=1)`,
                         );
                     }
-                    const err = pairError(member.metric, adapter.values, oracle.values);
+                    const err = pairError(member.metric, adapter.values, oracle.values, member.keys);
                     console.warn(
                         `[noise-floor] ${label} ${oracleClass} vs ${adapter.adapterClass}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)}`,
                     );
@@ -938,7 +1331,7 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
                             `${label}: the ${oracleClass} fixture is missing (${member.writer} writes it under GRAPHTY_NOISE_FLOOR_WRITE=1)`,
                         );
                     }
-                    const err = pairError(member.metric, adapter.values, f32.values);
+                    const err = pairError(member.metric, adapter.values, f32.values, member.keys);
                     console.warn(
                         `[noise-floor] ${label} ${oracleClass} vs ${adapter.adapterClass}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)}`,
                     );

@@ -31,7 +31,9 @@ import {
     ladderRowsOf,
     type LadderRung,
     LAYOUT_EXACT_GROUP,
+    reportedRow,
 } from "../benchmarks/layout-exact.bench.js";
+import { FR_RUNGS, LAYOUT_FR_GROUP } from "../benchmarks/layout-fr.bench.js";
 import { checkLayoutResult, parseLayoutRunArgs } from "../benchmarks/layout-run.js";
 
 /** A device whose queue settles immediately: bench() only awaits onSubmittedWorkDone on it. */
@@ -532,6 +534,46 @@ describe("benchmarks/layout-exact.bench.ts (contract 6.3; spec 7.8, 10.4 T-4)", 
             { n: 32768, msPerIteration: 3.5 },
         ]);
         expect(ladderRowsOf([])).toEqual([]);
+    });
+});
+
+describe("benchmarks/layout-fr.bench.ts (spec 10.4 T-14; PD-17)", () => {
+    it("the group is layout-fr and its rungs are 10k and 100k", () => {
+        expect(LAYOUT_FR_GROUP).toBe("layout-fr");
+        expect(FR_RUNGS.map((r) => r.nodes)).toEqual([10_000, 100_000]);
+        expect(FR_RUNGS.map((r) => r.label)).toEqual(["10k", "100k"]);
+    });
+
+    it("the four row-name shapes carry the model tag, the source and the rung label", () => {
+        const wall = /^(fr|se) step\(1\) wall n=(\d+) m=(\d+) 2D \[(10k|100k)\]$/;
+        const perIteration = /^(fr|se) ms\/iteration \((profiler|wall)\) n=(\d+) \[(10k|100k)\]$/;
+        for (const rung of FR_RUNGS) {
+            const m = rung.nodes * LADDER_EDGE_FACTOR;
+            for (const tag of ["fr", "se"]) {
+                expect(`${tag} step(1) wall n=${rung.nodes} m=${m} 2D [${rung.label}]`).toMatch(wall);
+                expect(`${tag} ms/iteration (profiler) n=${rung.nodes} [${rung.label}]`).toMatch(perIteration);
+                expect(`${tag} ms/iteration (wall) n=${rung.nodes} [${rung.label}]`).toMatch(perIteration);
+            }
+        }
+        // the layout-exact rows do not match the tagged shapes and vice versa
+        expect("step(1) wall n=10000 m=100000 2D [10k]").not.toMatch(wall);
+        expect("fr step(1) wall n=10000 m=100000 2D [10k]").not.toMatch(/^step\(1\) wall /);
+    });
+
+    it("reportedRow records the group it is given", () => {
+        const samples = [9, 3, 1, 2];
+        const row = reportedRow(LAYOUT_FR_GROUP, "fr ms/iteration (profiler) n=10000 [10k]", samples, 3, 10, "pairs");
+        expect(row.group).toBe(LAYOUT_FR_GROUP);
+        expect(row.name).toBe("fr ms/iteration (profiler) n=10000 [10k]");
+        // the warm-up sample (the first) is dropped
+        expect(row.medianMs).toBe(2);
+        expect(row.minMs).toBe(1);
+        expect(row.maxMs).toBe(3);
+        expect(row.runs).toBe(3);
+        expect(row.rateUnit).toBe("pairs/s");
+        expect(reportedRow(LAYOUT_EXACT_GROUP, "x", samples, 3, 10, "pairs").group).toBe(LAYOUT_EXACT_GROUP);
+        expect(() => reportedRow(LAYOUT_FR_GROUP, "x", [1, 2], 3, 10, "pairs")).toThrow(/expected 4 samples/);
+        expect(() => reportedRow(LAYOUT_FR_GROUP, "x", [1, Number.NaN, 2, 3], 3, 10, "pairs")).toThrow(/non-finite/);
     });
 });
 

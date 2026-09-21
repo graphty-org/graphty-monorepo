@@ -109,271 +109,386 @@ done
 # ---------------------------------------------------------------------------
 # THE PLAN.
 #
-# One entry per commit, in the order they are made. The order is a build order:
-# the dependency before the code that imports it, the library before the app, the
-# shell before the deletion of the shell it supersedes, tooling last.
+# One entry per commit, in the order they are made. This change set is the
+# graphty-element 2.0 major: the extension points, the edge model, weighted
+# layouts, pin state, the entry-point split and the application that consumes
+# all of it. The register every BREAKING CHANGE footer below answers to is
+# design/element-api/element-api-migration.md.
+#
+# ORDER IS LOAD-BEARING HERE, in a way it was not for the change set before.
+# Several steps claim a directory that an earlier step has already emptied --
+# [importers] takes graphty-element/src/data after [edges] has committed the
+# four files in it that belong to the edge model, and [element] takes
+# src/config after [edges] and [styles] have taken three files out of it.
+# `git add` on a directory adds whatever is still dirty under it, so an earlier
+# step having already committed a file makes the later `git add` a no-op for
+# that file. Reordering these steps silently changes which commit a file lands
+# in. The per-step preview in --dry-run is the check: read it.
+#
+# WHAT THESE COMMITS ARE NOT. This is one long-lived branch whose five or six
+# threads of work interleave in the same files -- DataManager.ts alone carries
+# endpoint resolution, edge identity, repeat policy and incident-edge removal.
+# The commits are therefore coherent by SUBJECT and are not individually
+# bisectable: the tree is green at the end of the sequence, not necessarily in
+# the middle of it. Splitting them further would mean splitting files, which
+# means `git add -p` and a human deciding hunk by hunk. Say so rather than
+# implying a bisect that does not work.
 #
 # PATHS entries are space-separated pathspecs (no path in this repository has a
 # space in it, so the word splitting below is deliberate). A directory pathspec
-# takes everything under it, which is what makes the 134-file shell one entry --
-# ignored files under it (the __screenshots__ directories) are not added, because
-# `git add` without -f leaves ignored paths alone and the preview below uses
+# takes everything under it -- ignored files are not added, because `git add`
+# without -f leaves ignored paths alone and the preview uses
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(repaint meshes shapes lines theme metrics loaddata results legend panels inspector canvas spec tooling)
+STEPS=(errors catalog extend logging camera styles edges importers layout session element packaging tests app docs tooling)
 
 declare -A SUBJECTS=(
-    [repaint]="fix(graphty-element): make load mean load, so a removed layer stops painting"
-    [meshes]="fix(graphty-element): reattach edges on a shape change and dispose what a dataset leaves"
-    [shapes]="feat(graphty-element): export the shape enum, add the torus it already builds, paint gradients"
-    [lines]="perf(graphty-element): bound the patterned-line mesh count and restore culling"
-    [theme]="feat(compact-mantine): disabled reasons, bound toggles, and one colour change per gesture"
-    [metrics]="feat(graphty): rank nodes by degree, PageRank and betweenness, and read the result back"
-    [loaddata]="fix(graphty): surface a load that failed instead of reporting success"
-    [results]="feat(graphty): give the Analyze Results tab a body"
-    [legend]="fix(graphty): stop offering a legend that cannot draw"
-    [panels]="feat(graphty): one sidebar switch, no latch, no autohide, no narrow layout"
-    [inspector]="feat(graphty): rebuild the style inspector and show computed channels"
-    [canvas]="fix(graphty): inset the canvas overlays so the data table and legend are visible"
-    [spec]="docs(workspace): record the panel model that replaced the latch"
-    [tooling]="chore(tools): re-point the commit script at this change set"
+    [errors]="feat(graphty-element): add the error codes the new refusals report"
+    [catalog]="feat(graphty-element)!: register palettes, formats, cameras, layouts and log sinks"
+    [extend]="feat(graphty-element)!: publish the algorithm base classes a plugin needs"
+    [logging]="feat(graphty-element)!: move the logger to its own entry point"
+    [camera]="feat(graphty-element)!: make a named camera view something a third party can add"
+    [styles]="feat(graphty-element)!: scope what an algorithm's layer paints, and register palettes"
+    [edges]="feat(graphty-element)!: name edge endpoints source and target, and give every edge its own id"
+    [importers]="feat(graphty-element)!: let a file declare its own direction"
+    [layout]="feat(graphty-element)!: give the layouts edge weights and keep a reader's pins"
+    [session]="feat(graphty-element)!: answer from the session what a consumer was computing itself"
+    [element]="feat(graphty-element)!: settle the custom element's attributes and events"
+    [packaging]="build(graphty-element)!: publish an exports map without sourcemaps or a CommonJS entry"
+    [tests]="test(graphty-element): drive a dummy extension through everything a built-in does"
+    [app]="refactor(graphty): read the element's answers instead of recomputing them"
+    [docs]="docs(graphty-element): document the extension points, the edge model and the entry points"
+    [tooling]="chore(tools): re-point the commit script at the 2.0 change set"
 )
 
 declare -A PATHS=(
-    [repaint]="graphty-element/src/ChangeManager.ts graphty-element/src/Styles.ts graphty-element/test/change-manager.test.ts graphty-element/test/calculated-style.test.ts graphty-element/test/style-helpers/edge-calculated-styles.test.ts"
-    [meshes]="graphty-element/src/Node.ts graphty-element/src/Edge.ts graphty-element/src/managers/DataManager.ts graphty-element/src/meshes/NodeEffects.ts graphty-element/test/node-shape-edge-reattach.test.ts graphty-element/test/browser/scene-teardown.test.ts"
-    [shapes]="graphty-element/src/config/NodeStyle.ts graphty-element/src/config/index.ts graphty-element/index.ts graphty-element/src/meshes/NodeMesh.ts graphty-element/test/node-mesh-gradient.test.ts graphty-element/test/browser/node-mesh-gradient.test.ts graphty/src/constants/style-options.ts graphty/src/constants/__tests__/style-options.test.ts graphty/src/utils/styleBridge.ts graphty/src/utils/__tests__/styleBridge.test.ts"
-    [lines]="graphty-element/src/meshes/PatternedLineMesh.ts graphty-element/src/meshes/PatternedLineRenderer.ts graphty-element/src/meshes/FilledArrowRenderer.ts graphty-element/src/constants/meshConstants.ts graphty-element/test/patterned-line-mesh-count.test.ts graphty-element/test/meshes/FilledArrowRenderer.test.ts"
-    [theme]="compact-mantine/src compact-mantine/tests"
-    [metrics]="graphty/src/components/shell/insights graphty/src/components/shell/analysis graphty/src/components/shell/readings/nodeMetricReading.ts graphty/src/components/shell/readings/__tests__/nodeMetricReading.test.ts graphty/src/components/shell/defaults/nodeMetricStyle.ts graphty/src/components/shell/defaults/__tests__/nodeMetricStyle.test.ts graphty/src/components/shell/inspector/ResultInspector.tsx graphty/src/components/shell/inspector/__tests__/ResultInspector.test.tsx"
-    [loaddata]="graphty/src/components/LoadDataModal.tsx graphty/src/components/__tests__/LoadDataModal.test.tsx"
-    [results]="graphty/src/components/shell/panel/AnalyzePanel.tsx graphty/src/components/shell/panel/AnalyzeResultCard.tsx graphty/src/components/shell/panel/__tests__/AnalyzePanel.test.tsx graphty/src/components/shell/readings"
-    [legend]="graphty/src/components/shell/canvas/legendAvailability.ts graphty/src/components/shell/canvas/__tests__/legendAvailability.test.ts graphty/src/components/shell/toolbar graphty/src/components/shell/panel/StylePanel.tsx graphty/src/components/shell/panel/__tests__/StylePanel.test.tsx"
-    [panels]="graphty/src/components/shell/AppShell.tsx graphty/src/components/shell/__tests__/ShellContext.test.tsx graphty/src/components/shell/ShellContext.tsx graphty/src/components/shell/types.ts graphty/src/components/shell/constants.ts graphty/src/components/shell/bindings.ts graphty/src/components/shell/useShellKeyBindings.ts graphty/src/components/shell/graphCommands.ts graphty/src/components/shell/CommandPalette.tsx graphty/src/components/shell/topbar graphty/src/components/shell/rail graphty/src/components/shell/statusbar graphty/src/components/shell/panel graphty/src/components/shell/__tests__ graphty/src/components/shell/defaults graphty/src/App.tsx graphty/src/App.test.tsx"
-    [inspector]="graphty/src/components/sidebar graphty/src/components/layout graphty/src/hooks graphty/src/components/__tests__ graphty/src/components/shell/inspector"
-    [canvas]="graphty/src/components/shell/canvas"
-    [spec]="design/ui"
-    [tooling]="tools/commit-changes.sh design/graph-format"
+    [errors]="graphty-element/src/errors/codes.ts graphty-element/test/errors"
+    [catalog]="graphty-element/src/catalog graphty-element/catalog.ts graphty-element/test/catalog"
+    [extend]="graphty-element/extend.ts graphty-element/src/algorithms graphty-element/test/algorithms graphty-element/test/browser/algorithm-extension.test.ts graphty-element/test/browser/plugin-algorithm.test.ts"
+    [logging]="graphty-element/logging.ts graphty-element/src/logging graphty-element/test/logging graphty-element/test/browser/logging-extension.test.ts"
+    [camera]="graphty-element/src/camera graphty-element/src/screenshot graphty-element/test/browser/camera-extension.test.ts graphty-element/test/browser/camera-presets-2d.test.ts graphty-element/test/browser/camera-presets-3d.test.ts graphty-element/test/browser/camera-presets-user-defined.test.ts graphty-element/test/browser/camera-animation-2d.test.ts graphty-element/test/browser/2d-camera-controls.test.ts graphty-element/test/browser/3d-camera-controls.test.ts"
+    [styles]="graphty-element/src/session/styles graphty-element/src/Styles.ts graphty-element/src/config/GraphStyle.ts graphty-element/src/config/StyleTemplate.ts graphty-element/test/styles.test.ts graphty-element/test/browser/style-layers.test.ts graphty-element/test/browser/style-paint-pixels.test.ts graphty-element/test/browser/session-style-paint.test.ts graphty-element/test/browser/palette-extension.test.ts"
+    [edges]="graphty-element/src/Edge.ts graphty-element/src/data/endpoints.ts graphty-element/src/data/edgeIdentity.ts graphty-element/src/data/report.ts graphty-element/src/config/DataConfig.ts graphty-element/src/managers/DataManager.ts graphty-element/test/data/endpoints.test.ts graphty-element/test/managers/DataManager.test.ts graphty-element/test/browser/edge-endpoints.test.ts graphty-element/test/browser/edge-id-space.test.ts graphty-element/test/browser/parallel-edges.test.ts graphty-element/test/browser/incident-edge-removal.test.ts graphty-element/test/integration/Edge.integration.test.ts"
+    [importers]="graphty-element/src/data graphty-element/test/data graphty-element/test/helpers/corpus graphty-element/test/browser/declared-direction.test.ts graphty-element/test/browser/format-extension.test.ts graphty-element/test/browser/graph-load-from-file.test.ts graphty-element/test/browser/graph-load-from-url.test.ts graphty-element/test/browser/seeded-node-count.test.ts"
+    [layout]="graphty-element/src/layout graphty-element/src/managers/LayoutManager.ts graphty-element/src/Node.ts graphty-element/src/NodeBehavior.ts graphty-element/test/layout graphty-element/test/interactions graphty-element/test/browser/element-pin.test.ts graphty-element/test/browser/node-behavior.test.ts graphty-element/test/browser/NodeBehavior-unified-drag.test.ts graphty-element/test/browser/layout-extension.test.ts"
+    [session]="graphty-element/src/session graphty-element/session.ts graphty-element/test/session"
+    [element]="graphty-element/src/Graph.ts graphty-element/src/graphty-element.ts graphty-element/src/events.ts graphty-element/index.ts graphty-element/schema.ts graphty-element/ai.ts graphty-element/src/ai graphty-element/src/managers graphty-element/src/meshes graphty-element/src/config graphty-element/test/ai graphty-element/test/graphty-element graphty-element/test/browser/element-ignores-url-params.test.ts graphty-element/test/browser/data-attributes.test.ts graphty-element/test/browser/event-forwarding.test.ts graphty-element/test/browser/node-events-reach-consumers.test.ts graphty-element/test/browser/background-attribute.test.ts"
+    [packaging]="graphty-element/package.json graphty-element/scripts graphty-element/vite.config.ts graphty-element/tsconfig.build.json graphty-element/typedoc.json graphty-element/test/packaging knip.config.ts"
+    [tests]="graphty-element/test graphty-element/stories graphty-element/.storybook"
+    [app]="graphty/src graphty/vite.config.ts graphty/tsconfig.json"
+    [docs]="graphty-element/docs graphty-element/README.md graphty-element/AGENTS.md graphty-element/CLAUDE.md design"
+    [tooling]="tools/commit-changes.sh"
 )
 
 # ---------------------------------------------------------------------------
-# The message bodies. One function each, a quoted heredoc so backticks, `$` and
-# `${...}` in the prose stay literal. Keep every line at or under 100 characters:
-# that is commitlint's body-max-line-length, and it is checked before staging.
+# One body per step. Written for someone reading `git log` a year from now with
+# none of this conversation: say what changed and why it had to, not what the
+# work was like. A BREAKING CHANGE footer is what semantic-release reads to cut
+# the major, and for the behaviour changes it is the ONLY place the change is
+# announced -- those commits otherwise look like ordinary fixes.
 # ---------------------------------------------------------------------------
 
-body_repaint() {
+body_errors() {
     cat <<'BODY'
-loadCalculatedValues cleared watchedInputs and not calculatedValues, so the set
-only ever grew. A layer removed from the StyleManager kept its calculated value
-registered, runAllCalculatedValues re-ran it on every repaint, and Node.update
-merges styleUpdates OVER the base style -- so a deleted layer's colour beat the
-layer that replaced it, for the life of the loaded graph.
+Codes for the refusals the element had no way to report: an unresolvable edge
+endpoint pair, an unknown palette, camera view, log sink or format, a duplicate
+plugin registration, an unknown option and an option out of range.
 
-Running Groups after Most connected was the visible case: the layer list, the
-reading and the legend all switched to groups while every node pixel stayed the
-degree ramp's viridis. Measured against the built app, 10 of 10 sampled node
-pixels were byte-identical across the two runs; 187 of 187 now change.
-
-Styles pushes calculated values in layer order rather than unshifting, so the
-last to run is the top layer -- the precedence the static merge already had.
+The code is the contract a consumer switches on; the message is for people and
+may be reworded in any release. Every refusal added in this release reports one
+of these rather than a plain Error whose text a caller would have to match on.
 BODY
 }
 
-body_meshes() {
+body_catalog() {
     cat <<'BODY'
-Edge.update kept a position dirty check and returned before re-shooting its ray,
-so an edge only reattached when an endpoint MOVED. A shape change at constant
-size moved nothing, and the edge stayed anchored to geometry that was gone.
+Six things can now be brought to the element from outside: a palette, a file
+format, a camera view, a layout, an algorithm and a log destination. Each
+registers globally, appears in session.catalog beside the element's own, and is
+addressable by the key a consumer types and a saved document records.
 
-This was a regression, not a gap: 973f1d96 (2025-11-11) added the check, and
-before it update() called transformArrowCap unconditionally every frame. The one
-invalidation hook that existed, a2cb98c5, keys off size, because it was written
-for selection.
+Every catalogue table composes the built-ins with whatever registered, and
+returns the built-in array itself while nothing has -- so two sessions that
+agree about what the element can do still compare equal.
 
-Glow was never drawn: inclusion has to name the instance's SOURCE mesh, because
-Babylon's effect layer asks hasMesh(subMesh.getRenderingMesh()). The layer is
-created with excludeByDefault, since an empty inclusion list means every mesh.
+One option mechanism replaces three. An extension declares OptionDescriptor[],
+the plain-JSON type the catalogue already published, and the element validates
+against it. An algorithm used to declare its options twice, in two vocabularies
+that did not correspond and that nothing cross-checked.
 
-Arrowheads, patterned-line segments and labels are parented to graph-root, which
-outlives a dataset, so a replacing load left orphans where old edges converged.
+BREAKING CHANGE: session.catalog tables are composed rather than frozen
+built-in arrays, and the descriptor lookups search registrations as well as
+built-ins. OptionsSchema and resolveOptions are deprecated in favour of
+OptionDescriptor[] and resolveOptionValues.
 BODY
 }
 
-body_shapes() {
+body_extend() {
     cat <<'BODY'
-The editor offered Plane and Disc, which the element cannot build, and hid
-twelve shapes it can. Selecting Plane silently drew a box.
+./extend publishes DeclaredAlgorithm, the base class the element's own
+centralities use, with the result vocabulary a plugin needs to publish a typed
+result: AlgorithmOutput, AlgorithmRunContext, ResultFieldSpec and the field-spec
+builders.
 
-Plane and Disc are removed rather than implemented: CreatePlane makes a
-zero-thickness single-sided quad, so half the graph would face away and vanish,
-it disappears edge-on, and edge attachment is ray-vs-bounding-sphere, so every
-edge touching one would detach.
+A third party's algorithm now gets what a built-in gets -- progress,
+cancellation, a cost estimate before the click, a ranking, a histogram, a
+plain-language reading and a picture derived from its shape. Before this a
+plugin could be registered and called but could not be started as a run at all,
+because the run machinery resolves a key through the catalogue and the
+catalogue was a frozen table of the element's own twenty.
 
-Torus is added to the enum instead of removed from the editor, because NodeMesh
-already registers a working CreateTorus and only the zod enum omitted it.
-
-The editor's option list is DERIVED from the element's exported enum, with a
-round-trip assertion, so the next drift is a build failure rather than a control
-that lies about what it will draw.
+BREAKING CHANGE: edgeResultId is not published. An endpoint pair is a lookup
+key and not an identity -- it cannot name one of two parallel edges -- so a
+per-edge result row carries the id the element minted for that edge.
 BODY
 }
 
-body_lines() {
+body_logging() {
     cat <<'BODY'
-A dotted line built one mesh per dash with no cap, so the segment count scaled
-with edge length over dash pitch: narrowing the width to 1 shrank the pitch and
-the mesh count went UP. Each dash also took its own ShaderMaterial, and culling
-was switched off wholesale with alwaysSelectAsActiveMesh.
+@graphty/graphty-element/logging is the one address for the logger, the levels,
+the record, both shipped destinations and the lazy helper. It resolves with no
+Babylon, no Lit and no DOM in its import graph, so a consumer can route the
+element's logs to their own collector from Node, a worker or a test without
+loading a renderer.
 
-The count is bounded, materials are released with the meshes that own them, and
-culling stays on -- the arrowhead path sizes its bounding volume to what the
-shader actually draws instead of opting out of the frustum test.
+A log destination is also registered under a name, so a configuration object
+can say which one to use and stored settings round-trip it. A destination
+reachable only by holding a live object has no key, no config field and nothing
+a settings panel could write down.
+
+BREAKING CHANGE: the root barrel no longer exports the 23 logging symbols;
+import them from @graphty/graphty-element/logging. The seven colour-vision
+helpers move to @graphty/graphty-element/schema, beside the palettes whose
+colorblindSafe flag is computed from them.
 BODY
 }
 
-body_theme() {
+body_camera() {
     cat <<'BODY'
-The style inspector needs three things no compact control could express: a
-disabled control that states its reason, a control bound to a computed value
-that says so rather than showing an editable default, and a colour change that
-arrives as one gesture instead of a stream of partial values.
+A camera view is a descriptor plus a pure function from the graph's bounds, the
+drawing mode and the viewport to a camera state. The element's own five are
+five registrations of that shape, so a third party's view is applied,
+catalogued, animated and queued by exactly the same path.
 
-They land in the library rather than at the call site, so every caller gets them
-and the app can delete its forked colour input.
+A view declares which drawing modes it supports, so a picker never offers one
+that cannot work in the current mode and the element refuses before calling it
+rather than throwing from inside a switch.
+
+BREAKING CHANGE: BUILTIN_PRESETS is no longer exported; camera views are
+catalogue data reached through session.catalog. Three ScreenshotErrorCode
+members are removed -- CAMERA_PRESET_NOT_FOUND, CAMERA_PRESET_NOT_AVAILABLE_IN_2D
+and CANNOT_OVERWRITE_BUILTIN_PRESET -- because camera failures are now
+GraphtyErrors carrying E_UNKNOWN_CAMERA, E_UNSUPPORTED and E_PROTECTED.
 BODY
 }
 
-body_metrics() {
+body_styles() {
     cat <<'BODY'
-Three capabilities the Analyze panel drew but could not run: Most connected
-(degree), Influence (PageRank) and Bridges (betweenness). Each now runs, ranks
-every node, writes a plain-language reading and a one-line run record, and
-applies a viridis colour layer once on first completion.
+An algorithm's suggested layer writes only to the nodes and edges its own
+result carries a value for. A layer with an empty selector ran its calculated
+value over every element, and calculated values are last-writer-wins, so one
+algorithm erased every algorithm beneath it -- which defeats the point of
+stacking layers at all.
 
-The ranking carries the element's own node id rather than a printed copy.
-Karate Club and College football are GML, whose ids are numbers, so comparing a
-printed id against a real one selected nothing at all on two of three samples.
+A palette can be registered, and a layer naming one nobody registered is
+refused at the edit with the known palettes listed, rather than accepted,
+written onto the layer and silently painting nothing one repaint later. A saved
+document carries the descriptor of every non-built-in palette its layers name,
+so a look is self-describing.
 
-Betweenness ships exact-only behind a size gate: the algorithms package exposes
-no k-source parameter, so a sampled caveat would claim a sample never taken.
+BREAKING CHANGE: the 1.x style template is removed; a look is a StyleDocument
+applied through the style layer API. A layer or document naming an unknown
+palette reports E_UNKNOWN_PALETTE.
 BODY
 }
 
-body_loaddata() {
+body_edges() {
     cat <<'BODY'
-handleLoad ended its promise chain in console.error, so a malformed file, a 404
-or unparsable pasted text produced nothing visible on any route.
+An edge record names its endpoints source and target. The element works the
+spelling out once for a whole batch -- source/target, then src/dst, then
+from/to -- and a batch that answers none of them stops the load with
+E_EDGE_ENDPOINTS_UNRESOLVED naming the columns the records do carry.
 
-Fixing the catch alone would not have been enough: graphty-element reports a
-parse failure out of band through data-loading-error and does not reject, so the
-promise had already resolved and the dialog had already closed and cleared the
-reader's input. The shell now waits for the element's own report before
-settling.
+Following the element's own documentation used to produce a graph with nodes,
+no edges and no error: the runtime default was src/dst while every guide taught
+source/target. It shipped as a bug -- the node inspector reported zero
+neighbours for every node of karate.gml while the same node's card said 17
+links -- and it was format-dependent, so it passed on JSON and failed on GML.
 
-The failure names the file, keeps the dialog open with its input, and clears the
-element -- without which the retry the message invites loaded nothing and then
-reported success.
+An edge's id is the element's own counter. The old id joined the two endpoint
+ids with a colon, which could not tell a:b -> c from a -> b:c and could not
+name two edges between one pair at all -- which is why a second edge between
+the same pair was silently dropped. Two such records are two edges now, each
+with its own id, weight and attributes; choose otherwise with first, last, sum,
+min, max or error.
+
+Removing a node removes the edges attached to it. An edge could outlive an
+endpoint and go on ray-casting against the removed node's mesh.
+
+BREAKING CHANGE: edge records carry source and target, not src and dst. Edge
+ids are element-minted strings, so a selection or scope saved by 1.x matches
+nothing, and there is no translation because the old id was ambiguous. Edge
+counts rise on any multigraph and density, degree and every derived figure rise
+with them. Removing a node emits elements-removed naming the edges that went.
 BODY
 }
 
-body_results() {
+body_importers() {
     cat <<'BODY'
-The Results tab was a real tab with a real count that switched real state, and
-the panel body never branched on it -- so selecting Results kept rendering the
-Run tab's Suggested list, and a completed analysis became unreachable the moment
-anything else was selected.
+Every importer reports the direction its file states: GEXF's defaultedgetype,
+GraphML's edgedefault, GML's directed key, DOT's graph or digraph keyword,
+Pajek's arcs and edges sections, a Gephi CSV's Type column and a node-link
+JSON's directed flag. A format that states nothing says nothing, and the
+element's own configuration stands.
 
-It now draws the result as a card collapsed to title, headline and primary
-action while the same result is open in the inspector, which is the
-one-body-on-screen rule the result shapes already ask for.
+Every loadable file was read as directed, including karate.gml and football.gml,
+which ship with the element and declare themselves undirected. Density printed
+half its true figure, the node inspector split every node's neighbours into
+incoming and outgoing on every graph, and the catalogue refused kruskal, prim
+and bipartite-matching everywhere.
+
+statistics() now also says where the direction came from and quotes the text
+that settled it, so a reader can tell a file's own claim from the element's
+default.
+
+BREAKING CHANGE: an undirected file loads one edge per file edge rather than a
+mirrored pair, so edge counts halve and every degree, density and centrality
+moves with them.
 BODY
 }
 
-body_legend() {
+body_layout() {
     cat <<'BODY'
-The Legend control reported a state the legend was not in: it could be checked
-while nothing was encoded, and a legend with no encoded channel draws nothing,
-so the reader ticked a box and nothing appeared.
+Kamada-Kawai and ForceAtlas2 read edge weights, and read them the same way: a
+heavier edge is drawn shorter. Both accepted a weight option and ignored it,
+under two different names, neither of which reached the layout catalogue. There
+is one option now, weighted, and a descriptor says whether a layout honours it
+so a settings panel does not hard-code the list of two.
 
-The control is disabled with its reason when there is nothing to draw, rather
-than the legend rendering an empty box.
+A node the reader drags stays where they dropped it through a layout change, a
+2D/3D switch and a template apply. Pin state lived inside whichever engine was
+current and a layout change constructs a new one, so every pin was lost. The
+element owns the pin now and an engine's copy is a projection of it, which is
+also what makes a third-party engine that has never heard of pinning honour one.
+
+BREAKING CHANGE: every Kamada-Kawai and ForceAtlas2 arrangement of a graph with
+real weights moves. Node.isPinned() answers the element's own field, so code
+that branched on it and never took the pinned path now can.
 BODY
 }
 
-body_panels() {
+body_session() {
     cat <<'BODY'
-Five mechanisms decided whether a sidebar was on screen: a per-surface latch, a
-per-surface close control, a rail click that closed the active panel, a
-width-aware first-visit default, and a narrow layout in which only one overlay
-could be open and a canvas tap dismissed it.
+The session reports the graph's shape as maintained data rather than as
+something a consumer walks the graph for: counts, density, directedness and
+where that came from, degree range and mean, self loops, repeated edges and the
+connected-component summary.
 
-All five are gone. There is one persisted boolean and one control that hides and
-shows both sidebars together. Nothing else opens or closes them.
+A run publishes a typed result the element can rank, summarise, histogram, read
+back in plain language and derive a picture from, so a consumer who asked for
+numbers is not also writing the style layer that draws them.
 
-Below 1280 the shell no longer lays out -- it says the screen is too small and
-names the width it needs. The old narrow layout put 109px of the Welcome sheet
-under each overlay at 1024, leaving the heading reading "aph to get started".
-
-The too-small state is drawn as an overlay OVER the still-mounted shell rather
-than instead of it. Returning early unmounted graphty-element, and widening back
-past 1280 remounted a fresh scene with no data while the shell still believed a
-graph was loaded: measured against the built app, a resize to 1100 and back left
-the canvas empty under a status bar still reading 20 nodes 29 edges.
-
-Also here: the node inspector reported 0 neighbours for a node the result card
-said had 17 links, because it read an edge endpoint spelling getData never
-writes.
+BREAKING CHANGE: GraphStatistics gains directednessSource and meanDegree. A
+run's per-edge answers are keyed by the element's edge id. Every run, layout
+and export is scoped to what is visible by default, so a run under an active
+filter measures fewer elements than 1.x measured on the same dataset.
 BODY
 }
 
-body_inspector() {
+body_element() {
     cat <<'BODY'
-The style inspector was the old left-sidebar panel re-homed whole. It drew its
-own local controls, so it was the one inspector surface with no left margin, and
-it read only the static style -- so a layer whose whole encoding is a calculated
-value showed the element's defaults as though the layer had set them. "Top
-degree labels", whose only job is drawing labels, showed Label as disabled.
+The element stops reading the host page's query string. Mounting the component
+made it reconfigure logging and profiling globally for the whole application
+because of a URL parameter, which is the application's decision to make and not
+a component's.
 
-It is rebuilt on the shared controls, and a computed channel is drawn in its own
-row: what it encodes, what it reads, the expression behind a disclosure, and one
-explicit verb to convert it to a fixed value. The control it would otherwise
-contradict is disabled with that reason, because a calculated value is applied
-after the static style and merged over it -- an editable control there would
-silently lose the reader's edit on the next repaint.
+The two load events stop using one field name for two different numbers.
+data-loading-progress carries nodeRecordsLoaded and edgeRecordsLoaded -- records
+handed over, the only honest mid-load count -- and data-loading-complete carries
+nodesLoaded and edgesLoaded, both meaning what the graph holds and agreeing with
+the session's counts. They legitimately differ: an edge naming a node the file
+never declared creates that node.
+
+The repeat policy and the edge id path are real attributes, reachable without
+reaching into the element's own configuration object.
+
+BREAKING CHANGE: the graphty-element-logging, graphty-element-log-level and
+profiling URL parameters are ignored; call configureLogging instead.
+data-loading-progress.nodesLoaded and .edgesLoaded are renamed to
+nodeRecordsLoaded and edgeRecordsLoaded.
 BODY
 }
 
-body_canvas() {
+body_packaging() {
     cat <<'BODY'
-The data table, the legend, the minimap and the time slider positioned against
-the canvas element's rect, which spans the full width under the sidebars, so all
-four were drawn partly or wholly behind them.
+Fourteen entry points, five of which resolve in Node with no renderer anywhere
+in their import graph -- enforced by a test that walks what each one reaches,
+rather than by convention.
 
-They now inset against the live canvas strip. Insetting rather than raising the
-z-order, because the drawer is specified never to cover the panel or the
-inspector -- raising it would trade one contradiction for another.
+Installing the package was a 39 MB download, 26 MB of it sourcemaps. It is
+2.9 MB packed now, with no map files in the tarball.
+
+BREAKING CHANGE: the package is ESM-only. There is no require condition and no
+main field; the UMD build is replaced by ./bundle, one self-contained file for
+a script tag.
 BODY
 }
 
-body_spec() {
+body_tests() {
     cat <<'BODY'
-Section 6.12's latch is deleted, with the dismissal guarantee's latch clauses,
-the memory rule's two latch entries, the narrow-screen section, and the rail
-click that closed the active panel. What replaces them is one switch and one
-remembered boolean.
+One file per extension point, each registering an extension a third party would
+plausibly write and driving it through every capability its built-in equivalent
+has, plus one suite that registers all six against a single graph. A capability
+not exercised there is not promised, and the gaps that remain are written down
+rather than left to be discovered.
 
-Below 1280 is stated as unsupported rather than specified as a second layout.
-The acceptance scenario that tested the width-aware default is rewritten for the
-model that shipped.
+The corpus gains a guard in both directions -- every file on disk named by a
+manifest, every manifest entry present on disk. The tests walked the manifest,
+so a file nothing listed was parsed by nothing: a GraphML fixture whose entire
+content was the words 404: Not Found sat there unread for nine months.
+BODY
+}
+
+body_app() {
+    cat <<'BODY'
+The application deletes its own disjoint-set forest, its directedness vote over
+every edge record, its cost model, its copy of the element's viridis anchors,
+and the defensive reader that tried both endpoint spellings because the element
+emitted two that disagreed. Each existed because the element did not publish
+the answer; each is a property read now.
+
+A comment in the application explaining why the element could not be used is a
+bug report that was never filed. The ones that were still true became element
+changes in this release; the ones this release makes false are deleted, along
+with a hook, a component and a loader that nothing rendered.
+BODY
+}
+
+body_docs() {
+    cat <<'BODY'
+Seven pages on extending the element, one per supported extension point. The
+three that existed taught interfaces the element does not have -- a layout
+engine with initialize and getPosition, a data source with an abstract load,
+a graph.loadFromDataSource that exists nowhere -- so following any of them
+produced a class that did not compile. Every complete example in all six was
+extracted into one file and type-checked against the published declarations.
+
+The getting-started guide, the web-component attribute table and the
+data-sources guide agree with the runtime about endpoint spelling for the first
+time.
+
+The breaking-change register records what landed, what was refused and what has
+to happen outside a working tree before the release can be cut.
 BODY
 }
 
 body_tooling() {
     cat <<'BODY'
-The step list, the subjects and the paths describe this change set rather than
-the one before it. The machinery is unchanged.
+The step list, the subjects and the paths describe this change set. The
+machinery -- the commitlint pre-validation, the temporary hooks directory that
+keeps commit-msg while leaving Commitizen's interactive prompt out of the run,
+and the leftover report -- is unchanged.
 BODY
 }
 

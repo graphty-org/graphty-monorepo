@@ -6,7 +6,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 import { OrbitCameraController } from "../../src/cameras/OrbitCameraController";
 import { OrbitInputController } from "../../src/cameras/OrbitInputController";
 import { Graph } from "../../src/Graph";
-import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+import { cleanupTestGraph, createTestGraph, setBehavior } from "../helpers/testSetup";
 
 describe("3D Camera Controls", () => {
     let graph: Graph;
@@ -17,45 +17,10 @@ describe("3D Camera Controls", () => {
         // Create test graph
         graph = await createTestGraph();
 
-        // Switch to 3D mode using proper template format
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: false, // 3D mode
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "ngraph",
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                    positionScale: 1,
-                    idCoercion: "canonical",
-                },
-                directed: "auto",
-            },
-            behavior: {
-                layout: {
-                    type: "ngraph",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
+        await graph.setViewMode("3d");
+        await graph.setLayout("ngraph");
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 100));

@@ -22,10 +22,14 @@ export enum ScreenshotErrorCode {
     CLIPBOARD_NOT_SECURE_CONTEXT = "CLIPBOARD_NOT_SECURE_CONTEXT",
     CLIPBOARD_WRITE_FAILED = "CLIPBOARD_WRITE_FAILED",
 
-    // Camera
-    CAMERA_PRESET_NOT_FOUND = "CAMERA_PRESET_NOT_FOUND",
-    CAMERA_PRESET_NOT_AVAILABLE_IN_2D = "CAMERA_PRESET_NOT_AVAILABLE_IN_2D",
-    CANNOT_OVERWRITE_BUILTIN_PRESET = "CANNOT_OVERWRITE_BUILTIN_PRESET",
+    /*
+     * THERE ARE NO CAMERA CODES HERE ANY MORE. A camera failure is a `GraphtyError` like every
+     * other failure the element reports: a view nobody registered is `E_UNKNOWN_CAMERA`, a view
+     * asked for in a drawing mode it does not declare is `E_UNSUPPORTED` carrying the modes it
+     * does, and a saved snapshot trying to take a view's name is `E_PROTECTED`. Keeping a second
+     * error family for three of them meant a consumer had to catch two kinds of error around one
+     * camera call, and only one of the two carried a code a third party's view could raise.
+     */
 
     // Timing
     LAYOUT_SETTLE_TIMEOUT = "LAYOUT_SETTLE_TIMEOUT",

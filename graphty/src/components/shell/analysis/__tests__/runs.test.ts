@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { type ElementGraph, type ElementNodeLike, repaintStyles } from "../elementBridge";
+import { createFakeSession } from "../../../../test/fakeSession";
+import type { ElementGraph, ElementNodeLike } from "../elementBridge";
 import { readDegreeResults, runCommunityDetection, runDegreePass } from "../runs";
 
 /** A node the stub can write results onto. */
@@ -31,10 +32,6 @@ interface Stub {
     readonly graph: ElementGraph;
     /** Every (namespace, type) pair the caller ran, in order. */
     readonly runs: [string, string][];
-    /** How many times the node repaint ran. */
-    readonly nodeRepaints: () => number;
-    /** How many times the edge repaint ran. */
-    readonly edgeRepaints: () => number;
 }
 
 /**
@@ -70,8 +67,6 @@ function makeStub(ids: (number | string)[], plan: StubPlan): Stub {
     const nodes: StubNode[] = ids.map((id) => ({ id }));
     const graphResults: Record<string, unknown> = {};
     const runs: [string, string][] = [];
-    const applyStylesToExistingNodes = vi.fn();
-    const applyStylesToExistingEdges = vi.fn();
 
     /**
      * Writes the degree pass's results.
@@ -122,36 +117,30 @@ function makeStub(ids: (number | string)[], plan: StubPlan): Stub {
         }
     }
 
+    /* The runs go through the SESSION now, which is the only door that can say whether the
+       element may paint what a run produced. The fake session calls back with the algorithm
+       key, and the key and the 1.10 type are the same string for both of these, so the
+       recorded pairs read exactly as they did. */
+    const session = createFakeSession();
+
+    session.onStart((type) => {
+        runs.push(["graphty", type]);
+
+        if (type === "degree") {
+            runDegree();
+        } else if (type === "louvain") {
+            runLouvain();
+        }
+    });
+
     const graph: ElementGraph = {
-        runAlgorithm: (namespace, type) => {
-            runs.push([namespace, type]);
-            if (type === "degree") {
-                runDegree();
-            } else if (type === "louvain") {
-                runLouvain();
-            }
-
-            return Promise.resolve();
-        },
+        runAlgorithm: () => Promise.resolve(),
         getNodes: () => nodes as readonly ElementNodeLike[],
-        getDataManager: () => ({
-            graphResults,
-            applyStylesToExistingNodes,
-            applyStylesToExistingEdges,
-        }),
-        getStyleManager: () => ({
-            addLayer: () => undefined,
-            getLayers: () => [],
-            removeLayerByIndex: () => false,
-        }),
+        getDataManager: () => ({ graphResults }),
+        getSession: () => session.session,
     };
 
-    return {
-        graph,
-        runs,
-        nodeRepaints: () => applyStylesToExistingNodes.mock.calls.length,
-        edgeRepaints: () => applyStylesToExistingEdges.mock.calls.length,
-    };
+    return { graph, runs };
 }
 
 describe("runDegreePass", () => {
@@ -312,17 +301,12 @@ describe("runCommunityDetection", () => {
 
         const result = await runCommunityDetection(stub.graph);
 
-        expect(result).toEqual({ groupCount: 0, largestGroupSize: 0, nodeCount: 0, groups: [] });
-    });
-});
-
-describe("repaintStyles against the same stub", () => {
-    it("calls both applyStylesToExisting doors exactly once", () => {
-        const stub = makeStub(["a"], {});
-
-        repaintStyles(stub.graph);
-
-        expect(stub.nodeRepaints()).toBe(1);
-        expect(stub.edgeRepaints()).toBe(1);
+        expect(result).toEqual({
+            runId: expect.any(String) as unknown as string,
+            groupCount: 0,
+            largestGroupSize: 0,
+            nodeCount: 0,
+            groups: [],
+        });
     });
 });

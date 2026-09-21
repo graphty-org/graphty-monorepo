@@ -5,105 +5,72 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { getLayoutMetadata } from "../../data/layoutMetadata";
 import { render, screen } from "../../test/test-utils";
 import { RunLayoutsModal } from "../RunLayoutsModal";
 
 describe("RunLayoutsModal - Edge Cases", () => {
-    describe("Required fields handling", () => {
-        it("should disable Apply when bipartite layout is selected (requires nodes)", async () => {
+    /**
+     * Pick one layout from the dropdown.
+     * @param label - The engine's name, as the catalogue spells it.
+     */
+    async function selectLayout(label: string): Promise<void> {
+        const dropdown = screen.getByRole("textbox", { name: /layout/i });
+        fireEvent.click(dropdown);
+        await waitFor(() => {
+            expect(screen.getByText(label)).toBeInTheDocument();
+        });
+        fireEvent.click(screen.getByText(label));
+    }
+
+    describe("Missing inputs handling", () => {
+        it("should disable Apply for a layout whose engine declares an option with no default", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // Select bipartite layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("Bipartite")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("Bipartite"));
+            // The BFS tree engine declares a start node and gives it no default, so there is
+            // nothing to run until something picks one, and nothing in this modal can.
+            expect(getLayoutMetadata("bfs")?.requiredFields).toContain("start");
+            await selectLayout("BFS Tree");
 
-            // Apply button should be disabled
             expect(screen.getByText("Apply Layout").closest("button")).toBeDisabled();
         });
 
-        it("should show warning message for bipartite layout", async () => {
+        it("should name the option a layout is waiting for", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // Select bipartite layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("Bipartite")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("Bipartite"));
+            await selectLayout("BFS Tree");
 
-            // Should show warning about required fields
-            expect(screen.getByText(/requires node selection/i)).toBeInTheDocument();
+            expect(screen.getByText(/requires Start Node/i)).toBeInTheDocument();
         });
 
-        it("should disable Apply when bfs layout is selected (requires start)", async () => {
+        it("should warn, but still allow Apply, for an arrangement whose grouping cannot be chosen", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // Select bfs layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("BFS Tree")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("BFS Tree"));
+            // The catalogue says the two-column arrangement reads a partition, and the engine
+            // publishes no option for one. It still runs, on the element's own split.
+            expect(getLayoutMetadata("bipartite")?.unsupplied).toContain("partition");
+            await selectLayout("Bipartite");
 
-            // Apply button should be disabled
-            expect(screen.getByText("Apply Layout").closest("button")).toBeDisabled();
+            expect(screen.getByText(/arranges the graph by partition/i)).toBeInTheDocument();
+            expect(screen.getByText("Apply Layout").closest("button")).not.toBeDisabled();
         });
 
-        it("should show warning message for bfs layout", async () => {
+        it("should warn for the multipartite engine on the same ground", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // Select bfs layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("BFS Tree")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("BFS Tree"));
+            expect(getLayoutMetadata("multipartite")?.unsupplied).toContain("partition");
+            await selectLayout("Multipartite");
 
-            // Should show warning about required fields
-            expect(screen.getByText(/requires a starting node/i)).toBeInTheDocument();
+            expect(screen.getByText(/arranges the graph by partition/i)).toBeInTheDocument();
+            expect(screen.getByText("Apply Layout").closest("button")).not.toBeDisabled();
         });
 
-        it("should disable Apply when multipartite layout is selected (requires subsetKey)", async () => {
+        it("should enable Apply for layouts that need nothing chosen", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // Select multipartite layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("Multipartite")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("Multipartite"));
-
-            // Apply button should be disabled
-            expect(screen.getByText("Apply Layout").closest("button")).toBeDisabled();
-        });
-
-        it("should show warning message for multipartite layout", async () => {
-            render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
-
-            // Select multipartite layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("Multipartite")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("Multipartite"));
-
-            // Should show warning about required fields
-            expect(screen.getByText(/requires subset key configuration/i)).toBeInTheDocument();
-        });
-
-        it("should enable Apply for layouts without required fields", () => {
-            render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
-
-            // D3 Force (default) has no required fields
+            // D3 Force (default) declares every option with a default and reads no structure.
+            expect(getLayoutMetadata("d3")?.requiredFields).toHaveLength(0);
+            expect(getLayoutMetadata("d3")?.unsupplied).toHaveLength(0);
             expect(screen.getByText("Apply Layout").closest("button")).not.toBeDisabled();
         });
     });
@@ -150,20 +117,14 @@ describe("RunLayoutsModal - Edge Cases", () => {
     });
 
     describe("Warning icon display", () => {
-        it("should show warning icon for layouts with required fields", async () => {
+        it("should show warning icon beside a layout's missing input", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // Select bipartite layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
-            fireEvent.click(dropdown);
-            await waitFor(() => {
-                expect(screen.getByText("Bipartite")).toBeInTheDocument();
-            });
-            fireEvent.click(screen.getByText("Bipartite"));
+            await selectLayout("Bipartite");
 
             // Should have a warning icon (AlertTriangle icon from lucide-react)
             // We check for the warning container with the icon
-            const warningText = screen.getByText(/requires node selection/i);
+            const warningText = screen.getByText(/arranges the graph by partition/i);
             expect(warningText.closest("[class*='warning']") ?? warningText.parentElement).toBeInTheDocument();
         });
     });

@@ -5,7 +5,7 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { CATEGORY_LABELS } from "../../data/layoutMetadata";
+import { CATEGORY_LABELS, getLayoutMetadata } from "../../data/layoutMetadata";
 import { render, screen } from "../../test/test-utils";
 import { RunLayoutsModal } from "../RunLayoutsModal";
 
@@ -169,7 +169,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             await waitFor(() => {
                 // Force-directed layouts
                 expect(screen.getByText("D3 Force")).toBeInTheDocument();
-                expect(screen.getByText("NGraph")).toBeInTheDocument();
+                expect(screen.getByText("NGraph Force")).toBeInTheDocument();
                 expect(screen.getByText("ForceAtlas2")).toBeInTheDocument();
                 expect(screen.getByText("Spring")).toBeInTheDocument();
                 expect(screen.getByText("Kamada-Kawai")).toBeInTheDocument();
@@ -225,8 +225,10 @@ describe("RunLayoutsModal - Category Grouping", () => {
         it("should display layout description for selected layout", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // D3 Force is the default
-            expect(screen.getByText(/D3 force-directed simulation/)).toBeInTheDocument();
+            // D3 Force is the default. The description is the element's, not a copy of it.
+            const description = getLayoutMetadata("d3")?.description ?? "";
+            expect(description).not.toBe("");
+            expect(screen.getByText(description)).toBeInTheDocument();
         });
 
         it("should update description when layout changes", async () => {
@@ -240,8 +242,10 @@ describe("RunLayoutsModal - Category Grouping", () => {
             });
             fireEvent.click(screen.getByText("Circular"));
 
-            // Description should change to Circular's description
-            expect(screen.getByText(/Positions nodes in a circle or sphere/)).toBeInTheDocument();
+            // Description should change to the one the element gives the ring arrangement.
+            const description = getLayoutMetadata("circular")?.description ?? "";
+            expect(description).not.toBe("");
+            expect(screen.getByText(description)).toBeInTheDocument();
         });
     });
 });

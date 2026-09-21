@@ -13,6 +13,7 @@
  */
 
 import { ActionRow, ControlSection, DataRow } from "@graphty/compact-mantine";
+import type { Channel, LayerSpec } from "@graphty/graphty-element/session";
 import React from "react";
 
 import type { LayerItem } from "../../layout/LeftSidebar";
@@ -45,10 +46,10 @@ export interface StyleLayerInspectorProps {
     readonly layer: LayerItem;
     /** Where the layer came from, when it came from a run. */
     readonly source?: StyleLayerSource;
-    /** Called when the layer's node properties change. */
-    readonly onUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>) => void;
-    /** Called when the layer's edge properties change. */
-    readonly onEdgeUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>) => void;
+    /** Called when the layer changes, with the patch to apply to it. */
+    readonly onUpdate?: (layerId: string, patch: Partial<LayerSpec>) => void;
+    /** Called to turn one channel's rule into the fixed value it currently produces. */
+    readonly onResolveToStatic?: (layerId: string, channel: Channel) => void;
 }
 
 /**
@@ -57,7 +58,7 @@ export interface StyleLayerInspectorProps {
  * @returns the Source section, when there is one, above the existing properties panel.
  */
 export function StyleLayerInspector(props: StyleLayerInspectorProps): React.JSX.Element {
-    const { layer, source, onUpdate, onEdgeUpdate } = props;
+    const { layer, source, onUpdate, onResolveToStatic } = props;
     const sourceSection = useInspectorSection(INSPECTOR_SECTION_IDS.layerSource, true);
 
     return (
@@ -82,7 +83,7 @@ export function StyleLayerInspector(props: StyleLayerInspectorProps): React.JSX.
                 </ControlSection>
             )}
 
-            <StyleLayerPropertiesPanel layer={layer} onUpdate={onUpdate} onEdgeUpdate={onEdgeUpdate} />
+            <StyleLayerPropertiesPanel layer={layer} onUpdate={onUpdate} onResolveToStatic={onResolveToStatic} />
         </>
     );
 }

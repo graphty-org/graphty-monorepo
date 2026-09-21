@@ -20,13 +20,21 @@
         /* Decorators - match graphty-element settings */
         "experimentalDecorators": true,
 
-        /* Path mapping - extend base paths */
+        /* Path mapping - extend base paths.
+           graphty-element is read from SOURCE rather than from its published dist, so the
+           editor sees element changes without a rebuild. Its exports map names one file per
+           entry point at the package root (index.ts, schema.ts, catalog.ts, extend.ts,
+           format.ts, session.ts, commands.ts, ai.ts, webgpu.ts, react.ts), so a subpath maps
+           to the file of the same name. vite.config.ts carries the same two rules; change
+           them together or the editor and the bundler will disagree about what
+           @graphty/graphty-element/schema means. */
         "baseUrl": ".",
         "paths": {
             "@/*": ["./src/*"],
             "@graphty/algorithms": ["../algorithms/src/index.ts"],
             "@graphty/layout": ["../layout/src/index.ts"],
             "@graphty/graphty-element": ["../graphty-element/index.ts"],
+            "@graphty/graphty-element/*": ["../graphty-element/*.ts"],
             "@graphty/graphty": ["./src/index.ts"]
         }
     },

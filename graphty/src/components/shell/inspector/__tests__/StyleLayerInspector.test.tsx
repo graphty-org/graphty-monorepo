@@ -2,6 +2,7 @@ import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { makeLayer } from "../../../../test/layerFixture";
 import { render, screen, within } from "../../../../test/test-utils";
 import type { LayerItem } from "../../../layout/LeftSidebar";
 import { ShellProvider } from "../../ShellContext";
@@ -17,14 +18,7 @@ function Harness({ children }: { children: React.ReactNode }) {
     );
 }
 
-const createLayer = (id: string, name: string): LayerItem => ({
-    id,
-    name,
-    styleLayer: {
-        node: { selector: "", style: {} },
-        edge: { selector: "", style: {} },
-    },
-});
+const createLayer = (id: string, name: string): LayerItem => makeLayer(id, name);
 
 const source: StyleLayerSource = {
     resultName: "Bridges",
@@ -43,8 +37,12 @@ describe("StyleLayerInspector", () => {
                 </Harness>,
             );
 
+            /* One layer paints one kind of element, so a node layer draws the node selector
+               and the node channels and nothing about edges. The two-halves-in-one-layer
+               shape this used to assert is gone with the 1.x stack. */
             expect(screen.getByLabelText("Node Selector")).toBeInTheDocument();
-            expect(screen.getByLabelText("Edge Selector")).toBeInTheDocument();
+            expect(screen.queryByLabelText("Edge Selector")).not.toBeInTheDocument();
+            expect(screen.getByRole("group", { name: "Which nodes" })).toBeInTheDocument();
         });
     });
 

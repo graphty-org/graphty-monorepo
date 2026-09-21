@@ -20,14 +20,3 @@ export const SWATCH_COLORS_HEXA = [
     "#F7B73180",
     "#9B59B680",
 ] as const;
-
-/**
- * Default color for new gradient stops.
- */
-export const DEFAULT_GRADIENT_STOP_COLOR = "#888888";
-
-/**
- * Default color for graph nodes when no color is specified.
- * Used as a fallback in color configuration functions.
- */
-export const DEFAULT_GRAPH_NODE_COLOR = "#5B8FF9";

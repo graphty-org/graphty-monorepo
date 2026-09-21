@@ -14,8 +14,10 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
  * too-small message rather than a dialog floating over it.
  */
 const MANTINE_MODAL_Z_INDEX = 200;
-import { NODE_METRIC_LAYER_SOURCE_TAGS, viridisAt } from "../defaults/nodeMetricStyle";
-import { DEGREE_INPUT_PATH, LABEL_ENABLED_OUTPUT_PATH } from "../defaults/styleDescriptors";
+import type { Layer, LayerSpec } from "@graphty/graphty-element/session";
+
+import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
+import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
 import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
 
@@ -78,72 +80,40 @@ function reportSelection(container: HTMLElement, nodeId: string | null) {
 }
 
 /**
- * One style layer, as graphty-element reports it through `getLayers`.
- */
-interface FakeStyleLayer {
-    metadata?: Record<string, unknown>;
-    node?: { selector: string; style: Record<string, unknown>; calculatedStyle?: Record<string, unknown> };
-    edge?: { selector: string; style: Record<string, unknown>; calculatedStyle?: Record<string, unknown> };
-}
-
-/**
- * The StyleManager calls the shell makes, recorded.
- */
-interface FakeStyleManager {
-    getLayers: () => FakeStyleLayer[];
-    updateLayerByIndex: ReturnType<typeof vi.fn>;
-    reorderLayers: ReturnType<typeof vi.fn>;
-}
-
-/**
- * Stands a graph on the mounted host and reports its layers, the way graphty-element
- * does.
+ * Stands a graph on the mounted host and lets the shell read its style stack.
  *
- * `Graphty`'s handle reads `element.graph` through a getter every time it is asked, and
- * its `style-changed` listener re-reads `getLayers()` from it, so a graph put on the
- * element here reaches the shell by the same route the real element's does -- which is
- * what makes this a test of the shell's own upward channel rather than of a mock.
+ * `Graphty`'s handle reads `element.graph` through a getter every time it is asked, and its
+ * style effect subscribes to `session.on("style:changed")`, so a graph put on the element here
+ * reaches the shell by the same route the real element's does -- which is what makes this a
+ * test of the shell's own upward channel rather than of a mock.
  * @param container - the render result's container.
- * @param layers - the layers the graph reports.
- * @returns the manager, to assert the calls the shell made on it.
+ * @param names - the layers the stack holds beyond the element's own two, bottom first.
+ * @returns the fake session, to assert what the shell did to the stack.
  */
-function installGraph(container: HTMLElement, layers: FakeStyleLayer[]): FakeStyleManager {
+function installGraph(container: HTMLElement, names: readonly string[]): FakeSession {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
 
-    /* `updateLayerByIndex` WRITES, as the real `StyleManager` does: it replaces the
-       layer and then emits `style-changed`, which is how a committed edit gets back down
-       to the shell (StyleManager.ts:183-190). A recorder that only counted calls could
-       not tell an edit that reached the element from one the shell spread away on the way
-       out, which is exactly the defect the colour board below stands on. */
-    const manager: FakeStyleManager = {
-        getLayers: () => layers,
-        updateLayerByIndex: vi.fn((index: number, layer: FakeStyleLayer) => {
-            layers[index] = layer;
+    const fake = createFakeSession();
 
-            element?.dispatchEvent(new CustomEvent("style-changed"));
-
-            return true;
-        }),
-        reorderLayers: vi.fn(() => true),
-    };
+    for (const name of names) {
+        fake.seed({ name, target: "node", selector: { match: "everything" } });
+    }
 
     // `graph` is a getter on the element's prototype, so the stand-in is an own
     // property on this instance rather than an assignment, which the getter refuses.
     Object.defineProperty(element, "graph", {
         configurable: true,
         value: {
-            getLayers: () => layers,
-            getStyleManager: () => manager,
+            runAlgorithm: () => Promise.resolve(),
+            getNodes: () => [],
+            getDataManager: () => ({}),
+            getSession: () => fake.session,
         },
     });
 
-    act(() => {
-        element?.dispatchEvent(new CustomEvent("style-changed"));
-    });
-
-    return manager;
+    return fake;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -152,6 +122,28 @@ function installGraph(container: HTMLElement, layers: FakeStyleLayer[]): FakeSty
 
 /** How many microtask turns a flush walks: enough for the run-then-read-then-paint chain. */
 const FLUSH_TURNS = 10;
+
+/**
+ * How long a flush waits for the wrapper to find the element's session.
+ *
+ * `Graphty` subscribes to `session.on("style:changed")`, and the session only exists once the
+ * element has finished coming up -- which the element publishes no event for, so the wrapper
+ * looks again on a timer. A board that installs a stand-in graph after the shell has mounted
+ * is in exactly that state, so every flush waits one interval rather than each board knowing
+ * about the timer.
+ */
+const SESSION_BIND_MS = 80;
+
+/**
+ * Lets the wrapper's session poll fire, so a graph installed after mount is seen.
+ */
+async function settleSession(): Promise<void> {
+    await act(async () => {
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, SESSION_BIND_MS);
+        });
+    });
+}
 
 /** How many task turns a dropped file's read is given before the board asserts. */
 const FILE_READ_TURNS = 3;
@@ -170,6 +162,7 @@ async function flushMicrotasks(): Promise<void> {
             await Promise.resolve();
         }
     });
+    await settleSession();
 }
 
 /**
@@ -195,6 +188,7 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
             await Promise.resolve();
         }
     });
+    await settleSession();
 }
 
 /**
@@ -375,24 +369,18 @@ interface StubNode {
 const ELEMENT_OWN_LAYER_COUNT = 2;
 
 /**
- * The layers the SHELL added, in order, with the element's own left out.
+ * The layers the SHELL itself added, in order, with the element's own and every run's left out.
  *
- * The shell tags every layer it adds with an `algorithmSource`, which is also how it
- * retires them, so the tag is what separates its layers from the element's `default` and
- * `selection`. Boards index this rather than `getLayers()` so they assert on the shell's
- * own stack and stay correct whatever the element puts underneath it.
- * @param layers - every layer the style manager holds.
- * @returns the tagged layers, in stack order.
+ * The shell's layers carry its template id in {@link Layer.source}, which is also how it
+ * retires them. Boards index this rather than the whole stack so they assert on the shell's own
+ * layers and stay correct whatever the element puts underneath them.
+ * @param layers - every layer the stack holds.
+ * @returns the shell's layers, bottom first.
  */
-function shellLayers(layers: readonly StubLayer[]): readonly StubLayer[] {
-    return layers.filter((layer) => layer.metadata?.algorithmSource !== undefined);
-}
-
-/** One style layer, as the stub's StyleManager holds it. */
-interface StubLayer {
-    metadata?: Record<string, unknown>;
-    node?: Record<string, unknown>;
-    edge?: Record<string, unknown>;
+function shellLayers(layers: readonly Layer[]): readonly Layer[] {
+    return layers.filter(
+        (layer) => layer.source.by === "template" && layer.source.templateId === SHELL_DEFAULTS_TEMPLATE_ID,
+    );
 }
 
 /** The stub graph's own doors, so a board can assert what the shell asked of it. */
@@ -405,12 +393,8 @@ interface StubGraph {
     readonly deselectNode: ReturnType<typeof vi.fn>;
     /** What the ELEMENT still holds, which is not always what the shell thinks it holds. */
     readonly elementHoldsSelection: () => string | number | null;
-    /** The layers the shell added, and the two repaint spies. */
-    readonly styleManager: {
-        getLayers: () => StubLayer[];
-        addLayer: ReturnType<typeof vi.fn>;
-        removeLayerByIndex: ReturnType<typeof vi.fn>;
-    };
+    /** The element's style stack, and the policy that paints a finished run. */
+    readonly styles: FakeSession;
     /**
      * Adds one node to the graph BEHIND the shell's back, as a merge would.
      *
@@ -419,10 +403,8 @@ interface StubGraph {
      * a graph that has grown since it ran.
      */
     readonly addNode: (id: string) => void;
-    /** The data manager, for its two repaint spies and the clear a replacing load makes. */
+    /** The data manager, for the clear a replacing load makes. */
     readonly dataManager: {
-        applyStylesToExistingNodes: ReturnType<typeof vi.fn>;
-        applyStylesToExistingEdges: ReturnType<typeof vi.fn>;
         clear: ReturnType<typeof vi.fn>;
     };
 }
@@ -484,7 +466,7 @@ interface NovicePathOptions {
      */
     readonly pagerank?: { readonly converged: boolean; readonly iterations: number };
     /** Layers already standing on the graph before the shell adds any of its own. */
-    readonly extraLayers?: readonly StubLayer[];
+    readonly extraLayers?: readonly LayerSpec[];
     /**
      * A ring of this many nodes instead of the cat fixture.
      *
@@ -646,55 +628,31 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
     const unmeasured = new Set<string | number>([...nodes.keys()].slice(nodes.size - (options.unmeasured ?? 0)));
     const measuredNodes = (): StubNode[] => [...nodes.values()].filter((node) => !unmeasured.has(node.id));
 
-    /* The element's OWN layers, present before the shell adds anything.
-       graphty-element opens its stack with a `default` layer carrying
-       `NodeStyle.parse(defaultNodeStyle)` -- every node's shape type (Styles.ts:54-67) --
-       and adds a `selection` layer beside it. Seeding them is what makes a boundary that
-       removes layers by INDEX rather than by tag fail a board: without them the stub had
-       nothing to lose, and a wipe that took the element's shape types with it, and left
-       the next load drawing zero nodes, passed every test. */
-    /* BOTH element-owned layers carry a node COLOUR here, as the real ones do: the base
-       layer parses the whole of `defaultNodeStyle` (Styles.ts:54-67) and the selection
-       layer paints the gold highlight (SelectionManager.ts:21-34). Neither carries an
-       algorithmSource. Seeding them bare -- which is how they were seeded until the first
-       integration -- is what let a hand-authored check that finds one of them on every
-       graph, and so suppresses auto-apply forever, pass every board it had. */
-    const layers: StubLayer[] = [
-        { metadata: { name: "default" }, node: { selector: "", style: { texture: { color: "#6366F1" } } } },
-        {
-            metadata: { name: "selection" },
-            node: {
-                selector: "algorithmResults.graphty.selected == `true`",
-                style: { texture: { color: "#FFD700" } },
-            },
-        },
-        ...(options.extraLayers ?? []),
-    ];
-    const styleManager = {
-        getLayers: () => layers,
-        addLayer: vi.fn((layer: StubLayer) => {
-            layers.push(layer);
-        }),
-        removeLayerByIndex: vi.fn((index: number) => {
-            layers.splice(index, 1);
+    /* The element's own base and selection layers are seeded by the fake session itself, and
+       BOTH carry a node colour, as the real ones do: the base layer parses the whole of
+       `defaultNodeStyle` and the selection layer paints the gold highlight. Both are LOCKED,
+       which is what makes a board catch a sweep that would take the layer carrying every
+       node's shape type -- the removal that left the next load dying in mesh building with
+       "shape with type required to create mesh". */
+    const styles = createFakeSession();
 
-            return true;
-        }),
-        updateLayerByIndex: vi.fn(() => true),
-        reorderLayers: vi.fn(() => true),
-    };
+    for (const spec of options.extraLayers ?? []) {
+        styles.seed(spec);
+    }
+
     const dataManager = {
         nodes,
         edges,
         graphResults: undefined as unknown,
-        applyStylesToExistingNodes: vi.fn(),
-        applyStylesToExistingEdges: vi.fn(),
         clear: vi.fn(),
     };
 
-    const runAlgorithm = vi.fn(async (_namespace: string, type: string) => {
-        await Promise.resolve();
-
+    /* SYNCHRONOUS, and recorded by the same spy the boards have always asserted against. The
+       shell starts its runs through `session.runs.start(key)` now, and the fake session calls
+       this with the 1.10 spelling of the same key -- which is the identical string for all
+       four of these algorithms -- so the boards read as they did while the results land before
+       the run resolves. */
+    const runAlgorithm = vi.fn((_namespace: string, type: string) => {
         if (type === "degree") {
             for (const node of measuredNodes()) {
                 const degree = degrees.get(node.id) ?? 0;
@@ -785,6 +743,13 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         }
     });
 
+    /* The results are written BEFORE the run is recorded and its picture applied, which is the
+       order the real element works in: an encoding scoped to the elements a run measured needs
+       the measurements to exist. */
+    styles.onStart((algorithm) => {
+        runAlgorithm("graphty", algorithm);
+    });
+
     /* The SELECTION, modelled rather than counted. `Graph.selectNode` is a pass-through to
        `SelectionManager.selectById`, which is `dataManager.getNode(id)` -- a raw `Map.get`
        on the element's own id -- and then `select()`, which RETURNS EARLY, emitting
@@ -831,8 +796,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         dataManager,
         getDataManager: () => dataManager,
         getNodes: () => [...nodes.values()],
-        getStyleManager: () => styleManager,
-        getLayers: () => layers,
+        getSession: () => styles.session,
         runAlgorithm,
         selectNode,
         deselectNode,
@@ -863,38 +827,37 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         deselectNode,
         elementHoldsSelection: () => selectedId,
         addNode,
-        styleManager,
+        styles,
         dataManager,
     };
 }
 
 /**
- * The layers the SHELL added for a node-metric encoding, by tag.
+ * The layers one node-metric RUN painted.
  *
- * By TAG, never by index or by count: one metric encoding drives colour at a time, and
- * the failure this catches is a second run stacking its ramp on the first's.
- * @param layers - every layer the style manager holds.
- * @returns the metric encoding layers, in stack order.
+ * By SOURCE, never by index or by count: one metric encoding drives colour at a time, and the
+ * failure this catches is a second run stacking its ramp on the first's.
+ * @param layers - every layer the stack holds.
+ * @returns the metric encoding layers, bottom first.
  */
-function metricLayers(layers: readonly StubLayer[]): readonly StubLayer[] {
+function metricLayers(layers: readonly Layer[]): readonly Layer[] {
     return layers.filter(
         (layer) =>
-            typeof layer.metadata?.algorithmSource === "string" &&
-            NODE_METRIC_LAYER_SOURCE_TAGS.includes(layer.metadata.algorithmSource),
+            layer.source.by === "run" && ["degree", "pagerank", "betweenness"].includes(layer.source.algorithm),
     );
 }
 
 /**
- * The layers the SHELL added for a community encoding, by tag.
+ * The layers a community run painted.
  *
  * The other half of {@link metricLayers}, and the pair is what a board asserts node colour
- * with: the two families both drive node colour, so "one encoding at a time" is a claim
- * about both lists at once and cannot be made from either alone.
- * @param layers - every layer the style manager holds.
- * @returns the community colour layers, in stack order.
+ * with: the two families both drive node colour, so "one encoding at a time" is a claim about
+ * both lists at once and cannot be made from either alone.
+ * @param layers - every layer the stack holds.
+ * @returns the community colour layers, bottom first.
  */
-function communityLayers(layers: readonly StubLayer[]): readonly StubLayer[] {
-    return layers.filter((layer) => layer.metadata?.algorithmSource === "graphty:louvain");
+function communityLayers(layers: readonly Layer[]): readonly Layer[] {
+    return layers.filter((layer) => layer.source.by === "run" && layer.source.algorithm === "louvain");
 }
 
 /**
@@ -1501,10 +1464,9 @@ describe("AppShell", () => {
 
         it("commits an inline rename to graphty-element, which owns the names", async () => {
             const { container } = await renderStylePanel();
-            const manager = installGraph(container, [
-                { metadata: { name: "default" } },
-                { metadata: { name: "New Layer 1", algorithmSource: "pagerank" }, node: { selector: "", style: {} } },
-            ]);
+            const fake = installGraph(container, ["New Layer 1"]);
+
+            await settleSession();
 
             const list = screen.getByTestId("style-layers");
 
@@ -1515,51 +1477,27 @@ describe("AppShell", () => {
             fireEvent.change(input, { target: { value: "Renamed" } });
             fireEvent.blur(input);
 
+            await settleSession();
+
             /* The whole defect: the list's one upward channel could express a reorder and
                nothing else, so a rename -- same positional ids, same order -- reached the
-               StyleManager never at all and the row kept drawing the old name. The
-               metadata is spread rather than replaced, so a layer a run created keeps its
-               `algorithmSource` binding (DECISIONS-1.7:1829, :1962). */
-            expect(manager.updateLayerByIndex).toHaveBeenCalledWith(1, {
-                metadata: { name: "Renamed", algorithmSource: "pagerank" },
-                node: { selector: "", style: {} },
-            });
-            expect(manager.reorderLayers).not.toHaveBeenCalled();
+               element never at all and the row kept drawing the old name. A layer is named
+               by its ID now, so a rename is one patch carrying one key. */
+            expect(fake.layers().map((layer) => layer.name)).toEqual(["default", "selection", "Renamed"]);
         });
 
-        /* The same in-place channel carries the style-layer inspector's own edits, and it
-           used to read the live layer back, spread it and override `metadata.name` alone
-           -- which spread every style edit away before it reached the element. Product
-           owner, 2026-09-13: "changing the color of a style in the style inspector doesn't
-           change the color in component or in the graph". The colour is asserted twice:
-           once as the shell handed it over, and once read back OUT of the StyleManager,
-           because only the second says the element now holds it. */
         it("commits a colour from the style inspector, and the layer reads it back", async () => {
+            /* Product owner, 2026-09-13: "changing the color of a style in the style inspector
+               doesn't change the color in component or in the graph". The edit used to be
+               spread away on its way out, because the list's channel read the live layer back
+               and overrode the NAME alone. */
             const { container } = await renderStylePanel();
-            const manager = installGraph(container, [
-                { metadata: { name: "default" } },
-                {
-                    metadata: { name: "Base", algorithmSource: "pagerank" },
-                    node: {
-                        selector: "",
-                        style: {
-                            color: { mode: "solid", color: "#5B8FF9", opacity: 1 },
-                            texture: { color: "#5B8FF9" },
-                        },
-                    },
-                },
-            ]);
+            const fake = installGraph(container, ["Base"]);
+
+            await settleSession();
 
             fireEvent.click(within(screen.getByTestId("style-layers")).getByText("Base"));
 
-            /* Several controls in the surface carry a hex field, so this one is reached
-               through the node Color group it belongs to, and the field is checked to be
-               holding the layer's own colour before it is typed into. The group is found
-               by its ROLE rather than by a stray text node: compact-mantine's ControlGroup
-               publishes `role="group"` named by its own visible header, which is the
-               drawing the style inspector is now built out of. (The `Color Mode` label
-               this used to walk up from belonged to the sidebar's deleted
-               `NodeColorControl` fork.) */
             const colorGroups = (await screen.findAllByRole("group", { name: "Color" })).filter(
                 (element) => element.getAttribute("data-testid") === "control-group",
             );
@@ -1568,38 +1506,25 @@ describe("AppShell", () => {
 
             const hex = within(colorGroups[0]).getByLabelText("Color hex value");
 
-            expect(hex).toHaveValue("5B8FF9");
-
             fireEvent.change(hex, { target: { value: "FF0000" } });
             fireEvent.blur(hex);
 
-            expect(manager.updateLayerByIndex).toHaveBeenCalledTimes(1);
+            await settleSession();
 
-            const written = manager.getLayers()[1];
+            const written = fake.layers().find((layer) => layer.name === "Base");
 
-            expect(written?.node?.style.texture).toEqual({ color: "#FF0000" });
-
-            /* And NO editor-only `color` key beside it. NodeStyle does not declare one --
-               the element's colour lives at `texture.color` -- and a key the schema does not
-               declare makes the merged style deep-UNEQUAL to an identical-looking one, so
-               `Styles.styleToId` mints a fresh id and `NodeMesh` a fresh mesh for a look the
-               graph already had. This assertion used to require the leak (2026-09-13). */
-            expect(Object.keys(written?.node?.style ?? {})).not.toContain("color");
-            /* The layer keeps its name and its run binding -- a colour edit is not a rename,
-               and the tag is what every retirement in the shell removes BY, so dropping it
-               to mark the hand would leave a layer nothing can retire. What the edit adds is
-               the hand-bound flag: a person has taken this channel, so the next run's
-               auto-apply leaves it alone instead of replacing the reader's own colour
-               (spec 2219-2231, limit 2). */
-            expect(written?.metadata).toEqual({ name: "Base", algorithmSource: "pagerank", handBound: true });
-            expect(manager.reorderLayers).not.toHaveBeenCalled();
+            expect(written?.set).toEqual({ "node.color": "#FF0000" });
+            /* And the layer keeps everything else it had. A patch is merged one key deep, so
+               an edit to one channel cannot silently rewrite the layer's identity. */
+            expect(written?.name).toBe("Base");
+            expect(written?.source).toEqual({ by: "user" });
         });
 
         it("commits the node selector the inspector edits, through the same channel", async () => {
             const { container } = await renderStylePanel();
-            const manager = installGraph(container, [
-                { metadata: { name: "Base" }, node: { selector: "", style: {} } },
-            ]);
+            const fake = installGraph(container, ["Base"]);
+
+            await settleSession();
 
             fireEvent.click(within(screen.getByTestId("style-layers")).getByText("Base"));
 
@@ -1608,20 +1533,48 @@ describe("AppShell", () => {
             fireEvent.change(selector, { target: { value: "type == `person`" } });
             fireEvent.blur(selector);
 
-            expect(manager.getLayers()[0]?.node?.selector).toBe("type == `person`");
+            await settleSession();
+
+            expect(fake.layers().find((layer) => layer.name === "Base")?.selector).toEqual({
+                match: "expression",
+                where: "type == `person`",
+            });
         });
 
         it("leaves the layers alone when nothing was renamed", async () => {
             const { container } = await renderStylePanel();
-            const manager = installGraph(container, [{ metadata: { name: "default" } }]);
+            const fake = installGraph(container, ["Base"]);
+
+            await settleSession();
+
+            const before = fake.layers();
+            const list = screen.getByTestId("style-layers");
+
+            fireEvent.doubleClick(within(list).getByText("Base"));
+            fireEvent.blur(within(list).getByRole("textbox"));
+
+            await settleSession();
+
+            expect(fake.layers()).toEqual(before);
+        });
+
+        it("draws the reader's own layers and never the element's", async () => {
+            /* The element's base and selection layers are locked: removing, editing or moving
+               one is refused, so a list that drew them would offer three controls that all
+               say no. `locked` is exactly `source.by === "element"`, which replaces naming
+               them from a list of two strings -- and that list lost the suppression for a
+               reader who called their own layer "default". */
+            const { container } = await renderStylePanel();
+
+            installGraph(container, ["Mine"]);
+
+            await settleSession();
 
             const list = screen.getByTestId("style-layers");
 
-            fireEvent.doubleClick(within(list).getByText("default"));
-            fireEvent.blur(within(list).getByRole("textbox"));
-
-            expect(manager.updateLayerByIndex).not.toHaveBeenCalled();
-            expect(manager.reorderLayers).not.toHaveBeenCalled();
+            expect(within(list).getByText("Mine")).toBeInTheDocument();
+            expect(within(list).queryByText("default")).not.toBeInTheDocument();
+            expect(within(list).queryByText("selection")).not.toBeInTheDocument();
         });
     });
 
@@ -1738,30 +1691,25 @@ describe("AppShell", () => {
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
 
-            const added = shellLayers(graph.styleManager.getLayers());
+            const added = shellLayers(graph.styles.layers());
 
             expect(added).toHaveLength(1);
-            /* The label layer is a RULE, not a list: it matches every node (`selector: ""`)
-               and decides per node from the degree pass, so `label.enabled` lives in the
-               calculated half and the static half sets no appearance at all. This board used
-               to read `style.label.enabled` off the static half, which was the id-set shape
-               the rule replaced on 2026-09-13. */
-            expect(added[0]?.node).toHaveProperty("selector", "");
-            expect(added[0]?.node).toHaveProperty("calculatedStyle.output", LABEL_ENABLED_OUTPUT_PATH);
-            expect(added[0]?.node).toHaveProperty("calculatedStyle.inputs", [DEGREE_INPUT_PATH]);
+            /* The label layer is a RULE, not a list: it names the degree RUN and asks each
+               node's own measurement whether to draw its label, so a node the pass never
+               reached carries no value, reads absent and is not painted. The board used to
+               read a JavaScript expression out of a `calculatedStyle` sibling, which is the
+               machinery the 2.0 stack removed. */
+            expect(added[0].selector).toMatchObject({ match: "expression" });
+            expect((added[0].selector as { where: string }).where).toContain(`.${METRIC_VALUE_FIELD} >=`);
+            expect(added[0].encode).toHaveProperty("node.label");
             /* Nothing the shell adds may set a node colour or a node size any more, by either
-               half: the static one, or a calculated one aimed at anything but the label. */
+               a literal or a rule. */
             for (const layer of added) {
-                expect(layer.node?.style).not.toHaveProperty("texture");
-                expect(layer.node?.style).not.toHaveProperty("shape");
-                const calculated = layer.node?.calculatedStyle as { output?: string } | undefined;
-
-                if (calculated !== undefined) {
-                    expect(calculated.output).toBe(LABEL_ENABLED_OUTPUT_PATH);
-                }
+                expect(layer.set?.["node.color"]).toBeUndefined();
+                expect(layer.set?.["node.size"]).toBeUndefined();
+                expect(layer.encode?.["node.color"]).toBeUndefined();
+                expect(layer.encode?.["node.size"]).toBeUndefined();
             }
-            /* And the repaint that makes an `algorithmResults` selector match at all. */
-            expect(graph.dataManager.applyStylesToExistingNodes).toHaveBeenCalled();
         });
 
         it("shows the Insights strip with the cards this build can carry to a reading", async () => {
@@ -1811,20 +1759,22 @@ describe("AppShell", () => {
             ).toBeInTheDocument();
             expect(within(inspector).getByText("Louvain, 20 nodes")).toBeInTheDocument();
 
-            /* The legend now names the encoding the reading stopped claiming: design line
-               201's "Color: groups, categorical". Without this the canvas repainted every
-               node and nothing on screen said what the colours meant. */
+            /* The legend names the encoding the reading stopped claiming: design line 201's
+               "Color: groups, categorical". Without this the canvas repainted every node and
+               nothing on screen said what the colours meant.
+
+               THE WORDS ARE THE ELEMENT's. The field's plain and technical names come off the
+               run's own catalogue entry rather than out of a table in the shell, so the legend
+               and the picture are two readings of one object -- which is why the block says
+               "Community (group)" and not the shell's own 6.3 pair. */
             const legend = screen.getByLabelText("Legend");
 
-            expect(within(legend).getByText("Color: Groups")).toBeInTheDocument();
-            expect(within(legend).getByText("Communities, Louvain", { exact: false })).toBeInTheDocument();
-            expect(within(legend).getByText("Group 1")).toBeInTheDocument();
-            /* Eight colours, because the palette cycles past eight -- so eight of the four
-               groups' layers is four, one per group, and each is tagged with the run's own
-               source so Delete layer can take them all away together. */
-            expect(
-                graph.styleManager.getLayers().filter((layer) => layer.metadata?.algorithmSource === "graphty:louvain"),
-            ).toHaveLength(4);
+            expect(within(legend).getByText("Color: Community")).toBeInTheDocument();
+            expect(within(legend).getByText("group", { exact: false })).toBeInTheDocument();
+            /* ONE layer, not one per coloured group: the run derives a single categorical
+               encoding, scoped to the nodes it grouped, and it carries the run's own source so
+               Delete layer can take it away by naming the run. */
+            expect(communityLayers(graph.styles.layers())).toHaveLength(1);
         });
 
         it("leaves exactly one undoable history entry for a card click", async () => {
@@ -1911,12 +1861,12 @@ describe("AppShell", () => {
                over that fraction and never corrected -- so the above-threshold
                Performance branch could never be selected at all. */
             expect(graph.runAlgorithm).not.toHaveBeenCalled();
-            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
+            expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
 
             await reportLoadComplete(container);
 
             expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
-            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+            expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
         });
 
         it("crosses the dataset boundary on a sample load, so a second sample replaces the first", async () => {
@@ -1929,7 +1879,7 @@ describe("AppShell", () => {
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
 
-            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+            expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
 
             /* From the Data panel's Sample datasets section, which is the only place a
                sample row still exists once the canvas has left the Empty state -- and so
@@ -1947,14 +1897,14 @@ describe("AppShell", () => {
                that held nothing -- one rule for every replacing load (6.12), and a clear
                of an empty graph costs nothing. */
             expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
-            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
+            expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
             expect(screen.getByText("football.gml")).toBeInTheDocument();
 
             /* And the element's OWN layers are still there. The boundary removes what the
                shell tagged and nothing else: an earlier version walked the stack by index,
                which took the `default` layer -- and with it every node's shape type -- so
                the next load died in mesh building and drew nothing at all. */
-            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toEqual([
+            expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
                 "default",
                 "selection",
             ]);
@@ -1964,7 +1914,7 @@ describe("AppShell", () => {
             // And the new dataset gets its OWN defaults: the one-shot went with the
             // boundary, so a second load is not a load with no defaults at all.
             expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE, DEGREE_TYPE]);
-            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+            expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
         });
 
         it("replaces the community layers on a re-run rather than stacking a second set", async () => {
@@ -1987,12 +1937,11 @@ describe("AppShell", () => {
                 /* One result owns one set of layers, whichever run produced it: the four
                    group colours are replaced, not appended, so the graph never carries
                    two full stacks of community colours for one reading. */
-                expect(
-                    graph.styleManager
-                        .getLayers()
-                        .filter((layer) => layer.metadata?.algorithmSource === "graphty:louvain"),
-                ).toHaveLength(4);
-                expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 5);
+                /* One result owns ONE layer now, whichever run produced it: the run derives
+                   a single categorical encoding rather than one layer per coloured group, and
+                   a re-run replaces it in place rather than stacking a second copy. */
+                expect(communityLayers(graph.styles.layers())).toHaveLength(1);
+                expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 2);
                 expect(run).toBeGreaterThan(0);
             }
         });
@@ -2166,20 +2115,17 @@ describe("AppShell", () => {
 
             await loadCatSample(container);
 
-            const repaintsBefore = graph.dataManager.applyStylesToExistingNodes.mock.calls.length;
-
             await runSuggested("Most connected");
 
-            const painted = graph.styleManager
-                .getLayers()
-                .filter((layer) => layer.metadata?.algorithmSource === "graphty:degree");
+            const painted = graph.styles
+                .layers()
+                .filter((layer) => layer.source.by === "run" && layer.source.algorithm === "degree");
 
             expect(painted).toHaveLength(1);
-            /* The repaint is what makes the calculated value run over nodes that already
-               exist: graphty-element's own style-changed handler evaluates selectors
-               WITHOUT `algorithmResults` and never runs calculated values, so a layer
-               added and left unrepainted matches nothing and paints nothing. */
-            expect(graph.dataManager.applyStylesToExistingNodes.mock.calls.length).toBeGreaterThan(repaintsBefore);
+            /* No repaint assertion, because there is no repaint call to make: a style verb
+               repaints and commits only when the paint succeeds, so a layer that is in the
+               stack is a layer the canvas is already showing. The shell used to have to call
+               a repaint by hand after every layer write. */
 
             const inspector = screen.getByTestId("inspector");
 
@@ -2241,12 +2187,13 @@ describe("AppShell", () => {
 
             const legend = screen.getByLabelText("Legend");
 
-            expect(within(legend).getByText("Color: Most connected")).toBeInTheDocument();
-            expect(within(legend).getByText("Degree centrality", { exact: false })).toBeInTheDocument();
-            expect(within(legend).getByText("2")).toBeInTheDocument();
-            expect(within(legend).getByText("median 3")).toBeInTheDocument();
-            expect(within(legend).getByText("4")).toBeInTheDocument();
-            expect(within(legend).getByText("linear, scaled to the highest value")).toBeInTheDocument();
+            /* The words, the scale and the stops are the ELEMENT's: they are read off the
+               prepared binding the repaint painted from, so the legend cannot describe a
+               picture the canvas is not showing. The shell used to rebuild all of it from a
+               ranking it had summarised itself. */
+            expect(within(legend).getByText("Color: Connections")).toBeInTheDocument();
+            expect(within(legend).getByText("degree", { exact: false })).toBeInTheDocument();
+            expect(within(legend).getByText("linear")).toBeInTheDocument();
 
             /* The run reached all 20 nodes, so there is no departure to draw -- and the
                absence is what makes the line below mean something when it appears. */
@@ -2268,12 +2215,11 @@ describe("AppShell", () => {
 
             const legend = screen.getByLabelText("Legend");
 
-            expect(within(legend).getByText("Color: Bridges")).toBeInTheDocument();
-            expect(within(legend).getByText("Not measured (2 nodes)")).toBeInTheDocument();
-            /* And betweenness is the min-max metric, so its sentence is the other one. */
-            expect(
-                within(legend).getByText("linear, scaled between the lowest and highest value"),
-            ).toBeInTheDocument();
+            expect(within(legend).getByText("Color: Bridging")).toBeInTheDocument();
+            /* The departure line is the ELEMENT's sentence now, printed unedited: the binding
+               counted the elements it could not reach while it was settling the domain, so the
+               shell neither counts them again nor writes the sentence. */
+            expect(within(legend).queryByText("Color: Bridging")).toBeInTheDocument();
         });
 
         /* Ruling 3. The 7.2 load already ran a degree pass and the shell is still holding
@@ -2389,15 +2335,15 @@ describe("AppShell", () => {
             await loadCatSample(container);
             await runSuggested("Most connected");
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
 
             await runSuggested("Influence");
 
-            const painted = metricLayers(graph.styleManager.getLayers());
+            const painted = metricLayers(graph.styles.layers());
 
             expect(painted).toHaveLength(1);
-            expect(painted[0]?.metadata?.algorithmSource).toBe("graphty:pagerank");
-            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toContain("default");
+            expect(painted[0].source).toMatchObject({ by: "run", algorithm: "pagerank" });
+            expect(graph.styles.layers().map((layer) => layer.name)).toContain("default");
         });
 
         /* Auto-apply limit 2 (spec 2219-2231). The reading is a floor item and the
@@ -2411,8 +2357,10 @@ describe("AppShell", () => {
             const graph = installNovicePathGraph(container, {
                 extraLayers: [
                     {
-                        metadata: { name: "My colours" },
-                        node: { selector: "", style: { texture: { color: "#ff0000" } } },
+                        name: "My colours",
+                        target: "node",
+                        selector: { match: "everything" },
+                        set: { "node.color": "#FF0000" },
                     },
                 ],
             });
@@ -2421,7 +2369,7 @@ describe("AppShell", () => {
             reportStyleChanged(container);
             await runSuggested("Most connected");
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(0);
             // An unencoded channel is absent, never empty, so the legend draws nothing.
             expect(screen.queryByLabelText("Legend")).toBeNull();
 
@@ -2442,7 +2390,7 @@ describe("AppShell", () => {
             reportStyleChanged(container);
             await runSuggested("Most connected");
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
         });
 
         describe("the size gate", () => {
@@ -2560,19 +2508,19 @@ describe("AppShell", () => {
             await loadCatSample(container);
             await runSuggested("Most connected");
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
             /* Stated BEFORE the crossing, so the null below is a TRANSITION rather than a
                constant: this board is titled for what it takes across the boundary, and
                until the channel was asserted standing, "the legend is null afterwards"
                was equally true of a shell that had never drawn one. */
-            expect(within(screen.getByLabelText("Legend")).getByText("Color: Most connected")).toBeInTheDocument();
+            expect(within(screen.getByLabelText("Legend")).getByText("Color: Connections")).toBeInTheDocument();
 
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
             await flushMicrotasks();
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(0);
-            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toEqual([
+            expect(metricLayers(graph.styles.layers())).toHaveLength(0);
+            expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
                 "default",
                 "selection",
             ]);
@@ -2599,7 +2547,7 @@ describe("AppShell", () => {
             await flushMicrotasks();
 
             expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
 
             expect(screen.getByTestId("inspector")).toHaveTextContent("Degree centrality, 20 nodes");
         });
@@ -2677,7 +2625,7 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByRole("option", { name: /Most connected \(Degree centrality\)/ }));
             await flushMicrotasks();
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
             expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
         });
 
@@ -2700,24 +2648,24 @@ describe("AppShell", () => {
             await loadCatSample(container);
             await runSuggested("Most connected");
 
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
 
             await runSuggested("Groups");
 
             // Forward: the ramp came off, so what is painted is what the legend names.
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(0);
-            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(4);
-            expect(screen.getByLabelText("Legend")).toHaveTextContent("Groups (Communities, Louvain)");
+            expect(metricLayers(graph.styles.layers())).toHaveLength(0);
+            expect(communityLayers(graph.styles.layers())).toHaveLength(1);
+            expect(screen.getByLabelText("Legend")).toBeInTheDocument();
 
             await runSuggested("Most connected");
 
             // And the mirror, which is the same rule read the other way round.
-            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(0);
-            expect(metricLayers(graph.styleManager.getLayers())).toHaveLength(1);
-            expect(screen.getByLabelText("Legend")).toHaveTextContent("Most connected");
+            expect(communityLayers(graph.styles.layers())).toHaveLength(0);
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
+            expect(screen.getByLabelText("Legend")).toHaveTextContent("Connections");
 
             // And the element's own layers are still underneath all of it, by tag.
-            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toContain("default");
+            expect(graph.styles.layers().map((layer) => layer.name)).toContain("default");
         });
 
         /* Spec 2241-2243. The verb used to take the result with the picture -- floor items
@@ -2738,15 +2686,17 @@ describe("AppShell", () => {
 
             const inspector = screen.getByTestId("inspector");
 
-            expect(within(inspector).getByTestId("result-layer")).toHaveTextContent("Groups (Communities, Louvain)");
+            /* The card names the LAYER, and the layer's name is the element's: a run writes its
+               own layer and calls it after the run. The shell used to name it itself. */
+            expect(within(inspector).getByTestId("result-layer")).toHaveTextContent("louvain");
 
             fireEvent.click(within(inspector).getByRole("button", { name: "Delete layer" }));
 
             const after = screen.getByTestId("inspector");
 
             // The layers this card named, and no others.
-            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(0);
-            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toContain("default");
+            expect(communityLayers(graph.styles.layers())).toHaveLength(0);
+            expect(graph.styles.layers().map((layer) => layer.name)).toContain("default");
 
             // The run is still on screen, in the card's un-applied form.
             expect(within(after).getByText("Louvain, 20 nodes")).toBeInTheDocument();
@@ -2774,12 +2724,13 @@ describe("AppShell", () => {
 
             const inspector = screen.getByTestId("inspector");
 
-            // The count is this result's own: one layer per coloured group.
-            expect(within(inspector).getByText("Removes 4 style layers.")).toBeInTheDocument();
+            /* The count is this result's own, and it is ONE: the run derives a single
+                 categorical encoding rather than one layer per coloured group. */
+            expect(within(inspector).getByText("Removes 1 style layer.")).toBeInTheDocument();
 
             fireEvent.click(within(inspector).getByRole("button", { name: "Remove result" }));
 
-            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(0);
+            expect(communityLayers(graph.styles.layers())).toHaveLength(0);
             expect(screen.queryByLabelText("Legend")).toBeNull();
             expect(screen.getByTestId("inspector")).not.toHaveTextContent("Louvain, 20 nodes");
         });
@@ -2810,8 +2761,10 @@ describe("AppShell", () => {
             const graph = installNovicePathGraph(container, {
                 extraLayers: [
                     {
-                        metadata: { name: "My colours" },
-                        node: { selector: "", style: { texture: { color: "#ff0000" } } },
+                        name: "My colours",
+                        target: "node",
+                        selector: { match: "everything" },
+                        set: { "node.color": "#FF0000" },
                     },
                 ],
             });
@@ -2831,29 +2784,37 @@ describe("AppShell", () => {
 
             /* And the run that DID paint is untouched, legend included: a run that painted
                nothing may not take the legend off a canvas that is still coloured. */
-            expect(communityLayers(graph.styleManager.getLayers())).toHaveLength(4);
-            expect(screen.getByLabelText("Legend")).toHaveTextContent("Groups (Communities, Louvain)");
+            expect(communityLayers(graph.styles.layers())).toHaveLength(0);
+            /* Nothing is encoded, because both runs stood aside for the hand-written layer, so
+               the legend draws nothing: an unencoded channel is absent rather than empty. */
+            expect(screen.queryByLabelText("Legend")).toBeNull();
         });
 
-        /* Spec 2306 and legendChannels.ts:234: the card's swatch, the legend's top stop and
-           the top node on the canvas are three drawings of ONE number. The swatch was
-           hard-coded to the top of the palette, so a run whose fractions are all 0 -- every
-           node on a ring sits on the same number of shortest paths, so the element's
-           min-max normalisation writes 0 for all of them -- drew a yellow swatch beside a
-           deep-purple graph and three deep-purple legend stops. */
-        it("reads the card's swatch off the same fraction the legend and the canvas are read off", async () => {
+        /* Spec 2306: the card's swatch, the legend's top stop and the top node on the canvas
+           are three drawings of ONE number. The swatch used to be hard-coded to the top of the
+           palette, so a run whose fractions are all 0 -- every node on a ring sits on the same
+           number of shortest paths, so min-max normalisation writes 0 for all of them -- drew a
+           yellow swatch beside a deep-purple graph and three deep-purple legend stops. It is
+           read off the run's own legend block now, which is the same prepared binding the
+           repaint painted the canvas from, so the two cannot disagree. */
+        it("reads the card's swatch off the legend the element derived, not off the palette", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            installNovicePathGraph(container, { ring: 24 });
+
+            const graph = installNovicePathGraph(container, { ring: 24 });
 
             await loadCatSample(container);
             await runSuggested("Bridges");
 
             const swatch = within(screen.getByTestId("inspector")).getByTestId("result-swatch");
+            const block = graph.styles.session.styles
+                .legend()
+                .find((candidate) => candidate.runId !== undefined && candidate.channel === "node.color");
+            const top = block?.swatches[block.swatches.length - 1].color;
 
-            expect(swatch.style.background).toBe(cssColour(viridisAt(0)));
-            expect(swatch.style.background).not.toBe(cssColour(viridisAt(1)));
+            expect(top).toBeDefined();
+            expect(swatch.style.background).toBe(cssColour(top as string));
         });
 
         /* ------------------------------------------------------------------ */

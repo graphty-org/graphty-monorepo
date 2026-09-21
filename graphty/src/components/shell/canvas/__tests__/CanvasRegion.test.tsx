@@ -16,8 +16,7 @@ import type { LegendChannel } from "../Legend";
 
 class MockGraphtyElement extends HTMLElement {
     graph = {
-        getLayers: (): unknown[] => [],
-        getStyleManager: () => ({ getLayers: () => [] }),
+        getSession: () => ({ styles: { list: (): unknown[] => [] }, on: () => () => undefined }),
     };
 }
 

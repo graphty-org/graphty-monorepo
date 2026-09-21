@@ -1,17 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { makeLayer } from "../../../test/layerFixture";
 import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
 import { LayerItem, LeftSidebar } from "../LeftSidebar";
 
 describe("LeftSidebar", () => {
-    const createLayer = (id: string, name: string): LayerItem => ({
-        id,
-        name,
-        styleLayer: {
-            node: { selector: "", style: {} },
-            edge: { selector: "", style: {} },
-        },
-    });
+    const createLayer = (id: string, name: string): LayerItem => makeLayer(id, name);
 
     const defaultProps = {
         layers: [] as LayerItem[],

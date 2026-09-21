@@ -1,6 +1,7 @@
 import { PANEL_GRID } from "@graphty/compact-mantine";
 import { describe, expect, it, vi } from "vitest";
 
+import { makeLayer } from "../../../../test/layerFixture";
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import type { LayerItem } from "../../../layout/LeftSidebar";
 import { ShellProvider } from "../../ShellContext";
@@ -9,14 +10,7 @@ import { StylePanel, type StylePanelProps } from "../StylePanel";
 const BUILT_INS = ["Default", "High contrast", "Print", "Colorblind safe", "Presentation"];
 
 function createLayer(id: string, name: string): LayerItem {
-    return {
-        id,
-        name,
-        styleLayer: {
-            node: { selector: "", style: {} },
-            edge: { selector: "", style: {} },
-        },
-    };
+    return makeLayer(id, name);
 }
 
 function renderPanel(props: Partial<StylePanelProps> = {}) {

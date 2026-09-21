@@ -1,21 +1,26 @@
 /**
  * AI type definitions.
- * Note: These should match the types from @graphty/graphty-element.
- * TypeScript has module resolution issues with graphty-element's bundler exports,
- * so we define compatible types here for type checking while using runtime imports.
+ *
+ * The natural-language layer lives behind its own entry point,
+ * `@graphty/graphty-element/ai`, so an application that only draws a graph never loads three
+ * LLM SDKs and an encrypted key store. That entry point needs a DOM, which is why it is still
+ * reached through a dynamic import rather than a top-level one.
+ *
+ * The class shapes declared below are the app's own duck types, kept for now; the real ones
+ * are exported by that entry point.
  */
 
-// Lazy-load graphty-element to avoid module loading issues in Safari
+// Lazy-load the AI layer to avoid module loading issues in Safari
 // The actual classes are loaded on first access
-let graphtyElementModule: typeof import("@graphty/graphty-element") | null = null;
-let loadPromise: Promise<typeof import("@graphty/graphty-element")> | null = null;
+let graphtyElementModule: typeof import("@graphty/graphty-element/ai") | null = null;
+let loadPromise: Promise<typeof import("@graphty/graphty-element/ai")> | null = null;
 let loadError: Error | null = null;
 
 /**
- * Lazily load the graphty-element module.
- * @returns The graphty-element module
+ * Lazily load the graphty-element AI module.
+ * @returns The `@graphty/graphty-element/ai` module
  */
-async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-element")> {
+async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-element/ai")> {
     // If we already had an error, throw it again
     if (loadError) {
         throw loadError;
@@ -25,7 +30,7 @@ async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-elem
         return graphtyElementModule;
     }
 
-    loadPromise ??= import("@graphty/graphty-element")
+    loadPromise ??= import("@graphty/graphty-element/ai")
         .then((mod) => {
             graphtyElementModule = mod;
 
@@ -33,7 +38,7 @@ async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-elem
         })
         .catch((err: unknown) => {
             const error = err instanceof Error ? err : new Error(String(err));
-            console.error("[AI] Failed to load @graphty/graphty-element:", error);
+            console.error("[AI] Failed to load @graphty/graphty-element/ai:", error);
             console.error("[AI] Error name:", error.name);
             console.error("[AI] Error message:", error.message);
             console.error("[AI] Error stack:", error.stack);
@@ -193,7 +198,7 @@ export type { ApiKeyManagerClass as ApiKeyManagerType };
 export type { AiManagerClass as AiManagerType };
 
 /**
- * Get the graphty-element module lazily.
+ * Get the graphty-element AI module lazily.
  * This delays loading until first access, avoiding module import issues on Safari.
  */
 export { getGraphtyElement };
@@ -205,7 +210,7 @@ export { getGraphtyElement };
 export async function getApiKeyManager(): Promise<typeof ApiKeyManagerClass> {
     const mod = await getGraphtyElement();
 
-    // TypeScript can't resolve bundler exports, use type assertion
+    // The declaration above is the app's own, not the element's, so the shapes are asserted
     return (mod as unknown as { ApiKeyManager: typeof ApiKeyManagerClass }).ApiKeyManager;
 }
 
@@ -216,7 +221,7 @@ export async function getApiKeyManager(): Promise<typeof ApiKeyManagerClass> {
 export async function getCreateAiManager(): Promise<typeof createAiManagerFn> {
     const mod = await getGraphtyElement();
 
-    // TypeScript can't resolve bundler exports, use type assertion
+    // The declaration above is the app's own, not the element's, so the shapes are asserted
     return (mod as unknown as { createAiManager: typeof createAiManagerFn }).createAiManager;
 }
 
@@ -245,6 +250,6 @@ declare function createProviderFn(config: ProviderConfig): AiProvider;
 export async function getCreateProvider(): Promise<typeof createProviderFn> {
     const mod = await getGraphtyElement();
 
-    // TypeScript can't resolve bundler exports, use type assertion
+    // The declaration above is the app's own, not the element's, so the shapes are asserted
     return (mod as unknown as { createProvider: typeof createProviderFn }).createProvider;
 }

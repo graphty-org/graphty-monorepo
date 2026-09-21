@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
+import { createFakeSession } from "../../../../test/fakeSession";
 import type { ElementGraph, ElementNodeLike } from "../elementBridge";
 import {
     LOG_X_RATIO_THRESHOLD,
@@ -80,8 +81,6 @@ function makeStub(ids: (number | string)[], plan: StubPlan = {}): Stub {
     const graphResults: Record<string, unknown> = {};
     const runs: [string, string][] = [];
     const runOptions: unknown[] = [];
-    const applyStylesToExistingNodes = vi.fn();
-    const applyStylesToExistingEdges = vi.fn();
     const definition = NODE_METRIC_DEFINITIONS[plan.metric ?? "degree"];
 
     /**
@@ -126,27 +125,27 @@ function makeStub(ids: (number | string)[], plan: StubPlan = {}): Stub {
         }
     }
 
-    const graph: ElementGraph = {
-        runAlgorithm: (namespace, type, options) => {
-            runs.push([namespace, type]);
-            runOptions.push(options);
-            if (namespace === definition.namespace && type === definition.type) {
-                runMetric();
-            }
+    /* Through the SESSION, which is the door that returns the run's id: a style layer scopes
+       itself to the run whose column it reads. The catalogue key and the 1.10 type are the
+       same string for all three metrics, so the recorded pairs read as they did. */
+    const session = createFakeSession();
 
-            return Promise.resolve();
-        },
+    session.onStart((type) => {
+        runs.push([definition.namespace, type]);
+        runOptions.push(undefined);
+
+        if (type === definition.type) {
+            runMetric();
+        }
+    });
+
+    const graph: ElementGraph = {
+        runAlgorithm: () => Promise.resolve(),
         getNodes: () => nodes as readonly ElementNodeLike[],
         getDataManager: () => ({
             ...(plan.omitGraphResults === true ? {} : { graphResults }),
-            applyStylesToExistingNodes,
-            applyStylesToExistingEdges,
         }),
-        getStyleManager: () => ({
-            addLayer: () => undefined,
-            getLayers: () => [],
-            removeLayerByIndex: () => false,
-        }),
+        getSession: () => session.session,
     };
 
     return { graph, runs, runOptions };
@@ -504,7 +503,13 @@ describe("rankingFromDegreeResults", () => {
 
         const fromElement = await runNodeMetric(stub.graph, "degree");
 
-        expect(rankingFromDegreeResults(held, 4)).toEqual(fromElement);
+        /* The run id is the one thing the two cannot share: one came from a run started here
+           and the other from a pass the load already ran. Everything a reading is built from
+           is identical, which is the claim this board makes. */
+        const { runId, ...measured } = fromElement;
+
+        expect(runId).toEqual(expect.any(String));
+        expect(rankingFromDegreeResults(held, 4)).toEqual(measured);
     });
 
     it("runs nothing at all", () => {

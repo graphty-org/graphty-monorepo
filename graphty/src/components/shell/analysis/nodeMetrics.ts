@@ -104,6 +104,8 @@
  * Node metric shape) and 7.5 (readings built from these statistics).
  */
 
+import type { RunId } from "@graphty/graphty-element/session";
+
 import { type ElementGraph, readResultPath } from "./elementBridge";
 import type { DegreeResults } from "./runs";
 
@@ -264,6 +266,14 @@ export interface NodeMetricReading {
 export interface NodeMetricRanking {
     /** Which metric this ranks. */
     readonly metric: NodeMetricId;
+    /**
+     * The run that measured it, when these readings came from a run.
+     *
+     * The run is what a style layer scopes itself to and what "Remove result" names, so it
+     * travels with the ranking. {@link readNodeMetricResults} reads what is already on the
+     * nodes and started nothing, so it reports none.
+     */
+    readonly runId?: RunId;
     /** Every measured node, highest value first, ties broken by printed id. */
     readonly byValueDescending: readonly NodeMetricReading[];
     /**
@@ -542,10 +552,16 @@ export function readNodeMetricResults(graph: ElementGraph, metric: NodeMetricId)
  * @public
  */
 export async function runNodeMetric(graph: ElementGraph, metric: NodeMetricId): Promise<NodeMetricRanking> {
-    const definition = NODE_METRIC_DEFINITIONS[metric];
-    await graph.runAlgorithm(definition.namespace, definition.type);
+    /* Through the session rather than the 1.10 address, so the run's id comes back with it:
+       a style layer scopes itself to the run whose column it reads, and the card's "Remove
+       result" verb names that run too. The run PAINTS -- a reader asking for a metric is
+       asking for the picture -- and the session's own policy decides whether the suggestion
+       stands or a layer somebody wrote by hand keeps the channel. */
+    const run = graph.getSession().runs.start(metric);
 
-    return readNodeMetricResults(graph, metric);
+    await run;
+
+    return { ...readNodeMetricResults(graph, metric), runId: run.id };
 }
 
 /**
@@ -597,7 +613,10 @@ export function rankingFromDegreeResults(degrees: DegreeResults, nodeCount: numb
         fraction: reading.degreePct,
     }));
 
-    return summariseReadings("degree", byValueDescending, Math.max(nodeCount, byValueDescending.length));
+    return {
+        ...summariseReadings("degree", byValueDescending, Math.max(nodeCount, byValueDescending.length)),
+        ...(degrees.runId === undefined ? {} : { runId: degrees.runId }),
+    };
 }
 
 /** One bar of a metric's distribution. @public */

@@ -34,7 +34,15 @@ import {
     reportedRow,
 } from "../benchmarks/layout-exact.bench.js";
 import { FR_RUNGS, LAYOUT_FR_GROUP } from "../benchmarks/layout-fr.bench.js";
-import { checkLayoutResult, parseLayoutRunArgs } from "../benchmarks/layout-run.js";
+import {
+    ATTRACTION_RUNG,
+    GRID_DIMS,
+    GRID_LADDER,
+    gridLadderRowsOf,
+    LAYOUT_GRID_GROUP,
+    RECHECK_RUNGS,
+} from "../benchmarks/layout-grid.bench.js";
+import { checkLayoutResult, metricsText, parseLayoutRunArgs } from "../benchmarks/layout-run.js";
 
 /** A device whose queue settles immediately: bench() only awaits onSubmittedWorkDone on it. */
 const FAKE_DEVICE = {
@@ -491,7 +499,7 @@ describe("benchmarks/layout-exact.bench.ts (contract 6.3; spec 7.8, 10.4 T-4)", 
         expect(() => floorPow2(0.5)).toThrow(/positive/);
     });
 
-    it("exactMaxNodesFromLadder is the spec 7.8 rule reduced to its budget clause (the grid clause is re-checked at G4)", () => {
+    it("exactMaxNodesFromLadder without gridRows is the spec 7.8 rule reduced to its budget clause (what G3 applied)", () => {
         // 3.48 <= 4 < 8.66: the largest rung within 4 ms is 32k
         expect(exactMaxNodesFromLadder(CURVE_7_6)).toBe(32768);
         // 0.53 <= 1 < 1.13
@@ -514,6 +522,35 @@ describe("benchmarks/layout-exact.bench.ts (contract 6.3; spec 7.8, 10.4 T-4)", 
         expect(() => exactMaxNodesFromLadder(CURVE_7_6, 0.01)).toThrow(/no rung within 0.01 ms/);
         expect(() => exactMaxNodesFromLadder([{ n: 1024, msPerIteration: Number.NaN }])).toThrow(/finite/);
         expect(() => exactMaxNodesFromLadder([{ n: 1024, msPerIteration: -1 }])).toThrow(/finite/);
+    });
+
+    it("exactMaxNodesFromLadder with gridRows applies the grid clause (PD-24): a rung the grid tier beats is no candidate", () => {
+        // the grid at 32k faster than the exact 3.48 ms: 32k drops out and the answer falls to 16k
+        expect(exactMaxNodesFromLadder(CURVE_7_6, EXACT_BUDGET_MS, [{ n: 32768, msPerIteration: 3.0 }])).toBe(16384);
+        // the grid slower at 32k: the budget clause alone decides
+        expect(exactMaxNodesFromLadder(CURVE_7_6, EXACT_BUDGET_MS, [{ n: 32768, msPerIteration: 5.0 }])).toBe(32768);
+        // a tie keeps the rung (not SLOWER than the grid)
+        expect(exactMaxNodesFromLadder(CURVE_7_6, EXACT_BUDGET_MS, [{ n: 32768, msPerIteration: 3.48 }])).toBe(32768);
+        // a grid row at an n the exact ladder lacks, or at a rung already over budget, changes nothing
+        expect(
+            exactMaxNodesFromLadder(CURVE_7_6, EXACT_BUDGET_MS, [
+                { n: 100_000, msPerIteration: 1 },
+                { n: 65536, msPerIteration: 1 },
+            ]),
+        ).toBe(32768);
+        // an empty gridRows is the budget clause
+        expect(exactMaxNodesFromLadder(CURVE_7_6, EXACT_BUDGET_MS, [])).toBe(32768);
+        // the grid faster at EVERY rung within budget: no candidate, the owner-decision rule
+        expect(() =>
+            exactMaxNodesFromLadder(
+                CURVE_7_6,
+                EXACT_BUDGET_MS,
+                CURVE_7_6.map((r) => ({ n: r.n, msPerIteration: r.msPerIteration / 2 })),
+            ),
+        ).toThrow(/no rung within 4 ms/);
+        expect(() =>
+            exactMaxNodesFromLadder(CURVE_7_6, EXACT_BUDGET_MS, [{ n: 32768, msPerIteration: Number.NaN }]),
+        ).toThrow(/grid row n=32768/);
     });
 
     it("ladderRowsOf keeps the ms/iteration rows of the six ladder rungs, parses n and sorts by n", () => {
@@ -577,6 +614,93 @@ describe("benchmarks/layout-fr.bench.ts (spec 10.4 T-14; PD-17)", () => {
     });
 });
 
+describe("benchmarks/layout-grid.bench.ts (spec 10.4 T-6 / T-7, 7.8; PD-24)", () => {
+    it("the group is layout-grid and its ladder is 32k / 65k / 100k / 262k / 1M in 2D and 3D", () => {
+        expect(LAYOUT_GRID_GROUP).toBe("layout-grid");
+        expect(GRID_LADDER.map((r) => r.nodes)).toEqual([32768, 65536, 100_000, 262_144, 1_000_000]);
+        expect(GRID_LADDER.map((r) => r.label)).toEqual(["32k", "65k", "100k", "262k", "1M"]);
+        expect(GRID_DIMS).toEqual([2, 3]);
+        expect(ATTRACTION_RUNG).toEqual({ label: "1M", nodes: 1_000_000 });
+        // the two rungs the exact ladder shares, so the 7.8 re-check has its rows
+        expect(EXACT_LADDER.filter((r) => GRID_LADDER.some((g) => g.nodes === r.nodes)).map((r) => r.nodes)).toEqual([
+            32768, 65536,
+        ]);
+        // the re-check rungs: the exact ladder's other rungs, in 2D only, so the grid clause has a row at every exact rung
+        expect(RECHECK_RUNGS.map((r) => r.nodes)).toEqual([1024, 4096, 8192, 16384]);
+        expect(RECHECK_RUNGS.map((r) => r.label)).toEqual(["1k", "4k", "8k", "16k"]);
+        expect([...RECHECK_RUNGS, ...GRID_LADDER.slice(0, 2)].map((r) => r.nodes)).toEqual(
+            EXACT_LADDER.map((r) => r.nodes),
+        );
+    });
+
+    it("the row-name shapes carry the grid tag, the source, the dimension and the rung label; the attraction row the profiler", () => {
+        const wall = /^grid step\(1\) wall n=(\d+) m=(\d+) (2|3)D \[(1k|4k|8k|16k|32k|65k|100k|262k|1M)\]$/;
+        const perIteration =
+            /^grid ms\/iteration \((profiler|wall)\) n=(\d+) (2|3)D \[(1k|4k|8k|16k|32k|65k|100k|262k|1M)\]$/;
+        for (const rung of GRID_LADDER) {
+            const m = rung.nodes * LADDER_EDGE_FACTOR;
+            for (const dim of GRID_DIMS) {
+                expect(`grid step(1) wall n=${rung.nodes} m=${m} ${dim}D [${rung.label}]`).toMatch(wall);
+                expect(`grid ms/iteration (profiler) n=${rung.nodes} ${dim}D [${rung.label}]`).toMatch(perIteration);
+                expect(`grid ms/iteration (wall) n=${rung.nodes} ${dim}D [${rung.label}]`).toMatch(perIteration);
+            }
+        }
+        for (const rung of RECHECK_RUNGS) {
+            const m = rung.nodes * LADDER_EDGE_FACTOR;
+            expect(`grid step(1) wall n=${rung.nodes} m=${m} 2D [${rung.label}]`).toMatch(wall);
+            expect(`grid ms/iteration (profiler) n=${rung.nodes} 2D [${rung.label}]`).toMatch(perIteration);
+        }
+        expect("attraction ms/iteration (profiler) n=1000000 [1M]").toMatch(
+            /^attraction ms\/iteration \(profiler\) n=1000000 \[1M\]$/,
+        );
+        // the layout-exact rows do not match the grid shapes and vice versa
+        expect("step(1) wall n=32768 m=327680 2D [32k]").not.toMatch(wall);
+        expect("grid step(1) wall n=32768 m=327680 2D [32k]").not.toMatch(/^step\(1\) wall /);
+    });
+
+    it("gridLadderRowsOf keeps the ms/iteration rows of the asked dimension, parses n and sorts by n", () => {
+        const rows = [
+            result("grid ms/iteration (profiler) n=65536 2D [65k]", 4.2, LAYOUT_GRID_GROUP),
+            result("grid step(1) wall n=65536 m=655360 2D [65k]", 4.9, LAYOUT_GRID_GROUP),
+            result("grid ms/iteration (profiler) n=32768 2D [32k]", 3.1, LAYOUT_GRID_GROUP),
+            result("grid ms/iteration (profiler) n=32768 3D [32k]", 6.5, LAYOUT_GRID_GROUP),
+            // a re-check rung (an exact-ladder n the grid ladder lacks) is a ladder row too
+            result("grid ms/iteration (profiler) n=4096 2D [4k]", 0.2, LAYOUT_GRID_GROUP),
+            // an n on neither ladder is not
+            result("grid ms/iteration (profiler) n=2048 2D [2k]", 0.19, LAYOUT_GRID_GROUP),
+            // the wall source is accepted (a device without timestamp-query)
+            result("grid ms/iteration (wall) n=1000000 2D [1M]", 40, LAYOUT_GRID_GROUP),
+            // the attraction row and another group's row are ignored
+            result("attraction ms/iteration (profiler) n=1000000 [1M]", 5, LAYOUT_GRID_GROUP),
+            result("grid ms/iteration (profiler) n=100000 2D [100k]", 6, "other-group"),
+        ];
+        expect(gridLadderRowsOf(rows, 2)).toEqual([
+            { n: 4096, msPerIteration: 0.2 },
+            { n: 32768, msPerIteration: 3.1 },
+            { n: 65536, msPerIteration: 4.2 },
+            { n: 1_000_000, msPerIteration: 40 },
+        ]);
+        expect(gridLadderRowsOf(rows, 3)).toEqual([{ n: 32768, msPerIteration: 6.5 }]);
+        expect(gridLadderRowsOf([], 2)).toEqual([]);
+        // the re-check of spec 7.8 over one session: the exact rows and the grid 2D rows through one function
+        const exact = ladderRowsOf([
+            result("ms/iteration (profiler) n=4096 [4k]", 0.26, LAYOUT_EXACT_GROUP),
+            result("ms/iteration (profiler) n=16384 [16k]", 1.1, LAYOUT_EXACT_GROUP),
+            result("ms/iteration (profiler) n=32768 [32k]", 3.5, LAYOUT_EXACT_GROUP),
+            result("ms/iteration (profiler) n=65536 [65k]", 8.4, LAYOUT_EXACT_GROUP),
+        ]);
+        // 16k has no grid row here, so the budget clause alone keeps it; 4k's grid row (0.2 < 0.26) would exclude 4k
+        expect(exactMaxNodesFromLadder(exact, EXACT_BUDGET_MS, gridLadderRowsOf(rows, 2))).toBe(16384);
+        // with a grid row at 16k that beats it, the answer falls past 4k (also beaten) to nothing: the owner-decision rule
+        expect(() =>
+            exactMaxNodesFromLadder(exact, EXACT_BUDGET_MS, [
+                ...gridLadderRowsOf(rows, 2),
+                { n: 16384, msPerIteration: 0.25 },
+            ]),
+        ).toThrow(/no rung within 4 ms/);
+    });
+});
+
 describe("benchmarks/layout-run.ts (contract 6.3)", () => {
     it("parseLayoutRunArgs: the two required sizes and the five defaults", () => {
         expect(parseLayoutRunArgs(["--nodes", "100000", "--edges", "1000000"])).toEqual({
@@ -587,6 +711,7 @@ describe("benchmarks/layout-run.ts (contract 6.3)", () => {
             seed: 1,
             dim: 2,
             compat: "paper",
+            repulsion: "auto",
         });
         expect(
             parseLayoutRunArgs([
@@ -604,8 +729,23 @@ describe("benchmarks/layout-run.ts (contract 6.3)", () => {
                 "3",
                 "--compat",
                 "networkx",
+                "--repulsion",
+                "grid",
             ]),
-        ).toEqual({ nodes: 10, edges: 20, iterations: 5, batch: 2, seed: 7, dim: 3, compat: "networkx" });
+        ).toEqual({
+            nodes: 10,
+            edges: 20,
+            iterations: 5,
+            batch: 2,
+            seed: 7,
+            dim: 3,
+            compat: "networkx",
+            repulsion: "grid",
+        });
+        expect(parseLayoutRunArgs(["--nodes", "10", "--edges", "1", "--repulsion", "exact"]).repulsion).toBe("exact");
+        expect(() => parseLayoutRunArgs(["--nodes", "10", "--edges", "1", "--repulsion", "fast"])).toThrow(
+            /--repulsion expects exact, grid or auto/,
+        );
         expect(() => parseLayoutRunArgs([])).toThrow(/--nodes N is required/);
         expect(() => parseLayoutRunArgs(["--nodes", "10"])).toThrow(/--edges M is required/);
         expect(() => parseLayoutRunArgs(["--nodes", "0", "--edges", "1"])).toThrow(/--nodes expects an integer >= 1/);
@@ -629,6 +769,23 @@ describe("benchmarks/layout-run.ts (contract 6.3)", () => {
             /unexpected argument extra/,
         );
         expect(() => parseLayoutRunArgs(["--nodes"])).toThrow(/--nodes expects an integer >= 1, got undefined/);
+    });
+
+    it("metricsText prints the spread, the edge-length quantiles and the sampled nearest-neighbour histogram", () => {
+        const s = snapshotOf(KARATE_EDGES, { label: "karate" });
+        const positions = new Float32Array(3 * 34);
+        for (let i = 0; i < 34; i++) {
+            positions[3 * i] = i;
+            positions[3 * i + 1] = (i * 7) % 5;
+        }
+        const text = metricsText(s, positions, 2);
+        expect(text).toMatch(
+            /^metrics: spread=33\.0000 edgeQ10=[\d.]+ edgeQ50=[\d.]+ edgeQ90=[\d.]+ nnBins\(1 in 32 nodes\)=\[/,
+        );
+        // 34 nodes sampled every 32nd: two nodes (0 and 32), each the other's nearest neighbour at the mean distance
+        expect(text).toContain(
+            "nnBins(1 in 32 nodes)=[0.0000, 0.0000, 0.0000, 0.0000, 1.0000, 0.0000, 0.0000, 0.0000]",
+        );
     });
 
     it("checkLayoutResult: finite positions and a settled or exhausted run pass; anything else names the problem", () => {

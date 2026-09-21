@@ -1,8 +1,8 @@
 /**
  * The public barrel's VALUE list, pinned (contract 3.15, 5.5): P0's errors / constants / isSoftwareAdapter, P1's
  * GpuContext and degree, P3's layout factory, accelerator, default tables and seeder, P5's two layout factories and
- * their default tables; each value is the same object
- * its module exports; no default export; the entries, the internal surface and the P4+ names never reach the root.
+ * their default tables, P4's calibrateLayout; each value is the same object
+ * its module exports; no default export; the entries and the internal surface never reach the root.
  * Types are pinned by test/types/public-api.test-d.ts under the strict-consumer compile.
  */
 
@@ -16,6 +16,7 @@ import { GpuContext } from "../src/context.js";
 import * as acquire from "../src/device/acquire.js";
 import * as errors from "../src/errors.js";
 import * as api from "../src/index.js";
+import { calibrateLayout } from "../src/layouts/calibrate.js";
 import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
 import { createFruchtermanReingold } from "../src/layouts/fruchterman-reingold.js";
 import { seedPositions } from "../src/layouts/seed.js";
@@ -52,6 +53,8 @@ const VALUE_EXPORTS = [
     "createSpringElectrical",
     "FR_DEFAULTS",
     "SE_DEFAULTS",
+    // P4: the layout-tier micro-benchmark (spec 2.2)
+    "calibrateLayout",
     // P7: the SpMV family and WCC (spec 8.2, 8.3; M8b-T8)
     "pageRank",
     "personalizedPageRank",
@@ -97,8 +100,8 @@ const NEVER_EXPORTED = [
     "BufferUsage",
     "MapMode",
     "ShaderStage",
-    // P4+, the P5 internals, and the P7 names that are accelerator members or internals, never barrel values
-    "calibrateLayout",
+    // the P4 / P5 internals and the P7 names that are accelerator members or internals, never barrel values
+    "RepulsionGrid",
     "FruchtermanReingoldModel",
     "SpringElectricalModel",
     "resolveFruchtermanReingoldOptions",
@@ -109,7 +112,7 @@ const NEVER_EXPORTED = [
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {
-    it("exports exactly the P3 + P5 + P7 value list and no default export", () => {
+    it("exports exactly the P3 + P4 + P5 + P7 value list and no default export", () => {
         expect(Object.keys(api).sort()).toEqual([...VALUE_EXPORTS].sort());
         expect((api as Record<string, unknown>).default).toBeUndefined();
     });
@@ -143,6 +146,7 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.eigenvectorCentrality).toBe(eigenvectorCentrality);
         expect(api.katzCentrality).toBe(katzCentrality);
         expect(api.connectedComponents).toBe(connectedComponents);
+        expect(api.calibrateLayout).toBe(calibrateLayout);
         expect(typeof api.WebGpuGraphError).toBe("function");
         expect(typeof api.isWebGpuGraphError).toBe("function");
         expect(typeof api.hasErrorCode).toBe("function");
@@ -153,7 +157,7 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(Object.isFrozen(api.PASSTHROUGH_FORMAT_CODES)).toBe(true);
     });
 
-    it("never exports the entries, the @internal surface or a P4+ name", () => {
+    it("never exports the entries or the @internal surface", () => {
         for (const name of NEVER_EXPORTED) {
             expect(name in api, name).toBe(false);
         }

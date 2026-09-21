@@ -8,8 +8,8 @@
  * isSoftwareAdapter. P1 adds GpuContext and degree (values) and the context / run / profiler types. P2 adds nothing
  * (Lease, CommandBatch, UniformRing are internal). P3 adds the layout factory, the accelerator, the two default
  * tables, the seeder and the layout / accelerator types. P5 adds the two factories, the two default tables and the
- * two stats records. test/index.test.ts pins the value list and test/types/public-api.test-d.ts the type list; P4+
- * extends both. This comment must never spell the internal
+ * two stats records. P4 adds calibrateLayout and its two records. test/index.test.ts pins the value list and
+ * test/types/public-api.test-d.ts the type list. This comment must never spell the internal
  * JSDoc tag: it is the leading comment of the first export statement, and stripInternal would drop that statement
  * from the emitted declarations.
  */
@@ -49,8 +49,9 @@ export { connectedComponents } from "./algorithms/components.js";
 export { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 export { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 
-// ==================== layouts and the accelerator (P3; the two P5 factories)
+// ==================== layouts and the accelerator (P3; the two P5 factories; P4's calibrateLayout, spec 2.2)
 export { createAccelerator } from "./accelerator.js";
+export { calibrateLayout } from "./layouts/calibrate.js";
 export { createForceAtlas2 } from "./layouts/forceatlas2.js";
 export { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 export { seedPositions } from "./layouts/seed.js";
@@ -107,12 +108,14 @@ export type {
     RaisableLimit,
 } from "./types/context.js";
 
-// ==================== types: layouts (P3; the P5 stats and trace records)
+// ==================== types: layouts (P3; the P5 stats and trace records; the P4 calibration records)
 export type {
+    CalibrateOptions,
     ForceAtlas2Stats,
     ForceAtlas2TraceRecord,
     FruchtermanReingoldStats,
     FruchtermanReingoldTraceRecord,
+    GpuCalibration,
     GpuLayoutSimulation,
     GpuLayoutTuning,
     LayoutStatsBase,

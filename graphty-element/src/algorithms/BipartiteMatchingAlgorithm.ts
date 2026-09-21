@@ -20,6 +20,7 @@ import {
     type ResultFieldSpec,
     setFieldSpecs,
 } from "./results";
+import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Bipartite Matching algorithm for finding maximum matchings
@@ -63,7 +64,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
         if (sides === null) {
             const unpaired: ResultElementValues<EdgeId>[] = [];
             await forEachChunked(context, "Marking the pairing", graphEdges, (edge) => {
-                unpaired.push({ id: `${String(edge.srcId)}:${String(edge.dstId)}`, values: { in: false } });
+                unpaired.push({ id: edge.id, values: { in: false } });
             });
 
             return {
@@ -88,15 +89,14 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
 
         const paired = new Set<string>();
         for (const [left, right] of matching.matching) {
-            paired.add(`${String(left)}:${String(right)}`);
-            paired.add(`${String(right)}:${String(left)}`);
+            paired.add(edgePairKey(left, right));
+            paired.add(edgePairKey(right, left));
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the pairing", graphEdges, (edge) => {
-            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
-
-            edges.push({ id: key, values: { in: paired.has(key) } });
+            // The pair key looks the matching up; the element's own id is what is published.
+            edges.push({ id: edge.id, values: { in: paired.has(edgePairKey(edge.srcId, edge.dstId)) } });
         });
 
         // A right-hand node is matched when it is somebody's partner, which is what makes the

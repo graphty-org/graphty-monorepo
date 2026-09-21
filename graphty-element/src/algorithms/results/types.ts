@@ -63,7 +63,7 @@ export interface AlgorithmOutput {
     readonly fields: readonly ResultFieldSpec[];
     /** What the run published per node. */
     readonly nodes?: readonly ResultElementValues[];
-    /** What the run published per edge, keyed by "srcId:dstId". */
+    /** What the run published per edge, keyed by the element-assigned `Edge.id`. */
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     /** What the run published for the graph as a whole. */
     readonly graph?: Readonly<Record<string, unknown>>;
@@ -132,16 +132,26 @@ const PROGRESS_CHUNK = 1024;
  * A context for work nobody is watching.
  *
  * The 1.x `run()` entry point has no queue behind it and no caller holding a signal, so it
- * supplies this: a signal that is never aborted, a report that goes nowhere and a yield that
- * costs one microtask. An algorithm cannot tell the difference, which is the point -- it reports
- * and yields the same way whoever started it.
+ * supplies this: a signal that is never aborted and a report that goes nowhere. An algorithm
+ * cannot tell the difference, which is the point -- it reports and yields the same way whoever
+ * started it.
+ *
+ * THE YIELD IS A TIMEOUT, NOT A MICROTASK, and it has to be. A microtask runs before the browser
+ * paints, so yielding to one hands the frame back to nobody: the screen stays frozen for the
+ * whole computation and the element's own manager makes exactly this argument where it yields. A
+ * detached run that yielded differently from a queued one would mean an algorithm behaved
+ * differently depending on which door it came through, which is the drift one helper exists to
+ * prevent.
  * @returns A context that watches nothing and cancels nothing.
  */
 export function detachedRunContext(): AlgorithmRunContext {
     return {
         signal: new AbortController().signal,
         report: () => undefined,
-        yieldNow: () => Promise.resolve(),
+        yieldNow: () =>
+            new Promise<void>((resolve) => {
+                setTimeout(resolve, 0);
+            }),
     };
 }
 

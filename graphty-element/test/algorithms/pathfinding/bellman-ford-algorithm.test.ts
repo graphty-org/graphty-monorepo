@@ -87,7 +87,7 @@ describe("BellmanFordAlgorithm", () => {
 
             let pathEdgeCount = 0;
             for (const edge of fakeGraph.edges.values()) {
-                if (getEdgeResult(algo, edge.srcId, edge.dstId, "graphty", "bellman-ford", "isInPath") === true) {
+                if (getEdgeResult(algo, edge.id, "graphty", "bellman-ford", "isInPath") === true) {
                     pathEdgeCount++;
                 }
             }

@@ -35,6 +35,15 @@ interface MetricValueName {
     readonly technicalName: string;
     /** The value's type. Defaults to "number". */
     readonly type?: "number" | "integer";
+    /**
+     * What the number counts, when it counts something.
+     *
+     * OMITTED IS A REAL ANSWER, not a gap: most centrality scores are dimensionless, and naming
+     * a unit for one would be inventing a measurement. Degree counts links and says so; a
+     * PageRank score counts nothing, and a consumer that wants a word to put after it is
+     * choosing presentation rather than reading a fact off the result.
+     */
+    readonly unit?: string;
 }
 
 /**
@@ -54,6 +63,7 @@ export function nodeMetricFields(value: MetricValueName): readonly FieldDescript
             technicalName: value.technicalName,
             kind: "node",
             type: value.type ?? "number",
+            ...(value.unit === undefined ? {} : { unit: value.unit }),
         }),
         metricField({ name: "rank", plainName: "Rank", technicalName: "rank", kind: "node", type: "integer" }),
         metricField({

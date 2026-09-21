@@ -18,6 +18,7 @@
 import type { FieldDescriptor, NodeId } from "../../catalog/types";
 import { createRunResult, type RunResult } from "../../session/results";
 import { Algorithm } from "../Algorithm";
+import { nodeLabelReader } from "../results/labels";
 import type { AlgorithmRunContext } from "../results/types";
 import { detachedRunContext } from "./context";
 import type { MetricMeasurement, MetricRunContext } from "./types";
@@ -89,7 +90,14 @@ export abstract class MetricAlgorithm<
         const startedAt = Date.now();
         const measurement = await this.measure(context, nodeIds);
 
+        /* WHAT TO CALL A NODE, as distinct from how to address it. Read through the shared
+           reader rather than inline, because the declared-algorithm pipeline needs the same
+           answer and a plugin can only subclass that one: two copies of this lookup is how a
+           built-in metric and a third party's would come to name the same node differently. */
+        const labelOf = nodeLabelReader(this.graph);
+
         const result = createRunResult({
+            ...(labelOf === undefined ? {} : { labelOf }),
             runId: context.runId,
             shape: "node-metric",
             fields: this.resultFields(),

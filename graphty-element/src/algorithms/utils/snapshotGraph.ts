@@ -23,6 +23,20 @@ import type { DataManager } from "../../managers/DataManager";
 export type AlgorithmGraphMode = "directed" | "undirected";
 
 /**
+ * The graph an algorithm reads, as `Algorithm.algorithmGraph` hands it over.
+ *
+ * PUBLISHED SO A PLUGIN CAN NAME IT. A third party's algorithm gets its input from
+ * `this.algorithmGraph(mode)`, and the moment it wants to pass that input to a helper of its own
+ * it needs a name for the type. Without this the only names available were an import of
+ * `@graphty/algorithms` -- a dependency the plugin would then have to take, and keep in step with
+ * the element's version -- or a hand-written structural interface, which is re-declaring a type
+ * the element already has. It is an alias rather than a narrowed interface on purpose: a subset
+ * written here would drift from what the element actually passes, and the first method a plugin
+ * needed that the subset omitted would be a bug report.
+ */
+export type AlgorithmGraphView = AlgorithmGraph;
+
+/**
  * Build the algorithm-package Graph for one run.
  *
  * The snapshot -- not the `Node` and `Edge` render objects -- is the source. An edge whose
@@ -39,8 +53,35 @@ export function toAlgorithmGraph(data: DataManager, mode: AlgorithmGraphMode): A
     // run back to back over the same data pay for it once. It is also what collapses a reciprocal
     // pair into a single edge; building an undirected Graph straight from the directed snapshot
     // would count that pair twice, which is the doubling this conversion exists to end.
-    const snapshot = mode === "directed" ? declared : data.undirected(declared).snapshot;
+    const oriented = mode === "directed" ? declared : data.undirected(declared).snapshot;
+    // THE ELEMENT SIMPLIFIES BEFORE IT CONVERTS, because `@graphty/algorithms` cannot represent a
+    // multigraph and does not say so: its `Graph.addEdge` stores into a Map keyed by target while
+    // incrementing `edgeCount` for every call, so a second parallel edge silently replaces the
+    // first, its weight is lost, and the graph handed to the algorithm is internally inconsistent.
+    // Summing rather than taking the first, because a repeated edge between two nodes is MORE
+    // connection, not the same connection -- and it is the same reading a weighted layout gives
+    // the same number.
+    const snapshot = oriented.flags.multigraph ? oriented.simplified({ weights: "sum" }).snapshot : oriented;
     return build(snapshot, mode);
+}
+
+/**
+ * How many parallel edges an algorithm run over this graph merges before it can run.
+ *
+ * Published so a run can say so in its caveats: the numbers an algorithm produces over a
+ * multigraph are the numbers for the SIMPLIFIED graph, and a reader looking at a result card has
+ * no other way to learn that. It counts repeats in the graph AS DECLARED, which is the same
+ * number `statistics().repeatedEdgeCount` reports, so the caveat and the graph summary agree.
+ * @param data - the element's data manager
+ * @returns how many edges the simplification removes; zero for a graph with no parallel edges
+ */
+export function mergedParallelEdges(data: DataManager): number {
+    const declared = data.getSnapshot();
+    if (!declared.flags.multigraph) {
+        return 0;
+    }
+
+    return declared.edgeCount - declared.simplified({ weights: "sum" }).snapshot.edgeCount;
 }
 
 /**
@@ -52,11 +93,6 @@ export function toAlgorithmGraph(data: DataManager, mode: AlgorithmGraphMode): A
 function build(snapshot: GraphSnapshot, mode: AlgorithmGraphMode): AlgorithmGraph {
     const graph = new AlgorithmGraph({
         directed: mode !== "undirected",
-        // A second `addEdge` for a pair that already has one would THROW when parallel edges are
-        // refused. The snapshot does not hand out duplicate logical edges, so this permission is
-        // never used in practice -- it is here so that a multigraph loaded one day fails as a
-        // count, not as an exception thrown in the middle of an algorithm run.
-        allowParallelEdges: true,
     });
 
     const { ids } = snapshot;

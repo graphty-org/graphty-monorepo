@@ -11,7 +11,7 @@ import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
  * count that only a directed graph can tell apart.
  */
 const DEGREE_FIELDS: readonly FieldDescriptor[] = [
-    ...nodeMetricFields({ plainName: "Connections", technicalName: "degree", type: "integer" }),
+    ...nodeMetricFields({ plainName: "Connections", technicalName: "degree", type: "integer", unit: "links" }),
     metricField({
         name: "inDegree",
         plainName: "Incoming connections",

@@ -21,6 +21,7 @@ import {
     setFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Min Cut algorithm
@@ -240,16 +241,16 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         // and the cut's does not.
         const cutWeightOf = new Map<string, number>();
         for (const edge of cutEdges) {
-            cutWeightOf.set(`${edge.from}:${edge.to}`, edge.weight);
-            cutWeightOf.set(`${edge.to}:${edge.from}`, edge.weight);
+            cutWeightOf.set(edgePairKey(edge.from, edge.to), edge.weight);
+            cutWeightOf.set(edgePairKey(edge.to, edge.from), edge.weight);
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the cut", graphEdges, (edge) => {
-            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
-            const weight = cutWeightOf.get(key);
+            // The pair key looks the cut up; the element's own id is what is published.
+            const weight = cutWeightOf.get(edgePairKey(edge.srcId, edge.dstId));
 
-            edges.push({ id: key, values: { in: weight !== undefined } });
+            edges.push({ id: edge.id, values: { in: weight !== undefined } });
         });
 
         const nodes: ResultElementValues[] = [];

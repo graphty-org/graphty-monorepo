@@ -21,6 +21,7 @@ import {
     metricFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Max Flow algorithm
@@ -143,7 +144,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             const capacity: number = typeof rawCapacity === "number" ? rawCapacity : 1;
 
             capacityGraph.addEdge(srcId, dstId, capacity);
-            capacityOf.set(`${srcId}:${dstId}`, capacity);
+            capacityOf.set(edgePairKey(srcId, dstId), capacity);
         }
 
         context.report({ phase: "Pushing flow", total: null });
@@ -166,13 +167,14 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         await forEachChunked(context, "Measuring edges", graphEdges, (edge) => {
             const srcId = String(edge.srcId);
             const dstId = String(edge.dstId);
-            const key = `${srcId}:${dstId}`;
 
+            // The pair key reads the flow back out of the algorithm's answer; the element's own
+            // id is what is published.
             const flow = result.flowGraph.get(srcId)?.get(dstId) ?? 0;
-            const capacity = capacityOf.get(key) ?? 1;
+            const capacity = capacityOf.get(edgePairKey(srcId, dstId)) ?? 1;
             const utilization = capacity > 0 ? Math.abs(flow) / capacity : 0;
 
-            edges.push({ id: key, values: { value: flow, capacity, utilization } });
+            edges.push({ id: edge.id, values: { value: flow, capacity, utilization } });
         });
 
         const nodes: ResultElementValues[] = [];

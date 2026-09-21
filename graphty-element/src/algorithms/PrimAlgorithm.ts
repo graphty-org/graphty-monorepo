@@ -25,6 +25,7 @@ import {
     setFieldSpecs,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
+import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Prim algorithm
@@ -116,15 +117,14 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         // and the tree's does not.
         const chosen = new Set<string>();
         for (const edge of tree.edges) {
-            chosen.add(`${String(edge.source)}:${String(edge.target)}`);
-            chosen.add(`${String(edge.target)}:${String(edge.source)}`);
+            chosen.add(edgePairKey(edge.source, edge.target));
+            chosen.add(edgePairKey(edge.target, edge.source));
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
-            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
-
-            edges.push({ id: key, values: { in: chosen.has(key) } });
+            // The pair key looks the tree's answer up; the element's own id is what is published.
+            edges.push({ id: edge.id, values: { in: chosen.has(edgePairKey(edge.srcId, edge.dstId)) } });
         });
 
         return {

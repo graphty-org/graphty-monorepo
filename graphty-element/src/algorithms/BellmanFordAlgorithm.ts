@@ -14,6 +14,7 @@ import {
     PATH_FIELD_SPECS,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
+import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Bellman-Ford algorithm
@@ -141,10 +142,13 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
         const routeEdges = this.getPathEdges(path);
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the route", Array.from(dataManager.edges.values()), (edge) => {
-            const key = `${String(edge.srcId)}:${String(edge.dstId)}`;
-            const reversed = `${String(edge.dstId)}:${String(edge.srcId)}`;
+            // The pair keys match an @graphty/algorithms route back onto element edges; the id
+            // PUBLISHED is the element's own, which is the only one that can name one of two
+            // parallel edges.
+            const key = edgePairKey(edge.srcId, edge.dstId);
+            const reversed = edgePairKey(edge.dstId, edge.srcId);
 
-            edges.push({ id: key, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
+            edges.push({ id: edge.id, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
         });
 
         const notes = [`Route from ${String(source)} to ${String(target)}.`];
@@ -217,7 +221,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
         const edges = new Set<string>();
 
         for (let i = 0; i < path.length - 1; i++) {
-            edges.add(`${String(path[i])}:${String(path[i + 1])}`);
+            edges.add(edgePairKey(path[i], path[i + 1]));
         }
 
         return edges;

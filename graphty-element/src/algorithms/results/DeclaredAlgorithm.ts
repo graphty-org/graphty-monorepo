@@ -7,9 +7,11 @@
  * filled. `compute()` is what the run executor calls, and it is the half worth reading.
  */
 
-import type { FieldDescriptor, RunId } from "../../catalog/types";
+import { resolveOptionValues } from "../../catalog/options";
+import type { AlgorithmDescriptor, FieldDescriptor, RunId } from "../../catalog/types";
 import { createRunResult, resultPath, type RunResult } from "../../session/results";
 import { Algorithm } from "../Algorithm";
+import { nodeLabelReader } from "./labels";
 import { type AlgorithmOutput, type AlgorithmRunContext, detachedRunContext, type ResultFieldSpec } from "./types";
 
 /**
@@ -50,8 +52,56 @@ function toFieldDescriptor(
 export abstract class DeclaredAlgorithm<
     TOptions extends Record<string, unknown> = Record<string, unknown>,
 > extends Algorithm<TOptions> {
+    /**
+     * What the catalogue publishes about this algorithm.
+     *
+     * DECLARED HERE, ON THE PUBLISHED BASE, so a plugin author reads one class to learn what a
+     * subclass must carry. It is also what turns the descriptor into the single declaration:
+     * `descriptor.options` is what a form renders, what the catalogue publishes, what the run
+     * path validates a caller's parameters against, and -- through
+     * `resolveOptions` below -- what the running code receives. An
+     * algorithm used to say all of that twice, in two vocabularies that did not correspond, with
+     * nothing cross-checking them.
+     *
+     * Absent, the class stays exactly as capable as it was: registered, callable through the
+     * 1.10 address, and invisible to the catalogue.
+     */
+    static descriptor?: AlgorithmDescriptor;
+
     /** What the last run published, kept so a caller holding the algorithm can read the result. */
     #result: RunResult | undefined;
+
+    /**
+     * Fill in what the caller did not pass, and refuse what this algorithm does not declare.
+     *
+     * ONE DECLARATION, NOT TWO. `descriptor.options` is the only list a declared algorithm
+     * writes, and this is what makes that true at the point the values reach the running code:
+     * the same descriptors the catalogue hands a picker are what the caller's values are checked
+     * against. The older `static optionsSchema` remains the answer for a class that declares no
+     * descriptor, which is every algorithm the element itself ships.
+     *
+     * It also fixes the failure vocabulary on the way in. The older schema throws an uncoded
+     * `Error` for a bad value and SILENTLY DROPS a name it does not know, where the run path
+     * refuses the same name with `E_UNKNOWN_OPTION` -- so the same mistake produced three
+     * different outcomes depending on which door the caller came through.
+     * @param options - What the caller asked for.
+     * @returns Every declared option, with the caller's values where they were given and the
+     *   declared defaults everywhere else.
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a name this algorithm does not
+     *   declare, or `E_OPTION_RANGE` for a value it would not accept.
+     */
+    protected override resolveOptions(options?: Partial<TOptions>): TOptions {
+        const {descriptor} = this.constructor as typeof DeclaredAlgorithm;
+
+        if (descriptor === undefined) {
+            return super.resolveOptions(options);
+        }
+
+        return resolveOptionValues(descriptor.options, options ?? {}, {
+            kind: "algorithm",
+            id: descriptor.key,
+        }) as TOptions;
+    }
 
     /**
      * What the last run published.
@@ -137,7 +187,14 @@ export abstract class DeclaredAlgorithm<
         }
 
         const dataManager = this.graph.getDataManager();
+        /* WHAT TO CALL A NODE, as distinct from how to address it. A summary row and the
+           sentence the element writes from it are read by a person, and an id is only sometimes
+           a name -- a GML file keys its nodes by integer and carries the name beside it. Read
+           through the shared reader rather than inline, because the metric pipeline needs the
+           same answer and a second copy is how the two would come to disagree about it. */
+        const labelOf = nodeLabelReader(this.graph);
         const result: RunResult = createRunResult({
+            ...(labelOf === undefined ? {} : { labelOf }),
             runId,
             shape: output.shape,
             fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),

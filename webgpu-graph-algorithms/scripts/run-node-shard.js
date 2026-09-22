@@ -165,7 +165,14 @@ async function main(extra) {
         NODE_OPTIONS:
             `${process.env.NODE_OPTIONS ?? ""} --report-on-signal --report-signal=SIGUSR2 --report-directory=${dir}`.trim(),
     };
-    const child = spawn("pnpm", ["exec", "vitest", "run", "--project=node", ...extra], {
+    // `ulimit -c 0`: a worker that crashes in a graphics driver teardown used to have its 2 GB core written to the
+    // runner's disk, which took about 175 seconds, and the pool wrote to it during the dump (G4-F14). No core means
+    // a crash costs nothing, and the snapshot below still says which process died and what it was doing.
+    const command = [
+        "ulimit -c 0",
+        `exec pnpm exec vitest run --project=node ${extra.map((a) => `'${a}'`).join(" ")}`,
+    ].join("; ");
+    const child = spawn("sh", ["-c", command], {
         cwd: packageRoot,
         env,
     });

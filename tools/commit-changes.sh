@@ -111,16 +111,11 @@ done
 # ---------------------------------------------------------------------------
 # THE PLAN.
 #
-# One entry per commit, in the order they are made. This change set is what the
-# pre-push gate turned up after the graphty-element 2.0 commits landed: one lint
-# failure in a package 2.0 never touched, and this script's own re-point.
-#
-# TWO STEPS RATHER THAN ONE, and the second is not ceremony. Re-pointing this
-# script dirties this script, so a plan that covered only the fix would leave
-# tools/commit-changes.sh behind as an unclaimed leftover on every run. The
-# alternative -- folding the script into the fix's commit -- would put a tooling
-# change under an `algorithms` scope, which is the wrong package and the wrong
-# type for what semantic-release reads.
+# One entry per commit, in the order they are made. This change set is three
+# unrelated repairs that the merge of master into this branch turned up, plus
+# this script's own re-point. They are separate commits because they are
+# separate packages and separate reasons, and a reader chasing any one of them
+# should not have to read the other two.
 #
 # PATHS entries are space-separated pathspecs (no path in this repository has a
 # space in it, so the word splitting below is deliberate). A directory pathspec
@@ -129,44 +124,93 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(bellmanford tooling)
+STEPS=(limits knip springfactor tooling)
 
 declare -A SUBJECTS=(
-    [bellmanford]="fix(algorithms): restore the doc comment orphaned from bellmanFord"
-    [tooling]="chore(tools): re-point the commit script at the bellman-ford fix"
+    [limits]="feat(graphty-element)!: give every limit a name that carries its unit"
+    [knip]="fix(tools): stop knip walking twelve gigabytes of worktrees"
+    [springfactor]="refactor(webgpu-graph-algorithms): stop exporting a helper nothing imports"
+    [tooling]="chore(tools): re-point the commit script at the post-merge repairs"
 )
 
 declare -A PATHS=(
-    [bellmanford]="algorithms/src/algorithms/shortest-path/bellman-ford.ts"
+    [limits]="graphty-element/src/acceleration/types.ts graphty-element/src/errors/codes.ts graphty-element/src/session/cost/estimate.ts graphty-element/src/session/limits.ts graphty-element/test/session/cost/gate.test.ts graphty-element/test/session/limits.test.ts"
+    [knip]="tools/run-knip.sh package.json"
+    [springfactor]="webgpu-graph-algorithms/src/layouts/spring-electrical.ts"
     [tooling]="tools/commit-changes.sh"
 )
 
 # ---------------------------------------------------------------------------
 # One body per step. Written for someone reading `git log` a year from now with
 # none of this conversation: say what changed and why it had to, not what the
-# work was like. A BREAKING CHANGE footer is what semantic-release reads to cut
-# a major; neither commit here is one.
+# work was like.
 # ---------------------------------------------------------------------------
 
-body_bellmanford() {
+body_limits() {
     cat <<'BODY'
-An interface and a helper were inserted between bellmanFord's doc comment and
-the function, so the comment landed on the interface below it -- which then had
-two stacked doc comments -- and the exported function had none. eslint's
-jsdoc/require-jsdoc refused it, which stopped the pre-push gate for the whole
-workspace.
+Two field names meant different things on two published types. `exactComputationCap`
+was a NODE COUNT on `Limits` and SECONDS on `CostGateLimits`; `memoryBudgetBytes` was
+how much memory the element holds for one GRAPH on the first and how many bytes one
+RUN's published columns may occupy on the second. A consumer reading either name on
+one type and applying it to the other was off by the difference between 2,000 nodes
+and 30 seconds, and neither name said which it was.
 
-The doc text is unchanged. It is the same seven lines, moved back above the
-function they describe.
+Each now carries its unit: `approximateAboveNodes` and `graphMemoryBudgetBytes` on
+`Limits`, `exactComputationSeconds` and `runColumnBudgetBytes` on `CostGateLimits`.
+
+That unblocks something the old names had forced. `DEFAULT_LIMITS` withheld both
+fields -- publishing a number under a name that means two things teaches the wrong
+unit -- and now publishes five of six. `graphMemoryBudgetBytes` is still absent, for
+the one reason that survives the rename: the design names no figure for it, so there
+is nothing measured or designed to publish.
+
+The test that pinned the old behaviour is replaced rather than deleted, and by a
+stronger one: it asserts that NO key appears on both types, so a third collision
+fails there too instead of shipping.
+
+BREAKING CHANGE: `Limits.exactComputationCap` is `Limits.approximateAboveNodes` and
+`Limits.memoryBudgetBytes` is `Limits.graphMemoryBudgetBytes`.
+`CostGateLimits.exactComputationCap` is `CostGateLimits.exactComputationSeconds` and
+`CostGateLimits.memoryBudgetBytes` is `CostGateLimits.runColumnBudgetBytes`.
 BODY
 }
 
-body_demo() {
+body_knip() {
     cat <<'BODY'
-The step list, the subjects and the paths describe this change set. The
-machinery -- the commitlint pre-validation, the temporary hooks directory that
-keeps commit-msg while leaving Commitizen's interactive prompt out of the run,
-and the leftover report -- is unchanged.
+`lint:knip` ran `knip --no-gitignore`, and from the main checkout that made knip walk
+`.worktrees/` -- nineteen full checkouts of this monorepo, twelve gigabytes. It
+exhausted an eight-gigabyte JavaScript heap before reaching an answer, so the gate
+failed as an out-of-memory crash rather than as a directory that should never have
+been scanned. knip's own `ignore` list does not help: it filters what is REPORTED,
+not what is crawled.
+
+The flag itself is right and stays. knip stops reading ancestor `.gitignore` files
+only at a `.git` DIRECTORY, and a worktree's `.git` is a FILE -- so from a worktree
+knip kept walking up, read the main checkout's unanchored `.worktrees/` pattern, and
+reported the whole tree as dead code. Each spelling is correct in one checkout and
+broken in the other.
+
+So the setting follows the checkout. `tools/run-knip.sh` branches on the same
+discriminator the defect turns on -- a `.git` directory means the main checkout,
+where .gitignore is exactly what knip should obey; a `.git` file means a worktree,
+where obeying it is what breaks the run -- so the two cannot drift.
+BODY
+}
+
+body_springfactor() {
+    cat <<'BODY'
+`springSizeFactor` is used twice in the file that declares it, is imported nowhere,
+and is in no barrel. It was exported for nobody, which is what knip reports once it
+can finish a run.
+BODY
+}
+
+body_tooling() {
+    cat <<'BODY'
+The step list, the subjects and the paths describe this change set. The machinery --
+the commitlint pre-validation, the temporary hooks directory that keeps commit-msg
+while leaving Commitizen's interactive prompt out of the run, and the leftover report
+-- is unchanged.
 BODY
 }
 

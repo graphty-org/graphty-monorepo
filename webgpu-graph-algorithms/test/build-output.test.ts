@@ -158,6 +158,7 @@ describe("package.json (contract 2.1)", () => {
             "test",
             "test:run",
             "test:node",
+            "test:node:ci",
             "test:browser",
             "test:browser:ci",
             "test:limits",
@@ -174,6 +175,7 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.scripts.lint).toContain("tsconfig.strict-consumer.json");
         expect(packageJson.scripts["test:run"]).toBe("vitest run --project=node");
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
+        expect(packageJson.scripts["test:node:ci"]).toBe("node scripts/run-node-shard.js");
         expect(packageJson.scripts["coverage:preview"]).toContain("9058");
     });
 });

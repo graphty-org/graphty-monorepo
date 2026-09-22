@@ -49,6 +49,7 @@
         "test:ui": "vitest --ui",
         "test:run": "vitest run --project=node",
         "test:node": "vitest run --project=node",
+        "test:node:ci": "node scripts/run-node-shard.js",
         "test:browser": "vitest run --project=browser",
         "test:browser:ci": "node scripts/run-browser-project.js",
         "test:limits": "vitest run --project=node-limits",

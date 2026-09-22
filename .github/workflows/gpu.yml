@@ -14,6 +14,10 @@
 # provider: three legs at once are refused with "concurrent runner limit reached", and sequential legs never get a
 # second machine, which suggests a run holds its runner until the whole run ends. The plan is therefore what had to
 # change (owner decision, 2026-09-22); the timeout below is this job's own, inside whatever the plan now allows.
+# A one-off credit bundle does NOT lift the cap: run 35748654167 (2026-09-22, bought credits on the account) ran
+# every test step green on the T4 -- node and node-limits 17 minutes, the no-subgroups twins 11.5, the browser
+# smoke 1 -- and was then shut down 32 minutes in, a minute into the benchmarks, with "The runner has received a
+# shutdown signal". The cap goes with the PLAN, so it takes a subscription, or a lane split across two runs.
 # design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
 # changes: paths without the packages/ prefix, its own install and nx build on the runner (no artifact download,
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).

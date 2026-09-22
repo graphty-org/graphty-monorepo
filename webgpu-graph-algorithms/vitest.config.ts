@@ -95,6 +95,8 @@ function selectedProjects(): string[] {
 
 // Thresholds apply when the selected project set is EXACTLY `node` and no merge run is in progress (spec 11.8).
 const projects = selectedProjects();
+/** Whether this run collects coverage, which roughly doubles a worker's processor and memory cost. */
+const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_DIR !== undefined;
 const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;
 
 /**
@@ -175,8 +177,16 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * vitest reports as an unhandled error and an exit code 1 with every test green (docs/decisions/G5.md finding
  * G5-F2: the 32-core dev box under `--coverage`; then the 4-core T4 lane on 2026-09-21, run 35547623119, three
  * timeouts without coverage). `--maxWorkers=<n>` on the command line still overrides it.
+ *
+ * A coverage run on a machine with eight cores or fewer gets 2 forks instead. Three forks, each holding a Dawn
+ * device over Mesa's software rasteriser, with v8 coverage on top, killed a worker outright on the four-core
+ * continuous integration runner: the pool reported `ERR_IPC_CHANNEL_CLOSED` after 56 files on one run and after 61
+ * on the next, each time in a different suite, which is a process dying under load rather than a test failing.
+ * Coverage is what makes the difference -- it roughly doubles a worker's processor and memory cost (G5-F2 measured
+ * 515 s of summed case time without it against 1,048 s with) -- so the GPU lane, which runs the same projects on a
+ * four-core runner WITHOUT coverage and needs every one of its eighteen minutes, keeps three.
  */
-const nodeForks = Math.max(1, availableParallelism() - 1);
+const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1);
 
 export default defineConfig({
     test: {

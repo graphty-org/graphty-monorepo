@@ -188,6 +188,16 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * 515 s of summed case time without it against 1,048 s with) -- so the GPU lane, which runs the same projects on a
  * four-core runner WITHOUT coverage and needs every one of its eighteen minutes, keeps three.
  */
+/**
+ * How long vitest waits for a worker to close, against its default of ten seconds. A worker's teardown destroys
+ * every context and raw device it acquired and drains the pipeline-key log, which on a four-core runner over Mesa's
+ * software rasteriser outlasts that default: vitest then terminates the worker, the pool's next message to it
+ * rejects with ERR_IPC_CHANNEL_CLOSED, and the run exits 1 with every test green. The continuous integration shard
+ * did that four times on the P4 branch -- twice mid-run, twice after all 120 files had passed (runs 35668273734,
+ * 35670726138, 35673182975, 35676832166).
+ */
+const TEARDOWN_TIMEOUT = 120_000;
+
 const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1);
 
 export default defineConfig({
@@ -222,6 +232,7 @@ export default defineConfig({
                     maxWorkers: nodeForks,
                     testTimeout: 30_000,
                     hookTimeout: 60_000,
+                    teardownTimeout: TEARDOWN_TIMEOUT,
                     include: [
                         "test/*.test.ts",
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
@@ -240,6 +251,7 @@ export default defineConfig({
                     maxWorkers: nodeForks,
                     testTimeout: 600_000,
                     hookTimeout: 120_000,
+                    teardownTimeout: TEARDOWN_TIMEOUT,
                     include: ["test/limits/**/*.test.ts"],
                     setupFiles: ["test/setup/gpu.ts"],
                 },

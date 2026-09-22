@@ -4,13 +4,16 @@
 # decision, 2026-09-18). The lane runs on every master push, and on a pull request of this repository labelled
 # `gpu`; there is NO nightly cron (owner decision, 2026-09-19 -- the gate already runs it on everything that
 # reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner).
-# The lane runs as three jobs on three runners (the node suites, the no-subgroups twins, the browser smoke with
-# the benchmarks) because a runner is terminated after 30 minutes -- "free plan runners are limited to 30 minutes",
-# the message that killed run 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master. One job
-# needed 17 minutes for the node suites, 11.5 for the twins and a minute for the browser before the benchmarks
-# began, so P4's suites put the single job over the cap. Splitting keeps every leg near a third of it and gives the
-# benchmark leg a card nothing else is using. release.yml waits for this WORKFLOW's conclusion, so it sees the three
-# legs as one lane.
+# The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
+# is terminated at that mark -- "free plan runners are limited to 30 minutes", the message that killed run
+# 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master -- and by 2026-09-21 the package's own
+# suites no longer fit: 18 minutes for the node and node-limits projects, 11.5 for the no-subgroups twins, a minute
+# for the browser smoke, then the benchmarks, against 18 minutes for all of it a phase earlier. The growth is
+# cumulative across P3, P5 and P4 rather than any one of them, and the million-node limits file alone, which runs
+# nowhere else, is nine of those minutes. Splitting the work across matrix legs was tried and does not work on this
+# provider: three legs at once are refused with "concurrent runner limit reached", and sequential legs never get a
+# second machine, which suggests a run holds its runner until the whole run ends. The plan is therefore what had to
+# change (owner decision, 2026-09-22); the timeout below is this job's own, inside whatever the plan now allows.
 # design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
 # changes: paths without the packages/ prefix, its own install and nx build on the runner (no artifact download,
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).
@@ -43,21 +46,13 @@ concurrency:
 
 jobs:
     test-gpu:
-        name: Test (NVIDIA T4, ${{ matrix.leg.name }})
-        strategy:
-            fail-fast: false # a red twin leg must not hide a benchmark regression, and the reverse
-            max-parallel: 1 # one runner at a time: the plan allows a single concurrent runner, and two legs asking for a second one waited fifteen minutes and were failed ("Concurrent runner limit reached", run 35668273962). Sequential legs each get a fresh thirty-minute machine, which is the point of the split.
-            matrix:
-                leg:
-                    - { id: node, name: node and node-limits }
-                    - { id: twins, name: no-subgroups twins }
-                    - { id: bench, name: browser and benchmarks }
+        name: Test (NVIDIA T4)
         if: >-
             (github.event_name != 'pull_request' ||
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
-        timeout-minutes: 28 # under the runner's 30-minute cap, so an overrun is reported as a timeout here rather than as a terminated machine
+        timeout-minutes: 75 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); this leaves room for a slower machine without waiting on a hung one
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -82,12 +77,9 @@ jobs:
             - name: graph-format GPU audit on NVIDIA (canary)
               working-directory: graph-format
               run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
-            - if: matrix.leg.id == 'node'
-              run: pnpm exec vitest run --project=node --project=node-limits
-            - if: matrix.leg.id == 'twins'
-              run: GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node # the whole node project on the twins
-            - if: matrix.leg.id == 'bench'
-              name: Cache Playwright browsers
+            - run: pnpm exec vitest run --project=node --project=node-limits
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node # the whole node project on the twins
+            - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4
               with:
@@ -95,17 +87,14 @@ jobs:
                       path: ~/.cache/ms-playwright,
                       key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}",
                   }
-            - if: matrix.leg.id == 'bench' && steps.pw.outputs.cache-hit != 'true'
+            - if: steps.pw.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps # a fresh VM each job
-            - if: matrix.leg.id == 'bench'
-              name: Browser smoke on NVIDIA
+            - name: Browser smoke on NVIDIA
               run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
-            - if: matrix.leg.id == 'bench'
-              run: pnpm run bench # tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json; this leg has the card to itself
-            - if: matrix.leg.id == 'bench'
-              run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
+            - run: pnpm run bench # tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json
+            - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
             - uses: actions/upload-artifact@v4
-              if: ${{ matrix.leg.id == 'bench' && !cancelled() }}
+              if: ${{ !cancelled() }}
               with:
                   {
                       name: "gpu-results-${{ github.run_id }}",

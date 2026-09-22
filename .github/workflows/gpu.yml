@@ -46,6 +46,7 @@ jobs:
         name: Test (NVIDIA T4, ${{ matrix.leg.name }})
         strategy:
             fail-fast: false # a red twin leg must not hide a benchmark regression, and the reverse
+            max-parallel: 1 # one runner at a time: the plan allows a single concurrent runner, and two legs asking for a second one waited fifteen minutes and were failed ("Concurrent runner limit reached", run 35668273962). Sequential legs each get a fresh thirty-minute machine, which is the point of the split.
             matrix:
                 leg:
                     - { id: node, name: node and node-limits }

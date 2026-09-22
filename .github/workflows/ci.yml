@@ -82,14 +82,25 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
-            # migration of design/graph-format section 14 is pending), so a PR that touches only the
-            # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
-            # artifact and every test shard's Download step would fail with "Artifact not found".
-            # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
-            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
+            # Every test shard downloads every package's dist, so every package must be built even when the
+            # pull request leaves it unaffected: an upload that finds no files creates no artifact, and the
+            # shard's download then fails with "Artifact not found". This step used to name only
+            # graph-format, graph-io and webgpu-graph-algorithms, the packages outside graphty's dependency
+            # closure, which held while a pull request touching one of them also touched the element -- a
+            # pull request confined to webgpu-graph-algorithms left graphty, graphty-element, remote-logger
+            # and compact-mantine unbuilt and failed all twenty shards (run 35668273734). Building every
+            # project is what master already does, and the Nx cache makes it a no-op for whatever the
+            # affected build above produced.
+            - name: Build the rest (PR), so every shard finds its artifact
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
+              run: pnpm exec nx run-many -t build --parallel=3
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
+                  VITE_BASE_PATH: /
+                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'

@@ -6,8 +6,9 @@
  * Every device comes from a FRESH adapter (an adapter is consumed by one requestDevice, spec 2.2 step 1).
  * acquire() wraps a GpuContext with an onError sink; afterEach fails the test when the sink collected anything
  * ("a wrong result is never a skip"; an uncaptured error is never a pass). afterAll disposes every context and
- * raw device, appends every context's pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per line
- * in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2) and drops both Dawn handles so the fork exits.
+ * raw device and appends every context's pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per
+ * line in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2). It deliberately KEEPS the two Dawn
+ * handles, so the fork stays alive until the pool kills it (G4-F14, below).
  *
  * Environment (spec 12.2; process.env is read ONLY here, in vitest.config.ts and under scripts/):
  * GRAPHTY_GPU_REQUIRE (the policy, parsed by scripts/gpu-policy.js -- the one copy of the rule, D19),
@@ -294,12 +295,16 @@ afterAll(async () => {
         setTimeout(resolve, 0);
     });
     writeKeyLog();
-    if (nullHandle !== null) {
-        nullHandle.dispose();
-        nullHandle = null;
-    }
-    if (handle !== null) {
-        handle.dispose();
-        handle = null;
-    }
+    // PLAN DECISION (G4-F14, measured 2026-09-22): the Dawn handles are NOT disposed here, and the fork
+    // therefore never exits on its own. Vitest runs this pool with tinypool's `isolateWorkers`, so the pool
+    // terminates every worker itself once its file is done (`ProcessWorker.terminate()` sets `isTerminating`
+    // and then kills the process, so no message is sent after that point). A fork that instead exits by
+    // itself -- which is what disposing the handles achieved, since the live Dawn instance is what keeps the
+    // worker's event loop alive -- closes its IPC channel while the pool may still have a reply in flight,
+    // and the pool's next `process.send` throws `ERR_IPC_CHANNEL_CLOSED`. Vitest turns that into an
+    // "Unhandled Rejection: Channel closed" that ABORTS the run: no summary, no JSON report and no coverage
+    // file, although every test passed. The default lane lost that race on five runs of the P4 branch, twice
+    // part way through the suite and three times after all 120 files had reported green; the dev box never
+    // did. Keeping the handles costs nothing -- the worker is killed a moment later with its whole address
+    // space -- and it is what makes the teardown order the pool's to choose rather than a race.
 });

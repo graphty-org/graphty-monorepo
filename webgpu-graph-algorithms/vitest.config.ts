@@ -193,8 +193,8 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * every context and raw device it acquired and drains the pipeline-key log, which on a four-core runner over Mesa's
  * software rasteriser outlasts that default: vitest then terminates the worker, the pool's next message to it
  * rejects with ERR_IPC_CHANNEL_CLOSED, and the run exits 1 with every test green. The continuous integration shard
- * did that four times on the P4 branch -- twice mid-run, twice after all 120 files had passed (runs 35668273734,
- * 35670726138, 35673182975, 35676832166).
+ * did that five times on the P4 branch -- twice mid-run, three times after all 120 files had passed (runs
+ * 35668273734, 35670726138, 35673182975, 35676832166, 35681073818).
  */
 const TEARDOWN_TIMEOUT = 120_000;
 
@@ -202,6 +202,9 @@ const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, a
 
 export default defineConfig({
     test: {
+        // Root, not per project: vitest lists teardownTimeout among its NonProjectOptions, so a project that
+        // sets it is silently ignored (measured: the shard failed the same way with it set on both node projects).
+        teardownTimeout: TEARDOWN_TIMEOUT,
         // verbose prints a line per test: useful locally, needless noise in CI (and 6fc56c1b: the nx -> npm ->
         // vitest pipe chain starved the worker RPC behind it in the sibling packages)
         reporters: process.env.CI ? ["default"] : ["verbose"],
@@ -232,7 +235,6 @@ export default defineConfig({
                     maxWorkers: nodeForks,
                     testTimeout: 30_000,
                     hookTimeout: 60_000,
-                    teardownTimeout: TEARDOWN_TIMEOUT,
                     include: [
                         "test/*.test.ts",
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
@@ -251,7 +253,6 @@ export default defineConfig({
                     maxWorkers: nodeForks,
                     testTimeout: 600_000,
                     hookTimeout: 120_000,
-                    teardownTimeout: TEARDOWN_TIMEOUT,
                     include: ["test/limits/**/*.test.ts"],
                     setupFiles: ["test/setup/gpu.ts"],
                 },

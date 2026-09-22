@@ -240,7 +240,7 @@ export interface GridNoiseFixtureName {
  * same harness), the three tier rows the T5 / T6 suites write, and the five approximation members of PD-20 (the
  * exact-vs-grid force on random20k as the RMS and the p99 of the floored per-node error, the spread after 50 and
  * 200 iterations, the layoutMetrics record after 200 iterations, the UNBIASED_SEEDS-seed mean of the force after
- * G7 on hubcell at nearMax 8), written by grid-exact.test.ts; their "oracle-f64" class holds the EXACT GPU TIER's
+ * G7 on hubcell at nearMax 8), written by grid-exact.test.ts (the writer case; the ladders themselves run in grid-unbiased.test.ts); their "oracle-f64" class holds the EXACT GPU TIER's
  * values (PD-19).
  * The WIDENING member (the P5 precedent of the karate / k 0.3 fixtures: an extra fixture feeding the SAME row so a
  * floor covers more than one geometry): `k1Isolated`, the K1 grid block on the UNSCALED isolated fixture in 2D,

@@ -16,12 +16,7 @@
  * numbers for the record; (2) an isolated node's
  * total force after G7 is gravity plus the field of the other nodes at the strays' equilibrium (the design's
  * "gravity alone" item; whether the far field is negligible and whether a stray has a near-field neighbour are
- * printed for the record); (3)
- * unbiasedness: the mean of G7's force over UNBIASED_SEEDS seeded iterations at nearMax 8 on the one-cell fixtures
- * is within grid-unbiased of the exact tier's force in the WHOLE-FIELD norm (|mean - exact| / |exact|,
- * fieldRelError), with the ladder of every doubling from 32 seeds printed -- the whole-field ratio and the floored
- * per-node RMS -- so the 1 / sqrt(seeds) descent of an unbiased estimator is on record (G4-F2: the per-node RMS of a
- * 32-seed mean is the sampling variance of eight draws of a 20,000-entry cell, not the estimator's bias);
+ * printed for the record); the unbiasedness item (3) moved to grid-unbiased.test.ts, whose header says why;
  * (4) expansion parity:
  * the spread of the grid tier's positions after 50 and 200 iterations within grid-expansion of the exact tier's;
  * (asserted on a hardware adapter; printed on a software one, where the scaled clumpy100 case misses -- the same
@@ -36,13 +31,7 @@ import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 import { type GpuContext } from "../../src/context.js";
 import { type GpuLayoutTuning } from "../../src/types/layout.js";
 import { type ForceAtlas2Options } from "../../src/types/options.js";
-import {
-    distributionalError,
-    metricsValues,
-    ORACLE_F64_CLASS,
-    stageError,
-    withSim,
-} from "../helpers/fa2-parity.js";
+import { distributionalError, metricsValues, ORACLE_F64_CLASS, stageError, withSim } from "../helpers/fa2-parity.js";
 import {
     captureGridStages,
     EXACT_TUNING,
@@ -52,10 +41,7 @@ import {
     GRID_TUNING,
     gridFixture,
     gridTolerance,
-    NEAR_MAX_SAMPLING,
     sampleNodes,
-    UNBIASED_LADDER_FIRST,
-    UNBIASED_SEEDS,
     unbiasedLadder,
 } from "../helpers/grid-parity.js";
 import { expectBitwiseEqual, fieldRelError } from "../helpers/matchers.js";
@@ -312,36 +298,6 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
                         worst: ratioOf(err.rel, tolerance),
                         worstLabel: `isolated/${dim}d strays`,
                         samples: strays.length,
-                    });
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
-    }
-
-    for (const name of ["hubcell", "onecell1025"]) {
-        it(
-            `(3) ${name} at nearMax ${NEAR_MAX_SAMPLING}: the mean of G7's force over ${UNBIASED_SEEDS} seeds is within grid-unbiased of the exact tier's over the whole force field (the ladder from ${UNBIASED_LADDER_FIRST} seeds printed)`,
-            async (t) => {
-                requireGpu(t);
-                const { snapshot: s, start } = gridFixture(name, gpuScale(), GRID_BASE_OPTIONS);
-                try {
-                    const t0 = performance.now();
-                    const u = await unbiasedLadder(ctx, s, start, GRID_BASE_OPTIONS);
-                    const tolerance = gridTolerance("grid-unbiased").value;
-                    const top = u.rungs[u.rungs.length - 1];
-                    console.warn(
-                        `[grid-exact] unbiased/${name}/n=${s.nodeCount}: |mean - exact| / |exact| over the whole force field at ${top.seeds} seeds ${top.field.toExponential(3)} (tolerance ${tolerance.toExponential(3)}); rms of the floored per-node error of the same mean ${top.rms.toExponential(3)}, of one seed ${u.rmsOneSeed.toExponential(3)}; ${UNBIASED_SEEDS} grid iterations ${(performance.now() - t0).toFixed(0)} ms`,
-                    );
-                    console.warn(
-                        `[grid-exact] unbiased/${name}/n=${s.nodeCount} ladder (seeds: whole-field ratio / per-node rms): ${u.rungs.map((r) => `${r.seeds}: ${r.field.toExponential(3)} / ${r.rms.toExponential(3)}`).join("; ")}`,
-                    );
-                    assertCheckPasses({
-                        worst: ratioOf(top.field, tolerance),
-                        worstLabel: `unbiased/${name}`,
-                        samples: s.nodeCount,
                     });
                 } finally {
                     ctx.release(s);

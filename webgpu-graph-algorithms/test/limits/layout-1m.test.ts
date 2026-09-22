@@ -4,7 +4,7 @@
  * p99 under the derived grid-exact tolerances (PD-20), the grid force bitwise across two runs; (2) unbiasedness at 1M
  * on the hubcell fixture (every node in ONE finest cell: the "1M-entry hub cell" through G4b): the UNBIASED_1M_SEEDS
  * mean of the force after G7 at nearMax 8 within grid-unbiased of the exact tier's over the whole force field, the
- * ladder from 32 seeds printed at every rung (grid-exact.test.ts case 3's item at scale; G4-F2); (3) at 262,144 nodes (the finest-grid
+ * ladder from 32 seeds printed at every rung (grid-unbiased.test.ts's item at scale; G4-F2); (3) at 262,144 nodes (the finest-grid
  * saturation size, spec 7.7): exactVsGrid, and the 200-iteration distributional comparison within
  * grid-distributional over the O(m) and sampled metrics -- the edge-length quantiles, the spread and the
  * nearest-neighbour histogram of every 32nd node (test/helpers/metrics.ts's layoutMetrics runs a BFS from every node

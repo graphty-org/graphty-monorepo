@@ -78,6 +78,15 @@ export const EXACT_TUNING: GpuLayoutTuning = PAPER;
  * in the whole-field norm. A power of two: the ladder prints every doubling from UNBIASED_LADDER_FIRST.
  */
 export const UNBIASED_SEEDS = 4096;
+
+/**
+ * The ladder's top rung on a SOFTWARE rasteriser (G4-F18). A Dawn process never returns the memory a grid
+ * iteration takes -- about 0.67 MB on Mesa -- so the full ladder is 2 x 4096 iterations of memory this process can
+ * only grow into. The development box carries it; the continuous integration runner's Mesa dies at about 2 GB,
+ * taking the whole shard with it, so the software lane walks a ladder five doublings shorter and PRINTS its
+ * result where the hardware lane asserts.
+ */
+export const UNBIASED_SEEDS_SOFTWARE = 128;
 /** The first rung of the printed ladder (the design's 32 seeds, so its number is always on record). */
 export const UNBIASED_LADDER_FIRST = 32;
 /** The `nearMax` of the unbiasedness item: eight draws of a 20,000-entry cell (the plan's T11 item 3). */

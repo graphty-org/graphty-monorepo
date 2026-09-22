@@ -5,10 +5,9 @@
  * acquire*() helpers enforce GRAPHTY_GPU_REQUIRE (unset = skip, any, hardware, <vendor>; scripts/gpu-policy.js).
  * Every device comes from a FRESH adapter (an adapter is consumed by one requestDevice, spec 2.2 step 1).
  * acquire() wraps a GpuContext with an onError sink; afterEach fails the test when the sink collected anything
- * ("a wrong result is never a skip"; an uncaptured error is never a pass). afterAll appends every context's
- * pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per line in keys-<pid>.jsonl; test/setup/global.ts
- * reads them at P2-T2) and disposes NOTHING -- not a context, not a device, not the Dawn handles. The pool kills
- * this worker a moment later and the address space goes with it; the reason that matters is in the hook (G4-F14).
+ * ("a wrong result is never a skip"; an uncaptured error is never a pass). afterAll disposes every context and
+ * raw device, appends every context's pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per line
+ * in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2) and drops both Dawn handles so the fork exits.
  *
  * Environment (spec 12.2; process.env is read ONLY here, in vitest.config.ts and under scripts/):
  * GRAPHTY_GPU_REQUIRE (the policy, parsed by scripts/gpu-policy.js -- the one copy of the rule, D19),
@@ -269,21 +268,8 @@ afterEach(() => {
     }
 });
 
-afterAll(() => {
-    // PLAN DECISION (G4-F14, measured 2026-09-22): this process disposes NOTHING of the GPU. It reads the pipeline
-    // keys out of every context it made, writes the key log, and stops; the pool kills the worker a moment later and
-    // the whole address space goes with it.
-    //
-    // Why: the default lane's shard kept aborting with `ERR_IPC_CHANNEL_CLOSED` after every test had passed, and the
-    // hang report from run 35783732328 caught the reason -- a worker sitting in the kernel's `vfs_coredump` with 2 GB
-    // resident. It had CRASHED, and the kernel was writing its core, which is the 175 seconds of silence every
-    // failing run shows. The pool wrote to it during the dump and vitest turned the closed channel into an unhandled
-    // rejection that aborts the run before any reporter writes. The crash itself is in the teardown that used to
-    // stand here: `ctx.dispose()` and `device.destroy()` hand Dawn work whose callbacks land after this hook has
-    // returned, which is the same shape as the SIGSEGV that CONTRACT DECISION RB-1 fixed for the readback ring on
-    // Metal, and the runner's Mesa is four years newer than the one on the development box, where it never fires.
-    // Nothing is leaked by not disposing: every test file is its own process, so the bound is one file's contexts,
-    // and the native retention inside a file is unchanged.
+afterAll(async () => {
+    const lost: Promise<GPUDeviceLostInfo>[] = [];
     for (const ctx of contexts.splice(0)) {
         try {
             for (const key of ctx.pipelines.keys()) {
@@ -292,7 +278,28 @@ afterAll(() => {
         } catch {
             // a context the test disposed itself may refuse the read; its keys were compiled all the same
         }
+        ctx.dispose();
+        lost.push(ctx.lost);
     }
-    rawDevices.splice(0);
+    for (const device of rawDevices.splice(0)) {
+        device.destroy();
+        lost.push(device.lost);
+    }
+    // PLAN DECISION (P1-T1, measured on webgpu@0.4.0 with tmp/p1t1/gc-race2.mjs): the Dawn GPU object must stay
+    // referenced until every destroyed device has reported its loss -- a GC of the instance while the device
+    // teardown callbacks are in flight segfaults, aborts or deadlocks the worker (the futex hang after afterAll).
+    // Every lost promise resolves right after destroy(); one macrotask lets the delivered callbacks unwind.
+    await Promise.all(lost);
+    await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+    });
     writeKeyLog();
+    if (nullHandle !== null) {
+        nullHandle.dispose();
+        nullHandle = null;
+    }
+    if (handle !== null) {
+        handle.dispose();
+        handle = null;
+    }
 });

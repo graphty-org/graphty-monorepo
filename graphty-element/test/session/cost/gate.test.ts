@@ -100,8 +100,8 @@ describe("gateRun: at or below the cap", () => {
             statistics: statistics(),
         };
 
-        assert.equal(gateRun(input, { limits: { exactComputationCap: 10, memoryBudgetBytes: 1e9 } }).kind, "exact");
-        assert.equal(gateRun(input, { limits: { exactComputationCap: 9.9, memoryBudgetBytes: 1e9 } }).kind, "refused");
+        assert.equal(gateRun(input, { limits: { exactComputationSeconds: 10, runColumnBudgetBytes: 1e9 } }).kind, "exact");
+        assert.equal(gateRun(input, { limits: { exactComputationSeconds: 9.9, runColumnBudgetBytes: 1e9 } }).kind, "refused");
     });
 });
 
@@ -282,7 +282,7 @@ describe("gateRun: the structural cases, which are not the cap", () => {
     it("reports a result larger than the memory budget as E_OUT_OF_MEMORY", () => {
         const decision = gateRun(
             { algorithm: "degree", descriptor: algorithmByKey("degree"), statistics: statistics() },
-            { limits: { exactComputationCap: 30, memoryBudgetBytes: 1000 } },
+            { limits: { exactComputationSeconds: 30, runColumnBudgetBytes: 1000 } },
         );
 
         const { code, details } = refusal(decision);

@@ -194,9 +194,9 @@ export interface Limits {
     /** The most nodes this machine will render at an interactive frame rate. */
     renderCeiling: number;
     /** How much memory the element is willing to hold for one graph. */
-    memoryBudgetBytes: number;
+    graphMemoryBudgetBytes: number;
     /** Above this node count an approximable algorithm is approximated rather than computed exactly. */
-    exactComputationCap: number;
+    approximateAboveNodes: number;
     /** The most elements a single selection will hold. */
     selectionCap: number;
     /** The most edges drawn at once. */

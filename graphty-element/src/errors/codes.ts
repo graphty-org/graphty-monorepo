@@ -195,11 +195,11 @@ export type GraphtyErrorCode =
     /**
      * An allocation failed, or the work would exceed the session's memory budget.
      * `details` carry the budget and the estimate where one exists. The caller loads a subset,
-     * raises `memoryBudgetBytes`, or frees another session.
+     * raises `runColumnBudgetBytes`, or frees another session.
      */
     | "E_OUT_OF_MEMORY"
     /**
-     * A run's estimated cost is above `config.exactComputationCap` and it has no approximate
+     * A run's estimated cost is above `config.exactComputationSeconds` and it has no approximate
      * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
      * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
      * disabled when a categorical encoding has more distinct values than the palette's capacity

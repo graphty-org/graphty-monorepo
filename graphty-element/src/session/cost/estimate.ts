@@ -708,16 +708,16 @@ function modelFromRates(
 /**
  * The two numbers the gate compares a run against.
  *
- * `exactComputationCap` is in SECONDS: the policy is "if the estimate is at or below the cap it
+ * `exactComputationSeconds` is in SECONDS: the policy is "if the estimate is at or below the cap it
  * runs exactly", so the cap and the estimate have to be the same kind of number. It is a
  * different threshold from the reader-facing "ask before runs estimated over" preference, which
  * belongs to whoever is watching the screen rather than to the element.
  */
 export interface CostGateLimits {
     /** The seconds at or below which a run is computed exactly. */
-    readonly exactComputationCap: number;
+    readonly exactComputationSeconds: number;
     /** The bytes one run's published columns may occupy before the run is refused. */
-    readonly memoryBudgetBytes: number;
+    readonly runColumnBudgetBytes: number;
 }
 
 /**
@@ -734,8 +734,8 @@ const DEFAULT_MEMORY_BUDGET_BYTES = 512 * 1024 * 1024;
 
 /** The limits a session applies when nothing else is configured. */
 export const DEFAULT_COST_GATE_LIMITS: Readonly<CostGateLimits> = Object.freeze({
-    exactComputationCap: DEFAULT_EXACT_COMPUTATION_CAP_SECONDS,
-    memoryBudgetBytes: DEFAULT_MEMORY_BUDGET_BYTES,
+    exactComputationSeconds: DEFAULT_EXACT_COMPUTATION_CAP_SECONDS,
+    runColumnBudgetBytes: DEFAULT_MEMORY_BUDGET_BYTES,
 });
 
 /** A scope that would bring a refused run back under the cap. */
@@ -969,7 +969,7 @@ function fitsUpTo(input: CostInput, cap: number): { nodes: number; edges: number
  */
 export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGateDecision {
     const limits = options.limits ?? DEFAULT_COST_GATE_LIMITS;
-    const cap = limits.exactComputationCap;
+    const cap = limits.exactComputationSeconds;
     const { descriptor, statistics } = input;
     const nodes = input.scope?.nodes ?? statistics.nodeCount;
     const edges = input.scope?.edges ?? statistics.edgeCount;
@@ -996,11 +996,11 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
     }
 
     const bytes = resultBytes(descriptor, nodes, edges);
-    if (bytes > limits.memoryBudgetBytes) {
+    if (bytes > limits.runColumnBudgetBytes) {
         return refuse(
             "E_OUT_OF_MEMORY",
-            `This run would publish ${group(bytes)} bytes of results, past the ${group(limits.memoryBudgetBytes)}-byte budget.`,
-            { bytes, budget: limits.memoryBudgetBytes, graph: { nodes, edges } },
+            `This run would publish ${group(bytes)} bytes of results, past the ${group(limits.runColumnBudgetBytes)}-byte budget.`,
+            { bytes, budget: limits.runColumnBudgetBytes, graph: { nodes, edges } },
         );
     }
 

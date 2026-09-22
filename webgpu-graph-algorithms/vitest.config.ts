@@ -97,6 +97,8 @@ function selectedProjects(): string[] {
 const projects = selectedProjects();
 /** Whether this run collects coverage, which roughly doubles a worker's processor and memory cost. */
 const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_DIR !== undefined;
+/** A coverage run on a runner, where the report is an upload rather than something a person opens. */
+const coverageOnRunner = coverageRun && process.env.CI === "true";
 const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;
 
 /**
@@ -196,7 +198,13 @@ export default defineConfig({
         coverage: {
             all: true,
             provider: "v8",
-            reporter: ["text", "json-summary", "json", "lcov", "html"],
+            // On a runner only lcov.info is uploaded and json-summary carries the thresholds, so the html and
+            // json reporters are memory spent on files nothing reads -- and this project's processes end the run
+            // holding the graphics driver's unreturned memory (G4-F13), which the report generation then has to
+            // fit around. Locally every reporter stays, since the preview server serves the html one.
+            reporter: coverageOnRunner
+                ? ["text-summary", "json-summary", "lcov"]
+                : ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: process.env.COVERAGE_DIR ?? "coverage",
             include: ["src/**/*.ts"],
             // Only the root barrel and the template strings are excluded (spec 11.8): src/node/index.ts and

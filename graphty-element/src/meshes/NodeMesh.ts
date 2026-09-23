@@ -12,6 +12,7 @@ import {
 
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
+import { shadeInstanceColors } from "./InstanceColorShading";
 import type { MeshCache } from "./MeshCache";
 
 interface NodeMeshOptions {
@@ -313,6 +314,17 @@ export class NodeMesh {
                 mat.diffuseColor = color3;
                 // Add emissive for minimum brightness on shadowed surfaces
                 mat.emissiveColor = color3.scale(0.2);
+
+                // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
+                // colour share this material and carry their own colour in a per-instance buffer
+                // instead. Babylon multiplies that buffer in after it clamps the light term, which
+                // flattens every surface lit past four fifths into one patch of unshaded colour --
+                // so the plugin moves the multiply inside the clamp and the node looks round
+                // again. On a material whose instances carry no colour it changes nothing.
+                //
+                // BEFORE freeze(): a frozen material stops re-evaluating its shader defines, and a
+                // plugin is a define.
+                shadeInstanceColors(mat);
             }
         }
 

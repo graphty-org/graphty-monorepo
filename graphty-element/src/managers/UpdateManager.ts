@@ -1,8 +1,9 @@
-import type { Mesh, Vector3 } from "@babylonjs/core";
+import type { Mesh, Nullable, Observer, Scene, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";
 import type { EdgeId, NodeId } from "../catalog/types";
+import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import type { NodeRenderState } from "../Node";
 import type { ElementMask } from "../session/scope/index";
@@ -90,6 +91,18 @@ interface UpdateManagerConfig {
 export class UpdateManager implements Manager {
     private needsZoomToFit = false;
     private hasZoomedToFit = false;
+
+    /**
+     * An outstanding request to frame the graph on the next frame that can.
+     *
+     * Separate from {@link UpdateManager.needsZoomToFit}, which only says that auto-framing is
+     * switched on, and separate from the periodic cadence below, which asks whether enough layout
+     * steps have gone by. Somebody ASKING -- a fresh data load, a layout change, the element's own
+     * re-frame once the layout has truly settled, or a consumer calling `zoomToFit()` -- is not a
+     * question about cadence, and answering it with the cadence's rules made every request that
+     * arrived after the layout stopped silently do nothing.
+     */
+    private forceZoomToFit = false;
     private config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
     private minLayoutStepsBeforeZoom = 10;
@@ -106,6 +119,36 @@ export class UpdateManager implements Manager {
     private appliedEdgeVisibility = NO_MASK_VERSION;
     private appliedShowContext = false;
     private appliedAnything = false;
+
+    /**
+     * Whether the state the most recent update pass left behind is a finished picture: the layout
+     * has stopped, no framing is outstanding that could still move the camera, and no style work
+     * is queued. It says nothing about what is on screen -- a pass computes the state, a render
+     * draws it -- which is why {@link UpdateManager.frameIsStable} is a different flag.
+     */
+    private stateIsFinished = false;
+
+    /**
+     * Whether the frame most recently DRAWN drew that finished picture.
+     *
+     * This is the one a consumer waits on. It goes true only when a `scene.render()` completed
+     * while the state was finished, so "the layout converged" and "the camera was framed" and
+     * "somebody actually painted it" are all behind it.
+     */
+    private drawnFrameIsFinished = false;
+
+    /**
+     * Whether the outstanding framing request has nothing it could frame.
+     *
+     * A request survives a pass that finds no visible nodes, on purpose -- it waits for nodes to
+     * appear rather than being spent on an empty graph. Without this flag that patient request
+     * would read as "the camera is about to move", and an empty graph would never be reported
+     * finished at all.
+     */
+    private framingHasNothingToFrame = false;
+
+    /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
+    private readonly drawWatcher: Nullable<Observer<Scene>>;
 
     /**
      * Creates a new update manager
@@ -131,6 +174,14 @@ export class UpdateManager implements Manager {
             autoZoomToFit: config.autoZoomToFit ?? true,
             minBoundingBoxSize: config.minBoundingBoxSize ?? 0.1,
         };
+
+        // A picture is only final once it has been DRAWN in its final state, and the scene is the
+        // only thing that knows a draw finished. Watching the scene -- rather than counting update
+        // passes -- is what keeps the flag honest when frames are pumped by hand: `stepFrames`
+        // draws nothing and promotes nothing, `renderFrames` draws and promotes.
+        this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
+            this.noteFrameDrawn();
+        });
     }
 
     /**
@@ -146,7 +197,9 @@ export class UpdateManager implements Manager {
      * Dispose the update manager
      */
     dispose(): void {
-        // UpdateManager doesn't hold resources to dispose
+        if (this.drawWatcher) {
+            this.graphContext.getScene().onAfterRenderObservable.remove(this.drawWatcher);
+        }
     }
 
     /**
@@ -331,10 +384,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Enable zoom to fit on next update
+     * Frame the whole graph on the next frame that has something to measure.
+     *
+     * The request is HONOURED rather than merely permitted. Everything below this line paces the
+     * periodic re-framing that follows a moving layout around, and that pacing answers "no" to
+     * every frame once the layout has stopped -- so routing an explicit request through it made
+     * `Graph.zoomToFit()` silent from the first settlement onwards, and made the element's own
+     * "re-frame now that the layout has truly settled" call dead on arrival.
      */
     enableZoomToFit(): void {
         this.needsZoomToFit = true;
+        this.forceZoomToFit = true;
+        // Whatever an earlier pass found to frame, this request has not been answered yet.
+        this.framingHasNothingToFrame = false;
         // Only reset the layout step count if we haven't zoomed yet
         // This prevents the counter from being reset when enableZoomToFit is called multiple times
         if (!this.hasZoomedToFit) {
@@ -349,6 +411,9 @@ export class UpdateManager implements Manager {
      */
     disableZoomToFit(): void {
         this.needsZoomToFit = false;
+        // An outstanding request goes with it, so switching auto-framing back on later does not
+        // spend a re-frame somebody asked for before it was switched off.
+        this.forceZoomToFit = false;
     }
 
     /**
@@ -368,14 +433,121 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Render a fixed number of frames (for testing)
-     * This ensures deterministic rendering similar to Babylon.js testing approach
-     * @param count - Number of frames to render
+     * Run a number of MODEL-UPDATE passes, drawing nothing.
+     *
+     * One pass is the half of a frame that happens before the picture: it steps the layout, moves
+     * the meshes, applies queued style work and may re-frame the camera. It never puts a pixel on
+     * screen, because that is `scene.render()` and this method does not call it. Use it when what
+     * is being checked is the MODEL -- a mesh's material, a node's position, whether a framing
+     * happened -- and use {@link UpdateManager.renderFrames} when a picture is needed.
+     *
+     * It was called `renderFixedFrames`, and every caller that read the name and wanted a picture
+     * got layout steps and no frames instead.
+     * @param count - How many update passes to run.
      */
-    renderFixedFrames(count: number): void {
+    stepFrames(count: number): void {
         for (let i = 0; i < count; i++) {
             this.update();
         }
+    }
+
+    /**
+     * Update AND draw a number of frames, the way the render loop does.
+     *
+     * The render loop is one update pass followed by one `scene.render()`, so this is that pair
+     * repeated: after it returns, what is on the canvas is what the model says, and a frame drawn
+     * while the picture was finished has been counted as such by
+     * {@link UpdateManager.frameIsStable}.
+     * @param count - How many frames to update and draw.
+     */
+    renderFrames(count: number): void {
+        const scene = this.graphContext.getScene();
+
+        for (let i = 0; i < count; i++) {
+            this.update();
+            scene.render();
+        }
+    }
+
+    /**
+     * Whether the picture on screen is the finished one.
+     *
+     * True only when the layout has converged, no framing is outstanding that could still move
+     * the camera, no style work is queued, AND a frame has been drawn since all of that became
+     * true. It is the difference between `graph-settled`, which fires the instant the LAYOUT
+     * stops and one pass before the final framing is even requested, and a picture that will not
+     * change again.
+     *
+     * It says nothing about a reader: somebody dragging the camera or a node changes the picture,
+     * and the element does not call that instability.
+     * @returns True when the last drawn frame drew the finished picture.
+     */
+    get frameIsStable(): boolean {
+        return this.drawnFrameIsFinished;
+    }
+
+    /**
+     * What is still keeping the picture from being final, in a consumer's words.
+     *
+     * Written for the message a timed-out wait carries, because "the frame never settled" on its
+     * own sends the reader to a debugger.
+     * @returns One phrase naming the thing that is still moving.
+     */
+    whyFrameIsNotStable(): string {
+        if (this.layoutManager.running) {
+            return "the layout is still running";
+        }
+
+        const painter = this.graphContext.getStylePainter?.();
+
+        if (painter?.hasPending === true) {
+            return "a style repaint is still queued";
+        }
+
+        if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
+            return "the camera has not finished framing the graph";
+        }
+
+        if (!this.drawnFrameIsFinished) {
+            return "nothing has drawn a frame since the graph stopped moving";
+        }
+
+        return "the picture is final";
+    }
+
+    /**
+     * Whether the state this pass leaves behind is a picture that will not change again.
+     * @returns True when nothing the element drives is still going to move.
+     */
+    private pictureIsFinished(): boolean {
+        if (this.layoutManager.running) {
+            return false;
+        }
+
+        const painter = this.graphContext.getStylePainter?.();
+
+        if (painter?.hasPending === true) {
+            return false;
+        }
+
+        // An outstanding framing request only means the camera is about to move if there is
+        // something for it to frame; see `framingHasNothingToFrame`.
+        return !this.willZoomToFit() || this.framingHasNothingToFrame;
+    }
+
+    /**
+     * Called once per frame the scene actually drew.
+     *
+     * Promotes a finished state into a finished PICTURE, and announces it once per settlement so
+     * a consumer can wait for the frame rather than for the layout.
+     */
+    private noteFrameDrawn(): void {
+        if (!this.stateIsFinished || this.drawnFrameIsFinished) {
+            return;
+        }
+
+        this.drawnFrameIsFinished = true;
+        this.eventManager.emitGraphEvent("graph-frame-stable", { frames: this.frameCount });
     }
 
     /**
@@ -384,9 +556,27 @@ export class UpdateManager implements Manager {
     private frameCount = 0;
 
     /**
-     * Update the graph for the current frame
+     * Update the graph for the current frame.
+     *
+     * The pass itself is {@link UpdateManager.runUpdatePass}; what is added here is the one
+     * question a consumer cares about and the pass has several exits from -- whether the state it
+     * leaves behind is a finished picture.
      */
     update(): void {
+        this.runUpdatePass();
+
+        this.stateIsFinished = this.pictureIsFinished();
+
+        if (!this.stateIsFinished) {
+            // Something is moving again, so whatever was drawn before is no longer the last word.
+            this.drawnFrameIsFinished = false;
+        }
+    }
+
+    /**
+     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
+     */
+    private runUpdatePass(): void {
         this.frameCount++;
 
         // Before anything is drawn or measured: the masks decide what IS drawn, so a node that a
@@ -412,22 +602,18 @@ export class UpdateManager implements Manager {
             this.updateEdges();
 
             // Handle zoom to fit if requested
-            if (this.needsZoomToFit && !this.hasZoomedToFit) {
-                // Check if we have nodes to calculate bounds from
-                const nodeCount = Array.from(this.layoutManager.nodes).length;
-                if (nodeCount > 0) {
-                    // Calculate bounding box and update nodes
-                    const { boundingBoxMin, boundingBoxMax } = this.updateNodes();
+            if (this.willZoomToFit()) {
+                // Calculate bounding box and update nodes
+                const { boundingBoxMin, boundingBoxMax } = this.updateNodes(true);
 
-                    // Update edges (also expands bounding box for edge labels)
-                    this.updateEdges(boundingBoxMin, boundingBoxMax);
+                // Update edges (also expands bounding box for edge labels)
+                this.updateEdges(boundingBoxMin, boundingBoxMax);
 
-                    // Handle zoom to fit
-                    this.handleZoomToFit(boundingBoxMin, boundingBoxMax);
+                // Handle zoom to fit
+                this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
 
-                    // Update statistics
-                    this.updateStatistics();
-                }
+                // Update statistics
+                this.updateStatistics();
             }
 
             return;
@@ -436,14 +622,22 @@ export class UpdateManager implements Manager {
         // Update layout engine (step the force-directed algorithm)
         this.updateLayout();
 
+        // ASKED BEFORE THE GRAPH IS MEASURED, because the answer decides how the measurement is
+        // taken: reading a node's world position as of THIS instant costs a forced matrix per node
+        // and per label, and there is no reason to pay it on a frame whose box nothing reads.
+        // Asked ONCE, and carried, so the frame that measured is the frame that frames.
+        const framing = this.willZoomToFit();
+
         // Update nodes and edges
-        const { boundingBoxMin, boundingBoxMax } = this.updateNodes();
+        const { boundingBoxMin, boundingBoxMax } = this.updateNodes(framing);
 
         // Update edges (also expands bounding box for edge labels)
         this.updateEdges(boundingBoxMin, boundingBoxMax);
 
         // Handle zoom to fit if needed
-        this.handleZoomToFit(boundingBoxMin, boundingBoxMax);
+        if (framing) {
+            this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
+        }
 
         // Update statistics
         this.updateStatistics();
@@ -451,25 +645,99 @@ export class UpdateManager implements Manager {
 
     /**
      * Update the layout engine
+     *
+     * `minDelta` is the settle threshold: once a whole frame of stepping moves every node less
+     * than that, the layout has arrived and is stopped. Zero -- the default -- switches the
+     * threshold off and lets the engine decide for itself, which is what every graph did before,
+     * because `minDelta` was published, documented as pacing the layout, set by eight test files,
+     * and read by nothing at all.
+     *
+     * MEASURED FROM THE ENGINE rather than from the meshes, because the meshes are moved later in
+     * the same frame and would lag the measurement by one. Paid only when a threshold is set: at
+     * zero this reads no positions and allocates nothing.
      */
     private updateLayout(): void {
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 
-        const { stepMultiplier } = this.graphContext.getStyles().config.behavior.layout;
+        const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
+        const before = minDelta > 0 ? this.enginePositions() : null;
+
         for (let i = 0; i < stepMultiplier; i++) {
             this.layoutManager.step();
             this.layoutStepCount++;
+        }
+
+        if (before !== null && this.largestMove(before) < minDelta) {
+            this.layoutManager.running = false;
         }
 
         this.statsManager.graphStep.endMonitoring();
     }
 
     /**
-     * Update all nodes and calculate bounding box
+     * Where the layout engine currently has every node.
+     * @returns One position per node, by node id.
+     */
+    private enginePositions(): Map<NodeIdType, { x: number; y: number; z: number }> {
+        const engine = this.layoutManager.layoutEngine;
+        const positions = new Map<NodeIdType, { x: number; y: number; z: number }>();
+
+        if (!engine) {
+            return positions;
+        }
+
+        for (const node of this.layoutManager.nodes) {
+            const at = engine.getNodePosition(node);
+
+            if (at) {
+                positions.set(node.id, { x: at.x, y: at.y, z: at.z ?? 0 });
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * How far the node that moved most has moved since the positions were taken.
+     * @param before - The positions to measure against.
+     * @returns The largest distance, or Infinity when there is nothing to compare -- a graph with
+     *     no placed nodes has not settled, it has not started.
+     */
+    private largestMove(before: Map<NodeIdType, { x: number; y: number; z: number }>): number {
+        const now = this.enginePositions();
+
+        if (before.size === 0 || now.size === 0) {
+            return Number.POSITIVE_INFINITY;
+        }
+
+        let largest = 0;
+
+        for (const [id, at] of now) {
+            const was = before.get(id);
+
+            // A node that has only just arrived has no "before", and a graph that gained a node
+            // this frame has certainly not settled.
+            if (!was) {
+                return Number.POSITIVE_INFINITY;
+            }
+
+            const dx = at.x - was.x;
+            const dy = at.y - was.y;
+            const dz = at.z - was.z;
+            largest = Math.max(largest, Math.sqrt(dx * dx + dy * dy + dz * dz));
+        }
+
+        return largest;
+    }
+
+    /**
+     * Update all nodes, and measure the graph when the camera is about to be framed on it.
+     * @param measure - Whether this frame's bounding box will be used. False skips the
+     *     measurement entirely, which is most frames.
      * @returns Object containing minimum and maximum bounding box vectors
      */
-    private updateNodes(): { boundingBoxMin?: Vector3; boundingBoxMax?: Vector3 } {
+    private updateNodes(measure: boolean): { boundingBoxMin?: Vector3; boundingBoxMax?: Vector3 } {
         let boundingBoxMin: Vector3 | undefined;
         let boundingBoxMax: Vector3 | undefined;
 
@@ -480,12 +748,27 @@ export class UpdateManager implements Manager {
 
             // The mesh position is already updated by node.update()
 
+            if (!measure) {
+                continue;
+            }
+
             // A node the visibility mask has taken off screen is still updated -- it keeps its
             // position so showing it again needs no layout -- but it must not stretch the
             // bounding box, or zooming to fit a filtered graph would frame what is hidden.
             if (node.getRenderState() !== "visible") {
                 continue;
             }
+
+            // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a
+            // world position while it renders, and stamps the render it did it under; this runs
+            // BEFORE that render, so the stamp still matches and `getAbsolutePosition()` would
+            // hand back the previous frame's value -- one whole layout step stale, including on
+            // the frame the layout settles, which is the last frame that frames anything.
+            //
+            // Computed rather than read off `mesh.position`, because a node mesh is parented to
+            // the "graph-root" transform an XR gesture moves, rotates and scales: the local
+            // position is only the world position while that root is the identity.
+            node.mesh.computeWorldMatrix(true);
 
             // Update bounding box
             const pos = node.mesh.getAbsolutePosition();
@@ -534,6 +817,13 @@ export class UpdateManager implements Manager {
      * @param max - Maximum bounds vector
      */
     private expandBoundingBoxForLabel(labelMesh: Mesh, min: Vector3, max: Vector3): void {
+        // Stale in exactly the way a node's position was, and worth saying separately because the
+        // reason is different: a label plane is parented to the thing it annotates, and the
+        // `minimumWorld`/`maximumWorld` corners read below are only refreshed when its world
+        // matrix is computed. Without this the label stretches the box to where it was drawn last
+        // frame rather than to where the node it hangs off has just moved.
+        labelMesh.computeWorldMatrix(true);
+
         const labelBoundingInfo = labelMesh.getBoundingInfo();
         const labelMin = labelBoundingInfo.boundingBox.minimumWorld;
         const labelMax = labelBoundingInfo.boundingBox.maximumWorld;
@@ -584,17 +874,22 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Handle zoom to fit logic
-     * @param boundingBoxMin - Minimum bounds (optional)
-     * @param boundingBoxMax - Maximum bounds (optional)
+     * Whether the camera is going to be framed on the graph this frame.
+     *
+     * Asked twice per frame -- once before the graph is measured, to decide whether to take the
+     * measurement at all and whether to take it from freshly computed world matrices, and once
+     * when the framing is applied -- so it reads state and changes none.
+     * @returns True when this frame will re-frame the camera, given a box to frame.
      */
-    private handleZoomToFit(boundingBoxMin?: Vector3, boundingBoxMax?: Vector3): void {
+    private willZoomToFit(): boolean {
         if (!this.needsZoomToFit) {
-            return;
+            return false;
         }
 
-        if (!boundingBoxMin || !boundingBoxMax) {
-            return;
+        // Somebody asked. See `enableZoomToFit`: the cadence below paces the element's own
+        // periodic re-framing and has no opinion worth having about a request.
+        if (this.forceZoomToFit) {
+            return true;
         }
 
         // Check if we should zoom:
@@ -613,36 +908,63 @@ export class UpdateManager implements Manager {
             this.layoutStepCount < this.minLayoutStepsBeforeZoom
         ) {
             // First zoom - wait for minimum steps
-            return;
-        } else if (!this.layoutManager.running && !this.hasZoomedToFit && this.layoutStepCount === 0) {
+            return false;
+        }
+
+        if (!this.layoutManager.running && !this.hasZoomedToFit && this.layoutStepCount === 0) {
             // Layout not running and no steps taken - allow immediate zoom
-        } else if (!shouldZoomPeriodically && !justSettled) {
-            // Not time for periodic zoom and didn't just settle
+            return true;
+        }
+
+        // Otherwise only on the periodic beat, or on the step the layout arrived on
+        return shouldZoomPeriodically || justSettled;
+    }
+
+    /**
+     * Frame the camera on a box {@link UpdateManager.willZoomToFit} has already approved.
+     * @param boundingBoxMin - Minimum bounds (optional)
+     * @param boundingBoxMax - Maximum bounds (optional)
+     */
+    private applyZoomToFit(boundingBoxMin?: Vector3, boundingBoxMax?: Vector3): void {
+        if (!boundingBoxMin || !boundingBoxMax) {
+            // Nothing to frame yet, so an outstanding request keeps waiting rather than being
+            // spent on a graph with no visible nodes in it. It is still waiting for nodes and not
+            // for the camera, which is what stops an empty graph reading as a moving one.
+            this.framingHasNothingToFrame = true;
             return;
         }
+
+        const isSettled = this.layoutManager.layoutEngine?.isSettled ?? false;
 
         // Update settled state for next frame
         this.wasSettled = isSettled;
 
         const size = boundingBoxMax.subtract(boundingBoxMin);
 
-        if (size.length() > this.config.minBoundingBoxSize) {
-            this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax);
-
-            this.hasZoomedToFit = true;
-            this.lastZoomStep = this.layoutStepCount;
-
-            // Only clear needsZoomToFit if layout is settled
-            if (isSettled) {
-                this.needsZoomToFit = false;
-            }
-
-            // Emit zoom complete event
-            this.eventManager.emitGraphEvent("zoom-to-fit-complete", {
-                boundingBoxMin,
-                boundingBoxMax,
-            });
+        if (size.length() <= this.config.minBoundingBoxSize) {
+            // A box too small to frame is the empty-graph case again: the request stays, and it is
+            // waiting for a graph rather than for the camera.
+            this.framingHasNothingToFrame = true;
+            return;
         }
+
+        this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax);
+
+        this.hasZoomedToFit = true;
+        this.forceZoomToFit = false;
+        this.framingHasNothingToFrame = false;
+        this.lastZoomStep = this.layoutStepCount;
+
+        // Only clear needsZoomToFit if layout is settled
+        if (isSettled) {
+            this.needsZoomToFit = false;
+        }
+
+        // Emit zoom complete event
+        this.eventManager.emitGraphEvent("zoom-to-fit-complete", {
+            boundingBoxMin,
+            boundingBoxMax,
+        });
     }
 
     /**

@@ -59,11 +59,15 @@ class LocalRunQueue implements RunQueue {
 
     /**
      * Put work in the queue.
-     * @param _category - Always "algorithm-run"; a headless queue orders nothing else.
+     * @param _category - Ignored: a headless queue has no obsolescence rules to apply it to, and
+     *     orders everything by the turn it was asked in.
      * @param execute - The work.
      * @returns The operation id.
      */
-    queueOperation(_category: "algorithm-run", execute: (context: RunQueueContext) => Promise<void> | void): string {
+    queueOperation(
+        _category: "algorithm-run" | "style-edit",
+        execute: (context: RunQueueContext) => Promise<void> | void,
+    ): string {
         const id = `session-run-${this.#counter++}`;
         this.#pending.push({ id, execute, controller: new AbortController(), started: false });
 

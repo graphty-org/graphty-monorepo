@@ -19,7 +19,9 @@
  */
 
 import type { DrawingMode } from "../camera/types";
+import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { LabelStyle } from "./label-style";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -85,6 +87,7 @@ export const KNOWN_ALGORITHMS = [
     "label-propagation",
     "components",
     "shortest-path",
+    "all-pairs-distance",
     "all-paths",
     "max-flow",
     "min-cut",
@@ -321,9 +324,11 @@ export type Channel =
     | "node.label"
     | "node.labelStyle"
     | "node.tooltip"
+    | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
     | "node.glow"
+    | "node.glowStrength"
     | "node.wireframe"
     | "node.flat"
     | "node.marker"
@@ -331,25 +336,34 @@ export type Channel =
     | "edge.width"
     | "edge.opacity"
     | "edge.style"
+    | "edge.patternCount"
     | "edge.curvature"
     | "edge.arrowHead"
+    | "edge.arrowHeadSize"
+    | "edge.arrowHeadColor"
+    | "edge.arrowHeadOpacity"
+    | "edge.arrowHeadText"
+    | "edge.arrowHeadTextStyle"
     | "edge.arrowTail"
+    | "edge.arrowTailSize"
+    | "edge.arrowTailColor"
+    | "edge.arrowTailOpacity"
+    | "edge.arrowTailText"
+    | "edge.arrowTailTextStyle"
     | "edge.animationSpeed"
     | "edge.label"
-    | "edge.labelStyle"
-    | "edge.tooltip";
+    | "edge.labelStyle";
 
-/** The values the "edge.style" channel accepts. */
-export type EdgeLinePattern =
-    | "solid"
-    | "dashed"
-    | "dotted"
-    | "dash-dot"
-    | "dash-dot-dot"
-    | "long-dash"
-    | "short-dash"
-    | "double"
-    | "wave";
+/**
+ * The values the "edge.style" channel accepts.
+ *
+ * DERIVED FROM THE SCHEMA THE MESH BUILDER READS, never written out here. This name used to be a
+ * hand-typed list of nine -- "dashed", "dotted", "long-dash" and five more the edge renderer has
+ * never had a mesh for -- while omitting seven it does have, so a consumer who typed a value this
+ * type accepted got a layer the element refused, and the one place that noticed was a test
+ * asserting the discrepancy still existed.
+ */
+export type EdgeLinePattern = NonNullable<NonNullable<EdgeStyleConfig["line"]>["type"]>;
 
 /**
  * A pre-parsed colour. Components are 0..255 and alpha is 0..1. The repaint reads this form;
@@ -363,18 +377,20 @@ export interface Rgba {
     a: number;
 }
 
-/** How a label is drawn. */
-export interface LabelStyle {
-    font?: string;
-    sizePx?: number;
-    weight?: number | "normal" | "bold";
-    color?: string;
-    background?: string;
-    outline?: string;
-    padding?: number;
-    maxWidth?: number;
-    wrap?: boolean;
-}
+/**
+ * How a label is drawn.
+ *
+ * Declared in `./label-style` and re-exported here so that a consumer importing the channel
+ * vocabulary gets the value type its labelStyle channels take, without the two files having to
+ * be edited together. The interface grows a field whenever the renderer grows something a reader
+ * can point at; the channel union next door grows for entirely different reasons.
+ *
+ * Only the interface travels this way. Its member unions -- `LabelLocation`, `LabelTextAlign`
+ * and the rest -- reach `./catalog` straight from `./label-style`, so re-exporting them here as
+ * well gave every one of them two paths out of the package and left the copy here reaching
+ * nobody.
+ */
+export type { LabelStyle } from "./label-style";
 
 /** A literal value written to a channel. */
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;

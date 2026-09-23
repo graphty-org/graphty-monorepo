@@ -1381,13 +1381,20 @@ function prepareRule(
  * Call it once, when a layer is added or updated, and hold what comes back on the layer. What
  * comes back never reads the column again, so calling this per element would reintroduce exactly
  * the cost it exists to remove.
+ *
+ * WHERE THESE FAILURES ACTUALLY SURFACE, stated because this comment used to claim otherwise and
+ * a reader acted on it. `styles.add()` and `styles.encode()` do NOT call this: the column is read
+ * when the frame is painted, so a binding the channel cannot take is refused during the repaint,
+ * which catches it, disables the layer for that pass and records a `RepaintProblem`. The edit
+ * itself resolves, and the layer sits in the stack enabled. `session.paint.problems()` is the
+ * only place the reason appears. A layer's paths are checked at the edit, and nothing else is.
  * @param options - The channel, the binding, the column and the session's scales.
  * @returns The prepared binding.
  * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL` for a channel the element does not have,
  *   `E_UNKNOWN_SCALE` for a scale nobody registered, `E_BAD_LAYER` for a binding the channel
- *   cannot take, and `E_CAP_EXCEEDED` when the encoding has more groups than the palette or the
- *   channel has values for. All of them are edit-time failures, so a layer is refused, or
- *   disabled with a reason, rather than painting something wrong.
+ *   cannot take, and `E_CAP_EXCEEDED` when the encoding has more groups than a palette the CALLER
+ *   named, or than the channel has values for. A palette the element chose for itself is chosen
+ *   against the real group count and can never be the one that fails here.
  */
 export function prepareBinding(options: PrepareBindingOptions): PreparedBinding {
     const descriptor = requireChannel(options.channel);

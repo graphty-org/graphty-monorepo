@@ -75,6 +75,19 @@ export const NodeShapes = z.enum([
     "geodesic",
 ]);
 
+/**
+ * Everything a style layer can say about how one node is drawn.
+ *
+ * ONE FIELD WAS WITHDRAWN IN 2.0. `enabled` was a switch superseded by the session's visibility
+ * mask -- the filters, the time window and the context flag are what decide whether a node is
+ * drawn, and nothing ever read this. It was accepted and ignored for as long as it existed, so
+ * a consumer who flipped it watched the node stay exactly where it was. Only the label block's
+ * own `enabled` is read, and that one stays.
+ *
+ * The removal is recorded in `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`, with what
+ * to reach for instead. This object is strict, so a style document that still carries the key is
+ * now a parse error rather than a silent no-op -- which is the point of removing it in a major.
+ */
 export const NodeStyle = z.strictObject({
     shape: z
         .strictObject({
@@ -87,7 +100,11 @@ export const NodeStyle = z.strictObject({
     texture: z
         .strictObject({
             color: AdvancedColorStyle.or(ColorStyle).optional(),
-            image: z.url().optional(),
+            // A node texture from a URL used to be declared here, as a validated `z.url()`, and
+            // was read by nothing in this version of the package or any earlier one. A schema
+            // that accepts a URL and draws nothing with it is worse than one that refuses it: the
+            // consumer is told their image was accepted. It comes back with a renderer and a
+            // channel, together, or not at all.
             icon: z.string().optional(),
             // pieChart: z.string().or(z.null()).default(null), // https://manual.cytoscape.org/en/stable/Styles.html#using-graphics-in-styles
             // shader: z.url().or(z.null()).default(null), // https://doc.babylonjs.com/features/featuresDeepDive/materials/shaders/
@@ -108,8 +125,14 @@ export const NodeStyle = z.strictObject({
             outline: z
                 .strictObject({
                     // https://forum.babylonjs.com/t/how-to-get-the-perfect-outline/31711
+                    //
+                    // COLOUR ONLY, and it is a renderer limit rather than an oversight. The
+                    // outline is drawn by Babylon's HighlightLayer, whose blur size belongs to
+                    // the LAYER and not to a mesh, so every outline on screen is one width
+                    // whatever a style asks for. A declared `width` was therefore accepted,
+                    // validated and ignored; drawing per-mesh widths needs one highlight layer
+                    // per width, which is a full-screen pass each.
                     color: ColorStyle.optional(),
-                    width: z.number().positive().optional(),
                 })
                 .optional(),
             wireframe: z.boolean().optional(),
@@ -122,7 +145,6 @@ export const NodeStyle = z.strictObject({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
     }).optional(),
-    enabled: z.boolean().default(true).optional(),
 });
 
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;
@@ -134,5 +156,4 @@ export const defaultNodeStyle: NodeStyleConfig = {
     texture: {
         color: "#6366F1",
     },
-    enabled: true,
 };

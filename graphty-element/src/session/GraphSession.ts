@@ -903,6 +903,7 @@ function repaintAgainstCurrentData(
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
+            onPainted: (listener) => engine.onPainted(listener),
             problems: () => engine.problems(),
         },
         repaint: async (request, context) => {

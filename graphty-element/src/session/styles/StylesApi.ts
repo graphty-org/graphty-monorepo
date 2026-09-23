@@ -1136,7 +1136,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         stale: () => null,
         resolveScope: () => sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope(),
         enqueue: (body: RunBody): RunTicket => {
-            const id = queue.queueOperation("algorithm-run", body, { description: label });
+            // `style-edit`, NOT `algorithm-run`, and the difference is whether the edit survives
+            // a load. A `data-add` obsoletes an `algorithm-run` -- correctly, because a
+            // computation's answer describes the data it read -- and a style write is not one of
+            // those: it says how to paint whatever the graph holds next. While it shared that
+            // category, the one order a render function can use (issue the edits, then set the
+            // data, because it cannot await a run) aborted every edit before its body ran, and an
+            // operation dropped from the batch settles nothing: no commit, no refusal, no
+            // problem recorded, and a forgotten promise that never resolves.
+            const id = queue.queueOperation("style-edit", body, { description: label });
 
             return {
                 cancel: () => {

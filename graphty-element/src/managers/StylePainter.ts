@@ -1,5 +1,7 @@
 import { cloneDeep, defaultsDeep } from "lodash";
 
+import { BadgeStyleManager } from "../BadgeStyleManager";
+import type { LabelBadge } from "../catalog/label-style";
 import type { Channel, LabelStyle, Rgba } from "../catalog/types";
 import {
     defaultEdgeStyle,
@@ -8,8 +10,9 @@ import {
     type EdgeStyleConfig,
     NodeStyle,
     type NodeStyleConfig,
+    RichTextStyle,
 } from "../config";
-import { CHANNEL_DESCRIPTORS, type ColorValue, toColorValue } from "../session/styles/channels";
+import { asColorValue, CHANNEL_DESCRIPTORS, toColorValue } from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -87,54 +90,145 @@ function setAtPath(bag: Record<string, unknown>, path: string, value: unknown): 
 }
 
 /**
- * Whether a resolved value is one of the colours a channel carries.
- * @param value - The value the pass painted.
- * @returns The colour, or null when this channel did not carry one.
+ * The block a leaf belongs to: its dotted path with the last segment taken off.
+ *
+ * `label.text` is in `label`, and `arrowHead.text.text` is in `arrowHead.text`. That is the block
+ * whose `enabled` flag switches the words on, and the only reason it is worth a function is that
+ * getting it wrong is silent -- a flag written into a field that does not exist is merged into
+ * the defaults rather than rejected, so the words resolve, the paint carries them, and nothing is
+ * drawn.
+ * @param path - The dotted path of a leaf.
+ * @returns The path of the block holding it, or the empty string when the leaf is at the top.
+ * @internal
  */
-function asColor(value: unknown): ColorValue | null {
-    if (typeof value !== "object" || value === null || !("hex" in value)) {
-        return null;
+function blockOf(path: string): string {
+    return path.split(".").slice(0, -1).join(".");
+}
+
+/**
+ * Which rich-text key each label field is written to, where the only difference is the name.
+ *
+ * A TABLE RATHER THAN A LADDER OF IFS, because the ladder is what rotted. Each `if` had to be
+ * written by hand, so the seven that existed when channels were introduced stayed seven while
+ * `RichTextLabel` went on drawing margins, pointers, badges, shadows and depth fade that no
+ * layer could ask for -- and seventeen stories were deleted rather than migrated because of it.
+ * The fields that are NOT a plain rename are handled beneath this, and every one of them is
+ * covered by a case in `test/session/styles/label-style.test.ts`.
+ */
+const RICH_TEXT_KEYS = {
+    enabled: "enabled",
+    font: "font",
+    sizePx: "fontSize",
+    color: "textColor",
+    lineHeight: "lineHeight",
+    textAlign: "textAlign",
+    background: "backgroundColor",
+    padding: "backgroundPadding",
+    cornerRadius: "cornerRadius",
+    borderWidth: "borderWidth",
+    borderColor: "borderColor",
+    gradient: "backgroundGradient",
+    gradientType: "backgroundGradientType",
+    gradientDirection: "backgroundGradientDirection",
+    location: "location",
+    attachOffset: "attachOffset",
+    marginTop: "marginTop",
+    marginBottom: "marginBottom",
+    marginLeft: "marginLeft",
+    marginRight: "marginRight",
+    pointer: "pointer",
+    pointerDirection: "pointerDirection",
+    pointerWidth: "pointerWidth",
+    pointerHeight: "pointerHeight",
+    pointerOffset: "pointerOffset",
+    pointerCurve: "pointerCurve",
+    outlineWidth: "textOutlineWidth",
+    shadow: "textShadow",
+    shadowColor: "textShadowColor",
+    shadowBlur: "textShadowBlur",
+    shadowOffsetX: "textShadowOffsetX",
+    shadowOffsetY: "textShadowOffsetY",
+    animation: "animation",
+    animationSpeed: "animationSpeed",
+    depthFade: "depthFadeEnabled",
+    depthFadeNear: "depthFadeNear",
+    depthFadeFar: "depthFadeFar",
+    badge: "badge",
+    icon: "icon",
+    iconPosition: "iconPosition",
+    progress: "progress",
+    smartOverflow: "smartOverflow",
+    maxNumber: "maxNumber",
+    overflowSuffix: "overflowSuffix",
+} as const satisfies Partial<Record<keyof LabelStyle, string>>;
+
+/** Every key the renderer's own label schema holds, which is what may be written into it. */
+const RICH_TEXT_FIELDS: ReadonlySet<string> = new Set(Object.keys(RichTextStyle.shape));
+
+/**
+ * The appearance a badge brings with it, as rich-text keys.
+ *
+ * WHY THE PAINTER APPLIES THIS AND NOT THE RENDERER. A badge is a whole look -- a notification is
+ * a red pill in bold white lettering -- and `RichTextLabel` does declare all of it. It merges
+ * those declarations UNDER whatever the caller passed, so that a caller who names a colour keeps
+ * it, which is right. What defeats it is that the caller here is never a person: a painted label
+ * arrives as a fully filled-in style, every optional field already carrying the schema's own
+ * default, so the merge finds a value for every key a badge wanted to set and the badge changes
+ * nothing at all. Asking for a badge produced a label in plain black Verdana, in this version and
+ * in 1.x, and the story that was supposed to show one asserted nothing and so never said so.
+ *
+ * Applied here, against the layer's own writes rather than against a filled-in style, a badge
+ * fills in what the layer did not ask for -- which is what it was always meant to do.
+ * @param badge - The badge the layer asked for.
+ * @returns Its appearance, in the renderer's spelling, with its private bookkeeping left out.
+ */
+function badgeAppearance(badge: LabelBadge): Record<string, unknown> {
+    const declared = BadgeStyleManager.getBadgeStyle(badge) ?? {};
+    const kept: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(declared)) {
+        // The badge table also carries the renderer's own private bookkeeping -- `_smartSizing`,
+        // `_paddingRatio` -- which is not part of the label schema and is applied by the renderer
+        // itself. Only what the schema holds may be written into a style.
+        if (RICH_TEXT_FIELDS.has(key) && value !== undefined) {
+            kept[key] = value;
+        }
     }
 
-    return value as ColorValue;
+    return kept;
 }
 
 /**
  * Turn the label vocabulary into the rich-text block the label renderer reads.
  *
- * THE TWO SHAPES DISAGREE AND THE TRANSLATION LIVES HERE, once. `LabelStyle` is the closed
- * vocabulary a layer writes -- nine fields, named for what a reader sees -- and `RichTextStyle` is
- * the schema the renderer has drawn from since before there were channels, with ninety. Mapping
- * them in one place is what keeps the channel table honest: a channel that says it paints a label
- * really does, and the fields the renderer cannot draw are named in the channel's own caveat
- * rather than silently assigned somewhere they do nothing.
+ * THE TWO SHAPES DISAGREE AND THE TRANSLATION LIVES HERE, once. {@link LabelStyle} is the closed
+ * vocabulary a layer writes, named for what a reader sees, and `RichTextStyle` is the schema the
+ * renderer has drawn from since before there were channels, named for what the canvas code does.
+ * Mapping them in one place is what keeps the channel table honest: a channel that says it paints
+ * a label really does, in every field the vocabulary publishes.
  *
- * `maxWidth` and `wrap` are not written, because the renderer sizes a label to its text. That is
- * exactly what the `node.labelStyle` and `edge.labelStyle` caveats say.
+ * THREE FIELDS ARE NOT A PLAIN RENAME. A weight is stringified, because the renderer takes the
+ * CSS spelling and a reader may write the number. An outline COLOUR switches the outline on,
+ * because a colour is the thing a reader points at and `textOutline: false` with a colour beside
+ * it draws nothing. And the gradient colours are copied, because the list a layer holds is
+ * frozen and the renderer's schema parses a mutable one.
  * @param style - The label style a layer painted.
  * @returns The rich-text fields it corresponds to.
  */
 function richTextOf(style: LabelStyle): Record<string, unknown> {
     const text: Record<string, unknown> = {};
+    const keys: Readonly<Record<string, string | undefined>> = RICH_TEXT_KEYS;
 
-    if (style.font !== undefined) {
-        text.font = style.font;
-    }
+    for (const [field, value] of Object.entries(style)) {
+        const key = keys[field];
 
-    if (style.sizePx !== undefined) {
-        text.fontSize = style.sizePx;
+        if (key !== undefined && value !== undefined) {
+            text[key] = value;
+        }
     }
 
     if (style.weight !== undefined) {
         text.fontWeight = String(style.weight);
-    }
-
-    if (style.color !== undefined) {
-        text.textColor = style.color;
-    }
-
-    if (style.background !== undefined) {
-        text.backgroundColor = style.background;
     }
 
     if (style.outline !== undefined) {
@@ -142,8 +236,16 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
         text.textOutlineColor = style.outline;
     }
 
-    if (style.padding !== undefined) {
-        text.backgroundPadding = style.padding;
+    if (style.gradientColors !== undefined) {
+        text.backgroundGradientColors = [...style.gradientColors];
+    }
+
+    if (style.badge !== undefined) {
+        // UNDER the layer's own writes, never over them: a layer that asks for a notification
+        // badge in green gets a green one.
+        for (const [key, value] of Object.entries(badgeAppearance(style.badge))) {
+            text[key] ??= value;
+        }
     }
 
     return text;
@@ -169,9 +271,10 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
 
     if (descriptor.accepts === "labelStyle") {
         // FIELD BY FIELD, never the block. `stylePath` is the whole label here, and writing the
-        // block would clobber whatever the `node.label` channel put in `label.text` -- or be
-        // clobbered by it, depending on which channel this loop reached first. Two channels that
-        // land in one object must never write the same leaf.
+        // block would clobber whatever the `node.label` channel put in `label.text`. The one leaf
+        // both channels write is `enabled`, and which of them wins is settled by the order
+        // {@link inWriteOrder} hands them over in rather than by which key the resolver happened
+        // to fill first.
         for (const [field, setting] of Object.entries(richTextOf(value as LabelStyle))) {
             setAtPath(bag, `${descriptor.stylePath}.${field}`, setting);
         }
@@ -179,14 +282,45 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
         return;
     }
 
-    const color = asColor(value);
+    const color = asColorValue(value);
     setAtPath(bag, descriptor.stylePath, color === null ? value : color.hex);
 
     if (descriptor.accepts === "text") {
-        // A label or a tooltip is drawn only when it is switched on, and a layer that wrote the
-        // words has switched it on. Without this the text is resolved, kept, and never drawn.
-        setAtPath(bag, `${descriptor.stylePath.split(".")[0]}.enabled`, true);
+        // A label, a tooltip or an arrow caption is drawn only when it is switched on, and a
+        // layer that wrote the words has switched it on. Without this the text is resolved,
+        // kept, and never drawn. A label style that says `enabled: false` overrides this,
+        // because it is written after.
+        //
+        // THE FLAG IS THE WORDS' OWN SIBLING, not the first segment of the path. Every text
+        // channel published before the arrow captions landed its words two segments deep --
+        // `label.text`, `tooltip.text` -- so the first segment and the leaf's parent were the
+        // same block and the difference never showed. A caption's words are three deep,
+        // `arrowHead.text.text`, and the first segment would switch on `arrowHead.enabled`,
+        // which is not a field of an arrow style at all: the caption would be resolved, kept and
+        // never drawn, and nothing would have said so.
+        setAtPath(bag, `${blockOf(descriptor.stylePath)}.enabled`, true);
     }
+}
+
+/**
+ * The order a pass's resolved channels are written to one style in.
+ *
+ * ONLY ONE PAIR OF CHANNELS OVERLAPS, and it overlaps on purpose. `node.label` writes the words
+ * and switches the label on; `node.labelStyle` can switch it back off while leaving the words
+ * where they are, which is how a layer hides labels on part of a graph without taking the text
+ * away from the layers beneath it. Both land on `label.enabled`, so one of them has to be last.
+ *
+ * WITHOUT THIS IT WAS WHICHEVER THE RESOLVER FILLED FIRST -- the insertion order of a plain
+ * object built by the repaint -- so the same two layers could switch a label off or leave it on
+ * depending on the order they happened to be added in. Sorting here costs one pass over at most
+ * a couple of dozen entries and makes the answer the same every time.
+ * @param resolved - Everything the stack painted this element.
+ * @returns The same entries, with the label styles last.
+ */
+function inWriteOrder(resolved: ResolvedStyle): [string, unknown][] {
+    const last = (name: string): number => (CHANNEL_DESCRIPTORS[name as Channel]?.accepts === "labelStyle" ? 1 : 0);
+
+    return Object.entries(resolved).sort(([left], [right]) => last(left) - last(right));
 }
 
 /**
@@ -200,11 +334,11 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number): NodePaint {
     let color: Rgba | null = null;
     let opacity: number | undefined;
 
-    for (const [name, value] of Object.entries(resolved)) {
+    for (const [name, value] of inWriteOrder(resolved)) {
         const channel = name as Channel;
 
         if (channel === "node.color") {
-            const painted = asColor(value);
+            const painted = asColorValue(value);
             color = painted === null ? null : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
             continue;
         }
@@ -243,7 +377,7 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number): NodePaint {
 function edgePaintOf(resolved: ResolvedStyle, meshKey: number): EdgePaint {
     const bag: Record<string, unknown> = {};
 
-    for (const [name, value] of Object.entries(resolved)) {
+    for (const [name, value] of inWriteOrder(resolved)) {
         writeChannel(bag, name as Channel, value);
     }
 
@@ -251,7 +385,7 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number): EdgePaint {
     // left out of the key have to go back into the renderer's own. Read in a fixed order rather
     // than as the loop above happens to meet them, or two edges painted alike would key two meshes
     // whenever their columns were filled in a different order.
-    const color = asColor(resolved["edge.color"]);
+    const color = asColorValue(resolved["edge.color"]);
     const opacity = resolved["edge.opacity"];
     const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}`;
 
@@ -360,16 +494,35 @@ export class StylePainter {
     /** The edges whose paint the renderer has not applied yet. */
     private readonly pendingEdges = new Set<number>();
 
+    /** How to stop listening to the pass currently bound, or null when nothing is bound. */
+    private stopListening: (() => void) | null = null;
+
     /**
      * Say where the renderer reads its paint from.
+     *
+     * SUBSCRIBING IS PART OF BINDING, and it is what makes the dirty set reliable. A pass's dirty
+     * set is one scratch array that the next pass empties, so it can only be read at the moment
+     * the pass ends -- which is what `ElementPaint.onPainted` announces. A caller that read it
+     * after awaiting its own pass was reading it turns of the event loop later, by which time
+     * another pass had begun and taken the set away; the whole-graph repaint a load ends with was
+     * the pass that lost its set that way, leaving every node in the graph drawn from the
+     * appearance the element gives a node it has not styled yet.
      *
      * Passing null unbinds it, which puts every element back on the element's own defaults.
      * @param paint - What the last style pass painted, or null.
      */
     bind(paint: ElementPaint | null): void {
+        this.stopListening?.();
+        this.stopListening = null;
         this.paint = paint;
         this.pendingNodes.clear();
         this.pendingEdges.clear();
+
+        if (paint !== null) {
+            this.stopListening = paint.onPainted(() => {
+                this.markPainted();
+            });
+        }
     }
 
     /**
@@ -387,6 +540,11 @@ export class StylePainter {
      * pass's own scratch array and the next pass overwrites it, but the renderer applies its half
      * on the next frame -- so the indices are taken here, at the announcement, and held until the
      * frame that draws them.
+     *
+     * CALLED FROM THE ANNOUNCEMENT, AND ONLY FROM THERE, which is the whole of why the copy is
+     * sound: the pass that painted these elements is still the pass that owns the array. Called
+     * anywhere else -- after awaiting a pass, on a later event, on the next frame -- it copies
+     * whichever pass happens to own it by then.
      */
     markPainted(): void {
         const { paint } = this;

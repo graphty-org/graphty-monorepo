@@ -8,6 +8,7 @@ import {
     DeclaredAlgorithm,
     declaredCaveats,
     forEachChunked,
+    metricFieldSpecs,
 } from "./results";
 
 /**
@@ -18,14 +19,21 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
     static type = "floyd-warshall";
 
     /**
-     * Measure the distance between every pair of nodes, and what that says about the graph.
+     * Measure the distance between every pair of nodes, and give each node the distance to the
+     * node furthest from it.
      *
-     * Asked for every pair, the shortest-path question stops being one route and becomes a set of
-     * facts about the whole graph: how far the furthest node is from each node, the widest of
-     * those distances and the narrowest. So the result is shaped as facts rather than as a path
-     * -- there is no route here to put an `onPath` on.
+     * Asked for every pair, the shortest-path question stops being one route: there is no route
+     * here to put an `onPath` on. What it produces instead is a measurement of every node -- its
+     * eccentricity, the distance to the furthest node it can reach -- so the result is shaped as
+     * a node metric, and the widest and narrowest of those distances, the graph's diameter and
+     * radius, ride along as facts about the whole graph.
+     *
+     * THE SHAPE IS WHAT MAKES IT PAINTABLE. A shape of "fact" declares no per-element field, so
+     * the element would have had nothing to colour by and a consumer asking to encode
+     * eccentricity on node colour would have been refused -- with no way to do it by hand
+     * either, which is the case that has to be fixed here rather than worked around outside.
      * @param context - What the element gave the run.
-     * @returns The all-pairs facts, or null when there are no nodes to measure.
+     * @returns The all-pairs measurement, or null when there are no nodes to measure.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
@@ -87,13 +95,13 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
                 return;
             }
 
-            nodes.push({ id: nodeId, values: { eccentricity } });
+            nodes.push({ id: nodeId, values: { value: eccentricity } });
         });
 
         return {
-            shape: "fact",
+            shape: "node-metric",
             fields: [
-                { name: "eccentricity", kind: "node", type: "number" },
+                ...metricFieldSpecs("node"),
                 { name: "diameter", kind: "graph", type: "number" },
                 { name: "radius", kind: "graph", type: "number" },
                 { name: "hasNegativeCycle", kind: "graph", type: "boolean" },
@@ -104,7 +112,10 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
                 method: "floyd-warshall",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
-                notes: ["Every pair was measured, so the result describes the graph rather than one route."],
+                notes: [
+                    "Every pair was measured. Each node's value is its eccentricity: the distance to the " +
+                        "furthest node it can reach.",
+                ],
             }),
         };
     }

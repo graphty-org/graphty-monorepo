@@ -35,7 +35,6 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { scaleDescriptor } from "../../catalog/scales";
 import type {
     AlgorithmKey,
     Channel,
@@ -71,7 +70,14 @@ export interface EncodingSpec {
     readonly channel: Channel;
     /** The scale to read the values through. Defaults to one that suits the field. */
     readonly scale?: RuleBinding["scale"];
-    /** The palette. Defaults to a categorical one for groups and a continuous one for measures. */
+    /**
+     * The palette.
+     *
+     * Left off, the element picks one when the layer is painted, from the groups the run actually
+     * produced: a ramp for a measurement, and for groups the smallest palette in the catalogue
+     * that can name them all. Named, it is honoured as named -- and refused if the run has more
+     * groups than it has colours, because a categorical palette never wraps.
+     */
     readonly palette?: PaletteId;
     /** The extent to read values against. Defaults to the extent the run measured. */
     readonly domain?: RuleBinding["domain"];
@@ -140,12 +146,6 @@ const PRIMARY_FIELD_SCALES: Partial<Record<ResultShape, string>> = {
     "category-table": "ordinal",
 };
 
-/** The palette a colour encoding of groups takes: eight distinct colours that never wrap. */
-const CATEGORICAL_PALETTE: PaletteId = "okabe-ito";
-
-/** The palette a colour encoding of a measurement takes. */
-const CONTINUOUS_PALETTE: PaletteId = "viridis";
-
 /**
  * The scale an encoding reads its field through when the caller names none.
  * @param field - The field being read.
@@ -165,19 +165,6 @@ function defaultScale(field: FieldDescriptor, shape: ResultShape, primary: boole
     }
 
     return field.type === "string" || field.type === "boolean" ? "ordinal" : "linear";
-}
-
-/**
- * The palette a colour encoding takes when the caller names none.
- *
- * Recorded on the layer even when it is the one a palette lookup would have defaulted to, so that
- * an exported document says which colours it was authored with rather than inheriting whichever
- * default the element ships next.
- * @param scale - The scale's name.
- * @returns The palette's id.
- */
-function defaultPalette(scale: string): PaletteId {
-    return scaleDescriptor(scale)?.domainKind === "categorical" ? CATEGORICAL_PALETTE : CONTINUOUS_PALETTE;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -344,8 +331,16 @@ function assertFieldFits(field: FieldDescriptor, run: EncodingRun, descriptor: C
 function buildBinding(spec: EncodingSpec, path: string, scale: string, descriptor: ChannelDescriptor): RuleBinding {
     const binding: RuleBinding = { by: path, scale };
 
-    if (descriptor.accepts === "color") {
-        binding.palette = spec.palette ?? defaultPalette(scale);
+    // THE PALETTE IS LEFT OFF WHEN THE CALLER NAMED NONE, and that is the point rather than an
+    // omission. Nothing here knows how many groups the run found -- the field's values are not
+    // read at plan time and the count is only settled when the column is walked -- so a palette
+    // written in now is a guess, and the guess was wrong: a ten-community result was planned onto
+    // an eight-colour palette and then refused by the capacity check one step later, leaving a
+    // correct, enabled layer painting nothing. A binding with no palette is chosen for in
+    // `prepareRamp`, where the real count is in hand. A caller who wants the colours pinned names
+    // the palette, and then it is recorded and honoured exactly as written.
+    if (descriptor.accepts === "color" && spec.palette !== undefined) {
+        binding.palette = spec.palette;
     }
 
     if (spec.domain !== undefined) {

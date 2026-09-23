@@ -82,14 +82,18 @@ import {
 export interface RunQueue {
     /**
      * Put work in the queue.
-     * @param category - Always "algorithm-run"; the queue's other categories are not runs.
+     * @param category - Which of the queue's categories this run belongs to, and therefore which
+     *     obsolescence rules apply to it. `"algorithm-run"` is a computation over the graph,
+     *     which arriving data makes stale and so cancels; `"style-edit"` is a write to the style
+     *     stack, which is a standing instruction about how to paint whatever the graph holds and
+     *     which nothing obsoletes. The queue's remaining categories are not runs.
      * @param execute - The work.
      * @param options - What to call it in the queue's own events.
      * @param options.description - The description the queue's events carry.
      * @returns The queue's operation id, which is not the run id.
      */
     queueOperation(
-        category: "algorithm-run",
+        category: "algorithm-run" | "style-edit",
         execute: (context: RunQueueContext) => Promise<void> | void,
         options?: { description?: string },
     ): string;

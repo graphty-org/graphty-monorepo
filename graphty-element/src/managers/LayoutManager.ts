@@ -65,6 +65,14 @@ function unknownLayout(type: string): GraphtyError {
 export class LayoutManager implements Manager {
     layoutEngine?: LayoutEngine;
     private _running = false;
+
+    /**
+     * Set when a layout was built over a graph with nothing in it, and the pre-steps it is
+     * configured with have therefore not been spent. See
+     * {@link LayoutManager.runPreStepsOnceThereIsSomethingToStep}.
+     */
+    private preStepsOwed = false;
+
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
     /**
@@ -210,15 +218,12 @@ export class LayoutManager implements Manager {
             // Update DataManager with new layout engine
             this.dataManager.setLayoutEngine(engine);
 
-            // run layout presteps
-            const { preSteps } = this.styles.config.behavior.layout;
-            for (let i = 0; i < preSteps; i++) {
-                // Stop if layout has settled
-                if (engine.isSettled) {
-                    break;
-                }
-
-                engine.step();
+            // Run layout pre-steps -- unless there is nothing to step yet, in which case they
+            // are owed to the first frame that has something. See `preStepsOwed`.
+            if (nodeArray.length === 0) {
+                this.preStepsOwed = true;
+            } else {
+                this.spendPreSteps(engine);
             }
 
             // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach `session.positions`
@@ -351,9 +356,67 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Run the configured number of simulation steps, stopping early if the layout arrives.
+     *
+     * `preSteps` is what makes a screenshot of a physics layout the same picture twice: an
+     * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
+     * the picture was taken.
+     * @param engine - the engine to settle.
+     */
+    private spendPreSteps(engine: LayoutEngine): void {
+        const { preSteps } = this.styles.config.behavior.layout;
+
+        this.preStepsOwed = false;
+
+        for (let i = 0; i < preSteps; i++) {
+            // Stop if layout has settled
+            if (engine.isSettled) {
+                return;
+            }
+
+            engine.step();
+        }
+    }
+
+    /**
+     * Spend the pre-steps a layout built over an empty graph could not spend at the time.
+     *
+     * WHY THIS EXISTS. `preSteps` promises the simulation is run that many times BEFORE THE FIRST
+     * FRAME IS DRAWN, and for the commonest graph there is -- one whose data arrives after it is
+     * constructed -- it never ran at all. The element's constructor queues its default layout
+     * immediately, so `_setLayoutInternal` reached the pre-step loop holding zero nodes, where an
+     * engine's `isSettled` is still its initial `true`; the loop broke on iteration zero and the
+     * configured count was simply lost. The graph then arrived in front of the reader over the
+     * following seconds instead, and a screenshot taken during them was a graph in mid-flight.
+     *
+     * So the count is owed rather than spent, and paid here: on the first frame at which there is
+     * a node to move. This runs inside the render loop's update, which is called before
+     * `scene.render()`, so the steps really are taken before the frame is drawn -- and because it
+     * waits for a node rather than for a particular call, it does not matter whether the data
+     * arrived in one batch, in ten, or from a fetch that finished a second later.
+     */
+    private runPreStepsOnceThereIsSomethingToStep(): void {
+        if (!this.preStepsOwed || !this.layoutEngine) {
+            return;
+        }
+
+        // The DataManager adds every node to the engine as it creates it, so this is the same
+        // question as "does the engine have anything to move" without walking an iterable on
+        // every frame of an empty graph.
+        if (this.dataManager.nodes.size === 0) {
+            return;
+        }
+
+        this.spendPreSteps(this.layoutEngine);
+        this.layoutEngine.publishPositions();
+    }
+
+    /**
      * Step the layout engine forward
      */
     step(): void {
+        this.runPreStepsOnceThereIsSomethingToStep();
+
         if (this.layoutEngine && this.running && !this.layoutEngine.isSettled) {
             this.layoutEngine.step();
             // See the note in `_setLayoutInternal`: the element publishes, not the engine.

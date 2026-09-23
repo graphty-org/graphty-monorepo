@@ -51,7 +51,7 @@
 
 import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
-import { channelDescriptor, type ChannelValues } from "./channels";
+import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type { CompiledLayer, LayerRepaint, RepaintContext, RepaintReport, RepaintRequest } from "./Layer";
@@ -196,11 +196,33 @@ export interface ElementPaint {
      *
      * VALID ONLY UNTIL THE NEXT PASS. It is a view onto the pass's own scratch array, not a copy:
      * the next `repaint` or `repaintAll` overwrites it. A caller that keeps it past the end of the
-     * announcement it arrived with is reading somebody else's dirty set.
+     * announcement it arrived with is reading somebody else's dirty set. Which is why a renderer
+     * reads it from {@link ElementPaint.onPainted} rather than after its own `await`; see there.
      * @param target - Nodes or edges.
      * @returns The dense indices, in the order they were marked.
      */
     lastPainted(target: SelectorTarget): ArrayLike<number>;
+    /**
+     * Be told what a pass painted, at the end of that pass and before any other can begin.
+     *
+     * THE ONLY SAFE MOMENT TO READ {@link ElementPaint.lastPainted}, and reading it anywhere else
+     * is what stranded a whole graph on its bootstrap appearance. The dirty set is one scratch
+     * array per element kind, so it belongs to whichever pass is running; a caller that awaited a
+     * pass and then read the set was reading it one or more turns of the event loop later, and by
+     * then a pass that had begun in between had reset it. Measured on the Kruskal story: a load's
+     * whole-graph pass, the pass a finished run asks for, and the pass that applies the run's own
+     * layer all reported the same nineteen edges and no nodes at all, so the twenty nodes the
+     * first pass painted never reached a mesh and every one of them kept the appearance the
+     * element gives a node it has not styled yet.
+     *
+     * Announced rather than polled, so the set a listener sees is the set the pass that just
+     * ended actually painted. Listeners run synchronously, in the order they subscribed, at the
+     * end of the pass and before it resolves; a listener that throws ends that pass, and must
+     * therefore not throw.
+     * @param listener - Called once per finished pass.
+     * @returns A function that stops the notifications.
+     */
+    onPainted(listener: () => void): () => void;
     /**
      * The layers the last pass could not paint, and why.
      * @returns The problems, emptied at the start of every pass.
@@ -448,9 +470,26 @@ function clearColumn(column: ChannelColumn, index: number): void {
 /**
  * Push one element's value for one mesh-keying channel into the interner.
  *
- * Absent is pushed for a channel with no column and for an element nothing painted, so every
- * element of a kind pushes the same number of values in the same order and two sequences can be
- * compared as two flat lists.
+ * Absent is pushed for a channel with no column and for an element nothing painted. A value
+ * announces its own kind and therefore its own length, so a sequence decodes one way only however
+ * many tokens each channel contributed -- see NUMBER_TOKEN in `./intern`.
+ *
+ * A COLOUR IS ITS FOUR COMPONENTS, AND LEAVING IT OUT WAS A SILENT DEFECT. A resolved colour
+ * arrives here as a `ColorValue` object, so until this branch existed it fell past the
+ * three `typeof` tests and was pushed as ABSENT: every colour folded into the key as "nothing
+ * painted this", which made every colour equal to every other colour and to no colour at all.
+ * The two channels that suffered were `edge.arrowHeadColor` and `edge.arrowTailColor` -- the only
+ * colours whose role is `mesh` -- and the symptom was exact: a cap was drawn in the right colour
+ * on the first paint, because the first paint builds every mesh anyway, and a colour written to a
+ * graph already on screen changed nothing at all, because the key it should have changed could
+ * not see it. Writing a cap SIZE afterwards rebuilt the cap and the colour appeared, which is how
+ * the resolved value was shown to have been right the whole time.
+ *
+ * THE COMPONENTS RATHER THAN THE HEX STRING, because {@link StyleInterner.pushText} mints a token
+ * per distinct word into a table that is never emptied. That is the right trade for a word from a
+ * closed list -- a node shape, a line pattern -- and the wrong one for a colour, where a
+ * continuous encoding would put one string per element in it. The components are already parsed
+ * and cost nothing to read.
  * @param meshes - The interner mid-sequence.
  * @param column - The channel's column, or null when nothing has ever written that channel.
  * @param index - The element's dense index.
@@ -466,13 +505,34 @@ function pushMeshValue(meshes: StyleInterner<ResolvedStyle>, column: ChannelColu
 
     if (typeof value === "number") {
         meshes.pushNumber(value);
-    } else if (typeof value === "boolean") {
-        meshes.pushFlag(value);
-    } else if (typeof value === "string") {
-        meshes.pushText(value);
-    } else {
-        meshes.pushAbsent();
+
+        return;
     }
+
+    if (typeof value === "boolean") {
+        meshes.pushFlag(value);
+
+        return;
+    }
+
+    if (typeof value === "string") {
+        meshes.pushText(value);
+
+        return;
+    }
+
+    const color = asColorValue(value);
+
+    if (color === null) {
+        meshes.pushAbsent();
+
+        return;
+    }
+
+    meshes.pushNumber(color.r);
+    meshes.pushNumber(color.g);
+    meshes.pushNumber(color.b);
+    meshes.pushNumber(color.a);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -607,6 +667,32 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
+
+    /**
+     * The pass that is running, so the next one can wait for it rather than interleave with it.
+     *
+     * See {@link exclusively} for what interleaving costs.
+     */
+    let inFlight: Promise<void> = Promise.resolve();
+
+    /** Who is told what a pass painted, in the order they asked. */
+    const painted = new Set<() => void>();
+
+    /**
+     * Tell everyone what this pass painted, while its dirty set is still its own.
+     *
+     * A LISTENER MUST NOT THROW, and one that does is not caught here. What subscribes is the
+     * half of the element that reads the dirty set and remembers it -- indices into a set -- so a
+     * throw would be a defect rather than a condition, and swallowing it would hide the one
+     * notification the picture depends on. It ends the pass that was running; the pass behind it
+     * still runs, because {@link exclusively} lets a waiter through whether the pass in front of
+     * it finished or threw.
+     */
+    const announcePainted = (): void => {
+        for (const listener of painted) {
+            listener();
+        }
+    };
 
     /**
      * Start a store for one kind of element.
@@ -1238,8 +1324,40 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);
         context.report({ phase: "painting", completed: total, total });
+        announcePainted();
 
         return { nodes: node.painted, edges: edge.painted };
+    };
+
+    /**
+     * Run one pass at a time, however many callers ask for one at once.
+     *
+     * THE STORES ARE ONE SET OF MUTABLE ARRAYS AND A PASS OWNS THEM WHILE IT RUNS. Every pass
+     * yields to the event loop -- that is what keeps a 50,000 element repaint off the frame
+     * budget -- so two passes started from two places do not take turns, they interleave, and
+     * the second one's `beginPass` empties the dirty set the first one is still painting from.
+     *
+     * Not a hypothetical. Three doors into a pass fire within a few milliseconds of each other on
+     * an ordinary load: the repaint a data source's load ends with, the repaint a finished run
+     * asks for, and the layer that run's own suggestion adds. Measured together on one story, the
+     * whole-graph pass reported painting nineteen of the twenty-nine edges it had marked and none
+     * of its twenty nodes -- it had been handed the third pass's dirty set halfway through -- and
+     * the nodes it was painting kept the appearance the element gives an unstyled node.
+     *
+     * A waiter runs whether the pass in front of it finished or threw: a cancelled edit must not
+     * take the pass behind it down, and a pass that never starts is a picture that never arrives.
+     * @param body - The pass.
+     * @returns What it painted.
+     */
+    const exclusively = async (body: () => Promise<RepaintReport>): Promise<RepaintReport> => {
+        const mine = inFlight.then(body, body);
+
+        inFlight = mine.then(
+            () => undefined,
+            () => undefined,
+        );
+
+        return mine;
     };
 
     /**
@@ -1250,42 +1368,54 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @throws The signal's reason when the edit is cancelled part way through.
      */
     const repaint = async (request: RepaintRequest, context: RepaintContext): Promise<RepaintReport> =>
-        runPass(
-            request.stack,
-            context,
-            () => {
-                for (const edit of request.edits) {
-                    // BOTH halves, and that is the whole of the dirty set: an element the
-                    // layer no longer matches has to be repainted to LOSE the paint it had, and
-                    // one it now matches has to be repainted to gain it.
-                    if (edit.previous !== null) {
-                        markLayer(edit.previous);
-                    }
+        exclusively(async () =>
+            runPass(
+                request.stack,
+                context,
+                () => {
+                    for (const edit of request.edits) {
+                        // BOTH halves, and that is the whole of the dirty set: an element the
+                        // layer no longer matches has to be repainted to LOSE the paint it had,
+                        // and one it now matches has to be repainted to gain it.
+                        if (edit.previous !== null) {
+                            markLayer(edit.previous);
+                        }
 
-                    if (edit.next !== null) {
-                        markLayer(edit.next);
+                        if (edit.next !== null) {
+                            markLayer(edit.next);
+                        }
                     }
-                }
-            },
-            addedOnTop(request) ? request.fromIndex : null,
+                },
+                addedOnTop(request) ? request.fromIndex : null,
+            ),
         );
 
     return {
         repaint,
 
         repaintAll(stack: readonly CompiledLayer[], context: RepaintContext): Promise<RepaintReport> {
-            return runPass(
-                stack,
-                context,
-                () => {
-                    for (const store of [stores.node, stores.edge]) {
-                        for (let index = 0; index < store.count; index++) {
-                            markDirty(store, index);
+            return exclusively(async () =>
+                runPass(
+                    stack,
+                    context,
+                    () => {
+                        for (const store of [stores.node, stores.edge]) {
+                            for (let index = 0; index < store.count; index++) {
+                                markDirty(store, index);
+                            }
                         }
-                    }
-                },
-                null,
+                    },
+                    null,
+                ),
             );
+        },
+
+        onPainted(listener: () => void): () => void {
+            painted.add(listener);
+
+            return () => {
+                painted.delete(listener);
+            };
         },
 
         styleOf(target: SelectorTarget, index: number): ResolvedStyle {

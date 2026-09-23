@@ -473,6 +473,7 @@ export class EventManager implements Manager {
             case "data-loading-error-summary":
             case "data-loading-complete":
             case "zoom-to-fit-complete":
+            case "graph-frame-stable":
             case "elements-removed":
             case "selection-changed": {
                 const observer = this.graphObservable.add((event) => {

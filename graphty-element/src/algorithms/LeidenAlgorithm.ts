@@ -130,14 +130,19 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
             return null;
         }
 
-        const { resolution, maxIterations, threshold } = this.schemaOptions;
+        const { resolution, randomSeed, maxIterations, threshold } = this.schemaOptions;
 
         // Undirected: modularity is defined over unordered pairs.
         const graphData = this.algorithmGraph("undirected");
 
         context.report({ phase: "Refining communities", total: null });
+
+        // `randomSeed` is forwarded because it is offered: it is declared in both schemas and
+        // shown as a control, and the library does take one. It was not passed, so turning the
+        // knob changed nothing at all and every run was the library's own default seed.
         const result = leiden(graphData, {
             resolution,
+            randomSeed,
             maxIterations,
             threshold,
         });

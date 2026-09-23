@@ -43,7 +43,7 @@ webgpu-graph-algorithms/
 +-- scripts/runner-class.js (+.d.ts) # runnerClass(info, env) -- the ONE copy of the benchmark runner-class rule
 +-- scripts/gpu-report.js         # adapter report + policy exit code + nvidia-smi sample (imports dist/node.js only)
 +-- scripts/run-browser-project.js   # timeout -k 10 600 around the browser project; exit 124 passes iff the JSON says all tests passed
-+-- scripts/bench-compare.js      # the 1.35x regression check (median AND minimum) against the PINNED best of benchmarks/results/<runner-class>.json
++-- scripts/bench-compare.js      # the regression check: a median AND a minimum above 1.35x the PINNED best of benchmarks/results/<runner-class>.json, and above it by at least 2.5 ms
 +-- src/
 |   +-- index.ts                  # the ONLY public barrel; explicit named exports; /// <reference types="@webgpu/types" preserve="true" />
 |   +-- errors.ts                 # WebGpuGraphError, WebGpuGraphErrorCode, PASSTHROUGH_FORMAT_CODES, isWebGpuGraphError, hasErrorCode
@@ -96,7 +96,7 @@ pnpm run coverage           # the node suite with the 80/80/75/80 thresholds
 pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader unless GRAPHTY_BROWSER_GPU=nvidia)
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
 pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-class>.json
-pnpm run bench:compare      # the 1.35x check: a median AND a minimum above 1.35x the pinned best of benchmarks/results/<runner-class>.json
+pnpm run bench:compare      # the regression check: a median AND a minimum above 1.35x AND 2.5 ms over the pinned best of benchmarks/results/<runner-class>.json
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end exact-tier layout; exit 1 on a non-finite position or an unfinished run
 pnpm run gpu:report         # node scripts/gpu-report.js (after build:all): adapter report, policy exit code
 pnpm run ready:commit       # build:all, lint, test:node
@@ -126,9 +126,12 @@ The checked-in baselines live in `benchmarks/results/<runner-class>.json` (the d
 Dawn spells the RTX 4070 SUPER's architecture `lovelace`; the GPU lane: `gpu-linux-t4.json`, fixed by
 `GRAPHTY_RUNNER_CLASS`); the baseline is the PINNED best median and minimum across the file's sessions, not whichever session is last -- a regressed session appended to the file can no longer become the thing the gate measures against (G4-F19) -- and a session must still carry every group (the append procedure of
 `docs/decisions/G3.md` appendix A appends the last out session and refuses one that lacks a group or ran on a software
-adapter). `bench:compare` fails the GPU lane when BOTH a row's median and its minimum stand above 1.35x their baselines; a median
-that rose over an intact floor is printed `noisy` and passes, because interference can only make a sample slower, never
-faster (`design/decisions/2026-09-19-bench-compare-min-confirms-median.md`, which supersedes contract 6.8's rule 4). It
+adapter). `bench:compare` fails the GPU lane when BOTH a row's median and its minimum stand above 1.35x their baselines AND both
+rose by at least 2.5 ms; a median that rose over an intact floor is printed `noisy` and passes, because interference can
+only make a sample slower, never faster (`design/decisions/2026-09-19-bench-compare-min-confirms-median.md`, which
+supersedes contract 6.8's rule 4), and a row over the factor that rose by less than 2.5 ms is printed `too small` and
+passes, because on this card a tenth of a millisecond on a sub-millisecond row is the clock drop below, not the kernel
+(the script header derives both constants from the two checked-in results files). It
 SKIPS the comparison entirely when `gpu-report.json`'s nvidia-smi sample shows utilisation > 10% or memory growth
 (T-13). Never commit a session measured while anything else used the card, and never a
 software session; watch the SM clock too (`nvidia-smi --query-gpu=clocks.sm,pstate`): NVIDIA's power management leaves

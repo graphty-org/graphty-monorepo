@@ -18,8 +18,10 @@
  *      in use by other processes > 0) during the sample              an interactive dev GPU; busy medians mean nothing)
  *   3. no baseline file                                           -> every result printed as "new (no baseline)", exit 0
  *   4. every result present in both (matched by group + name): a REGRESSION needs BOTH medianMs > threshold x the
- *      baseline median AND minMs > threshold x the baseline min. Any regression -> the table and exit 1, else the
- *      table and exit 0. Rows without a baseline are "new"; a row whose median rose while its floor held is "noisy".
+ *      baseline median AND minMs > threshold x the baseline min, and BOTH of those rises to be at least FLOOR_MS
+ *      milliseconds -- a move large in proportion on a measurement large enough to trust. Any regression -> the
+ *      table and exit 1, else the table and exit 0. Rows without a baseline are "new"; a row whose median rose
+ *      while its floor held is "noisy"; a row above the factor that rose by less than FLOOR_MS is "too small".
  *
  * Why the baseline is the file's best and not its last session (2026-09-22): PageRank on the Tesla T4 went from a
  * 46.482 ms median at 100k/1M to 90.080 ms and the gate stayed green, twice over. The comparison read the LAST
@@ -41,13 +43,32 @@
  * regression this file has recorded, and nothing in the file lies between the two numbers. At 3x both PageRank
  * rows read `ok`; at 1.35 both read REGRESSION.
  *
- * WHAT IT COSTS. 1.35 is close enough to the runner's own spread that a shared card will trip it. One row in this
- * file already would: `roundtrip/empty submit + 4-byte readU32 round trip` on 2026-09-20 reported a median of
- * 1.296 ms and a floor of 0.269 ms against the session before it (x7.56 and x1.88) -- an absolute floor move of
- * 0.126 ms on a sub-millisecond row. The minimum rule below cannot save it at this threshold, and no threshold
- * that catches x1.61 could. That row is the first thing to check when the gate goes red: its usual cause is the
- * NVIDIA SM clock sitting at its 210 MHz idle state under sparse sub-millisecond dispatches (finding G3-F1), not
- * the code. `nvidia-smi --query-gpu=clocks.sm,pstate` while the bench runs says which it was.
+ * Why a rise must also clear 2.5 milliseconds (2026-09-23): the first run under the 1.35 threshold, GPU lane run
+ * 35828560733 on the Tesla T4, failed the build on `layout-exact/ms/iteration (profiler) n=1024 [1k]` -- 0.424 ms
+ * against a pinned 0.293, x1.45 on the median AND x1.45 on the minimum, so the noisy-median rule below could not
+ * save it. Its neighbouring wall row at the same size moved x1.21 and every larger rung of that ladder moved
+ * between x1.00 and x1.09: the move is a tenth of a millisecond on the smallest rung of the ladder, which is what
+ * NVIDIA's power management costs when it drops the SM clock to its 210 MHz idle state under sparse
+ * sub-millisecond dispatches (finding G3-F1; the group's warm-up burst is the countermeasure and it does not
+ * always hold). The constant comes from the same two files the threshold came from --
+ * benchmarks/results/gpu-linux-t4.json and benchmarks/results/nvidia-lovelace-driver580.json, ten sessions and 260
+ * comparable rows, each session measured against the pinned best of the sessions before it, plus the run above.
+ * Among rows whose baseline is under a millisecond, the widest rise a healthy row has made in the median AND the
+ * minimum at once is 0.141 ms (`layout-exact/step(1) wall n=1024`, the row beside the one that failed), then
+ * 0.131 ms (the row that failed) and 0.126 ms (`roundtrip/empty submit + 4-byte readU32 round trip` on
+ * 2026-09-20, x7.56 median over a floor that moved 0.126). The smallest real regression either file holds rose
+ * 43.415 ms in both (`pagerank/pagerank 100 iterations at 100k/1M`); the other rose 669.142 ms. The geometric
+ * mean of 0.141 and 43.415 is 2.47, and the constant is that rounded to 2.5: x17 above the widest innocent rise
+ * and x17 below the smallest recorded regression, with nothing in either file between the two numbers.
+ *
+ * WHAT IT COSTS. The floor decides nothing on a row whose baseline is above 7.1 ms (2.5 / 0.35): there 1.35x is
+ * already worth more than 2.5 ms and the factor fails the row on its own. Below 7.1 ms the floor is what decides,
+ * and such a row can more than double in silence: 38 of the 60 rows of the Tesla T4 lane's own baseline sit under
+ * that line, among them both roundtrip rows and every rung of the exact ladder but 65k. That is deliberate, because
+ * on this hardware a sub-millisecond row cannot be measured to better than the tenth of a millisecond the clock drop
+ * moves it; the cost is that a slowdown confined to the small rungs has to be caught by the larger rungs of the same
+ * ladder, which run the same kernels. When the gate does go red on a small row, the first thing to check is still the clock rather
+ * than the code: `nvidia-smi --query-gpu=clocks.sm,pstate` while the bench runs says which it was.
  *
  * RE-PINNING IS NO LONGER AUTOMATIC, and that is the point. Running `pnpm run bench` again and appending the
  * session no longer moves the baseline: the file keeps the best numbers it has ever held. When a row is
@@ -82,6 +103,12 @@ import { resolve } from "node:path";
 
 /** The regression factor of rule 4, derived from benchmarks/results/gpu-linux-t4.json (see the header). */
 const DEFAULT_THRESHOLD = 1.35;
+
+/**
+ * The absolute floor of rule 4 in milliseconds: below this a rise is not measurable on the GPU lane's card, whatever
+ * its proportion. Derived from the two checked-in results files (see the header).
+ */
+const FLOOR_MS = 2.5;
 
 /**
  * Parses --threshold N and --class NAME.
@@ -197,8 +224,27 @@ function notQuiet(smi) {
 }
 
 /**
+ * Whether a row that stands above the factor also rose by enough milliseconds to be worth believing (rule 4).
+ * Both the median and the minimum must have risen by at least the floor; a baseline without a minimum falls back
+ * to the median alone, as the factor rule does.
+ * @param {{ medianMs: number, minMs?: number }} r - the current result
+ * @param {{ medianMs: number, minMs?: number }} baseline - the baseline row
+ * @param {number} floorMs - the floor in milliseconds
+ * @returns {boolean} true when the rise clears the floor
+ */
+function roseEnough(r, baseline, floorMs) {
+    if (r.medianMs - baseline.medianMs < floorMs) {
+        return false;
+    }
+    if (typeof r.minMs !== "number" || typeof baseline.minMs !== "number") {
+        return true;
+    }
+    return r.minMs - baseline.minMs >= floorMs;
+}
+
+/**
  * Formats one table row. The min ratio is the column that decides a REGRESSION from a noisy median.
- * @param {string} status - REGRESSION / noisy / ok / new (no baseline)
+ * @param {string} status - REGRESSION / noisy / too small / ok / new (no baseline)
  * @param {{ group: string, name: string, medianMs: number, minMs?: number }} r - the current result
  * @param {{ medianMs: number, minMs?: number } | null} baseline - the baseline row, or null
  * @returns {string} the row
@@ -262,6 +308,7 @@ function main() {
     }
     let regressions = 0;
     let noisy = 0;
+    let tooSmall = 0;
     for (const r of current.results) {
         const base = baseline.rows.get(`${r.group}/${r.name}`);
         if (base === undefined) {
@@ -278,21 +325,35 @@ function main() {
             console.log(row("noisy", r, base));
             continue;
         }
+        // Both stand above the factor. On a sub-millisecond row that can still be a tenth of a millisecond of
+        // clock drop, so the rise must also be large enough to measure.
+        if (!roseEnough(r, base, FLOOR_MS)) {
+            tooSmall += 1;
+            console.log(row("too small", r, base));
+            continue;
+        }
         regressions += 1;
         console.log(row("REGRESSION", r, base));
     }
     if (regressions > 0) {
         console.log(
-            `${String(regressions)} regression(s): a median AND a minimum above ${String(threshold)}x the best of the ${String(baseline.sessions)} session(s) of class ${cls}`,
+            `${String(regressions)} regression(s): a median AND a minimum above ${String(threshold)}x the best of the ${String(baseline.sessions)} session(s) of class ${cls}, by at least ${String(FLOOR_MS)} ms`,
         );
         return 1;
+    }
+    if (tooSmall > 0) {
+        console.log(
+            `${String(tooSmall)} row(s) above ${String(threshold)}x that rose by less than ${String(FLOOR_MS)} ms: too small to measure on this card, so not a regression`,
+        );
     }
     if (noisy > 0) {
         console.log(
             `${String(noisy)} noisy row(s): the median rose above ${String(threshold)}x but the minimum did not, so the cost floor is intact (not a regression)`,
         );
     }
-    console.log(`no regression above ${String(threshold)}x the best baseline of class ${cls}`);
+    console.log(
+        `no regression above ${String(threshold)}x and ${String(FLOOR_MS)} ms over the best baseline of class ${cls}`,
+    );
     return 0;
 }
 

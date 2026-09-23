@@ -345,7 +345,8 @@ GPU time per iteration in the last batch).
 
 The first run of the GPU lane (`gpu.yml`, graphty-monorepo run 35316416067, 2026-09-18) on a machine.dev T4 -- one Tesla
 T4 (16 GB), 4 vCPU of a Xeon Platinum 8259CL, driver 580.126.20 -- wrote this baseline; `scripts/bench-compare.js` fails
-a later run of the lane whose median exceeds 3x these figures. The T-table targets were set on the dev box; the T4 meets
+a later run of the lane whose median AND minimum both exceed 1.35x the best figures this file has ever held, by at
+least 2.5 ms. The T-table targets were set on the dev box; the T4 meets
 T-4, T-5 and T-6 and misses T-1 (both uploads), T-2, T-3 and T-7 (the 1M attraction pass of the grid tier, 18.165 ms
 against 15 ms), which is the class difference of a datacentre card behind a cloud vCPU (host-side copies and submit
 latency), not a regression: the exact tier's `ms / iteration` is 1.7x the RTX 4070 SUPER's at 10k and 3.0x at 65k, and

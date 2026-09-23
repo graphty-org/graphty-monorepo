@@ -374,20 +374,22 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
     });
 
     it("rule 4: a median above threshold x baseline is a regression (exit 1); at or below passes; unmatched rows are new", () => {
-        const baseline = out([result("a", 1), result("b", 2), result("gone", 1)]);
+        // The numbers are milliseconds, and rule 4 also asks a regression to be worth 2.5 ms of them, so these rows
+        // are sized in tens: what they test is the factor, not the floor (the floor has its own case below).
+        const baseline = out([result("a", 10), result("b", 20), result("gone", 10)]);
         const files = { "gpu-report.json": quiet, [`benchmarks/results/${CLASS}.json`]: baseline };
         const red = run({
             ...files,
-            [`benchmarks/out/${CLASS}.json`]: out([result("a", 1.4), result("b", 2), result("fresh", 9)]),
+            [`benchmarks/out/${CLASS}.json`]: out([result("a", 14), result("b", 20), result("fresh", 90)]),
         });
         expect(red.status).toBe(1);
         expect(red.out).toContain("REGRESSION");
         expect(red.out).toContain("new (no baseline)");
         // exactly the default factor still passes: the rule is "above", not "at"
-        const green = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 1.35), result("b", 0.5)]) });
+        const green = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 13.5), result("b", 5)]) });
         expect(green.status).toBe(0);
         expect(green.out).not.toContain("REGRESSION");
-        const looser = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 1.4)]) }, [
+        const looser = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 14)]) }, [
             "--threshold",
             "4",
         ]);
@@ -395,33 +397,34 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
     });
 
     it("rule 4: the MINIMUM confirms the median -- a risen median over an intact floor is noisy, exit 0", () => {
-        const files = { "gpu-report.json": quiet, [`benchmarks/results/${CLASS}.json`]: out([result("a", 1)]) };
+        // Tens of milliseconds again, so that the 2.5 ms floor of rule 4 never decides these rows.
+        const files = { "gpu-report.json": quiet, [`benchmarks/results/${CLASS}.json`]: out([result("a", 10)]) };
 
         // The shape of run 35414639899: the median rose 8x while the fastest run stayed at the baseline. Interference
         // can only make a sample slower, so a floor that did not move says the cost did not move.
-        const noisy = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.1)]) });
+        const noisy = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 80, "roundtrip", 11)]) });
         expect(noisy.status).toBe(0);
         expect(noisy.out).toContain("noisy");
         expect(noisy.out).not.toContain("REGRESSION");
         expect(noisy.out).toContain("x1.10"); // the min ratio column carries the number the rule turned on
 
         // The floor moved with the median: a real regression still fails.
-        const real = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 8)]) });
+        const real = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 80, "roundtrip", 80)]) });
         expect(real.status).toBe(1);
         expect(real.out).toContain("REGRESSION");
 
         // A minimum just under the threshold still confirms; just over it does not.
-        const edge = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.35)]) });
+        const edge = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 80, "roundtrip", 13.5)]) });
         expect(edge.status).toBe(0);
-        const over = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.36)]) });
+        const over = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 80, "roundtrip", 13.6)]) });
         expect(over.status).toBe(1);
 
         // A baseline written before minMs existed: the median alone decides, as it did before this rule.
-        const legacy = JSON.stringify([session([result("a", 1)])], (k, v) => (k === "minMs" ? undefined : v));
+        const legacy = JSON.stringify([session([result("a", 10)])], (k, v) => (k === "minMs" ? undefined : v));
         const fallback = run({
             "gpu-report.json": quiet,
             [`benchmarks/results/${CLASS}.json`]: legacy,
-            [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.1)]),
+            [`benchmarks/out/${CLASS}.json`]: out([result("a", 80, "roundtrip", 11)]),
         });
         expect(fallback.status).toBe(1);
         expect(fallback.out).toContain("REGRESSION");
@@ -490,6 +493,8 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect(fresh.out).toMatch(/REGRESSION\s+pagerank\/pagerank 100 iterations at 100k\/1M\s/);
         expect(fresh.out).toMatch(/REGRESSION\s+pagerank\/pagerank 100 iterations at 1M\/10M\s/);
         expect(fresh.out.match(/^REGRESSION/gm)).toHaveLength(2);
+        // the absolute floor of rule 4 does not blunt this: the two rows rose 44.6 ms and 675.6 ms, against 2.5
+        expect(fresh.out).toContain("by at least 2.5 ms");
 
         // the rows that legitimately moved between those two sessions -- the largest of them is x1.075 median /
         // x1.079 minimum against the session before, x1.095 / x1.112 against the pinned baseline the gate actually
@@ -516,6 +521,52 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         const old = run(files(before), ["--threshold", "3"]);
         expect(old.status).toBe(0);
         expect(old.out).not.toContain("REGRESSION");
+    });
+
+    it("a rise the card cannot measure is too small to call: the run that failed on 2026-09-23 passes", () => {
+        // GPU lane run 35828560733 on the Tesla T4 was the first run under the 1.35 threshold, and it failed the
+        // build on `layout-exact/ms/iteration (profiler) n=1024 [1k]`: 0.424 ms against a pinned 0.293, x1.45 on
+        // the median AND x1.45 on the minimum, so the noisy-median rule above could not save it. A tenth of a
+        // millisecond on the smallest rung of the exact ladder is what the card costs when its clock drops under
+        // sparse sub-millisecond dispatches (finding G3-F1), not a slower kernel: the larger rungs of the same
+        // ladder moved x1.00 .. x1.09 in the same run, and the two PageRank rows it was sent to check came in
+        // faster than the baseline. The session is that run's own output, taken from its artifact; the baseline is
+        // the checked-in file it was compared against.
+        const T4 = "gpu-linux-t4";
+        const quietT4 = report(
+            [
+                { utilizationGpu: 0, memoryUsedMiB: 512 },
+                { utilizationGpu: 3, memoryUsedMiB: 512 },
+            ],
+            T4,
+        );
+        const r = run({
+            "gpu-report.json": quietT4,
+            [`benchmarks/results/${T4}.json`]: readFileSync(resolve("benchmarks/results", `${T4}.json`), "utf8"),
+            [`benchmarks/out/${T4}.json`]: readFileSync(
+                resolve("test/fixtures/bench", `${T4}-run-35828560733.json`),
+                "utf8",
+            ),
+        });
+        expect(r.status).toBe(0);
+        expect(r.out).not.toContain("REGRESSION");
+        expect(r.out).toMatch(
+            /^too small\s+layout-exact\/ms\/iteration \(profiler\) n=1024 \[1k\]\s+0\.424 ms\s+0\.293 ms\s+x1\.45\s+x1\.45/m,
+        );
+        // what that run was sent to prove, and the reason the row above must not cost it the build
+        expect(r.out).toMatch(/^ok\s+pagerank\/pagerank 100 iterations at 100k\/1M\s+42\.997 ms\s+45\.461 ms/m);
+        expect(r.out).toMatch(/^ok\s+pagerank\/pagerank 100 iterations at 1M\/10M\s+1053\.540 ms\s+1092\.799 ms/m);
+
+        // the boundary on synthetic rows: 2.5 ms of rise is enough, 2.4 ms is not
+        const files = { "gpu-report.json": quiet, [`benchmarks/results/${CLASS}.json`]: out([result("a", 1)]) };
+        expect(run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 3.5)]) }).status).toBe(1);
+        const under = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 3.4)]) });
+        expect(under.status).toBe(0);
+        expect(under.out).toContain("too small");
+        // both halves must clear it: a median that rose 10 ms over a minimum that rose 0.9 ms is still too small
+        const halves = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 11, "roundtrip", 1.9)]) });
+        expect(halves.status).toBe(0);
+        expect(halves.out).toContain("too small");
     });
 
     it("--class overrides the report's runner class", () => {

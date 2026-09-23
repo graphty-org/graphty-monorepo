@@ -11,22 +11,23 @@ export default meta;
  *
  * Every centrality below draws the same way, because the element derives one suggestion for every
  * node metric rather than one per algorithm: the default orange-to-brown ramp (Paul Tol's YlOrBr;
- * orange = lowest, dark brown = highest) over the extent the run measured, and no size. The per-algorithm palettes of 1.x
+ * orange = lowest, dark brown = highest) over the extent the run measured, and no size
+ * unless the run asks for one (PageRank and HITS below do). The per-algorithm palettes of 1.x
  * (plasma, greens, oranges, blues) and its value-over-maximum scaling went with the hand-written
  * blocks; see the `suggestedStyles` rows of design/element-api/element-api-migration.md.
  */
 export const Degree: Story = createAlgorithmStory("graphty:degree", { varies: "hex", atLeast: 3 });
 
 /**
- * PageRank - colours nodes by importance.
+ * PageRank - colours AND sizes nodes by importance; the most important node is the largest and
+ * darkest.
  *
- * WHAT THIS DRAWS, which is not what this comment used to claim. The element derives one
- * suggestion for every algorithm rather than a block per algorithm, and a node metric suggests a
- * SEQUENTIAL COLOUR over the nodes it measured. Nothing suggests a size. The "scaled from 1 to 5"
- * this story used to describe was a 1.x style template and went with it; every node is drawn at
- * the same size, and the story's own assertion says so.
+ * A node metric suggests a colour and no size, so the size is asked for when the run starts:
+ * `session.runs.start("pagerank", {}, { style: { size: [1, 5] } })`, the 1 to 5 range 1.x drew.
+ * The colour is kept alongside it: the two channels say the same thing, which makes the ranking
+ * easier to read rather than harder.
  */
-export const PageRank: Story = createAlgorithmStory("graphty:pagerank", { varies: "hex", atLeast: 3 });
+export const PageRank: Story = createAlgorithmStory("graphty:pagerank", { varies: "hex", atLeast: 3, size: [1, 5] });
 
 /**
  * Betweenness centrality - colours bridge nodes; dark brown = high betweenness.
@@ -44,11 +45,12 @@ export const Closeness: Story = createAlgorithmStory("graphty:closeness", { vari
 export const Eigenvector: Story = createAlgorithmStory("graphty:eigenvector", { varies: "hex", atLeast: 3 });
 
 /**
- * HITS - hub and authority scores, coloured by the combined score; dark brown = most important.
- * 1.x also sized the nodes by it; no metric suggests a size in 2.0, and a reader who wants one
- * asks for it with `encode({ run, channel: "node.size", range: [1, 4] })`.
+ * HITS - hub and authority scores, coloured and sized by the combined score, as 1.x drew it (size
+ * 1 to 4); dark brown and large = most important.
+ *
+ * The size is asked for when the run starts: `session.runs.start("hits", {}, { style: { size: [1, 4] } })`.
  */
-export const HITS: Story = createAlgorithmStory("graphty:hits", { varies: "hex", atLeast: 3 });
+export const HITS: Story = createAlgorithmStory("graphty:hits", { varies: "hex", atLeast: 3, size: [1, 4] });
 
 /**
  * Katz centrality - colours by attenuated paths; dark brown = high Katz centrality.

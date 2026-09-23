@@ -82,14 +82,14 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
+            # graph-format, graph-io, webgpu-graph-algorithms and graph-samples are not yet in graphty's dependency closure (the consumer
             # migration of design/graph-format section 14 is pending), so a PR that touches only the
             # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
             # artifact and every test shard's Download step would fail with "Artifact not found".
             # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
-            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
+            - name: Build graph-format, graph-io, webgpu-graph-algorithms and graph-samples (PR)
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
+              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms,graph-samples --parallel=3
 
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'
@@ -160,6 +160,13 @@ jobs:
               with:
                   name: build-webgpu-graph-algorithms
                   path: webgpu-graph-algorithms/dist/
+                  retention-days: 1
+
+            - name: Upload graph-samples build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-graph-samples
+                  path: graph-samples/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -277,6 +284,7 @@ jobs:
                     - graph-io
                     - webgpu-graph-algorithms-node
                     - webgpu-graph-algorithms-browser
+                    - graph-samples
                     - algorithms-default
                     - algorithms-browser
                     - layout
@@ -324,6 +332,11 @@ jobs:
                       package: webgpu-graph-algorithms
                       test-command: cd webgpu-graph-algorithms && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
                       needs-browser: true
+                    # graph-samples - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
+                    - shard: graph-samples
+                      package: graph-samples
+                      test-command: pnpm exec nx run graph-samples:coverage
+                      needs-browser: false
                     # algorithms - two shards (default and browser separated to avoid worker timeout)
                     # Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
                     - shard: algorithms-default
@@ -446,6 +459,12 @@ jobs:
                   name: build-webgpu-graph-algorithms
                   path: webgpu-graph-algorithms/dist/
 
+            - name: Download graph-samples build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-samples
+                  path: graph-samples/dist/
+
             - name: Download algorithms build
               uses: actions/download-artifact@v4
               with:
@@ -545,8 +564,8 @@ jobs:
                   retention-days: 1
                   if-no-files-found: ignore
 
-            - name: Upload coverage (graph-format/graph-io/algorithms/layout/graphty/remote-logger/compact-mantine)
-              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
+            - name: Upload coverage (graph-format/graph-io/graph-samples/algorithms/layout/graphty/remote-logger/compact-mantine)
+              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || matrix.shard == 'graph-samples' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}

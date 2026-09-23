@@ -334,7 +334,7 @@ fi
 CONVENTIONAL_TYPES='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'
 # Kept in step with commitlint.config.js's scope-enum, which is enforced at level 2:
 # a scope outside this list is rejected by the commit-msg hook, mid-run.
-VALID_SCOPES="graph-format graph-io webgpu-graph-algorithms algorithms layout graphty-element
+VALID_SCOPES="graph-format graph-io webgpu-graph-algorithms graph-samples algorithms layout graphty-element
               compact-mantine remote-logger graphty gpu-3d-force-layout deps release ci docs tools workspace"
 # commitlint's body-max-line-length, from @commitlint/config-conventional.
 BODY_MAX_LINE=100

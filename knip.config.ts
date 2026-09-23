@@ -46,6 +46,19 @@ const config: KnipConfig = {
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
+        // graph-samples package: the root, generators and every dataset subpath are entries
+        "graph-samples": {
+            entry: [
+                "src/index.ts",
+                "src/generators/index.ts",
+                "src/datasets/*/index.ts",
+                "test/**/*.test.ts",
+                "scripts/**/*.{ts,js,mjs}",
+            ],
+            project: ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+        },
+
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
         // setup files and the layout driver are standalone entries. @vitest/browser and
         // playwright are resolved by knip's vitest plugin from vitest.config.ts. `webgpu` is an optional peer AND an

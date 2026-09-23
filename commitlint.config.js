@@ -7,6 +7,7 @@ export default {
             [
                 "graph-format",
                 "graph-io",
+                "graph-samples",
                 "webgpu-graph-algorithms",
                 "algorithms",
                 "layout",

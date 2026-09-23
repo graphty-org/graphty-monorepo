@@ -80,6 +80,10 @@ echo "  Testing graph-format..."
 echo "  Testing graph-io..."
 (cd graph-io && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
 
+# graph-samples - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
+echo "  Testing graph-samples..."
+(cd graph-samples && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+
 # webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
 # LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the
 # browser project and the no-subgroups pass run in CI. GRAPHTY_GPU_REQUIRE=any: a machine with no adapter

@@ -447,6 +447,28 @@ importers:
         specifier: ^3.2.6
         version: 3.2.7(@types/node@20.19.27)(@vitest/browser@3.2.7)(@vitest/ui@3.2.4)(happy-dom@20.14.3)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
 
+  graph-samples:
+    dependencies:
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^3.2.4
+        version: 3.2.4(@vitest/browser@3.2.7)(vitest@3.2.7)
+      '@vitest/ui':
+        specifier: ^3.2.4
+        version: 3.2.4(vitest@3.2.7)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.5
+        version: 7.3.6(@types/node@20.19.27)(jiti@2.6.1)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.7(@types/node@20.19.27)(@vitest/browser@3.2.7)(@vitest/ui@3.2.4)(happy-dom@20.14.3)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
+
   graphty:
     dependencies:
       '@babylonjs/core':

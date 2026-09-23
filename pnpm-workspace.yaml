@@ -2,6 +2,7 @@ packages:
     - "graph-format"
     - "graph-io"
     - "webgpu-graph-algorithms"
+    - "graph-samples"
     - "algorithms"
     - "layout"
     - "graphty-element"

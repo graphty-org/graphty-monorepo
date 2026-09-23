@@ -135,6 +135,14 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download graph-samples build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-samples
+                  path: graph-samples/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download algorithms build
               uses: actions/download-artifact@v4
               with:

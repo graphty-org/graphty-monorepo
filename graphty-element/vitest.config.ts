@@ -247,6 +247,9 @@ export default defineConfig({
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
                     },
                 },
+                // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
+                // page under the running test (test/browser/xr-session.test.ts imports it).
+                optimizeDeps: { include: ["iwer"] },
                 test: {
                     name: "browser",
                     setupFiles: ["./test/setup.ts"],
@@ -302,6 +305,7 @@ export default defineConfig({
                 },
             },
             {
+                optimizeDeps: { include: ["iwer"] },
                 test: {
                     name: "interactions",
                     setupFiles: ["./test/setup.ts"],

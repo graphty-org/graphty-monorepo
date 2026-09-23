@@ -17,6 +17,8 @@ interface XRSessionConfig {
         referenceSpaceType: XRReferenceSpaceType;
         optionalFeatures?: string[];
     };
+    /** Whether XR sessions track hands (`xr.input.handTracking`). On, Babylon downloads hand meshes. Defaults to true. */
+    handTracking?: boolean;
 }
 
 /**
@@ -130,24 +132,26 @@ export class XRSessionManager {
                 floorMeshes: [],
                 optionalFeatures: true,
                 disableTeleportation: true, // Match demo
+                // Babylon turns hand tracking on by default; the configuration decides instead.
+                disableHandTracking: this._config.handTracking === false,
             });
 
-            logger.debug("XR experience created, enabling hand tracking with hand meshes");
-
-            // Enable hand tracking with default rigged hand meshes (purple hands)
-            // Using simple config that matches the working demo
-            try {
-                this.xrHelper.baseExperience.featuresManager.enableFeature(
-                    WebXRFeatureName.HAND_TRACKING,
-                    "latest",
-                    {
-                        xrInput: this.xrHelper.input,
-                        jointMeshes: { enablePhysics: false },
-                    },
-                );
-                logger.debug("Hand tracking enabled");
-            } catch (handError) {
-                logger.warn("Failed to enable hand tracking", { error: String(handError) });
+            // Enable hand tracking with default rigged hand meshes (purple hands), unless the
+            // configuration turned it off. The feature fetches its meshes from the network.
+            if (this._config.handTracking !== false) {
+                try {
+                    this.xrHelper.baseExperience.featuresManager.enableFeature(
+                        WebXRFeatureName.HAND_TRACKING,
+                        "latest",
+                        {
+                            xrInput: this.xrHelper.input,
+                            jointMeshes: { enablePhysics: false },
+                        },
+                    );
+                    logger.debug("Hand tracking enabled");
+                } catch (handError) {
+                    logger.warn("Failed to enable hand tracking", { error: String(handError) });
+                }
             }
 
             // Actually enter the VR session
@@ -205,6 +209,8 @@ export class XRSessionManager {
                 // Don't request all optional features - this prevents hand-tracking from being enabled
                 optionalFeatures: false,
                 disableTeleportation: true,
+                // Babylon enables its hand tracking feature regardless of optionalFeatures.
+                disableHandTracking: this._config.handTracking === false,
                 uiOptions: {
                     sessionMode: "immersive-ar",
                 },

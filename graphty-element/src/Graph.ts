@@ -4826,6 +4826,7 @@ export class Graph implements GraphContext {
         this.xrSessionManager = new XRSessionManager(this.scene, {
             vr: xrConfig.vr,
             ar: xrConfig.ar,
+            handTracking: xrConfig.input.handTracking,
         });
 
         // Determine which modes are available by actually checking device support

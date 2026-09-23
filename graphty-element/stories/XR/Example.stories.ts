@@ -90,7 +90,14 @@ export const Default: Story = {
         }),
         xr: {
             enabled: true,
-            ui: { enabled: true, position: "bottom-right", showAvailabilityWarning: true },
+            ui: {
+                enabled: true,
+                position: "bottom-right",
+                showAvailabilityWarning: true,
+                // The "not available" notice normally leaves after 5 s, so a snapshot caught it or
+                // missed it by timing alone. A day keeps it on screen for every snapshot.
+                unavailableMessageDuration: 86_400_000,
+            },
             input: {
                 handTracking: true, // Required for two-hand gestures
                 controllers: true, // For thumbstick pan and squeeze drag
@@ -122,15 +129,26 @@ export const Default: Story = {
         await assertGraphLoaded(scene, { nodes: 30, edges: scene.edgeCount });
         await assertLayoutPlaced(scene, {});
 
-        // The gestures cannot be driven headless. What can be checked is that the element put its
-        // own XR entry control on the page, which is the story's one visible affordance.
-        const button = (scene.element.shadowRoot ?? scene.element).querySelector(
-            "button, .xr-button, [class*='xr']",
-        );
+        // The gestures cannot be driven headless. What can be checked is the story's one visible
+        // affordance: VR / AR buttons where the browser can start a session, and the element's
+        // "not available" notice where it cannot, which is every snapshot browser.
+        const overlay = scene.element.shadowRoot ?? scene.element;
+        const vr = await scene.element.isVRSupported();
+        const ar = await scene.element.isARSupported();
 
-        await holds(
-            button !== null,
-            "XR Default: the story turns the element's XR UI on and the element drew no control for it",
-        );
+        if (vr || ar) {
+            await holds(
+                overlay.querySelectorAll("button.webxr-available").length === Number(vr) + Number(ar),
+                "XR Default: the browser supports XR and the element did not draw one button per supported mode",
+            );
+        } else {
+            const notice = overlay.querySelector(".webxr-not-available");
+
+            await holds(
+                notice?.textContent === "VR / AR NOT AVAILABLE",
+                `XR Default: the browser has no XR and the element's notice read ` +
+                    `${JSON.stringify(notice?.textContent ?? null)} instead of "VR / AR NOT AVAILABLE"`,
+            );
+        }
     },
 };

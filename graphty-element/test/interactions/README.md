@@ -28,7 +28,7 @@ Integration tests use Playwright to test real browser input against a running St
 
 ### XR Tests (`xr/`)
 
-WebXR tests use IWER (Immersive Web Emulation Runtime) to emulate VR controllers and hand tracking.
+These drive the XR gesture code with mock hands and controllers (`helpers/iwer-setup.ts`). The test that starts real VR and AR sessions, through IWER (Immersive Web Emulation Runtime), is `test/browser/xr-session.test.ts`.
 
 | File                       | Description                                      |
 | -------------------------- | ------------------------------------------------ |
@@ -105,7 +105,7 @@ npm run test:interactions:browser
 
 ### For XR Tests
 
-XR tests use IWER which is already installed as a dev dependency. No additional setup required.
+IWER is already installed as a dev dependency. No additional setup required.
 
 ## Debugging Failing Tests
 
@@ -160,13 +160,10 @@ Core utilities for all interaction tests:
 
 ### `iwer-setup.ts`
 
-WebXR emulation utilities:
+WebXR emulation and XR input mocks:
 
-- `setupIWER(page)` - Initialize IWER before page load
-- `setThumbstick(page, hand, x, y)` - Set thumbstick values
-- `pressTrigger(page, hand)` / `releaseTrigger(page, hand)` - Trigger buttons
-- `setControllerPosition(page, hand, position)` - Move virtual controller
-- `setHandPinch(page, hand, isPinching)` - Set hand pinch state
+- `installIWER()` - Make `navigator.xr` an emulated Meta Quest 3 and record every session the page starts (mode, frames rendered, ended). Call it before the graph initializes; `uninstall()` restores `navigator.xr`. `test/browser/xr-session.test.ts` uses it to enter and leave real VR and AR sessions.
+- `createMockHand(hand)` / `createPinchingHand(hand)` / `createMockController(hand)` - Plain-data hand and controller states for the gesture tests
 
 ### `types.ts`
 
@@ -214,29 +211,6 @@ test("user action causes expected behavior", async () => {
         return document.querySelector("graphty-element")?.graph?.someProperty;
     });
     assert.strictEqual(result, expectedValue);
-});
-```
-
-### XR Test Pattern
-
-```typescript
-test("XR input causes expected behavior", async () => {
-    // 1. Setup XR environment
-    await page.goto(`${STORYBOOK_URL}/iframe.html?id=xr--default`);
-    await waitForGraphReady(page);
-    await setupIWER(page);
-    await enterXRSession(page);
-
-    // 2. Apply XR input
-    await setThumbstick(page, "left", 0.8, 0);
-    await waitForSettle(page, 30);
-
-    // 3. Verify result
-    const pivotRotation = await page.evaluate(() => {
-        const graph = document.querySelector("graphty-element")?.graph;
-        return graph?.getPivotController()?.pivot?.rotationQuaternion?.toEulerAngles().y;
-    });
-    assert.isAbove(pivotRotation, 0);
 });
 ```
 

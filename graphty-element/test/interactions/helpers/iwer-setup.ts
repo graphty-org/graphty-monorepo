@@ -1,119 +1,92 @@
 /**
  * WebXR emulation setup using IWER (Immersive Web Emulation Runtime)
  *
- * This module provides utilities for testing WebXR interactions without
- * physical VR hardware by emulating XR devices, controllers, and hand tracking.
- *
- * Note: IWER must be installed as a dev dependency:
- * npm install --save-dev iwer
+ * `installIWER` makes the page's `navigator.xr` an emulated Meta Quest 3, so immersive-vr and
+ * immersive-ar sessions really start, render and end in headless Chromium. The mock factories
+ * below are plain data for the gesture tests, which drive the gesture code without a runtime.
  */
 
-import type { Graph } from "../../../src/Graph";
+import { metaQuest3, XRDevice } from "iwer";
+
 import type { MockController, MockHand, Vector3D } from "../types";
 
 /**
- * XR device configuration for IWER
+ * One immersive session the page asked for, and what happened to it.
  */
-export interface XRDeviceConfig {
-    /** Device name (e.g., "Meta Quest 3") */
-    name?: string;
-    /** Whether to enable hand tracking */
-    handTracking?: boolean;
-    /** Whether to enable controller input */
-    controllers?: boolean;
+export interface RecordedXRSession {
+    /** The mode passed to `navigator.xr.requestSession`. */
+    mode: XRSessionMode;
+    /** The session the runtime returned. */
+    session: XRSession;
+    /** XR frames the session has delivered to the page so far. */
+    frames: number;
+    /** Whether the session has fired `end`. */
+    ended: boolean;
 }
 
 /**
- * IWER device reference stored on window for test manipulation
+ * An installed IWER runtime.
  */
-interface IWERWindow extends Window {
-    xrDevice?: {
-        primaryController?: MockXRController;
-        secondaryController?: MockXRController;
-        leftHand?: MockXRHand;
-        rightHand?: MockXRHand;
-        installRuntime: () => void;
-    };
+export interface IWERHandle {
+    /** The emulated headset, for moving controllers, hands and the head. */
+    device: XRDevice;
+    /** Every session requested since install, oldest first. */
+    sessions: RecordedXRSession[];
+    /** Put the browser's own `navigator.xr` back. */
+    uninstall: () => void;
 }
 
 /**
- * Mock XR controller for IWER
- */
-interface MockXRController {
-    position: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void };
-    rotation: { x: number; y: number; z: number; w: number };
-    thumbstick: { x: number; y: number };
-    trigger: { value: number; pressed: boolean };
-    grip: { value: number; pressed: boolean };
-}
-
-/**
- * Mock XR hand for IWER
- */
-interface MockXRHand {
-    joints: Record<
-        string,
-        { position: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }
-    >;
-}
-
-/**
- * Set up IWER for WebXR emulation.
- * This should be called before navigating to a page that uses WebXR.
+ * Install IWER as the page's WebXR runtime, emulating a Meta Quest 3, and record every session the
+ * page starts: its mode, whether it ended, and how many XR frames it rendered.
  *
- * @param config - Device configuration options
- * @returns Cleanup function to tear down IWER
- */
- 
-export async function setupIWER(_config?: XRDeviceConfig): Promise<() => void> {
-    // Dynamic import to avoid issues when iwer is not installed
-    let XRDevice: unknown;
-    let metaQuestTouchPlus: unknown;
-
-    try {
-        // Use string template to prevent Vite static analysis from failing on missing module
-        const moduleName = "iwer";
-        const iwer = await import(/* @vite-ignore */ moduleName);
-        ({ XRDevice, metaQuestTouchPlus } = iwer);
-    } catch {
-        console.warn("IWER not installed. XR emulation will not be available.");
-        console.warn("Install with: npm install --save-dev iwer");
-        return () => {
-            // No-op cleanup
-        };
-    }
-
-    // Create virtual XR device
-    const xrDevice = new (XRDevice as new (config: unknown) => IWERWindow["xrDevice"])(metaQuestTouchPlus);
-
-    if (xrDevice) {
-        xrDevice.installRuntime();
-
-        // Store reference for test manipulation
-        (window as IWERWindow).xrDevice = xrDevice;
-    }
-
-    // Return cleanup function
-    return () => {
-        delete (window as IWERWindow).xrDevice;
-    };
-}
-
-/**
- * Set up an XR scene for testing.
- * This initializes the XR session manager if not already done.
+ * Install it BEFORE the graph initializes: the element asks the runtime which modes are supported
+ * once, at init, and draws its VR / AR buttons from that answer.
  *
- * @param graph - The graph instance
+ * IWER cannot be removed completely. It also pins `navigator.userAgent` (non-configurable) and adds
+ * `makeXRCompatible` to WebGL2; `uninstall` restores `navigator.xr`, which is what the element reads.
+ * @returns the device, the session record and the uninstall function
  */
-export async function setupXRScene(graph: Graph): Promise<void> {
-    // Ensure graph is initialized
-    if (!graph.initialized) {
-        throw new Error("Graph must be initialized before setting up XR scene");
+export function installIWER(): IWERHandle {
+    const device = new XRDevice(metaQuest3);
+
+    device.installRuntime();
+
+    const { xr } = navigator;
+
+    if (!xr) {
+        throw new Error("IWER installed no navigator.xr");
     }
 
-    // The graph should automatically set up XR if configured
-    // This helper is primarily for ensuring the scene is ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const sessions: RecordedXRSession[] = [];
+    const requestSession = xr.requestSession.bind(xr);
+
+    xr.requestSession = async (mode: XRSessionMode, init?: XRSessionInit): Promise<XRSession> => {
+        const session = await requestSession(mode, init);
+        const record: RecordedXRSession = { mode, session, frames: 0, ended: false };
+        const requestFrame = session.requestAnimationFrame.bind(session);
+
+        sessions.push(record);
+        session.addEventListener("end", () => {
+            record.ended = true;
+        });
+        session.requestAnimationFrame = (callback: XRFrameRequestCallback): number =>
+            requestFrame((time, frame) => {
+                record.frames++;
+                callback(time, frame);
+            });
+
+        return session;
+    };
+
+    return {
+        device,
+        sessions,
+        uninstall: () => {
+            // IWER defined `xr` on the navigator instance, shadowing the browser's own getter.
+            Reflect.deleteProperty(navigator, "xr");
+        },
+    };
 }
 
 /**
@@ -205,165 +178,4 @@ export function createMockController(handedness: "left" | "right"): MockControll
         trigger: { value: 0, pressed: false },
         grip: { value: 0, pressed: false },
     };
-}
-
-/**
- * Set thumbstick values on a mock controller via IWER.
- *
- * @param hand - "left" or "right"
- * @param x - X axis value (-1 to 1)
- * @param y - Y axis value (-1 to 1)
- */
-export function setThumbstick(hand: "left" | "right", x: number, y: number): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const controller = hand === "left" ? xrDevice.primaryController : xrDevice.secondaryController;
-
-    if (controller) {
-        controller.thumbstick.x = x;
-        controller.thumbstick.y = y;
-    }
-}
-
-/**
- * Press the trigger button on a mock controller.
- *
- * @param hand - "left" or "right"
- */
-export function pressTrigger(hand: "left" | "right"): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const controller = hand === "left" ? xrDevice.primaryController : xrDevice.secondaryController;
-
-    if (controller) {
-        controller.trigger.value = 1.0;
-        controller.trigger.pressed = true;
-    }
-}
-
-/**
- * Release the trigger button on a mock controller.
- *
- * @param hand - "left" or "right"
- */
-export function releaseTrigger(hand: "left" | "right"): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const controller = hand === "left" ? xrDevice.primaryController : xrDevice.secondaryController;
-
-    if (controller) {
-        controller.trigger.value = 0;
-        controller.trigger.pressed = false;
-    }
-}
-
-/**
- * Press the grip button on a mock controller.
- *
- * @param hand - "left" or "right"
- */
-export function pressGrip(hand: "left" | "right"): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const controller = hand === "left" ? xrDevice.primaryController : xrDevice.secondaryController;
-
-    if (controller) {
-        controller.grip.value = 1.0;
-        controller.grip.pressed = true;
-    }
-}
-
-/**
- * Release the grip button on a mock controller.
- *
- * @param hand - "left" or "right"
- */
-export function releaseGrip(hand: "left" | "right"): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const controller = hand === "left" ? xrDevice.primaryController : xrDevice.secondaryController;
-
-    if (controller) {
-        controller.grip.value = 0;
-        controller.grip.pressed = false;
-    }
-}
-
-/**
- * Set the position of a mock controller.
- *
- * @param hand - "left" or "right"
- * @param position - World position (x, y, z)
- */
-export function setControllerPosition(hand: "left" | "right", position: Vector3D): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const controller = hand === "left" ? xrDevice.primaryController : xrDevice.secondaryController;
-
-    if (controller) {
-        controller.position.set(position.x, position.y, position.z);
-    }
-}
-
-/**
- * Set a hand to a pinching state via IWER.
- *
- * @param hand - "left" or "right"
- * @param isPinching - Whether the hand should be pinching
- */
-export function setHandPinch(hand: "left" | "right", isPinching: boolean): void {
-    const { xrDevice } = window as IWERWindow;
-    if (!xrDevice) {
-        throw new Error("IWER not initialized. Call setupIWER() first.");
-    }
-
-    const handInput = hand === "left" ? xrDevice.leftHand : xrDevice.rightHand;
-
-    if (handInput) {
-        const thumbTip = handInput.joints["thumb-tip"];
-        const indexTip = handInput.joints["index-finger-tip"];
-        if (isPinching) {
-            // Move thumb-tip and index-tip close together (2cm apart)
-            thumbTip.position.set(0, 0, 0);
-            indexTip.position.set(0.02, 0, 0);
-        } else {
-            // Move them apart (8cm)
-            thumbTip.position.set(0, 0, 0);
-            indexTip.position.set(0.08, 0, 0);
-        }
-    }
-}
-
-/**
- * Check if IWER is available in the current environment.
- *
- * @returns true if IWER can be imported
- */
-export async function isIWERAvailable(): Promise<boolean> {
-    try {
-        // Use string template to prevent Vite static analysis from failing on missing module
-        const moduleName = "iwer";
-        await import(/* @vite-ignore */ moduleName);
-        return true;
-    } catch {
-        return false;
-    }
 }

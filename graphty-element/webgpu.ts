@@ -25,6 +25,22 @@
  * and the rest stay on this side of the boundary; what crosses is a {@link GraphAccelerator},
  * which is plain names and functions, and failures arrive as codes on a `GraphtyError`.
  *
+ * ## The one capability this file does not yet forward
+ *
+ * A device that computes WRONG ANSWERS is a capability the element reports as
+ * `E_DEVICE_INCORRECT`, and the accelerator says so by implementing `verify()`. This accelerator
+ * does not implement it yet, and the reason is a version, not a design: the peer's own device
+ * self-check landed after the release this package's peer range resolves to, so `verifyDevice`
+ * is not a name that exists to import here. The line that finishes it is
+ * `verify: () => verifyDevice(ctx).then(...)` on the object below, and it lands when the peer
+ * range names a release that exports it.
+ *
+ * Until then the peer's own guard fires from inside the first accelerated run instead. The
+ * element still reports `E_DEVICE_INCORRECT` and still lets go of the device -- see
+ * `AccelerationController.#refuseDevice` -- but the discovery happens during work rather than
+ * before it, which is the whole thing attaching-time detection exists to avoid. Recorded in
+ * `docs/decisions/device-computes-incorrectly.md`.
+ *
  * ## Detection is not a fallback
  *
  * Finding out, before anything runs, that this host has no WebGPU and letting the element take

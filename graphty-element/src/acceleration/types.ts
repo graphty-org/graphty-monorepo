@@ -140,6 +140,32 @@ export interface GraphAccelerator {
     readonly lost?: Promise<{ reason: string }>;
     /** The arithmetic this accelerator computes in. Absent means {@link DEFAULT_ACCELERATOR_PRECISION}. */
     readonly precision?: AccelerationPrecision;
+    /**
+     * Proves this accelerator computes correctly, before any of the element's work is planned
+     * onto it.
+     *
+     * Hardware that answers is not the same thing as hardware that answers correctly. The
+     * software renderer that ships with Windows miscomputes shaders that pass a value across a
+     * workgroup barrier: it builds, it runs, it returns plausible numbers, and every prefix sum,
+     * sort and grid layout over one of them is wrong. Nothing errors. A backend that can tell
+     * the difference implements this; one that cannot omits it, and the element attaches it on
+     * the strength of the probe as before.
+     *
+     * Resolve when the hardware is trustworthy. Reject with a `GraphtyError` carrying
+     * `E_DEVICE_INCORRECT` when it is not, and the element reports acceleration unavailable with
+     * that code and runs the CPU path -- the same place a missing adapter reaches, because a
+     * device that lies is no more usable than a device that is not there.
+     *
+     * The element calls it once, on an accelerator it built from a registered factory, before
+     * attaching it. An accelerator handed over already built through `setAccelerator` is not
+     * asked -- the element did not construct it and does not own its lifetime, and whoever did
+     * both vouched for it by handing it over.
+     *
+     * It is NOT a way to report a failure part-way through a run: work that has already started
+     * on the accelerator and then fails is that work's failure and throws.
+     * @returns Resolves when the accelerator is fit to be given work.
+     */
+    verify?(): Promise<void>;
     /** Releases the hardware resources. Called by the element when it detaches this accelerator. */
     dispose?(): void;
     /**

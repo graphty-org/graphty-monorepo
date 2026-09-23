@@ -646,6 +646,10 @@ export class AccelerationController {
                     acceptSoftware: this.#policy === "required",
                 });
 
+                if (accelerator !== null) {
+                    await this.#verify(accelerator);
+                }
+
                 if (this.#disposed) {
                     accelerator?.dispose?.();
                     return false;
@@ -671,6 +675,37 @@ export class AccelerationController {
         this.#reason = declined.join("; ");
         this.#code = code;
         return false;
+    }
+
+    /**
+     * Asks a freshly built accelerator to prove it computes correctly, before it is attached.
+     *
+     * This is capability detection and belongs here with the rest of it. Hardware that answers
+     * is not the same thing as hardware that answers correctly, and a backend that can tell the
+     * difference costs a few milliseconds once to say so. Finding out on the first layout frame
+     * instead would put the discovery in the middle of a repaint, where it reads as a rendering
+     * failure rather than as the machine's answer to "is there an accelerator here".
+     *
+     * A backend with no self-check omits {@link GraphAccelerator.verify} and nothing runs, so a
+     * host with no accelerator at all pays nothing: this is reached only after a factory has
+     * already built one.
+     *
+     * A rejection leaves by the same door a factory's does -- it is thrown to
+     * {@link AccelerationController.#tryFactories}, which records its code and its sentence and
+     * moves on to the next factory -- so a device that computes incorrectly ends where a missing
+     * adapter ends: `"unavailable"`, with the reason published, and the CPU path running.
+     * @param accelerator - The accelerator this controller has just built.
+     * @throws Whatever the accelerator's self-check rejected with.
+     */
+    async #verify(accelerator: GraphAccelerator): Promise<void> {
+        try {
+            await accelerator.verify?.();
+        } catch (error) {
+            // Built here and not usable: releasing it is this controller's job, and nothing has
+            // been attached, so there is no state to unwind.
+            this.#disposeAccelerator(accelerator);
+            throw error;
+        }
     }
 
     /**
@@ -867,7 +902,39 @@ export class AccelerationController {
             this.#onDeviceLost(attachment, failure.message);
         }
 
+        if (failure.code === "E_DEVICE_INCORRECT" && attachment !== null) {
+            this.#refuseDevice(attachment, failure.message);
+        }
+
         return failure;
+    }
+
+    /**
+     * Stops using an accelerator caught computing incorrectly while work was already on it.
+     *
+     * A backend that checks itself is refused at attach and never gets here. One that does not
+     * -- or one whose own guard fires deeper than its self-check reaches -- says so the first
+     * time it is asked for numbers, and this is what the element does with that: it lets go of
+     * the accelerator and publishes the reason, so the state a consumer reads stops claiming a
+     * healthy device and the next piece of work is planned onto the CPU up front.
+     *
+     * The run that discovered it still throws. That is the whole distinction this file exists to
+     * keep: the failed work fails, and only work that has not started yet is planned elsewhere.
+     *
+     * `"unavailable"` rather than `"error"`, and no recovery attempt: an accelerator that was
+     * lost might come back, and reattaching is worth a try. One that computes wrong answers was
+     * never trustworthy, the same hardware is what a fresh probe would find, and it ends where a
+     * missing adapter ends.
+     * @param attachment - The attachment the failing work was running on.
+     * @param reason - What the accelerator said about the disagreement.
+     */
+    #refuseDevice(attachment: Attachment, reason: string): void {
+        if (this.#disposed || attachment.released || this.#attachment !== attachment) {
+            return;
+        }
+
+        this.#detach();
+        this.#transition("unavailable", reason, "E_DEVICE_INCORRECT");
     }
 
     /**

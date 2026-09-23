@@ -107,12 +107,45 @@ interface FakeAcceleratorOptions {
     /** A device-loss promise, for the recovery paths. Absent means this backend cannot lose one. */
     readonly lost?: Promise<{ reason: string }>;
     /**
+     * What the accelerator's self-check answers when the element asks it, at attach, to prove it
+     * computes correctly.
+     *
+     * Absent -- the default -- gives it no `verify` member at all, which is the shape of a
+     * backend that cannot check itself and is what every accelerator looks like today. `"ok"`
+     * gives it one that resolves. A code gives it one that rejects with that code, which is how a
+     * test stands in for a device that computes wrong answers without owning one:
+     * `verify: "E_DEVICE_INCORRECT"`.
+     */
+    readonly verify?: "ok" | GraphtyErrorCode;
+    /**
      * Members to add to the accelerator, or to replace on it.
      *
      * The element feature-tests a member before it uses it, so setting one to `undefined` is how
      * a test builds an accelerator that does not implement a capability.
      */
     readonly members?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Builds the accelerator's self-check from what a test asked it to answer.
+ *
+ * The rejection is a `GraphtyError` because that is what a real backend rejects with, and it is
+ * the code on it -- not the class and not the sentence -- that the element publishes.
+ * @param answer - `"ok"` for a device that computes correctly, or the code it fails with.
+ * @returns The `verify` member to put on the accelerator.
+ */
+function selfCheck(answer: "ok" | GraphtyErrorCode): () => Promise<void> {
+    return (): Promise<void> =>
+        answer === "ok"
+            ? Promise.resolve()
+            : Promise.reject(
+                  new GraphtyError({
+                      code: answer,
+                      message: `the fake accelerator's self-check reports ${answer}`,
+                      source: "acceleration",
+                      recoverable: false,
+                  }),
+              );
 }
 
 /**
@@ -529,6 +562,7 @@ export function createFakeAccelerator(options: FakeAcceleratorOptions = {}): Fak
         device: { vendor: "acme", architecture: "gen-1", description: "Acme Fake GPU" },
         precision: options.precision ?? "f32",
         ...(options.lost === undefined ? {} : { lost: options.lost }),
+        ...(options.verify === undefined ? {} : { verify: selfCheck(options.verify) }),
         calls,
         simulations,
         get pending(): number {

@@ -10,6 +10,7 @@ import {
     type GraphAccelerator,
 } from "../../src/acceleration/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
+import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 
 /** A promise the test resolves when it wants to, for device loss and for work in flight. */
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -839,5 +840,116 @@ describe("AccelerationController: injection, precision and disposal", () => {
         const refusal = await controller.ready().catch((error: unknown) => error);
         assert.instanceOf(refusal, Error);
         assert.match(refusal.message, /disposed/);
+    });
+});
+
+describe("AccelerationController: a device that computes the wrong answer", () => {
+    it("turns down an accelerator that fails its own self-check, and says which device it was", async () => {
+        const controller = new AccelerationController({
+            registry: registryWith(createFakeAccelerator({ verify: "E_DEVICE_INCORRECT" })),
+        });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "unavailable");
+        assert.strictEqual(status.code, "E_DEVICE_INCORRECT");
+        assert.include(status.reason, "self-check");
+        assert.isNull(controller.accelerator);
+        controller.dispose();
+    });
+
+    it("publishes it on the capabilities document a consumer reads, and announces the change", async () => {
+        const seen: AccelerationStatus[] = [];
+        const controller = new AccelerationController({
+            registry: registryWith(createFakeAccelerator({ verify: "E_DEVICE_INCORRECT" })),
+        });
+        controller.onChange((status) => seen.push(status));
+
+        await controller.start();
+
+        assert.strictEqual(controller.capabilities.acceleration.code, "E_DEVICE_INCORRECT");
+        assert.strictEqual(seen.at(-1)?.code, "E_DEVICE_INCORRECT");
+        assert.strictEqual(seen.at(-1), controller.capabilities.acceleration);
+        controller.dispose();
+    });
+
+    it("releases the device it built rather than leaving one nobody holds", async () => {
+        const fake = createFakeAccelerator({ verify: "E_DEVICE_INCORRECT" });
+        const controller = new AccelerationController({ registry: registryWith(fake) });
+
+        await controller.start();
+
+        assert.strictEqual(fake.calls.dispose, 1);
+        controller.dispose();
+    });
+
+    it("plans the work onto the CPU carrying the reason, and throws nothing at the consumer", async () => {
+        const controller = new AccelerationController({
+            registry: registryWith(createFakeAccelerator({ verify: "E_DEVICE_INCORRECT" })),
+        });
+        await controller.start();
+
+        const outcome = await controller.run(LAYOUT, (): string => "gpu");
+
+        assert.isFalse(outcome.accelerated);
+        assert.strictEqual(!outcome.accelerated && outcome.code, "E_DEVICE_INCORRECT");
+        assert.strictEqual(!outcome.accelerated && outcome.reason.includes("self-check"), true);
+        controller.dispose();
+    });
+
+    it("attaches an accelerator whose self-check passes, so the check is not a refusal of everything", async () => {
+        const controller = new AccelerationController({
+            registry: registryWith(createFakeAccelerator({ verify: "ok" })),
+        });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "idle");
+        assert.strictEqual(controller.accelerator?.name, "fake");
+        controller.dispose();
+    });
+
+    it("does not ask an accelerator that cannot check itself, which is every one of them today", async () => {
+        const fake = createFakeAccelerator();
+        const controller = new AccelerationController({ registry: registryWith(fake) });
+
+        const status = await controller.start();
+
+        assert.isUndefined(fake.verify);
+        assert.strictEqual(status.state, "idle");
+        controller.dispose();
+    });
+
+    it("makes required say so, with the reason the device was turned down", async () => {
+        const controller = new AccelerationController({
+            policy: "required",
+            registry: registryWith(createFakeAccelerator({ verify: "E_DEVICE_INCORRECT" })),
+        });
+
+        const refusal = await controller.ready().catch((error: unknown) => error);
+
+        assert.strictEqual(isGraphtyError(refusal) && refusal.code, "E_NO_ACCELERATOR");
+        assert.strictEqual(isGraphtyError(refusal) && refusal.details.acceleration, "E_DEVICE_INCORRECT");
+        controller.dispose();
+    });
+
+    it("stops using a device caught mid-run, having thrown the failure rather than answering", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const incorrect = Object.assign(new Error("the scan came back wrong"), { code: "E_DEVICE_INCORRECT" });
+
+        const failure = await controller
+            .run(LAYOUT, (): string => {
+                throw incorrect;
+            })
+            .catch((error: unknown) => error);
+
+        assert.strictEqual(isGraphtyError(failure) && failure.code, "E_DEVICE_INCORRECT");
+        assert.strictEqual(controller.state, "unavailable");
+        assert.strictEqual(controller.status.code, "E_DEVICE_INCORRECT");
+        assert.isNull(controller.accelerator);
+        const next = controller.plan(LAYOUT);
+        assert.isFalse(next.accelerated);
+        controller.dispose();
     });
 });

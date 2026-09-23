@@ -25,20 +25,25 @@
  * and the rest stay on this side of the boundary; what crosses is a {@link GraphAccelerator},
  * which is plain names and functions, and failures arrive as codes on a `GraphtyError`.
  *
- * ## The one capability this file does not yet forward
+ * ## A GPU that answers, and answers wrongly
  *
- * A device that computes WRONG ANSWERS is a capability the element reports as
- * `E_DEVICE_INCORRECT`, and the accelerator says so by implementing `verify()`. This accelerator
- * does not implement it yet, and the reason is a version, not a design: the peer's own device
- * self-check landed after the release this package's peer range resolves to, so `verifyDevice`
- * is not a name that exists to import here. The line that finishes it is
- * `verify: () => verifyDevice(ctx).then(...)` on the object below, and it lands when the peer
- * range names a release that exports it.
+ * An adapter being present is not the same as an adapter being right. The software renderer that
+ * ships with Windows miscomputes shaders that pass a value across a workgroup barrier, so every
+ * multi-workgroup prefix sum -- and the sort, the histogram and the grid layout tier above one --
+ * comes back wrong, with plausible numbers and no error anywhere.
  *
- * Until then the peer's own guard fires from inside the first accelerated run instead. The
- * element still reports `E_DEVICE_INCORRECT` and still lets go of the device -- see
- * `AccelerationController.#refuseDevice` -- but the discovery happens during work rather than
- * before it, which is the whole thing attaching-time detection exists to avoid. Recorded in
+ * So the accelerator this file builds implements `verify()`, and the element calls it at ATTACH,
+ * before any of the graph goes near the device: {@link checkDeviceComputes} runs the peer's own
+ * self-check, a real prefix sum of known numbers scanned through the shipped primitive and
+ * checked on the host, and turns a wrong word into `E_DEVICE_INCORRECT`. The element then
+ * reports acceleration unavailable with that code and draws the graph on the CPU. The peer
+ * memoises the result per device, so the 14 to 20 milliseconds are paid once and the accelerated
+ * runs that follow re-use the answer.
+ *
+ * That is detection, not a fallback: the decision is made before any accelerated work starts.
+ * The peer also guards its own compute entry points, so a device that somehow gets past the
+ * check still refuses rather than returning wrong numbers -- and the element lets go of it and
+ * republishes rather than finishing that work anywhere else. Recorded in
  * `docs/decisions/device-computes-incorrectly.md`.
  *
  * ## Detection is not a fallback
@@ -55,6 +60,7 @@ import {
     EXACT_MAX_NODES,
     type GpuAccelerator,
     type GpuContext,
+    verifyDevice,
 } from "@graphty/webgpu-graph-algorithms";
 import { probeBrowserWebGpu, requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser";
 
@@ -68,12 +74,17 @@ const WEBGPU_ACCELERATOR_NAME = "webgpu-graph-algorithms";
  * Members of the peer's accelerator that do not cross into {@link GraphAccelerator}.
  *
  * `ctx` and `options` carry GPU types and stay on this side of the boundary; `kind` is spelled
- * `backend` here; `dispose` is re-implemented below so the element controls the lifetime.
- * Everything else -- every accelerated algorithm and layout the peer implements, now and in
- * every future minor of it -- is forwarded by name, which is what keeps this file from needing
- * an edit each time the peer ports another algorithm.
+ * `backend` here; `dispose` and `verify` are written below so the element controls the lifetime
+ * and owns the self-check's error shape. Everything else -- every accelerated algorithm and
+ * layout the peer implements, now and in every future minor of it -- is forwarded by name, which
+ * is what keeps this file from needing an edit each time the peer ports another algorithm.
+ *
+ * That forwarding is also why this set has to name `verify` even though the peer has no such
+ * member today: forwarding runs AFTER the object below is built, so a future peer release that
+ * happened to add a member of that name would otherwise replace the element's own silently, and
+ * a self-check that reports something other than `E_DEVICE_INCORRECT` is worse than none.
  */
-const NOT_FORWARDED = new Set(["kind", "ctx", "options", "dispose"]);
+const NOT_FORWARDED = new Set(["kind", "ctx", "options", "dispose", "verify"]);
 
 /** A forwarded member of the peer's accelerator, typed as loosely as the boundary allows. */
 type ForwardedMember = (...args: readonly unknown[]) => unknown;
@@ -121,6 +132,57 @@ function probeFailure(code: "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY", 
 }
 
 /**
+ * Asks the device to compute something whose answer is already known, and turns a wrong answer
+ * into the element's code.
+ *
+ * The peer REPORTS rather than throws here -- `verifyDevice` hands back a record whose `mismatch`
+ * is the first word that disagreed -- so this is where a report becomes a refusal. A failure of
+ * the check's own machinery (a device lost while it ran, an allocation that failed) throws out of
+ * `verifyDevice` carrying its own code and is left alone: "this driver computes incorrectly" must
+ * never be said about a device that merely died.
+ * @param ctx - The GPU context whose device is being vouched for.
+ * @throws A `GraphtyError` with `E_DEVICE_INCORRECT` when the device got the known answer wrong.
+ */
+async function checkDeviceComputes(ctx: GpuContext): Promise<void> {
+    const check = await verifyDevice(ctx);
+    const { mismatch } = check;
+    if (mismatch === null) {
+        return;
+    }
+
+    const observed = mismatch.poison
+        ? `${mismatch.where} was never written at all`
+        : `${mismatch.where} came back as ${String(mismatch.actual)} where ${String(mismatch.expected)} was required`;
+
+    throw new GraphtyError({
+        code: "E_DEVICE_INCORRECT",
+        message:
+            `this GPU computes multi-workgroup shaders incorrectly: a prefix sum of ` +
+            `${String(check.count)} known numbers came back wrong -- ${observed}. The graph is being ` +
+            `computed on the processor instead, because every number this device produced would be unreliable`,
+        source: "acceleration",
+        recoverable: false,
+        details: {
+            accelerator: WEBGPU_ACCELERATOR_NAME,
+            check: check.check,
+            where: mismatch.where,
+            expected: mismatch.expected,
+            actual: mismatch.actual,
+            poison: mismatch.poison,
+            count: check.count,
+            blocks: check.blocks,
+            workgroupSize: check.workgroupSize,
+            ms: check.ms,
+            adapter: {
+                vendor: check.vendor,
+                architecture: check.architecture,
+                description: check.description,
+            },
+        },
+    });
+}
+
+/**
  * Wraps the peer's accelerator as the element's, keeping every GPU type on this side.
  * @param ctx - The GPU context the accelerator runs on.
  * @param accelerator - The peer's accelerator.
@@ -142,6 +204,10 @@ function toGraphAccelerator(ctx: GpuContext, accelerator: GpuAccelerator): Graph
         // The element watches this. A device the element itself destroyed also resolves it, and
         // the controller ignores a loss reported for an accelerator it has already released.
         lost: ctx.lost.then((info) => ({ reason: info.message === "" ? info.reason : info.message })),
+        // The element calls this once, before it attaches this accelerator and before any of the
+        // graph reaches the device. `NOT_FORWARDED` is what keeps the forwarding pass below from
+        // replacing it.
+        verify: (): Promise<void> => checkDeviceComputes(ctx),
         dispose: (): void => {
             accelerator.dispose();
         },

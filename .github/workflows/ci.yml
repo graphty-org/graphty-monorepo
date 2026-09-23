@@ -14,12 +14,18 @@ on:
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
 
+# Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
+# 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
+# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
+# again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
+# that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 jobs:
     # Lint PR titles with commitlint
     lint-pr:
         name: Lint PR Title
         if: github.event_name == 'pull_request'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -42,7 +48,7 @@ jobs:
     # Build job - runs once, shares artifacts with test shards
     build:
         name: Build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -278,7 +284,7 @@ jobs:
     test:
         name: Test (${{ matrix.shard }})
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         strategy:
             fail-fast: false
             matrix:
@@ -553,6 +559,18 @@ jobs:
               if: matrix.needs-lavapipe
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
 
+            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
+            # Print the image, the C library and the installed Mesa version so a lane's environment is readable
+            # from its own log instead of inferred from the runner label. Never fails the step.
+            - name: Record the image, glibc and rasteriser versions
+              if: matrix.needs-lavapipe
+              run: |
+                  { grep PRETTY_NAME /etc/os-release
+                    ldd --version | head -1
+                    dpkg-query -W -f '${Package} ${Version}\n' mesa-vulkan-drivers libvulkan1 libegl1
+                  } || true
+
             - name: Locate the lavapipe ICD and export the lane's environment
               if: matrix.needs-lavapipe
               run: |
@@ -631,7 +649,7 @@ jobs:
     chromatic-element:
         name: Chromatic (graphty-element)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -669,7 +687,7 @@ jobs:
     chromatic-app:
         name: Chromatic (graphty)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -707,7 +725,7 @@ jobs:
     chromatic-compact-mantine:
         name: Chromatic (compact-mantine)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -745,7 +763,7 @@ jobs:
     chromatic-algorithms:
         name: Chromatic (algorithms)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -783,7 +801,7 @@ jobs:
     chromatic-layout:
         name: Chromatic (layout)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -822,7 +840,7 @@ jobs:
         name: Performance Tests
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -871,7 +889,7 @@ jobs:
         name: All Checks Pass
         needs: [test, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
         if: always()
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - name: Check all jobs passed
               run: |

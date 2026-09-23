@@ -29,7 +29,11 @@ on:
     workflow_dispatch:
         inputs:
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (the Machine Provisioner app
-            # is installed on the org; Ubuntu 22.04 with the NVIDIA driver and CUDA preinstalled; T4 4-vCPU on-demand
+            # is installed on the org; the "Driver up" step below measured Ubuntu 22.04.5, glibc 2.35, libegl1 1.4.0-1
+            # present and no /usr/share/vulkan/icd.d, on run 35922927676, 2026-09-23 -- and that 22.04 is what blocks
+            # the `webgpu` 0.6.x bump on this lane: 0.5.0 moved its Linux build to 24.04 and its binary needs
+            # GLIBCXX_3.4.32, which 22.04 does not ship. See webgpu-graph-algorithms/docs/decisions/G-ENV.md;
+            # with the NVIDIA driver and CUDA preinstalled; T4 4-vCPU on-demand
             # $0.018/min, spot $0.0045/min): on 2026-09-18 the GitHub-hosted gpu-linux-t4 runner of design 12.4 (runner
             # group `gpu`, $0.052/min) never dequeued a job -- one dispatch was refused on billing, the next sat queued
             # for 17 minutes with no runner -- while machine.dev provisioned in about a minute at a third of the price.

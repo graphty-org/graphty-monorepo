@@ -378,6 +378,52 @@ export function labelGeometry(scene: Drawn, onlyColour?: string): readonly Label
 }
 
 /**
+ * How much empty space the renderer left above and below the words, in the label's own canvas
+ * pixels -- the unit a `marginTop` or `marginBottom` is written in.
+ *
+ * WHY NOT READ THE INSET STRAIGHT OFF THE TEXTURE. Where the ink starts depends on the typeface:
+ * the gap between the top of a line and the top of its tallest glyph differs from font to font,
+ * and the machine a story runs on decides which font a family name like "Verdana" falls back to.
+ * With the same ten-pixel margins, the ink starts 16-26px down a 128px texture across six fonts,
+ * and 9-19px down with none -- so no fixed pixel threshold separates the two everywhere.
+ *
+ * WHAT THIS DOES INSTEAD. The browser that drew the label is asked how tall this text is in this
+ * font (`measureText`), which turns the ink's height on the texture into the texture's scale;
+ * dividing the inset by that scale and taking away the font's own gap leaves the margin itself.
+ * @param label - One reading from {@link labelGeometry}, taken with the text colour.
+ * @param text - The words on the label.
+ * @param font - The CSS font the label is drawn in, such as `"normal 48px Verdana"`.
+ * @param lineBoxPx - The height of one line box: the font size times the line height.
+ * @returns The margin above and below the words, in canvas pixels.
+ */
+export function drawnMargins(
+    label: LabelGeometry,
+    text: string,
+    font: string,
+    lineBoxPx: number,
+): { readonly top: number; readonly bottom: number } {
+    const context = document.createElement("canvas").getContext("2d");
+
+    if (context === null || label.ink.height === 0) {
+        return { top: 0, bottom: 0 };
+    }
+
+    // The renderer draws each line with a "top" baseline at the top margin, so a glyph's ink runs
+    // from `-actualBoundingBoxAscent` to `actualBoundingBoxDescent` below that line.
+    context.font = font;
+    context.textBaseline = "top";
+    const metrics = context.measureText(text);
+    const scale = label.ink.height / (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+    const above = label.ink.minY;
+    const below = label.texture.height - 1 - label.ink.maxY;
+
+    return {
+        top: above / scale + metrics.actualBoundingBoxAscent,
+        bottom: below / scale - (lineBoxPx - metrics.actualBoundingBoxDescent),
+    };
+}
+
+/**
  * Watch one label's plane for a while and report how far it moved.
  *
  * FOR THE STORIES WHOSE SUBJECT IS MOTION. An animated label is the one case where a single

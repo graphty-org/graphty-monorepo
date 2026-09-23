@@ -16,7 +16,7 @@ import {
     holds,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
-import { labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
+import { drawnMargins, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
 
 /**
  * WHAT A STYLE LAYER CAN SAY ABOUT A LABEL.
@@ -648,10 +648,10 @@ export const Location: Story = {
  * READ AS THE TEXT'S OWN BOX, not the panel's. The panel is opaque from corner to corner whatever
  * the margins are, so the question is how far the black letters are inset inside it.
  *
- * READ AT THE TOP, because only the top separates the two pictures. The left and right edges of
- * the ink depend on each name's first and last glyph, so the unmargined and the margined readings
- * overlap there. On the 128px-high texture every label draws, the letters start 15-19px down with
- * no margins and 22-26px down with these ten-pixel ones.
+ * READ IN THE CANVAS'S OWN PIXELS, not the texture's. How far down the texture the letters start
+ * depends on the typeface, and the typeface depends on the machine: with these margins the ink
+ * starts 22-26px down locally and 19px down on Chromatic. Normalised by the font's own glyph
+ * height, the margin reads back as roughly the ten pixels asked for on every font tried.
  */
 export const Margin: Story = {
     args: {
@@ -683,22 +683,31 @@ export const Margin: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "Margin");
-        // A floor of 20.5px sits between the two readings: 1.5px under the lowest margined label
-        // and 1.5px over the highest unmargined one.
-        const tight = labelGeometry(scene, "#000000").filter(
-            (label) => label.inset.top * label.texture.height < 20.5,
-        );
+        // The story leaves the typeface to the element, which draws 48px Verdana on a 1.2 line
+        // height. Verdana is rarely installed, so what is actually drawn is whatever the browser
+        // falls back to -- which `drawnMargins` asks the same browser about.
+        //
+        // The mean of the top and bottom margin read back per label, in canvas pixels, across six
+        // fonts (Liberation Serif, Liberation Sans, Liberation Mono, DejaVu Serif, DejaVu Sans
+        // Mono, Z003): 9.2-12.2 with these ten-pixel margins, 4.6-6.7 with the element's default
+        // of five, and -0.6-1.7 with none. A floor of 8 sits between the first two.
+        const tight = labelGeometry(scene, "#000000")
+            .map((label) => {
+                const margin = drawnMargins(label, label.id, "normal normal 48px Verdana", 48 * 1.2);
+
+                return { id: label.id, ...margin, mean: (margin.top + margin.bottom) / 2 };
+            })
+            .filter((label) => label.mean < 8);
 
         await holds(
             tight.length === 0,
             `Styles/Label Margin: ten pixels of margin are asked for on all four sides, and on ` +
-                `${String(tight.length)} labels the words start no further down the panel than they do ` +
-                `with no margin at all -- ` +
+                `${String(tight.length)} labels the space above and below the words is no wider than ` +
+                `the element's default of five -- ` +
                 `${tight
                     .map(
                         (label) =>
-                            `${label.id} starts ${(label.inset.top * label.texture.height).toFixed(1)}px ` +
-                            `down a ${String(label.texture.height)}px texture`,
+                            `${label.id} has ${label.top.toFixed(1)}px above and ${label.bottom.toFixed(1)}px below`,
                     )
                     .join("; ")}`,
         );

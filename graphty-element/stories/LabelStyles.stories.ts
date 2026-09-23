@@ -1153,25 +1153,22 @@ export const Badge: Story = {
 /**
  * Shortening a number too big to show.
  *
- * Every cat is given a count of 1500. The cats that live indoors have smart overflow switched off
- * and draw all four digits; the rest have it on and draw `1k`. Put side by side, the rule is the
- * only difference between the two halves of the graph.
- *
- * WHY A COUNT BADGE. The shortening is applied when a label is built, and only for a badge that
- * asks for it -- so `smartOverflow` on a plain label is carried all the way to the renderer and
- * changes nothing. That is recorded in the capability register rather than papered over here.
+ * Every cat is given a count of 1500 in an ordinary label, drawn with the element's default label
+ * style. The cats that live indoors have smart overflow switched off and draw all four digits; the
+ * rest have it on and draw `1k`. Put side by side, the rule is the only difference between the two
+ * halves of the graph.
  */
 export const SmartOverflow: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
-            node: { "node.label": "1500", "node.labelStyle": { badge: "count", smartOverflow: true } },
+            node: { "node.label": "1500", "node.labelStyle": { smartOverflow: true } },
             layers: [
                 {
                     name: "Indoor cats show the whole number",
                     target: "node",
                     selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
-                    set: { "node.labelStyle": { badge: "count", smartOverflow: false } },
+                    set: { "node.labelStyle": { smartOverflow: false } },
                 },
             ],
         }),
@@ -1180,16 +1177,12 @@ export const SmartOverflow: Story = {
         controls: {
             include: ["node.labelStyle.smartOverflow", "node.label"],
         },
-        chromatic: {
-            diffIncludeAntiAliasing: true,
-            diffThreshold: 0.3,
-        },
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "SmartOverflow");
-        // MEASURED AS THE WHITE LETTERING. A count badge is an opaque disc, so every label covers
-        // its whole canvas whatever it says; the digits are the only part that changes.
-        const labels = labelGeometry(scene, "#FFFFFF");
+        // MEASURED AS INK. A default label has no panel behind its words, so the width of what it
+        // paints is the width of the words: `1k` is two glyphs and `1500` is four.
+        const labels = labelGeometry(scene);
         const whole = labels.filter((label) => INDOOR.includes(label.id));
         const short = labels.filter((label) => !INDOOR.includes(label.id));
         const widest = Math.max(...short.map((label) => label.ink.width));
@@ -1209,20 +1202,20 @@ export const SmartOverflow: Story = {
 /**
  * How big a number has to be before it is shortened.
  *
- * Every cat is given a count of 150. The indoor cats will show any number up to 999, so they draw
- * all three digits; the rest stop at 99 and draw `99+`.
+ * Every cat is given a count of 150 in an ordinary label. The indoor cats will show any number up
+ * to 999, so they draw all three digits; the rest stop at 99 and draw `99+`.
  */
 export const MaxNumber: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
-            node: { "node.label": "150", "node.labelStyle": { badge: "count", smartOverflow: true, maxNumber: 99 } },
+            node: { "node.label": "150", "node.labelStyle": { smartOverflow: true, maxNumber: 99 } },
             layers: [
                 {
                     name: "Indoor cats count all the way to 999",
                     target: "node",
                     selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
-                    set: { "node.labelStyle": { badge: "count", smartOverflow: true, maxNumber: 999 } },
+                    set: { "node.labelStyle": { smartOverflow: true, maxNumber: 999 } },
                 },
             ],
         }),
@@ -1231,14 +1224,10 @@ export const MaxNumber: Story = {
         controls: {
             include: ["node.labelStyle.maxNumber", "node.label", "node.labelStyle.smartOverflow"],
         },
-        chromatic: {
-            diffIncludeAntiAliasing: true,
-            diffThreshold: 0.3,
-        },
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "MaxNumber");
-        const labels = labelGeometry(scene, "#FFFFFF");
+        const labels = labelGeometry(scene);
         const whole = new Set(labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.pixels));
         const capped = new Set(labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.pixels));
 
@@ -1270,21 +1259,14 @@ export const OverflowSuffix: Story = {
         setup: storySetup({
             node: {
                 "node.label": "150",
-                "node.labelStyle": { badge: "count", smartOverflow: true, maxNumber: 99, overflowSuffix: "++" },
+                "node.labelStyle": { smartOverflow: true, maxNumber: 99, overflowSuffix: "++" },
             },
             layers: [
                 {
                     name: "Indoor cats finish with a single plus",
                     target: "node",
                     selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
-                    set: {
-                        "node.labelStyle": {
-                            badge: "count",
-                            smartOverflow: true,
-                            maxNumber: 99,
-                            overflowSuffix: "+",
-                        },
-                    },
+                    set: { "node.labelStyle": { smartOverflow: true, maxNumber: 99, overflowSuffix: "+" } },
                 },
             ],
         }),
@@ -1293,14 +1275,10 @@ export const OverflowSuffix: Story = {
         controls: {
             include: ["node.labelStyle.overflowSuffix", "node.labelStyle.maxNumber", "node.label"],
         },
-        chromatic: {
-            diffIncludeAntiAliasing: true,
-            diffThreshold: 0.3,
-        },
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "OverflowSuffix");
-        const labels = labelGeometry(scene, "#FFFFFF");
+        const labels = labelGeometry(scene);
         const onePlus = Math.max(...labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.ink.width));
         const twoPlus = Math.min(...labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.ink.width));
 

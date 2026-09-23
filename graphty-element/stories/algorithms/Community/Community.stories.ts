@@ -35,10 +35,6 @@ export const LabelPropagation: Story = createAlgorithmStory("graphty:label-propa
 /**
  * Eleven separate cliques, so Louvain finds exactly eleven communities. The eight largest have 5
  * or 6 nodes and the three smallest 3, 2 and 2, so which three fold into "other" has one answer.
- *
- * 49 nodes, and that is deliberate: `@graphty/algorithms`' optimised Louvain returns every node
- * as its own community on graphs of more than about 50 nodes, which would make this a picture of
- * that defect rather than of the overflow policy.
  */
 const CLIQUE_SIZES = [6, 6, 5, 5, 5, 5, 5, 5, 3, 2, 2];
 const SMALLEST_CLIQUES = ["q10", "q8", "q9"];

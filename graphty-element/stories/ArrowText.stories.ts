@@ -3,14 +3,7 @@ import "../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {
-    assertArrowCaptionsDrawn,
-    assertArrowVariety,
-    assertGraphLoaded,
-    drawn,
-    holds,
-    pixelsOfColour,
-} from "./assertions";
+import { assertArrowCaptionsDrawn, assertArrowVariety, assertGraphLoaded, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
@@ -39,8 +32,9 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 /**
- * A caption at each end of an arrowed edge: "start" beside the small blue tail at A, "end"
- * beside the large red head at B.
+ * Words in all three places an edge carries them: "start label" beside the cap at A, "end label"
+ * beside the cap at B, and "edge label" above the middle of the line. All three are 14px black
+ * on no background, and both caps are the element's own size in the line's darkgrey.
  *
  * WHAT A CAPTION IS. An edge carries words in three places, and they are three separate things.
  * `edge.label` puts words at the MIDDLE of the line. `edge.arrowHeadText` and
@@ -65,33 +59,31 @@ export const ArrowText: Story = {
         await assertArrowCaptionsDrawn(scene, ["arrowHead", "arrowTail"]);
         await assertArrowVariety(scene, 1);
 
-        // The two caps are drawn at the two sizes the layer asks for, which is the half of this
-        // story's 1.x subject that never lost its channels.
-        const spans = scene.graph.scene.meshes
-            .filter((mesh) => mesh.name.includes("arrow"))
-            .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
-            .sort((first, second) => second - first);
+        const caps = scene.graph.scene.meshes.filter((mesh) => mesh.name.includes("arrow")).length;
+
+        await holds(caps === 2, `Styles/Edge ArrowText: both ends carry a cap and the scene draws ${String(caps)}`);
+
+        // The third place: the edge's own label at the middle of the line. It is a plane of the
+        // same class as the two captions, so it is what is left once the captions are counted.
+        const [edge] = scene.graph.getDataManager().edges.values();
+        const middle = scene.edgeLabelPlanes - scene.arrowCaptions.length;
 
         await holds(
-            spans.length === 2 && spans[0] > spans[1] * 2,
-            `Styles/Edge ArrowText: the head is asked for at 2.5 and the tail at 0.75, and the scene draws ` +
-                `caps ${spans.map((span) => span.toFixed(3)).join(", ")} across`,
+            middle === 1 && edge.label?.labelMesh?.isEnabled() === true,
+            `Styles/Edge ArrowText: the edge is asked for a label at its middle and the scene holds ` +
+                `${String(middle)} edge label planes beside its ${String(scene.arrowCaptions.length)} captions`,
         );
 
-        const red = await pixelsOfColour(scene, "#ef4444");
-
-        await holds(
-            red > 200,
-            `Styles/Edge ArrowText: the head is asked for in red and the canvas holds ${String(red)} red pixels`,
-        );
-
-        // The two captions are asked for in the two colours their style channels name, which is
-        // what proves the appearance travelled and not only the words.
+        // The captions are asked for in black, which is what proves their style channels
+        // travelled and not only their words. The background is transparent, so the letters are
+        // the only ink and black is the colour most of it is drawn in.
         const painted = scene.arrowCaptions.map((caption) => `${caption.end}:${caption.colours.join("/")}`).sort();
+        const black = (hex: string | undefined): boolean =>
+            hex !== undefined && [1, 3, 5].every((at) => Number.parseInt(hex.slice(at, at + 2), 16) < 0x30);
 
         await holds(
-            scene.arrowCaptions.every((caption) => caption.colours.length > 0),
-            `Styles/Edge ArrowText: the captions are asked for in their own colours and their canvases hold ` +
+            scene.arrowCaptions.every((caption) => black(caption.colours[0])),
+            `Styles/Edge ArrowText: the captions are asked for in black and their canvases hold ` +
                 `${painted.join(", ")}`,
         );
     },
@@ -99,15 +91,19 @@ export const ArrowText: Story = {
         setup: storySetup({
             edge: {
                 "edge.arrowHead": "normal",
-                "edge.arrowHeadSize": 2.5,
-                "edge.arrowHeadColor": "#EF4444",
-                "edge.arrowHeadText": "end",
-                "edge.arrowHeadTextStyle": { sizePx: 28, color: "#B91C1C", background: "#FEE2E2", padding: 8 },
+                "edge.arrowHeadText": "end label",
+                "edge.arrowHeadTextStyle": { sizePx: 14, color: "#000000", background: "transparent", attachOffset: 1 },
                 "edge.arrowTail": "normal",
-                "edge.arrowTailSize": 0.75,
-                "edge.arrowTailColor": "#2563EB",
-                "edge.arrowTailText": "start",
-                "edge.arrowTailTextStyle": { sizePx: 28, color: "#1D4ED8", background: "#DBEAFE", padding: 8 },
+                "edge.arrowTailText": "start label",
+                "edge.arrowTailTextStyle": { sizePx: 14, color: "#000000", background: "transparent", attachOffset: 1 },
+                "edge.label": "edge label",
+                "edge.labelStyle": {
+                    sizePx: 14,
+                    color: "#000000",
+                    background: "transparent",
+                    location: "top",
+                    attachOffset: 0.5,
+                },
                 "edge.style": "solid",
                 "edge.color": "darkgrey",
             },

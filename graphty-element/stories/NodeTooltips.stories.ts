@@ -242,14 +242,15 @@ export const OnOneNodeOnly: Story = {
     play: async ({ canvasElement }) => {
         const scene = await settled(canvasElement, "OnOneNodeOnly");
 
-        await hover(scene, "london");
-        await assertTooltip(scene, "london", "the only one with a tooltip");
-
         await hover(scene, HOVERED);
         await holds(
             scene.graph.getNode(HOVERED)?.tooltip === undefined,
             "Styles/Node Tooltip OnOneNodeOnly: a node the layer did not name drew a tooltip",
         );
+
+        // Last, so the snapshot taken when play ends shows the one tooltip this story is about.
+        await hover(scene, "london");
+        await assertTooltip(scene, "london", "the only one with a tooltip");
     },
 };
 

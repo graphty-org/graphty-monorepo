@@ -4,6 +4,7 @@ import "../src/graphty-element";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import {
+    assertArrowCaptionsDrawn,
     assertArrowVariety,
     assertDistinctPicture,
     assertDrawnOpacity,
@@ -120,7 +121,8 @@ const LINE_GRID = ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot",
  * @param scene - What the story drew.
  * @returns The reading, as a short string for a picture digest.
  */
-const lineInk = async (scene: Drawn): Promise<string> => `grey=${String(Math.round((await pixelsOfColour(scene, "#a9a9a9")) / 1000))}k`;
+const lineInk = async (scene: Drawn): Promise<string> =>
+    `grey=${String(Math.round((await pixelsOfColour(scene, "#a9a9a9")) / 1000))}k`;
 
 /**
  * How big the arrow caps in the scene are drawn, largest first.
@@ -141,6 +143,16 @@ const arrowCapSpans = (scene: Drawn): number[] =>
         .sort((first, second) => second - first);
 
 /**
+ * How big a normal cap of the element's own size reads by {@link arrowCapSpans}, in world units.
+ *
+ * MEASURED, AND EXACT. `FilledArrowRenderer.applyShaderBoundingInfo` gives a 3D cap a bounding
+ * cube whose half-extent is the furthest vertex of its geometry times the cap's size, so the
+ * reading is 0.9327 at size 1 on every canvas, 1.8654 at size 2 and 2.3318 at size 2.5 --
+ * linear in size to four figures. It changes only if the cap's own geometry does.
+ */
+const DEFAULT_CAP_SPAN = 0.9327;
+
+/**
  * How see-through each arrow cap in the scene is drawn.
  *
  * `EdgeMesh.createArrowHead` writes the cap's opacity onto the mesh as its visibility, which is
@@ -154,17 +166,38 @@ const arrowCapOpacities = (scene: Drawn): number[] =>
 
 /**
  * Every layer in a grid story painted the one edge it names, and every edge is captioned.
+ *
+ * A CAPTION IS EITHER THE ARROW'S OWN OR THE EDGE'S. The arrow grids hang each name from the cap
+ * it names, with `edge.arrowHeadText`; the one edge with no cap has nothing to hang a caption
+ * from, so it carries its name as an ordinary edge label, as the line grids do for every edge.
+ * `edgeLabelPlanes` counts both kinds -- they are planes of one class -- so the arrow captions are
+ * read off the edges that own them and the rest of the planes are the edge labels.
  * @param scene - What the story drew.
  * @param kinds - The cap or pattern each layer is for.
+ * @param arrowCaptions - How many of those edges are named by a caption on their arrow head
+ *     rather than by an edge label.
  */
-const assertGridPainted = async (scene: Drawn, kinds: readonly string[]): Promise<void> => {
+const assertGridPainted = async (scene: Drawn, kinds: readonly string[], arrowCaptions = 0): Promise<void> => {
     await assertGraphLoaded(scene, { nodes: kinds.length * 2, edges: kinds.length });
 
     for (const kind of kinds) {
         await assertLayerPainted(scene, `edges where data.kind == '${kind}'`, { edges: 1 });
     }
 
+    await assertArrowCaptionsDrawn(
+        scene,
+        Array.from({ length: arrowCaptions }, () => "arrowHead" as const),
+    );
     await assertEdgeLabelsDrawn(scene, kinds.length);
+
+    const labels = scene.edgeLabelPlanes - scene.arrowCaptions.length;
+
+    await holds(
+        labels >= kinds.length - arrowCaptions,
+        `${scene.story}: ${String(kinds.length - arrowCaptions)} edges are named by an edge label and the ` +
+            `scene holds ${String(labels)} edge label planes beside its ${String(scene.arrowCaptions.length)} ` +
+            `arrow captions`,
+    );
 };
 
 export const Default: Story = {
@@ -261,68 +294,45 @@ export const ArrowHead: Story = {
 };
 
 /**
- * Two edges, one capped at a quarter of the element's own arrow size and one at two and a half
- * times it.
+ * One edge capped at twice the element's own arrow size.
  *
- * TWO EDGES RATHER THAN ONE, which is the only change from the 1.x story this restores. A single
- * arrow drawn at 2.5 looks like an arrow: there is nothing in the picture to compare it with, and
- * an assertion on it can only be a number measured off this canvas once and then trusted. With a
- * small cap beside a large one the story shows what it claims and the assertion calibrates
- * itself against the scene it is reading.
+ * A SINGLE ARROW HAS NOTHING BESIDE IT TO BE COMPARED WITH, so the assertion compares it with a
+ * number instead: the span a cap of the element's own size is drawn at. That number is geometry,
+ * not a pixel count, so it does not move with the canvas -- see `DEFAULT_CAP_SPAN`.
  */
 export const ArrowSize: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge ArrowSize");
 
-        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
-        await assertLayerPainted(scene, "the small cap", { edges: 1 });
-        await assertLayerPainted(scene, "the large cap", { edges: 1 });
+        await assertGraphLoaded(scene, { nodes: 2, edges: 1 });
 
         const spans = arrowCapSpans(scene);
 
         await holds(
-            spans.length === 2,
-            `Styles/Edge ArrowSize: two edges each carry a cap and the scene holds ${String(spans.length)} ` +
+            spans.length === 1,
+            `Styles/Edge ArrowSize: one edge carries a cap and the scene holds ${String(spans.length)} ` +
                 `arrow meshes -- [${scene.arrowMeshNames.join(", ")}]`,
         );
 
-        // The two caps are asked for at 2.5 and 0.25, a ten-to-one ratio, so a margin of three is
-        // a wide one: anything narrower means the size never reached the mesh builder.
+        // Asked for at 2, so the cap is drawn twice the span of the element's own. The band is
+        // 1.8 to 2.2 because the reading is exact -- the bounding cube is the cap's geometry times
+        // its size -- and anything outside it means the size never reached the mesh builder:
+        // the element's own size reads 1.0 and the 2.5 this story used to draw reads 2.5.
+        const ratio = spans[0] / DEFAULT_CAP_SPAN;
+
         await holds(
-            spans[0] > spans[1] * 3,
-            `Styles/Edge ArrowSize: the two caps are asked for at 2.5 and 0.25 and the scene draws them ` +
-                `${spans.map((span) => span.toFixed(3)).join(" and ")} across`,
+            ratio > 1.8 && ratio < 2.2,
+            `Styles/Edge ArrowSize: the cap is asked for at twice the element's own size and the scene draws ` +
+                `it ${spans[0].toFixed(3)} across, ${ratio.toFixed(2)} times the ${DEFAULT_CAP_SPAN.toFixed(3)} ` +
+                `a cap of the element's own size spans`,
         );
 
         await assertDistinctPicture(scene, "Styles/Edge");
     },
     args: {
         setup: storySetup({
-            layers: [
-                {
-                    name: "the small cap",
-                    target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'small'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.arrowHeadSize": 0.25 },
-                },
-                {
-                    name: "the large cap",
-                    target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'large'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.arrowHeadSize": 2.5 },
-                },
-            ],
+            edge: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.arrowHeadSize": 2 },
         }),
-        nodeData: [
-            { id: "small-src", position: { x: -4, y: 2, z: 0 } },
-            { id: "small-dst", position: { x: 4, y: 2, z: 0 } },
-            { id: "large-src", position: { x: -4, y: -2, z: 0 } },
-            { id: "large-dst", position: { x: 4, y: -2, z: 0 } },
-        ],
-        edgeData: [
-            { src: "small-src", dst: "small-dst", kind: "small" },
-            { src: "large-src", dst: "large-dst", kind: "large" },
-        ],
     },
     parameters: {
         controls: {
@@ -354,51 +364,43 @@ export const ArrowOpacity: Story = {
         // THE LINE IS NOT FADED AND THE CAP IS. Both halves of that are read off the canvas,
         // because either half on its own passes for the wrong reason.
         //
-        // A cap at this size does not sit on top of its line -- the edge is shortened to make room
-        // for it, which is the same thing the ArrowColor story below measures -- so the
-        // full-strength count is NOT all of the line. The cap's own pixels land at the half-way
-        // blend of the line colour over the background, (0xa9 + 0xf5) / 2 = 0xcf, which is what
-        // half opacity MEANS on this canvas.
-        //
         // TWO READINGS, NORMALISED BY TWO DIFFERENT THINGS, because they are two different kinds
         // of ink. What is left at full strength is LINE, whose ink is its length times its
-        // thickness, so it is divided by that length: 9.34, 9.35, 9.36, 9.36 and 9.35 at canvas
-        // widths 668, 968, 1168, 1200 and 1668 -- a spread of 0.2% over a 2.5x range of canvas.
-        // The faded ink is the CAP, a triangle that grows in both directions with the picture, so
-        // it is taken as a share of the canvas: 1.470%, 1.367%, 1.341%, 1.339% and 1.292% over
-        // the same range.
+        // thickness, so it is divided by that length: 10.69, 10.69, 10.69, 10.70 and 10.68 at
+        // canvas widths 668, 968, 1168, 1200 and 1668. The faded ink is the CAP, whose pixels land
+        // at the half-way blend of the line colour over the background, (0xa9 + 0xf5) / 2 = 0xcf.
+        // A cap is a triangle that grows in both directions with the picture, so it is taken as a
+        // share of the canvas: 0.276%, 0.278%, 0.283%, 0.282% and 0.280% over the same range.
         //
-        // WHY NOT THE RAW COUNTS THIS REPLACES. They were measured on a 968px canvas -- 6,595 at
-        // full strength and 6,405 at the blend -- and the band `ink > 5000 && ink < 9000` was cut
-        // to fit them. The same unbroken picture reads 8,185 on the 1,200px canvas vitest gives
-        // it, 815 pixels under the ceiling, and 11,358 on a 1,668px one, which is over it. The
-        // band was one browser window away from failing on canvas size alone.
+        // THE BLEND IS COUNTED AT A TOLERANCE OF 8, NOT THE DEFAULT 24. The anti-aliased rim of an
+        // opaque line passes through every shade between the line and the background, and at 24
+        // that rim alone is 1.4 pixels for every pixel of line -- more than a cap of the element's
+        // own size covers. At 8 the rim is gone and the reading is the cap.
         //
-        // Falsified on the live graph. Putting the cap back to opacity 1 with a layer of its own
-        // takes the full-strength reading to 14.8, 18.8 and 22.8 per pixel of span -- over the
-        // ceiling of 12 -- and the faded reading down to 0.354%, 0.205% and 0.131% of the canvas,
-        // under the floor of 0.8%. Fading the LINE as well takes the first reading to 0.027, 185x
-        // under its floor. So an opaque cap breaks both assertions, a faded line breaks the
+        // Falsified on the live graph. The same edge with an opaque cap -- `Default`, which is
+        // this picture at opacity 1 -- reads 0.003% to 0.013% at the blend, over 10x under the
+        // floor of 0.15%. Fading the LINE instead -- `LineOpacity` -- leaves 1.3 to 3.4 pixels at
+        // full strength for every pixel of line, all of it cap, under the floor of 8; fading both
+        // leaves 0.03. So an opaque cap breaks the second assertion, a faded line breaks the
         // first, and neither of the pictures this story is not about can satisfy the pair.
         const ink = await pixelsOfColour(scene, "#a9a9a9");
-        const faded = await pixelsOfColour(scene, "#cfcfcf");
+        const faded = await pixelsOfColour(scene, "#cfcfcf", 8);
         const span = edgeSpanPx(scene, "A", "B");
         const area = canvasArea(scene);
 
         await holds(
-            ink / span > 5 && ink / span < 12,
+            ink / span > 8,
             `Styles/Edge ArrowOpacity: only the arrow is faded here, and the canvas holds ${String(ink)} ` +
                 `pixels of full-strength line over a span of ${span.toFixed(0)}px -- ` +
-                `${(ink / span).toFixed(2)} for every pixel of line, where a faded line of this width draws ` +
-                `under 0.1 and an opaque cap pushes this over 14`,
+                `${(ink / span).toFixed(2)} for every pixel of line, where a faded line leaves under 3.5`,
         );
 
         await holds(
-            faded / area > 0.008,
+            faded / area > 0.0015,
             `Styles/Edge ArrowOpacity: the cap is asked for at half opacity and the canvas holds ` +
                 `${String(faded)} pixels at the half-way blend of the line colour over the background -- ` +
                 `${((faded / area) * 100).toFixed(3)}% of the canvas, where the same cap drawn opaque ` +
-                `covers under 0.36%`,
+                `covers under 0.015%`,
         );
 
         await assertDistinctPicture(scene, "Styles/Edge", `grey=${String(Math.round(ink / 1000))}k`);
@@ -408,7 +410,6 @@ export const ArrowOpacity: Story = {
             edge: {
                 "edge.color": "darkgrey",
                 "edge.arrowHead": "normal",
-                "edge.arrowHeadSize": 2,
                 "edge.arrowHeadOpacity": 0.5,
             },
         }),
@@ -440,37 +441,32 @@ export const ArrowColor: Story = {
         // the mesh's name, and not anywhere else a scene reading can reach.
         //
         // NORMALISED, AND BY TWO DIFFERENT THINGS. The red is the CAP -- a triangle that grows in
-        // both directions with the picture -- so it is read as a share of the canvas: 1.811%,
-        // 1.807%, 1.816%, 1.815% and 1.822% at canvas widths 668, 968, 1168, 1200 and 1668, a
-        // spread of 0.8% over a 2.5x range of canvas. The grey is the LINE, whose ink grows with
-        // its length alone, so it is divided by that length: 8.68, 8.67, 8.68, 8.68 and 8.67 over
-        // the same range.
+        // both directions with the picture -- so it is read as a share of the canvas: 0.280%,
+        // 0.282%, 0.287%, 0.286% and 0.285% at canvas widths 668, 968, 1168, 1200 and 1668, a
+        // spread of 2.7% over a 2.5x range of canvas. The grey is the LINE, whose ink grows with
+        // its length alone, so it is divided by that length: 10.66, 10.67, 10.69, 10.70 and 10.68
+        // over the same range.
         const red = await pixelsOfColour(scene, "#ff0000");
         const grey = await pixelsOfColour(scene, "#a9a9a9");
         const span = edgeSpanPx(scene, "A", "B");
         const area = canvasArea(scene);
 
-        // A FLOOR THAT ALSO SEES A CAP DRAWN AT THE WRONG SIZE, which is what the `red > 200` it
-        // replaces did not. 200 was under a twentieth of the true reading at any canvas, so it
-        // passed on a picture this story is not about: with the cap drawn at the element's own
-        // size 1 instead of the 2.5 asked for here, the red falls to 0.280%, 0.287% and 0.285% of
-        // the canvas -- 1,960 pixels at a 1,168px canvas, which cleared 200 nine times over. At a
-        // floor of 1.0% that break is 3.5x under and caught. A cap that is not red at all reads
-        // zero.
+        // A FLOOR AT ABOUT HALF THE CAP, not a token count. A cap that is not red at all reads
+        // zero, and one drawn at half the element's own size would cover a quarter of the area,
+        // about 0.07% -- both under 0.15%. The `red > 200` this replaced passed on 200 stray
+        // pixels at any canvas.
         await holds(
-            red / area > 0.01,
-            `Styles/Edge ArrowColor: the cap is asked for in red at two and a half times the element's own ` +
-                `size, and the canvas holds ${String(red)} red pixels -- ${((red / area) * 100).toFixed(2)}% of ` +
-                `it, where the same cap at the element's own size covers under 0.3%`,
+            red / area > 0.0015,
+            `Styles/Edge ArrowColor: the cap is asked for in red and the canvas holds ${String(red)} red ` +
+                `pixels -- ${((red / area) * 100).toFixed(3)}% of it, where a cap of the element's own size ` +
+                `covers about 0.28%`,
         );
 
-        // A CAP THIS SIZE EATS INTO THE LINE, which is why this floor is well under the line's
-        // own full length: a 2.5x arrow covers the last stretch of it. What it separates is "the
-        // line is still grey" from "the layer painted the line red too", which is what a shared
-        // colour channel would have done -- that break reads 0.027 grey pixels per pixel of span,
-        // 148x under the floor.
+        // What this separates is "the line is still grey" from "the layer painted the line red
+        // too", which is what a shared colour channel would have done -- that break reads 0.03
+        // grey pixels per pixel of span, over 240x under the floor.
         await holds(
-            grey / span > 4,
+            grey / span > 8,
             `Styles/Edge ArrowColor: the line is asked for in grey and the canvas holds ${String(grey)} grey ` +
                 `pixels over a span of ${span.toFixed(0)}px -- ${(grey / span).toFixed(2)} for every pixel of ` +
                 `line, where a line painted the cap's colour instead leaves under 0.1`,
@@ -483,7 +479,6 @@ export const ArrowColor: Story = {
             edge: {
                 "edge.color": "darkgrey",
                 "edge.arrowHead": "normal",
-                "edge.arrowHeadSize": 2.5,
                 "edge.arrowHeadColor": "#FF0000",
             },
         }),
@@ -577,11 +572,12 @@ export const CombinedOpacity: Story = {
         );
 
         // NEITHER HALF IS DRAWN AT FULL STRENGTH, AND BOTH ARE DRAWN. The ceiling says the first.
-        // The floor says the second, and without it this story passes on an empty canvas: with
+        // The floor says the second, and without it this story passes with no line at all: with
         // edge.opacity set to 0 on the live graph the full-strength count did not move by a single
-        // pixel (24 either way) while the blend fell from 15,790 to nothing at all.
+        // pixel (24 either way) while the blend fell from 11,353 to 2,054, which is the faded cap
+        // alone -- 2.35 per pixel of span, under the floor of 8.
         //
-        // THE BLEND NEEDS A NARROWER TOLERANCE THAN ANYTHING ELSE ON THIS PAGE. Three tenths of
+        // THE BLEND NEEDS A NARROW TOLERANCE, AND HERE IT IS NOT OPTIONAL. Three tenths of
         // darkgrey over whitesmoke is 0xde = 222 and the background is 0xf5 = 245, which are 23
         // apart -- inside `pixelsOfColour`'s default tolerance of 24. At that tolerance this
         // colour cannot be told from the bare canvas at all and the count is the whole frame. At 8
@@ -590,12 +586,12 @@ export const CombinedOpacity: Story = {
         // Normalised as each reading grows. The full-strength remainder is cap ink, so it is a
         // share of the canvas: 0.0072%, 0.0041%, 0.0034%, 0.0033% and 0.0021% at canvas widths
         // 668, 968, 1168, 1200 and 1668. The blend is line ink, so it is divided by the line's
-        // length: 14.6, 16.9, 18.6, 18.8 and 22.6 per pixel of span. That second reading is the
+        // length: 11.8, 12.4, 12.8, 12.8 and 13.8 per pixel of span. That second reading is the
         // one MIXED measurement on this page -- a faded line plus a faded cap share the colour --
-        // so it spreads 1.55x where the pure readings spread under 1%. It only grows with the
-        // canvas, so a floor taken at the smallest reading is safe in the direction that matters,
-        // and both breaks land far below it: 1.24 per pixel of span with both halves opaque, and
-        // 0 with no edge drawn.
+        // so it spreads 1.17x where the pure readings spread under 3%. It only grows with the
+        // canvas, so a floor taken under the smallest reading is safe in the direction that
+        // matters, and both breaks land far below it: about 1.35 per pixel of span with both
+        // halves opaque, and 0 with no edge drawn.
         const ink = await pixelsOfColour(scene, "#a9a9a9");
         const blend = await pixelsOfColour(scene, "#dedede", 8);
         const span = edgeSpanPx(scene, "A", "B");
@@ -605,7 +601,7 @@ export const CombinedOpacity: Story = {
             ink / area < 0.0005,
             `Styles/Edge CombinedOpacity: the line is drawn at three-tenths opacity and the canvas holds ` +
                 `${String(ink)} pixels at its full colour -- ${((ink / area) * 100).toFixed(4)}% of the canvas, ` +
-                `where both halves drawn opaque cover over 2.3%`,
+                `where both halves drawn opaque cover over 1.2%`,
         );
 
         await holds(
@@ -623,7 +619,6 @@ export const CombinedOpacity: Story = {
                 "edge.color": "darkgrey",
                 "edge.opacity": 0.3,
                 "edge.arrowHead": "normal",
-                "edge.arrowHeadSize": 2,
                 "edge.arrowHeadOpacity": 0.3,
             },
         }),
@@ -636,21 +631,21 @@ export const CombinedOpacity: Story = {
 };
 
 /**
- * Every arrow the element draws, in a grid, each edge labelled with the arrow's name.
+ * Every arrow the element draws, in a grid, each arrow captioned with its own name.
  *
  * DRAWN AT TWICE THE ELEMENT'S OWN CAP SIZE, as this grid always was: fourteen caps at a camera
  * pulled back far enough to hold all fourteen are shapes a reader cannot tell apart at size one.
  *
- * THE NAME IS THE EDGE'S OWN LABEL rather than a caption beside the arrow. A layer can say which
- * arrow an edge carries, how big it is, what colour it is drawn in and what the EDGE's label
- * says; an arrow's own caption is the one thing here with no channel, so the fourteen captions
- * that used to sit beside the arrow heads are drawn on the lines instead.
+ * THE NAME HANGS FROM THE ARROW, written with `edge.arrowHeadText` and drawn by
+ * `edge.arrowHeadTextStyle`, so it sits beside the cap it names rather than at the middle of the
+ * line. The "none" edge has no cap to hang one from -- a caption on an end with no arrow draws
+ * nothing -- so its name is the edge's own label instead, above the line.
  */
 export const TwoDAllArrows: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDAllArrows");
 
-        await assertGridPainted(scene, ARROW_GRID);
+        await assertGridPainted(scene, ARROW_GRID, ARROW_GRID.length - 1);
 
         // Thirteen caps are drawn and one is "none", and several share one mesh -- an inverted
         // triangle is a triangle -- so the reading is how many distinct arrow meshes the scene
@@ -672,79 +667,222 @@ export const TwoDAllArrows: Story = {
                     name: "edges where data.kind == 'normal'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'normal'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.arrowHeadSize": 2, "edge.label": "normal" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "normal",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'inverted'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'inverted'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "inverted", "edge.arrowHeadSize": 2, "edge.label": "inverted" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "inverted",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "inverted",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'dot'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'dot'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "dot", "edge.arrowHeadSize": 2, "edge.label": "dot" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'sphere-dot'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'sphere-dot'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "sphere-dot", "edge.arrowHeadSize": 2, "edge.label": "sphere-dot" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "sphere-dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "sphere-dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'open-dot'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'open-dot'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-dot", "edge.arrowHeadSize": 2, "edge.label": "open-dot" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'tee'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'tee'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "tee", "edge.arrowHeadSize": 2, "edge.label": "tee" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "tee",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "tee",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'open-normal'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'open-normal'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-normal", "edge.arrowHeadSize": 2, "edge.label": "open-normal" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-normal",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'diamond'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'diamond'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "diamond", "edge.arrowHeadSize": 2, "edge.label": "diamond" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "diamond",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "diamond",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'open-diamond'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'open-diamond'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-diamond", "edge.arrowHeadSize": 2, "edge.label": "open-diamond" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-diamond",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-diamond",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'crow'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'crow'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "crow", "edge.arrowHeadSize": 2, "edge.label": "crow" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "crow",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "crow",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'box'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'box'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "box", "edge.arrowHeadSize": 2, "edge.label": "box" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "box",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "box",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'half-open'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'half-open'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "half-open", "edge.arrowHeadSize": 2, "edge.label": "half-open" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "half-open",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "half-open",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'vee'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'vee'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "vee", "edge.arrowHeadSize": 2, "edge.label": "vee" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "vee",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "vee",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'none'",
@@ -754,7 +892,13 @@ export const TwoDAllArrows: Story = {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "none",
                         "edge.label": "none",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
             ],
@@ -828,7 +972,7 @@ export const ThreeDAllArrows: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Edge ThreeDAllArrows");
 
-        await assertGridPainted(scene, ARROW_GRID);
+        await assertGridPainted(scene, ARROW_GRID, ARROW_GRID.length - 1);
         await assertArrowVariety(scene, 8);
         await assertViewMode(scene, "3d");
         await assertDistinctPicture(scene, "Styles/Edge", "camera=3d");
@@ -842,79 +986,222 @@ export const ThreeDAllArrows: Story = {
                     name: "edges where data.kind == 'normal'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'normal'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "normal", "edge.arrowHeadSize": 2, "edge.label": "normal" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "normal",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'inverted'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'inverted'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "inverted", "edge.arrowHeadSize": 2, "edge.label": "inverted" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "inverted",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "inverted",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'dot'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'dot'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "dot", "edge.arrowHeadSize": 2, "edge.label": "dot" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'sphere-dot'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'sphere-dot'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "sphere-dot", "edge.arrowHeadSize": 2, "edge.label": "sphere-dot" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "sphere-dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "sphere-dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'open-dot'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'open-dot'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-dot", "edge.arrowHeadSize": 2, "edge.label": "open-dot" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'tee'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'tee'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "tee", "edge.arrowHeadSize": 2, "edge.label": "tee" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "tee",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "tee",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'open-normal'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'open-normal'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-normal", "edge.arrowHeadSize": 2, "edge.label": "open-normal" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-normal",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'diamond'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'diamond'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "diamond", "edge.arrowHeadSize": 2, "edge.label": "diamond" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "diamond",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "diamond",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'open-diamond'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'open-diamond'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "open-diamond", "edge.arrowHeadSize": 2, "edge.label": "open-diamond" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-diamond",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-diamond",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'crow'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'crow'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "crow", "edge.arrowHeadSize": 2, "edge.label": "crow" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "crow",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "crow",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'box'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'box'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "box", "edge.arrowHeadSize": 2, "edge.label": "box" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "box",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "box",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'half-open'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'half-open'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "half-open", "edge.arrowHeadSize": 2, "edge.label": "half-open" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "half-open",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "half-open",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'vee'",
                     target: "edge",
                     selector: { match: "expression", where: "data.kind == 'vee'" },
-                    set: { "edge.color": "darkgrey", "edge.arrowHead": "vee", "edge.arrowHeadSize": 2, "edge.label": "vee" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "vee",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "vee",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
                 },
                 {
                     name: "edges where data.kind == 'none'",
@@ -924,7 +1211,13 @@ export const ThreeDAllArrows: Story = {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "none",
                         "edge.label": "none",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
             ],
@@ -1002,7 +1295,10 @@ export const ThreeDAllLines: Story = {
 
         // Solid is the element's own line and the other eight are drawn by the patterned-line
         // renderer, which names one mesh per pattern.
-        await assertLinePatternsDrawn(scene, LINE_GRID.filter((line) => line !== "solid").map((line) => `pattern-${line}`));
+        await assertLinePatternsDrawn(
+            scene,
+            LINE_GRID.filter((line) => line !== "solid").map((line) => `pattern-${line}`),
+        );
         await assertViewMode(scene, "3d");
         await assertDistinctPicture(scene, "Styles/Edge", "camera=3d");
     },
@@ -1019,8 +1315,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "solid",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "solid",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1031,8 +1334,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "dot",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "dot",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1043,8 +1353,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "star",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "star",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1055,8 +1372,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "box",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "box",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1067,8 +1391,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "dash",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "dash",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1079,8 +1410,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "diamond",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "diamond",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1091,8 +1429,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "dash-dot",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "dash-dot",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1103,8 +1448,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "sinewave",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "sinewave",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1115,8 +1467,15 @@ export const ThreeDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "zigzag",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "zigzag",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
             ],
@@ -1174,7 +1533,10 @@ export const TwoDAllLines: Story = {
         const scene = await drawn(canvasElement, "Styles/Edge TwoDAllLines");
 
         await assertGridPainted(scene, LINE_GRID);
-        await assertLinePatternsDrawn(scene, LINE_GRID.filter((line) => line !== "solid").map((line) => `pattern-${line}`));
+        await assertLinePatternsDrawn(
+            scene,
+            LINE_GRID.filter((line) => line !== "solid").map((line) => `pattern-${line}`),
+        );
         await assertViewMode(scene, "2d");
         await assertDistinctPicture(scene, "Styles/Edge", "camera=2d");
     },
@@ -1191,8 +1553,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "solid",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "solid",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1203,8 +1572,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "dot",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "dot",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1215,8 +1591,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "star",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "star",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1227,8 +1610,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "box",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "box",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1239,8 +1629,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "dash",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "dash",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1251,8 +1648,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "diamond",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "diamond",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1263,8 +1667,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "dash-dot",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "dash-dot",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1275,8 +1686,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "sinewave",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "sinewave",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1287,8 +1705,15 @@ export const TwoDAllLines: Story = {
                         "edge.color": "darkgrey",
                         "edge.style": "zigzag",
                         "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
                         "edge.label": "zigzag",
-                        "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent" },
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
             ],

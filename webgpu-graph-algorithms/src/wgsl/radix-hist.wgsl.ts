@@ -12,7 +12,8 @@ var<workgroup> local: array<atomic<u32>, RADIX_BINS>;
 fn radix_hist(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     for (var b = lid.x; b < RADIX_BINS; b = b + WG) { atomicStore(&local[b], 0u); }
     workgroupBarrier();
-    let i = group_id(wid) * WG + lid.x;
+    let g = group_id(wid);
+    let i = g * WG + lid.x;
     if (i < P.count) {
         let d = (keys[i] >> P.shift) & RADIX_DIGIT_MASK;                 // the pass's digit
         atomicAdd(&local[d], 1u);
@@ -22,16 +23,6 @@ fn radix_hist(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
     // holds an all-zero table and its digit-major slot b * P.groups + g is digit b + 1's slot of a REAL group, so it
     // must not store. Uniform per workgroup, no barrier inside. Every test size fits 1D (the ladder tops at 2^22); no
     // case reaches this branch, so the guard is proved by reading, not by a run.
-    // Dawn's D3D12 backend compiles through FXC on the Windows runner (the published dawn-node carries
-    // d3dcompiler_47.dll and neither dxcompiler.dll nor dxil.dll), and over the Microsoft Basic Render Driver it
-    // loses a store index derived from workgroup_id when that index is CARRIED ACROSS a workgroupBarrier: the
-    // workgroup then stores as if its id were zero, so the first group is right and every
-    // later group's counts collapse into its slots. The id is read here, after the loop, never before it -- the
-    // shape the reduce kernel has
-    // always had, which is bitwise right on that same backend over 1311 workgroups. A workgroup-memory broadcast was
-    // tried first and is worse there: the scalar does not reach the other lanes, and the block sums come back zero.
-    // The Windows leg of .github/workflows/hosts.yml is what says whether this is still needed (G4-F15).
-    let g = group_id(wid);
     if (g < P.groups) {
         for (var b = lid.x; b < RADIX_BINS; b = b + WG) { hist[b * P.groups + g] = atomicLoad(&local[b]); }   // digit-major
     }

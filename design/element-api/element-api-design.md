@@ -2054,6 +2054,7 @@ interface EncodingSpec {
   channel: Channel;
   scale?: Binding["scale"]; palette?: PaletteId;
   domain?: Binding["domain"]; clamp?: Binding["clamp"];
+  range?: Binding["range"];             // a numeric channel's output, e.g. [1, 5] for a size
   missing?: Binding["missing"]; reverse?: boolean;
   name?: string;
 }

@@ -19,6 +19,10 @@
  *   everything, so it is a HIGHLIGHT: "these ones", not "this much".
  * - A list of scored pairs, a time series and a bare fact publish nothing per element, so they
  *   suggest nothing. A picture would have to invent the thing it painted.
+ * - A run whose primary field leaves the node colour free, and which also puts nodes in named
+ *   groups -- a node field of type string: the two sides of a pairing or a cut, the source and the
+ *   sink of a flow -- also colours those nodes by their group, categorically. Only the nodes
+ *   carrying the group are painted, and every one of them is part of the result.
  *
  * NOTHING HERE WRITES A SELECTOR, A SCALE OR A PALETTE, AND THAT IS THE POINT. A suggestion names
  * the run, the field and the channel; `planEncoding` writes the selector -- `{ match: "has" }`,
@@ -136,28 +140,69 @@ export function suggestStyles(run: EncodingRun): readonly StyleSuggestion[] {
         return NOTHING;
     }
 
-    if (layer === "highlight") {
-        // One suggestion for the whole run, not one per half: `highlight()` paints every half the
-        // run chose in a single exclusive call, because a route is one thing however many kinds of
-        // element it runs through.
-        const suggestion: HighlightSuggestion = {
-            as: "highlight",
-            channels: Object.freeze(halves.map((half) => COLOR_CHANNEL[half])),
-            spec: { run: run.id, field: primaryField },
-        };
+    const primary =
+        layer === "highlight"
+            ? [highlightOf(run, primaryField, halves)]
+            : halves.map((half) => encodingOf(run, primaryField, half));
+    const grouping = groupingOf(run, primaryField, primary);
 
-        return Object.freeze([suggestion]);
+    return Object.freeze(grouping === null ? primary : [...primary, grouping]);
+}
+
+/**
+ * The highlight a chosen subset suggests.
+ * @param run - The run.
+ * @param field - Its primary field.
+ * @param halves - The halves carrying it.
+ * @returns The highlight.
+ */
+function highlightOf(run: EncodingRun, field: string, halves: readonly SelectorTarget[]): HighlightSuggestion {
+    // One suggestion for the whole run, not one per half: `highlight()` paints every half the
+    // run chose in a single exclusive call, because a route is one thing however many kinds of
+    // element it runs through.
+    return {
+        as: "highlight",
+        channels: Object.freeze(halves.map((half) => COLOR_CHANNEL[half])),
+        spec: { run: run.id, field },
+    };
+}
+
+/**
+ * The colour encoding of one field on one half.
+ * @param run - The run.
+ * @param field - The field.
+ * @param half - The half it is published on.
+ * @returns The encoding.
+ */
+function encodingOf(run: EncodingRun, field: string, half: SelectorTarget): EncodingSuggestion {
+    const channel = COLOR_CHANNEL[half];
+
+    return {
+        as: "encoding",
+        channels: Object.freeze([channel]),
+        spec: { run: run.id, field, channel },
+    };
+}
+
+/**
+ * The categorical node colour for the group a run put its nodes in, when the node colour is free.
+ * @param run - The run.
+ * @param primaryField - The field its shape declares primary, which is never the group.
+ * @param primary - What the primary field already suggests.
+ * @returns The encoding, or null when there is no group or the node colour is already taken.
+ */
+function groupingOf(
+    run: EncodingRun,
+    primaryField: string,
+    primary: readonly StyleSuggestion[],
+): EncodingSuggestion | null {
+    if (primary.some((suggestion) => suggestion.channels.includes(COLOR_CHANNEL.node))) {
+        return null;
     }
 
-    return Object.freeze(
-        halves.map((half): EncodingSuggestion => {
-            const channel = COLOR_CHANNEL[half];
-
-            return {
-                as: "encoding",
-                channels: Object.freeze([channel]),
-                spec: { run: run.id, field: primaryField, channel },
-            };
-        }),
+    const group = run.fields.find(
+        (field) => field.kind === "node" && field.type === "string" && field.name !== primaryField,
     );
+
+    return group === undefined ? null : encodingOf(run, group.name, "node");
 }

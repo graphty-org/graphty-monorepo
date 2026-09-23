@@ -332,6 +332,15 @@ describe("declared algorithm results", () => {
             assert.isTrue(output.edges?.some((edge) => edge.values.onPath === true));
         });
 
+        it("a flow names its source and its sink, and no other node", async () => {
+            const output = await runCase(CASES.find((entry) => entry.name === "max flow")!);
+            const roles = (output.nodes ?? [])
+                .filter((node) => node.values.role !== undefined)
+                .map((node) => `${String(node.id)}:${String(node.values.role)}`);
+
+            assert.sameMembers(roles, ["A:source", "F:sink"]);
+        });
+
         it("a set publishes membership per element and one headline number", async () => {
             const output = await runCase(CASES.find((entry) => entry.name === "kruskal")!);
             const chosen = output.edges?.filter((edge) => edge.values.in === true) ?? [];

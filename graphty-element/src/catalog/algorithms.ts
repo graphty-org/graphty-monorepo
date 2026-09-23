@@ -715,6 +715,7 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             field({ name: "capacity", plainName: "Capacity", technicalName: "capacity", kind: "edge", type: "number" }),
             field({ name: "utilization", plainName: "Share of capacity used", technicalName: "utilization", kind: "edge", type: "number" }),
             field({ name: "netFlow", plainName: "Net flow", technicalName: "netFlow", kind: "node", type: "number" }),
+            field({ name: "role", plainName: "Source or sink", technicalName: "role", kind: "node", type: "string" }),
             field({ name: "maxFlow", plainName: "Most that can flow", technicalName: "maxFlow", kind: "graph", type: "number" }),
         ],
         options: optionsOf(MaxFlowAlgorithm),

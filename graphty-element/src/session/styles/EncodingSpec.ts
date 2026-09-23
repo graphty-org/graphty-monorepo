@@ -27,7 +27,8 @@
  *   of nodes or edges -- is a highlight, and `highlight()` paints it. Encoding one would produce
  *   a layer scoped to every element the run looked at, including the ones that are not on the
  *   route, and then colour them by whether they are: exactly the "this algorithm painted my whole
- *   graph" defect, one level down.
+ *   graph" defect, one level down. Only the field that names the subset is refused: a field
+ *   published beside it, like the side of a cut every node ended up on, is encoded like any other.
  * - A field the run did not publish, or a field of the wrong half -- a node field driving an edge
  *   channel -- is a spelling mistake that would otherwise match nothing in silence, which reads
  *   exactly like a correct answer of zero.
@@ -83,6 +84,11 @@ export interface EncodingSpec {
     readonly domain?: RuleBinding["domain"];
     /** Percentiles to cut the extent at, so a few outliers do not flatten everything else. */
     readonly clamp?: RuleBinding["clamp"];
+    /**
+     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to the
+     * unit interval, which is a colour ramp's positions and far too small for most sizes.
+     */
+    readonly range?: RuleBinding["range"];
     /** What an element with no value is painted. Defaults to "skip", which is to leave it alone. */
     readonly missing?: RuleBinding["missing"];
     /** Send the smallest value to the far end of the range instead of the near end. */
@@ -221,10 +227,11 @@ function requireRun(spec: EncodingSpec, source: EncodingSource): EncodingRun {
 /**
  * Check the run's shape has something per element to bind a channel to.
  * @param run - The run.
+ * @param primary - Whether the field being encoded is the one the shape declares primary.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the shape publishes nothing per element,
- *   or when it names a subset rather than measuring everything.
+ *   or when the field is the one that names a subset rather than measuring everything.
  */
-function assertShapeEncodes(run: EncodingRun): void {
+function assertShapeEncodes(run: EncodingRun, primary: boolean): void {
     const { layer } = resultShapeContract(run.shape);
 
     if (layer === "none") {
@@ -234,7 +241,10 @@ function assertShapeEncodes(run: EncodingRun): void {
         );
     }
 
-    if (layer === "highlight") {
+    // Only the field that names the subset is refused. A field published beside it -- the side of
+    // a cut every node ended up on -- is carried by exactly the elements it describes, so the
+    // "has" selector scopes it as tightly as any metric.
+    if (layer === "highlight" && primary) {
         throw badEncoding(
             `A "${run.shape}" result names a subset rather than measuring every element, so it is painted with highlight() rather than encoded. Encoding it would scope the layer to every element the run looked at, including the ones it did not choose.`,
             { run: run.id, shape: run.shape },
@@ -351,6 +361,10 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
         binding.clamp = spec.clamp;
     }
 
+    if (spec.range !== undefined) {
+        binding.range = spec.range;
+    }
+
     if (spec.missing !== undefined) {
         binding.missing = spec.missing;
     }
@@ -381,7 +395,8 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const descriptor = requireChannel(spec.channel);
     const run = requireRun(spec, source);
 
-    assertShapeEncodes(run);
+    const { primaryField } = resultShapeContract(run.shape);
+    assertShapeEncodes(run, (spec.field ?? primaryField) === primaryField);
 
     const { field, primary } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);

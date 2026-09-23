@@ -712,6 +712,16 @@ const ROUTE: EncodingRun = {
     fields: [field("onPath", "node", "boolean"), field("order", "node", "integer")],
 };
 
+/** A cut run: a chosen set of edges, and the side every node ended up on. */
+const CUT: EncodingRun = {
+    id: "cut",
+    label: "Weakest link",
+    algorithm: "min-cut",
+    params: {},
+    shape: "edge-set",
+    fields: [field("in", "edge", "boolean"), field("side", "node", "string")],
+};
+
 /** A prediction run, which publishes a table and nothing per element. */
 const PAIRS: EncodingRun = {
     id: "pairs",
@@ -723,7 +733,7 @@ const PAIRS: EncodingRun = {
 };
 
 /** Every run these tests can look up. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, PAIRS];
+const RUNS: readonly EncodingRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, CUT, PAIRS];
 
 /** A source over the runs above, which is all `encode()` needs from a session. */
 const SOURCE: EncodingSource = {
@@ -846,6 +856,12 @@ describe("encode()", () => {
         assert.deepEqual(binding.missing, { value: "#cccccc" });
     });
 
+    it("carries a range to a numeric channel, so sizing by a run is not stuck at 0 to 1", () => {
+        const layer = plan({ run: "betweenness", channel: "node.size", range: [1, 5] });
+
+        assert.deepEqual(bindingOf(layer, "node.size").range, [1, 5]);
+    });
+
     it("generates a layer the binding preparation then accepts", () => {
         const layer = plan({ run: "louvain", channel: "node.color" });
         const prepared = prepareBinding({
@@ -913,6 +929,16 @@ describe("what encode() refuses", () => {
         } catch (error) {
             assert.include(error instanceof Error ? error.message : "", "highlight()");
         }
+    });
+
+    it("encodes a field a chosen set publishes beside its choice, because every element carrying it was measured", () => {
+        // The cut's primary field names a subset and is highlighted. The side is not a subset:
+        // the cut put every node on one side or the other, so every node carries one.
+        const layer = plan({ run: "cut", field: "side", channel: "node.color" });
+
+        assert.deepEqual(layer.selector, { match: "has", path: "results.cut.side" });
+        assert.strictEqual(bindingOf(layer, "node.color").scale, "ordinal");
+        assert.strictEqual(codeOf(() => plan({ run: "cut", channel: "edge.color" })), "E_BAD_COMMAND");
     });
 
     it("refuses a result with nothing per element on it", () => {

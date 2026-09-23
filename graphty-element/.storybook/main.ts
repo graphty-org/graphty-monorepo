@@ -55,7 +55,13 @@ const config: StorybookConfig = {
                 // Pre-bundled rather than discovered: a story that reaches an element through a
                 // lit directive pulls this in on first render, and a dependency discovered mid-run
                 // makes Vite reload the page under the test that is running.
-                include: ["lit/directives/ref.js"],
+                include: [
+                    "lit/directives/ref.js",
+                    // The element's Babylon side-effect imports (test/packaging/babylon-side-effects.test.ts).
+                    "@babylonjs/core/Meshes/instancedMesh",
+                    "@babylonjs/core/Culling/ray",
+                    "@babylonjs/core/Animations/animatable",
+                ],
             },
             resolve: {
                 alias: {

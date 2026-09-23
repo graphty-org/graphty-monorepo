@@ -29,6 +29,17 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
+/**
+ * Babylon modules the element imports only for their side effects (see
+ * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
+ * dependency Vite discovers mid-run makes it reload the page under the test that is running.
+ */
+const BABYLON_SIDE_EFFECTS = [
+    "@babylonjs/core/Meshes/instancedMesh",
+    "@babylonjs/core/Culling/ray",
+    "@babylonjs/core/Animations/animatable",
+];
+
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
     "test/browser/xr-session.test.ts",
@@ -188,6 +199,7 @@ export default defineConfig({
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
                     },
                 },
+                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
                     // PAINTED -- pixels in the frame buffer, the order style layers landed in, whether a
@@ -259,7 +271,7 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
-                optimizeDeps: { include: ["iwer"] },
+                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
                 test: {
                     name: "xr",
                     setupFiles: ["./test/setup.ts"],
@@ -277,7 +289,7 @@ export default defineConfig({
             {
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
-                optimizeDeps: { include: ["iwer"] },
+                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
                 test: {
                     name: "browser",
                     setupFiles: ["./test/setup.ts"],
@@ -335,7 +347,7 @@ export default defineConfig({
                 },
             },
             {
-                optimizeDeps: { include: ["iwer"] },
+                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
                 test: {
                     name: "interactions",
                     setupFiles: ["./test/setup.ts"],

@@ -7,16 +7,19 @@
  * from here reproduces the defect. The check is then run on the lane's real adapter, where it must pass, and
  * what it cost is printed rather than asserted. Finally the whole gate is driven end to end through the
  * package's own sabotage seam: the shipped scan-block body is replaced with one that writes the wrong block
- * total, and a public algorithm on that device must refuse with E_DEVICE_INCORRECT instead of returning a
- * number.
+ * total, and a public algorithm -- and a layout simulation -- on that device must refuse with
+ * E_DEVICE_INCORRECT instead of returning a number or a position. A second mutation replaces the same body
+ * with one that does not compile, because a check that could not RUN must report what actually happened
+ * rather than accusing the device of computing incorrectly.
  */
 
-import { fromEdgeArrays } from "@graphty/graph-format";
+import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 
 import { degree } from "../../src/algorithms/degree.js";
 import { hasErrorCode, isWebGpuGraphError } from "../../src/errors.js";
+import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import { assertDeviceComputes, checkScanWords, verifyDevice } from "../../src/primitives/verify.js";
-import { SABOTAGE, withSabotage } from "../helpers/sabotage.js";
+import { type Mutation, SABOTAGE, withSabotage } from "../helpers/sabotage.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
 /** The poison word the check writes into every output slot before the dispatch. */
@@ -35,6 +38,19 @@ function correctRun(count: number): { readonly words: Uint32Array; readonly tota
         running = (running + i + 1) >>> 0;
     }
     return { words, total: running };
+}
+
+/**
+ * A three-node path, the smallest graph both a public algorithm and a layout simulation accept.
+ * @returns the snapshot
+ */
+function tinyPath(): GraphSnapshot {
+    return fromEdgeArrays({
+        directed: false,
+        nodeCount: 3,
+        src: new Uint32Array([0, 1]),
+        dst: new Uint32Array([1, 2]),
+    });
 }
 
 describe("the verdict of the device self-check (a fabricated result, no device)", () => {
@@ -116,6 +132,30 @@ describe("the device self-check on this lane's adapter", () => {
             ctx.dispose();
         }
     });
+
+    it("a layout settles the check once, at load(): ten batches later it is still the same settled record", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "device-check/per-load" });
+        const snapshot = tinyPath();
+        try {
+            // the record every later caller must get back: a second scan would be a different object
+            const settled = await verifyDevice(ctx);
+            const sim = createForceAtlas2(ctx, { repulsion: "exact", seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
+            try {
+                sim.load(snapshot, new Float32Array(3 * snapshot.nodeCount).fill(NaN));
+                for (let i = 0; i < 5; i++) {
+                    await sim.step(2);
+                }
+                expect(sim.iterationsDone).toBe(10);
+                expect(await verifyDevice(ctx)).toBe(settled);
+            } finally {
+                sim.dispose();
+            }
+        } finally {
+            ctx.release(snapshot);
+            ctx.dispose();
+        }
+    });
 });
 
 describe("the gate end to end, through the sabotage seam (spec 11.9 item 1)", () => {
@@ -163,13 +203,77 @@ describe("the gate end to end, through the sabotage seam (spec 11.9 item 1)", ()
             expect(thrown.message).toContain(ctx.caps.description);
 
             // and the gate is wired: a public algorithm on that device refuses instead of returning a number
-            const snapshot = fromEdgeArrays({
-                directed: false,
-                nodeCount: 3,
-                src: new Uint32Array([0, 1]),
-                dst: new Uint32Array([1, 2]),
-            });
+            const snapshot = tinyPath();
             await expect(degree(ctx, snapshot)).rejects.toMatchObject({ code: "E_DEVICE_INCORRECT" });
+            ctx.release(snapshot);
+        });
+    });
+
+    it("refuses a layout simulation on that device before one position is written back", async (t) => {
+        requireGpu(t);
+        const mutation = (SABOTAGE["scan-block"] ?? []).find((m) => m.name === "block-sum-from-lane-zero");
+        expect(mutation, "the block-sum-from-lane-zero mutation").toBeDefined();
+        if (mutation === undefined) {
+            return;
+        }
+        await withSabotage("scan-block", mutation, async (ctx) => {
+            const snapshot = tinyPath();
+            const sim = createForceAtlas2(ctx, { repulsion: "exact", seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
+            try {
+                const positions = new Float32Array(3 * snapshot.nodeCount).fill(NaN);
+                sim.load(snapshot, positions); // load() seeds the array; only a landed batch may overwrite it
+                const seeded = Float32Array.from(positions);
+                await expect(sim.step(1)).rejects.toMatchObject({ code: "E_DEVICE_INCORRECT" });
+                expect(sim.iterationsDone).toBe(0);
+                // nothing the device computed reached the owner's array: the refusal came before the first batch
+                expect([...positions]).toEqual([...seeded]);
+                // and it keeps refusing: the settled verdict answers every later frame without a second scan
+                await expect(sim.step(1)).rejects.toMatchObject({ code: "E_DEVICE_INCORRECT" });
+                expect(sim.iterationsDone).toBe(0);
+            } finally {
+                sim.dispose();
+                ctx.release(snapshot);
+            }
+        });
+    });
+});
+
+describe("a check that could not RUN, through the same seam", () => {
+    /** The scan body made uncompilable: the check's machinery fails before any number comes back from the device. */
+    const UNCOMPILABLE: Mutation = Object.freeze({
+        name: "scan-block-does-not-compile",
+        find: "for (var s = 1u; s < WG; s = s * 2u) {",
+        replace: "for (var s = 1u; s < WG; s = s * noSuchIdentifier) {",
+        minFactor: 0,
+        test: "test/primitives/verify.test.ts",
+    });
+
+    it("reports its own error, retries rather than answering for the device, and is never E_DEVICE_INCORRECT", async (t) => {
+        requireGpu(t);
+        await withSabotage("scan-block", UNCOMPILABLE, async (ctx) => {
+            const first = await verifyDevice(ctx).then(
+                () => null,
+                (err: unknown) => err,
+            );
+            expect(hasErrorCode(first, "E_SHADER_COMPILE")).toBe(true);
+            expect(hasErrorCode(first, "E_DEVICE_INCORRECT")).toBe(false);
+            // the rejection was dropped from the memo, so the second call ran the check again: a fresh error
+            const second = await verifyDevice(ctx).then(
+                () => null,
+                (err: unknown) => err,
+            );
+            expect(hasErrorCode(second, "E_SHADER_COMPILE")).toBe(true);
+            expect(second).not.toBe(first);
+            // and the simulation surfaces THAT error, not an accusation against the device
+            const snapshot = tinyPath();
+            const sim = createForceAtlas2(ctx, { repulsion: "exact", seed: 7 });
+            try {
+                sim.load(snapshot, new Float32Array(3 * snapshot.nodeCount).fill(NaN));
+                await expect(sim.step(1)).rejects.toMatchObject({ code: "E_SHADER_COMPILE" });
+            } finally {
+                sim.dispose();
+                ctx.release(snapshot);
+            }
         });
     });
 });

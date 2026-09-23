@@ -1346,7 +1346,6 @@ export class ForceSimulation<
     private async submitBatch(record: PendingBatch): Promise<void> {
         try {
             await this.ready;
-            await assertDeviceComputes(this.ctx);
             await this.ctx.allocator.check();
         } catch (err) {
             this.finish(record);
@@ -2038,7 +2037,16 @@ export class ForceSimulation<
     }
 
     /**
-     * warm(model.specs()) then model.bind(); the await re-checks that the load is current before binding.
+     * assertDeviceComputes() then warm(model.specs()) then model.bind(); the await re-checks that the load is
+     * current before binding.
+     *
+     * The device self-check sits HERE rather than in submitBatch (its first home) because this promise is the one
+     * submitBatch already awaits before every batch: the check is therefore settled before the simulation can
+     * submit a single iteration, yet costs the frame loop nothing per batch. An extra await on the per-batch path
+     * moves the moment a submission becomes visible to a step() issued in the same tick, which is precisely what
+     * coalescing is measured on (test/layouts/frame-loop.test.ts, "a coalesced step() returns the same promise").
+     * A device that computes incorrectly rejects this promise, so the first step() rejects E_DEVICE_INCORRECT
+     * before any position is written; a check that could not RUN rejects with its own error, unchanged.
      * @param resources - the resources
      * @param overrides - the merged override set
      * @param generation - the generation the bind belongs to
@@ -2048,6 +2056,7 @@ export class ForceSimulation<
         overrides: Readonly<Record<string, number | boolean>>,
         generation: number,
     ): Promise<void> {
+        await assertDeviceComputes(this.ctx);
         const subgroups = this.ctx.caps.features.has("subgroups");
         await this.ctx.pipelines.warm(this.model.specs(overrides, subgroups));
         if (this.stateValue !== "loaded" || generation !== this.generationValue) {

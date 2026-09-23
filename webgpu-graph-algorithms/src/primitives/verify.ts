@@ -24,9 +24,13 @@
  * exists for.
  *
  * WHERE IT RUNS. Lazily, at the first compute entry point a caller reaches, memoised per GPUDevice: the
- * algorithms (degree, connectedComponents, the power-iteration family), the layout simulations' batch submit and
- * calibrateLayout all await it, so a caller is covered whether the context was created, adopted through
- * `create({ device })` or adopted through `GpuContext.from`. It deliberately does NOT run in GpuContext.create:
+ * algorithms (degree, connectedComponents, the power-iteration family) and calibrateLayout await it on entry, and
+ * a layout simulation awaits it in the compile-and-bind promise `load()` starts -- the promise every batch and
+ * every debug run already awaits before it may submit. So a caller is covered whether the context was created,
+ * adopted through `create({ device })` or adopted through `GpuContext.from`, and a simulation refuses before its
+ * first iteration without the check sitting on the per-batch path, where an extra await would move the moment a
+ * submission becomes visible to a step() issued in the same tick and so change how the frame loop coalesces.
+ * It deliberately does NOT run in GpuContext.create:
  * a context that only compiles -- Dawn's null backend, which computes nothing by design -- must stay usable, and
  * `src/context.ts` may not import a primitive (the layer rule of spec 3.2).
  */

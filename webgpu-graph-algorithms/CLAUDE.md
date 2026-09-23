@@ -243,9 +243,11 @@ oracle or an invariant; every kernel test runs its kernel twice and asserts bitw
 `uncapturederror` fails the current test; fixture sizes scale with `gpuScale()` (1 on hardware, 1/50 on a
 software adapter). `acquireRaw()` / `acquire()` give a FRESH adapter per device because an adapter is consumed
 by its first `requestDevice` (spec 2.2 step 1). The device self-check (`src/primitives/verify.ts`) runs once per
-device at the FIRST algorithm or layout on it, so on a fresh context that first call compiles the two scan
-pipelines and maps two extra staging buffers: a test that counts pipelines or `mapAsync` calls must `await
-verifyDevice(ctx)` first and count from there (`test/layouts/fa2-options.test.ts`,
+device at the FIRST algorithm on it, or at a layout simulation's `load()` (inside the compile-and-bind promise
+every batch awaits -- never on the per-batch path, where an extra await changes when a second `step()` sees a
+batch in flight and so breaks `test/layouts/frame-loop.test.ts`'s coalescing case). On a fresh context that
+first call compiles the two scan pipelines and maps two extra staging buffers: a test that counts pipelines or
+`mapAsync` calls must `await verifyDevice(ctx)` first and count from there (`test/layouts/fa2-options.test.ts`,
 `test/algorithms/pagerank.test.ts` do). The one policy variable (D19), parsed and checked by
 `scripts/gpu-policy.js` for the Node setup, the browser setup and `scripts/gpu-report.js`:
 

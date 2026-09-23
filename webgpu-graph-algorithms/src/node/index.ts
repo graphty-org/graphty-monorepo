@@ -40,8 +40,8 @@ export interface NodeGpuHandle {
     dispose(): void;
 }
 
-/** The install hint of E_NO_WEBGPU (spec 2.5 item 4); P-ENV re-pins the version together with the devDependency. */
-const INSTALL_HINT = "install the optional peer dependency webgpu@0.4.0";
+/** The install hint of E_NO_WEBGPU (spec 2.5 item 4); re-pinned with the devDependency by the environment move (docs/decisions/G-ENV.md). */
+const INSTALL_HINT = "install the optional peer dependency webgpu@0.6.1";
 
 /** The shape of the `webgpu` module (its types.d.ts: create(options: string[]): GPU; globals: Object). */
 interface DawnModule {

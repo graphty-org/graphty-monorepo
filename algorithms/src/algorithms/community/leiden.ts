@@ -63,11 +63,18 @@ function leidenImpl(inputGraph: Map<string, Map<string, number>>, options: Leide
     let levelGraph = inputGraph;
     let iterations = 0;
 
+    // Whether this level is the ORIGINAL graph, started from the best partition so far rather than
+    // from singletons. Local moving on aggregated levels can only move whole super-nodes, so a node
+    // merged into the wrong community early could never leave it, and the answer could be beaten by
+    // moving one node. The paper (Traag et al. 2019) iterates until a pass over the original nodes
+    // changes nothing; returning to them once the levels settle is that pass.
+    let polishing = false;
+
     while (iterations < maxIterations) {
         iterations++;
 
         const weights = weighLevel(levelGraph);
-        const communities = singletonCommunities(levelGraph);
+        const communities = polishing ? new Map(bestCommunities) : singletonCommunities(levelGraph);
         const moved = moveNodesLocally(levelGraph, weights, communities, random, resolution, LOCAL_MOVE_PASSES);
 
         // Leiden's guarantee over Louvain: a community whose members are not connected to each
@@ -85,18 +92,32 @@ function leidenImpl(inputGraph: Map<string, Map<string, number>>, options: Leide
         }
 
         const modularity = calculateModularity(inputGraph, candidate, base.degrees, base.totalWeight, resolution);
+        const improved = modularity > bestModularity + threshold;
 
-        if (modularity <= bestModularity + threshold) {
-            break;
+        if (modularity > bestModularity) {
+            bestModularity = modularity;
+            bestCommunities = candidate;
         }
-
-        bestModularity = modularity;
-        bestCommunities = candidate;
 
         const distinct = new Set(communities.values()).size;
-        if (!moved || distinct === levelGraph.size) {
-            break;
+        const settled = polishing ? !improved : !improved || !moved || distinct === levelGraph.size;
+
+        if (settled) {
+            if (polishing) {
+                break;
+            }
+
+            // The levels have settled: go back to the original nodes, starting from the answer.
+            polishing = true;
+            levelGraph = inputGraph;
+            for (const node of inputGraph.keys()) {
+                placement.set(node, node);
+            }
+
+            continue;
         }
+
+        polishing = false;
 
         const aggregated = aggregateLevel(levelGraph, communities);
         for (const [original, levelNode] of placement) {
@@ -429,6 +450,11 @@ function moveNodesLocally(
     const totals = communityDegrees(communities, degrees);
     const nodes = [...graph.keys()];
     let movedEver = false;
+    // A fresh id for a node that does better on its own, the empty community the paper also offers.
+    let nextEmpty = 0;
+    for (const community of communities.values()) {
+        nextEmpty = Math.max(nextEmpty, community + 1);
+    }
 
     for (let pass = 0; pass < maxPasses; pass++) {
         const order = [...nodes];
@@ -450,6 +476,17 @@ function moveNodesLocally(
             let bestCommunity = current;
             let bestGain = 0;
 
+            // Leaving for an empty community: the target has no weight and no degree.
+            if (degreeOfCurrent > 0) {
+                const alone =
+                    -weightToCurrent / totalWeight +
+                    (resolution * degree * degreeOfCurrent) / (2 * totalWeight * totalWeight);
+                if (alone > bestGain) {
+                    bestGain = alone;
+                    bestCommunity = nextEmpty;
+                }
+            }
+
             for (const [community, weightToTarget] of neighborCommunities) {
                 if (community === current) {
                     continue;
@@ -470,6 +507,10 @@ function moveNodesLocally(
             }
 
             if (bestCommunity !== current) {
+                if (bestCommunity === nextEmpty) {
+                    nextEmpty++;
+                }
+
                 communities.set(node, bestCommunity);
                 totals.set(current, (totals.get(current) ?? 0) - degree);
                 totals.set(bestCommunity, (totals.get(bestCommunity) ?? 0) + degree);

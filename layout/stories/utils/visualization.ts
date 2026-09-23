@@ -4,6 +4,7 @@
  */
 
 import type { PositionMap } from "@graphty/layout";
+
 import type { GeneratedGraph, GraphEdge, GraphNode } from "./graph-generators.js";
 
 /**
@@ -26,10 +27,10 @@ function getPositionBounds(positions: PositionMap): {
     let maxY = -Infinity;
 
     for (const pos of posValues) {
-        if (pos[0] < minX) minX = pos[0];
-        if (pos[0] > maxX) maxX = pos[0];
-        if (pos[1] < minY) minY = pos[1];
-        if (pos[1] > maxY) maxY = pos[1];
+        if (pos[0] < minX) {minX = pos[0];}
+        if (pos[0] > maxX) {maxX = pos[0];}
+        if (pos[1] < minY) {minY = pos[1];}
+        if (pos[1] > maxY) {maxY = pos[1];}
     }
 
     // Handle case where all positions are the same

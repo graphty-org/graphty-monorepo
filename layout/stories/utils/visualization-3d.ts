@@ -7,7 +7,7 @@ import type { PositionMap } from "@graphty/layout";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import type { GeneratedGraph, GraphEdge, GraphNode } from "./graph-generators.js";
+import type { GeneratedGraph } from "./graph-generators.js";
 
 /**
  * Color palette for consistent 3D styling.
@@ -126,13 +126,13 @@ function getPositionBounds3D(positions: PositionMap): {
     let maxZ = -Infinity;
 
     for (const pos of posValues) {
-        if (pos[0] < minX) minX = pos[0];
-        if (pos[0] > maxX) maxX = pos[0];
-        if (pos[1] < minY) minY = pos[1];
-        if (pos[1] > maxY) maxY = pos[1];
+        if (pos[0] < minX) {minX = pos[0];}
+        if (pos[0] > maxX) {maxX = pos[0];}
+        if (pos[1] < minY) {minY = pos[1];}
+        if (pos[1] > maxY) {maxY = pos[1];}
         const z = pos[2] ?? 0;
-        if (z < minZ) minZ = z;
-        if (z > maxZ) maxZ = z;
+        if (z < minZ) {minZ = z;}
+        if (z > maxZ) {maxZ = z;}
     }
 
     // Handle case where all positions are the same
@@ -208,7 +208,7 @@ export function render3DGraph(
     for (let i = 0; i < graph.nodes.length; i++) {
         const node = graph.nodes[i];
         const pos = normalizedPositions[node.id];
-        if (!pos) continue;
+        if (!pos) {continue;}
 
         // Color based on node index for variety
         const color = new THREE.Color();
@@ -231,7 +231,7 @@ export function render3DGraph(
     for (const edge of graph.edges) {
         const sourcePos = normalizedPositions[edge.source];
         const targetPos = normalizedPositions[edge.target];
-        if (!sourcePos || !targetPos) continue;
+        if (!sourcePos || !targetPos) {continue;}
 
         const points = [
             new THREE.Vector3(sourcePos[0], sourcePos[1], sourcePos[2] ?? 0),
@@ -311,7 +311,7 @@ export function update3DPositions(
             ) as THREE.Mesh | undefined;
 
             if (sourceMesh && targetMesh) {
-                const geometry = (line as THREE.Line).geometry;
+                const {geometry} = (line as THREE.Line);
                 const positions = geometry.attributes.position;
                 positions.setXYZ(
                     0,

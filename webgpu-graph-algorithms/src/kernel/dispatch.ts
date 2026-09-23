@@ -147,16 +147,27 @@ export function planGridStride(items: number, wg: number, caps: PlanCaps, maxGro
 }
 
 /**
- * P4 (spec 5.4): the (x, y, 1) args a device-side finalize kernel writes for a count. P1-P3: throws E_UNSUPPORTED { feature: "planIndirect" } (lead f).
- * @param count - the device-side count
- * @param wg - the workgroup size
+ * P4 (spec 5.4): the (x, y, 1) args the device-side finalize kernel writes for a count -- plan1d's rule applied to a
+ * u32 count through the same grid() as plan1d and plan2d, so the host twin and the kernel cannot drift; the kernel
+ * (src/wgsl/indirect-finalize.wgsl.ts) mirrors exactly this arithmetic. `items` of the plan is the count. A count
+ * outside [0, 2^32) is E_INVALID_ARGUMENT (the device holds it as a u32); for any u32 count y <= 1,025, so
+ * E_TOO_LARGE is unreachable here.
+ * @param count - the device-side count (a u32)
+ * @param wg - the workgroup size (a power of two)
  * @param caps - the capability table
+ * @returns the plan
  */
 export function planIndirect(count: number, wg: number, caps: PlanCaps): DispatchPlan {
-    throw new WebGpuGraphError("E_UNSUPPORTED", "planIndirect lands with the indirect dispatch of P4 (spec 5.4)", {
-        feature: "planIndirect",
-        hint: `count ${count}, wg ${wg}, limit ${perDimension(caps)}`,
-    });
+    assertCount("count", count);
+    if (count > 0xffffffff) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `count must fit a u32, got ${count}`, {
+            argument: "count",
+            value: count,
+            expected: "an integer in [0, 2^32)",
+        });
+    }
+    assertWorkgroupSize(wg);
+    return grid(Math.ceil(count / wg), count, caps);
 }
 
 /**

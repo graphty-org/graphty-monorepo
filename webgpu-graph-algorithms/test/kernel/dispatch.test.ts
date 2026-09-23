@@ -1,7 +1,7 @@
 /**
  * Dispatch planning (spec 5.2, contract 3.9; 5.5 row dispatch.test.ts): the 16,776,960 rule with wg 256 (NOT 2^24),
- * the empty plan, the 2D form, E_TOO_LARGE above 65,535^2 groups, the `planIndirect` E_UNSUPPORTED stub (the only one
- * left after P7), the grid-stride cap of P7, and the same plans
+ * the empty plan, the 2D form, E_TOO_LARGE above 65,535^2 groups, `planIndirect` (P4: plan1d's rule on a u32 count),
+ * the grid-stride cap of P7, and the same plans
  * from every capability table (no dependence on subgroup sizes). Pure: no device.
  */
 
@@ -159,12 +159,14 @@ describe("groupsOf", () => {
     });
 });
 
-describe("the P1-P3 stubs", () => {
-    it("planIndirect throws E_UNSUPPORTED { feature: 'planIndirect' } (lead f)", () => {
-        const err = catchError(() => planIndirect(1000, WG, CAPS_SPEC_DEFAULT));
-        expect(err.code).toBe("E_UNSUPPORTED");
-        expect(err.details.feature).toBe("planIndirect");
-        expect(err.details.option).toBeUndefined();
+describe("planIndirect (spec 5.4; P4)", () => {
+    it("planIndirect is plan1d's rule on a count: 1D up to 16,776,960 items, then x = 65,535 with y = ceil(groups / 65,535); count 0 -> x 0; a non-u32 count -> E_INVALID_ARGUMENT", () => {
+        for (const count of [0, 1, 255, 256, 257, 4097, MAX_1D_ITEMS, MAX_1D_ITEMS + 1, 4_000_000]) {
+            expect(planIndirect(count, WG, CAPS_SPEC_DEFAULT)).toEqual(plan1d(count, WG, CAPS_SPEC_DEFAULT));
+        }
+        expect(planIndirect(0xffffffff, WG, CAPS_SPEC_DEFAULT).y).toBe(257);
+        expect(catchError(() => planIndirect(2 ** 32, WG, CAPS_SPEC_DEFAULT)).code).toBe("E_INVALID_ARGUMENT");
+        expect(catchError(() => planIndirect(-1, WG, CAPS_SPEC_DEFAULT)).code).toBe("E_INVALID_ARGUMENT");
     });
 });
 

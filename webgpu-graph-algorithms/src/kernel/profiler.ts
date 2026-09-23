@@ -4,8 +4,10 @@
  * every CommandBatch pass; `resolveInto(batch)` records the resolve plus a copy into the batch's
  * staging slot and `timings(bytes, request)` decodes `{ label, ns }` per pass from the batch's
  * readback bytes. Chromium quantises timestamps to 100 us (`quantised: true`); Dawn-node reports
- * 1,024 ns ticks (spec 2.6). The profiler never throws: a full query set drops timings and a device
- * without the feature disables it. Slot pairs are handed out in order and the cursor restarts at 0
+ * 1,024 ns ticks (spec 2.6). The profiler never throws: a full query set drops the timings of the
+ * passes past the budget and marks the batch's request `partial(request)` so a caller summing the
+ * rows into a duration falls back to wall time; a device without the feature disables it. Slot
+ * pairs are handed out in order and the cursor restarts at 0
  * after every resolve: queue order guarantees the resolve of batch A reads its slots before batch B
  * overwrites them, and one resolve buffer suffices for the same reason.
  */
@@ -36,8 +38,10 @@ export class Profiler {
     private readonly querySet: GPUQuerySet | null;
     private readonly resolveBuffer: GPUBuffer | null;
     private readonly labels = new WeakMap<ReadbackRequest, readonly string[]>();
+    private readonly partialRequests = new WeakSet<ReadbackRequest>();
     private pending: PendingPass[] = [];
     private cursor = 0;
+    private refused = 0;
     private destroyed = false;
 
     /**
@@ -69,12 +73,17 @@ export class Profiler {
     }
 
     /**
-     * The timestampWrites descriptor for a new pass, or undefined when disabled / out of slots.
+     * The timestampWrites descriptor for a new pass, or undefined when disabled / out of slots. A pass refused for
+     * want of slots is counted, and the next `resolveInto()` marks its request partial.
      * @param label - the pass name reported by `timings()`
      * @returns the descriptor a CommandBatch puts on beginComputePass, or undefined
      */
     beginPass(label: string): GPUComputePassTimestampWrites | undefined {
-        if (this.querySet === null || this.destroyed || this.cursor + 2 > this.slots) {
+        if (this.querySet === null || this.destroyed) {
+            return undefined;
+        }
+        if (this.cursor + 2 > this.slots) {
+            this.refused++;
             return undefined;
         }
         const begin = this.cursor;
@@ -100,9 +109,23 @@ export class Profiler {
             request,
             this.pending.map((pass) => pass.label),
         );
+        if (this.refused > 0) {
+            this.partialRequests.add(request);
+        }
         this.pending = [];
         this.cursor = 0;
+        this.refused = 0;
         return request;
+    }
+
+    /**
+     * Whether a pass of the batch was refused a slot pair, so `timings()` covers only its first slots / 2 passes
+     * and their sum is not the batch's duration.
+     * @param request - the request `resolveInto()` returned
+     * @returns true when at least one pass of that batch went untimed
+     */
+    partial(request: ReadbackRequest): boolean {
+        return this.partialRequests.has(request);
     }
 
     /**
@@ -138,6 +161,7 @@ export class Profiler {
         this.destroyed = true;
         this.pending = [];
         this.cursor = 0;
+        this.refused = 0;
         if (this.querySet !== null) {
             this.querySet.destroy();
         }

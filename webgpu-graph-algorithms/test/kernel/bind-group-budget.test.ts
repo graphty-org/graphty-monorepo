@@ -21,7 +21,7 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     reduce: 2,
     fill: 1,
     "segmented-reduce": 5,
-    "fa2-stats-finalize": 3,
+    "fa2-stats-finalize": 5,
     "fa2-attraction": 6,
     "fa2-repulsion-exact": 6,
     "fa2-speed-finalize": 3,
@@ -34,6 +34,19 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "wcc-link-edges": 3,
     "wcc-compress": 1,
     "wcc-sample": 2,
+    "indirect-finalize": 2,
+    "scan-block": 3,
+    "scan-add": 2,
+    histogram: 2,
+    "counting-scatter": 4,
+    "radix-hist": 2,
+    "radix-scatter": 5,
+    "grid-cell-key": 4,
+    "grid-centroid": 6,
+    "grid-centroid-hub": 6,
+    "grid-downsample": 1,
+    "grid-far-field": 5,
+    "grid-near-field": 8,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

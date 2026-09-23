@@ -51,11 +51,11 @@ export const SEGMENTED_REDUCE_SNIPPETS: Readonly<{
     commented: "v = weight; // target, weights[arc], f32(nbr): a comment may say anything",
 });
 
-/** The value set of every u32 override the registry declares; a new u32 override name is an explicit edit here (the builder throws otherwise). TIER is 0 only until P4 adds the mid / high tiers. */
+/** The value set of every u32 override the registry declares; a new u32 override name is an explicit edit here (the builder throws otherwise). TIER 0 / 1 / 2 are the three degree tiers of P4 (PD-6). */
 const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined>> = Object.freeze({
     OP: [0, 1, 2],
     DTYPE: [0, 1, 2],
-    TIER: [0],
+    TIER: [0, 1, 2],
     SWING_MODE: [0, 1],
     GRAVITY_CENTER: [0, 1],
     NORM_MODE: [0, 1, 2, 3, 4],
@@ -68,18 +68,24 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * The case count of each phase's kernels under the rule above, pinned by test/kernel/wgsl-compile.test.ts (P5's
  * PD-9 arithmetic: every entry is 1 default case + the full product of its axes):
  * P1 = degree 5 + reduce 19 + fill 1 + K3 25 (1 + 2 SWING_MODE x 2 STRONG_GRAVITY x 2 GRAVITY_CENTER x 3 LAW) +
- * K4 3; P2 = segmented-reduce 52 (4 snippets x (1 + 3 OP x 1 TIER x 4 pairs)); P3 = K1 4 (1 + 3 STATS_MODE) +
- * K2 49 (1 + 2 USE_PERM x 2 HAS_WEIGHTS x 2 LINLOG x 2 DISTRIBUTED x 1 TIER x 3 LAW) + K5 7 (1 + 2 SWING_MODE x
- * 3 APPLY) + toScene 1; P7 = spmv-pull 17 (defaults + USE_PERM x HAS_WEIGHTS x HAS_PERSONALIZATION x USE_DANGLING)
+ * K4 3; P2 = segmented-reduce 148 (4 snippets x (1 + 3 OP x 3 TIER x 4 pairs)); P3 = K1 4 (1 + 3 STATS_MODE) +
+ * K2 145 (1 + 2 USE_PERM x 2 HAS_WEIGHTS x 2 LINLOG x 2 DISTRIBUTED x 3 TIER x 3 LAW) + K5 7 (1 + 2 SWING_MODE x
+ * 3 APPLY) + toScene 1; P7 = spmv-pull 49 (defaults + USE_PERM x HAS_WEIGHTS x HAS_PERSONALIZATION x USE_DANGLING x
+ * 3 TIER)
  * + pr-scale 6 + pr-finalize 6 (defaults + 5 NORM_MODE values each) + wcc-link-sample 5 + wcc-link-edges 1 +
- * wcc-compress 1 + wcc-sample 1. The LAW != 0 x LINLOG / DISTRIBUTED combinations compile and no factory emits
- * them: the matrix is a superset by design.
+ * wcc-compress 1 + wcc-sample 1; P4 = indirect-finalize 1 + scan-block 1 + scan-add 1 + histogram 1 + counting-scatter 1 +
+ * radix-hist 1 + radix-scatter 1 + grid-cell-key 1 + grid-centroid 1 + grid-centroid-hub 1 + grid-downsample 1 +
+ * grid-far-field 4 (1 + 3 LAW) + grid-near-field 25 (1 + 2 SWING_MODE x 2 STRONG_GRAVITY x 2 GRAVITY_CENTER x 3
+ * LAW; P4-T13). The
+ * LAW != 0 x LINLOG / DISTRIBUTED combinations compile
+ * and no factory emits them: the matrix is a superset by design.
  */
-export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P7", number>> = Object.freeze({
+export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" | "P7", number>> = Object.freeze({
     P1: 53,
-    P2: 52,
-    P3: 61,
-    P7: 37,
+    P2: 148,
+    P3: 157,
+    P4: 40,
+    P7: 69,
 });
 
 /** The standard overrides the composer fills from the device; never part of a variant's identity. */

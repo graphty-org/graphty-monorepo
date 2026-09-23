@@ -13,6 +13,8 @@ export const MAX_WORKGROUPS_PER_DIM = 65535;
 export const MAX_1D_ITEMS = MAX_WORKGROUPS_PER_DIM * WORKGROUP_SIZE;
 /** The largest u32 (the `min` identity of the u32 reduce); interpolated into the prelude as `U32_MAX` so no body types the literal (contract 4.1). */
 export const U32_MAX = 0xffffffff;
+/** The bins of one radix-sort pass, 2^8 (spec 6 row 6; P4 PD-5: 8 bits per pass); interpolated into the prelude as `RADIX_BINS` and `RADIX_DIGIT_MASK` (= bins - 1) so no body types the literal. */
+export const RADIX_BINS = 256;
 /** Arc-window boundaries are multiples of 64 arcs = 256 bytes (design 10.6). */
 export const ARC_WINDOW_ALIGN = 64;
 /** Storage-binding offset alignment the package always honours (spec 2.6): the graph-format arena is 256-aligned. */
@@ -20,14 +22,30 @@ export const STORAGE_ALIGN = 256;
 /** Stride of one UniformRing slot: minUniformBufferOffsetAlignment is 256 on every runtime the package targets (spec 5.3). */
 export const UNIFORM_SLOT_BYTES = 256;
 /**
- * Exact-tier crossover default, re-fixed at G3 by the spec 7.8 rule (spec Q-6; docs/decisions/G3.md section 3): the
- * largest rung of the T-4 ladder (1k / 4k / 8k / 16k / 32k / 65k, E = 10n, 2D) with <= 4 ms per iteration, rounded down
- * to a power of two. Measured on the RTX 4070 SUPER under Dawn-node: benchmarks/results/nvidia-lovelace-driver580.json,
- * session 2026-09-16T02:07:45.933Z, the "ms/iteration (profiler)" rows (the GPU time of the iteration's passes at the
- * card's working clock; the step(1) wall rows beside them include the 12n readback): 2.560 ms at 32k, 8.405 ms at 65k.
- * The rule's second clause -- not slower than the grid tier at the same n -- has no grid tier to compare with in P3 and
- * is re-checked at G4 (spec 7.8). A consumer whose GPU differs (integrated, Apple, T4) passes its own value through
- * createAccelerator(ctx, { layout: { exactMaxNodes } }); P4's calibrateLayout(ctx) measures it.
+ * Exact-tier crossover default, re-fixed at G4 by the spec 7.8 rule in full (spec Q-6; docs/decisions/G3.md section 3
+ * for the budget clause, docs/decisions/G4.md section 7 for the re-check): the largest rung of the T-4 ladder (1k / 4k /
+ * 8k / 16k / 32k / 65k, E = 10n, 2D) with <= 4 ms per iteration AND not slower than the grid tier at the same n (the
+ * `layout-grid` 2D rows: the shared rungs 32k / 65k and the re-check rungs 1k / 4k / 8k / 16k the group runs so every
+ * exact rung has a grid row), rounded down to a power of two. Measured on the RTX 4070 SUPER under Dawn-node:
+ * benchmarks/results/nvidia-lovelace-driver580.json, session 2026-09-21T06:15:17.027Z, the "ms/iteration (profiler)"
+ * rows of layout-exact and the "grid ms/iteration (profiler) ... 2D" rows of layout-grid (the GPU time of the
+ * iteration's passes at the card's working clock), exact / grid ms per iteration: 1k 0.102 / 0.290, 4k 0.262 / 0.188,
+ * 8k 0.484 / 0.211, 16k 1.064 / 0.225, 32k 2.579 / 0.298, 65k 8.450 / 0.409. The grid tier's cost is a near-constant
+ * ~0.19-0.3 ms floor (its sort, scan and pyramid passes) up to 32k, so the exact tier wins only at 1k and the rule's
+ * answer is 1024 (32768 under the budget clause alone, the G3 value; 16384 was the P4-T14 draft's value, which only
+ * evaluated the grid clause at 32k / 65k and was not a measurement). calibrateLayout's finer probe on the same card
+ * (tmp/p4/t14-review/calibrate-defaults.log: exact 0.150 vs grid 0.190 ms at 2048) puts the true crossover between
+ * 2k and 4k; the ladder has no 2k rung, and the design's basis (cosmos switches at 4,096) is within 0.07 ms per
+ * iteration of the rule's value, so the choice among 1k / 2k / 4k is an accuracy preference (the exact tier is the
+ * oracle), not a speed one. OWNER DECISION G4-D1 (docs/decisions/G4.md section 7, rows G4-D1 / G4-F9): the constant
+ * KEEPS the G3 value 32768 while the accuracy work G4-F1 leaves is open -- G4-F1 (the grid tier's exact-vs-grid RMS
+ * on the clumpy and degenerate fixtures) closed on 2026-09-21 by the owner's asserted / printed split, G4-F2 (the
+ * unbiasedness item) the same day by its re-scope to the whole-field ratio, and the far field's accuracy on those
+ * fixtures is the follow-up -- because "auto" is the default every consumer sees and the exact tier is the accurate
+ * one; the rule's answer on the dev box (1024) is recorded, not shipped, until that work closes and the value is
+ * re-fixed. A
+ * consumer whose GPU differs (integrated, Apple, T4) passes its own value through
+ * createAccelerator(ctx, { layout: { exactMaxNodes } }); calibrateLayout(ctx) measures it.
  */
 export const EXACT_MAX_NODES = 32768;
 /** Default number of MAP_READ staging buffers in the Readback ring (spec 4.4). */
@@ -184,3 +202,15 @@ export const SE_DEFAULTS: Readonly<{
     iterationsPerStep: 1,
     maxInFlight: 2,
 });
+/** The smallest finest grid side `G` (spec 7.7 geometry table: `clamp(nextPow2(2 n^(1/dim)), 8, gridMax)`; P4 PD-9). */
+export const GRID_MIN_SIDE = 8;
+/** The coarsest pyramid level's side (spec 7.7: "levels (coarsest 4 per axis)", `levels = log2(G / 4) + 1`). */
+export const GRID_COARSEST_SIDE = 4;
+/** A cell with more than this many entries is summed by a workgroup (G4b) instead of the thread-per-cell loop of G4 (spec 7.7 G4: `count > 1024`). */
+export const GRID_HUB_CELL = 1024;
+/** The extent floor of spec 7.7: `cellSize = max(extent, 1e-6) / G`, so an all-coincident load never divides by zero. */
+export const GRID_EXTENT_FLOOR = 1e-6;
+/** The bbox margin of spec 7.7: `bboxExtent` is the largest axis of `state.min / max` "with a 1% margin". */
+export const GRID_BBOX_MARGIN = 1.01;
+/** The key width the grid always sorts with (P4 PD-5): three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
+export const GRID_SORT_BITS = 24;

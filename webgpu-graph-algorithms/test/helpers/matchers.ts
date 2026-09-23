@@ -134,6 +134,31 @@ export function flooredRelError(
 }
 
 /**
+ * The whole-field relative error over stride-3 vectors: the Euclidean norm of `gpu - cpu` over the norm of `cpu`,
+ * i.e. the error measured against the force scale of the layout rather than per node. A cancelling configuration
+ * (a line, a settled layout, the members of a hub cell near its centroid) has small per-node forces and a large
+ * floored per-node error; this number says whether the absolute error is small against the forces that move the
+ * layout. The metric of the unbiasedness item (G4 item 2 after G4-F2): the S-seed mean of a sampled force field
+ * converges to the exact field in this norm as 1 / sqrt(S) when the estimator is unbiased, and plateaus otherwise.
+ * @param gpu - the GPU forces, 3 per node
+ * @param cpu - the reference forces, 3 per node
+ * @returns |gpu - cpu| / |cpu| (0 when both are zero, Infinity when only the reference is)
+ */
+export function fieldRelError(gpu: ArrayLike<number>, cpu: ArrayLike<number>): number {
+    expect(gpu.length, "fieldRelError: length").toBe(cpu.length);
+    let e2 = 0;
+    let f2 = 0;
+    for (let i = 0; i < cpu.length; i++) {
+        e2 += (gpu[i] - cpu[i]) ** 2;
+        f2 += cpu[i] ** 2;
+    }
+    if (f2 > 0) {
+        return Math.sqrt(e2 / f2);
+    }
+    return e2 > 0 ? Number.POSITIVE_INFINITY : 0;
+}
+
+/**
  * max_i |actual[i] - expected[i]| / max(|expected[i]|, absFloor).
  * @param actual - the values under test
  * @param expected - the reference values

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { INVALID_INDEX } from "@graphty/graph-format";
 
-import { WORKGROUP_SIZE } from "../../src/constants.js";
+import { RADIX_BINS, WORKGROUP_SIZE } from "../../src/constants.js";
 import { ShaderStage } from "../../src/device/webgpu-constants.js";
 import { isWebGpuGraphError, type WebGpuGraphError } from "../../src/errors.js";
 import {
@@ -111,6 +111,9 @@ describe("the prelude", () => {
         expect(PRELUDE_WGSL).toContain("const FA2_COINCIDENT_SQ: f32 = 1e-8;");
         expect(PRELUDE_WGSL).toContain("const FA2_FLAG_FIRST: u32 = 1u;");
         expect(PRELUDE_WGSL).toContain("const F32_MAX: f32 = 0x1.fffffep+127;");
+        expect(PRELUDE_WGSL).toContain(`const RADIX_BINS: u32 = ${RADIX_BINS}u;`);
+        expect(PRELUDE_WGSL).toContain("const RADIX_BINS: u32 = 256u;");
+        expect(PRELUDE_WGSL).toContain("const RADIX_DIGIT_MASK: u32 = 255u;");
         expect(PRELUDE_WGSL).toContain(`override WG: u32 = ${WORKGROUP_SIZE}u;`);
         expect(PRELUDE_WGSL).toContain("override USE_PERM: bool = false;");
         expect(PRELUDE_WGSL).toContain("override HAS_WEIGHTS: bool = false;");
@@ -288,7 +291,7 @@ describe("composeWgsl", () => {
             CAPS_SPEC_DEFAULT,
         );
         expect(reading.constants).toEqual({ WG: 256, FLAG: true });
-        // The registry: degree never reads HAS_WEIGHTS, the thread-per-row fa2-attraction never reads TIER.
+        // The registry: degree never reads HAS_WEIGHTS; fa2-attraction reads TIER (the tier switch of its entry point, P4).
         const degree = composeWgsl(kernelSpec("degree", { USE_PERM: false, HAS_WEIGHTS: false }), CAPS_SPEC_DEFAULT);
         expect(Object.keys(degree.constants)).not.toContain("HAS_WEIGHTS");
         expect(Object.keys(degree.constants)).toContain("USE_PERM");
@@ -306,6 +309,7 @@ describe("composeWgsl", () => {
             "DISTRIBUTED",
             "HAS_WEIGHTS",
             "LINLOG",
+            "TIER",
             "USE_PERM",
             "WG",
         ]);

@@ -2,7 +2,8 @@
  * The thread-per-row segmentedReduce differential test (contract 5.5 P2; spec 6 row 3, 11.3, 11.9 item 4): the
  * oracle's hand-computed pins, every named fixture and a row-count ladder vs segmentedReduceOracle for sum / min /
  * max with `v = weight;` and `v = 1.0;`, empty rows and arcCount 0 writing the identity element, the accumulate
- * mode, both twins in-process, two runs bitwise, the P2 rejections (tiers, windowed cores, bad snippets), and the
+ * mode, both twins in-process, two runs bitwise, the windowed leg over a FAKED binding limit (P4-T7: rows split
+ * across windows, untiered and over the degree tiers), the P2 rejections (bad cores, bad snippets), and the
  * weighted f32 sum over random1k as the cross-adapter noise fixture compared within the derived floor.
  */
 
@@ -12,7 +13,7 @@ import { type TestContext } from "vitest";
 import { MAX_1D_ITEMS } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError, type WebGpuGraphError } from "../../src/errors.js";
-import { type CoreBinding } from "../../src/memory/residency.js";
+import { type CoreBinding, GraphResidency } from "../../src/memory/residency.js";
 import { type ReduceOp } from "../../src/primitives/reduce.js";
 import {
     type DegreeTiers,
@@ -20,6 +21,7 @@ import {
     type SegmentedReduceOptions,
     type SegmentedReducePlanner,
 } from "../../src/primitives/segmented-reduce.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
 import { withContext } from "../helpers/device.js";
 import { fixture, pathEdges, randomEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
 import { expectAllClose, expectBitwiseEqual, maxRelError } from "../helpers/matchers.js";
@@ -40,6 +42,8 @@ import {
     SR_ABS_FLOOR,
     testReduceScope,
     weightedRandom,
+    windowedBindingLimit,
+    windowedHub,
     worstFactor,
 } from "../helpers/segmented-reduce.js";
 import { F32_MAX, segmentedReduceOracle } from "../oracle/segmented-reduce.js";
@@ -315,7 +319,7 @@ describe("segmentedReduce thread-per-row (GPU)", () => {
         ctx.release(s);
     });
 
-    it("USE_PERM is false in every P2 pipeline key; tiers !== null -> E_UNSUPPORTED { feature: segmentedReduce.tiers }", async (t) => {
+    it("USE_PERM is false and TIER 0 in every pipeline key WITHOUT tiers; prepareSegmentedReduce accepts tiers (the tier results are tiers.test.ts's)", async (t) => {
         const ctx = await context(t);
         const { snapshot } = fixture("karate", gpuScale());
         await runSegmentedReduce(ctx, snapshot, "sum", ONE);
@@ -333,27 +337,72 @@ describe("segmentedReduce thread-per-row (GPU)", () => {
         expect(so[4]).toBe(snapshot.nodeCount);
         const tiers: DegreeTiers = { perm: view.bindings.perm, segmentOffsets: [so[0], so[1], so[2], so[3], so[4]] };
         const scope = testReduceScope(ctx);
-        const error = await expectRejection(
-            prepareSegmentedReduce(scope, core, { op: "sum", valueSnippet: ONE, tiers }),
-            "E_UNSUPPORTED",
-        );
-        expect(error.details.feature).toBe("segmentedReduce.tiers");
+        const planner = await prepareSegmentedReduce(scope, core, { op: "sum", valueSnippet: ONE, tiers });
+        expect(planner.lastDispatches).toBe(0);
         scope.dispose();
         ctx.release(snapshot);
     });
 
-    it("a windowed core -> E_UNSUPPORTED; a core of the other weights pattern, a malformed rowPtr or a short out -> E_INVALID_ARGUMENT at record", async (t) => {
+    it("the windowed leg (P4-T7, PD-8): a 30k-arc hub row at a faked binding limit its rowPtr just fits is split across windows and equals the oracle, twice bitwise, untiered and over the degree tiers (TIER 0 / 1 / 2 with USE_PERM)", async (t) => {
+        const ctx = await context(t);
+        const snapshot = windowedHub();
+        const bindingLimit = windowedBindingLimit(snapshot);
+        expect(4 * (snapshot.rowPtr[1] - snapshot.rowPtr[0])).toBeGreaterThan(bindingLimit);
+        const so = snapshot.degreeOrder().segmentOffsets;
+        expect(so[1]).toBeGreaterThanOrEqual(1);
+        expect(so[2] - so[1]).toBeGreaterThanOrEqual(32);
+        const core = new GraphResidency(
+            ctx.device,
+            fakeCaps(ctx.caps, { maxStorageBufferBindingSize: bindingLimit }),
+            ctx.allocator,
+            { warnUnreleasedSnapshots: 2 },
+        );
+        const { windows } = core.core(snapshot);
+        core.destroyAll();
+        expect(windows).not.toBeNull();
+        expect(windows?.length).toBeGreaterThanOrEqual(8);
+        // the hub row is visited by many windows (its partial folds must accumulate)
+        const hubWindows = (windows ?? []).filter((w) => w.rowFirst <= 0 && w.rowLast >= 0);
+        expect(hubWindows.length).toBeGreaterThanOrEqual(2);
+        const keysBefore = new Set(ctx.pipelines.keys());
+        for (const op of OPS) {
+            const expected = segmentedReduceOracle(snapshot, oracleValueOf(WEIGHT), op);
+            const plain = await runSegmentedReduce(ctx, snapshot, op, WEIGHT, { bindingLimit });
+            const plainAgain = await runSegmentedReduce(ctx, snapshot, op, WEIGHT, { bindingLimit });
+            expectBitwiseEqual(plain, plainAgain, `windowed ${op} twice`);
+            expectAllClose(plain, expected, { rel: relTolerance(snapshot, op), abs: 0 }, `windowed ${op}`);
+            const tiered = await runSegmentedReduce(ctx, snapshot, op, WEIGHT, { bindingLimit, tiers: "auto" });
+            const tieredAgain = await runSegmentedReduce(ctx, snapshot, op, WEIGHT, { bindingLimit, tiers: "auto" });
+            expectBitwiseEqual(tiered, tieredAgain, `windowed tiered ${op} twice`);
+            expectAllClose(tiered, expected, { rel: relTolerance(snapshot, op), abs: 0 }, `windowed tiered ${op}`);
+            // the tiers change the fold order, not the terms
+            expectAllClose(
+                tiered,
+                plain,
+                { rel: relTolerance(snapshot, op), abs: 0 },
+                `windowed tiered vs plain ${op}`,
+            );
+        }
+        const tiers = new Set<number>();
+        for (const key of ctx.pipelines.keys()) {
+            if (keysBefore.has(key) || !key.startsWith("segmented-reduce|")) {
+                continue;
+            }
+            const overrides = JSON.parse(key.split("|")[1]) as { USE_PERM?: boolean; TIER?: number };
+            if (overrides.USE_PERM === true) {
+                tiers.add(overrides.TIER ?? 0);
+            }
+        }
+        expect([...tiers].sort((a, b) => a - b)).toEqual([0, 1, 2]);
+        ctx.release(snapshot);
+    });
+
+    it("a core of the other weights pattern, a malformed rowPtr or a short out -> E_INVALID_ARGUMENT at record", async (t) => {
         const ctx = await context(t);
         const weighted = weightedRandom(50, 100, 2);
         const unweighted = snapshotOf(randomEdges(50, 100, 2), { label: "unweighted-50" });
         const core = ctx.residency.core(weighted);
         const scope = testReduceScope(ctx);
-        const windowed: CoreBinding = { ...core, plan: "windowed", windows: [] };
-        const unsupported = await expectRejection(
-            prepareSegmentedReduce(scope, windowed, { op: "sum", valueSnippet: ONE, tiers: null }),
-            "E_UNSUPPORTED",
-        );
-        expect(unsupported.details.feature).toBe("segmentedReduce.windowed");
         const options: SegmentedReduceOptions = { op: "sum", valueSnippet: WEIGHT, tiers: null };
         const planner: SegmentedReducePlanner = await prepareSegmentedReduce(scope, core, options);
         const out = scope.scratch(4 * 50, "short-out");

@@ -3,11 +3,10 @@
  * fa2-lifecycle.test.ts pattern): dispose() leaves no live buffer (LeakCounter) and a batch maps at most two staging
  * slots; release(snapshot) during a live simulation makes the next step() reject E_RELEASED; device loss mid-run
  * rejects the pending step with E_DEVICE_LOST, disposes the simulation and leaves the context "lost"; E_NOT_LOADED
- * before load(); E_DISPOSED after dispose(); the grid tier is E_UNSUPPORTED { feature: "repulsion.grid" }.
+ * before load(); E_DISPOSED after dispose(). (The FR grid tier is P4-T13's grid-law.test.ts.)
  */
 
 import { GpuContext } from "../../src/context.js";
-import { WebGpuGraphError } from "../../src/errors.js";
 import { paritySnapshot, rejectionOf, startPositions } from "../helpers/fa2-parity.js";
 import { createFrSim, FR_BASE_OPTIONS, FR_TUNING, withFrSim } from "../helpers/fr-parity.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
@@ -52,36 +51,15 @@ describe("FR lifecycle (spec 11.3)", () => {
         counter.restore();
     });
 
-    it("E_NOT_LOADED before load(); the grid tier is E_UNSUPPORTED { feature: repulsion.grid } at load()", async (t) => {
+    it("E_NOT_LOADED before load()", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "fr-lifecycle/not-loaded" });
-        const s = paritySnapshot("karate", 1, false);
-        try {
-            await withFrSim(ctx, FR_BASE_OPTIONS, FR_TUNING, async (sim) => {
-                expect(sim.state).toBe("created");
-                const err = await rejectionOf(sim.step(1));
-                expect(err.code).toBe("E_NOT_LOADED");
-                expect(sim.state, "a rejected step leaves the state unchanged").toBe("created");
-            });
-            await withFrSim(ctx, FR_BASE_OPTIONS, { repulsion: "grid" }, async (sim) => {
-                let caught: unknown = null;
-                try {
-                    sim.load(s, startPositions(s, FR_BASE_OPTIONS, false));
-                } catch (err) {
-                    caught = err;
-                }
-                expect(caught).toBeInstanceOf(WebGpuGraphError);
-                if (caught instanceof WebGpuGraphError) {
-                    expect(caught.code).toBe("E_UNSUPPORTED");
-                    expect(caught.details.feature).toBe("repulsion.grid");
-                }
-                expect(sim.state, "a failed load() leaves the simulation created").toBe("created");
-                const err = await rejectionOf(sim.step(1));
-                expect(err.code).toBe("E_NOT_LOADED");
-            });
-        } finally {
-            ctx.release(s);
-        }
+        await withFrSim(ctx, FR_BASE_OPTIONS, FR_TUNING, async (sim) => {
+            expect(sim.state).toBe("created");
+            const err = await rejectionOf(sim.step(1));
+            expect(err.code).toBe("E_NOT_LOADED");
+            expect(sim.state, "a rejected step leaves the state unchanged").toBe("created");
+        });
     });
 
     it("release(snapshot) during a live simulation: the next step() rejects E_RELEASED; a load of another snapshot works; snapshots === 1", async (t) => {

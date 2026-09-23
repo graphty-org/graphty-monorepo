@@ -1,14 +1,109 @@
 /**
- * The option and value helpers every force model's resolver and stats decoder share (PD-7): moved verbatim from
- * src/layouts/forceatlas2.ts (P3-T2) so the Fruchterman-Reingold and spring-electrical models of P5 neither copy
- * them nor import a sibling model. Layout zone; imports errors.ts only.
+ * The option and value helpers every force model's resolver and stats decoder share (P5 PD-7): moved verbatim
+ * from src/layouts/forceatlas2.ts (P3-T2) so the Fruchterman-Reingold and spring-electrical models of P5 neither
+ * copy them nor import a sibling model; and, since P4-T6, the K2 tier binding and dispatch the three models share
+ * (`bindAttraction` / `recordAttraction`, P4 PD-7), so every model's bind() / recordIteration() calls one function
+ * instead of holding its own copy. Layout zone.
  */
 
 import { WebGpuGraphError } from "../errors.js";
+import { type DispatchPlan, plan1d } from "../kernel/dispatch.js";
+import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { type UniformValues } from "../kernel/struct-block.js";
+import { graphBindings, kernelSpec } from "../kernels.js";
+import { MID_TIER_LANES } from "../primitives/core-shape.js";
+import { type Binding } from "../types/memory.js";
+import { type ModelResources } from "./force-simulation.js";
 
 /** An override record as the kernel layer takes it. */
 export type Overrides = Readonly<Record<string, number | boolean>>;
+
+/** The K2 (`fa2-attraction`) dispatches of one iteration: `[kernel, bind group, plan]` in dispatch order TIER 2, TIER 1, TIER 0 (only the tiers whose row range is non-empty). */
+export interface AttractionBound {
+    readonly kernels: readonly (readonly [Kernel, BoundKernel, DispatchPlan])[];
+}
+
+/** The group-1 / group-2 bindings of K2 every tier dispatch shares: `pos` (vec4f, mass in w), `force` (stride-3 f32) and the Fa2Params slot of the UniformRing. @public the bindings parameter of bindAttraction */
+export interface AttractionBindings {
+    readonly pos: Binding;
+    readonly force: Binding;
+    readonly params: Binding;
+}
+
+/**
+ * Compiles (through the cache) and binds the `fa2-attraction` pipelines a load needs against the graph group and
+ * { pos, force, P } (P4 PD-7): TIER 0 always; TIER 1 when a row of degree 32..1023 exists (`[hiEnd, midEnd)` is
+ * non-empty); TIER 2 when a row of degree >= 1024 exists (`hiEnd > 0`). The dispatch plans are one workgroup per
+ * row for TIER 2, `WG / 32` rows per workgroup for TIER 1 and one row per thread for TIER 0, over each tier's row
+ * count (the K2 body reads its range from `Fa2Params.hiEnd` / `midEnd` / `tierStart` / `tierEnd`). The TIER 1 / 2
+ * pipelines compile on the first load that needs them (a one-time cost at that load); a model's `specs()` lists
+ * the TIER 0 spec only, because it has no `n` to know which tiers a load needs. A device whose workgroup size is
+ * below 32 cannot fold the mid tier: E_UNSUPPORTED { feature: "fa2-attraction.tiers" } when a permutation is bound.
+ * @param resources - the load's resources (core, tiers, weights, pipelines, caps)
+ * @param k2 - the K2 override record of the model (LINLOG / DISTRIBUTED / LAW plus USE_PERM / HAS_WEIGHTS; TIER is overwritten per dispatch)
+ * @param bindings - the group-1 / group-2 bindings shared by every tier
+ * @returns the bound dispatches in order TIER 2, 1, 0
+ */
+export async function bindAttraction(
+    resources: ModelResources,
+    k2: Overrides,
+    bindings: AttractionBindings,
+): Promise<AttractionBound> {
+    const { n, core, perm, tiers, weights, pipelines, caps } = resources;
+    const so = tiers?.segmentOffsets;
+    const hiEnd = so?.[1] ?? 0;
+    const midEnd = so?.[2] ?? 0;
+    const ranges: readonly { readonly tier: 0 | 1 | 2; readonly rows: number }[] = [
+        { tier: 2, rows: hiEnd },
+        { tier: 1, rows: midEnd - hiEnd },
+        { tier: 0, rows: n - midEnd },
+    ];
+    const group = {
+        ...graphBindings(core, perm, weights),
+        pos: bindings.pos,
+        force: bindings.force,
+        P: bindings.params,
+    };
+    const kernels: (readonly [Kernel, BoundKernel, DispatchPlan])[] = [];
+    for (const { tier, rows } of ranges) {
+        if (tier !== 0 && rows <= 0) {
+            continue;
+        }
+        // sequential on purpose: PipelineCache.get compiles inside a validation scope, one stack per device
+        const kernel = await pipelines.kernel(kernelSpec("fa2-attraction", { ...k2, TIER: tier }));
+        const wg = kernel.workgroupSize;
+        if (tier !== 0 && wg < MID_TIER_LANES) {
+            throw new WebGpuGraphError(
+                "E_UNSUPPORTED",
+                `fa2-attraction: the mid tier folds ${MID_TIER_LANES} lanes per row, more than the workgroup size ${wg}`,
+                { feature: "fa2-attraction.tiers" },
+            );
+        }
+        if (rows <= 0) {
+            continue;
+        }
+        let rowsPerGroup = wg;
+        if (tier === 2) {
+            rowsPerGroup = 1;
+        } else if (tier === 1) {
+            rowsPerGroup = wg / MID_TIER_LANES;
+        }
+        kernels.push([kernel, kernel.bind(group), plan1d(rows, rowsPerGroup, caps)]);
+    }
+    return { kernels };
+}
+
+/**
+ * Records the K2 dispatches of one iteration in order TIER 2, TIER 1, TIER 0 with the iteration's params offset.
+ * @param pass - the open compute pass
+ * @param bound - what bindAttraction produced
+ * @param paramsOffset - the UniformRing byte offset of this iteration's Fa2Params
+ */
+export function recordAttraction(pass: GPUComputePassEncoder, bound: AttractionBound, paramsOffset: number): void {
+    for (const [kernel, group, plan] of bound.kernels) {
+        kernel.dispatch(pass, group, plan, [paramsOffset]);
+    }
+}
 
 /** Bytes of the stride-3 f32 force arrays per node. */
 export const FORCE_BYTES_PER_NODE = 12;

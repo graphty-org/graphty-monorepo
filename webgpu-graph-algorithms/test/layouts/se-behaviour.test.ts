@@ -4,7 +4,7 @@
  * semantics of PD-4 (0 before the first batch and on the first record after load(), positive afterwards, always
  * finite and non-negative), a setPosition honoured with the dragged node's velocity NOT reset, the `velocity` buffer
  * name (PD-2: `inspect("oldForce")` is E_INVALID_ARGUMENT on this model), z === center.z in 2D, the same seed
- * bitwise, and the grid tier E_UNSUPPORTED. No derived tolerance and no literal one: every check is bitwise, a
+ * bitwise, and the exact tier under an explicit `repulsion: "exact"`. No derived tolerance and no literal one: every check is bitwise, a
  * count or a sign.
  */
 
@@ -341,25 +341,8 @@ describe("spring-electrical behaviour pins (spec 11.4, 7.20)", () => {
         CASE_TIMEOUT,
     );
 
-    it('the grid tier is E_UNSUPPORTED at load() (repulsion: "grid", and "auto" above exactMaxNodes)', async (t) => {
+    it('repulsion: "exact" runs the exact tier whatever exactMaxNodes says (the spring grid tier is P4-T13)', async (t) => {
         requireGpu(t);
-        for (const tuning of [{ repulsion: "grid" as const }, { repulsion: "auto" as const, exactMaxNodes: 8 }]) {
-            await withSe(ctx, { ...BASE, ...tuning }, (sim) => {
-                let caught: unknown = null;
-                try {
-                    sim.load(karate, start(karate, 7));
-                } catch (err) {
-                    caught = err;
-                }
-                expect(caught).toBeInstanceOf(WebGpuGraphError);
-                if (caught instanceof WebGpuGraphError) {
-                    expect(caught.code).toBe("E_UNSUPPORTED");
-                    expect(caught.details.feature).toBe("repulsion.grid");
-                }
-                expect(sim.state, "the failed load changed nothing").toBe("created");
-                return Promise.resolve();
-            });
-        }
         await withSe(ctx, { ...BASE, repulsion: "exact", exactMaxNodes: 8 }, async (sim) => {
             sim.load(karate, start(karate, 7));
             await sim.step(1);

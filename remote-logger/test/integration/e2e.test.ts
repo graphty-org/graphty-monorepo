@@ -21,7 +21,12 @@ describe("E2E: Browser to Claude Code", () => {
     let jsonlWriter: JsonlWriter;
 
     beforeEach(async () => {
-        port = 8100 + Math.floor(Math.random() * 100);
+        // 0 asks the OS for any free port. A hand-picked one is reused by a later test in this
+        // file, and Node's global HTTP agent keeps a connection pooled per host:port -- so the
+        // later test is handed the socket of the server the earlier test already tore down, and
+        // a POST on a dead socket is not retried. That surfaced as intermittent ECONNRESET.
+        // sendLogFromBrowser posts to the port the server actually bound, not to this one.
+        port = 0;
 
         // Create unique temp directory
         testBaseDir = path.join(
@@ -70,7 +75,7 @@ describe("E2E: Browser to Claude Code", () => {
             const req = http.request(
                 {
                     hostname: "127.0.0.1",
-                    port,
+                    port: dualServer.httpPort,
                     path: "/log",
                     method: "POST",
                     headers: {

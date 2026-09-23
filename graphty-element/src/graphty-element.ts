@@ -1,7 +1,3 @@
-// WORKAROUND: Import InstancedMesh side-effect first
-// See: https://github.com/graphty-org/graphty-element/issues/54
-import "@babylonjs/core/Meshes/instancedMesh";
-
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import { LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";

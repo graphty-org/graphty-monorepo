@@ -1,8 +1,5 @@
 import "./index.css";
 import "@mantine/core/styles.css";
-// WORKAROUND: Import InstancedMesh first to satisfy Babylon.js side-effect requirement
-// This is needed in development mode where Vite may bypass the package's index.ts
-import "@babylonjs/core/Meshes/instancedMesh";
 // Defines <graphty-element>. The element declares its entry files as side effects, so a bare
 // import survives tree-shaking.
 import "@graphty/graphty-element";

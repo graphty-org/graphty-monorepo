@@ -1,5 +1,6 @@
-// WORKAROUND: Import InstancedMesh side-effect first
-// See: https://github.com/graphty-org/graphty-element/issues/54
+// Installs Mesh.prototype.createInstance, which get() calls. This module loads it itself so any
+// path that reaches get() -- including a consumer resolving the element from source -- has it.
+// See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh";
 
 import { InstancedMesh, Mesh } from "@babylonjs/core";

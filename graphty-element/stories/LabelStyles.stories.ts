@@ -658,7 +658,7 @@ export const Location: Story = {
  * READ IN THE CANVAS'S OWN PIXELS, not the texture's. How far down the texture the letters start
  * depends on the typeface, and the typeface depends on the machine: with these margins the ink
  * starts 22-26px down locally and 19px down on Chromatic. Normalised by the font's own glyph
- * height, the margin reads back as roughly the ten pixels asked for on every font tried.
+ * height, the margin reads back as roughly the pixels asked for on every font tried.
  */
 export const Margin: Story = {
     args: {
@@ -668,10 +668,10 @@ export const Margin: Story = {
                 "node.labelStyle": {
                     background: "#DCDCDC",
                     color: "#000000",
-                    marginTop: 10,
-                    marginBottom: 10,
-                    marginLeft: 10,
-                    marginRight: 10,
+                    marginTop: 40,
+                    marginBottom: 40,
+                    marginLeft: 40,
+                    marginRight: 40,
                 },
             },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -696,19 +696,20 @@ export const Margin: Story = {
         //
         // The mean of the top and bottom margin read back per label, in canvas pixels, across six
         // fonts (Liberation Serif, Liberation Sans, Liberation Mono, DejaVu Serif, DejaVu Sans
-        // Mono, Z003): 9.2-12.2 with these ten-pixel margins, 4.6-6.7 with the element's default
-        // of five, and -0.6-1.7 with none. A floor of 8 sits between the first two.
+        // Mono, Z003): 9.2-12.2 with ten-pixel margins, 4.6-6.7 with the element's default of
+        // five, and -0.6-1.7 with none. These forty-pixel margins read 40-45 here. A floor of 20
+        // sits far from both the default and the value asked for.
         const tight = labelGeometry(scene, "#000000")
             .map((label) => {
                 const margin = drawnMargins(label, label.id, DEFAULT_LABEL_FONT, 48 * 1.2);
 
                 return { id: label.id, ...margin, mean: (margin.top + margin.bottom) / 2 };
             })
-            .filter((label) => label.mean < 8);
+            .filter((label) => label.mean < 20);
 
         await holds(
             tight.length === 0,
-            `Styles/Label Margin: ten pixels of margin are asked for on all four sides, and on ` +
+            `Styles/Label Margin: forty pixels of margin are asked for on all four sides, and on ` +
                 `${String(tight.length)} labels the space above and below the words is no wider than ` +
                 `the element's default of five -- ` +
                 `${tight

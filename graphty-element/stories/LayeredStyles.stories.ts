@@ -15,8 +15,10 @@ import {
     assertLabelsDrawn,
     assertLayerPainted,
     assertWireframes,
+    canvasArea,
     drawn,
     holds,
+    pixelsOfColour,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
@@ -84,7 +86,11 @@ export const TwoLayerNodeColors: Story = {
         await assertLayerPainted(scene, "nodes where data.type == 'primary'", { nodes: 2 });
         await assertLayerPainted(scene, "nodes where data.type == 'secondary'", { nodes: 2 });
         await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#0000ff", D: "#0000ff", E: "#6366f1" });
-        await assertGroupsDrawnDifferently(scene, "hex", { primary: ["A", "C"], secondary: ["B", "D"], untouched: ["E"] });
+        await assertGroupsDrawnDifferently(scene, "hex", {
+            primary: ["A", "C"],
+            secondary: ["B", "D"],
+            untouched: ["E"],
+        });
         await assertDistinctPicture(scene, "Styles/Layered");
     },
     args: {
@@ -160,7 +166,7 @@ export const ThreeLayerSizes: Story = {
             "size 2": ["A"],
             "size 1.5": ["B", "C"],
             "size 0.5": ["E"],
-            "untouched": ["D"],
+            untouched: ["D"],
         });
         await assertDistinctPicture(scene, "Styles/Layered");
     },
@@ -228,7 +234,7 @@ export const EdgeWidthLayers: Story = {
  * Three layers setting different arrow head types.
  * Layer 1: weight == 1 -> sphere-dot arrows
  * Layer 2: weight == 2 -> diamond arrows
- * Layer 3: all edges -> specific arrow color
+ * Layer 3: all edges -> normal yellow arrows at size 1, over both layers beneath it
  */
 export const ArrowHeadStyles: Story = {
     play: async ({ canvasElement }) => {
@@ -240,6 +246,17 @@ export const ArrowHeadStyles: Story = {
         // so all six edges end up with the normal cap -- not the sphere-dot and diamond beneath it.
         await assertLayerPainted(scene, "every edge", { edges: 6 });
         await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
+
+        // THE CAPS ARE YELLOW. A cap's colour is a shader uniform, on neither the mesh nor its name,
+        // so it is counted in pixels. Measured on a 1168x584 canvas: 5111 yellow pixels (0.75% of
+        // the canvas) with the top layer's colour, none without it.
+        const yellow = await pixelsOfColour(scene, "#ffff00");
+
+        await holds(
+            yellow > canvasArea(scene) * 0.002,
+            `Styles/Layered ArrowHeadStyles: the top layer paints every cap yellow and the canvas holds ` +
+                `${String(yellow)} yellow pixels`,
+        );
         await assertDistinctPicture(scene, "Styles/Layered");
     },
     args: {
@@ -249,19 +266,19 @@ export const ArrowHeadStyles: Story = {
                     name: "edges where data.weight == `1`",
                     target: "edge",
                     selector: { match: "expression", where: "data.weight == `1`" },
-                    set: { "edge.arrowHead": "sphere-dot" },
+                    set: { "edge.arrowHead": "sphere-dot", "edge.arrowHeadSize": 1.5, "edge.arrowHeadColor": "white" },
                 },
                 {
                     name: "edges where data.weight == `2`",
                     target: "edge",
                     selector: { match: "expression", where: "data.weight == `2`" },
-                    set: { "edge.arrowHead": "diamond" },
+                    set: { "edge.arrowHead": "diamond", "edge.arrowHeadSize": 1.5, "edge.arrowHeadColor": "white" },
                 },
                 {
                     name: "every edge",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.arrowHead": "normal" },
+                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 1, "edge.arrowHeadColor": "yellow" },
                 },
             ],
         }),
@@ -441,7 +458,10 @@ export const ComplexMultiProperty: Story = {
         await assertLayerPainted(scene, "every node", { nodes: 5 });
         await assertDrawnShape(scene, { A: "box", B: "sphere", D: "sphere", C: "icosphere", E: "icosphere" });
         await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#008000", D: "#008000", E: "#008000" });
-        await assertGroupsDrawnDifferently(scene, "radius", { "A is size 2": ["A"], "everything else is size 1": ["C", "E"] });
+        await assertGroupsDrawnDifferently(scene, "radius", {
+            "A is size 2": ["A"],
+            "everything else is size 1": ["C", "E"],
+        });
         await assertDistinctPicture(scene, "Styles/Layered");
     },
     args: {
@@ -514,10 +534,10 @@ export const LabelEnabledLayers: Story = {
 /**
  * Three layers, the first two sizing an arrow by the weight of the edge it caps.
  *
- * Light edges get a small cap, heavy ones a large cap, and a third layer paints the edges leaving
- * A purple without touching either size. The two sizes in the picture are what this story is
- * named for: until `edge.arrowHeadSize` was published, all three layers could say was which cap
- * to draw, so the first two were identical to one another and the story drew one size.
+ * Light edges get a small white cap, heavy ones a large white cap, and a third layer paints the
+ * edges leaving A purple with a cap of the element's own size 1, over whichever size was beneath
+ * it. So three sizes are on screen: 0.5 and 2 on the four edges that do not leave A, and 1 on the
+ * two that do.
  */
 export const ArrowSizeVariations: Story = {
     play: async ({ canvasElement }) => {
@@ -527,16 +547,19 @@ export const ArrowSizeVariations: Story = {
         await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
         await assertEdgeVariety(scene, 2);
 
-        // TWO SIZES ON SCREEN, measured off the caps themselves: an arrow's size is geometry and
-        // the mesh's name carries only its shape, so nothing else in the scene can see it.
+        // THREE SIZES ON SCREEN, measured off the caps themselves: an arrow's size is geometry and
+        // the mesh's name carries only its shape, so nothing else in the scene can see it. Measured:
+        // 0.466, 0.933 and 1.865 across. Without the top layer's size the edges leaving A keep 0.5
+        // and 2 and only two sizes are drawn.
         const spans = scene.graph.scene.meshes
             .filter((mesh) => mesh.name.includes("arrow"))
             .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
             .sort((first, second) => second - first);
+        const sizes = new Set(spans.map((span) => span.toFixed(2)));
 
         await holds(
-            spans.length > 1 && spans[0] > spans[spans.length - 1] * 2,
-            `Styles/Layered ArrowSizeVariations: the first two layers ask for caps at 0.5 and 2 and the scene ` +
+            sizes.size === 3 && spans[0] > spans[spans.length - 1] * 2,
+            `Styles/Layered ArrowSizeVariations: the layers ask for caps at 0.5, 1 and 2 and the scene ` +
                 `draws them ${spans.map((span) => span.toFixed(3)).join(", ")} across`,
         );
 
@@ -549,19 +572,24 @@ export const ArrowSizeVariations: Story = {
                     name: "edges where data.weight == `1`",
                     target: "edge",
                     selector: { match: "expression", where: "data.weight == `1`" },
-                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 0.5 },
+                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 0.5, "edge.arrowHeadColor": "white" },
                 },
                 {
                     name: "edges where data.weight == `2`",
                     target: "edge",
                     selector: { match: "expression", where: "data.weight == `2`" },
-                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 2 },
+                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 2, "edge.arrowHeadColor": "white" },
                 },
                 {
                     name: "edges where data.origin == 'A'",
                     target: "edge",
                     selector: { match: "expression", where: "data.origin == 'A'" },
-                    set: { "edge.color": "purple", "edge.arrowHead": "normal" },
+                    set: {
+                        "edge.color": "purple",
+                        "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 1,
+                        "edge.arrowHeadColor": "purple",
+                    },
                 },
             ],
         }),

@@ -3,6 +3,7 @@ import "../../src/algorithms/index";
 import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { algorithmByKey } from "../../src/catalog/algorithms";
 import { GraphStore } from "../../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../../src/data/ingest";
@@ -93,7 +94,12 @@ function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string
             repaints += 1;
         },
     };
-    const graph = { getDataManager: () => dataManager } as unknown as Graph;
+    const graph = {
+        getDataManager: () => dataManager,
+        // The controller an algorithm with an accelerated implementation asks before it runs.
+        // Its own registry, so nothing another test registered reaches this one.
+        acceleration: new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() }),
+    } as unknown as Graph;
     const events = { emitGraphError: () => undefined, emitGraphEvent: () => undefined } as unknown as EventManager;
 
     return {

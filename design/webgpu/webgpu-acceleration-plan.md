@@ -4974,6 +4974,25 @@ with two consumption mechanisms that keep every kernel inside the eight-binding 
 the GPU case and the suggested placement for each. Sections 6, 8 and 13 are not edited; a plan for P8
 or P11 reads 16 as part of its specification.
 
+2026-09-21, phase M6 (graphty-element on the accelerator seam), re-planned against the version 2
+element API: `design/webgpu/plans/2026-09-21-webgpu-m6-graphty-element-v2.md` replaces
+`plans/2026-09-19-webgpu-m6-graphty-element.md` and carries five departures from this document and
+from the element API design, each with its own record under `design/decisions/`. 9.4 item 6: a
+`spring-electrical` registration is offered ALWAYS and `setLayout` fails with `E_NO_ACCELERATOR`
+when no accelerator implements it, with the catalogue row declaring `requires.accelerator`
+(`2026-09-21-spring-electrical-fails-loudly-on-set.md`). 9.4 item 10: `nodeMass` is resolved to a
+`Float32Array` at every load rather than written as a role column, and `nodeSize` is not offered at
+all because the GPU factory refuses any value but null
+(`2026-09-21-node-mass-is-resolved-per-load.md`). 9.7: only the five algorithms `accelerated()`
+dispatches are routed; HITS, eigenvector, Katz and personalized PageRank wait for their `indexed.*`
+ports rather than fork the element's result loop
+(`2026-09-21-power-iteration-family-waits-for-its-ports.md`). 9.4 item 7 is implemented as written,
+with the element-side homes of its three knobs recorded
+(`2026-09-21-acceleration-knobs-and-their-homes.md`), and the layout transport of 9.4 item 9 is an
+element method over a `LayoutEngine` subclass because the version 2 layout API does not exist yet
+(`2026-09-21-m6-bridge-is-a-layout-engine.md`). Sections 9.4, 9.7 and 13 are not edited; the gate
+record is `graphty-element/docs/decisions/G6.md`.
+
 ## 16. Amendments of 2026-09-20: frontier contraction, the Louvain gain floor, and masks
 
 These amendments come from a side-by-side reading of NVIDIA cuGraph's sources (commit 8443253f of

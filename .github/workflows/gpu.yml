@@ -81,6 +81,10 @@ jobs:
               run: pnpm exec playwright install chromium --with-deps # a fresh VM each job
             - name: Browser smoke on NVIDIA
               run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
+            - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)
+              working-directory: graphty-element
+              timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
+              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. @graphty/remote-logger is the sibling nothing else in this job builds -- the element's runtime graph reaches it (src/Graph.ts -> src/logging/sinks/RemoteSink.ts) and its exports map has no src fallback; algorithms already builds through the ^build edge of the step above, so that half is a cache hit kept only in case the edge goes away
             - run: pnpm run bench # tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
             - uses: actions/upload-artifact@v4

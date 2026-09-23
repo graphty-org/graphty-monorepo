@@ -3,6 +3,7 @@ import { assert, describe, it, vi } from "vitest";
 import { type AcceleratedWork, AccelerationController } from "../../src/acceleration/AccelerationController";
 import { AcceleratorRegistry } from "../../src/acceleration/registry";
 import {
+    ACCELERATION_MIN_NODES_DEFAULT,
     type AccelerationPrecision,
     type AccelerationStatus,
     CPU_PRECISION,
@@ -175,8 +176,30 @@ describe("AccelerationController: probing", () => {
 
         await controller.start();
 
-        assert.deepEqual(factory.mock.calls[0] as unknown[], [{ exactMaxNodes: 250_000 }]);
+        assert.deepEqual(factory.mock.calls[0] as unknown[], [{ exactMaxNodes: 250_000, acceptSoftware: false }]);
         controller.dispose();
+    });
+
+    it("tells the factory whether a software adapter is acceptable, which only the policy knows", async () => {
+        const auto = new AcceleratorRegistry();
+        const autoFactory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        auto.register({ name: "fake", factory: autoFactory });
+        const required = new AcceleratorRegistry();
+        const requiredFactory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        required.register({ name: "fake", factory: requiredFactory });
+        const underAuto = new AccelerationController({ registry: auto });
+        const underRequired = new AccelerationController({ policy: "required", registry: required });
+
+        await Promise.all([underAuto.start(), underRequired.start()]);
+
+        assert.deepEqual(autoFactory.mock.calls[0] as unknown[], [
+            { exactMaxNodes: undefined, acceptSoftware: false },
+        ]);
+        assert.deepEqual(requiredFactory.mock.calls[0] as unknown[], [
+            { exactMaxNodes: undefined, acceptSoftware: true },
+        ]);
+        underAuto.dispose();
+        underRequired.dispose();
     });
 
     it("looks again when a factory is registered after it gave up", async () => {
@@ -251,6 +274,19 @@ describe("AccelerationController: publishing", () => {
         controller.dispose();
     });
 
+    it("returns the same capabilities object until a transition", () => {
+        const controller = new AccelerationController({ registry: new AcceleratorRegistry() });
+        const first = controller.capabilities;
+
+        assert.strictEqual(controller.capabilities, first, "a reader can cache it and compare by identity");
+
+        controller.setPolicy("off");
+
+        assert.notStrictEqual(controller.capabilities, first, "and a transition replaces it");
+        assert.strictEqual(controller.capabilities.acceleration.state, "off");
+        controller.dispose();
+    });
+
     it("moves to active while work is on the accelerator and back to idle after it", async () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
         await controller.start();
@@ -297,7 +333,7 @@ describe("AccelerationController: the acceleration.minNodes threshold", () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
         await controller.start();
 
-        assert.strictEqual(controller.minNodes, 0);
+        assert.strictEqual(controller.minNodes, ACCELERATION_MIN_NODES_DEFAULT);
         assert.isTrue(controller.plan({ capability: "forceAtlas2", nodeCount: 0 }).accelerated);
         controller.dispose();
     });

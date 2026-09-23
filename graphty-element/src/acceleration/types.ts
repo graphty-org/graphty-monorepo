@@ -54,6 +54,25 @@ export type AccelerationState = "probing" | "active" | "idle" | "unavailable" | 
  */
 export type AccelerationPolicy = "auto" | "off" | "required";
 
+/** The three values, in the order a control offers them. */
+export const ACCELERATION_POLICIES: readonly AccelerationPolicy[] = ["auto", "off", "required"];
+
+/** What the element does when nothing was asked: `auto`. */
+export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy = "auto";
+
+/**
+ * Whether a value is one of the three acceleration policies.
+ *
+ * A host that offers the choice gets the value back from storage, a query string or a change
+ * handler, where it is an unknown string. This is the check the element itself runs on the
+ * `acceleration` attribute, so a host cannot accept a value the element would refuse.
+ * @param value - Anything at all.
+ * @returns True when `value` is `"auto"`, `"off"` or `"required"`.
+ */
+export function isAccelerationPolicy(value: unknown): value is AccelerationPolicy {
+    return typeof value === "string" && (ACCELERATION_POLICIES as readonly string[]).includes(value);
+}
+
 /**
  * The arithmetic that produced a set of numbers.
  *
@@ -123,7 +142,14 @@ export interface GraphAccelerator {
     readonly precision?: AccelerationPrecision;
     /** Releases the hardware resources. Called by the element when it detaches this accelerator. */
     dispose?(): void;
-    /** An accelerated algorithm or layout, looked up by name and feature-tested before use. */
+    /**
+     * An accelerated algorithm or layout, looked up by name and feature-tested before use.
+     *
+     * `release(snapshot)` is one of these rather than a declared member: an accelerator that keeps
+     * device buffers for a snapshot implements it, and the element calls it when that snapshot
+     * stops being the graph, while an accelerator with no residency to free simply has no such
+     * member. Both are feature-tested the same way, so neither has to pretend to be the other.
+     */
     [algorithmOrLayout: string]: unknown;
 }
 
@@ -138,6 +164,14 @@ export interface AcceleratorFactoryOptions {
      * that does not care ignores the parameter.
      */
     readonly exactMaxNodes?: number;
+    /**
+     * Whether a software adapter (SwiftShader, llvmpipe) is acceptable.
+     *
+     * Under `"auto"` it is not: a software rasteriser is slower than the element's own CPU
+     * path, and attaching it would make the graph slower while reporting "active". Under
+     * `"required"` it is: the consumer said "no CPU path", and a software device is a device.
+     */
+    readonly acceptSoftware?: boolean;
 }
 
 /**
@@ -296,6 +330,17 @@ export const ACCELERATION_MIN_NODES_KEY = "acceleration.minNodes";
  *
  * Raise it when a graph is small enough that uploading it costs more than computing it. There
  * is no defensible non-zero default, because the crossover has to be measured on the machine
- * the graph is drawn on.
+ * the graph is drawn on -- and this zero is a measurement, not a guess. On the dev box
+ * (RTX 4070 SUPER, headless Chromium, 2026-09-22) the accelerated layout's frame time was at or
+ * below the CPU simulation's at every size measured, starting with the smallest: 50.0 against
+ * 50.0 ms at 500 nodes, 116.7 against 116.7 at 1,000 and 183.3 against 216.6 at 2,000, three runs
+ * of sixty working frames per arm, all at average degree 10. A fourth size, 5,000 nodes, read
+ * 466.6 against 566.7 -- but from ONE run of five frames, so read it as indicative and not as what
+ * the default rests on. The crossover is therefore below the smallest graph worth accelerating,
+ * and the default stays 0.
+ *
+ * `scripts/measure-min-nodes.mjs` is the measurement, protocol in its header; the table and what
+ * it does not cover are in section 3 of `graphty-element/docs/decisions/G6.md` IN THE REPOSITORY,
+ * which is not part of the published documentation site.
  */
 export const ACCELERATION_MIN_NODES_DEFAULT = 0;

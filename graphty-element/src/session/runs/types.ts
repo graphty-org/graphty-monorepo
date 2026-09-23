@@ -503,10 +503,16 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly shape: ResultShape;
     /** What qualifies the numbers. */
     readonly caveats: Caveats;
-    /** The result, once there is one. Awaiting the run is the other way to get it. */
-    readonly result?: T;
-    /** Why it failed, when it failed. */
-    readonly error?: GraphtyError;
+    /**
+     * The result, once there is one. Awaiting the run is the other way to get it.
+     *
+     * Spelled `?: T | undefined` rather than `?: T` because the implementation answers with a
+     * getter, and under a consumer's `exactOptionalPropertyTypes` a getter that can return
+     * undefined does not satisfy a property that can only be absent or present.
+     */
+    readonly result?: T | undefined;
+    /** Why it failed, when it failed. Optional-or-undefined for the reason {@link Run.result} gives. */
+    readonly error?: GraphtyError | undefined;
     /** The frozen, structured-cloneable snapshot of everything above. */
     readonly record: RunRecord;
     /** The journal entry this run's command wrote, or null until it lands. */

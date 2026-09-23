@@ -305,13 +305,21 @@ export { quotePath } from "./src/session/styles";
 export type {
     AccelerationCapabilities,
     AccelerationPolicy,
+    AccelerationPrecision,
     AccelerationState,
     AccelerationStatus,
+    AcceleratorDeviceInfo,
     Capabilities,
     CaptureCapability,
+    GraphAccelerator,
     Limits,
     WorkerCapability,
     XrCapability,
+} from "./src/acceleration";
+export {
+    ACCELERATION_POLICIES,
+    ACCELERATION_POLICY_DEFAULT,
+    isAccelerationPolicy,
 } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";

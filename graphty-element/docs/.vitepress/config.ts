@@ -26,6 +26,11 @@ export default defineConfig({
     // Use /graphty-element/ for GitHub Pages project site deployment
     base: "/graphty-element/",
 
+    // Gate records are repository history, not documentation: they name dev-box hardware, test
+    // commands and open owner decisions, and every .md under docs/ would otherwise become a page
+    // on graphty.app.
+    srcExclude: ["decisions/**"],
+
     vue: {
         template: {
             compilerOptions: {
@@ -61,6 +66,7 @@ export default defineConfig({
                         { text: "Styling", link: "/guide/styling" },
                         { text: "Style Helpers & Palettes", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
+                        { text: "Acceleration", link: "/guide/acceleration" },
                         { text: "Algorithms", link: "/guide/algorithms" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },

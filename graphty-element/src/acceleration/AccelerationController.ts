@@ -27,6 +27,7 @@ import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
+    ACCELERATION_POLICY_DEFAULT,
     type AccelerationCapabilities,
     type AccelerationPolicy,
     type AccelerationPrecision,
@@ -114,9 +115,17 @@ interface AccelerationControllerOptions {
     readonly maxRecoveryAttempts?: number;
 }
 
-/** One attached accelerator and whether the controller has finished with it. */
+/** One attached accelerator, whether this controller built it, and whether it has finished with it. */
 interface Attachment {
     readonly accelerator: GraphAccelerator;
+    /**
+     * Whether this controller built the accelerator and therefore destroys it.
+     *
+     * False for one a caller injected: `setAccelerator` promises that whoever built it owns its
+     * lifetime, so detaching it -- on a policy change, a device loss, a replacement or the
+     * controller's own dispose -- hands it back rather than destroying its device.
+     */
+    readonly owned: boolean;
     released: boolean;
 }
 
@@ -213,6 +222,7 @@ export class AccelerationController {
     #recoveryAttempts = 0;
     #disposed = false;
     #status: AccelerationStatus;
+    #capabilities: AccelerationCapabilities;
 
     /**
      * Builds a controller. Nothing is probed until {@link start} is called.
@@ -223,10 +233,11 @@ export class AccelerationController {
         this.#exactMaxNodes = options.exactMaxNodes;
         this.#recoverOnDeviceLoss = options.recoverOnDeviceLoss ?? true;
         this.#maxRecoveryAttempts = options.maxRecoveryAttempts ?? 3;
-        this.#policy = options.policy ?? "auto";
+        this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
         this.#state = this.#policy === "off" ? "off" : "probing";
         this.#status = this.#buildStatus();
+        this.#capabilities = Object.freeze({ acceleration: this.#status });
         this.#unsubscribeRegistry = this.#registry.onChange(() => {
             this.#onRegistryChanged();
         });
@@ -242,10 +253,22 @@ export class AccelerationController {
 
     /**
      * The published capabilities subset, which is the `graphty-capabilities-change` detail.
+     *
+     * The same object is returned until the next transition, so `prev === next` is a valid
+     * staleness test for a reader that caches it.
      * @returns The capabilities the acceleration subsystem publishes.
      */
     get capabilities(): AccelerationCapabilities {
-        return Object.freeze({ acceleration: this.#status });
+        return this.#capabilities;
+    }
+
+    /**
+     * Whether {@link dispose} has already run, so a caller can skip {@link start} on a
+     * controller whose graph has been shut down.
+     * @returns True once the controller has been disposed.
+     */
+    get disposed(): boolean {
+        return this.#disposed;
     }
 
     /**
@@ -369,7 +392,7 @@ export class AccelerationController {
         this.#injected = true;
         this.#probeSettled = true;
         this.#recoveryAttempts = 0;
-        this.#attach(accelerator);
+        this.#attach(accelerator, false);
     }
 
     /**
@@ -514,6 +537,43 @@ export class AccelerationController {
     }
 
     /**
+     * Marks the start of a span of accelerated work that this controller does not itself drive.
+     *
+     * {@link run} covers work shaped like a call: one function, one promise, `"active"` for as
+     * long as it takes. A simulation is not shaped like that -- the element hands the graph to
+     * the accelerator once and then steps it every frame until the arrangement settles -- so the
+     * layout bridge marks the span instead. Without it the state a consumer reads would say
+     * `"idle"`, which its own documentation defines as nothing using the accelerator, for the
+     * whole of a GPU layout.
+     *
+     * Counted the way `run()` is: spans overlap freely and the state falls back to `"idle"` when
+     * the last one ends. The returned function is idempotent, so a caller may end its span at a
+     * settle and again at a dispose without counting out twice. On a disposed controller the
+     * call is a no-op rather than a throw: there is no state left to publish, and a frame loop is
+     * the wrong place for a shutdown to surface.
+     * @returns Ends the span.
+     */
+    beginWork(): () => void {
+        if (this.#disposed) {
+            return (): void => {
+                // Nothing was counted in, so there is nothing to count out.
+            };
+        }
+
+        this.#enterWork();
+        let ended = false;
+
+        return (): void => {
+            if (ended) {
+                return;
+            }
+
+            ended = true;
+            this.#leaveWork();
+        };
+    }
+
+    /**
      * Releases the accelerator and stops publishing.
      *
      * The controller is not reusable afterwards; every call that could produce a wrong answer
@@ -581,9 +641,10 @@ export class AccelerationController {
 
         for (const registration of registrations) {
             try {
-                const accelerator = await registration.factory(
-                    this.#exactMaxNodes === undefined ? undefined : { exactMaxNodes: this.#exactMaxNodes },
-                );
+                const accelerator = await registration.factory({
+                    exactMaxNodes: this.#exactMaxNodes,
+                    acceptSoftware: this.#policy === "required",
+                });
 
                 if (this.#disposed) {
                     accelerator?.dispose?.();
@@ -591,7 +652,7 @@ export class AccelerationController {
                 }
 
                 if (accelerator !== null) {
-                    this.#attach(accelerator);
+                    this.#attach(accelerator, true);
                     return true;
                 }
 
@@ -615,11 +676,13 @@ export class AccelerationController {
     /**
      * Attaches an accelerator and starts watching it for device loss.
      * @param accelerator - The accelerator to attach.
+     * @param owned - True when this controller built it, so this controller disposes it. False for
+     * an injected one, whose lifetime belongs to whoever built it.
      */
-    #attach(accelerator: GraphAccelerator): void {
+    #attach(accelerator: GraphAccelerator, owned: boolean): void {
         this.#detach();
 
-        const attachment: Attachment = { accelerator, released: false };
+        const attachment: Attachment = { accelerator, owned, released: false };
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
@@ -645,6 +708,10 @@ export class AccelerationController {
      *
      * The device facts go with it: `backend`, `vendor`, `architecture` and `device` describe the
      * accelerator that is attached right now, and there is no accelerator attached after this.
+     *
+     * An accelerator this controller BUILT is disposed here; an injected one is only let go of,
+     * because `setAccelerator` promises its lifetime to whoever built it -- a test that injects a
+     * fake, or a third party that hands the element a device it goes on using elsewhere.
      */
     #detach(): void {
         const attachment = this.#attachment;
@@ -656,7 +723,10 @@ export class AccelerationController {
         this.#attachment = null;
         this.#backend = undefined;
         this.#device = undefined;
-        this.#disposeAccelerator(attachment.accelerator);
+
+        if (attachment.owned) {
+            this.#disposeAccelerator(attachment.accelerator);
+        }
     }
 
     /**
@@ -861,6 +931,7 @@ export class AccelerationController {
         }
 
         this.#status = next;
+        this.#capabilities = Object.freeze({ acceleration: next });
         for (const listener of [...this.#listeners]) {
             // A listener is consumer code, and one that throws must not stop the others from
             // hearing the change or reject the promise this transition runs inside. The element

@@ -2879,6 +2879,17 @@ than computing it. It is the only threshold that governs acceleration, and it is
 number from `largeGraphThreshold`, which decides how much visual detail to draw and has nothing
 to say about where a computation runs.
 
+**Amended 2026-09-21 (phase M6).** `ConfigValues` gains two more layout keys,
+`layoutIterationsPerStep: number` and `layoutMaxInFlight: number`, beside `layoutStepMultiplier`.
+They are how many simulation iterations one layout step submits and how many step batches may be
+outstanding before an accelerated simulation coalesces them; they map one-to-one onto
+`behavior.layout.iterationsPerStep` and `behavior.layout.maxInFlight`, exactly as
+`layoutStepMultiplier` maps onto `behavior.layout.stepMultiplier`, and they land with the
+`ConfigDocument` itself -- the element implements them on `behavior.layout` first, which is where
+the force layouts read them today. `acceleration.minNodes` keeps its one spelling and gains an
+element door, the reflecting attribute `acceleration-min-nodes`. See
+`design/decisions/2026-09-21-acceleration-knobs-and-their-homes.md`.
+
 **The reader's acceleration preference is not in this document.** `acceleration` is an attribute
 and a session property, it is not a `ConfigValues` key, and `toDocument()` therefore does not
 carry it -- an exported settings file moved to another machine would otherwise demand a GPU that
@@ -3044,6 +3055,22 @@ constantly); a different one warns once and wins; `{strict: true}` throws
 `type` off the class with an `any` cast, so a class missing its statics registers under
 `"undefined:undefined"` -- and root `CLAUDE.md` advertises `LayoutRegistry`,
 `DataSourceRegistry` and `AlgorithmRegistry`, none of which exist under those names.
+
+**Amended 2026-09-21 (phase M6).** The `{ kind: "layout" }` plugin and its `LayoutFactory`
+(section 12) are unbuilt, and until they exist the element's layout extension point is what it has
+always been: a class extending the abstract `LayoutEngine`, registered with
+`LayoutEngine.register(cls)` and documented as such in
+`design/graphty-element/extension-points.md`. All seventeen built-in layouts are such classes,
+including the accelerated force layouts phase M6 added, so a third party writing a layout today
+writes a class and moves to a factory when the registry lands. See
+`design/decisions/2026-09-21-m6-bridge-is-a-layout-engine.md`.
+
+That count makes two earlier sentences in this document stale, and they are left standing rather
+than silently corrected, as this document's Review-log convention requires: section 4's breaking
+list says the element "registers sixteen engines today ... and fourteen more" (`:403-405`), and
+section 4.7 says `circular`, `random` and `fixed` "are among the sixteen registered at
+`graphty-element/src/layout/index.ts:19-34`" (`:2326-2327`). Both read seventeen now, registered at
+`src/layout/index.ts:20-36`. Nothing about either sentence's argument changes.
 
 #### 4.14.1 An algorithm plugin
 

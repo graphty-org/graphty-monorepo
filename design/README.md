@@ -11,14 +11,14 @@ This directory contains design documents, implementation plans, research, and co
 | [`architecture/`](architecture/) | Core architecture - state management, async patterns, RxJS, dependency batching | 10 |
 | [`code-reviews/`](code-reviews/) | Code review findings and implementation plans (prefixed by package name) | 14 |
 | [`data/`](data/) | Data handling - formats, loading, sources, validation | 4 |
-| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 13 |
+| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 21 |
 | [`graph-format/`](graph-format/) | The shared frozen CSR graph format: design, landing status, conformance record | 3 |
 | [`layout-pkg/`](layout-pkg/) | @graphty/layout package - layout algorithm research and implementation | 1 |
 | [`monorepo/`](monorepo/) | Monorepo infrastructure - Nx, releases, CI/CD, ESLint configuration | 13 |
 | [`rendering/`](rendering/) | Visual rendering - edges, lines, cameras, styles, screen capture | 21 |
 | [`testing/`](testing/) | Testing strategies - Playwright, profiling, logging, documentation | 12 |
 | [`ui/`](ui/) | React application UI - sidebars, modals, theming, Mantine components | 19 |
-| [`webgpu/`](webgpu/) | WebGPU-accelerated graph algorithms and layouts: the accepted design, the P0-P3 contract and phase plans, the monorepo integration plan | 13 |
+| [`webgpu/`](webgpu/) | WebGPU-accelerated graph algorithms and layouts: the accepted design, the P0-P3 contract and phase plans, the monorepo integration plan | 14 |
 | [`xr/`](xr/) | Extended reality - VR, AR, WebXR cameras and controllers | 7 |
 
 ## Quick Reference

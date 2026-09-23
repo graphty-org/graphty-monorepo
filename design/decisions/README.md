@@ -42,3 +42,10 @@ version of the code.
 | [2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md](2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md) | A Fruchterman-Reingold reheat restarts the temperature at 70% of the budget, not the iteration count |
 | [2026-09-20-spring-electrical-integrates-like-ngraph.md](2026-09-20-spring-electrical-integrates-like-ngraph.md) | The spring-electrical preset integrates like ngraph: semi-implicit Euler with a unit speed clamp |
 | [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](2026-09-20-spring-electrical-settles-by-the-shared-rule.md) | The spring-electrical preset settles by the shared rule, not by ngraph's absolute one |
+| [2026-09-21-m6-bridge-is-a-layout-engine.md](2026-09-21-m6-bridge-is-a-layout-engine.md) | The accelerated layout is a `LayoutEngine` subclass, not a layout factory |
+| [2026-09-21-node-mass-is-resolved-per-load.md](2026-09-21-node-mass-is-resolved-per-load.md) | A reader's `nodeMass` record is resolved to an array at every load; `nodeSize` is not offered |
+| [2026-09-21-spring-electrical-fails-loudly-on-set.md](2026-09-21-spring-electrical-fails-loudly-on-set.md) | `spring-electrical` is always offered and fails loudly without an accelerator |
+| [2026-09-21-power-iteration-family-waits-for-its-ports.md](2026-09-21-power-iteration-family-waits-for-its-ports.md) | HITS, eigenvector, Katz and personalized PageRank wait for their CPU ports |
+| [2026-09-21-acceleration-knobs-and-their-homes.md](2026-09-21-acceleration-knobs-and-their-homes.md) | The two layout knobs live on `behavior.layout`; the threshold keeps one spelling |
+| [2026-09-21-g12-without-the-nightly-clause.md](2026-09-21-g12-without-the-nightly-clause.md) | G12 is gated on the GPU lane green on master, not on a nightly week |
+| [2026-09-21-app-stories-draw-the-chip-not-the-gpu.md](2026-09-21-app-stories-draw-the-chip-not-the-gpu.md) | The app's acceleration stories draw the chip from a fixed status; the real GPU is the element's story |

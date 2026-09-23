@@ -3,6 +3,10 @@ import "@mantine/core/styles.css";
 // WORKAROUND: Import InstancedMesh first to satisfy Babylon.js side-effect requirement
 // This is needed in development mode where Vite may bypass the package's index.ts
 import "@babylonjs/core/Meshes/instancedMesh";
+// The element's optional GPU peer, switched on. This is the whole integration: the element
+// probes, constructs, attaches, applies its threshold and recovers, and reports through
+// `capabilities.acceleration`. Nothing in this application touches WebGPU.
+import "@graphty/graphty-element/webgpu";
 
 // IMPORTANT: Import the Graphty class to ensure the @customElement decorator runs
 // and registers the <graphty-element> custom element. A bare import like

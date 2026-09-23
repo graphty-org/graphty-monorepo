@@ -48,14 +48,26 @@ const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string
 const SIDE_EFFECTFUL = ["./dist/graphty.js", "./dist/graphty.bundle.js", "./dist/webgpu.js", "./dist/chunks/*.js"];
 
 /**
- * The source modules that register the built-in layouts, data sources and algorithms.
+ * The source modules that register the built-in layouts, data sources and algorithms, and the
+ * accelerator entry point that registers the WebGPU factory.
  *
  * They are named here for this package's own build, not for a consumer's: a module the build is
  * told is pure can be dropped whole, and dropping one of these produces an element that renders
  * a graph and then knows no layout to arrange it with, no format to read it from and no
  * algorithm to run on it -- with nothing failing anywhere to say so.
+ *
+ * `./webgpu.ts` is here for the same reason and was found the same way: a story that imports it
+ * by source path lost the whole module to the tree-shaker in the built Storybook, and the only
+ * symptom was an element reporting that no accelerator was registered on a machine that has a
+ * GPU. `./dist/webgpu.js` covers a consumer of the published package; this covers every build
+ * made inside this repository -- the stories and the tests that import the entry by path.
  */
-const REGISTRATION_MODULES = ["./src/algorithms/index.ts", "./src/data/index.ts", "./src/layout/index.ts"];
+const REGISTRATION_MODULES = [
+    "./webgpu.ts",
+    "./src/algorithms/index.ts",
+    "./src/data/index.ts",
+    "./src/layout/index.ts",
+];
 
 /**
  * Names that mean three incompatible things across this package and its siblings, so no barrel
@@ -216,6 +228,7 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
+        assert.match(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], /^>=0\.5\.1 </);
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {

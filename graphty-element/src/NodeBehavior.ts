@@ -12,6 +12,7 @@ import {
 
 import { readEndpoint, resolveEndpoints } from "./data/endpoints";
 import type { Graph } from "./Graph";
+import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 
@@ -114,6 +115,14 @@ export class NodeDragHandler {
         const context = this.getContext();
         context.setRunning(true);
 
+        // HOLD THE NODE STILL WHILE THE POINTER HAS IT. A simulation layout keeps arranging the
+        // row and publishing where it put it, so without a fixed bit the forces would fight the
+        // pointer. The bit is temporary: `onDragEnd` gives it back unless the drop pins the node.
+        const { layoutEngine } = context.getLayoutManager();
+        if (layoutEngine instanceof SimulationLayoutEngine) {
+            layoutEngine.beginDrag(this.node);
+        }
+
         // Emit node-drag-start event
         const eventManager = context.getEventManager?.();
         if (eventManager) {
@@ -191,6 +200,14 @@ export class NodeDragHandler {
         // Make sure graph is running
         const context = this.getContext();
         context.setRunning(true);
+
+        // BEFORE THE PIN, so the fixed bit is never cleared and set again inside one frame: a
+        // drop that pins keeps the bit it has been holding, and a drop that does not gives the
+        // row back to the simulation.
+        const { layoutEngine } = context.getLayoutManager();
+        if (layoutEngine instanceof SimulationLayoutEngine) {
+            layoutEngine.endDrag(this.node, this.node.pinOnDrag);
+        }
 
         // Pin after dragging if configured
         if (this.node.pinOnDrag) {

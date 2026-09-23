@@ -82,14 +82,16 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
-            # migration of design/graph-format section 14 is pending), so a PR that touches only the
-            # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
-            # artifact and every test shard's Download step would fail with "Artifact not found".
-            # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
-            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
+            # graph-io is in no package's dependency closure (no other package.json depends on it), so a PR
+            # that touches only graph-io/ leaves webgpu-graph-algorithms/dist/ unbuilt. graphty now reaches
+            # the GPU package (it installs the element's optional peer), but that only helps a PR that makes
+            # graphty affected -- a graph-io-only PR still meets the unconditional Upload steps below with no
+            # dist/, producing an empty artifact that every test shard's Download step then fails on.
+            # Both projects reach graph-format through ^build, so it needs no entry here.
+            # The Nx cache makes this a no-op when the affected build already did the work.
+            - name: Build graph-io and webgpu-graph-algorithms (PR)
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
+              run: pnpm exec nx run-many -t build --projects=graph-io,webgpu-graph-algorithms --parallel=2
 
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'

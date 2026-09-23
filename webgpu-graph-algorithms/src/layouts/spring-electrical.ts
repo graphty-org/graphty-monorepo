@@ -127,7 +127,7 @@ const DEFAULT_RESOLVED: ResolvedSpringElectricalOptions = Object.freeze<Resolved
  * @param n - the node count
  * @returns the factor in (0, 1]
  */
-export function springSizeFactor(n: number): number {
+function springSizeFactor(n: number): number {
     return Math.min(1, SE_SCALE_REFERENCE_NODES / Math.max(1, n));
 }
 

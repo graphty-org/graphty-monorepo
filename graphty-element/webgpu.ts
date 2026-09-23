@@ -9,7 +9,8 @@
  * Importing this module registers a WebGPU accelerator factory with the element and does
  * nothing else. After that line the element probes for an adapter, requests a context, builds
  * the accelerator, attaches it, watches for device loss, applies the `acceleration.minNodes`
- * threshold and publishes what it found. A consumer writes no probe, no construction, no
+ * threshold and publishes what it found. A software adapter is refused under `auto` and
+ * accepted under `required` (`acceptSoftware`). A consumer writes no probe, no construction, no
  * injection and no device-loss code, because every one of those would be the same code in every
  * application that wanted a GPU.
  *
@@ -155,15 +156,21 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
         });
     }
 
-    const probe = await probeBrowserWebGpu();
+    const rejectSoftware = !(options?.acceptSoftware ?? false);
+    const probe = await probeBrowserWebGpu({ rejectSoftware });
     if (!probe.ok || probe.code !== "OK") {
         throw probeFailure(probe.code === "OK" ? "E_NO_ADAPTER" : probe.code, probe.reason);
     }
 
-    const ctx = await requestGpuContext(probe.adapter === null ? {} : { adapter: probe.adapter });
+    const ctx = await requestGpuContext(
+        probe.adapter === null ? { rejectSoftware } : { adapter: probe.adapter, rejectSoftware },
+    );
 
     try {
-        return toGraphAccelerator(ctx, createAccelerator(ctx));
+        return toGraphAccelerator(
+            ctx,
+            createAccelerator(ctx, exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } }),
+        );
     } catch (error) {
         // Construction failed after the device was handed over: release it rather than leaking
         // a device nobody holds a reference to, then report the failure. This is still before

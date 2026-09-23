@@ -31,6 +31,83 @@ import { defineConfig } from "vitest/config";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * The Chromium flag sets that expose WebGPU to the `browser` project.
+ *
+ * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
+ * "which switches make headless Chromium hand back an adapter": `nvidia` reaches the card through
+ * ANGLE's Vulkan backend, `swiftshader` names the software adapter explicitly because the two
+ * ANGLE switches alone left `requestAdapter()` null on one host.
+ *
+ * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
+ * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
+ * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
+ */
+const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
+    nvidia: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"],
+    swiftshader: [
+        "--enable-unsafe-webgpu",
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--use-webgpu-adapter=swiftshader",
+    ],
+};
+
+/** Which flag set was asked for, or "" for none -- also what the test file reads to skip itself. */
+const browserGpu = process.env.GRAPHTY_BROWSER_GPU ?? "";
+
+/**
+ * The environment of the Chromium child.
+ *
+ * On a workstation whose NVIDIA userspace is not where Chromium looks, headless Chromium finds
+ * the card only with an extracted libEGL tree ahead of it on LD_LIBRARY_PATH.
+ * GRAPHTY_EGL_LIB_DIR names that tree; unset, Playwright inherits the environment untouched.
+ * @returns The environment map for `launch.env`, or undefined to inherit.
+ */
+function browserLaunchEnv(): Record<string, string> | undefined {
+    const eglDir = process.env.GRAPHTY_EGL_LIB_DIR;
+    if (eglDir === undefined || eglDir === "") {
+        return undefined;
+    }
+
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+            env[key] = value;
+        }
+    }
+
+    env.LD_LIBRARY_PATH = [eglDir, process.env.LD_LIBRARY_PATH]
+        .filter((value) => value !== undefined && value !== "")
+        .join(":");
+
+    return env;
+}
+
+/**
+ * The `browser` project's Chromium instance, with the requested flag set when there is one.
+ * @returns The single instance entry.
+ */
+function browserInstance(): Record<string, unknown> {
+    if (browserGpu === "") {
+        return { browser: "chromium" };
+    }
+
+    const args = BROWSER_GPU_FLAGS[browserGpu];
+    if (args === undefined) {
+        // A typo would otherwise launch Chromium with no flags while the test file still believes
+        // it is on a GPU lane, and the suite would die on "an accelerator to attach" naming
+        // nothing. Say which value was not understood instead.
+        throw new Error(
+            `GRAPHTY_BROWSER_GPU="${browserGpu}" names no flag set; use ${Object.keys(BROWSER_GPU_FLAGS).join(" or ")}, or leave it unset to run without WebGPU`,
+        );
+    }
+
+    const env = browserLaunchEnv();
+
+    return { browser: "chromium", launch: env === undefined ? { args: [...args] } : { args: [...args], env } };
+}
+
 export default defineConfig({
     test: {
         projects: [
@@ -94,6 +171,12 @@ export default defineConfig({
                 },
             },
             {
+                // The one env var that crosses into the page: which flag set the run asked for.
+                // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
+                // Vite copies every matching variable out of the process environment -- and
+                // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
+                // CI shards never try to use a WebGPU that is not there.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
@@ -138,7 +221,7 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         provider: "playwright",
-                        instances: [{ browser: "chromium" }],
+                        instances: [browserInstance()],
                         // Disable file parallelism to prevent route.fulfill errors
                         // when browser contexts are garbage collected during parallel execution
                         fileParallelism: false,
@@ -258,6 +341,9 @@ export default defineConfig({
                 "**/*.test.ts",
                 "**/*.spec.ts",
                 "**/types/**",
+                // Test doubles, not product code: measuring them against the package's thresholds
+                // would demand coverage of branches only a future test is meant to reach.
+                "src/testing/**",
             ],
         },
         // dangerouslyIgnoreUnhandledErrors: true,

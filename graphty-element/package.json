@@ -60,6 +60,7 @@
         "./dist/graphty.bundle.js",
         "./dist/webgpu.js",
         "./dist/chunks/*.js",
+        "./webgpu.ts",
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts"
@@ -140,7 +141,8 @@
         "coverage:shard:storybook:4": "COVERAGE_DIR=.coverage-parts/storybook-4 vitest run --project=storybook --shard=4/4 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
         "coverage:preview": "npx serve coverage -p 9053",
-        "lint": "eslint && tsc --noEmit",
+        "lint": "eslint && tsc --noEmit && npm run typecheck:strict-consumer",
+        "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty-element",
         "dev": "vite --force --mode development",
@@ -191,7 +193,7 @@
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
         "@graphty/graph-format": "^1.0.0",
-        "@graphty/webgpu-graph-algorithms": "^0.2.0",
+        "@graphty/webgpu-graph-algorithms": ">=0.5.1 <1.0.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "lit": "^3.0.0"
     },

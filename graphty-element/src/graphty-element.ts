@@ -7,7 +7,7 @@ import { LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
-import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
+import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import type { AlgorithmKey, Scope } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, ViewMode } from "./config";
 import { REPEATED_EDGE_POLICIES } from "./config/DataConfig";
@@ -39,8 +39,7 @@ export class Graphty extends LitElement {
     #graph: Graph;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
-    #accelerationPolicy: AccelerationPolicy = "auto";
-    #acceleration: AccelerationController | null = null;
+    #capabilitiesMirrored = false;
     #unwatchRuns: (() => void) | null = null;
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
@@ -238,7 +237,15 @@ export class Graphty extends LitElement {
 
         // Look for an accelerator. Nothing is registered unless the consumer imported
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
-        void this.#ensureAcceleration().start();
+        //
+        // A Graph is built once, in this element's constructor, and never rebuilt, so an element
+        // that has been disconnected is a shut-down element: its controller was disposed with the
+        // rest of the graph and re-attaching probes nothing.
+        const controller = this.#ensureAcceleration();
+
+        if (!controller.disposed) {
+            void controller.start();
+        }
 
         // Mirror every run onto the DOM, whoever started it. A run started from a console, an
         // agent or a panel has no `onProgress` this element could have attached, so the session's
@@ -355,11 +362,6 @@ export class Graphty extends LitElement {
             this.#resizeObserver.disconnect();
             this.#resizeObserver = null;
         }
-
-        // Release the accelerator's device with the rest of the element's resources. A
-        // re-attached element builds a fresh controller and probes again.
-        this.#acceleration?.dispose();
-        this.#acceleration = null;
 
         this.#unwatchRuns?.();
         this.#unwatchRuns = null;
@@ -2422,6 +2424,30 @@ export class Graphty extends LitElement {
         return this.#graph.isRunning();
     }
 
+    /**
+     * Play or pause the layout.
+     *
+     * `setRunning(true)` on a layout that has already settled restarts it, so "play" is
+     * something the reader can see; `setRunning(false)` stops the per-frame stepping and nothing
+     * else -- work already handed to an accelerator lands, the scene keeps rendering, and the
+     * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
+     * the state and `graph-settled` reports the arrangement coming to rest.
+     *
+     * A pause is not a mode the element remembers: anything that (re)starts a layout -- loading
+     * more nodes, an accelerator attaching, setting another layout, dropping a dragged node --
+     * runs it again, so pause it after those, not before.
+     * @param running - True to run the layout, false to pause it.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.setRunning(false); // pause
+     * element.setRunning(true); // play again, from where it stopped
+     * ```
+     */
+    setRunning(running: boolean): void {
+        this.#graph.setRunning(running);
+    }
+
     // ============================================================================
     // Phase 7b: Medium Priority Methods - Coordinate Transform
     // ============================================================================
@@ -2858,7 +2884,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "acceleration", reflect: true })
     get acceleration(): AccelerationPolicy {
-        return this.#accelerationPolicy;
+        return this.#graph.acceleration.policy;
     }
     /**
      * Sets the acceleration policy and applies it immediately.
@@ -2874,46 +2900,103 @@ export class Graphty extends LitElement {
      * healthy.
      */
     set acceleration(value: AccelerationPolicy) {
-        if (value !== "auto" && value !== "off" && value !== "required") {
+        const oldValue = this.#graph.acceleration.policy;
+
+        if (!isAccelerationPolicy(value)) {
             console.error(
                 `<graphty-element>: acceleration must be "auto", "off" or "required", not ` +
-                    `"${String(value)}". Keeping "${this.#accelerationPolicy}". ` +
-                    "See https://graphty.app/docs/graphty-element/attributes#acceleration",
+                    `"${String(value)}". Keeping "${oldValue}". ` +
+                    "See https://graphty.app/docs/graphty-element/guide/acceleration",
             );
             return;
         }
 
-        const oldValue = this.#accelerationPolicy;
-        this.#accelerationPolicy = value;
-        this.#acceleration?.setPolicy(value);
+        // Written through the session, and read back off the one controller behind both, so the
+        // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
+        this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
     }
 
     /**
-     * The acceleration controller for this element, built on first use.
+     * The node count at or above which accelerated work uses the accelerator.
+     *
+     * Below it the element takes the CPU path even with an accelerator attached, and
+     * `capabilities.acceleration.state` reads `"idle"`. Default 0: use the accelerator whenever
+     * there is one. Raise it when the graphs you show are small enough that uploading costs more
+     * than computing; the number is machine-specific, which is why the element does not guess.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element acceleration-min-nodes="5000"></graphty-element>
+     * ```
+     * @returns The threshold in force.
+     */
+    @property({ attribute: "acceleration-min-nodes", type: Number, reflect: true })
+    get accelerationMinNodes(): number {
+        return this.#graph.acceleration.minNodes;
+    }
+    /**
+     * Sets the threshold and applies it immediately.
+     *
+     * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
+     * previous threshold in force, for the reason the `acceleration` setter states: Lit drives
+     * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
+     * @param value - The node count at or above which accelerated work uses the accelerator.
+     */
+    set accelerationMinNodes(value: number) {
+        const oldValue = this.#graph.acceleration.minNodes;
+
+        try {
+            this.#graph.acceleration.setMinNodes(value);
+        } catch (error: unknown) {
+            // NaN is the one case the markup reads better than the value: Lit's `type: Number`
+            // converter runs before this setter, so `acceleration-min-nodes="many"` arrives here
+            // as NaN and an author told `not "NaN"` would have to work out which of their
+            // attributes that was. Every other bad value names itself, including a property write
+            // that never went near the attribute.
+            const written = Number.isNaN(value)
+                ? (this.getAttribute("acceleration-min-nodes") ?? "NaN")
+                : String(value);
+
+            console.error(
+                `<graphty-element>: acceleration-min-nodes must be a whole number of 0 or more, ` +
+                    `not "${written}". Keeping ${String(oldValue)}. ` +
+                    "See https://graphty.app/docs/graphty-element/guide/acceleration",
+                error,
+            );
+            return;
+        }
+
+        this.requestUpdate("accelerationMinNodes", oldValue);
+    }
+
+    /**
+     * The acceleration controller, which is the Graph's -- the element does not build one.
      *
      * Every transition it publishes is mirrored as a `graphty-capabilities-change` DOM event,
      * so a page with a tag and six lines of script can show whether the GPU is in use, say why
      * it is not, and update itself when a device is lost -- without importing a module or
-     * naming a single GPU type.
+     * naming a single GPU type. The mirror carries the controller's own capability document, the
+     * same object `element.session.capabilities` returns, so the two channels cannot disagree.
      * @returns The controller.
      */
     #ensureAcceleration(): AccelerationController {
-        if (this.#acceleration === null) {
-            const controller = new AccelerationController({ policy: this.#accelerationPolicy });
-            controller.onChange((status: AccelerationStatus) => {
+        const controller = this.#graph.acceleration;
+
+        if (!this.#capabilitiesMirrored) {
+            controller.onChange(() => {
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: { acceleration: status } },
+                        detail: { capabilities: controller.capabilities },
                         bubbles: true,
                         composed: true,
                     }),
                 );
             });
-            this.#acceleration = controller;
+            this.#capabilitiesMirrored = true;
         }
 
-        return this.#acceleration;
+        return controller;
     }
 }
 

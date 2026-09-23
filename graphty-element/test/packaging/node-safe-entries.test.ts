@@ -86,13 +86,16 @@ interface Reached {
 /**
  * Walk everything one entry point imports at run time.
  * @param entry - The entry file, relative to the package root.
- * @returns Every bare specifier the graph reaches, each with the chain of files that reaches it.
+ * @returns One entry per bare specifier PER IMPORTING FILE, each with the chain that reaches it.
+ *   Every importer, not the first one found: "this package arrives here and nowhere else" is a
+ *   thing a case wants to assert, and a walk that kept one importer per specifier could not tell
+ *   the difference between one door and three.
  */
 function importGraph(entry: string): Reached[] {
     const start = resolve(PACKAGE_ROOT, entry);
     const parent = new Map<string, string | null>([[start, null]]);
     const queue = [start];
-    const reached = new Map<string, string>();
+    const reached = new Map<string, string[]>();
 
     while (queue.length > 0) {
         const file = queue.shift();
@@ -107,8 +110,14 @@ function importGraph(entry: string): Reached[] {
                     parent.set(next, file);
                     queue.push(next);
                 }
-            } else if (!reached.has(specifier)) {
-                reached.set(specifier, file);
+            } else {
+                const importers = reached.get(specifier);
+
+                if (importers === undefined) {
+                    reached.set(specifier, [file]);
+                } else if (!importers.includes(file)) {
+                    importers.push(file);
+                }
             }
         }
     }
@@ -128,7 +137,9 @@ function importGraph(entry: string): Reached[] {
         return chain.reverse();
     }
 
-    return [...reached.entries()].map(([specifier, importer]) => ({ specifier, chain: chainTo(importer) }));
+    return [...reached.entries()].flatMap(([specifier, importers]) =>
+        importers.map((importer) => ({ specifier, chain: chainTo(importer) })),
+    );
 }
 
 describe("the Node-safe entry points", () => {
@@ -157,5 +168,40 @@ describe("the Node-safe entry points", () => {
         ]);
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));
+    });
+});
+
+describe("the ./webgpu entry point", () => {
+    // Not Node-safe by design (it touches `navigator.gpu`), so it is not in the list above. What
+    // it must still be is loadable on its own: a consumer imports it as a second line beside the
+    // element, and a renderer or a component framework arriving through it would be a second copy
+    // of one the page already has.
+    it("reaches no renderer and no component framework", () => {
+        const forbidden = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/];
+        const offenders = importGraph("webgpu.ts").filter((found) =>
+            forbidden.some((pattern) => pattern.test(found.specifier)),
+        );
+
+        assert.deepEqual(
+            offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
+            [],
+        );
+    });
+
+    // Where the optional peer ENTERS the package. The walk lists every file inside `webgpu.ts`'s
+    // graph that imports each bare specifier, so a peer import that had drifted down into, say,
+    // the acceleration controller would appear here as a second line naming that file, and the
+    // comparison below would fail. It is not a package-wide census -- an importer outside this
+    // entry point's graph is not visible from here -- and `exports-map.test.ts` is what keeps the
+    // peer optional in the manifest; this keeps the entry point the only door it comes through.
+    it("reaches both entries of the optional peer from webgpu.ts, and from no other file", () => {
+        const peers = importGraph("webgpu.ts").filter((found) =>
+            /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),
+        );
+
+        assert.deepEqual(peers.map((found) => `${found.specifier} from ${found.chain.at(-1) ?? "nowhere"}`).sort(), [
+            "@graphty/webgpu-graph-algorithms from webgpu.ts",
+            "@graphty/webgpu-graph-algorithms/browser from webgpu.ts",
+        ]);
     });
 });

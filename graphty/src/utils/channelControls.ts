@@ -14,15 +14,17 @@
  * unset value could be told from a set one. The channel vocabulary is flat and its values are
  * scalars, so a channel's value IS what the control edits and there is nothing to translate.
  *
- * WHAT THE ELEMENT DOES NOT PUBLISH, and what it costs here. `CHANNEL_DESCRIPTORS` in
- * `graphty-element/src/session/styles/channels.ts` already holds every fact below -- the plain
- * name, the accepted kind, the enum values, the bounds, and the caveat saying what the renderer
- * narrows -- and it is exported from no entry point of the package. So the shape of this table
- * is a second copy of a table the element owns, and it can drift from what the element can
- * actually draw with nothing able to catch it. `session.catalog` publishes the algorithms, the
- * formats, the layouts, the palettes and the scales; channels belong beside them.
+ * WHERE THE DRAWABLE FACTS COME FROM. The element owns them, in `CHANNEL_DESCRIPTORS`, now
+ * published from `@graphty/graphty-element/catalog` beside the algorithm, format, layout, palette
+ * and scale tables. This file reads the control kind, the numeric bounds and (for an enum) the
+ * accepted values from there rather than restating them, so they cannot fall out of step with
+ * what the element can actually draw. What remains below is presentation the element has no
+ * opinion about -- a control's label, its inspector group, its stepper increment, the option
+ * icons -- and `channelControls.test.ts` proves even the presentation's enum choices still match
+ * the element's values.
  */
 
+import { CHANNEL_DESCRIPTORS, type ChannelValueKind } from "@graphty/graphty-element/catalog";
 import { colorToHex, defaultEdgeStyle, defaultNodeStyle, MISSING_DATA_COLOR } from "@graphty/graphty-element/schema";
 import type { Channel } from "@graphty/graphty-element/session";
 
@@ -98,131 +100,142 @@ export function defaultNodeHex(): string {
 const MARKER_REASON = "The element draws no marker yet";
 
 /**
- * Every channel, with the control that edits it.
+ * The control the inspector draws for each kind of value the element accepts.
  *
- * Keyed by `Channel`, so the table cannot fall behind the union: adding a channel to the
- * element without adding a row here stops this file compiling.
+ * The element names its value kinds; this is the only place that decides which Mantine control
+ * edits each one, so a kind the element adds is a compile error here rather than a channel with
+ * no editor. `nothing` is the element's kind for a channel it draws but cannot be set (the
+ * marker), which the inspector shows as a disabled row.
  */
-export const CHANNEL_CONTROLS: Readonly<Record<Channel, ChannelControl>> = {
-    "node.color": { label: "Color", group: "Color", kind: "color", fallback: defaultNodeHex() },
-    "node.size": {
-        label: "Size",
-        group: "Shape",
-        kind: "number",
-        fallback: defaultNodeStyle.shape?.size ?? 1,
-        min: 0,
-        step: 0.1,
-    },
+const CONTROL_KIND: Readonly<Record<ChannelValueKind, ChannelControlKind>> = {
+    color: "color",
+    number: "number",
+    text: "text",
+    boolean: "boolean",
+    enum: "enum",
+    labelStyle: "labelStyle",
+    nothing: "none",
+};
+
+/**
+ * The presentation facts for each channel -- the ones the element does not own.
+ *
+ * What a control is called, which group it sits in, how far a stepper moves, the value shown
+ * when no layer has set it, and the option list a select draws with its labels and icons. The
+ * DRAWABLE facts a reader could get wrong -- which control kind a channel takes, its numeric
+ * bounds, and the values an enum accepts -- are NOT restated here: they come from
+ * `CHANNEL_DESCRIPTORS`, so they cannot drift from what the element can actually draw. Keyed by
+ * `Channel`, so adding or removing a channel in the element stops this file compiling.
+ */
+interface ChannelUi {
+    /** The word beside the control. Sentence case, no trailing punctuation. */
+    readonly label: string;
+    /** Which group the row sits in. */
+    readonly group: ChannelGroup;
+    /** How far a stepper moves, for a number channel. Presentation, so it lives here. */
+    readonly step?: number;
+    /** The value the element draws when no layer sets this channel. */
+    readonly fallback?: string | number | boolean;
+    /** The choices, for an enum channel: the element's values dressed with a label and icon. */
+    readonly options?: readonly StyleOption[];
+    /** Why this channel cannot be set here, when it cannot. A control with one is disabled. */
+    readonly unavailable?: string;
+}
+
+const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
+    "node.color": { label: "Color", group: "Color", fallback: defaultNodeHex() },
+    "node.size": { label: "Size", group: "Shape", fallback: defaultNodeStyle.shape?.size ?? 1, step: 0.1 },
     "node.shape": {
         label: "Type",
         group: "Shape",
-        kind: "enum",
         fallback: defaultNodeStyle.shape?.type ?? "icosphere",
         options: NODE_SHAPE_OPTIONS,
     },
-    "node.label": { label: "Label", group: "Text", kind: "text" },
-    "node.labelStyle": { label: "Label style", group: "Text", kind: "labelStyle" },
-    "node.tooltip": { label: "Tooltip", group: "Text", kind: "text" },
-    "node.tooltipStyle": { label: "Tooltip style", group: "Text", kind: "labelStyle" },
-    "node.opacity": { label: "Opacity", group: "Color", kind: "number", fallback: 1, min: 0, max: 1, step: 0.05 },
-    "node.outline": { label: "Outline", group: "Effects", kind: "color" },
-    "node.glow": { label: "Glow", group: "Effects", kind: "color" },
-    "node.glowStrength": { label: "Glow strength", group: "Effects", kind: "number", min: 0, step: 0.1 },
-    "node.wireframe": { label: "Wireframe", group: "Effects", kind: "boolean", fallback: false },
-    "node.flat": { label: "Flat shaded", group: "Effects", kind: "boolean", fallback: false },
-    "node.marker": { label: "Marker", group: "Effects", kind: "none", unavailable: MARKER_REASON },
-    "edge.color": { label: "Color", group: "Line", kind: "color", fallback: hexOf(defaultEdgeStyle.line?.color) },
-    "edge.width": {
-        label: "Width",
-        group: "Line",
-        kind: "number",
-        fallback: defaultEdgeStyle.line?.width ?? 1,
-        min: 0,
-        step: 0.5,
-    },
-    "edge.opacity": {
-        label: "Opacity",
-        group: "Line",
-        kind: "number",
-        fallback: defaultEdgeStyle.line?.opacity ?? 1,
-        min: 0,
-        max: 1,
-        step: 0.05,
-    },
+    "node.label": { label: "Label", group: "Text" },
+    "node.labelStyle": { label: "Label style", group: "Text" },
+    "node.tooltip": { label: "Tooltip", group: "Text" },
+    "node.tooltipStyle": { label: "Tooltip style", group: "Text" },
+    "node.opacity": { label: "Opacity", group: "Color", fallback: 1, step: 0.05 },
+    "node.outline": { label: "Outline", group: "Effects" },
+    "node.glow": { label: "Glow", group: "Effects" },
+    "node.glowStrength": { label: "Glow strength", group: "Effects", step: 0.1 },
+    "node.wireframe": { label: "Wireframe", group: "Effects", fallback: false },
+    "node.flat": { label: "Flat shaded", group: "Effects", fallback: false },
+    "node.marker": { label: "Marker", group: "Effects", unavailable: MARKER_REASON },
+    "edge.color": { label: "Color", group: "Line", fallback: hexOf(defaultEdgeStyle.line?.color) },
+    "edge.width": { label: "Width", group: "Line", fallback: defaultEdgeStyle.line?.width ?? 1, step: 0.5 },
+    "edge.opacity": { label: "Opacity", group: "Line", fallback: defaultEdgeStyle.line?.opacity ?? 1, step: 0.05 },
     "edge.style": {
         label: "Line",
         group: "Line",
-        kind: "enum",
         fallback: defaultEdgeStyle.line?.type ?? "solid",
         options: LINE_TYPE_OPTIONS,
     },
-    "edge.curvature": { label: "Curved", group: "Line", kind: "boolean", fallback: false },
+    "edge.curvature": { label: "Curved", group: "Line", fallback: false },
     "edge.arrowHead": {
         label: "Head",
         group: "Arrows",
-        kind: "enum",
         fallback: defaultEdgeStyle.arrowHead?.type ?? "none",
         options: ARROW_TYPE_OPTIONS,
     },
-    "edge.arrowHeadSize": {
-        label: "Head size",
-        group: "Arrows",
-        kind: "number",
-        fallback: defaultEdgeStyle.arrowHead?.size ?? 1,
-        min: 0,
-        step: 0.1,
-    },
-    "edge.arrowHeadColor": {
-        label: "Head color",
-        group: "Arrows",
-        kind: "color",
-        fallback: hexOf(defaultEdgeStyle.arrowHead?.color),
-    },
+    "edge.arrowHeadSize": { label: "Head size", group: "Arrows", fallback: defaultEdgeStyle.arrowHead?.size ?? 1, step: 0.1 },
+    "edge.arrowHeadColor": { label: "Head color", group: "Arrows", fallback: hexOf(defaultEdgeStyle.arrowHead?.color) },
     "edge.arrowHeadOpacity": {
         label: "Head opacity",
         group: "Arrows",
-        kind: "number",
         fallback: defaultEdgeStyle.arrowHead?.opacity ?? 1,
-        min: 0,
-        max: 1,
         step: 0.05,
     },
-    "edge.arrowHeadText": { label: "Head caption", group: "Arrows", kind: "text" },
-    "edge.arrowHeadTextStyle": { label: "Head caption style", group: "Arrows", kind: "labelStyle" },
-    "edge.arrowTail": { label: "Tail", group: "Arrows", kind: "enum", fallback: "none", options: ARROW_TYPE_OPTIONS },
-    "edge.arrowTailSize": {
-        label: "Tail size",
-        group: "Arrows",
-        kind: "number",
-        fallback: defaultEdgeStyle.arrowTail?.size ?? 1,
-        min: 0,
-        step: 0.1,
-    },
-    "edge.arrowTailColor": {
-        label: "Tail color",
-        group: "Arrows",
-        kind: "color",
-        fallback: hexOf(defaultEdgeStyle.arrowTail?.color),
-    },
+    "edge.arrowHeadText": { label: "Head caption", group: "Arrows" },
+    "edge.arrowHeadTextStyle": { label: "Head caption style", group: "Arrows" },
+    "edge.arrowTail": { label: "Tail", group: "Arrows", fallback: "none", options: ARROW_TYPE_OPTIONS },
+    "edge.arrowTailSize": { label: "Tail size", group: "Arrows", fallback: defaultEdgeStyle.arrowTail?.size ?? 1, step: 0.1 },
+    "edge.arrowTailColor": { label: "Tail color", group: "Arrows", fallback: hexOf(defaultEdgeStyle.arrowTail?.color) },
     "edge.arrowTailOpacity": {
         label: "Tail opacity",
         group: "Arrows",
-        kind: "number",
         fallback: defaultEdgeStyle.arrowTail?.opacity ?? 1,
-        min: 0,
-        max: 1,
         step: 0.05,
     },
-    "edge.arrowTailText": { label: "Tail caption", group: "Arrows", kind: "text" },
-    "edge.arrowTailTextStyle": { label: "Tail caption style", group: "Arrows", kind: "labelStyle" },
-    "edge.patternCount": { label: "Pattern count", group: "Line", kind: "number", min: 2, step: 1 },
-    "edge.animationSpeed": { label: "Animation", group: "Line", kind: "number", fallback: 0, min: 0, step: 0.1 },
-    "edge.label": { label: "Label", group: "Text", kind: "text" },
-    "edge.labelStyle": { label: "Label style", group: "Text", kind: "labelStyle" },
+    "edge.arrowTailText": { label: "Tail caption", group: "Arrows" },
+    "edge.arrowTailTextStyle": { label: "Tail caption style", group: "Arrows" },
+    "edge.patternCount": { label: "Pattern count", group: "Line", step: 1 },
+    "edge.animationSpeed": { label: "Animation", group: "Line", fallback: 0, step: 0.1 },
+    "edge.label": { label: "Label", group: "Text" },
+    "edge.labelStyle": { label: "Label style", group: "Text" },
 };
 
 /** Every channel, in the order the inspector draws them. */
-const CHANNEL_ORDER: readonly Channel[] = Object.keys(CHANNEL_CONTROLS) as Channel[];
+const CHANNEL_ORDER: readonly Channel[] = Object.keys(CHANNEL_UI) as Channel[];
+
+/**
+ * Every channel, with the control that edits it.
+ *
+ * The presentation comes from `CHANNEL_UI` above; the control kind, the numeric bounds and (for
+ * an enum) that the option list is complete come from the element's `CHANNEL_DESCRIPTORS`. So a
+ * bound or a value cannot drift from the element the way a hand-copied number would -- there is
+ * one source for each drawable fact, and `channelControls.test.ts` proves the two halves agree.
+ */
+export const CHANNEL_CONTROLS: Readonly<Record<Channel, ChannelControl>> = Object.fromEntries(
+    CHANNEL_ORDER.map((channel): [Channel, ChannelControl] => {
+        const descriptor = CHANNEL_DESCRIPTORS[channel];
+        const ui = CHANNEL_UI[channel];
+        return [
+            channel,
+            {
+                label: ui.label,
+                group: ui.group,
+                kind: CONTROL_KIND[descriptor.accepts],
+                ...(ui.fallback !== undefined ? { fallback: ui.fallback } : {}),
+                ...(ui.options !== undefined ? { options: ui.options } : {}),
+                ...(descriptor.min !== undefined ? { min: descriptor.min } : {}),
+                ...(descriptor.max !== undefined ? { max: descriptor.max } : {}),
+                ...(ui.step !== undefined ? { step: ui.step } : {}),
+                ...(ui.unavailable !== undefined ? { unavailable: ui.unavailable } : {}),
+            },
+        ];
+    }),
+) as Record<Channel, ChannelControl>;
 
 /** The groups a node layer's rows are drawn in, in order. */
 export const NODE_GROUPS: readonly ChannelGroup[] = ["Shape", "Color", "Effects", "Text"];

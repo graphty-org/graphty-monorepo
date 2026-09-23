@@ -51,3 +51,12 @@ export {
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+
+// The style channels a layer can paint, described as data: the plain name, the kind of value
+// each accepts, its enum values or numeric bounds, where it lands in a parsed style, and whether
+// the renderer draws it. A style inspector reads these the way a picker reads the tables above,
+// instead of copying the facts into the application where they drift the first time a channel's
+// bounds or values change. `CHANNEL_DESCRIPTORS` is defined beside the channel value types in
+// `src/session/styles/channels.ts`; it is plain data and carries no renderer.
+export type { ChannelDescriptor, ChannelValueKind } from "./src/session/styles/channels";
+export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";

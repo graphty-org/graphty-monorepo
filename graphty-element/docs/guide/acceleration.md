@@ -183,17 +183,22 @@ is a recovery that worked; after the third failure it stays down.
 
 `E_DEVICE_INCORRECT` is the one that surprises people, because the hardware is there and it
 works. Before the element gives an accelerator any of your graph, it asks the accelerator to
-compute something whose answer is already known; a backend that can check itself does so, and a
-device that gets it wrong is turned down. The software renderer that ships with Windows is the
-device this exists for -- it miscomputes shaders that pass a value across a workgroup barrier, so
-prefix sums, sorts and the grid layouts built on them come back wrong, with plausible numbers and
-no error anywhere. Nothing you change makes it pass; a driver update might. Your graph is drawn
-by the CPU in the meantime, which is what it would have done on a machine with no GPU at all.
+compute something whose answer is already known, and a device that gets it wrong is turned down.
+The WebGPU accelerator answers by scanning a prefix sum of 8,193 known numbers through the
+kernels it would really use and checking every word on the host. It costs 14 to 20 milliseconds,
+once per device, and only on a machine that has already produced an adapter.
+
+The software renderer that ships with Windows is the device this exists for. It miscomputes
+shaders that pass a value across a workgroup barrier, so prefix sums, sorts and the grid layouts
+built on them come back wrong, with plausible numbers and no error anywhere. Nothing you change
+makes it pass; a driver update might. Your graph is drawn by the CPU in the meantime, which is
+what it would have done on a machine with no GPU at all.
 
 A backend you registered yourself is asked the same question, and answers it by implementing
-`verify()` on the accelerator its factory returns. One that does not implement it is attached on
-the strength of the probe, exactly as before -- which is every accelerator that existed before
-this check did.
+`verify()` on the accelerator its factory returns: resolve when the hardware is trustworthy,
+reject with `E_DEVICE_INCORRECT` when it is not. One that does not implement it is attached on
+the strength of the probe, and so is an accelerator you hand to `setAccelerator` already built --
+the element only asks about accelerators it constructed itself.
 
 `E_TOO_LARGE` is about the ceiling the element asks for when an accelerator is built -- the
 WebGPU one computes exactly up to 32,768 nodes -- and not about the size of your graph. The

@@ -95,27 +95,62 @@ decides nothing, so it now reads out the true sentence instead of a generic fail
 what the app-must-not-work-around-the-element rule looks like when it is being obeyed rather than
 repaired.
 
-## What this does not do yet
+## How the WebGPU accelerator answers, and what the repository builds against
 
-**The shipped WebGPU accelerator does not implement `verify` yet, and the reason is a version
-rather than a design.** The peer's device self-check landed after the release graphty-element's
-peer range resolves to (`>=0.5.1 <1.0.0`, and the published 0.5.1 predates it), so `verifyDevice`
-is not a name `webgpu.ts` can import. The line that finishes it is
-`verify: () => verifyDevice(ctx).then(...)` on the accelerator `webgpu.ts` builds, and it lands
-when the peer range names a release that exports it. Everything above it -- the code, the seam,
-the controller, the published document, the chip -- is in place and under test against the fake.
+`webgpu.ts` implements `verify()` by calling the peer's `verifyDevice(ctx)` on the context it
+already holds. The peer REPORTS rather than throws -- it hands back a record whose `mismatch` is
+the first word that disagreed -- so the entry point is where a report becomes a refusal: a
+mismatch becomes `E_DEVICE_INCORRECT` carrying where, what was required, what arrived, whether
+the word was written at all, and the adapter strings that separate a broken driver from a fixed
+one. A failure of the check's own machinery (a device lost while it ran, an allocation that
+failed) throws out of `verifyDevice` with its own code and is left alone: "this driver computes
+incorrectly" must never be said about a device that merely died.
 
-Until that line lands, a real machine with this defect is caught by the peer's own guard from
-inside the first accelerated run, and `#refuseDevice` turns that into the same published state:
-the run throws, the element lets go of the device, and `capabilities.acceleration` reports
-`unavailable` with `E_DEVICE_INCORRECT` so nothing else is planned onto it. That is the right
-ending reached the wrong way round, and it is one failed run worse than the design.
+`verify` is named in `NOT_FORWARDED`. The entry point forwards every callable the peer puts on
+its accelerator, by name and after the wrapper is built, so without that line a future peer
+release that happened to add a member called `verify` would silently replace the element's own --
+and a self-check reporting something other than `E_DEVICE_INCORRECT` is worse than no check.
 
-`#refuseDevice` does not try to reattach, where a lost device does. A device that was lost might
-come back; a device that computes wrong answers was never trustworthy, and a fresh probe would
-find the same hardware.
+Two manifest changes went with it, and one was forced. graphty-element declares the GPU package
+only as an OPTIONAL PEER, and had no devDependency on it, so pnpm satisfied the peer from the
+registry rather than from the workspace -- which is why the element compiled against 0.5.1 while
+the app, which declares `workspace:*`, got the local copy. The element now takes a devDependency
+on it as well; the optional peer declaration stays, because that is the consumer contract and a
+different thing from what the repository builds against. And the peer range narrows to
+`>=0.6.0 <1.0.0`: once `webgpu.ts` calls `verifyDevice`, a consumer who satisfied the old range
+with a 0.5.x would crash at attach. That is forced rather than chosen, and 0.6.0 is published, so
+nothing downstream refuses it.
 
-The check is one property, and it is the accelerator's property to define. A backend whose
-`verify` resolves has retired one failure mode, not earned a certificate: the peer's own record is
-explicit that a device which carries values across a workgroup barrier correctly may still get
-atomics, subgroup reductions or float division wrong.
+## What is proved, and what is not
+
+The attach-time refusal is exercised against the fake accelerator (the controller's own path) and
+against a stubbed peer (`test/acceleration/webgpu-entry-device-check.test.ts`, which pins that
+the check runs when the element vouches for the device rather than during a run, that a wrong
+word becomes the element's code with the disagreement attached, that the poison word reads as
+"never written", that a check which could not RUN keeps its own code, and that the peer's own
+`verify` cannot displace the entry point's).
+
+**No test refuses a real GPU**, because no adapter reachable from this repository computes
+incorrectly -- the one machine that does is the Windows software renderer in the host matrix. The
+peer proves its own refusal path through a sabotage seam that replaces the shipped scan body; the
+element has no equivalent and does not try to build one.
+
+## The backstop, which stays
+
+`#refuseDevice` in the controller is not made redundant by the attach-time check. A device can
+start failing after it has been accepted, and the peer guards its own compute entry points
+independently. When that fires, the failing run still throws -- it is that work's failure -- and
+the element lets go of the accelerator and republishes `unavailable` with `E_DEVICE_INCORRECT`,
+so nothing else is planned onto it.
+
+It does not try to reattach, where a lost device does. A device that was lost might come back; a
+device that computes wrong answers was never trustworthy, and a fresh probe would find the same
+hardware.
+
+## What the check does not cover
+
+One property, and it is the accelerator's property to define. A backend whose `verify` resolves
+has retired one failure mode, not earned a certificate: the peer's own record is explicit that a
+device which carries values across a workgroup barrier correctly may still get atomics, subgroup
+reductions or float division wrong. An accelerator a consumer builds and injects through
+`setAccelerator` is never asked at all.

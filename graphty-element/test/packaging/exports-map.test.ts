@@ -228,7 +228,7 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
-        assert.match(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], /^>=0\.5\.1 </);
+        assert.match(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], /^>=0\.6\.0 </);
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {

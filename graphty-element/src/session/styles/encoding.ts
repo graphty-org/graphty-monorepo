@@ -59,6 +59,7 @@
  */
 
 import type { Binding, Channel, ChannelValue, PaletteDescriptor, Path, Rgba } from "../../catalog/types";
+import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import {
     type ChannelDescriptor,
@@ -67,9 +68,10 @@ import {
     type ChannelValueKind,
     type ChannelValues,
     type ColorValue,
+    type NodeShapeValue,
     toColorValue,
 } from "./channels";
-import { type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
+import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
     groupCount,
@@ -144,6 +146,11 @@ export interface PreparedBinding {
     readonly domain: readonly [number, number] | null;
     /** The categories an ordinal scale numbers, largest group first. Empty when there are none. */
     readonly categories: readonly string[];
+    /**
+     * The categories folded into the "other" bucket -- by `other.threshold` or by an overflow
+     * policy -- largest first. Empty when nothing folded.
+     */
+    readonly lumped: readonly string[];
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
     /** What the column held. */
@@ -189,6 +196,24 @@ export interface PrepareBindingOptions {
 
 /** How many groups a grouping by equal counts cuts when the binding does not say. */
 const QUANTILE_GROUPS = 4;
+
+/**
+ * The node shapes `overflow: "shape"` steps through, one per full cycle of the palette.
+ *
+ * The first is the element's default node shape, so the groups that fit in the palette look the
+ * way they would have without the policy. The rest are chosen for silhouettes that stay apart at
+ * a node's size from any angle: a cube, a double pyramid, an upright column, a point and a ring.
+ * The Platonic solids with many faces (dodecahedron, icosahedron) are left out because at node
+ * size they read as the sphere.
+ */
+export const OVERFLOW_SHAPES: readonly NodeShapeValue[] = Object.freeze([
+    "icosphere",
+    "box",
+    "octahedron",
+    "cylinder",
+    "cone",
+    "torus",
+]);
 
 /** The counts of a binding that read nothing. */
 const NO_COUNTS: BindingCounts = Object.freeze({
@@ -637,17 +662,19 @@ interface SettledCategories {
  *
  * `other.threshold` is a COUNT: a category carried by fewer elements than that is lumped. It is
  * also what rescues an encoding with more groups than the palette has colours, because the
- * palette never wraps.
+ * palette never wraps. `keep` is the other rescue, an overflow policy's: past that many groups,
+ * the smallest are lumped whatever their size.
  * @param facts - What the column held.
  * @param other - The "other" bucket, when the binding declared one.
+ * @param keep - How many categories keep a slot of their own at most.
  * @returns The categories, the ones lumped together, and how many elements that covers.
  */
-function settleCategories(facts: ColumnFacts, other: RuleBinding["other"]): SettledCategories {
+function settleCategories(facts: ColumnFacts, other: RuleBinding["other"], keep: number): SettledCategories {
     const bySize = [...facts.categoryCounts.entries()].sort(
         (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
     );
 
-    if (other === undefined) {
+    if (other === undefined && bySize.length <= keep) {
         return { categories: bySize.map(([name]) => name), lumped: [], other: 0 };
     }
 
@@ -656,7 +683,7 @@ function settleCategories(facts: ColumnFacts, other: RuleBinding["other"]): Sett
     let lumpedCount = 0;
 
     for (const [name, count] of bySize) {
-        if (count < other.threshold) {
+        if ((other !== undefined && count < other.threshold) || categories.length >= keep) {
             lumped.push(name);
             lumpedCount += count;
             continue;
@@ -891,6 +918,7 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         palette: null,
         domain: null,
         categories: [],
+        lumped: [],
         groups: 0,
         counts: NO_COUNTS,
         departures: [],
@@ -1058,8 +1086,12 @@ function colorOverrides(
     const overrides = new Map<string, ColorValue>();
     const { other } = binding;
 
-    if (other !== undefined) {
-        const color = requireColor(other.value, `The colour the "other" bucket paints on ${descriptor.channel}`);
+    if (lumped.length > 0) {
+        // Folded by an overflow policy with no bucket declared, the lumped groups get the grey.
+        const color = requireColor(
+            other?.value ?? OTHER_GROUP_COLOR,
+            `The colour the "other" bucket paints on ${descriptor.channel}`,
+        );
         for (const name of lumped) {
             overrides.set(name, color);
         }
@@ -1097,6 +1129,7 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
         scale: parts.scale,
         palette: binding.palette,
         missing: colorMissing(binding.missing, descriptor),
+        overflow: binding.overflow,
     };
     const ramp: PreparedRamp = prepareRamp(spec, parts.scales);
     const overrides = colorOverrides(binding, parts.categories.lumped, descriptor);
@@ -1218,6 +1251,10 @@ function valueOverrides(
  *   has values.
  */
 function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
+    if (binding.overflow === "shape" && descriptor.channel === "node.shape") {
+        return shapeCyclePainter(binding, parts);
+    }
+
     const convert = converterFor(descriptor);
     const groups = groupCount(parts.scale, parts.context);
     const context = rangeFor(descriptor, binding, parts, groups);
@@ -1242,6 +1279,60 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
             return isScaleMiss(placed) ? absent : (convert(placed) ?? absent);
         },
     };
+}
+
+/**
+ * Build the painter for the node shape half of `overflow: "shape"`.
+ *
+ * Group i -- largest first, the order the colour half numbers them in -- is drawn in shape
+ * floor(i / N), N being the palette's capacity, so each full cycle of colours moves to the next
+ * shape. A group folded into "other" is not given a shape at all.
+ * @param binding - The rule binding, read for the palette whose capacity sets the cycle.
+ * @param parts - What preparing it worked out.
+ * @returns The painter.
+ */
+function shapeCyclePainter(binding: RuleBinding, parts: AssemblyParts): Painter {
+    const cycle = overflowCapacity(binding.palette) ?? Number.POSITIVE_INFINITY;
+    const shapes = new Map<string, EncodedValue>(
+        parts.categories.categories.map((name, index) => [name, OVERFLOW_SHAPES[Math.floor(index / cycle)]]),
+    );
+
+    return {
+        palette: null,
+        groups: shapes.size,
+        paint: (value): EncodedValue | undefined => {
+            const name = readCategory(value);
+
+            return name === null ? undefined : shapes.get(name);
+        },
+    };
+}
+
+/**
+ * How many categories keep a slot of their own under the binding's overflow policy.
+ * @param descriptor - The channel, refused for "shape" when it paints edges.
+ * @param binding - The rule binding.
+ * @param numeric - Whether the scale reads numbers, which have no groups to fold.
+ * @returns The count, or infinity when nothing folds.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for "shape" on an edge channel.
+ */
+function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numeric: boolean): number {
+    const { overflow } = binding;
+
+    if (overflow === "shape" && descriptor.target === "edge") {
+        throw badBinding(
+            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            { channel: descriptor.channel, overflow },
+        );
+    }
+
+    const capacity = overflowCapacity(binding.palette);
+
+    if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape")) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    return overflow === "other" ? capacity : capacity * OVERFLOW_SHAPES.length;
 }
 
 /**
@@ -1297,6 +1388,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         palette: painter.palette,
         domain: parts.numeric ? parts.settled.domain : null,
         categories: parts.categories.categories,
+        lumped: parts.categories.lumped,
         groups: painter.groups,
         counts,
         departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),
@@ -1343,7 +1435,7 @@ function prepareRule(
     }
 
     const facts = walkColumn(options.column, numeric);
-    const categories = settleCategories(facts, binding.other);
+    const categories = settleCategories(facts, binding.other, overflowKeep(descriptor, binding, numeric));
     const base: DomainlessContext = {
         reverse: binding.reverse,
         midpoint: binding.midpoint,

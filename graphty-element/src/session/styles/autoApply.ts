@@ -39,7 +39,7 @@
  */
 
 import type { Channel, RunId } from "../../catalog/types";
-import type { RunStatus } from "../runs/types";
+import type { RunStatus, RunStyle } from "../runs/types";
 import { type StyleSuggestion, suggestStyles } from "./derive";
 import type { EncodingRun, EncodingSpec } from "./EncodingSpec";
 import type { Layer } from "./Layer";
@@ -86,8 +86,8 @@ export interface AutoApplyStyles {
 export interface AutoApplyRun extends EncodingRun {
     /** Where the run got to. Only a run that succeeded has anything to paint. */
     readonly status: RunStatus;
-    /** Whether the caller let the element paint this run at all. */
-    readonly style: boolean;
+    /** Whether the caller let the element paint this run at all, and whether to size by it too. */
+    readonly style: RunStyle;
 }
 
 /** Everything the policy is built from. */
@@ -263,7 +263,7 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
             // the stack -- would repaint a picture they had already decided about.
             painted.add(run.id);
 
-            for (const suggestion of suggestStyles(run)) {
+            for (const suggestion of suggestStyles(run, run.style)) {
                 pending.set(coalesceKey(suggestion), { runId: run.id, suggestion });
             }
 

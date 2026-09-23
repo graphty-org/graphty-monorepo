@@ -55,6 +55,7 @@ export type {
     RunScopeRecord,
     RunSpec,
     RunStatus,
+    RunStyle,
     StaleNote,
     StartOptions,
     WeightMeaning,

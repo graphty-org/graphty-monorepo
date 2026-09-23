@@ -344,13 +344,14 @@ describe("the palette's capacity", () => {
         );
     });
 
-    it("gives a partition the element planned itself a palette big enough to name it", () => {
+    it("gives a binding that names no palette and no overflow a palette big enough to name it", () => {
         // The eight-colour default cannot name ten groups, and a categorical palette never wraps.
         // What the element must NOT do is hand ITSELF that palette and then refuse its own layer:
         // this is a run of ten communities that got exactly that, and drew nothing at all.
+        // encode() now writes overflow "other" onto such a binding (see overflow.test.ts); a layer
+        // written by hand with no policy still gets the larger palette.
         const column = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
-        const binding = bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color");
-        const prepared = prepare("node.color", { ...binding, by: "g" }, column);
+        const prepared = prepare("node.color", { by: "g", scale: "ordinal" }, column);
         const painted = new Set(column.map((value) => hex(prepared.paint(value))));
 
         assert.strictEqual(prepared.groups, 10, "every group has a slot of its own");

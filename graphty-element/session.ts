@@ -141,6 +141,7 @@ export type {
     RunScopeRecord,
     RunSpec,
     RunStatus,
+    RunStyle,
     StaleNote,
     StartOptions,
     WeightMeaning,
@@ -245,6 +246,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 
 export type {
     Binding,
+    BindingOverflow,
     Channel,
     EdgeId,
     Encoding,

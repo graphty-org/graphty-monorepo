@@ -193,6 +193,45 @@ await element.session.styles.encode({ run, channel: "node.color", palette: "viri
 `encode()` replaces the layer already painting that channel from that run, so running the
 algorithm again leaves one layer and one legend block rather than two.
 
+### Sizing by a measurement in one flag
+
+A node measurement -- PageRank, degree, betweenness and the rest -- can size the nodes as well as
+colour them, asked for when the run starts:
+
+```typescript
+// Colour AND size by PageRank. Sizes run from 1 (the default node size) to 3.
+element.run("pagerank", {}, { style: { size: true } });
+
+// Or pick the range
+element.run("pagerank", {}, { style: { size: [1, 5] } });
+```
+
+`style: true` (the default) paints the colour alone and `style: false` paints nothing. `size` is
+ignored for a result that is not a node measurement -- a community has no amount to size by. The
+size layer paints only the nodes the run measured and is removed with the run.
+
+### More groups than colours
+
+The default palette for groups, Okabe-Ito, has eight colours that stay apart for every kind of
+colour vision. When a community run finds more groups than that, `encode()` decides with
+`overflow`:
+
+```typescript
+// Default: the 8 largest groups keep their colours; the rest share one grey,
+// and the legend's last row reads "other: K groups"
+await element.session.styles.encode({ run, channel: "node.color" });
+
+// Cycle the colours and change node shape on each cycle: group 9 is orange again, as a box
+await element.session.styles.encode({ run, channel: "node.color", overflow: "shape" });
+
+// A colour per group, however many -- past eight they are not guaranteed to be told apart
+await element.session.styles.encode({ run, channel: "node.color", overflow: "extend" });
+```
+
+`"shape"` is for nodes only; an edge encoding refuses it. If you name a `palette` and no
+`overflow`, a palette too small for the groups is refused with `E_CAP_EXCEEDED` rather than
+folded, because you asked for exactly those colours; name an `overflow` as well to apply it.
+
 ## Multiple Algorithms
 
 Run several and let each paint a channel of its own:

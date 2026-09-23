@@ -18,6 +18,7 @@
 import { assert, describe, it } from "vitest";
 
 import { GraphStyle } from "../../src/config/GraphStyle";
+import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
 import { prepareRamp } from "../../src/session/styles/palettes";
 import { createScaleRegistry } from "../../src/session/styles/scales";
 
@@ -195,6 +196,30 @@ describe("the default palette for groups", () => {
         // palette puts the one colour that barely shows on a light background (yellow) there.
         for (const color of slots.slice(0, -1)) {
             assert.isAtLeast(contrast(color, background), 1.5, `${ramp.palette.id}: ${color} on ${background}`);
+        }
+    });
+});
+
+describe("the grey an overflowing encoding paints its smallest groups", () => {
+    const eight = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const ramp = prepareRamp({ scale: "ordinal", domain: [0, 0], categories: eight }, registry);
+    const slots = eight.map((category) => ramp.color(category)?.hex ?? "");
+
+    it("stands off the background (>= 2:1)", () => {
+        assert.isAtLeast(contrast(OTHER_GROUP_COLOR, background), 2, `${OTHER_GROUP_COLOR} on ${background}`);
+    });
+
+    it("is apart from every colour of the default group palette (Delta E >= 15)", () => {
+        for (const color of slots) {
+            assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color), 15, `${OTHER_GROUP_COLOR} vs ${color}`);
+        }
+    });
+
+    it("is apart from them under protanopia and deuteranopia too (Delta E >= 6)", () => {
+        for (const vision of ["protan", "deutan"] as const) {
+            for (const color of slots) {
+                assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color, vision), 6, `${vision}: ${color}`);
+            }
         }
     });
 });

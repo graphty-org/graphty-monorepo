@@ -399,6 +399,26 @@ export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
+/**
+ * What a categorical colour encoding does when the column holds more groups than the palette has
+ * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
+ *
+ * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
+ *   first, and every remaining group is painted one dark grey (#505050). The legend names the
+ *   grey "other: K groups".
+ * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
+ *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
+ *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
+ *   edge encoding it is refused, because an edge has no shape to cycle.
+ * - `"extend"`: every group gets a colour of its own. With no palette named, the smallest
+ *   categorical palette that fits, else the sequential default sampled once per group; with a
+ *   palette named, its colours and then samples of the sequential default. Distinctness is NOT
+ *   guaranteed past the palette's capacity.
+ *
+ * Ignored by a scale that reads numbers, which has no groups to overflow.
+ */
+export type BindingOverflow = "other" | "shape" | "extend";
+
 /** One channel's binding: a literal, or a declarative mapping from a value in the data. */
 export type Binding =
     | { value: ChannelValue }
@@ -421,6 +441,12 @@ export type Binding =
           range?: [number, number];
           map?: Record<string, string | number>;
           other?: { threshold: number; value: string | number };
+          /**
+           * What a categorical colour binding does with more groups than its palette can keep
+           * apart. See {@link BindingOverflow}. Absent, a palette the binding names is refused with
+           * `E_CAP_EXCEEDED` and one it leaves to the element is chosen large enough.
+           */
+          overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
           reverse?: boolean;
           midpoint?: number;

@@ -36,9 +36,12 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { scaleDescriptor } from "../../catalog/scales";
 import type {
     AlgorithmKey,
+    BindingOverflow,
     Channel,
+    Encoding,
     FieldDescriptor,
     LayerSpec,
     PaletteId,
@@ -80,6 +83,27 @@ export interface EncodingSpec {
      * groups than it has colours, because a categorical palette never wraps.
      */
     readonly palette?: PaletteId;
+    /**
+     * What a categorical colour encoding does when the run found more groups than the palette has
+     * colours (8 for the default palette). Ignored for a measurement, which has no groups.
+     *
+     * - `"other"` -- THE DEFAULT. The 8 largest groups keep the palette's colours in palette order,
+     *   largest first, and every remaining group is painted one grey (#505050), which the legend
+     *   names "other: K groups".
+     * - `"shape"` -- node encodings only. Colours cycle through the palette and each full cycle
+     *   moves to the next node shape: group i is colour i mod 8 and shape floor(i / 8) from
+     *   icosphere (the default shape), box, octahedron, cylinder, cone, torus. Groups past 48 fold
+     *   into the grey. The shape is written by the same layer, so it is added and removed with
+     *   the colour. Refused with `E_BAD_COMMAND` on an edge channel, since an edge has no shape.
+     * - `"extend"` -- every group gets a colour of its own: a larger categorical palette when one
+     *   fits, and past that the sequential default sampled once per group. Colours past the
+     *   palette's capacity are NOT guaranteed to be told apart.
+     *
+     * With a `palette` named, N is that palette's capacity. A named palette with NO overflow keeps
+     * the strict rule: too many groups is refused with `E_CAP_EXCEEDED`, because the caller asked
+     * for exactly those colours. Naming an overflow applies it instead.
+     */
+    readonly overflow?: BindingOverflow;
     /** The extent to read values against. Defaults to the extent the run measured. */
     readonly domain?: RuleBinding["domain"];
     /** Percentiles to cut the extent at, so a few outliers do not flatten everything else. */
@@ -373,7 +397,66 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
         binding.reverse = spec.reverse;
     }
 
+    const overflow = overflowOf(spec, scale, descriptor);
+    if (overflow !== undefined) {
+        binding.overflow = overflow;
+    }
+
     return binding;
+}
+
+/**
+ * The overflow policy a binding records.
+ *
+ * The default, "other", is written only onto a colour binding whose scale names groups and whose
+ * palette the element picks. A named palette with no policy keeps the strict refusal, and a
+ * measurement has no groups to overflow, so writing a policy onto either would be noise in every
+ * saved document. A policy the caller asked for is always recorded.
+ * @param spec - The encoding.
+ * @param scale - The scale's name.
+ * @param descriptor - The channel.
+ * @returns The policy, or undefined when the binding carries none.
+ */
+function overflowOf(spec: EncodingSpec, scale: string, descriptor: ChannelDescriptor): BindingOverflow | undefined {
+    if (descriptor.accepts !== "color") {
+        return undefined;
+    }
+
+    if (spec.overflow !== undefined) {
+        return spec.overflow;
+    }
+
+    const groups = scaleDescriptor(scale)?.domainKind === "categorical";
+
+    return groups && spec.palette === undefined ? "other" : undefined;
+}
+
+/**
+ * The node shape half of `overflow: "shape"`, written into the same layer as the colour.
+ * @param spec - The encoding.
+ * @param colour - The colour binding it pairs with.
+ * @param descriptor - The channel, refused when it paints edges.
+ * @returns The extra channel bindings, empty unless the policy is "shape".
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel.
+ */
+function overflowCompanion(spec: EncodingSpec, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
+    if (colour.overflow !== "shape") {
+        return {};
+    }
+
+    if (descriptor.target === "edge") {
+        throw badEncoding(
+            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            { channel: descriptor.channel, overflow: colour.overflow },
+        );
+    }
+
+    const shape: RuleBinding = { by: colour.by, scale: colour.scale, overflow: "shape" };
+    if (colour.palette !== undefined) {
+        shape.palette = colour.palette;
+    }
+
+    return { "node.shape": shape };
 }
 
 /**
@@ -388,8 +471,8 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
  * @returns The layer, ready to be validated and added like any other.
  * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL` for a channel the element does not have,
  *   `E_UNKNOWN_RUN` for a run this session does not hold, `E_UNKNOWN_ATTRIBUTE` for a field the
- *   run does not publish, and `E_BAD_COMMAND` when the result has nothing per element to bind, or
- *   names a subset rather than measuring one.
+ *   run does not publish, and `E_BAD_COMMAND` when the result has nothing per element to bind,
+ *   names a subset rather than measuring one, or is an edge encoding asked for `overflow: "shape"`.
  */
 export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerSpec {
     const descriptor = requireChannel(spec.channel);
@@ -401,13 +484,14 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const { field, primary } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);
     const scale = spec.scale ?? defaultScale(field, run.shape, primary, descriptor.accepts);
+    const binding = buildBinding(spec, path, scale, descriptor);
 
     return {
         name: spec.name ?? `${run.label} - ${descriptor.plainName}`,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },
-        encode: { [spec.channel]: buildBinding(spec, path, scale, descriptor) },
+        encode: { [spec.channel]: binding, ...overflowCompanion(spec, binding, descriptor) },
         source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
     };
 }

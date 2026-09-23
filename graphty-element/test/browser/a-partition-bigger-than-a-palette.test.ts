@@ -24,6 +24,7 @@ import "../../src/algorithms";
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
 import { Graph } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
 import { paintOf } from "../helpers/paint-assertions";
@@ -72,7 +73,7 @@ describe("a run with more groups than the default palette has colours", () => {
         container.remove();
     });
 
-    it("paints every element it measured, in a colour per group", async () => {
+    it("paints every element it measured, folding the groups past the palette into one grey", async () => {
         const run = graph.run("components", {}, { style: false });
         await run;
 
@@ -103,16 +104,36 @@ describe("a run with more groups than the default palette has colours", () => {
                 "for: the element chose a palette too small for its own result and then refused it.",
         );
 
-        const colours = new Set(
-            NODES.map((node) => session.styles.explain({ node: node.id }).merged["node.color"] as string | undefined),
-        );
+        // THE DEFAULT OVERFLOW POLICY IS "other": the eight largest groups keep the eight palette
+        // colours and the rest share one grey that the legend names. So twelve pieces are drawn in
+        // nine colours -- and never by WRAPPING, which would give a ninth piece one of the eight
+        // palette colours and say nothing. What is checked is that each palette colour belongs to
+        // exactly one piece, and every other piece is the grey.
+        const colourOfPiece = new Map<string, Set<string | undefined>>();
+        for (const node of NODES) {
+            const piece = node.id.split("n")[0];
+            const merged = session.styles.explain({ node: node.id }).merged["node.color"];
+            const colour = typeof merged === "object" && "hex" in merged ? merged.hex : String(merged);
+            const seen = colourOfPiece.get(piece) ?? new Set<string | undefined>();
+            seen.add(colour.toLowerCase());
+            colourOfPiece.set(piece, seen);
+        }
 
-        assert.isAtLeast(
-            colours.size,
-            PIECES,
-            `${String(PIECES)} pieces were drawn in ${String(colours.size)} colours, so at least two of them read ` +
-                "as one group. A categorical palette must never wrap.",
+        const pieceColours = [...colourOfPiece.values()].map((seen) => {
+            assert.strictEqual(seen.size, 1, "every node of one piece is drawn in one colour");
+
+            return [...seen][0];
+        });
+        const grey = pieceColours.filter((colour) => colour === OTHER_GROUP_COLOR.toLowerCase());
+        const named = pieceColours.filter((colour) => colour !== OTHER_GROUP_COLOR.toLowerCase());
+
+        assert.lengthOf(named, 8, "the eight largest pieces keep a palette colour");
+        assert.lengthOf(
+            new Set(named),
+            8,
+            "and no two of them share one: a categorical palette must never wrap.",
         );
+        assert.lengthOf(grey, PIECES - 8, "every piece past the palette is the one 'other' grey");
     });
 
     it("reports nothing against its own suggested layer once the pass is done", async () => {

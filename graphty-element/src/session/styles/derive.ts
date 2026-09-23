@@ -41,6 +41,7 @@
 
 import type { Channel, FieldDescriptor } from "../../catalog/types";
 import { resultShapeContract } from "../results/types";
+import type { RunStyle } from "../runs/types";
 import type { EncodingRun, EncodingSpec } from "./EncodingSpec";
 import type { SelectorTarget } from "./predicate";
 import type { HighlightSpec } from "./StylesApi";
@@ -85,6 +86,17 @@ export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
 /** A run whose shape has nothing per element to draw suggests nothing, and says so once. */
 const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
 
+/**
+ * The node size range `style: { size: true }` uses.
+ *
+ * It starts at 1, the default node size, so the node the run ranks lowest looks exactly as it did
+ * and the encoding only ever makes nodes bigger. It stops at 3 because at the element's default
+ * layout spacing a node three times the default still leaves its neighbours and their edges in
+ * view; the Combined stories' [1, 5] reads well on 20 nodes and swallows neighbours on a dense
+ * graph.
+ */
+export const DEFAULT_SIZE_RANGE: readonly [number, number] = Object.freeze([1, 3]);
+
 /** The colour channel that paints one half of the graph. */
 const COLOR_CHANNEL = {
     node: "node.color",
@@ -124,10 +136,15 @@ function halvesCarrying(fields: readonly FieldDescriptor[], name: string): reado
  * Pure, and cheap: it reads what the run declares about its own result and never the values
  * behind it, so a consumer can ask before it decides whether to paint, and the auto-apply policy
  * asks the same question the same way.
+ *
+ * `style` adds to the suggestions and never takes from them: `{ size }` appends a node size over
+ * the same field for a node measurement, and everything else -- `true`, `false`, left off --
+ * suggests the colour alone. Whether to paint at all is the auto-apply policy's question.
  * @param run - The run, read for its shape and the fields it published.
+ * @param style - The run's style option, read only for `size`.
  * @returns What to draw, empty when the run's result is read rather than painted.
  */
-export function suggestStyles(run: EncodingRun): readonly StyleSuggestion[] {
+export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonly StyleSuggestion[] {
     const { layer, primaryField } = resultShapeContract(run.shape);
 
     if (layer === "none" || primaryField === null) {
@@ -145,8 +162,42 @@ export function suggestStyles(run: EncodingRun): readonly StyleSuggestion[] {
             ? [highlightOf(run, primaryField, halves)]
             : halves.map((half) => encodingOf(run, primaryField, half));
     const grouping = groupingOf(run, primaryField, primary);
+    const size = sizeOf(run, primaryField, halves, style);
 
-    return Object.freeze(grouping === null ? primary : [...primary, grouping]);
+    return Object.freeze([...primary, ...(grouping === null ? [] : [grouping]), ...(size === null ? [] : [size])]);
+}
+
+/**
+ * The node size a run started with `style: { size }` asks for.
+ *
+ * Only a node measurement has a size to give: a group id is not an amount, and an edge has no
+ * node to size. Anything else is ignored rather than refused, the same way the colour suggestion
+ * depends on the shape.
+ * @param run - The run.
+ * @param field - Its primary field.
+ * @param halves - The halves carrying it.
+ * @param style - The run's style option.
+ * @returns The encoding, or null when no size was asked for or the result has none to give.
+ */
+function sizeOf(
+    run: EncodingRun,
+    field: string,
+    halves: readonly SelectorTarget[],
+    style: RunStyle,
+): EncodingSuggestion | null {
+    const size = typeof style === "object" ? style.size : undefined;
+
+    if (size === undefined || size === false || run.shape !== "node-metric" || !halves.includes("node")) {
+        return null;
+    }
+
+    const [min, max] = size === true ? DEFAULT_SIZE_RANGE : size;
+
+    return {
+        as: "encoding",
+        channels: Object.freeze(["node.size"] as const),
+        spec: { run: run.id, field, channel: "node.size", range: [min, max] },
+    };
 }
 
 /**

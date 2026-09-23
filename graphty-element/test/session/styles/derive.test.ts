@@ -9,6 +9,7 @@ import {
 } from "../../../src/catalog/types";
 import type { RunRef } from "../../../src/session/results/types";
 import { ManagedRun, type RunDefinition, type RunSurroundings } from "../../../src/session/runs";
+import { DEFAULT_SIZE_RANGE } from "../../../src/session/styles/derive";
 import { planEncoding } from "../../../src/session/styles/EncodingSpec";
 import {
     type EncodingRun,
@@ -257,9 +258,12 @@ describe("the layer a suggestion becomes", () => {
             by: "results.betweenness.value",
             scale: "linear",
         });
+        // A grouping carries the default overflow policy, so a run that finds more groups than the
+        // palette has colours folds the smallest into one grey rather than being refused.
         assert.deepStrictEqual(grouped, {
             by: "results.louvain.group",
             scale: "ordinal",
+            overflow: "other",
         });
     });
 
@@ -352,5 +356,51 @@ describe("the run object that makes the suggestion", () => {
         };
 
         assert.lengthOf(new ManagedRun(definition, surroundings).suggestEncodings(), 0);
+    });
+});
+
+describe("sizing by the run's measurement, asked for with style: { size }", () => {
+    const sizeOf = (suggestions: readonly StyleSuggestion[]): EncodingSuggestion | undefined =>
+        suggestions.find(
+            (entry): entry is EncodingSuggestion => entry.as === "encoding" && entry.channels.includes("node.size"),
+        );
+
+    it("adds nothing for true or false, which are the colour suggestion alone and none", () => {
+        assert.isUndefined(sizeOf(suggestStyles(BETWEENNESS, true)));
+        assert.isUndefined(sizeOf(suggestStyles(BETWEENNESS, false)));
+        assert.isUndefined(sizeOf(suggestStyles(BETWEENNESS)));
+    });
+
+    it("adds a node size over the same field, in the default range, for size: true", () => {
+        const suggestions = suggestStyles(BETWEENNESS, { size: true });
+
+        assert.lengthOf(suggestions, 2, "the colour is still suggested");
+        assert.deepStrictEqual(sizeOf(suggestions)?.spec, {
+            run: "betweenness",
+            field: "value",
+            channel: "node.size",
+            range: [...DEFAULT_SIZE_RANGE],
+        });
+    });
+
+    it("uses the range it was given", () => {
+        assert.deepStrictEqual(sizeOf(suggestStyles(BETWEENNESS, { size: [2, 6] }))?.spec.range, [2, 6]);
+    });
+
+    it("adds nothing when size is false in the object", () => {
+        assert.lengthOf(suggestStyles(BETWEENNESS, { size: false }), 1);
+    });
+
+    it("ignores size for a result that is not a node measurement", () => {
+        assert.isUndefined(sizeOf(suggestStyles(LOUVAIN, { size: true })));
+        assert.isUndefined(sizeOf(suggestStyles(EDGE_BETWEENNESS, { size: true })));
+        assert.isUndefined(sizeOf(suggestStyles(ROUTE, { size: true })));
+    });
+
+    it("produces a layer scoped to the elements carrying the value", () => {
+        const spec = sizeOf(suggestStyles(BETWEENNESS, { size: true }))?.spec;
+        const layer = spec === undefined ? undefined : planEncoding(spec, RUN_SOURCE);
+
+        assert.deepStrictEqual(layer?.selector, { match: "has", path: "results.betweenness.value" });
     });
 });

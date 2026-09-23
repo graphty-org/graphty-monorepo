@@ -26,6 +26,7 @@
 
 export type {
     Binding,
+    BindingOverflow,
     Channel,
     ChannelValue,
     EdgeId,

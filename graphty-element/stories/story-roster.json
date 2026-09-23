@@ -17,6 +17,7 @@
         "Algorithms/Community::LabelPropagation",
         "Algorithms/Community::Leiden",
         "Algorithms/Community::Louvain",
+        "Algorithms/Community::LouvainMoreCommunitiesThanColours",
         "Algorithms/Component::ConnectedComponents",
         "Algorithms/Component::SCC",
         "Algorithms/Flow::BipartiteMatching",

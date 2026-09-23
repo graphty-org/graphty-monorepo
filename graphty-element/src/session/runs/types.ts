@@ -335,13 +335,34 @@ export interface StartOptions extends RunOptions {
     readonly timeBoxMs?: number;
     /** The id to give the run. Required for anything that will be saved. */
     readonly as?: RunId;
-    /** Set false to opt out of the encoding layer the element applies on first completion. */
-    readonly style?: boolean;
+    /**
+     * What the element paints on first completion. Set false to opt out of the encoding layer it
+     * applies, or `{ size: true }` to size the nodes by a node measurement as well. See
+     * {@link RunStyle}.
+     */
+    readonly style?: RunStyle;
     /** Refuse to approximate. Above the cost cap this fails rather than sampling. */
     readonly exact?: boolean;
     /** Ask for the approximate method at a chosen sample size. */
     readonly sample?: number;
 }
+
+/**
+ * What a run paints when it first completes.
+ *
+ * - `true`, or left off: the colour suggestion its result shape calls for.
+ * - `false`: nothing. The numbers are published and no layer is added.
+ * - `{ size }`: the colour suggestion, plus -- for a run whose result is a node measurement
+ *   (shape `"node-metric"`: PageRank, degree, betweenness and the rest) -- a node size encoding of
+ *   the same field. `size: true` sizes nodes from 1 (the default node size, so the least
+ *   important node looks unchanged) to 3; `size: [min, max]` uses that range. `size: false` or
+ *   left off adds no size. For any other result shape the size is ignored, without an error,
+ *   exactly as the colour suggestion itself depends on the shape.
+ *
+ * Every layer this adds is scoped to the nodes carrying the run's value, and is removed with the
+ * run.
+ */
+export type RunStyle = boolean | { readonly size?: boolean | readonly [min: number, max: number] };
 
 /** One member of a batch: the same thing `start` takes, as data. */
 export interface RunSpec {
@@ -355,8 +376,8 @@ export interface RunSpec {
     readonly seed?: number;
     /** The id to give the run. */
     readonly as?: RunId;
-    /** Set false to opt out of the derived encoding layer. */
-    readonly style?: boolean;
+    /** What the element paints on first completion; see {@link RunStyle}. */
+    readonly style?: RunStyle;
 }
 
 /** How one member of a batch turned out. */

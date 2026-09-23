@@ -39,7 +39,7 @@
  */
 
 import { knownPaletteIds, paletteDescriptor, palettesOfKind } from "../../catalog/palettes";
-import type { PaletteDescriptor, PaletteId } from "../../catalog/types";
+import type { BindingOverflow, PaletteDescriptor, PaletteId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation";
 import { type ColorValue, toColorValue } from "./channels";
@@ -99,6 +99,27 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
      * nothing at all, so the element keeps the colour the layers below it gave it.
      */
     missing?: "skip" | { value: string };
+    /**
+     * What to do with more groups than the palette has colours. Set, a palette the element picks
+     * is the preferred categorical one rather than a bigger one, and a named palette is not
+     * refused: "shape" wraps its colours and "extend" continues past them. "other" expects the
+     * caller to have folded the column down to {@link overflowCapacity} groups already, because
+     * which groups fold is decided by their sizes and a ramp never sees a size.
+     */
+    overflow?: BindingOverflow;
+}
+
+/**
+ * How many groups keep a colour (or a colour and a shape) of their own under an overflow policy.
+ *
+ * The capacity is the palette's: the one the binding names, else the preferred categorical one,
+ * because a binding with an overflow policy is painted through that palette rather than a larger
+ * one. A continuous palette has no capacity and folds nothing.
+ * @param named - The palette the binding names, if any.
+ * @returns The palette's capacity, or null when nothing folds.
+ */
+export function overflowCapacity(named: PaletteId | undefined): number | null {
+    return paletteDescriptor(named ?? DEFAULT_CATEGORICAL_PALETTE)?.capacity ?? null;
 }
 
 /** A colour binding with everything knowable worked out, ready to be asked once per element. */
@@ -200,7 +221,8 @@ function requirePalette(id: PaletteId): PaletteDescriptor {
  *   are one group, and refusing leaves the reader a blank frame where an algorithm did finish.
  *   The escape the element does NOT take here is lumping the rare groups into an "other" bucket:
  *   that discards a distinction the algorithm drew, which is a reader's decision, and the reader
- *   can still ask for it by name through the binding's `other`.
+ *   can still ask for it by name through the binding's `other`, or through `overflow: "other"`,
+ *   which is what `encode()` writes by default.
  * @param registry - The session's scales, so a plugin's scale answers the same question as a
  *   built-in one.
  * @param scale - The scale's name.
@@ -307,7 +329,7 @@ function parsedSwatches(palette: PaletteDescriptor): readonly ColorValue[] {
  *   element chose for itself always fits, because it is chosen from the group count below.
  */
 export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRamp {
-    const { scale = DEFAULT_SCALE, palette: named, missing, ...options } = spec;
+    const { scale = DEFAULT_SCALE, palette: named, missing, overflow, ...options } = spec;
     const map = registry.require(scale);
 
     // Counted before the palette is looked up, because the count is what decides which palette a
@@ -316,12 +338,17 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     // nothing and is not circular.
     const counting: ScaleContext = { ...options, range: RAMP_RANGE };
     const declared = groupCount(scale, counting);
-    const palette = requirePalette(named ?? defaultPaletteFor(registry, scale, declared));
+    // A binding that says what to do with too many groups is painted through the preferred palette
+    // and handles the rest itself -- except "extend", whose whole point is the larger palette.
+    const folds = overflow === "other" || overflow === "shape";
+    const palette = requirePalette(named ?? defaultPaletteFor(registry, scale, folds ? 0 : declared));
     const context: ScaleContext = { ...counting, palette };
     const categorical = palette.kind === "categorical";
     const slots = categorical && declared === 0 ? palette.colors.length : declared;
 
-    if (declared > 0) {
+    // "shape" wraps and "extend" continues, so only "other" -- already folded -- and no policy at
+    // all are held to the palette's capacity.
+    if (declared > 0 && (overflow === undefined || overflow === "other")) {
         const fit = paletteCapacity(palette, declared);
         if (!fit.fits) {
             throw new GraphtyError({
@@ -339,6 +366,17 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     const sampled = new Array<ColorValue | undefined>(steps + 1).fill(undefined);
     const { colors } = palette;
     const last = swatches.length - 1;
+    const extraColors = paletteDescriptor(DEFAULT_PALETTE)?.colors ?? colors;
+    /**
+     * The colour of the k-th group past a named categorical palette's capacity under "extend":
+     * the sequential default sampled once per extra group. Distinct from each other, not
+     * guaranteed distinct from the palette's own colours.
+     * @param extra - Which extra group, from 0.
+     * @param extras - How many extra groups there are.
+     * @returns The colour, or the missing colour when the sample does not parse.
+     */
+    const extension = (extra: number, extras: number): ColorValue | undefined =>
+        toColorValue(interpolatePalette(extras > 1 ? extra / (extras - 1) : 0, extraColors)) ?? absent;
 
     return {
         palette,
@@ -357,9 +395,17 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
             }
 
             if (categorical) {
-                const index = slots > 1 ? Math.round(placed * (slots - 1)) : 0;
+                const index = Math.max(0, slots > 1 ? Math.round(placed * (slots - 1)) : 0);
 
-                return swatches[Math.max(0, Math.min(last, index))];
+                if (index > last && overflow === "shape") {
+                    return swatches[index % swatches.length];
+                }
+
+                if (index > last && overflow === "extend") {
+                    return extension(index - last - 1, slots - swatches.length);
+                }
+
+                return swatches[Math.min(last, index)];
             }
 
             const step = Math.max(0, Math.min(steps, Math.round(placed * steps)));

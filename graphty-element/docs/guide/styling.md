@@ -250,9 +250,11 @@ await element.session.styles.add({
 ```
 
 A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quantile`, `ordinal`,
-`passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map` and a
-`missing` rule. `missing` defaults to `skip`, which leaves an element with no value exactly as the
-layers underneath painted it.
+`passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map`, an
+`overflow` policy and a `missing` rule. `missing` defaults to `skip`, which leaves an element with
+no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"` or
+`"extend"`) says what a categorical colour does with more groups than its palette has colours;
+`encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
 ## Painting an algorithm's result
 

@@ -616,6 +616,24 @@ function runsOver(harness: Recorder): ReturnType<typeof createRunsApi> {
     });
 }
 
+describe("the size layer in a real stack", () => {
+    it("is added beside the colour layer and removed with the run's other layers", async () => {
+        const { styles, policy } = realStack();
+
+        policy.completed({ ...BETWEENNESS, style: { size: true } });
+        await settle();
+
+        const size = styles.list().find((layer) => layer.encode?.["node.size"] !== undefined);
+
+        assert.isDefined(size);
+        assert.deepStrictEqual(size?.selector, { match: "has", path: "results.betweenness.value" });
+
+        await styles.removeBySource((source) => source.by === "run" && source.runId === "betweenness");
+
+        assert.lengthOf(styles.list(), 1, "only the element's base layer is left");
+    });
+});
+
 describe("what a session's runs fire", () => {
     it("paints a run that finished", async () => {
         const harness = record();
@@ -646,6 +664,31 @@ describe("what a session's runs fire", () => {
         await runs.start("degree", {}, { style: false });
 
         assert.lengthOf(harness.encoded, 0);
+    });
+
+    it("paints a node size as well when the run was started with style: { size }", async () => {
+        const harness = record();
+        const runs = runsOver(harness);
+
+        await runs.start("degree", {}, { style: { size: [2, 6] } });
+
+        assert.deepStrictEqual(
+            harness.encoded.map((spec) => spec.channel),
+            ["node.color", "node.size"],
+        );
+        assert.deepStrictEqual(harness.encoded[1].range, [2, 6]);
+    });
+
+    it("carries the style object through a batch member", async () => {
+        const harness = record();
+        const runs = runsOver(harness);
+
+        await runs.batch([{ algorithm: "degree", style: { size: true } }]);
+
+        assert.include(
+            harness.encoded.map((spec) => spec.channel),
+            "node.size",
+        );
     });
 
     it("paints again after the run was removed and started afresh", async () => {

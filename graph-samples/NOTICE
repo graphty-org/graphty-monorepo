@@ -1,0 +1,60 @@
+@graphty/graph-samples
+Copyright (c) 2024 Adam Powers. The code is under the MIT License (see LICENSE).
+
+The sample datasets are not the work of this package's authors. Each is listed below with where
+it was taken from, what to cite and its license as far as it is known. Each was converted by
+scripts/convert-datasets.mjs, which records the exact source file and its SHA-256; the
+converted data are changed files, not the originals (node order, encoding and, for the
+football network, the corrections listed). To have a dataset removed, open an issue at
+https://github.com/graphty-org/graphty-monorepo/issues; removing one means deleting its
+src/datasets/<name>/ directory and its entries in src/datasets/catalog.ts and this file.
+
+----------------------------------------------------------------------------------------------------
+Zachary's karate club (datasets/karate)
+
+Source:   https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py
+Cite:     W. W. Zachary, An information flow model for conflict and fission in small groups, Journal of Anthropological Research 33(4), 452-473 (1977). doi:10.1086/jar.33.4.3629752
+License:  Facts published in a 1977 journal article; converted from the networkx 3.1 copy (BSD-3-Clause).
+
+----------------------------------------------------------------------------------------------------
+Florentine families (datasets/florentine-families)
+
+Source:   https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py
+Cite:     J. F. Padgett and C. K. Ansell, Robust action and the rise of the Medici, 1400-1434, American Journal of Sociology 98(6), 1259-1319 (1993). doi:10.1086/230190; R. L. Breiger and P. E. Pattison, Cumulated social roles: the duality of persons and their algebras, Social Networks 8(3), 215-256 (1986).
+License:  Facts published in the cited articles; converted from the networkx 3.1 copy (BSD-3-Clause).
+
+----------------------------------------------------------------------------------------------------
+Davis Southern Women (datasets/davis-southern-women)
+
+Source:   https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py
+Cite:     A. Davis, B. B. Gardner and M. R. Gardner, Deep South: A Social Anthropological Study of Caste and Class, University of Chicago Press (1941).
+License:  Facts published in a 1941 book; converted from the networkx 3.1 copy (BSD-3-Clause).
+
+----------------------------------------------------------------------------------------------------
+Les Miserables co-appearances (datasets/les-miserables)
+
+Source:   https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py
+Cite:     D. E. Knuth, The Stanford GraphBase: A Platform for Combinatorial Computing, Addison-Wesley (1993).
+License:  Derived from the Stanford GraphBase file jean.dat (copyright D. E. Knuth; may be freely copied and distributed, and a changed file must be renamed and identified as not part of the Stanford GraphBase -- this is such a changed file) through the networkx 3.1 copy (BSD-3-Clause).
+
+----------------------------------------------------------------------------------------------------
+American college football, 2000 (datasets/football)
+
+Source:   https://figshare.com/articles/dataset/American_College_Football_Network_Files/93179
+Cite:     M. Girvan and M. E. J. Newman, Community structure in social and biological networks, PNAS 99(12), 7821-7826 (2002). doi:10.1073/pnas.122653799; T. S. Evans, Clique graphs and overlapping communities, J. Stat. Mech. (2010) P12037. arXiv:1009.0638
+License:  CC BY 4.0 (the figshare record of T. S. Evans).
+
+----------------------------------------------------------------------------------------------------
+Books about US politics (datasets/political-books)
+
+Source:   https://web.archive.org/web/20240730210010id_/https://public.websites.umich.edu/~mejn/netdata/polbooks.zip
+Cite:     V. Krebs, unpublished (compiled 2004), http://www.orgnet.com/; labels by M. E. J. Newman.
+License:  unclear: Mark Newman's data page says only "free for scientific use to the best of my knowledge"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.
+
+----------------------------------------------------------------------------------------------------
+Doubtful Sound dolphins (datasets/dolphins)
+
+Source:   https://web.archive.org/web/20231115052843id_/https://www-personal.umich.edu/~mejn/netdata/dolphins.zip
+Cite:     D. Lusseau, K. Schneider, O. J. Boisseau, P. Haase, E. Slooten and S. M. Dawson, The bottlenose dolphin community of Doubtful Sound features a large proportion of long-lasting associations, Behavioral Ecology and Sociobiology 54, 396-405 (2003). doi:10.1007/s00265-003-0651-y
+License:  unclear: posted on Mark Newman's data page with the permission of D. Lusseau, "free for scientific use"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.
+

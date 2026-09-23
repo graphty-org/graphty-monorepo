@@ -1,0 +1,20 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "composite": true,
+        "noEmit": true,
+        "noImplicitOverride": true,
+        "noUncheckedIndexedAccess": false,
+        "exactOptionalPropertyTypes": false,
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
+        "types": ["node", "vitest/globals"],
+        "paths": {
+            "@graphty/graph-samples": ["./src/index.ts"],
+            "@graphty/graph-samples/generators": ["./src/generators/index.ts"],
+            "@graphty/graph-samples/datasets/*": ["./src/datasets/*/index.ts"],
+            "@graphty/graph-format": ["../graph-format/src/index.ts"]
+        }
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts", "../graph-format/src/**/*.ts"],
+    "exclude": ["node_modules", "dist", "coverage", "tmp"]
+}

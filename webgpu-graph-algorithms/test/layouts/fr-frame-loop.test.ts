@@ -125,7 +125,7 @@ async function calibrateHeavyStep(ctx: GpuContext, snapshot: GraphSnapshot, tick
     scratch.load(snapshot, positions);
     await scratch.step(8);
     const batchMs = Math.max(await minTimedStep(scratch, 8), 0.05);
-    let k = Math.min(MAX_ITERATIONS_PER_STEP, Math.max(8, Math.ceil((8 * 4 * tickMs) / batchMs)));
+    let k = Math.min(MAX_ITERATIONS_PER_STEP, Math.max(1, Math.ceil((8 * 4 * tickMs) / batchMs)));
     let measuredMs = await minTimedStep(scratch, k);
     while (measuredMs < 4 * tickMs && k < MAX_ITERATIONS_PER_STEP) {
         k = Math.min(MAX_ITERATIONS_PER_STEP, k * 2);

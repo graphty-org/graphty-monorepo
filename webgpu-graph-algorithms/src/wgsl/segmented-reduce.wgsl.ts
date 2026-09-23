@@ -9,6 +9,14 @@
  * otherwise -- hence `needs: ["subgroups"]`). The tier bodies are functions called under `if (TIER == 0u)`, an
  * override, so every barrier is reached in uniform control flow. The body is normative: a sabotage mutation
  * (test/helpers/sabotage.ts) is a textual edit of it, so it is not restyled.
+ *
+ * TIER 0 folds its row through `row_fold_dense`, a stride-one copy of `row_fold`, because the shader compiler emits
+ * `row_fold(i, 0u, 1u)` as a call and leaves the stride in a parameter: the loop then walks the row with a runtime
+ * step, which costs the strength-reduced addressing into colIdx / weights and the unrolling that keeps several loads
+ * in flight per thread. PageRank's out-weight pass, the only caller that passes no tiers today, runs TIER 0 alone,
+ * and under the tiers TIER 0 still folds the low-degree rows, which are most of them. The two folds spell their
+ * locals apart (`lo` / `hi` / `k` against `a0` / `a1`) so that each sabotage row names exactly one of them; the
+ * VALUE snippet sees the same `row`, `arc`, `nbr` and `weight` in both.
  */
 
 /**
@@ -35,12 +43,28 @@ fn row_fold(i: u32, lane: u32, step: u32) -> f32 {              // the arcs of r
     }
     return acc;
 }
+fn row_fold_dense(i: u32) -> f32 {                              // TIER 0's stride-one twin of row_fold (see the header)
+    let row = i;                                                 // the CSR row the VALUE snippet may name (as in row_fold)
+    let lo = max(rowPtr[i], P.arcBase);
+    let hi = min(rowPtr[i + 1u], P.arcEnd);
+    var acc = identity();
+    for (var arc = lo; arc < hi; arc = arc + 1u) {
+        let k = arc - P.arcBase;                         // the window-local index; this walk is contiguous
+        let nbr = colIdx[k];
+        var weight = 1.0;
+        if (HAS_WEIGHTS) { weight = weights[k]; }
+        var v = 0.0;
+        //@@VALUE@@
+        acc = comb(acc, v);
+    }
+    return acc;
+}
 fn finish(i: u32, acc: f32) { out[i] = select(acc, comb(out[i], acc), P.accumulate == 1u); }
 fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: one row per thread over [P.start, P.end); no barrier, so the early return is legal (3.5 rule 1)
     let row = linear_id(wid, lane) + P.start;
     if (row >= P.end) { return; }
     let i = row_node(row);
-    finish(i, row_fold(i, 0u, 1u));
+    finish(i, row_fold_dense(i));
 }
 
 var<workgroup> sh: array<f32, WG>;

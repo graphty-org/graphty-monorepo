@@ -191,18 +191,19 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: SEGMENTED_REDUCE_TEST,
         },
         {
-            // the weight read under HAS_WEIGHTS dropped: every arc weighs 1.0 (the check set's weights average 2.1)
+            // the weight read under HAS_WEIGHTS dropped: every arc weighs 1.0 (the check set's weights average 2.1).
+            // In row_fold_dense, the fold TIER 0 runs and the one this suite's thread-per-row dispatches reach
             name: "weight-read-dropped",
-            find: "weight = weights[arc - P.arcBase]",
+            find: "weight = weights[k]",
             replace: "weight = 1.0",
             minFactor: 10,
             test: SEGMENTED_REDUCE_TEST,
         },
         {
-            // the HAS_WEIGHTS select inverted: a weighted core folds 1.0 per arc
+            // the HAS_WEIGHTS select inverted: a weighted core folds 1.0 per arc (row_fold_dense, as above)
             name: "has-weights-inverted",
-            find: "if (HAS_WEIGHTS)",
-            replace: "if (!HAS_WEIGHTS)",
+            find: "if (HAS_WEIGHTS) { weight = weights[k]; }",
+            replace: "if (!HAS_WEIGHTS) { weight = weights[k]; }",
             minFactor: 10,
             test: SEGMENTED_REDUCE_TEST,
         },
@@ -215,11 +216,11 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: SEGMENTED_REDUCE_TEST,
         },
         {
-            // a row with no arcs is never written: the check's 100 empty rows keep the sentinel (P4-T5 re-pointed the
-            // row to the TIER 0 call: the fold and the write live in row_fold / finish now, where a1 / a0 are out of scope)
+            // a row with no arcs is never written: the check's 100 empty rows keep the sentinel (the row names the
+            // TIER 0 call, where the fold and the write live in row_fold_dense / finish and a1 / a0 are out of scope)
             name: "empty-rows-skipped",
-            find: "finish(i, row_fold(i, 0u, 1u));",
-            replace: "if (rowPtr[i + 1u] > rowPtr[i]) { finish(i, row_fold(i, 0u, 1u)); }",
+            find: "finish(i, row_fold_dense(i));",
+            replace: "if (rowPtr[i + 1u] > rowPtr[i]) { finish(i, row_fold_dense(i)); }",
             minFactor: 10,
             test: SEGMENTED_REDUCE_TEST,
         },
@@ -260,26 +261,28 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "fa2-attraction": Object.freeze([
         {
-            // attraction pushes away from the neighbour instead of towards it
+            // attraction pushes away from the neighbour instead of towards it (row_force_dense: karate reaches no
+            // degree of 32, so every check in this suite folds through TIER 0)
             name: "attraction-sign-flipped",
-            find: "f = f + d * mag;",
-            replace: "f = f - d * mag;",
+            find: "total = total + d * mag;",
+            replace: "total = total - d * mag;",
             minFactor: 10,
             test: INSPECT_TEST,
         },
         {
             // the LINLOG select arguments swapped: the linear law runs the linlog magnitude and vice versa (30% at |d| = 1)
             name: "linlog-select-swapped",
-            find: "let mag = select(w, w * log(1.0 + len) / len, LINLOG);",
-            replace: "let mag = select(w * log(1.0 + len) / len, w, LINLOG);",
+            find: "let mag = select(weight, weight * log(1.0 + len) / len, LINLOG);",
+            replace: "let mag = select(weight * log(1.0 + len) / len, weight, LINLOG);",
             minFactor: 10,
             test: INSPECT_TEST,
         },
         {
-            // PLAN DECISION 2 (replaces the inert self-loop row): the row bound off by one reads the next row's first arc into every row
+            // PLAN DECISION 2 (replaces the inert self-loop row): the row bound off by one reads the next row's first
+            // arc into every row; on row_force_dense, since TIER 0 is the fold this suite's karate load runs
             name: "row-bound-inclusive",
-            find: "a < a1; a = a + step",
-            replace: "a <= a1; a = a + step",
+            find: "arc < hi; arc = arc + 1u",
+            replace: "arc <= hi; arc = arc + 1u",
             minFactor: 10,
             test: INSPECT_TEST,
         },
@@ -336,10 +339,11 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: PAGERANK_TEST,
         },
         {
-            // the row end read from rowPtr[v]: every row folds nothing
+            // the row end of row_sum_dense read from rowPtr[v]: every TIER 0 row folds nothing (the tiers keep the
+            // strided fold's own bound, which no check in this suite reaches)
             name: "row-end-off-by-one",
-            find: "let a1 = min(rowPtr[v + 1u], P.arcEnd);",
-            replace: "let a1 = min(rowPtr[v], P.arcEnd);",
+            find: "let hi = min(rowPtr[v + 1u], P.arcEnd);",
+            replace: "let hi = min(rowPtr[v], P.arcEnd);",
             minFactor: 10,
             test: SPMV_TEST,
         },
@@ -877,43 +881,43 @@ export const SABOTAGE_P5: Readonly<Partial<Record<KernelId, readonly Mutation[]>
     "fa2-attraction": Object.freeze([
         {
             name: "fr-attraction-k-multiplied",
-            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
-            replace: "if (LAW == 1u) { w = length(d) * P.frK; }",
+            find: "if (LAW == 1u) { weight = length(d) / P.frK; }",
+            replace: "if (LAW == 1u) { weight = length(d) * P.frK; }",
             minFactor: 10,
             test: FR_INSPECT_TEST,
         },
         {
             name: "fr-attraction-linear",
-            find: "w = length(d) / P.frK;",
-            replace: "w = 1.0 / P.frK;",
+            find: "weight = length(d) / P.frK;",
+            replace: "weight = 1.0 / P.frK;",
             minFactor: 10,
             test: FR_INSPECT_TEST,
         },
         {
             name: "fr-attraction-law-skipped",
-            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
-            replace: "if (LAW == 3u) { w = length(d) / P.frK; }",
+            find: "if (LAW == 1u) { weight = length(d) / P.frK; }",
+            replace: "if (LAW == 3u) { weight = length(d) / P.frK; }",
             minFactor: 10,
             test: FR_INSPECT_TEST,
         },
         {
             name: "spring-rest-length-dropped",
-            find: "w = P.springCoefficient * (len - P.springLength) / len;",
-            replace: "w = P.springCoefficient;",
+            find: "weight = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "weight = P.springCoefficient;",
             minFactor: 10,
             test: SE_INSPECT_TEST,
         },
         {
             name: "spring-sign-flipped",
-            find: "w = P.springCoefficient * (len - P.springLength) / len;",
-            replace: "w = P.springCoefficient * (P.springLength - len) / len;",
+            find: "weight = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "weight = P.springCoefficient * (P.springLength - len) / len;",
             minFactor: 10,
             test: SE_INSPECT_TEST,
         },
         {
             name: "spring-law-skipped",
-            find: "if (LAW == 2u) { w = P.springCoefficient",
-            replace: "if (LAW == 3u) { w = P.springCoefficient",
+            find: "if (LAW == 2u) { weight = P.springCoefficient",
+            replace: "if (LAW == 3u) { weight = P.springCoefficient",
             minFactor: 10,
             test: SE_INSPECT_TEST,
         },
@@ -1229,10 +1233,11 @@ export const SABOTAGE_P4_TIERS: Readonly<Partial<Record<KernelId, readonly Mutat
         },
         {
             // the arc window's rebase ignored: a windowed dispatch reads past its copy into the poison tail, whose
-            // INVALID_INDEX neighbours read pos out of bounds (WGSL clamps) and change the force by order 1
+            // INVALID_INDEX neighbours read pos out of bounds (WGSL clamps) and change the force by order 1. The
+            // rebase of row_force_dense, the fold the windowed check's TIER 0 dispatch runs
             name: "tier0-rebase-ignored",
-            find: "let j = colIdx[a - P.arcBase];",
-            replace: "let j = colIdx[a];",
+            find: "let k = arc - P.arcBase;",
+            replace: "let k = arc;",
             minFactor: 10,
             test: ATTRACTION_WINDOWED_TEST,
         },

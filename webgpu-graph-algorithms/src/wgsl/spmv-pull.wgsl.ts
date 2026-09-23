@@ -12,6 +12,14 @@
  * sets alpha to the damping factor, beta to `1 - alpha` and USE_DANGLING; HITS and eigenvector set alpha 1, beta 0,
  * uniformP 0; Katz sets alpha to the attenuation, beta to its constant and uniformP 1. The body is normative: a
  * sabotage mutation (test/helpers/sabotage.ts) is a textual edit of it, so it is not restyled.
+ *
+ * TIER 0 folds its row through `row_sum_dense`, a stride-one copy of `row_sum`, because the shader compiler emits
+ * `row_sum(v, 0u, 1u)` as a call and leaves the stride in a parameter: the loop then walks the row with a runtime
+ * step, which costs the strength-reduced addressing into colIdx / weights and the unrolling that keeps several loads
+ * in flight per thread. PageRank and every other caller that passes no in-degree tiers runs TIER 0 alone, and under
+ * the tiers it still folds the low-degree rows, which are most of them; the shared fold cost 38 per cent more GPU
+ * time at 100k nodes and 1M arcs on an RTX 4070 SUPER and about twice the time on a Tesla T4. The two folds spell
+ * their locals apart (`lo` / `hi` / `k` against `a0` / `a1`) so that each sabotage row names exactly one of them.
  */
 
 /** Entry point `spmv_pull`; overrides HAS_PERSONALIZATION, USE_DANGLING and TIER (0 / 1 / 2) plus the standard USE_PERM / HAS_WEIGHTS. */
@@ -39,6 +47,29 @@ fn row_sum(v: u32, lane: u32, step: u32) -> f32 {               // this lane's a
     acc = acc + chunk;
     return acc;
 }
+fn row_sum_dense(v: u32) -> f32 {                                // TIER 0's stride-one twin of row_sum (see the header)
+    let lo = max(rowPtr[v], P.arcBase);
+    let hi = min(rowPtr[v + 1u], P.arcEnd);
+    var acc = 0.0;
+    var chunk = 0.0;
+    var inChunk = 0u;
+    for (var arc = lo; arc < hi; arc = arc + 1u) {
+        let k = arc - P.arcBase;                         // the window-local index; this walk is contiguous
+        let nbr = colIdx[k];                             // \`target\` is a WGSL reserved word (spec 16.2)
+        var weight = 1.0;
+        if (HAS_WEIGHTS) { weight = weights[k]; }
+        // two-level sum: 64 terms into chunk, chunk into acc (see the header; no compensation, no select)
+        chunk = chunk + (weight * xNorm[nbr]);
+        inChunk = inChunk + 1u;
+        if (inChunk == 64u) {
+            acc = acc + chunk;
+            chunk = 0.0;
+            inChunk = 0u;
+        }
+    }
+    acc = acc + chunk;
+    return acc;
+}
 fn finish(v: u32, acc: f32) {
     var dangling = 0.0;
     if (USE_DANGLING) { dangling = partials[0].danglingMass; }
@@ -49,7 +80,7 @@ fn finish(v: u32, acc: f32) {
 fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: grid-stride over the rows [P.start, P.n); no barrier
     for (var row = linear_id(wid, lane) + P.start; row < P.n; row = row + P.stride) {
         let v = row_node(row);
-        finish(v, row_sum(v, 0u, 1u));
+        finish(v, row_sum_dense(v));
     }
 }
 

@@ -13,6 +13,14 @@
  *
  * Body only (spec 3.5, D9); normative text (contract 4.5); the K2 sabotage mutations (P3-T5, P5-T7, P4-T5 / T6) are
  * textual edits of it.
+ *
+ * TIER 0 folds its row through `row_force_dense`, a stride-one copy of `row_force`, because the shader compiler
+ * emits `row_force(i, 0u, 1u)` as a call and leaves the stride in a parameter: the loop then walks the row with a
+ * runtime step, which costs the strength-reduced addressing into colIdx / weights and the unrolling that keeps
+ * several loads in flight per thread. TIER 0 runs on every load -- alone when no row reaches degree 32, and over
+ * the low-degree rows, which are most of them, when the tiers are bound. The two folds spell their locals apart
+ * (`arc` / `nbr` / `weight` / `total` against `a` / `j` / `w` / `f`) so that each sabotage row names exactly one
+ * of them.
  */
 
 /** The K2 body: entry point `attraction`; the tier bodies are functions called under the uniform `TIER` override, so the barriers of `tiered` are reached in uniform control flow and `tier0`'s early return is legal (spec 3.5 rule 1). */
@@ -42,6 +50,26 @@ fn row_force(i: u32, lane: u32, step: u32) -> vec3f {           // the arcs of r
     }
     return f;
 }
+fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's stride-one twin of row_force (see the header)
+    let pi = pos[i];
+    let lo = max(rowPtr[i], P.arcBase);
+    let hi = min(rowPtr[i + 1u], P.arcEnd);
+    var total = vec3f(0.0);
+    for (var arc = lo; arc < hi; arc = arc + 1u) {
+        let k = arc - P.arcBase;                               // the window-local index; this walk is contiguous
+        let nbr = colIdx[k];
+        if (nbr == i) { continue; }                            // a self-loop exerts no force
+        var weight = 1.0;
+        if (HAS_WEIGHTS) { weight = weights[k]; }
+        let d = pos[nbr].xyz - pi.xyz;                         // toward the neighbour
+        let len = max(length(d), FA2_DIST_FLOOR);
+        if (LAW == 1u) { weight = length(d) / P.frK; }         // LAW 1 (FR, 7.20), as in row_force
+        if (LAW == 2u) { weight = P.springCoefficient * (len - P.springLength) / len; }   // LAW 2 (spring), as in row_force
+        let mag = select(weight, weight * log(1.0 + len) / len, LINLOG);
+        total = total + d * mag;
+    }
+    return total;
+}
 fn finish(i: u32, f0: vec3f) {
     var f = f0;
     if (DISTRIBUTED) { f = f / pos[i].w; }
@@ -52,7 +80,7 @@ fn tier0(wid: vec3<u32>, lane: u32) {                          // TIER 0: one ro
     let row = linear_id(wid, lane) + P.tierStart;
     if (row >= P.tierEnd) { return; }
     let i = row_node(row);
-    finish(i, row_force(i, 0u, 1u));
+    finish(i, row_force_dense(i));
 }
 
 var<workgroup> sh: array<vec3f, WG>;

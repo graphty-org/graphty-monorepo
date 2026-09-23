@@ -299,13 +299,11 @@ jobs:
                       package: graph-format
                       test-command: pnpm exec nx run graph-format:coverage
                       needs-browser: false
-                      needs-storybook: false
                     # graph-io - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
                     - shard: graph-io
                       package: graph-io
                       test-command: pnpm exec nx run graph-io:coverage
                       needs-browser: false
-                      needs-storybook: false
                     # webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
                     # project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
                     # pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
@@ -318,7 +316,6 @@ jobs:
                       package: webgpu-graph-algorithms
                       test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms --passWithNoTests
                       needs-browser: false
-                      needs-storybook: false
                       needs-lavapipe: true
                     # the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
                     # timeout iff every test passed (browser.close() can hang after GPU work); SwiftShader flags come
@@ -327,43 +324,36 @@ jobs:
                       package: webgpu-graph-algorithms
                       test-command: cd webgpu-graph-algorithms && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
                       needs-browser: true
-                      needs-storybook: false
                     # algorithms - two shards (default and browser separated to avoid worker timeout)
                     # Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
                     - shard: algorithms-default
                       package: algorithms
                       test-command: cd algorithms && pnpm exec vitest run --project=default --coverage
                       needs-browser: false
-                      needs-storybook: false
                     - shard: algorithms-browser
                       package: algorithms
                       test-command: cd algorithms && pnpm exec vitest run --project=browser --coverage
                       needs-browser: true
-                      needs-storybook: false
                     # layout - single shard
                     - shard: layout
                       package: layout
                       test-command: pnpm exec nx run layout:coverage
                       needs-browser: false
-                      needs-storybook: false
                     # graphty - single shard (uses Playwright for browser-based vitest)
                     - shard: graphty
                       package: graphty
                       test-command: pnpm exec nx run graphty:coverage
                       needs-browser: true
-                      needs-storybook: false
                     # remote-logger - single shard (has browser tests)
                     - shard: remote-logger
                       package: remote-logger
                       test-command: pnpm exec nx run remote-logger:coverage
                       needs-browser: true
-                      needs-storybook: false
                     # compact-mantine - single shard (uses Playwright for browser-based vitest)
                     - shard: compact-mantine
                       package: compact-mantine
                       test-command: pnpm exec nx run compact-mantine:coverage
                       needs-browser: true
-                      needs-storybook: false
                     # graphty-element default tests (Node.js, no browser)
                     # The bench project runs in the same shard but WITHOUT --coverage: it asserts
                     # the repaint's timing budget, and v8 coverage instruments this package's own
@@ -371,58 +361,54 @@ jobs:
                     # instrumentation rather than the repaint.
                     - shard: graphty-element-default
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --reporter=default --coverage && pnpm exec vitest run --project=bench --reporter=default
+                      test-command: cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default --coverage && pnpm exec vitest run --project=bench --reporter=default
                       needs-browser: false
-                      needs-storybook: false
                     # graphty-element browser tests (5 shards)
                     # Note: Using both blob and default reporters to capture test results and show failures in logs
                     - shard: graphty-element-browser-1
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: false
                     - shard: graphty-element-browser-2
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: false
                     - shard: graphty-element-browser-3
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: false
                     - shard: graphty-element-browser-4
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: false
                     - shard: graphty-element-browser-5
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: false
                     # graphty-element storybook tests (4 shards)
                     # Note: Using both blob and default reporters to capture test results and show failures in logs
+                    # These shards need no Storybook server and no storybook-static artifact: the
+                    # storybook vitest project composes each story through Vite in the browser via
+                    # @storybook/addon-vitest, and that plugin only starts a Storybook when it is given
+                    # a storybookScript, which graphty-element/vitest.config.ts does not set. A step that
+                    # served the static build on port 9026 was removed; nothing in the repository has
+                    # referred to that port since.
                     - shard: graphty-element-storybook-1
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: true
                     - shard: graphty-element-storybook-2
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: true
                     - shard: graphty-element-storybook-3
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: true
                     - shard: graphty-element-storybook-4
                       package: graphty-element
                       test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=4/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
-                      needs-storybook: true
 
         steps:
             - uses: actions/checkout@v4
@@ -496,13 +482,6 @@ jobs:
                   name: build-compact-mantine
                   path: compact-mantine/dist/
 
-            - name: Download Storybook build (graphty-element)
-              if: matrix.needs-storybook
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-element
-                  path: graphty-element/storybook-static/
-
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v4
@@ -518,12 +497,6 @@ jobs:
             - name: Install Playwright deps (if cached)
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit == 'true'
               run: pnpm exec playwright install-deps chromium
-
-            - name: Start Storybook server
-              if: matrix.needs-storybook
-              run: |
-                  pnpm exec http-server graphty-element/storybook-static -p 9026 &
-                  sleep 3
 
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
             - name: Install Mesa lavapipe

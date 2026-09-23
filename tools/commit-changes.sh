@@ -124,93 +124,125 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-STEPS=(limits knip springfactor tooling)
+STEPS=(algorithms layout element elementtests elementdocs app compactmantine workspace designdocs)
 
 declare -A SUBJECTS=(
-    [limits]="feat(graphty-element)!: give every limit a name that carries its unit"
-    [knip]="fix(tools): stop knip walking twelve gigabytes of worktrees"
-    [springfactor]="refactor(webgpu-graph-algorithms): stop exporting a helper nothing imports"
-    [tooling]="chore(tools): re-point the commit script at the post-merge repairs"
+    [algorithms]="fix(algorithms): correct girvan-newman modularity and settle leiden"
+    [layout]="chore(layout): pin chromatic config and refresh story helpers"
+    [element]="feat(graphty-element)!: declarative style-channel api and self-sufficient rendering"
+    [elementtests]="test(graphty-element): channel-paint, story-roster and contract gates"
+    [elementdocs]="docs(graphty-element): document the v2 style-channel api"
+    [app]="feat(graphty)!: drive the app through the v2 channel api"
+    [compactmantine]="fix(compact-mantine): lint stories and tests and fix what surfaced"
+    [workspace]="chore(workspace): widen lint reach, ci and commit tooling"
+    [designdocs]="docs(workspace): element api decisions and the testing blind spot"
 )
 
 declare -A PATHS=(
-    [limits]="graphty-element/src/acceleration/types.ts graphty-element/src/errors/codes.ts graphty-element/src/session/cost/estimate.ts graphty-element/src/session/limits.ts graphty-element/test/session/cost/gate.test.ts graphty-element/test/session/limits.test.ts"
-    [knip]="tools/run-knip.sh package.json"
-    [springfactor]="webgpu-graph-algorithms/src/layouts/spring-electrical.ts"
-    [tooling]="tools/commit-changes.sh"
+    [algorithms]="algorithms/src algorithms/test algorithms/chromatic.config.json"
+    [layout]="layout/chromatic.config.json layout/stories"
+    [element]="graphty-element/src graphty-element/schema.ts graphty-element/.storybook graphty-element/vitest.config.ts graphty-element/package.json graphty-element/eslint.config.js graphty-element/chromatic.config.json graphty-element/CLAUDE.md"
+    [elementtests]="graphty-element/test graphty-element/stories"
+    [elementdocs]="graphty-element/docs"
+    [app]="graphty/src graphty/package.json graphty/chromatic.config.json"
+    [compactmantine]="compact-mantine"
+    [workspace]="eslint.config.js .github .gitignore .husky knip.config.ts pnpm-lock.yaml .env.example CLAUDE.md tools remote-logger/CLAUDE.md"
+    [designdocs]="design"
 )
 
 # ---------------------------------------------------------------------------
 # One body per step. Written for someone reading `git log` a year from now with
-# none of this conversation: say what changed and why it had to, not what the
-# work was like.
+# none of this conversation.
 # ---------------------------------------------------------------------------
 
-body_limits() {
+body_algorithms() {
     cat <<'BODY'
-Two field names meant different things on two published types. `exactComputationCap`
-was a NODE COUNT on `Limits` and SECONDS on `CostGateLimits`; `memoryBudgetBytes` was
-how much memory the element holds for one GRAPH on the first and how many bytes one
-RUN's published columns may occupy on the second. A consumer reading either name on
-one type and applying it to the other was off by the difference between 2,000 nodes
-and 30 seconds, and neither name said which it was.
-
-Each now carries its unit: `approximateAboveNodes` and `graphMemoryBudgetBytes` on
-`Limits`, `exactComputationSeconds` and `runColumnBudgetBytes` on `CostGateLimits`.
-
-That unblocks something the old names had forced. `DEFAULT_LIMITS` withheld both
-fields -- publishing a number under a name that means two things teaches the wrong
-unit -- and now publishes five of six. `graphMemoryBudgetBytes` is still absent, for
-the one reason that survives the rename: the design names no figure for it, so there
-is nothing measured or designed to publish.
-
-The test that pinned the old behaviour is replaced rather than deleted, and by a
-stronger one: it asserts that NO key appears on both types, so a third collision
-fails there too instead of shipping.
-
-BREAKING CHANGE: `Limits.exactComputationCap` is `Limits.approximateAboveNodes` and
-`Limits.memoryBudgetBytes` is `Limits.graphMemoryBudgetBytes`.
-`CostGateLimits.exactComputationCap` is `CostGateLimits.exactComputationSeconds` and
-`CostGateLimits.memoryBudgetBytes` is `CostGateLimits.runColumnBudgetBytes`.
+Girvan-Newman kept the wrong cut. Its modularity summed the null-model penalty
+only over edges that exist, not over every pair inside a community, so the penalty
+came out far too small and the uncut whole graph -- modularity 0 by definition --
+scored higher than any real split. Every graph came back as one community. The sum
+now runs over community pairs, so a genuine split wins and the suggested colour ramp
+sees more than one group. Leiden gains a settled-where-it-stops guard so it reports a
+stable partition. Both are pinned by new unit tests.
 BODY
 }
 
-body_knip() {
+body_layout() {
     cat <<'BODY'
-`lint:knip` ran `knip --no-gitignore`, and from the main checkout that made knip walk
-`.worktrees/` -- nineteen full checkouts of this monorepo, twelve gigabytes. It
-exhausted an eight-gigabyte JavaScript heap before reaching an answer, so the gate
-failed as an out-of-memory crash rather than as a directory that should never have
-been scanned. knip's own `ignore` list does not help: it filters what is REPORTED,
-not what is crawled.
-
-The flag itself is right and stays. knip stops reading ancestor `.gitignore` files
-only at a `.git` DIRECTORY, and a worktree's `.git` is a FILE -- so from a worktree
-knip kept walking up, read the main checkout's unanchored `.worktrees/` pattern, and
-reported the whole tree as dead code. Each spelling is correct in one checkout and
-broken in the other.
-
-So the setting follows the checkout. `tools/run-knip.sh` branches on the same
-discriminator the defect turns on -- a `.git` directory means the main checkout,
-where .gitignore is exactly what knip should obey; a `.git` file means a worktree,
-where obeying it is what breaks the run -- so the two cannot drift.
+Pin the package's Chromatic project config alongside the other packages and refresh
+the 3D and 2D story visualisation helpers. No library behaviour changes.
 BODY
 }
 
-body_springfactor() {
+body_element() {
     cat <<'BODY'
-`springSizeFactor` is used twice in the file that declares it, is imported nowhere,
-and is in no barrel. It was exported for nobody, which is what knip reports once it
-can finish a run.
+The 1.x style template, StyleManager, calculatedStyle and per-algorithm
+suggestedStyles are replaced by a flat, declarative channel vocabulary: a layer
+paints named channels, each accepting one scalar kind, interned and repainted through
+the session. Rendering is made self-sufficient -- an opening 2D view activates the
+orthographic camera without a transition, framing measures the settled graph rather
+than a one-step-stale bounding box, a node's per-instance colour is shaded through the
+light clamp instead of flooding its lit cap, and every element leaves the bootstrap
+paint. Arrow captions, arrow head/tail colour, size and opacity, node glow strength
+and a node tooltip appearance become channels; the edge tooltip and the dead
+enabled, maxWidth, wrap and outline.width fields are withdrawn.
+
+BREAKING CHANGE: the 1.x StyleManager, calculatedStyle, the StyleHelpers namespace,
+per-algorithm suggestedStyles, EdgeStyle.tooltip, NodeStyle.enabled, EdgeStyle.enabled,
+LabelStyle.maxWidth, LabelStyle.wrap and NodeStyle.effect.outline.width are removed.
+Node and edge appearance is set through style-layer channels.
 BODY
 }
 
-body_tooling() {
+body_elementtests() {
     cat <<'BODY'
-The step list, the subjects and the paths describe this change set. The machinery --
-the commitlint pre-validation, the temporary hooks directory that keeps commit-msg
-while leaving Commitizen's interactive prompt out of the run, and the leftover report
--- is unchanged.
+The gates that make a story a test and stop a capability losing its last door
+quietly: channel-paints drives every renderable channel on a live session and
+requires the picture to change and come back, story-roster records every story so a
+deletion fails a gate, and the contract lane pins config reachability, the waiver
+expiry and that a story demonstrates its subject. The stories are migrated to the
+channel API and cover the restored label and arrow subjects.
+BODY
+}
+
+body_elementdocs() {
+    cat <<'BODY'
+Document the v2 declarative style-channel API and the published entry points.
+BODY
+}
+
+body_app() {
+    cat <<'BODY'
+The app drives graphty-element through the v2 channel vocabulary rather than the 1.x
+style bridges: the style inspector edits channels directly, and the two 1,200-line
+translation bridges are gone. The channel-control table is keyed by the element's
+Channel union so an added or removed channel is a compile error here.
+
+BREAKING CHANGE: the app now requires a graphty-element that publishes the v2
+style-channel API.
+BODY
+}
+
+body_compactmantine() {
+    cat <<'BODY'
+The lint script read only src/, leaving the stories and tests unlinted. It now covers
+them, and this commit fixes the real problems that surfaced the first time a gate read
+those files.
+BODY
+}
+
+body_workspace() {
+    cat <<'BODY'
+Widen the lint reach so a package's stories and tests cannot go unread, refresh the CI
+Chromatic wiring, add the read-only Chromatic helper scripts, and update the ignores
+and commit tooling. Documentation and configuration only.
+BODY
+}
+
+body_designdocs() {
+    cat <<'BODY'
+Record the element API decisions still open for the owner, the capability losses found
+during the migration, and why the tests did not catch the dropped stories.
 BODY
 }
 

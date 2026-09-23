@@ -243,7 +243,7 @@ The `tools/` directory contains build scripts:
 
 ### Port Assignments
 
-All dev servers use ports 9000-9099:
+All dev servers use ports 9000-9999:
 - algorithms: 9000
 - algorithms Storybook: 9001
 - layout: 9010

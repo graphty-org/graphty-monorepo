@@ -37,7 +37,7 @@ import { type LayoutStatsBase, type ResolvedLayoutTuning } from "../../src/types
 import { type CommonLayoutOptions, type SimulationOptions } from "../../src/types/options.js";
 import { pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
-import { acquire, acquireRaw, isSoftware, requireGpu } from "../setup/gpu.js";
+import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
 
 // ============================================================ the fake model
 
@@ -352,10 +352,9 @@ function sleep(ms: number): Promise<void> {
  * A batch created by step() is submitted on the serialised chain (after the bind promise, which compiles on the
  * first step); a test that must act while it is IN FLIGHT waits for the submission (a 1 ms poll, so the test's
  * continuation runs before any readback callback, which Dawn delivers from a later macrotask) and uses a heavy
- * batch (heavyFake(): HEAVY_N nodes, 256 iterations, 8 positions fills each = about 4 GB of writes per batch,
- * about 8 ms on the RTX 4070 SUPER and about a second on lavapipe) so the GPU cannot have finished inside the
- * poll interval. Every caller asserts the in-flight state explicitly right after the wait (`inFlight` and an
- * empty `fake.seen`) so a batch that landed early fails there, not in a later assertion.
+ * batch (heavyFake(): heavyN() nodes, 256 iterations, 8 positions fills each) so the GPU cannot have finished
+ * inside the poll interval. Every caller asserts the in-flight state explicitly right after the wait (`inFlight`
+ * and an empty `fake.seen`) so a batch that landed early fails there, not in a later assertion.
  */
 async function waitForSubmission(s: FakeSim, id: number): Promise<void> {
     while (s.lastSubmittedBatchId < id) {
@@ -363,11 +362,26 @@ async function waitForSubmission(s: FakeSim, id: number): Promise<void> {
     }
 }
 
-const HEAVY_N = 131072;
+/**
+ * The node count of a heavy batch: 131,072 on a hardware adapter (about 4 GB of writes a batch, 8 ms on the RTX
+ * 4070 SUPER), and gpuScale()'d to 2,621 on a software one (spec 11.2), like every other fixture size in this
+ * suite. The batch has to outlast the 1 ms submission poll above, and the scaled software batch has more margin
+ * there than the unscaled hardware one that has always worked: the two-batch device-loss case at the bottom of
+ * this file measures 193 ms on the RTX 4070 SUPER against 283 .. 381 ms over three lavapipe runs. Unscaled that
+ * batch cost about 22 s on WARP, which put the same case past the 30 s budget (finding G5-F13).
+ *
+ * Called inside a test, never at module level: the setup probes the adapter in a beforeAll, so gpuScale() is
+ * still 1 while this file is being collected.
+ * @returns the node count of a heavy fixture
+ */
+function heavyN(): number {
+    return Math.round(131_072 * gpuScale());
+}
 
 /**
- * HEAVY_N is above LAYOUT_TUNING_DEFAULTS.exactMaxNodes, so the "auto" tier would resolve to the grid tier (PLAN
- * DECISION 11: E_UNSUPPORTED until P4); the fake has no repulsion stage, so the heavy tests pin the exact tier.
+ * On a hardware adapter heavyN() is above LAYOUT_TUNING_DEFAULTS.exactMaxNodes, so the "auto" tier would resolve to
+ * the grid tier (PLAN DECISION 11: E_UNSUPPORTED until P4); the fake has no repulsion stage, so the heavy tests pin
+ * the exact tier on every adapter rather than letting the tier follow the scale.
  */
 const EXACT_TIER: Partial<ResolvedLayoutTuning> = { repulsion: "exact" };
 
@@ -799,8 +813,8 @@ describe("ForceSimulation (fake model)", () => {
         const ctx = await ctxOf();
         const fake = heavyFake();
         const s = sim(ctx, fake, { maxInFlight: 2 }, EXACT_TIER);
-        const gA = graph(HEAVY_N);
-        const posA = nanPositions(HEAVY_N);
+        const gA = graph(heavyN());
+        const posA = nanPositions(heavyN());
         s.load(gA, posA);
         const seededA = Array.from(posA);
         const { generation } = s;
@@ -873,7 +887,7 @@ describe("ForceSimulation (fake model)", () => {
         const ctx = await ctxOf();
         const fake = heavyFake();
         const s = sim(ctx, fake, { maxInFlight: 2 }, EXACT_TIER);
-        const n = HEAVY_N;
+        const n = heavyN();
         const positions = nanPositions(n);
         s.load(graph(n), positions);
         expect(errorOf(() => s.setPosition(n, 0, 0, 0)).code).toBe("E_INVALID_ARGUMENT");
@@ -1021,7 +1035,7 @@ describe("ForceSimulation (fake model)", () => {
         const ctx = await ctxOf();
         const fake = heavyFake();
         const s = sim(ctx, fake, { settleWindow: 2, maxIter: 1000, maxInFlight: 2 }, EXACT_TIER);
-        s.load(graph(HEAVY_N), nanPositions(HEAVY_N));
+        s.load(graph(heavyN()), nanPositions(heavyN()));
         fake.headerValue = 2; // the batch lands with settledCount = 2 >= settleWindow
         const p = s.step(256);
         await waitForSubmission(s, 1);
@@ -1049,7 +1063,7 @@ describe("ForceSimulation (fake model)", () => {
         const ctx = await ctxOf();
         const fake = heavyFake();
         const s = sim(ctx, fake, { settleWindow: 2, maxIter: 1000, maxInFlight: 2 }, EXACT_TIER);
-        s.load(graph(HEAVY_N), nanPositions(HEAVY_N));
+        s.load(graph(heavyN()), nanPositions(heavyN()));
         fake.headerValue = 2; // batch A fills every header word with 2 on the GPU
         const a = s.step(256);
         await waitForSubmission(s, 1);
@@ -1187,20 +1201,6 @@ describe("ForceSimulation (fake model)", () => {
 });
 
 describe("ForceSimulation lifecycle on a raw device", () => {
-    // The device-loss case below keeps TWO heavy batches (about 4 GB of writes each) in flight and then waits for the
-    // destroyed device to settle them: about 30 ms on the RTX 4070 SUPER, seconds on lavapipe, and past the 30 s budget
-    // on WARP (Microsoft's software D3D12 rasterizer of the windows-latest host lane: hosts.yml runs 35301238295 and
-    // 35306389814 timed out at 30 s and passed on a re-run). A software adapter gets a budget that fits its slowest
-    // measured leg with margin; the hardware budget stays where it is, so a hang on a real GPU still fails fast.
-    beforeAll(() => {
-        if (isSoftware()) {
-            vi.setConfig({ testTimeout: 180_000 });
-        }
-    });
-    afterAll(() => {
-        vi.resetConfig();
-    });
-
     it("dispose leaves no simulation buffer behind (LeakCounter), and the context ends at 0 live buffers", async (t) => {
         requireGpu(t);
         const raw = await acquireRaw();
@@ -1233,7 +1233,7 @@ describe("ForceSimulation lifecycle on a raw device", () => {
         const lossCtx = await acquire({ label: "force-simulation-loss" });
         const fake = heavyFake();
         const s = makeSim(lossCtx, fake, { maxInFlight: 2 }, EXACT_TIER);
-        s.load(graph(HEAVY_N), nanPositions(HEAVY_N));
+        s.load(graph(heavyN()), nanPositions(heavyN()));
         await s.step(1); // compiles and binds on this FRESH context, so the two heavy submissions below are immediate
         fake.seen.length = 0;
         const p1 = s.step(256);

@@ -1,3 +1,9 @@
+## 1.10.5 (2026-09-23)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.4
+
 ## 1.10.4 (2026-09-21)
 
 ### 🧱 Updated Dependencies

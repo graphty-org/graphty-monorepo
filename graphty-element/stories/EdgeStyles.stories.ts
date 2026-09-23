@@ -661,7 +661,6 @@ export const TwoDAllArrows: Story = {
         setup: storySetup({
             viewMode: "2d",
             startingCameraDistance: 54,
-            node: { "node.color": "#5A67D8" },
             layers: [
                 {
                     name: "edges where data.kind == 'normal'",
@@ -980,7 +979,6 @@ export const ThreeDAllArrows: Story = {
     args: {
         setup: storySetup({
             viewMode: "3d",
-            node: { "node.color": "#5A67D8" },
             layers: [
                 {
                     name: "edges where data.kind == 'normal'",
@@ -1305,7 +1303,6 @@ export const ThreeDAllLines: Story = {
     args: {
         setup: storySetup({
             viewMode: "3d",
-            node: { "node.color": "#5A67D8" },
             layers: [
                 {
                     name: "edges where data.kind == 'solid'",
@@ -1543,7 +1540,6 @@ export const TwoDAllLines: Story = {
     args: {
         setup: storySetup({
             viewMode: "2d",
-            node: { "node.color": "#5A67D8" },
             layers: [
                 {
                     name: "edges where data.kind == 'solid'",

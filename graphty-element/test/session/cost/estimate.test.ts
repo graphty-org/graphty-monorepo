@@ -124,6 +124,25 @@ describe("estimateCost: the synchronous answer", () => {
         assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
     });
 
+    it("charges closeness one BFS per source rather than betweenness' pair term, and scales with calibration", () => {
+        const input = { algorithm: "closeness", descriptor: algorithmByKey("closeness"), statistics: statistics() };
+        const estimate = estimateCost(input);
+
+        assert.equal(estimate.costClass, "heavy");
+        assert.closeTo(estimate.seconds, (1000 * 5000) / (3 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
+        assert.include(estimate.basis, "n(n + m)");
+
+        const halfSpeed = Object.fromEntries(
+            Object.entries(DEFAULT_COST_RATES).map(([key, rate]) => [key, rate / 2]),
+        ) as unknown as typeof DEFAULT_COST_RATES;
+        const slow = estimateCost({
+            ...input,
+            calibration: { rates: halfSpeed, at: "2026-09-23T00:00:00Z", machine: "slow", basis: "probe" },
+        });
+        assert.closeTo(slow.seconds, 2 * estimate.seconds, 1e-12);
+        assert.equal(slow.confidence, "calibrated");
+    });
+
     it("says in words where the number came from", () => {
         const estimate = estimateCost({
             algorithm: "degree",

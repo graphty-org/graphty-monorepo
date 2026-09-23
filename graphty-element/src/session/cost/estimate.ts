@@ -406,6 +406,49 @@ function workUnits(costClass: CostClass, nodes: number, edges: number, iteration
 }
 
 /**
+ * An algorithm whose work its cost class's shared term misdescribes, with its own.
+ *
+ * Written against the rates in force rather than in seconds, so a calibrated machine scales it
+ * exactly as it scales the class model.
+ */
+interface OwnCostModel {
+    /** The work term as a person reads it in a basis line. */
+    readonly term: string;
+    /** Seconds over the whole graph, given its sizes and the rates in force. */
+    readonly seconds: (nodes: number, edges: number, rates: Readonly<CostRates>) => number;
+}
+
+/**
+ * The element's own algorithms that carry their own model, by catalogue key.
+ *
+ * Kept here rather than as a `static cost` on the class because that hook is read for plugins
+ * only and answers in absolute seconds, which no calibration can scale. Each rate is pinned to the
+ * FLOOR of what was measured across graph shapes on 2026-09-23, and each is held to a stopwatch,
+ * on its typical and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
+ *
+ * Eigenvector centrality is deliberately NOT here. It usually converges early on a dense random
+ * graph (16 of 100 passes at m = 5n), but it runs every pass on sparse random, scale-free, grid,
+ * tree, path and every bipartite graph, and nothing the estimate can see predicts which. Its
+ * per-pass throughput (2.7M to 23M elements/s across those shapes) has a floor at the iterative
+ * rate, so the class model is already the safe one.
+ *
+ * Louvain is not here yet either. The single-level implementation in `@graphty/algorithms` moved no
+ * node on any graph of more than about 100 edges and is being replaced by a multilevel one; its
+ * sweep count is what a model would charge, and it should be measured once that lands.
+ */
+const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
+    /* One BFS per source, so n(n + m), where betweenness' class term is n * m. Measured 20M to 57M
+       n(n + m) per second across random (m = 1.2n to 50n), scale-free, grid, path, tree, star and
+       clique-ring graphs of 400 to 1,600 nodes, and 15.5M on the sparsest in a loaded vitest
+       worker: pinned at 3x the heavy rate, 15M. The class model was 2.2x to 9.3x pessimistic on
+       the same set. */
+    closeness: {
+        term: "n(n + m)",
+        seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (3 * rates.heavyPairsPerSecond),
+    },
+};
+
+/**
  * The rate a cost class's work is retired at.
  * @param costClass - The class the catalogue declares.
  * @param rates - The throughputs in force.
@@ -612,7 +655,7 @@ export function estimateCost(input: CostInput): CostEstimate {
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
     const seconds = Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds : Number.POSITIVE_INFINITY;
 
-    const notes = [sizes, termFor(costClass, iterations)];
+    const notes = [sizes, OWN_COST_MODELS[descriptor.key]?.term ?? termFor(costClass, iterations)];
     if (input.sample !== undefined) {
         notes.push(`sampled at ${group(input.sample)} of ${group(nodes)} nodes`);
     }
@@ -692,16 +735,19 @@ function modelFromRates(
         return { seconds: Number.POSITIVE_INFINITY, confidence: "unknown", provenance: "no throughput is known for this cost class" };
     }
 
+    const own = OWN_COST_MODELS[descriptor.key];
+    const seconds = own === undefined ? units / rate : own.seconds(nodes, edges, rates) * sampleFactor;
+
     if (probed) {
         return {
-            seconds: units / rate,
+            seconds,
             confidence: "calibrated",
             provenance: `calibrated ${calibration.at} on this device`,
         };
     }
 
     return {
-        seconds: units / rate,
+        seconds,
         confidence: "modelled",
         provenance:
             calibration === undefined

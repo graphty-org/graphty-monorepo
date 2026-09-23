@@ -98,13 +98,18 @@ export function normalizeMimeType(mimeType: string): string {
 
 /**
  * The head as bytes for the importers' sniff functions: at most SNIFF_HEAD_BYTES, a string
- * encoded as UTF-8.
+ * encoded as UTF-8, a UTF-16 head with a byte order mark transcoded to UTF-8.
  * @param head - the head as given
  * @returns the bytes
  */
 export function headBytes(head: Uint8Array | string): Uint8Array {
     if (typeof head === "string") {
         return new TextEncoder().encode(head.slice(0, SNIFF_HEAD_BYTES)).subarray(0, SNIFF_HEAD_BYTES);
+    }
+    if (head.byteLength >= 2 && ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff))) {
+        // UTF-16 with a BOM (Excel's "Unicode text"): the sniffers read UTF-8, so transcode the head
+        const encoding = head[0] === 0xff ? "utf-16le" : "utf-16be";
+        return headBytes(new TextDecoder(encoding).decode(head.subarray(0, SNIFF_HEAD_BYTES)));
     }
     return head.byteLength > SNIFF_HEAD_BYTES ? head.subarray(0, SNIFF_HEAD_BYTES) : head;
 }

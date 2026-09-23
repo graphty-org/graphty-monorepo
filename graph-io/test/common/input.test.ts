@@ -1,7 +1,9 @@
 import { GraphFormatError } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { ENCODING_FALLBACK_CODE, INVALID_ENCODING_CODE, UNKNOWN_ENCODING_CODE } from "../../src/common/codes.js";
 import {
+    canonicalEncoding,
     inputLength,
     INVALID_UTF8_CODE,
     isImportInput,
@@ -11,6 +13,7 @@ import {
     throwIfAborted,
 } from "../../src/common/input.js";
 import { ImportReportBuilder } from "../../src/common/report.js";
+import { xmlDeclaredEncoding } from "../../src/common/xml.js";
 import { ImportError, type ImportInput } from "../../src/types.js";
 import { byteChunks, byteStream, textChunksOf } from "../helpers/corpus.js";
 
@@ -108,7 +111,7 @@ describe("textChunks", () => {
         const r = report();
         let caught: unknown;
         try {
-            await collect(new Uint8Array([0x61, 0xff, 0x62]), r);
+            await collect(new Uint8Array([0x61, 0xff, 0x62]), r, { encoding: "utf-8" });
         } catch (err) {
             caught = err;
         }
@@ -126,15 +129,16 @@ describe("textChunks", () => {
 
     it("reports a truncated multi-byte sequence at end of input", async () => {
         const bytes = encoder.encode(String.fromCodePoint(0x1f600)).subarray(0, 3);
-        await expect(collect(bytes)).rejects.toBeInstanceOf(ImportError);
-        await expect(collect(byteChunks(bytes, 1))).rejects.toBeInstanceOf(ImportError);
-        await expect(collect(byteStream(bytes, 2))).rejects.toBeInstanceOf(ImportError);
+        const strict = { encoding: "utf-8" };
+        await expect(collect(bytes, report(), strict)).rejects.toBeInstanceOf(ImportError);
+        await expect(collect(byteChunks(bytes, 1), report(), strict)).rejects.toBeInstanceOf(ImportError);
+        await expect(collect(byteStream(bytes, 2), report(), strict)).rejects.toBeInstanceOf(ImportError);
     });
 
     it("never substitutes U+FFFD", async () => {
         // an overlong encoding of "/" that a lenient decoder would map to U+FFFD
         const bytes = new Uint8Array([0x61, 0xc0, 0xaf, 0x62]);
-        await expect(collect(bytes)).rejects.toBeInstanceOf(ImportError);
+        await expect(collect(bytes, report(), { encoding: "utf-8" })).rejects.toBeInstanceOf(ImportError);
     });
 
     it("rejects a chunk that is neither a string nor a Uint8Array", async () => {
@@ -228,7 +232,8 @@ describe("textChunks", () => {
             },
         });
         for await (const chunk of textChunks(stream, report())) {
-            expect(chunk).toBe("x");
+            // the first bytes are held back for the BOM check
+            expect(chunk).toMatch(/^x+$/);
             break;
         }
         expect(cancelled).toBe(true);
@@ -329,6 +334,101 @@ describe("LineReader", () => {
     });
 
     it("surfaces a decode error as ImportError", async () => {
-        await expect(linesOf(new Uint8Array([0x61, 0x0a, 0xc3]))).rejects.toBeInstanceOf(ImportError);
+        // valid non-ASCII UTF-8 first, so the truncated sequence cannot fall back to windows-1252
+        await expect(linesOf(new Uint8Array([0xc3, 0xa9, 0x0a, 0xc3]))).rejects.toBeInstanceOf(ImportError);
+    });
+});
+
+describe("byte decoding: BOM, declaration, option, windows-1252 fallback", () => {
+    const E_ACUTE = String.fromCharCode(0xe9);
+    const LATIN1 = new Uint8Array([0x63, 0x61, 0x66, 0xe9, 0x0a, 0x62]); // "cafe\nb" with e-acute as 0xE9
+
+    async function decoded(
+        input: ImportInput,
+        options: Record<string, unknown> = {},
+    ): Promise<{ text: string; codes: string[] }> {
+        const r = report();
+        const text = (await collect(input, r, options)).join("");
+        return { text, codes: r.issues.map((i) => i.code) };
+    }
+
+    function utf16(text: string, littleEndian: boolean): Uint8Array {
+        const out = new Uint8Array(2 + text.length * 2);
+        const view = new DataView(out.buffer);
+        view.setUint16(0, 0xfeff, littleEndian);
+        for (let i = 0; i < text.length; i++) {
+            view.setUint16(2 + i * 2, text.charCodeAt(i), littleEndian);
+        }
+        return out;
+    }
+
+    it("reads undeclared bytes that are not UTF-8 as windows-1252, with one warning, in every input shape", async () => {
+        for (const input of [LATIN1, byteChunks(LATIN1, 1), byteStream(LATIN1, 2)]) {
+            const { text, codes } = await decoded(input);
+            expect(text).toBe(`caf${E_ACUTE}\nb`);
+            expect(codes).toEqual([ENCODING_FALLBACK_CODE]);
+        }
+        // 0x80-0x9F are the windows-1252 letters, not C1 controls
+        expect((await decoded(new Uint8Array([0x93, 0x61, 0x94]))).text).toBe(
+            `${String.fromCharCode(0x201c)}a${String.fromCharCode(0x201d)}`,
+        );
+    });
+
+    it("keeps invalid UTF-8 fatal after valid non-ASCII UTF-8, after a UTF-8 BOM, and for binary data", async () => {
+        const mixed = new Uint8Array([...encoder.encode(`${E_ACUTE}\n`), 0xe9]);
+        await expect(decoded(mixed)).rejects.toBeInstanceOf(ImportError);
+        await expect(decoded(new Uint8Array([0xef, 0xbb, 0xbf, 0x61, 0xe9]))).rejects.toBeInstanceOf(ImportError);
+        const binary = new Uint8Array([0x61, 0xff, 0xfe, 0x00, 0x62]);
+        const err = await decoded(binary).then(
+            () => null,
+            (e: unknown) => e as ImportError,
+        );
+        expect(err?.report.issues.map((i) => i.code)).toEqual([INVALID_UTF8_CODE]);
+    });
+
+    it("decodes UTF-16LE and UTF-16BE announced by a BOM, also split across one-byte chunks", async () => {
+        const text = `a,b\n${E_ACUTE},${String.fromCodePoint(0x1f600)}`;
+        for (const littleEndian of [true, false]) {
+            const bytes = utf16(text, littleEndian);
+            expect(await decoded(bytes)).toEqual({ text, codes: [] });
+            expect(await decoded(byteChunks(bytes, 1))).toEqual({ text, codes: [] });
+        }
+        // a lone surrogate is not valid UTF-16
+        const lone = utf16(String.fromCharCode(0xd800), true);
+        const err = await decoded(lone).then(
+            () => null,
+            (e: unknown) => e as ImportError,
+        );
+        expect(err?.report.issues.map((i) => i.code)).toEqual([INVALID_ENCODING_CODE]);
+    });
+
+    it("honours an encoding the input declares, and ignores one it cannot decode or a BOM-less UTF-16", async () => {
+        const declaredEncoding = (head: string): string | null => /enc=(\S+)/.exec(head)?.[1] ?? null;
+        const latin = new Uint8Array([...encoder.encode("enc=iso-8859-1 "), 0xe9]);
+        expect(await decoded(latin, { declaredEncoding })).toEqual({ text: `enc=iso-8859-1 ${E_ACUTE}`, codes: [] });
+        const unknown = await decoded(encoder.encode("enc=klingon x"), { declaredEncoding });
+        expect(unknown).toEqual({ text: "enc=klingon x", codes: [UNKNOWN_ENCODING_CODE] });
+        expect(await decoded(encoder.encode("enc=utf-16 x"), { declaredEncoding })).toEqual({
+            text: "enc=utf-16 x",
+            codes: [],
+        });
+    });
+
+    it("lets the encoding option override the BOM and the declaration, and leaves text input alone", async () => {
+        const declaredEncoding = (): string => "utf-16le";
+        const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0xe9]);
+        expect(await decoded(bytes, { encoding: "windows-1252", declaredEncoding })).toEqual({
+            text: `${String.fromCharCode(0xef, 0xbb, 0xbf)}${E_ACUTE}`,
+            codes: [],
+        });
+        expect(await decoded(`x${E_ACUTE}`, { encoding: "utf-16be" })).toEqual({ text: `x${E_ACUTE}`, codes: [] });
+    });
+
+    it("reads a prolog's encoding and a canonical encoding name", () => {
+        expect(xmlDeclaredEncoding(`<?xml version="1.0" encoding='ISO-8859-1'?><graphml/>`)).toBe("ISO-8859-1");
+        expect(xmlDeclaredEncoding(`<?xml version="1.0"?><graphml/>`)).toBeNull();
+        expect(xmlDeclaredEncoding(` <?xml version="1.0" encoding="latin1"?>`)).toBeNull();
+        expect(canonicalEncoding(" Latin1 ")).toBe("windows-1252");
+        expect(canonicalEncoding("klingon")).toBeNull();
     });
 });

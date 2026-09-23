@@ -6,6 +6,8 @@
 
 import {
     COLUMN_RENAMED_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MUTUAL_EXPANDED_CODE,
     OPTION_IGNORED_CODE,
@@ -13,6 +15,7 @@ import {
     ROLE_DROPPED_CODE,
     SINK_OPTION_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
+    UNKNOWN_ENCODING_CODE,
     WEIGHT_KEY_CLASH_CODE,
 } from "../../common/codes.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "../csv/records.js";
@@ -50,6 +53,12 @@ export { ID_SPACE_COLUMN, LABELS_COLUMN, neo4jImporter, type Neo4jImportOptions,
 export const NEO4J_ISSUE = Object.freeze({
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** An unterminated quoted field (fatal). */
     CSV_UNCLOSED_QUOTE: UNCLOSED_QUOTE_CODE,
     /** Text after a closing quote (fatal). */

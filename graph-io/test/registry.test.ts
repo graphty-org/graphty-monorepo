@@ -9,6 +9,7 @@ import {
     exportGraph,
     exportGraphToString,
     FormatRegistry,
+    importAllGraphs,
     importGraph,
     registry,
     sniff,
@@ -276,6 +277,37 @@ describe("importGraph (design 8.4)", () => {
                 expect(result.report.truncated).toBe(false);
             }
         }
+    });
+});
+
+describe("importAllGraphs", () => {
+    const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+    it("returns every graph of a multi-graph DOT, Pajek, GML or JGF input, each frozen on its own", async () => {
+        const cases: [string, string, number[]][] = [
+            ["dot", "digraph a { x -> y } graph b { p -- q -- r }", [2, 3]],
+            ["pajek", "*Vertices 1\n1 a\n*Network n\n*Vertices 2\n1 b\n2 c\n*Edges\n1 2\n", [1, 2]],
+            ["gml", "graph [ node [ id 1 ] ] graph [ node [ id 1 ] node [ id 2 ] ]", [1, 2]],
+            ["json", '{"graphs":[{"nodes":{"a":{}}},{"nodes":{"b":{},"c":{}}}]}', [1, 2]],
+        ];
+        for (const [format, text, nodes] of cases) {
+            const all = await importAllGraphs(utf8(text), { format });
+            expect(all.map((r) => r.snapshot.nodeCount), format).toEqual(nodes);
+            expect(all.every((r) => r.format === format), format).toBe(true);
+            expect(all.flatMap((r) => r.report.issues.map((i) => i.code)), format).not.toContain("W_MULTIPLE_GRAPHS");
+            // import() keeps the first graph and says how many it skipped
+            const one = await importGraph(utf8(text), { format });
+            expect(one.snapshot.nodeCount, format).toBe(nodes[0]);
+            expect(one.report.issues.map((i) => i.code), format).toContain("W_MULTIPLE_GRAPHS");
+        }
+    });
+
+    it("returns one result for a format without importAll, and sniffs like importGraph", async () => {
+        const all = await importAllGraphs(utf8("source,target\na,b\n"), { filename: "x.csv" });
+        expect(all).toHaveLength(1);
+        expect(all[0].sniff?.format).toBe("csv");
+        expect(all[0].snapshot.edgeCount).toBe(1);
+        await expect(importAllGraphs(utf8("digraph { a -> }"), { format: "dot" })).rejects.toBeInstanceOf(ImportError);
     });
 });
 

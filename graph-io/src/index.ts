@@ -40,6 +40,7 @@ export {
     type ExportGraphOptions,
     exportGraphToString,
     FormatRegistry,
+    importAllGraphs,
     importGraph,
     type ImportGraphOptions,
     type ImportGraphResult,

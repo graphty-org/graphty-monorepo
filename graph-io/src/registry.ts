@@ -214,56 +214,84 @@ export class FormatRegistry {
      * own a sink). The format is the one named in the options, else sniffed from the filename,
      * the MIME type and the first bytes of the content; the builder is seeded from the common
      * options with `directed: true` as a placeholder that the importer overrides from the file.
+     * An input holding several graphs yields the first, with a warning naming how many were
+     * skipped; importAllGraphs() returns every one.
      * @param input - the text, bytes, stream or chunks to read
      * @param options - the format, hints, common and format-specific import options
      * @returns the snapshot, the import report and the freeze report
      */
     async importGraph(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
-        const requested = options.format ?? "auto";
-        let importer: GraphImporter;
-        let sniff: SniffResult | null = null;
-        let source = input;
-        let peeked: PeekedInput | null = null;
-        if (requested === "auto") {
-            peeked = await peekHead(input, SNIFF_HEAD_BYTES, options.signal ?? null);
-            source = peeked.input;
-            sniff = this.sniff({ filename: options.filename, mimeType: options.mimeType, head: peeked.head });
-            if (sniff === null) {
-                const report = new ImportReportBuilder("unknown", 0);
-                return report.fail(
-                    UNKNOWN_FORMAT_CODE,
-                    `no registered importer recognises the input${describeHints(options)}; pass the format explicitly`,
-                    undefined,
-                    { formats: this.formats() },
-                );
-            }
-            importer = this.importer(sniff.format);
-        } else {
-            importer = this.importer(requested);
-        }
-        const builder = new GraphBuilder({
-            weightDtype: options.weightDtype ?? "f64",
-            ...options.builder,
-            directed: true,
-            addMissingNodes: options.addMissingNodes ?? true,
-            duplicateEdges: options.duplicateEdges ?? "keep",
-            selfLoops: options.selfLoops ?? "keep",
-        });
+        const chosen = await this.choose(input, options);
+        const builder = seededBuilder(options);
         let report: ImportReport;
         try {
-            report = await importer.import(source, builder, importerOptions(options));
+            report = await chosen.importer.import(chosen.source, builder, importerOptions(options));
         } catch (err) {
-            await peeked?.close();
+            await chosen.peeked?.close();
             throw err;
         }
-        const frozen = builder.freezeWithReport(options.freeze);
-        return Object.freeze({
-            format: importer.format,
-            sniff,
-            snapshot: frozen.snapshot,
-            report,
-            freeze: frozen.report,
-        });
+        return result(chosen, builder, report, options);
+    }
+
+    /**
+     * Read every graph of an input (a DOT file with several graphs, a Pajek project with several
+     * networks, a JGF document with a `graphs` array), each into its own fresh builder, frozen.
+     * A format whose importer has no importAll() holds one graph per input, so the result has one
+     * entry. Options, sniffing and the builder seed are those of importGraph().
+     * @param input - the text, bytes, stream or chunks to read
+     * @param options - the format, hints, common and format-specific import options
+     * @returns one result per graph, in document order
+     */
+    async importAllGraphs(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult[]> {
+        const chosen = await this.choose(input, options);
+        const { importer } = chosen;
+        const builders: GraphBuilder[] = [];
+        let reports: ImportReport[];
+        try {
+            if (importer.importAll === undefined) {
+                builders.push(seededBuilder(options));
+                reports = [await importer.import(chosen.source, builders[0], importerOptions(options))];
+            } else {
+                reports = await importer.importAll(
+                    chosen.source,
+                    () => {
+                        const builder = seededBuilder(options);
+                        builders.push(builder);
+                        return builder;
+                    },
+                    importerOptions(options),
+                );
+            }
+        } catch (err) {
+            await chosen.peeked?.close();
+            throw err;
+        }
+        return reports.map((report, i) => result(chosen, builders[i], report, options));
+    }
+
+    /**
+     * The importer for an input: the named format, or the sniffed one.
+     * @param input - the input
+     * @param options - the importGraph options
+     * @returns the importer, the sniff, and the input to read (replayed for a stream)
+     */
+    private async choose(input: ImportInput, options: ImportGraphOptions): Promise<ChosenImporter> {
+        const requested = options.format ?? "auto";
+        if (requested !== "auto") {
+            return { importer: this.importer(requested), sniff: null, source: input, peeked: null };
+        }
+        const peeked = await peekHead(input, SNIFF_HEAD_BYTES, options.signal ?? null);
+        const sniff = this.sniff({ filename: options.filename, mimeType: options.mimeType, head: peeked.head });
+        if (sniff === null) {
+            const report = new ImportReportBuilder("unknown", 0);
+            return report.fail(
+                UNKNOWN_FORMAT_CODE,
+                `no registered importer recognises the input${describeHints(options)}; pass the format explicitly`,
+                undefined,
+                { formats: this.formats() },
+            );
+        }
+        return { importer: this.importer(sniff.format), sniff, source: peeked.input, peeked };
     }
 
     /**
@@ -339,6 +367,16 @@ export function importGraph(input: ImportInput, options?: ImportGraphOptions): P
 }
 
 /**
+ * Read every graph of an input, each into its own frozen snapshot, through the default registry.
+ * @param input - the text, bytes, stream or chunks to read
+ * @param options - the format, hints, common and format-specific import options
+ * @returns one result per graph, in document order
+ */
+export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<ImportGraphResult[]> {
+    return registry.importAllGraphs(input, options);
+}
+
+/**
  * Write a snapshot in a format through the default registry, as UTF-8 chunks.
  * @param snapshot - the snapshot
  * @param format - the format name
@@ -405,6 +443,59 @@ function importerOptions(options: ImportGraphOptions): CommonImportOptions {
         }
     }
     return out;
+}
+
+/** The importer chosen for an input, and the input to hand it. */
+interface ChosenImporter {
+    /** The importer. */
+    readonly importer: GraphImporter;
+    /** The sniff that chose it, or null when the caller named the format. */
+    readonly sniff: SniffResult | null;
+    /** The input to read: the original, or a replaying iterable for a peeked stream. */
+    readonly source: ImportInput;
+    /** The peeked head of a sniffed input, or null. */
+    readonly peeked: PeekedInput | null;
+}
+
+/**
+ * A fresh builder seeded from the common options, `directed: true` as a placeholder the importer
+ * overrides from the file.
+ * @param options - the importGraph options
+ * @returns the builder
+ */
+function seededBuilder(options: ImportGraphOptions): GraphBuilder {
+    return new GraphBuilder({
+        weightDtype: options.weightDtype ?? "f64",
+        ...options.builder,
+        directed: true,
+        addMissingNodes: options.addMissingNodes ?? true,
+        duplicateEdges: options.duplicateEdges ?? "keep",
+        selfLoops: options.selfLoops ?? "keep",
+    });
+}
+
+/**
+ * Freeze an imported builder into an importGraph result.
+ * @param chosen - the importer and its sniff
+ * @param builder - the filled builder
+ * @param report - the importer's report
+ * @param options - the importGraph options
+ * @returns the frozen result
+ */
+function result(
+    chosen: ChosenImporter,
+    builder: GraphBuilder,
+    report: ImportReport,
+    options: ImportGraphOptions,
+): ImportGraphResult {
+    const frozen = builder.freezeWithReport(options.freeze);
+    return Object.freeze({
+        format: chosen.importer.format,
+        sniff: chosen.sniff,
+        snapshot: frozen.snapshot,
+        report,
+        freeze: frozen.report,
+    });
 }
 
 /**

@@ -13,7 +13,9 @@ import {
     DIRECTION_REFUSED_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
@@ -26,6 +28,7 @@ import {
     STRAY_TEXT_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ELEMENT_CODE,
+    UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
@@ -63,6 +66,12 @@ export const GEXF_ISSUE = Object.freeze({
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** The root element is not `<gexf>` (fatal). */
     NOT_GEXF: NOT_GEXF_CODE,
     /** The document has no `<graph>` (fatal). */

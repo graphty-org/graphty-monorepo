@@ -453,6 +453,7 @@ class TableReader {
             comments: COMMENT_CHARS,
             signal: state.common.signal,
             onProgress: progress ? state.common.onProgress : null,
+            encoding: state.common.encoding,
         };
         this.reader = new CsvRecordReader(input, state.report, readerOptions);
     }

@@ -51,7 +51,14 @@ import {
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
-import { isWhitespace, localName, tokenizeXml, type XmlHandler, XmlSyntaxError } from "../../common/xml.js";
+import {
+    isWhitespace,
+    localName,
+    tokenizeXml,
+    xmlDeclaredEncoding,
+    type XmlHandler,
+    XmlSyntaxError,
+} from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EDGE_ID_COLUMN,
@@ -2005,7 +2012,7 @@ async function importGraphml(
     reportUnusedOptions(options, report, USED_OPTIONS);
     const reader = new GraphmlReader(sink, report, common, yfilesMode);
     try {
-        await tokenizeXml(textChunks(input, report, common), reader);
+        await tokenizeXml(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), reader);
     } catch (err) {
         if (err instanceof XmlSyntaxError) {
             report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });

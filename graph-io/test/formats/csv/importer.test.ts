@@ -318,7 +318,7 @@ describe("csvImporter: the malformed corpus", () => {
     it("invalid UTF-8 is a fatal parse error", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         const bytes = new Uint8Array([...new TextEncoder().encode("source,target\na,"), 0xff, 0xfe, 10]);
-        const err = await csvImporter.import(bytes, builder).then(
+        const err = await csvImporter.import(bytes, builder, { encoding: "utf-8" }).then(
             () => null,
             (e: unknown) => e,
         );

@@ -40,12 +40,16 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
+    INVALID_ENCODING_CODE,
+    INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
     SYNTAX_CODE,
+    UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
@@ -157,6 +161,14 @@ export const JSON_ISSUE = Object.freeze({
     SINK_OPTION: SINK_OPTION_CODE,
     /** A common option the dialect has no use for (nodeIdFrom outside node-link, long, restoreMangledIds). */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
+    /** The input holds invalid UTF-8 (fatal). */
+    INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
 });
 
 /** The common options the JSON importer reads (the rest is reported by reportUnusedOptions). */
@@ -236,6 +248,8 @@ interface ResolvedJsonOptions {
     readonly targetKey: string | null;
     readonly indexLinks: boolean | "auto";
     readonly graphIndex: number;
+    /** Set by importAll(): every graph of a `graphs` array is read, so none is reported as skipped. */
+    readonly all?: boolean;
 }
 
 /**
@@ -1741,11 +1755,11 @@ function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
     if (graphs.length === 0) {
         report.fail(JSON_ISSUE.SHAPE, "a JGF document needs a graph object or a non-empty graphs array");
     }
-    if (graphs.length > 1) {
+    if (graphs.length > 1 && ctx.json.all !== true) {
         report.warning(
             "unsupported",
             JSON_ISSUE.MULTIPLE_GRAPHS,
-            `the document holds ${graphs.length} graphs; only graphs[${ctx.json.graphIndex}] is read`,
+            `the document holds ${graphs.length} graphs; only graphs[${ctx.json.graphIndex}] is read (${graphs.length - 1} skipped), importAll() reads every one`,
             { element: "graphs" },
         );
     }
@@ -2232,40 +2246,94 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const text = await readText(input, report, resolved);
         const root = parseDocument(text, report);
         const dialect = detectDialect(root, json.dialect, report);
-        const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
-        reportSinkOptions(sink, options, report);
-        reportUnusedOptions(options, report, USED_OPTIONS);
-        if (dialect === "cytoscape") {
-            importCytoscape(ctx, root);
-            throwIfAborted(resolved.signal);
-            return report.finish();
-        }
-        const doc = isJsonObject(root)
-            ? root
-            : report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
-        switch (dialect) {
-            case "node-link":
-            case "d3":
-                importNodeLink(ctx, doc, dialect);
-                break;
-            case "jgf":
-                importJgf(ctx, doc);
-                break;
-            case "graphology":
-                importGraphology(ctx, doc);
-                break;
-            case "vis":
-                importVis(ctx, doc);
-                break;
-            default: {
-                const name: string = dialect;
-                throw new GraphFormatError("E_UNSUPPORTED", `unknown dialect ${name}`, {
-                    option: "dialect",
-                    found: name,
-                });
-            }
-        }
-        throwIfAborted(resolved.signal);
+        readGraph(root, dialect, sink, report, resolved, json, options);
         return report.finish();
     },
+
+    /**
+     * Read every graph of a JSON document: each entry of a JGF `graphs` array into its own sink;
+     * any other document holds one graph.
+     * @param input - the text, bytes or stream
+     * @param sinkFor - the sink of the graph with this index, called before its first push
+     * @param options - format-specific and common options
+     * @returns one report per graph
+     */
+    async importAll(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: JsonImportOptions & CommonImportOptions,
+    ): Promise<ImportReport[]> {
+        const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
+        const json = resolveJsonOptions(options);
+        const first = new ImportReportBuilder("json", resolved.errorLimit);
+        const text = await readText(input, first, resolved);
+        const root = parseDocument(text, first);
+        const dialect = detectDialect(root, json.dialect, first);
+        const graphs =
+            dialect === "jgf" && isJsonObject(root) && !isJsonObject(root.graph) && Array.isArray(root.graphs)
+                ? root.graphs.length
+                : 1;
+        const reports: ImportReport[] = [];
+        for (let i = 0; i < Math.max(graphs, 1); i++) {
+            const report = i === 0 ? first : new ImportReportBuilder("json", resolved.errorLimit);
+            readGraph(root, dialect, sinkFor(i), report, resolved, { ...json, graphIndex: i, all: true }, options);
+            reports.push(report.finish());
+        }
+        return reports;
+    },
 });
+
+/**
+ * Read one graph of a parsed document into a sink.
+ * @param root - the parsed document
+ * @param dialect - its dialect
+ * @param sink - the sink
+ * @param report - the graph's report
+ * @param resolved - the resolved common options
+ * @param json - the resolved JSON options (graphIndex picks the JGF graph)
+ * @param options - the caller's options, for the sink and unused-option checks
+ */
+function readGraph(
+    root: unknown,
+    dialect: JsonDialect,
+    sink: GraphSink,
+    report: ImportReportBuilder,
+    resolved: ResolvedImportOptions,
+    json: ResolvedJsonOptions,
+    options: (JsonImportOptions & CommonImportOptions) | undefined,
+): void {
+    const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
+    reportSinkOptions(sink, options, report);
+    reportUnusedOptions(options, report, USED_OPTIONS);
+    if (dialect === "cytoscape") {
+        importCytoscape(ctx, root);
+        throwIfAborted(resolved.signal);
+        return;
+    }
+    const doc = isJsonObject(root)
+        ? root
+        : report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
+    switch (dialect) {
+        case "node-link":
+        case "d3":
+            importNodeLink(ctx, doc, dialect);
+            break;
+        case "jgf":
+            importJgf(ctx, doc);
+            break;
+        case "graphology":
+            importGraphology(ctx, doc);
+            break;
+        case "vis":
+            importVis(ctx, doc);
+            break;
+        default: {
+            const name: string = dialect;
+            throw new GraphFormatError("E_UNSUPPORTED", `unknown dialect ${name}`, {
+                option: "dialect",
+                found: name,
+            });
+        }
+    }
+    throwIfAborted(resolved.signal);
+}

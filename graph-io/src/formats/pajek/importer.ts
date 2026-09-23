@@ -26,7 +26,16 @@ import {
 } from "@graphty/graph-format";
 
 import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE } from "../../common/attributes.js";
-import { DUPLICATE_NODE_CODE, INVALID_UTF8_CODE, OPTION_IGNORED_CODE, SYNTAX_CODE } from "../../common/codes.js";
+import {
+    DUPLICATE_NODE_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
+    INVALID_UTF8_CODE,
+    MULTIPLE_GRAPHS_CODE,
+    OPTION_IGNORED_CODE,
+    SYNTAX_CODE,
+    UNKNOWN_ENCODING_CODE,
+} from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { coerceIdText, ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { LineReader, throwIfAborted } from "../../common/input.js";
@@ -75,12 +84,18 @@ export interface PajekImportOptions {
 export const PAJEK_ISSUE = Object.freeze({
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: no `*Vertices` section (an empty file, or not a Pajek network). */
     NO_VERTICES: "E_PAJEK_NO_VERTICES",
     /** Fatal: `*Vertices` without a vertex count, or one the sink cannot hold. */
     VERTICES_COUNT: "E_PAJEK_VERTICES_COUNT",
-    /** Aborts: a second `*Vertices` or `*Network` section; only one network per file is read. */
-    MULTIPLE_NETWORKS: "E_PAJEK_MULTIPLE_NETWORKS",
+    /** A project file holds several networks; import() reads the first, importAll() reads every one. */
+    MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** A data line before the first section header. */
     OUTSIDE_SECTION: "E_PAJEK_OUTSIDE_SECTION",
     /** A section header the importer cannot parse. */
@@ -329,6 +344,9 @@ class PajekParser {
 
     private readonly nodeParams = new Map<string, TextCellWriter>();
 
+    /** Set when a header line starts the next network of a project file (that line is not consumed). */
+    private ended = false;
+
     private readonly edgeParams = new Map<string, TextCellWriter>();
 
     /**
@@ -356,15 +374,16 @@ class PajekParser {
      * Handle one line; every problem of the line is recorded as an issue and the line skipped.
      * @param text - the line without its terminator
      * @param line - the 1-based line number
+     * @returns true when the line is the header of the next network (not consumed: this network is complete)
      */
-    line(text: string, line: number): void {
+    line(text: string, line: number): boolean {
         if (isCommentOrBlank(text)) {
-            return;
+            return false;
         }
         try {
             if (isSectionLine(text)) {
                 this.header(text, line);
-                return;
+                return this.ended;
             }
             switch (this.section) {
                 case "none":
@@ -375,18 +394,18 @@ class PajekParser {
                     );
                 case "vertices":
                     this.vertexLine(text, line);
-                    return;
+                    return false;
                 case "lines":
                     this.edgeLine(text, line);
-                    return;
+                    return false;
                 case "list":
                     this.listLine(text, line);
-                    return;
+                    return false;
                 case "matrix":
                     this.matrixLine(text, line);
-                    return;
+                    return false;
                 case "skip":
-                    return;
+                    return false;
                 default: {
                     const name: string = this.section;
                     throw new Error(`unknown section state ${name}`);
@@ -395,9 +414,10 @@ class PajekParser {
         } catch (err) {
             if (err instanceof LineError) {
                 this.report.error(err.category, err.code, err.message, { line });
-                return;
+                return false;
             }
             this.report.recordError(err, { line });
+            return false;
         }
     }
 
@@ -460,7 +480,8 @@ class PajekParser {
         switch (h.kind) {
             case "network":
                 if (this.networkName !== null || this.vertexCount >= 0) {
-                    this.refuseSecondNetwork(h.keyword, line);
+                    this.ended = true;
+                    return;
                 }
                 this.networkName = h.name ?? "";
                 this.section = "none";
@@ -469,6 +490,11 @@ class PajekParser {
                 if (skipping && this.vertexCount >= 0) {
                     // the `*Vertices N` line of a skipped project-file section (*Partition, *Vector)
                     this.section = "skip";
+                    return;
+                }
+                if (this.vertexCount >= 0) {
+                    // a second `*Vertices` without a `*Network` header starts the next network
+                    this.ended = true;
                     return;
                 }
                 this.verticesHeader(h, line);
@@ -507,9 +533,6 @@ class PajekParser {
      * @param line - the line number
      */
     private verticesHeader(h: SectionHeader, line: number): void {
-        if (this.vertexCount >= 0) {
-            this.refuseSecondNetwork(h.keyword, line);
-        }
         if (h.count === null) {
             this.report.fail(PAJEK_ISSUE.VERTICES_COUNT, "*Vertices needs a vertex count", { line });
         }
@@ -570,17 +593,6 @@ class PajekParser {
         this.section = section;
         this.kind = kind;
         this.relation = h.relation === null ? null : (h.name ?? String(h.relation));
-    }
-
-    /**
-     * Refuse a second network: an issue, then ImportError with the report so far.
-     * @param keyword - the header keyword
-     * @param line - the line number
-     */
-    private refuseSecondNetwork(keyword: string, line: number): never {
-        const message = `*${keyword} starts a second network; the importer reads one network per file`;
-        this.report.error("unsupported", PAJEK_ISSUE.MULTIPLE_NETWORKS, message, { line });
-        throw this.report.abort(message, { code: PAJEK_ISSUE.MULTIPLE_NETWORKS, line });
     }
 
     /**
@@ -1296,9 +1308,70 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         reportUnusedOptions(options, report, USED_OPTIONS);
         const parser = new PajekParser(sink, report, resolved, firstVertex);
         const reader = new LineReader(input, report, resolved);
+        // after the first network: only its successors' headers are counted
+        let rest: NetworkCounter | null = null;
+        let restLine = 0;
         let sinceCheck = 0;
         for await (const text of reader) {
-            parser.line(text, reader.line);
+            if (rest !== null) {
+                rest.line(text);
+            } else if (parser.line(text, reader.line)) {
+                rest = new NetworkCounter();
+                rest.line(text);
+                restLine = reader.line;
+            }
+            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
+                sinceCheck = 0;
+                throwIfAborted(resolved.signal);
+            }
+        }
+        parser.finish();
+        if (rest !== null) {
+            report.warning(
+                "unsupported",
+                PAJEK_ISSUE.MULTIPLE_GRAPHS,
+                `the project file holds ${rest.count} more network(s) after the first; import() reads the first, importAll() reads every one`,
+                { line: restLine },
+            );
+        }
+        throwIfAborted(resolved.signal);
+        return report.finish();
+    },
+
+    /**
+     * Read every network of a Pajek project file (`.paj`), each into its own sink. A network starts
+     * at `*Network` or at a `*Vertices` that does not belong to a `*Partition` / `*Vector` section.
+     * @param input - the text, bytes or stream
+     * @param sinkFor - the sink of the network with this index, called before its first push
+     * @param options - common and Pajek options
+     * @returns one report per network
+     */
+    async importAll(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: PajekImportOptions & CommonImportOptions,
+    ): Promise<ImportReport[]> {
+        const resolved = resolveImportOptions(options, DEFAULTS);
+        const firstVertex = firstVertexOption(options?.firstVertex);
+        const reports = [new ImportReportBuilder("pajek", resolved.errorLimit)];
+        reportUnusedOptions(options, reports[0], USED_OPTIONS);
+        const open = (): PajekParser => {
+            const report = reports[reports.length - 1];
+            const sink = sinkFor(reports.length - 1);
+            reportSinkOptions(sink, options, report);
+            return new PajekParser(sink, report, resolved, firstVertex);
+        };
+        let parser = open();
+        // decoding issues belong to the file, so they go to the first network's report
+        const reader = new LineReader(input, reports[0], resolved);
+        let sinceCheck = 0;
+        for await (const text of reader) {
+            if (parser.line(text, reader.line)) {
+                parser.finish();
+                reports.push(new ImportReportBuilder("pajek", resolved.errorLimit));
+                parser = open();
+                parser.line(text, reader.line);
+            }
             if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
                 sinceCheck = 0;
                 throwIfAborted(resolved.signal);
@@ -1306,6 +1379,50 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         }
         parser.finish();
         throwIfAborted(resolved.signal);
-        return report.finish();
+        return reports.map((r) => r.finish());
     },
 });
+
+/**
+ * Counts the networks of the rest of a project file by their headers alone, with the parser's
+ * rule: a network starts at `*Network` after a named or populated one, or at a `*Vertices` after a
+ * populated one unless it belongs to a skipped section (`*Partition`, `*Vector`, ...).
+ */
+class NetworkCounter {
+    /** Networks started so far (the first header fed opens the first). */
+    count = 0;
+
+    private named = false;
+
+    private populated = false;
+
+    private skipping = false;
+
+    /**
+     * Feed one line.
+     * @param text - the line
+     */
+    line(text: string): void {
+        if (!isSectionLine(text)) {
+            return;
+        }
+        const h = parseSectionHeader(text);
+        const kind = h === null ? "unsupported" : h.kind;
+        const { skipping } = this;
+        this.skipping = kind === "unsupported" || (kind === "vertices" && skipping && this.populated);
+        if (kind === "network") {
+            if (this.count === 0 || this.named || this.populated) {
+                this.count++;
+                this.populated = false;
+            }
+            this.named = true;
+        } else if (kind === "vertices" && !this.skipping) {
+            if (this.count === 0 || this.populated) {
+                this.count++;
+                this.named = false;
+            }
+            this.populated = true;
+        }
+    }
+}
+

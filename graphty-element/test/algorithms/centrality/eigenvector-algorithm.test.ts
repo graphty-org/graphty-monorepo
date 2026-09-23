@@ -2,6 +2,8 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
+import { detachedRunContext } from "../../../src/algorithms/results/types";
+import { isGraphtyError } from "../../../src/errors";
 import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
 
 /**
@@ -64,6 +66,61 @@ describe("EigenvectorCentralityAlgorithm", () => {
             assert.ok(valjean);
             // Eigenvector scores vary but influential nodes should score well
             assert.isAtLeast(getNodeResult(algo, valjean.id, "graphty", "eigenvector", "scorePct") as number, 0.3);
+        });
+    });
+
+    describe("convergence", () => {
+        /**
+         * A 30x30 grid, which power iteration needs several hundred passes for (networkx too).
+         * @returns the mock graph
+         */
+        async function grid(): Promise<any> {
+            const nodes = [];
+            const edges = [];
+            for (let row = 0; row < 30; row++) {
+                for (let col = 0; col < 30; col++) {
+                    nodes.push({ id: `${String(row)},${String(col)}` });
+                    if (col < 29) {
+                        edges.push({ srcId: `${String(row)},${String(col)}`, dstId: `${String(row)},${String(col + 1)}` });
+                    }
+                    if (row < 29) {
+                        edges.push({ srcId: `${String(row)},${String(col)}`, dstId: `${String(row + 1)},${String(col)}` });
+                    }
+                }
+            }
+            return createMockGraph({ nodes, edges });
+        }
+
+        it("a run that reaches maxIterations without converging fails with E_NOT_CONVERGED", async () => {
+            const algo = new EigenvectorCentralityAlgorithm(await grid(), { maxIterations: 20 });
+
+            let thrown: unknown;
+            try {
+                await algo.publishResult(detachedRunContext(), "eigen_grid");
+            } catch (error) {
+                thrown = error;
+            }
+
+            assert.isTrue(isGraphtyError(thrown), "the failure is a GraphtyError");
+            if (!isGraphtyError(thrown)) {
+                return;
+            }
+            assert.strictEqual(thrown.code, "E_NOT_CONVERGED");
+            assert.strictEqual(thrown.source, "run");
+            assert.deepStrictEqual(thrown.target, { kind: "run", id: "eigen_grid" });
+            assert.deepInclude(thrown.details, { algorithm: "graphty:eigenvector", maxIterations: 20, tolerance: 1e-6 });
+            assert.include(thrown.message, "did not converge in 20 iterations");
+            assert.include(thrown.message, "maxIterations");
+            assert.isUndefined(algo.result, "an unconverged run publishes nothing");
+        });
+
+        it("the same grid succeeds with a higher maxIterations and says it converged", async () => {
+            const algo = new EigenvectorCentralityAlgorithm(await grid(), { maxIterations: 1000 });
+
+            const result = await algo.publishResult(detachedRunContext(), "eigen_grid");
+
+            assert.isDefined(result);
+            assert.isTrue(result?.summary().caveats.converged);
         });
     });
 });

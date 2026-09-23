@@ -169,23 +169,24 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const graph1 = await createMockGraph({ dataPath: "./data4.json" });
                 const graph2 = await createMockGraph({ dataPath: "./data4.json" });
 
-                // Very few iterations may not converge fully
+                // Two passes cannot converge, and an unconverged run fails rather than publishing.
                 const ev1 = new EigenvectorCentralityAlgorithm(graph1, { maxIterations: 2 });
-                await ev1.run();
+                let code: unknown;
+                try {
+                    await ev1.run();
+                } catch (error) {
+                    ({ code } = error as { code?: unknown });
+                }
+                assert.strictEqual(code, "E_NOT_CONVERGED");
 
-                // Many iterations should converge
+                // A hundred passes converge on this graph.
                 const ev2 = new EigenvectorCentralityAlgorithm(graph2, { maxIterations: 100 });
                 await ev2.run();
 
-                // Both should produce valid results (score exists)
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
+                const dm2 = graph2.getDataManager() as any;
+                const firstNodeId = Array.from(dm2.nodes.keys())[0] as string;
 
-                const score1 = getNodeResult(ev1, firstNodeId, "graphty", "eigenvector", "score");
-                const score2 = getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score");
-
-                assert.isDefined(score1);
-                assert.isDefined(score2);
+                assert.isDefined(getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score"));
             });
 
             it("tolerance option affects results", async () => {

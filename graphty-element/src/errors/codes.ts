@@ -215,6 +215,13 @@ export type GraphtyErrorCode =
      */
     | "E_SCOPE_EMPTY"
     /**
+     * An iterative algorithm used every pass it was allowed without meeting its tolerance, so it
+     * has no answer to publish. `details` carry the algorithm, `maxIterations` and `tolerance`,
+     * and `cause` the algorithm's own error. The caller raises the run's `maxIterations` param,
+     * or loosens `tolerance`, and runs again; the same params always fail the same way.
+     */
+    | "E_NOT_CONVERGED"
+    /**
      * Acceleration was required (the `acceleration` attribute set to `required`) and no
      * accelerator is available. `details` carry the reason acceleration is absent. The caller
      * installs the optional peer package, or drops back to `auto` and accepts the CPU path.
@@ -313,6 +320,7 @@ const CODE_TABLE = {
     E_OUT_OF_MEMORY: "E_OUT_OF_MEMORY",
     E_CAP_EXCEEDED: "E_CAP_EXCEEDED",
     E_SCOPE_EMPTY: "E_SCOPE_EMPTY",
+    E_NOT_CONVERGED: "E_NOT_CONVERGED",
     E_NO_ACCELERATOR: "E_NO_ACCELERATOR",
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",

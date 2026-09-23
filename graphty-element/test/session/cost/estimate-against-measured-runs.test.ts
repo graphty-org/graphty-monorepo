@@ -18,7 +18,7 @@
  * - Each size keeps the fastest of three runs. Load from other processes (other vitest workers,
  *   other jobs) only ever adds time, so the minimum is the steadiest reading of the work itself.
  *   Sizes are chosen so one run takes roughly 0.05 to 1 s here: long enough that timer noise is
- *   small, short enough that the whole file stays near 35 s on the reference machine.
+ *   small, short enough that the whole file stays near 40 s on the reference machine.
  * - CI machines are slower, and the default rates are absolute. So the estimate is made with the
  *   element's own calibration (`calibrateCost`): a fixed synthetic workload timed in this process,
  *   divided by what that workload does on the machine the defaults were fitted on, scales every
@@ -38,6 +38,7 @@
 import {
     betweennessCentrality,
     closenessCentrality,
+    ConvergenceError,
     eigenvectorCentrality,
     type Graph as AlgorithmGraph,
     louvain,
@@ -163,15 +164,92 @@ const grid: Shape = (nodes) => {
     return fromPairs(edges);
 };
 
-/** Eigenvector centrality with the element's default options. */
-const eigenvector = (graph: AlgorithmGraph): unknown =>
-    eigenvectorCentrality(graph, {
-        normalized: true,
-        maxIterations: 100,
-        tolerance: 1e-6,
-        mode: "total",
-        endpoints: false,
+/**
+ * A graph from pairs a seeded generator proposes, keeping each unordered pair once and no self-loop.
+ * @param seed - The generator's seed.
+ * @param propose - Adds candidate pairs through `add`, drawing from `draw` (uniform in [0, 1)).
+ * @returns The endpoint arrays.
+ */
+function seeded(
+    seed: number,
+    propose: (add: (a: number, b: number) => void, draw: () => number) => void,
+): ReturnType<Shape> {
+    let state = seed;
+    const draw = (): number => (state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32;
+    const seen = new Set<string>();
+    const edges: (readonly [number, number])[] = [];
+    propose((a, b) => {
+        const pair = a < b ? `${a},${b}` : `${b},${a}`;
+        if (a !== b && !seen.has(pair)) {
+            seen.add(pair);
+            edges.push([a, b]);
+        }
+    }, draw);
+
+    return fromPairs(edges);
+}
+
+/** Preferential attachment, three edges per new node: a few hubs and a long tail. */
+const scaleFree: Shape = (nodes) =>
+    seeded(4, (add, draw) => {
+        const ends = [0, 1];
+        add(0, 1);
+        for (let node = 2; node < nodes; node++) {
+            for (let k = 0; k < Math.min(3, node); k++) {
+                const other = ends[Math.floor(draw() * ends.length)];
+                add(node, other);
+                ends.push(node, other);
+            }
+        }
     });
+
+/** Blocks of 50 nodes, about 8 edges per node inside its block and 2 to anywhere. */
+const planted: Shape = (nodes) =>
+    seeded(10, (add, draw) => {
+        for (let edge = 0; edge < 4 * nodes; edge++) {
+            const a = Math.floor(draw() * nodes);
+            add(a, Math.floor(a / 50) * 50 + Math.floor(draw() * 50));
+        }
+
+        for (let edge = 0; edge < nodes; edge++) {
+            add(Math.floor(draw() * nodes), Math.floor(draw() * nodes));
+        }
+    });
+
+/** Cliques of 10 nodes, each joined to the next by one edge. */
+const cliqueRing: Shape = (nodes) =>
+    seeded(1, (add) => {
+        for (let base = 0; base + 10 <= nodes; base += 10) {
+            for (let i = 0; i < 10; i++) {
+                for (let j = i + 1; j < 10; j++) {
+                    add(base + i, base + j);
+                }
+            }
+
+            add(base, (base + 10) % nodes);
+        }
+    });
+
+/** Eigenvector centrality with the element's default options. */
+const eigenvector = (graph: AlgorithmGraph): unknown => {
+    try {
+        return eigenvectorCentrality(graph, {
+            normalized: true,
+            maxIterations: 1000,
+            tolerance: 1e-6,
+            mode: "total",
+            endpoints: false,
+        });
+    } catch (error) {
+        // A graph that needs more than the bound runs every pass and then throws, which the element
+        // reports as E_NOT_CONVERGED. The reader waited for all of those passes all the same.
+        if (error instanceof ConvergenceError) {
+            return error;
+        }
+
+        throw error;
+    }
+};
 
 /** Louvain with the element's default options. */
 const louvainRun = (graph: AlgorithmGraph): unknown =>
@@ -245,57 +323,71 @@ const ROWS: readonly Row[] = [
         shapeName: "random, m = 50n",
         run: (graph) => closenessCentrality(graph),
     },
-    {
-        key: "eigenvector",
-        mode: "undirected",
-        sizes: [10_000, 20_000],
-        run: eigenvector,
-        optimismOnly:
-            "the estimate charges the whole iteration bound, and this graph converges in 16 of the 100 passes. " +
-            "Nothing the estimate can see (n, m, the degree range) predicts the spectral gap that decides " +
-            "convergence, and sparse random, scale-free, grid, tree and path graphs all run every pass",
-    },
-    // Graphs that run the whole bound, where the estimate can be held to both bounds: a grid
-    // (bipartite, so power iteration oscillates and never meets the tolerance), and a path, the
-    // slowest shape per pass measured on 2026-09-23 because the per-node share of a pass dominates.
-    {
-        key: "eigenvector",
-        mode: "undirected",
-        sizes: [10_000, 20_000],
-        shape: grid,
-        shapeName: "grid",
-        run: eigenvector,
-    },
-    { key: "eigenvector", mode: "undirected", sizes: [20_000], shape: path, shapeName: "path", run: eigenvector },
-    {
-        key: "eigenvector",
-        mode: "undirected",
-        sizes: [20_000],
-        shape: random(1.2),
-        shapeName: "random, m = 1.2n",
-        run: eigenvector,
-    },
-    {
-        key: "louvain",
-        mode: "undirected",
-        sizes: [10_000, 20_000],
-        run: louvainRun,
-        optimismOnly:
-            "the estimate charges the whole iteration bound, and louvain settles in a few sweeps. Its own model " +
-            "waits on the multilevel rewrite of its implementation in @graphty/algorithms",
-    },
-    // A hub. The single-level implementation scored each of the hub's neighbour communities by
-    // scanning all its neighbours, a cost of degree squared that n and m cannot see: the class
-    // model was optimistic by 2x on this row against it.
-    {
-        key: "louvain",
-        mode: "undirected",
-        sizes: [2_500, 5_000],
-        shape: star,
-        shapeName: "star",
-        run: louvainRun,
-        optimismOnly: "a star is the worst case the model is bounded against, not a typical graph",
-    },
+    // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
+    // where the graph runs them all: a small grid (never converges, and throws) and a star (979).
+    { key: "eigenvector", mode: "undirected", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
+    { key: "eigenvector", mode: "undirected", sizes: [50_000], shape: star, shapeName: "star", run: eigenvector },
+    // Shapes that converge early, which nothing the estimate can see predicts.
+    ...(
+        [
+            [random(5), "random, m = 5n", [50_000], "about 11"],
+            [random(1.2), "random, m = 1.2n", [100_000], "about 210"],
+            [scaleFree, "scale-free", [100_000], "about 63"],
+            [path, "path", [100_000], "1 or 2"],
+        ] as const
+    ).map(
+        ([shape, shapeName, sizes, passes]): Row => ({
+            key: "eigenvector",
+            mode: "undirected",
+            sizes,
+            shape,
+            shapeName,
+            run: eigenvector,
+            optimismOnly: `this graph converges in ${passes} of the 1,000 passes the estimate charges`,
+        }),
+    ),
+    // Louvain on the graphs it is run on, held to both bounds: its model is pinned under the
+    // slowest of these per element (scale-free), and the sizes are large enough that the per-element
+    // growth its log term charges is visible.
+    { key: "louvain", mode: "undirected", sizes: [20_000, 50_000], run: louvainRun },
+    ...(
+        [
+            [random(1.2), "random, m = 1.2n", [50_000, 100_000]],
+            [random(20), "random, m = 20n", [10_000, 20_000]],
+            [scaleFree, "scale-free", [20_000, 50_000]],
+            [planted, "planted partition", [100_000]],
+        ] as const
+    ).map(
+        ([shape, shapeName, sizes]): Row => ({
+            key: "louvain",
+            mode: "undirected",
+            sizes,
+            shape,
+            shapeName,
+            run: louvainRun,
+        }),
+    ),
+    // Shapes where Louvain settles in few sweeps (5 on a path, 13 on a ring of cliques, about 23 on
+    // a star, erratic 15 to 90 on a grid), so a model safe on the slow shapes is 4x to 8x over them.
+    // Kept to prove it stays safe there, the star's hub included.
+    ...(
+        [
+            [grid, "grid", [50_000]],
+            [path, "path", [200_000]],
+            [star, "star", [100_000, 200_000]],
+            [cliqueRing, "ring of 10-cliques", [100_000]],
+        ] as const
+    ).map(
+        ([shape, shapeName, sizes]): Row => ({
+            key: "louvain",
+            mode: "undirected",
+            sizes,
+            shape,
+            shapeName,
+            run: louvainRun,
+            optimismOnly: "louvain settles in a handful of sweeps on this shape, well under the model's charge",
+        }),
+    ),
 ];
 
 /**
@@ -334,7 +426,7 @@ function measuredGraph(shape: Shape, nodes: number): Measured {
     return {
         data: dataManagerOf(fromEdgeArrays({ src, dst, nodeCount: nodes, directed: true })),
         edges: src.length,
-        maxDegree: Math.max(...degrees),
+        maxDegree: degrees.reduce((most, degree) => Math.max(most, degree), 0),
     };
 }
 

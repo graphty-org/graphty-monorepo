@@ -412,10 +412,10 @@ function workUnits(costClass: CostClass, nodes: number, edges: number, iteration
  * exactly as it scales the class model.
  */
 interface OwnCostModel {
-    /** The work term as a person reads it in a basis line. */
-    readonly term: string;
-    /** Seconds over the whole graph, given its sizes and the rates in force. */
-    readonly seconds: (nodes: number, edges: number, rates: Readonly<CostRates>) => number;
+    /** The work term as a person reads it in a basis line, given the iteration bound. */
+    readonly term: (iterations: number) => string;
+    /** Seconds over the whole graph, given its sizes, the rates in force and the iteration bound. */
+    readonly seconds: (nodes: number, edges: number, rates: Readonly<CostRates>, iterations: number) => number;
 }
 
 /**
@@ -425,16 +425,6 @@ interface OwnCostModel {
  * only and answers in absolute seconds, which no calibration can scale. Each rate is pinned to the
  * FLOOR of what was measured across graph shapes on 2026-09-23, and each is held to a stopwatch,
  * on its typical and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
- *
- * Eigenvector centrality is deliberately NOT here. It usually converges early on a dense random
- * graph (16 of 100 passes at m = 5n), but it runs every pass on sparse random, scale-free, grid,
- * tree, path and every bipartite graph, and nothing the estimate can see predicts which. Its
- * per-pass throughput (2.7M to 23M elements/s across those shapes) has a floor at the iterative
- * rate, so the class model is already the safe one.
- *
- * Louvain is not here yet either. The single-level implementation in `@graphty/algorithms` moved no
- * node on any graph of more than about 100 edges and is being replaced by a multilevel one; its
- * sweep count is what a model would charge, and it should be measured once that lands.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
     /* One BFS per source, so n(n + m), where betweenness' class term is n * m. Measured 20M to 57M
@@ -443,8 +433,41 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
        worker: pinned at 3x the heavy rate, 15M. The class model was 2.2x to 9.3x pessimistic on
        the same set. */
     closeness: {
-        term: "n(n + m)",
+        term: () => "n(n + m)",
         seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (3 * rates.heavyPairsPerSecond),
+    },
+    /* Multilevel Louvain: local-moving sweeps over the edges, then a fold, until nothing moves. It
+       takes 5 to 150 sweeps summed over its levels, stopping on its tolerance long before
+       `maxIterations` (raising the bound from 100 to 1,000 changed no measured run), so the bound is
+       not charged. Measured 173 to 2,677 ns per element of n + m across random (m = 1.2n to 50n),
+       scale-free, planted-partition, grid, path, star, tree and clique-ring graphs of 5,000 to
+       300,000 nodes, the cost per element growing with size (deeper hierarchies, more cache
+       misses): 54 to 132 ns per element per unit of log2(n + m), the most on scale-free graphs at
+       300,000 nodes. Pinned at 148 ns, 1 / (2.25 * the iterative rate). The class model charged
+       100 passes and was 13x to 190x pessimistic on the same set. */
+    louvain: {
+        term: () => "(n + m) log2(n + m)",
+        seconds: (nodes, edges, rates) =>
+            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (2.25 * rates.iterativeElementsPerSecond),
+    },
+    /* Power iteration x <- (A + I)x: a setup that indexes the nodes and builds the adjacency, then
+       up to k passes of n + m each (k = 1,000 by default). How many passes depends on the spectral
+       gap, which nothing the estimate sees predicts: 1 or 2 on a path, 4 or 5 on clique rings and
+       dense random graphs, 10 to 63 on random m >= 2n and scale-free graphs, 122 to 338 on trees,
+       128 to 264 on random m = 1.2n, 199 to over 1,000 on grids and 478 to over 1,000 on stars, so
+       the whole bound is charged. Measured on 2026-09-23 on those shapes at 10,000 to 200,000
+       nodes: the setup at 191 to 1,051 ns per element of n + m, at most 48 ns per unit of
+       log2(n + m), and a pass at 3.3 to 7.8 ns per element over 1,000-pass runs. Pinned at 51 ns
+       per unit of log2(n + m) (1 / (6.5 * the iterative rate)) and 9.5 ns per pass (1 / (35 * the
+       iterative rate)): 1.3x to 3.1x over graphs that run the whole bound, 5x to 45x over graphs
+       that converge early. Mean degree does not predict the pass count either (a grid and random
+       m = 2n both have mean degree 4, and take over 199 and about 33). The class model charged each
+       pass at the iterative rate, 333 ns per element. */
+    eigenvector: {
+        term: (iterations) => `(n + m) log2(n + m) + k(n + m) with k=${group(iterations)}`,
+        seconds: (nodes, edges, rates, iterations) =>
+            ((nodes + edges) * (Math.log2(Math.max(2, nodes + edges)) / 6.5 + iterations / 35)) /
+            rates.iterativeElementsPerSecond,
     },
 };
 
@@ -562,7 +585,12 @@ function fromMeasurement(
         return undefined;
     }
 
-    const measuredUnits = workUnits(costClass, measurement.nodes, measurement.edges, measurement.iterations ?? iterations);
+    const measuredUnits = workUnits(
+        costClass,
+        measurement.nodes,
+        measurement.edges,
+        measurement.iterations ?? iterations,
+    );
     if (!Number.isFinite(measuredUnits) || measuredUnits <= 0) {
         return undefined;
     }
@@ -612,7 +640,12 @@ export function estimateCost(input: CostInput): CostEstimate {
     const edges = scope?.edges ?? statistics.edgeCount;
 
     if (!isUsableCount(nodes) || !isUsableCount(edges)) {
-        return unknownEstimate(costClass, chunked, "The graph's size is not known yet, so nothing can be estimated.", true);
+        return unknownEstimate(
+            costClass,
+            chunked,
+            "The graph's size is not known yet, so nothing can be estimated.",
+            true,
+        );
     }
 
     const reason = unavailableReason(descriptor, statistics, input.acceleratorAvailable ?? false);
@@ -649,13 +682,17 @@ export function estimateCost(input: CostInput): CostEstimate {
 
     const measurement = measurements?.get(input.algorithm);
     const scaled =
-        measurement === undefined ? undefined : fromMeasurement(measurement, costClass, units, iterations, calibration?.machine);
+        measurement === undefined
+            ? undefined
+            : fromMeasurement(measurement, costClass, units, iterations, calibration?.machine);
 
-    const modelled = scaled ?? modelFromRates(descriptor, costClass, nodes, edges, units, sampleFactor, calibration);
+    const modelled =
+        scaled ?? modelFromRates(descriptor, costClass, nodes, edges, units, iterations, sampleFactor, calibration);
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
-    const seconds = Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds : Number.POSITIVE_INFINITY;
+    const seconds =
+        Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds : Number.POSITIVE_INFINITY;
 
-    const notes = [sizes, OWN_COST_MODELS[descriptor.key]?.term ?? termFor(costClass, iterations)];
+    const notes = [sizes, OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(costClass, iterations)];
     if (input.sample !== undefined) {
         notes.push(`sampled at ${group(input.sample)} of ${group(nodes)} nodes`);
     }
@@ -693,6 +730,7 @@ export function estimateCost(input: CostInput): CostEstimate {
  * @param nodes - Nodes in scope.
  * @param edges - Edges in scope.
  * @param units - The work term already computed.
+ * @param iterations - The iteration bound the run would use.
  * @param sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
  * @param calibration - This machine's calibration, when it has one.
  * @returns The seconds and how much they are worth.
@@ -703,6 +741,7 @@ function modelFromRates(
     nodes: number,
     edges: number,
     units: number,
+    iterations: number,
     sampleFactor: number,
     calibration: MachineCalibration | undefined,
 ): ModelledSeconds {
@@ -732,11 +771,15 @@ function modelFromRates(
     const rate = rateFor(costClass, rates);
 
     if (!Number.isFinite(rate) || rate <= 0) {
-        return { seconds: Number.POSITIVE_INFINITY, confidence: "unknown", provenance: "no throughput is known for this cost class" };
+        return {
+            seconds: Number.POSITIVE_INFINITY,
+            confidence: "unknown",
+            provenance: "no throughput is known for this cost class",
+        };
     }
 
     const own = OWN_COST_MODELS[descriptor.key];
-    const seconds = own === undefined ? units / rate : own.seconds(nodes, edges, rates) * sampleFactor;
+    const seconds = own === undefined ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
 
     if (probed) {
         return {
@@ -901,7 +944,11 @@ export function resultBytes(descriptor: AlgorithmDescriptor, nodes: number, edge
  * @param edges - Edges in scope.
  * @returns The count that is too large and what it is, or undefined when nothing is.
  */
-function structuralOverflow(shape: ResultShape, nodes: number, edges: number): { kind: string; count: number } | undefined {
+function structuralOverflow(
+    shape: ResultShape,
+    nodes: number,
+    edges: number,
+): { kind: string; count: number } | undefined {
     if (nodes > MAX_COLUMN_LENGTH) {
         return { kind: "nodes", count: nodes };
     }
@@ -1074,7 +1121,13 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
 
     const { approximable } = descriptor;
     if (approximable !== undefined && options.exact !== true) {
-        return approximateDecision(input, exactEstimate, approximable, requestedSample ?? approximable.defaultSample, cap);
+        return approximateDecision(
+            input,
+            exactEstimate,
+            approximable,
+            requestedSample ?? approximable.defaultSample,
+            cap,
+        );
     }
 
     return refuse(
@@ -1126,7 +1179,9 @@ function approximateDecision(
     }
 
     if (estimate.seconds > cap) {
-        notes.push(`The sampled run is itself estimated at ${estimate.seconds.toPrecision(3)} s, which is still past the cap.`);
+        notes.push(
+            `The sampled run is itself estimated at ${estimate.seconds.toPrecision(3)} s, which is still past the cap.`,
+        );
     }
 
     return {

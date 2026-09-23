@@ -61,6 +61,24 @@ describe("formatAcceleration", () => {
         });
     });
 
+    it("carries the element's reason when the GPU computes incorrectly, rather than a generic failure", () => {
+        expect(
+            formatAcceleration({
+                state: "unavailable",
+                code: "E_DEVICE_INCORRECT",
+                reason:
+                    "webgpu-graph-algorithms: this device computes multi-workgroup shaders incorrectly, " +
+                    "so every number computed here would be unreliable",
+            }),
+        ).toEqual({
+            label: `${ACCELERATION_CHIP_PREFIX}: off`,
+            title:
+                "webgpu-graph-algorithms: this device computes multi-workgroup shaders incorrectly, " +
+                "so every number computed here would be unreliable",
+            active: false,
+        });
+    });
+
     it("falls back from reason to code to the fixed sentence", () => {
         expect(formatAcceleration({ state: "unavailable", code: "E_NO_ADAPTER" })?.title).toBe("E_NO_ADAPTER");
         expect(formatAcceleration({ state: "unavailable" })?.title).toBe("No accelerator is available.");

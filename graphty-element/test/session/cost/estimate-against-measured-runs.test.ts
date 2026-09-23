@@ -255,9 +255,9 @@ const ROWS: readonly Row[] = [
             "Nothing the estimate can see (n, m, the degree range) predicts the spectral gap that decides " +
             "convergence, and sparse random, scale-free, grid, tree and path graphs all run every pass",
     },
-    // Graphs that run the whole bound, where the estimate can be held to both bounds: a grid
-    // (bipartite, so power iteration oscillates and never meets the tolerance), and a path, the
-    // slowest shape per pass measured on 2026-09-23 because the per-node share of a pass dominates.
+    // Grid, path and sparse random: shapes that once ran the whole bound. Since eigenvector was
+    // fixed (x <- (A + I) x, typed arrays) the class model is 30 to 140 times pessimistic here, so
+    // only optimism is asserted until eigenvector gets its own model.
     {
         key: "eigenvector",
         mode: "undirected",
@@ -265,8 +265,23 @@ const ROWS: readonly Row[] = [
         shape: grid,
         shapeName: "grid",
         run: eigenvector,
+        optimismOnly:
+            "eigenvector now iterates x <- (A + I) x over typed arrays and converges on bipartite " +
+            "graphs, so a pass is far cheaper than the iterative rate and early convergence is common; " +
+            "the class model is held to not being optimistic until eigenvector has a model of its own",
     },
-    { key: "eigenvector", mode: "undirected", sizes: [20_000], shape: path, shapeName: "path", run: eigenvector },
+    {
+        key: "eigenvector",
+        mode: "undirected",
+        sizes: [20_000],
+        shape: path,
+        shapeName: "path",
+        run: eigenvector,
+        optimismOnly:
+            "eigenvector now iterates x <- (A + I) x over typed arrays and converges on bipartite " +
+            "graphs, so a pass is far cheaper than the iterative rate and early convergence is common; " +
+            "the class model is held to not being optimistic until eigenvector has a model of its own",
+    },
     {
         key: "eigenvector",
         mode: "undirected",
@@ -274,6 +289,10 @@ const ROWS: readonly Row[] = [
         shape: random(1.2),
         shapeName: "random, m = 1.2n",
         run: eigenvector,
+        optimismOnly:
+            "eigenvector now iterates x <- (A + I) x over typed arrays and converges on bipartite " +
+            "graphs, so a pass is far cheaper than the iterative rate and early convergence is common; " +
+            "the class model is held to not being optimistic until eigenvector has a model of its own",
     },
     {
         key: "louvain",

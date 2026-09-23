@@ -43,7 +43,9 @@ fn bump(@builtin(local_invocation_id) lid: vec3<u32>) {
     S.kineticEnergy = S.kineticEnergy + 1.0;
     S.frEnergy = S.frEnergy + 1.0;
     S.frProgress = S.frProgress + 1u;
-    S.reserved1 = S.reserved1 + one;
+    S.invCellSize = S.invCellSize + 1.0;
+    S.reserved0 = S.reserved0 + 1.0;
+    S.reserved1 = S.reserved1 + one.xy;
     S.reserved2 = S.reserved2 + one;
     S.reserved3 = S.reserved3 + one;
     S.reserved4 = S.reserved4 + one;
@@ -85,7 +87,9 @@ const WRITTEN: UniformValues = {
     kineticEnergy: 100.5,
     frEnergy: 0.5,
     frProgress: 3,
-    reserved1: [1, 1.5, 99, 0.25],
+    invCellSize: 512.5,
+    reserved0: 0.75,
+    reserved1: [1, 1.5],
     reserved2: [2, 2.5, 98, 0.25],
     reserved3: [3, 3.5, 97, 0.25],
     reserved4: [4, 4.5, 96, 0.25],
@@ -117,7 +121,9 @@ const EXPECTED: UniformValues = {
     kineticEnergy: 101.5,
     frEnergy: 1.5,
     frProgress: 4,
-    reserved1: [2, 2.5, 100, 1.25],
+    invCellSize: 513.5,
+    reserved0: 1.75,
+    reserved1: [2, 2.5],
     reserved2: [3, 3.5, 99, 1.25],
     reserved3: [4, 4.5, 98, 1.25],
     reserved4: [5, 5.5, 97, 1.25],
@@ -149,7 +155,9 @@ const OFFSETS: Readonly<Record<string, number>> = {
     kineticEnergy: 116,
     frEnergy: 120,
     frProgress: 124,
-    reserved1: 128,
+    invCellSize: 128,
+    reserved0: 132,
+    reserved1: 136,
     reserved2: 144,
     reserved3: 160,
     reserved4: 176,
@@ -174,7 +182,7 @@ describe("Fa2State round trip host -> kernel -> host (spec 5.3, 11.3)", () => {
         for (const [field, offset] of Object.entries(OFFSETS)) {
             expect(FA2_STATE.offsetOf(field), field).toBe(offset);
         }
-        expect(FA2_STATE.fields.length).toBe(28);
+        expect(FA2_STATE.fields.length).toBe(30);
         // the host-side writer and reader agree before any device is involved
         expect(FA2_STATE.read(new DataView(hostBytes()))).toEqual(WRITTEN);
     });

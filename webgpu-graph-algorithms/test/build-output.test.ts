@@ -147,7 +147,7 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.devDependencies["fast-check"]).toBeTypeOf("string");
     });
 
-    it("has the standard script set, the strict-consumer compile inside lint, and a node-only test:run", () => {
+    it("has the standard script set, the strict-consumer compile inside lint, and a test:run over both node projects", () => {
         for (const name of [
             "build",
             "build:bundle",
@@ -158,6 +158,7 @@ describe("package.json (contract 2.1)", () => {
             "test",
             "test:run",
             "test:node",
+            "test:node:ci",
             "test:browser",
             "test:browser:ci",
             "test:limits",
@@ -172,8 +173,15 @@ describe("package.json (contract 2.1)", () => {
             expect(packageJson.scripts[name], `script ${name}`).toBeTypeOf("string");
         }
         expect(packageJson.scripts.lint).toContain("tsconfig.strict-consumer.json");
-        expect(packageJson.scripts["test:run"]).toBe("vitest run --project=node");
+        // Both node projects, so the local gate covers the device-error files too: they were split into their own
+        // project so one worker death cannot take the rest of the run with it, and that split silently removed
+        // them from every local command until this assertion was widened with them.
+        const bothProjects = "vitest run --project=node --project=node-device-errors";
+        expect(packageJson.scripts["test:run"]).toBe(bothProjects);
+        expect(packageJson.scripts["test:node"]).toBe(bothProjects);
+        expect(packageJson.scripts.coverage).toBe(`${bothProjects} --coverage`);
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
+        expect(packageJson.scripts["test:node:ci"]).toBe("node scripts/run-node-shard.js");
         expect(packageJson.scripts["coverage:preview"]).toContain("9058");
     });
 });

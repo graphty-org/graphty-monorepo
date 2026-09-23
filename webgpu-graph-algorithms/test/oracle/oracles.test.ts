@@ -3,11 +3,14 @@
  * the karate club and small graphs, and the f64 reduce oracle over f32 / u32 / vec4f inputs incl. the identity
  * elements of the empty range; plus the pure reduce-input recipe (test/helpers/reduce-input.ts) that DEFINES the
  * reduce noise fixture, pinned here so P1-T6 / P1-T7 cannot drift from it; plus three hand-computed cases of the P5
- * Fruchterman-Reingold reference (test/oracle/fruchterman-reingold.ts). No device.
+ * Fruchterman-Reingold reference (test/oracle/fruchterman-reingold.ts); plus three hand-computed cases of the P4
+ * exclusive-scan reference (test/oracle/scan.ts) and two of the histogram / counting-sort references
+ * (test/oracle/histogram.ts), plus two of the grid pyramid reference (test/oracle/grid-pyramid.ts). No device.
  */
 
 import { makeMask, maskSet } from "@graphty/graph-format";
 
+import { gridSpecFor } from "../../src/primitives/grid.js";
 import { type ReduceDtype } from "../../src/primitives/reduce.js";
 import { KARATE_EDGES, pathEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
 import {
@@ -20,7 +23,12 @@ import {
 } from "../helpers/reduce-input.js";
 import { outDegreeOracle } from "./degree.js";
 import { FruchtermanReingoldOracle } from "./fruchterman-reingold.js";
+import { gridOracleBuild } from "./grid.js";
+import { gridOraclePyramid } from "./grid-pyramid.js";
+import { countingSortOracle, histogramOracle } from "./histogram.js";
+import { radixSortOracle } from "./radix-sort.js";
 import { reduceIdentity, reduceOracle } from "./reduce.js";
+import { scanOracle } from "./scan.js";
 
 const F32_MAX = 3.4028234663852886e38;
 const U32_MAX = 4294967295;
@@ -211,5 +219,158 @@ describe("FruchtermanReingoldOracle (spec 7.20; P5-T3 Step 1): hand-computed one
         oracle.reheat();
         expect(oracle.temperature).toBe(0.1);
         expect(oracle.settledCount).toBe(0);
+    });
+});
+
+describe("scanOracle (spec 6 row 2; P4-T2 Step 1): the sequential exclusive prefix sum modulo 2^32", () => {
+    it("[3, 1, 4, 1, 5] -> [0, 3, 4, 8, 9], total 14", () => {
+        const { out, total } = scanOracle(Uint32Array.from([3, 1, 4, 1, 5]));
+        expect(out).toBeInstanceOf(Uint32Array);
+        expect(Array.from(out)).toEqual([0, 3, 4, 8, 9]);
+        expect(total).toBe(14);
+    });
+
+    it("the empty array -> empty, total 0", () => {
+        const { out, total } = scanOracle(new Uint32Array(0));
+        expect(out.length).toBe(0);
+        expect(total).toBe(0);
+    });
+
+    it("two values summing past 2^32 wrap (as the kernel's u32 addition does)", () => {
+        const { out, total } = scanOracle(Uint32Array.from([4294967295, 2, 7]));
+        expect(Array.from(out)).toEqual([0, 4294967295, 1]);
+        expect(total).toBe(8);
+    });
+});
+
+describe("histogramOracle / countingSortOracle (spec 6 row 5; P4-T3 Step 1): the bucket loop and the stable counting sort", () => {
+    it("keys [2, 0, 2, 1] over 3 bins -> hist [1, 1, 2], start [0, 1, 2], index [1, 3, 0, 2]", () => {
+        const keys = Uint32Array.from([2, 0, 2, 1]);
+        expect(Array.from(histogramOracle(keys, 3))).toEqual([1, 1, 2]);
+        const { hist, outStart, outIndex } = countingSortOracle(keys, 3);
+        expect(outStart).toBeInstanceOf(Uint32Array);
+        expect(Array.from(hist)).toEqual([1, 1, 2]);
+        expect(Array.from(outStart)).toEqual([0, 1, 2]);
+        expect(Array.from(outIndex)).toEqual([1, 3, 0, 2]);
+    });
+
+    it("the empty input over 3 bins -> zero hist, zero starts, no indices", () => {
+        const keys = new Uint32Array(0);
+        expect(Array.from(histogramOracle(keys, 3))).toEqual([0, 0, 0]);
+        const { outStart, outIndex } = countingSortOracle(keys, 3);
+        expect(Array.from(outStart)).toEqual([0, 0, 0]);
+        expect(outIndex.length).toBe(0);
+    });
+});
+
+describe("radixSortOracle (spec 6 row 6; P4-T4 Step 1): a stable sort of pairs by the low bits of the key", () => {
+    it("keys [3, 1, 3, 0], vals [10, 11, 12, 13] -> keys [0, 1, 3, 3], vals [13, 11, 10, 12] (the two 3s keep their order)", () => {
+        const { keys, vals } = radixSortOracle(Uint32Array.from([3, 1, 3, 0]), Uint32Array.from([10, 11, 12, 13]), 32);
+        expect(keys).toBeInstanceOf(Uint32Array);
+        expect(Array.from(keys)).toEqual([0, 1, 3, 3]);
+        expect(Array.from(vals)).toEqual([13, 11, 10, 12]);
+    });
+
+    it("bits 8 orders by the low byte only and keeps the whole key: [0x1FF, 0x001] -> [0x001, 0x1FF] and [0x100, 0x001] -> [0x100, 0x001]", () => {
+        expect(Array.from(radixSortOracle(Uint32Array.from([0x1ff, 0x001]), Uint32Array.from([0, 1]), 8).keys)).toEqual([0x001, 0x1ff]);
+        expect(Array.from(radixSortOracle(Uint32Array.from([0x100, 0x001]), Uint32Array.from([0, 1]), 8).vals)).toEqual([0, 1]);
+    });
+});
+
+describe("gridOracleBuild (spec 7.7 G1-G3; P4-T8 Step 1): keys, the stable order, cellHist and cellStart", () => {
+    const spec = gridSpecFor(4, 2, { gridMax2D: 512, gridMax3D: 128, deterministic: true }); // G 8, cells 64
+
+    it("four points on the G = 8 grid with gridMin 0 and cellSize 1: keys by hand, one outside point is key 64, cellStart[65] === 4", () => {
+        // (0.5, 0.5) -> cell (0, 0) = 0; (2.5, 0.5) -> (2, 0) = 2; (1.5, 3.5) -> (1, 3) = 25; (9, 1) -> outside = 64
+        const positions = Float32Array.from([0.5, 0.5, 0, 1, 2.5, 0.5, 0, 1, 1.5, 3.5, 0, 1, 9, 1, 0, 1]);
+        const build = gridOracleBuild({ positions, n: 4, spec, gridMin: [0, 0, 0], invCellSize: 1 });
+        expect(Array.from(build.cellKey)).toEqual([0, 2, 25, 64]);
+        expect(Array.from(build.sortedIdx)).toEqual([0, 1, 2, 3]);
+        expect(build.cellHist.length).toBe(66);
+        expect(build.cellHist[0]).toBe(1);
+        expect(build.cellHist[2]).toBe(1);
+        expect(build.cellHist[25]).toBe(1);
+        expect(build.cellHist[64]).toBe(1);
+        expect(build.cellHist[65]).toBe(0);
+        expect(build.cellStart[0]).toBe(0);
+        expect(build.cellStart[2]).toBe(1);
+        expect(build.cellStart[25]).toBe(2);
+        expect(build.cellStart[64]).toBe(3);
+        expect(build.cellStart[65]).toBe(4);
+        expect(build.outside).toBe(1);
+        expect(build.maxOccupancy).toBe(1);
+        // a negative coordinate and a NaN are outside too
+        const bad = Float32Array.from([-0.5, 1, 0, 1, Number.NaN, 1, 0, 1]);
+        expect(Array.from(gridOracleBuild({ positions: bad, n: 2, spec, gridMin: [0, 0, 0], invCellSize: 1 }).cellKey)).toEqual([64, 64]);
+    });
+
+    it("two coincident points keep index order inside their cell (the stable order), and a later lower key sorts first", () => {
+        const positions = Float32Array.from([3.5, 3.5, 0, 1, 0.5, 0.5, 0, 1, 3.5, 3.5, 0, 1]);
+        const build = gridOracleBuild({ positions, n: 3, spec, gridMin: [0, 0, 0], invCellSize: 1 });
+        expect(Array.from(build.cellKey)).toEqual([27, 0, 27]);
+        expect(Array.from(build.sortedIdx)).toEqual([1, 0, 2]);
+        expect(build.cellHist[27]).toBe(2);
+        expect(build.cellStart[27]).toBe(1);
+        expect(build.cellStart[28]).toBe(3);
+        expect(build.maxOccupancy).toBe(2);
+        expect(build.outside).toBe(0);
+    });
+
+    it("in 3D the key adds G^2 z and a z outside [0, G) is the pseudo-cell", () => {
+        const spec3 = gridSpecFor(4, 3, { gridMax2D: 512, gridMax3D: 128, deterministic: true }); // G 8, cells 512
+        const positions = Float32Array.from([1.5, 2.5, 3.5, 1, 1.5, 2.5, 8.5, 1]);
+        const build = gridOracleBuild({ positions, n: 2, spec: spec3, gridMin: [0, 0, 0], invCellSize: 1 });
+        expect(Array.from(build.cellKey)).toEqual([1 + 8 * 2 + 64 * 3, 512]);
+        expect(build.cellStart[513]).toBe(2);
+    });
+});
+
+describe("gridOraclePyramid (spec 7.7 G4-G5; P4-T9): level 0, the pseudo-cell, the parents, the hub list and the bounds", () => {
+    const spec = gridSpecFor(4, 2, { gridMax2D: 512, gridMax3D: 128, deterministic: true }); // G 8, cells 64, levels 2 (8 -> 4)
+    const WG = 256;
+
+    it("four points with masses 1, 2, 3 and one outside: level 0 is [sum m x, sum m y, sum m z, sum m], the pseudo-cell holds the outside point and is never a child, level 1 sums 2x2 children", () => {
+        // (0.5, 0.5) m 1 -> cell 0; (2.5, 0.5) m 2 -> cell 2; (1.5, 3.5) m 3 -> cell 25; (9, 1) m 1 -> the pseudo-cell 64
+        const positions = Float32Array.from([0.5, 0.5, 0, 1, 2.5, 0.5, 0, 2, 1.5, 3.5, 0, 3, 9, 1, 0, 1]);
+        const input = { positions, n: 4, spec, gridMin: [0, 0, 0] as const, invCellSize: 1 };
+        const want = gridOraclePyramid(gridOracleBuild(input), input, WG);
+        expect(want.levels.length).toBe(spec.levels);
+        expect(want.levels[0].length).toBe(4 * 65);
+        expect(Array.from(want.levels[0].subarray(0, 4))).toEqual([0.5, 0.5, 0, 1]);
+        expect(Array.from(want.levels[0].subarray(8, 12))).toEqual([5, 1, 0, 2]);
+        expect(Array.from(want.levels[0].subarray(100, 104))).toEqual([4.5, 10.5, 0, 3]);
+        expect(Array.from(want.levels[0].subarray(256, 260))).toEqual([9, 1, 0, 1]);
+        expect(Array.from(want.levels[0].subarray(4, 8))).toEqual([0, 0, 0, 0]);
+        // level 1 (side 4): cell 0 <- children (0, 0) and (1, 0) of side 8 = cells 0 and 1; cell 1 <- cells 2, 3, 10, 11; cell 4 <- (0, 1) = cells 16, 17, 24, 25
+        expect(want.levels[1].length).toBe(4 * 16);
+        expect(Array.from(want.levels[1].subarray(0, 4))).toEqual([0.5, 0.5, 0, 1]);
+        expect(Array.from(want.levels[1].subarray(4, 8))).toEqual([5, 1, 0, 2]);
+        expect(Array.from(want.levels[1].subarray(16, 20))).toEqual([4.5, 10.5, 0, 3]);
+        let mass = 0;
+        for (let c = 0; c < 16; c++) {
+            mass += want.levels[1][4 * c + 3];
+        }
+        expect(mass).toBe(6); // the outside point's mass 1 is not downsampled
+        expect(want.hubCells).toEqual([]);
+        expect(want.maxOccupancy).toBe(1);
+        // the bound: roundings * 2^-22 * sum |m x|; a one-point cell has one rounding, its parent 1 + 4, an empty cell 0
+        expect(want.bounds[0][8]).toBe(1 * 2 ** -22 * 5);
+        expect(want.bounds[0][4]).toBe(0);
+        expect(want.bounds[1][4]).toBe(5 * 2 ** -22 * 5);
+    });
+
+    it("1025 coincident points of mass 2 are a hub cell: hubCells [0], maxOccupancy 1025, the sum exact, the bound counts the strided partials plus the reduction", () => {
+        const n = 1025;
+        const positions = new Float32Array(4 * n);
+        for (let i = 0; i < n; i++) {
+            positions.set([0.5, 0.5, 0, 2], 4 * i);
+        }
+        const input = { positions, n, spec, gridMin: [0, 0, 0] as const, invCellSize: 1 };
+        const want = gridOraclePyramid(gridOracleBuild(input), input, WG);
+        expect(want.hubCells).toEqual([0]);
+        expect(want.maxOccupancy).toBe(1025);
+        expect(Array.from(want.levels[0].subarray(0, 4))).toEqual([1025, 1025, 0, 2050]);
+        expect(want.bounds[0][3]).toBe((Math.ceil(n / WG) + WG) * 2 ** -22 * 2050);
+        expect(Array.from(want.levels[1].subarray(0, 4))).toEqual([1025, 1025, 0, 2050]);
     });
 });

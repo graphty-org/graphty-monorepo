@@ -504,6 +504,14 @@ async function minTimedStep(
 }
 
 /**
+ * The tier of every calibrated flight: the exact tile, whose per-iteration cost grows with n^2 so a larger fixture is
+ * a longer batch (calibrateFlight's remedy). Stated because the default `"auto"` runs the grid tier above
+ * EXACT_MAX_NODES (32768 by owner decision G4-D1; calibrateFlight's 16x fixture at 4x the scale is 65,536 nodes), and
+ * the grid's near-constant cost would let such a batch land inside one tick gap.
+ */
+const FLIGHT_TIER = { repulsion: "exact" } as const;
+
+/**
  * Picks iterationsPerStep so that one batch outlasts at least `targetTicks` ticks (default four) on the running
  * adapter -- otherwise a batch lands inside the tick gap and inFlight === maxInFlight is never observable at a
  * tick start (the pause case of spec 7.19 and a setPosition "during flight" both need it). A step(8) timing on a
@@ -528,7 +536,7 @@ async function calibrateHeavyStep(
     tickMs: number,
     targetTicks = 4,
 ): Promise<number> {
-    const scratch = createForceAtlas2(ctx, { seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
+    const scratch = createForceAtlas2(ctx, { ...FLIGHT_TIER, seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
     const positions = new Float32Array(3 * snapshot.nodeCount).fill(NaN);
     scratch.load(snapshot, positions);
     await scratch.step(8); // warm-up: pipeline compile, first submit
@@ -610,7 +618,7 @@ function expectMonotone(values: readonly number[], except: ReadonlySet<number> =
  * @param snapshot - the graph of the run
  */
 async function warmPipelines(ctx: GpuContext, snapshot: GraphSnapshot): Promise<void> {
-    const scratch = createForceAtlas2(ctx, { seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
+    const scratch = createForceAtlas2(ctx, { ...FLIGHT_TIER, seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
     scratch.load(snapshot, new Float32Array(3 * snapshot.nodeCount).fill(NaN));
     await scratch.step(1);
     scratch.dispose();
@@ -633,6 +641,7 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
         const n = snapshot.nodeCount;
         const positions = new Float32Array(3 * n).fill(NaN);
         const sim = createForceAtlas2(ctx, {
+            ...FLIGHT_TIER,
             seed: 7,
             maxIter: 1_000_000,
             settleThreshold: 0,
@@ -733,6 +742,7 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
         const n = snapshot.nodeCount;
         const positions = new Float32Array(3 * n).fill(NaN);
         const sim = createForceAtlas2(ctx, {
+            ...FLIGHT_TIER,
             seed: 7,
             maxIter: 1_000_000,
             settleThreshold: 0,

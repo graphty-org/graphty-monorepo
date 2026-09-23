@@ -1,18 +1,21 @@
 /**
  * The end-to-end Node layout driver (contract 6.3; the P3 deliverable of spec 13: "benchmarks/layout-run.ts lays out
  * the 100k / 1M graph end to end on the exact tier: ~18 ms per iteration, correct"). Lays a seeded G(n, m) graph out
- * with the exact-tier ForceAtlas2 through `run({ batch })`, prints ms per iteration, the final stats and the wall time,
- * verifies that every position is finite and that the run ended by settling or by reaching maxIter, and exits 1
- * otherwise.
+ * with ForceAtlas2 on the tier `--repulsion` names through `run({ batch })`, prints ms per iteration, the final stats,
+ * the wall time and the scale-feasible layout metrics of the final positions (the spread, the edge-length quantiles
+ * and the nearest-neighbour histogram of every NN_STRIDE-th node; the 1M 200-iteration exact-vs-grid comparison of
+ * spec 11.4 reads them, P4-T15), verifies that every position is finite and that the run ended by settling or by
+ * reaching maxIter, and exits 1 otherwise.
  *
  * Usage (from webgpu-graph-algorithms):
  *   pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000          # the P3 deliverable
  *   pnpm exec tsx benchmarks/layout-run.ts --nodes 1000 --edges 10000 --iterations 50 --batch 4 --seed 7 --dim 3 --compat networkx
+ *   pnpm exec tsx benchmarks/layout-run.ts --nodes 1000000 --edges 10000000 --iterations 200 --repulsion grid   # the P4 comparison run
  *   GRAPHTY_GPU_ADAPTER=llvmpipe pnpm exec tsx benchmarks/layout-run.ts --nodes 200 --edges 2000 --iterations 20
  *
  * Options: --nodes N (required, >= 1) --edges M (required, >= 0) [--iterations 100] [--batch 8] [--seed 1] [--dim 2]
- * [--compat paper]. PLAN DECISIONS (P3-T7 item 5): the tuning is `repulsion: "exact"` because the grid tier does not
- * exist in P3 and `"auto"` refuses n above exactMaxNodes at load() (P4 adds --repulsion); a software adapter is NOT
+ * [--compat paper] [--repulsion auto]. PLAN DECISIONS (P3-T7 item 5; P4-T14): `--repulsion exact|grid|auto` is passed
+ * through the tuning (default `auto`, the spec 7.8 crossover at exactMaxNodes); a software adapter is NOT
  * refused -- this is a correctness driver, not a benchmark, and spec 11.7's "software adapters never time anything" is
  * honoured by labelling its timings "not representative"; main() runs only when this file is the entry script, so
  * test/benchmarks.test.ts imports the pure helpers without side effects. No top-level await (module ES2020).
@@ -21,8 +24,11 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { type GraphSnapshot } from "@graphty/graph-format";
+
 import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
 import { createNodeGpuContext } from "../src/node/index.js";
+import { edgeLengthQuantiles, nearestNeighbourHistogram, spread } from "../test/helpers/metrics.js";
 import { randomEdges, snapshotOf } from "./datasets.js";
 
 /** The parsed command line. */
@@ -34,6 +40,7 @@ export interface LayoutRunArgs {
     readonly seed: number;
     readonly dim: 2 | 3;
     readonly compat: "paper" | "networkx";
+    readonly repulsion: "exact" | "grid" | "auto";
 }
 
 /** The verdict of checkLayoutResult. */
@@ -43,7 +50,13 @@ export interface LayoutCheck {
 }
 
 /** The option names parseLayoutRunArgs knows, in the usage order. */
-const KNOWN_OPTIONS = ["--nodes", "--edges", "--iterations", "--batch", "--seed", "--dim", "--compat"];
+const KNOWN_OPTIONS = ["--nodes", "--edges", "--iterations", "--batch", "--seed", "--dim", "--compat", "--repulsion"];
+
+/** Every NN_STRIDE-th node enters the nearest-neighbour histogram (the O(n^2) metric sampled to O((n / 32)^2)). */
+const NN_STRIDE = 32;
+
+/** The bins of the self-normalised nearest-neighbour histogram (test/helpers/metrics.ts layoutMetrics uses 8). */
+const NN_BINS = 8;
 
 /**
  * Parses an integer option value.
@@ -61,7 +74,7 @@ function integerOption(flag: string, text: string | undefined, min: number): num
 }
 
 /**
- * Parses `--nodes N --edges M [--iterations 100] [--batch 8] [--seed 1] [--dim 2] [--compat paper]`.
+ * Parses `--nodes N --edges M [--iterations 100] [--batch 8] [--seed 1] [--dim 2] [--compat paper] [--repulsion auto]`.
  * @param argv - process.argv.slice(2)
  * @returns the arguments; a missing required option, an out-of-range value, an unknown option or a stray word throws
  */
@@ -73,6 +86,7 @@ export function parseLayoutRunArgs(argv: readonly string[]): LayoutRunArgs {
     let seed = 1;
     let dim: 2 | 3 = 2;
     let compat: "paper" | "networkx" = "paper";
+    let repulsion: "exact" | "grid" | "auto" = "auto";
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
         const next = argv[i + 1];
@@ -111,6 +125,13 @@ export function parseLayoutRunArgs(argv: readonly string[]): LayoutRunArgs {
                 compat = next;
                 i += 1;
                 break;
+            case "--repulsion":
+                if (next !== "exact" && next !== "grid" && next !== "auto") {
+                    throw new Error(`--repulsion expects exact, grid or auto, got ${String(next)}`);
+                }
+                repulsion = next;
+                i += 1;
+                break;
             default:
                 if (a.startsWith("--")) {
                     throw new Error(`unknown option ${a}; known: ${KNOWN_OPTIONS.join(" ")}`);
@@ -124,7 +145,7 @@ export function parseLayoutRunArgs(argv: readonly string[]): LayoutRunArgs {
     if (edges === null) {
         throw new Error("--edges M is required");
     }
-    return { nodes, edges, iterations, batch, seed, dim, compat };
+    return { nodes, edges, iterations, batch, seed, dim, compat, repulsion };
 }
 
 /**
@@ -207,6 +228,33 @@ function bboxText(positions: Float32Array, nodeCount: number): string {
 }
 
 /**
+ * The scale-feasible metrics of a layout as one line: the spread, the edge-length quantiles and the self-normalised
+ * nearest-neighbour histogram of every NN_STRIDE-th node (test/helpers/metrics.ts; the all-pairs `stress` of its
+ * `layoutMetrics` is out of reach at 1M nodes). The histogram is over the SUBSAMPLE: each sampled node's nearest
+ * neighbour WITHIN the sample, a different statistic from `nearestNeighbourHistogram` over all nodes (its distances are
+ * ~sqrt(NN_STRIDE) times longer in a uniform layout), so its bins compare only between two runs of this driver with
+ * the same n, never with the `nnBins` of `layoutMetrics` or of test/limits/layout-1m.test.ts.
+ * @param s - the snapshot
+ * @param positions - the owner's array after run()
+ * @param dim - the layout dimension
+ * @returns the line
+ */
+export function metricsText(s: GraphSnapshot, positions: Float32Array, dim: 2 | 3): string {
+    const n = s.nodeCount;
+    const [q10, q50, q90] = edgeLengthQuantiles(s, positions, dim, [0.1, 0.5, 0.9]);
+    const count = Math.ceil(n / NN_STRIDE);
+    const sample = new Float32Array(3 * count);
+    for (let k = 0; k < count; k++) {
+        sample.set(positions.subarray(3 * k * NN_STRIDE, 3 * k * NN_STRIDE + 3), 3 * k);
+    }
+    const bins = nearestNeighbourHistogram(sample, count, dim, NN_BINS);
+    return (
+        `metrics: spread=${spread(positions, n, dim).toFixed(4)} edgeQ10=${q10.toFixed(4)} edgeQ50=${q50.toFixed(4)} ` +
+        `edgeQ90=${q90.toFixed(4)} nnBins(1 in ${NN_STRIDE} nodes)=[${bins.map((b) => b.toFixed(4)).join(", ")}]`
+    );
+}
+
+/**
  * Lays the graph out and verifies the result.
  * @returns the process exit code (0 ok, 1 a failed check or a usage error)
  */
@@ -218,7 +266,7 @@ async function main(): Promise<number> {
         const profiled = ctx.profiler !== null && ctx.profiler.enabled;
         console.log(
             `layout-run: n=${args.nodes} m=${args.edges} dim=${args.dim} compat=${args.compat} seed=${args.seed} ` +
-                `batch=${args.batch} maxIter=${args.iterations} repulsion=exact`,
+                `batch=${args.batch} maxIter=${args.iterations} repulsion=${args.repulsion}`,
         );
         console.log(
             `adapter: ${caps.vendor} / ${caps.architecture} / ${caps.description} (profiler ${profiled ? "on" : "off"})` +
@@ -232,7 +280,7 @@ async function main(): Promise<number> {
             dim: args.dim,
             seed: args.seed,
             maxIter: args.iterations,
-            repulsion: "exact",
+            repulsion: args.repulsion,
             compat: args.compat,
         });
         try {
@@ -256,6 +304,7 @@ async function main(): Promise<number> {
                     `tier=${stats.repulsionTier} trace=${stats.trace.length} records`,
             );
             console.log(`positions: ${snapshot.nodeCount} rows, bbox ${bboxText(positions, snapshot.nodeCount)}`);
+            console.log(metricsText(snapshot, positions, args.dim));
             const check = checkLayoutResult(positions, snapshot.nodeCount, done, sim.settled, args.iterations);
             if (!check.ok) {
                 for (const problem of check.problems) {

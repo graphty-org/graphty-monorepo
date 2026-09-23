@@ -5,8 +5,10 @@
  * withColumns() siblings, and tombstoned so a live user learns of the release through `isReleased` (spec 4.5).
  * Uploads follow the pure planner of ./upload-plan.ts: the arena path writes ONE buffer with ONE writeBuffer of the
  * hot prefix (or the full arena when a cold segment is needed and fits) and binds segments at
- * `segment.byteOffset - arena.byteOffset`; the perArray path writes one buffer per array; a windowed plan is
- * E_TOO_LARGE until P4 executes windows (PLAN DECISION 2). Identity permutations are never materialised: presence is
+ * `segment.byteOffset - arena.byteOffset`; the perArray path writes one buffer per array; the windowed path (P4-T7,
+ * PD-8) writes one buffer per PlannedArray range of every arc-indexed array and binds window 0 as the default
+ * colIdx / weights, the whole window list and the per-array buffers riding on the CoreBinding for the row-walking
+ * primitives to bind per window. Identity permutations are never materialised: presence is
  * decided from counts and flags, and the arcToEdge / edgeToArc getters are read only when a segment exists. Nothing
  * is freed by garbage collection; the once-only warning above warnUnreleasedSnapshots names the missing release.
  */
@@ -34,6 +36,9 @@ const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx"
 /** The five core arrays in arena (hot-to-cold) order. */
 const CORE_ORDER: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights", "arcToEdge", "edgeToArc"]);
 
+/** The arc-indexed core arrays: the ones a windowed plan splits into window buffers (upload-plan.ts ARC_INDEXED). */
+const ARC_INDEXED: readonly ("colIdx" | "weights" | "arcToEdge")[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
+
 /** Every resident buffer is bound by kernels, filled by writeBuffer and readable back (tests, readbacks of state). */
 const RESIDENT_USAGE = BufferUsage.STORAGE | BufferUsage.COPY_DST | BufferUsage.COPY_SRC;
 
@@ -53,6 +58,8 @@ export interface CoreBinding {
     readonly arcToEdge: Binding | null;
     readonly edgeToArc: Binding | null;
     readonly windows: readonly ArcWindow[] | null;
+    /** The buffers each arc-indexed array was split into by the windowed plan (indexed by ArcWindow.bufferIndex; an absent array has none); non-null iff `plan === "windowed"`. */
+    readonly arcBuffers: Readonly<Record<"colIdx" | "weights" | "arcToEdge", readonly GPUBuffer[]>> | null;
     readonly hasWeights: boolean;
 }
 
@@ -63,7 +70,14 @@ export interface CoreBinding {
  */
 export interface ViewBinding {
     readonly view:
-        "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate";
+        | "reverse"
+        | "coo"
+        | "edgeList"
+        | "outDegree"
+        | "inDegree"
+        | "degreeOrder"
+        | "reverseDegreeOrder"
+        | "mate";
     readonly bindings: Readonly<Record<string, Binding>>;
     readonly scalars: Readonly<Record<string, readonly number[]>>;
 }
@@ -151,7 +165,22 @@ interface ResidencyRecord {
      * `rev.rowPtr` object.
      */
     readonly packKeys: Map<string, object>;
+    /** One marker object per window buffer, keyed `<name>:<bufferIndex>` (the packKey pattern: never one of the snapshot's own arrays). */
+    readonly windowKeys: Map<string, object>;
+    /** The windowed plan's windows, or null on the arena / perArray plans. */
+    windows: readonly ArcWindow[] | null;
+    /** The window buffers of every arc-indexed array uploaded so far (windowed plan only). */
+    readonly arcBuffers: Map<CoreArrayName, GPUBuffer[]>;
     released: boolean;
+}
+
+/**
+ * Whether a core array is arc-indexed (split into window buffers by a windowed plan).
+ * @param name - the core array
+ * @returns true for colIdx, weights and arcToEdge
+ */
+function isArcIndexed(name: CoreArrayName): name is "colIdx" | "weights" | "arcToEdge" {
+    return (ARC_INDEXED as readonly CoreArrayName[]).includes(name);
 }
 
 /**
@@ -294,8 +323,9 @@ export class GraphResidency {
 
     /**
      * Uploads (or finds) the core; `need` defaults to ["rowPtr", "colIdx", "weights"]; cold segments on demand
-     * (spec 4.2). Never materialises an identity permutation. A windowed plan throws E_TOO_LARGE { path: "windowed" }
-     * until P4 (PLAN DECISION 2); a tombstoned serial is lifted and re-uploaded (PLAN DECISION 7).
+     * (spec 4.2). Never materialises an identity permutation. A windowed plan (spec 4.2, PD-8) uploads every
+     * arc-indexed array as the plan's buffer ranges and binds window 0 as its default binding; rowPtr and edgeToArc
+     * stay whole. A tombstoned serial is lifted and re-uploaded (PLAN DECISION 7).
      * @param s - the snapshot
      * @param need - the core arrays to bind (rowPtr is always included; absent arrays are ignored)
      * @returns the core binding (a frozen object; grows as cold segments are added)
@@ -306,18 +336,6 @@ export class GraphResidency {
         const wanted = need ?? DEFAULT_NEED;
         const names = CORE_ORDER.filter((name) => (name === "rowPtr" || wanted.includes(name)) && isPresent(s, name));
         const plan = planUpload(s, this.caps, names);
-        if (plan.kind === "windowed") {
-            throw new WebGpuGraphError(
-                "E_TOO_LARGE",
-                `snapshot ${s.serial}: an arc array of ${4 * s.arcCount} bytes needs arc windows (${plan.windows.length}), which P1-P3 plan but do not execute`,
-                {
-                    needed: 4 * s.arcCount,
-                    limit: this.caps.limits.maxStorageBufferBindingSize,
-                    path: "windowed",
-                    algorithm: null,
-                },
-            );
-        }
         const record = this.ensureRecord(s);
         if (record.plan === null) {
             record.plan = plan.kind;
@@ -331,10 +349,19 @@ export class GraphResidency {
                 );
                 record.arena = { buffer: resident.buffer, segments: plan.segments };
             }
+            if (plan.kind === "windowed") {
+                record.windows = plan.windows;
+            }
         }
         for (const name of names) {
             if (!record.bindings.has(name)) {
-                record.bindings.set(name, this.bindCore(record, s, name));
+                const planned = plan.kind === "windowed" ? plan.arrays.find((a) => a.name === name) : undefined;
+                record.bindings.set(
+                    name,
+                    planned !== undefined && planned.buffers.length > 0 && record.windows !== null && isArcIndexed(name)
+                        ? this.bindWindowed(record, s, name, planned.buffers, record.windows[0])
+                        : this.bindCore(record, s, name),
+                );
             }
         }
         const rowPtr = record.bindings.get("rowPtr");
@@ -350,7 +377,15 @@ export class GraphResidency {
             weights,
             arcToEdge: record.bindings.get("arcToEdge") ?? null,
             edgeToArc: record.bindings.get("edgeToArc") ?? null,
-            windows: null,
+            windows: record.windows,
+            arcBuffers:
+                record.windows === null
+                    ? null
+                    : Object.freeze({
+                          colIdx: Object.freeze([...(record.arcBuffers.get("colIdx") ?? [])]),
+                          weights: Object.freeze([...(record.arcBuffers.get("weights") ?? [])]),
+                          arcToEdge: Object.freeze([...(record.arcBuffers.get("arcToEdge") ?? [])]),
+                      }),
             hasWeights: weights !== null,
         });
     }
@@ -448,7 +483,6 @@ export class GraphResidency {
         });
     }
 
-
     /**
      * The reverse adjacency's bindings. On an UNDIRECTED snapshot graph-format invariant I7 makes reverse() return
      * the FORWARD arrays, so the core bindings ARE the reverse bindings and nothing is uploaded -- delegating to
@@ -464,6 +498,19 @@ export class GraphResidency {
         const rev = s.reverse();
         if (!s.directed) {
             const core = this.core(s, ["rowPtr", "colIdx", "weights"]);
+            if (core.plan === "windowed") {
+                // a view is never windowed (spec 4.3): window 0's colIdx must not pose as the whole reverse adjacency
+                throw new WebGpuGraphError(
+                    "E_TOO_LARGE",
+                    `snapshot ${s.serial}: the undirected reverse view is the core, which needs arc windows (${core.windows?.length ?? 0}) that no view executes`,
+                    {
+                        needed: 4 * s.arcCount,
+                        limit: this.caps.limits.maxStorageBufferBindingSize,
+                        path: "windowed",
+                        algorithm: null,
+                    },
+                );
+            }
             const bindings: Record<string, Binding> = { rowPtr: core.rowPtr };
             if (core.colIdx !== null) {
                 bindings.colIdx = core.colIdx;
@@ -797,6 +844,59 @@ export class GraphResidency {
     }
 
     /**
+     * Uploads one arc-indexed array as the windowed plan's buffer ranges (spec 4.2: an array above maxBufferSize is
+     * split across buffers at window boundaries), each keyed on a marker object of the record (windowKey), and
+     * returns window 0's binding so a caller that ignores windows still binds something valid (PD-8).
+     * @param record - the snapshot's record
+     * @param s - the snapshot
+     * @param name - a PRESENT arc-indexed core array
+     * @param ranges - the plan's buffer ranges of the array
+     * @param first - window 0
+     * @returns the binding of window 0
+     */
+    private bindWindowed(
+        record: ResidencyRecord,
+        s: GraphSnapshot,
+        name: "colIdx" | "weights" | "arcToEdge",
+        ranges: readonly { readonly byteOffset: number; readonly byteLength: number }[],
+        first: ArcWindow,
+    ): Binding {
+        const array = coreArray(s, name);
+        const buffers = ranges.map(
+            (range, index) =>
+                this.upload(
+                    record,
+                    this.windowKey(record, `${name}:${index}`),
+                    new Uint8Array(array.buffer, array.byteOffset + range.byteOffset, range.byteLength),
+                    `residency:core:${record.serial}:${name}:w${index}`,
+                ).buffer,
+        );
+        record.arcBuffers.set(name, buffers);
+        return {
+            buffer: buffers[first.bufferIndex],
+            offset: first.offset,
+            size: 4 * (first.end - first.start),
+            window: first,
+        };
+    }
+
+    /**
+     * The upload key of one window buffer: a marker object allocated once per record and `<name>:<bufferIndex>`.
+     * @param record - the owning record
+     * @param memoKey - `<name>:<bufferIndex>`
+     * @returns the stable marker object
+     */
+    private windowKey(record: ResidencyRecord, memoKey: string): object {
+        const existing = record.windowKeys.get(memoKey);
+        if (existing !== undefined) {
+            return existing;
+        }
+        const created = {};
+        record.windowKeys.set(memoKey, created);
+        return created;
+    }
+
+    /**
      * Uploads `data` into a new buffer keyed on `key`, or returns the resident already uploaded for that key by
      * the same owner (PLAN DECISION 11: a resident belongs to one record).
      * @param record - the owning record, or null for an owner-less array
@@ -866,6 +966,9 @@ export class GraphResidency {
         record.bindings.clear();
         record.views.clear();
         record.packKeys.clear();
+        record.windowKeys.clear();
+        record.arcBuffers.clear();
+        record.windows = null;
         record.arena = null;
         record.plan = null;
         this.bySerial.delete(record.serial);
@@ -894,6 +997,9 @@ export class GraphResidency {
                 bindings: new Map<CoreArrayName, Binding>(),
                 views: new Map<string, ViewBinding>(),
                 packKeys: new Map<string, object>(),
+                windowKeys: new Map<string, object>(),
+                windows: null,
+                arcBuffers: new Map<CoreArrayName, GPUBuffer[]>(),
                 released: false,
             };
             this.bySerial.set(s.serial, record);

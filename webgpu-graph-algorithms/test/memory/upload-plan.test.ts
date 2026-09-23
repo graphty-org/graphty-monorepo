@@ -1055,7 +1055,7 @@ describe("test/helpers/graphs.ts", () => {
     it("every named fixture builds at scale 1 / 50 with the documented shape", () => {
         const scale = 1 / 50;
         const built = new Map(FIXTURE_NAMES.map((name) => [name, fixture(name, scale)]));
-        expect(built.size).toBe(13);
+        expect(built.size).toBe(24);
         for (const [name, f] of built) {
             expect(f.name).toBe(name);
             expect(f.snapshot.label).toBe(name);
@@ -1079,6 +1079,15 @@ describe("test/helpers/graphs.ts", () => {
         // giant = max(64, round(1000 / 50)) = 64 nodes (63 path + 192 random edges), 2 triangles, 1 isolated node
         expect(counts("isolated")).toEqual([71, 261]);
         expect(counts("parallel")).toEqual([4, 5]);
+        // the P4 fixtures (positions supplied): the 20k-node family scales to 400, the exact-size ones do not scale
+        expect(counts("rmat14")).toEqual([4096, 32768]);
+        for (const name of ["random20k", "clumpy10", "clumpy100", "clumpy1000", "line", "hubcell"]) {
+            expect(counts(name), name).toEqual([400, 2000]);
+        }
+        expect(counts("polyline163")).toEqual([163, 163]);
+        expect(counts("onecell1k")).toEqual([1024, 5120]);
+        expect(counts("onecell1025")).toEqual([1025, 5125]);
+        expect(counts("outside5")).toEqual([34, 78]);
         const coincident = built.get("coincident") as { positions: Float32Array | null };
         expect(coincident.positions).not.toBeNull();
         const p = coincident.positions as Float32Array;

@@ -408,6 +408,17 @@ export const FIXTURE_NAMES: readonly string[] = Object.freeze([
     "coincident",
     "isolated",
     "parallel",
+    "rmat14",
+    "random20k",
+    "clumpy10",
+    "clumpy100",
+    "clumpy1000",
+    "line",
+    "polyline163",
+    "onecell1k",
+    "onecell1025",
+    "outside5",
+    "hubcell",
 ]);
 
 /**
@@ -425,12 +436,74 @@ function seededPositions(n: number, seed: number): F32 {
     return positions;
 }
 
+/** The seed of the P4 fixtures' xorshift streams (positions and edges alike). */
+const P4_SEED = 1006;
+/** The half-width of the box every `onecell*` / `hubcell` position lies in: 1e-3 across, around (0.1, 0.1, 0.1). */
+const ONE_CELL_HALF = 5e-4;
+
+/**
+ * Positions inside the 1e-3 box around (0.1, 0.1, 0.1): every node in ONE finest cell of any grid the P4 layouts
+ * build.
+ * @param n - node count
+ * @returns the positions (3 per node)
+ */
+function oneCellPositions(n: number): F32 {
+    const random = xorshift(P4_SEED);
+    const positions = new Float32Array(3 * n);
+    for (let i = 0; i < positions.length; i++) {
+        positions[i] = 0.1 + ONE_CELL_HALF * (2 * random() - 1);
+    }
+    return positions;
+}
+
+/**
+ * Positions drawn from `blobs` Gaussian blobs (centres uniform in [-0.8, 0.8) per axis, sigma 0.02) by the
+ * Box-Muller pair, the blob of node i being i % blobs.
+ * @param n - node count
+ * @param blobs - the blob count
+ * @returns the positions (3 per node)
+ */
+function clumpyPositions(n: number, blobs: number): F32 {
+    const random = xorshift(P4_SEED);
+    const centres = new Float64Array(3 * blobs);
+    for (let k = 0; k < centres.length; k++) {
+        centres[k] = 1.6 * random() - 0.8;
+    }
+    const positions = new Float32Array(3 * n);
+    const sigma = 0.02;
+    for (let i = 0; i < n; i++) {
+        const blob = i % blobs;
+        // Box-Muller: two uniforms give two independent standard normals; the third axis takes a second pair's first
+        const u1 = Math.max(random(), Number.EPSILON);
+        const u2 = random();
+        const u3 = Math.max(random(), Number.EPSILON);
+        const u4 = random();
+        const r = Math.sqrt(-2 * Math.log(u1));
+        const z0 = r * Math.cos(2 * Math.PI * u2);
+        const z1 = r * Math.sin(2 * Math.PI * u2);
+        const z2 = Math.sqrt(-2 * Math.log(u3)) * Math.cos(2 * Math.PI * u4);
+        positions[3 * i] = centres[3 * blob] + sigma * z0;
+        positions[3 * i + 1] = centres[3 * blob + 1] + sigma * z1;
+        positions[3 * i + 2] = centres[3 * blob + 2] + sigma * z2;
+    }
+    return positions;
+}
+
 /**
  * The named fixtures of spec 11.3 / 11.4 sized by `scale` (1 on hardware, 1 / 50 on a software adapter; callers pass
  * gpuScale() / browserScale()): "empty", "one", "self-loop", "karate", "grid10", "path1k", "star200", "complete6",
  * "random1k", "hub10k" (a scaled 10k-degree star inside a random graph), "coincident" (karate with node 1 at node 0's
  * position and node 3 at node 2's, positions supplied), "isolated" (a connected giant component + 1% isolated nodes
- * + 100 triangles, scaled) and "parallel" (parallels and zero weights).
+ * + 100 triangles, scaled), "parallel" (parallels and zero weights), "rmat14" (a scale-14 R-MAT, 16,384 nodes and
+ * 131,072 edges, whose degree distribution populates all three degree tiers of degreeOrder(); scale
+ * 14 + log2(scale) rounded, never below 12, the smallest scale whose REVERSE order still has a row of in-degree
+ * >= 1024) and the ten POSITIONED fixtures of the P4 grid suites (positions in [-1, 1) scene units, P4-T8 Step 1):
+ * "random20k" (20k nodes over 5n random edges, uniform positions), "clumpy10" / "clumpy100" / "clumpy1000" (the
+ * same graph, positions from 10 / 100 / 1000 Gaussian blobs of sigma 0.02), "line" (every position on
+ * y = 0.3 x + 0.1, z = 0), "polyline163" (163 nodes on an irregular closed polygon, a cycle), "onecell1k" (1,024
+ * nodes inside a 1e-3 box: exactly GRID_HUB_CELL entries in one finest cell), "onecell1025" (one over the
+ * threshold), "outside5" (karate with five positions far outside the extent) and "hubcell" (20k nodes, scaled,
+ * inside the same box).
  * @param name - a FIXTURE_NAMES entry
  * @param scale - the size factor (default 1)
  * @returns the snapshot, its positions (null unless the fixture supplies them) and the name
@@ -528,6 +601,73 @@ export function fixture(
                 { label: name },
             );
             break;
+        case "rmat14": {
+            const rmatScale = Math.max(12, Math.round(14 + Math.log2(factor)));
+            snapshot = snapshotOf(rmatEdges(rmatScale, 8, 1005), { nodeCount: 2 ** rmatScale, label: name });
+            break;
+        }
+        case "random20k":
+        case "clumpy10":
+        case "clumpy100":
+        case "clumpy1000":
+        case "line":
+        case "hubcell": {
+            const n = sized(20_000, 400);
+            snapshot = snapshotOf(randomEdges(n, 5 * n, P4_SEED), { nodeCount: n, label: name });
+            if (name === "random20k") {
+                positions = seededPositions(n, P4_SEED);
+            } else if (name === "line") {
+                const p = seededPositions(n, P4_SEED);
+                for (let i = 0; i < n; i++) {
+                    p[3 * i + 1] = 0.3 * p[3 * i] + 0.1;
+                    p[3 * i + 2] = 0;
+                }
+                positions = p;
+            } else if (name === "hubcell") {
+                positions = oneCellPositions(n);
+            } else {
+                positions = clumpyPositions(n, Number(name.slice("clumpy".length)));
+            }
+            break;
+        }
+        case "polyline163": {
+            const n = 163;
+            snapshot = snapshotOf(cycleEdges(n), { nodeCount: n, label: name });
+            const random = xorshift(P4_SEED);
+            const p = new Float32Array(3 * n);
+            for (let k = 0; k < n; k++) {
+                const theta = (2 * Math.PI * k) / n;
+                const radius = 0.5 + 0.3 * Math.sin(3 * theta) + 0.1 * random();
+                p[3 * k] = radius * Math.cos(theta);
+                p[3 * k + 1] = radius * Math.sin(theta);
+                p[3 * k + 2] = 0;
+            }
+            positions = p;
+            break;
+        }
+        case "onecell1k":
+        case "onecell1025": {
+            const n = name === "onecell1k" ? 1024 : 1025;
+            snapshot = snapshotOf(randomEdges(n, 5 * n, P4_SEED), { nodeCount: n, label: name });
+            positions = oneCellPositions(n);
+            break;
+        }
+        case "outside5": {
+            snapshot = snapshotOf(KARATE_EDGES, { label: name });
+            const p = seededPositions(34, P4_SEED);
+            const far: readonly (readonly [number, number, number])[] = [
+                [50, 50, 0],
+                [-50, 20, 0],
+                [20, -50, 0],
+                [-50, -50, 0],
+                [0, 70, 0],
+            ];
+            for (let k = 0; k < far.length; k++) {
+                [p[3 * k], p[3 * k + 1], p[3 * k + 2]] = far[k];
+            }
+            positions = p;
+            break;
+        }
         default:
             throw new RangeError(`fixture: unknown fixture "${name}" (FIXTURE_NAMES: ${FIXTURE_NAMES.join(", ")})`);
     }

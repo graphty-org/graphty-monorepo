@@ -1,0 +1,10 @@
+{
+    "kernel": "fa2-stats-finalize",
+    "fixture": "isolated-K1-grid",
+    "adapterClass": "nvidia-lovelace-node",
+    "dtype": "f32",
+    "values": [
+        -194.7640838623047, -196.001220703125, -195.3848114013672, 3.0528876781463623, 0.3275587260723114,
+        0.7632219195365906, 37, 37
+    ]
+}

@@ -137,3 +137,25 @@ export interface ResolvedLayoutTuning {
     readonly extentFactor: number;
     readonly compat: "paper" | "networkx";
 }
+
+/** Spec 2.2 CalibrateOptions, verbatim: the probe sizes of calibrateLayout (default 8k / 16k / 32k / 65k). */
+export interface CalibrateOptions {
+    readonly sizes?: readonly number[] | undefined;
+}
+
+/**
+ * Spec 2.2 GpuCalibration, verbatim: the per-size ms per iteration of both repulsion tiers on the actual device,
+ * `pairsPerSecond` of the exact tier at the largest probed size, `suggestedExactMaxNodes` by the spec 7.8 rule
+ * (the largest probed n with exactMs(n) <= min(4 ms, gridMs(n)), rounded down to a power of two; when NO probed size
+ * qualifies -- the grid tier faster at every probe, or every probe over the budget -- the largest power of two strictly
+ * below the smallest probe, so the exact tier runs at no probed size and a value below floorPow2(min(sizes)) tells the
+ * caller the rule found nothing in the range: src/layouts/calibrate.ts) and the wall time of the whole call (pipeline
+ * compilation included on the first call).
+ */
+export interface GpuCalibration {
+    readonly pairsPerSecond: number;
+    readonly exactMsPerIter: Readonly<Record<number, number>>;
+    readonly gridMsPerIter: Readonly<Record<number, number>>;
+    readonly suggestedExactMaxNodes: number;
+    readonly firstCallMs: number;
+}

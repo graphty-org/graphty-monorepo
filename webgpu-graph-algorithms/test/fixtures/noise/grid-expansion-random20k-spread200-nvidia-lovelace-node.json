@@ -1,0 +1,7 @@
+{
+    "kernel": "grid-expansion",
+    "fixture": "random20k-spread200",
+    "adapterClass": "nvidia-lovelace-node",
+    "dtype": "f32",
+    "values": [3244.6185302734375, 3370.5291748046875]
+}

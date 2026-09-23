@@ -19,11 +19,13 @@ import { type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-
 
 import { U32_MAX } from "../constants.js";
 import { type GpuContext } from "../context.js";
-import { isWebGpuGraphError, WebGpuGraphError } from "../errors.js";
+import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { FILL_PARAMS, graphBindings, graphOverrides, kernelSpec, WCC_PARAMS } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
+import { assertWholeCore } from "../primitives/core-shape.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type ComponentsOptions, type GpuLabelResult } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
@@ -66,25 +68,16 @@ function checkDest(dest: Float32Array | Uint32Array | undefined, n: number): U32
 }
 
 /**
- * The resident core; a windowed plan (`E_TOO_LARGE { path: "windowed", algorithm: null }`, spec 3.8) is re-thrown
- * with the algorithm name (3.12). Transcribed from degree.ts, whose coreOf is module-private.
+ * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (spec 3.8, 3.12;
+ * DEP-P4-B: only degree and segmentedReduce execute windows).
  * @param ctx - the context
  * @param s - the snapshot
  * @returns the core binding
  */
 function coreOf(ctx: GpuContext, s: GraphSnapshot): CoreBinding {
-    try {
-        return ctx.residency.core(s);
-    } catch (error: unknown) {
-        if (isWebGpuGraphError(error) && error.code === "E_TOO_LARGE" && error.details.path === "windowed") {
-            throw new WebGpuGraphError(
-                "E_TOO_LARGE",
-                `${ALGORITHM}: the arc arrays need a windowed upload, which P1-P3 plan but do not execute`,
-                { ...error.details, algorithm: ALGORITHM },
-            );
-        }
-        throw error;
-    }
+    const core = ctx.residency.core(s);
+    assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
+    return core;
 }
 
 /**
@@ -197,6 +190,7 @@ export async function connectedComponents(
     options?: ComponentsOptions & GpuRunOptions,
 ): Promise<GpuLabelResult> {
     ctx.assertReady();
+    await assertDeviceComputes(ctx);
     const n = s.nodeCount;
     const renumber = options?.renumber !== false;
     const dest = checkDest(options?.dest, n);
@@ -312,7 +306,9 @@ export async function connectedComponents(
             rounds += ROUNDS_PER_BATCH;
             ctx.assertReady();
             if (options?.signal?.aborted) {
-                throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, { batchId: submitted.id });
+                throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, {
+                    batchId: submitted.id,
+                });
             }
             if (new Uint32Array(back, flagRequest.offset, 1)[0] === 0) {
                 break;

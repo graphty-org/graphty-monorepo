@@ -11,8 +11,8 @@
  *
  * where `<tag>` is `fr` or `se`.
  *
- * PLAN DECISION PD-17 (P5-T8): T-14 names 10k and 100k. The exact-tier crossover is 32,768 (src/constants.ts
- * EXACT_MAX_NODES), so 100k runs with `repulsion: "exact"` passed explicitly -- the tier the design's 7.21 row
+ * PLAN DECISION PD-17 (P5-T8): T-14 names 10k and 100k. Both rungs are above the exact-tier crossover (src/constants.ts
+ * EXACT_MAX_NODES, re-fixed at G4), so both run with `repulsion: "exact"` passed explicitly -- the tier the design's 7.21 row
  * "100k ... exact (for comparison)" measures for FA2. The preset gets the same two rungs in the same group: the design
  * lists one group for the phase, and a second model's rows cost one more loop. `warmClock` and `reportedRow` are the
  * exported helpers of layout-exact.bench.ts, not copies.

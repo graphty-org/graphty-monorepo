@@ -27,12 +27,12 @@
 # hook (.husky/pre-push -> pnpm run prepush:fast -> tools/prepush.sh) runs the
 # validation then.
 #
-# The plan below is tailored to one specific change set: the P5 phase of the
-# WebGPU work (Fruchterman-Reingold and the spring-electrical preset, branch
-# feat/gpu-p5-p4, seventeen commits). It is data, not machinery --
-# STEPS, SUBJECTS, PATHS and one body_*
-# function each. Re-point it at the next change set rather than reusing the
-# messages, and read the diff before you write a message, not a summary of it.
+# The plan below is tailored to one specific change set: the P4 phase of the
+# WebGPU work (the grid pyramid and the degree tiers, branch feat/gpu-p4,
+# eighteen commits). It is data, not machinery -- STEPS, SUBJECTS, PATHS and
+# one body_* function each. Re-point it at the next change set rather than
+# reusing the messages, and read the diff before you write a message, not a
+# summary of it.
 #
 # The repository releases with semantic-release, so every subject has to be a
 # conventional commit: <type>(<scope>): <subject>, where type is one of
@@ -123,48 +123,54 @@ done
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
-# The P5 phase: the two prior-phase docs commits (the G6 sign-off, the P5 / P4 plans, the design
-# amendments), then one commit per P5 task in the plan's execution order (T4 after T5, because the
-# parity suite covers both models), then the script itself.
-STEPS=(g6 plans amendments seams laws fr spring parity accelerator sabotage bench smoke cooling demo decisions gate tools)
+# The P4 phase: one commit per P4 task in the plan's execution order (the four primitives, the
+# tiers, the attraction gather, windowed execution, the grid build, the pyramid, the grid tier, its
+# parity and sabotage suites, the two other models, calibration, the node-limits files, the decision
+# records, the gate record), then the script itself.
+STEPS=(indirect scan histogram radix tiers attraction windowed grid pyramid repulsion parity sabotage law calibrate limits decisions gate tools)
 
 declare -A SUBJECTS=(
-    [g6]="docs(webgpu-graph-algorithms): sign off the G6 algorithms gate record"
-    [plans]="docs(webgpu-graph-algorithms): add the P5 and P4 phase plans"
-    [amendments]="docs(webgpu-graph-algorithms): record the frontier, Louvain and mask amendments and future work"
-    [seams]="feat(webgpu-graph-algorithms): add the option, stats and fixed-mask seams of the P5 layout models"
-    [laws]="feat(webgpu-graph-algorithms): add the FR, coulomb and spring laws and integrators to the kernels"
-    [fr]="feat(webgpu-graph-algorithms): add the Fruchterman-Reingold model, its factory and its f64 oracle"
-    [spring]="feat(webgpu-graph-algorithms): add the spring-electrical preset and its ngraph-checked oracle"
-    [parity]="test(webgpu-graph-algorithms): add the P5 parity suites and record their noise floors"
-    [accelerator]="feat(webgpu-graph-algorithms): expose fruchtermanReingold and springElectrical on the accelerator"
-    [sabotage]="test(webgpu-graph-algorithms): add the P5 sabotage rows and suites"
-    [bench]="feat(webgpu-graph-algorithms): add the layout-fr benchmark group and record T-14 on the dev box"
-    [smoke]="test(webgpu-graph-algorithms): add the FR and spring browser smoke and the FR frame loop"
-    [cooling]="feat(layout): add the cooling option and the nullable spring constants to the layout option types"
-    [demo]="feat(webgpu-graph-algorithms): add the P5 models and four SNAP networks to the browser demo"
-    [decisions]="docs: record the P5 design decisions beside the WebGPU design"
-    [gate]="docs(webgpu-graph-algorithms): close the G5 gate record"
-    [tools]="chore(tools): point the commit script at the P5 phase"
+    [indirect]="feat(webgpu-graph-algorithms): add planIndirect, the indirect finalize kernel and dispatchIndirect"
+    [scan]="feat(webgpu-graph-algorithms): add the exclusiveScan primitive"
+    [histogram]="feat(webgpu-graph-algorithms): add the histogram and counting-sort primitives"
+    [radix]="feat(webgpu-graph-algorithms): add the stable LSD radixSort primitive"
+    [tiers]="feat(webgpu-graph-algorithms): add the mid and high degree tiers of the row-walking kernels"
+    [attraction]="feat(webgpu-graph-algorithms): run the attraction kernel over the degree tiers in every layout model"
+    [windowed]="feat(webgpu-graph-algorithms): execute windowed uploads for degree and segmentedReduce"
+    [grid]="feat(webgpu-graph-algorithms): add the grid spec, the cell keys and the sorted cell ranges"
+    [pyramid]="feat(webgpu-graph-algorithms): add the grid centroids, the hub-cell path and the pyramid"
+    [repulsion]="feat(webgpu-graph-algorithms): add the grid repulsion tier of ForceAtlas2"
+    [parity]="test(webgpu-graph-algorithms): add the grid parity suites and record their noise floors"
+    [sabotage]="test(webgpu-graph-algorithms): add the grid sabotage suite and the settle and determinism checks"
+    [law]="feat(webgpu-graph-algorithms): give the FR and spring-electrical models the grid tier through LAW"
+    [calibrate]="feat(webgpu-graph-algorithms): add calibrateLayout, layout-grid and the crossover re-check"
+    [limits]="test(webgpu-graph-algorithms): add the six node-limits files of the G4 gate"
+    [decisions]="docs: record the P4 design decisions beside the WebGPU design"
+    [gate]="docs(webgpu-graph-algorithms): close the G4 gate record"
+    [tools]="chore(tools): point the commit script at the P4 phase"
 )
 
+W=webgpu-graph-algorithms
+NOISE=$W/test/fixtures/noise
+
 declare -A PATHS=(
-    [g6]="webgpu-graph-algorithms/docs/decisions/G6-algorithms.md"
-    [plans]="design/webgpu/plans/2026-09-20-webgpu-p5-fruchterman-reingold.md design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md design/webgpu/README.md"
-    [amendments]="design/webgpu/webgpu-acceleration-plan.md"
-    [seams]="webgpu-graph-algorithms/src/layouts/model-common.ts webgpu-graph-algorithms/src/constants.ts webgpu-graph-algorithms/src/types/options.ts webgpu-graph-algorithms/src/types/layout.ts webgpu-graph-algorithms/src/layouts/force-simulation.ts webgpu-graph-algorithms/test/layouts/force-simulation.test.ts webgpu-graph-algorithms/test/device/constants.test.ts"
-    [laws]="webgpu-graph-algorithms/src/kernels.ts webgpu-graph-algorithms/src/wgsl/fa2-stats-finalize.wgsl.ts webgpu-graph-algorithms/src/wgsl/fa2-attraction.wgsl.ts webgpu-graph-algorithms/src/wgsl/fa2-repulsion-exact.wgsl.ts webgpu-graph-algorithms/src/wgsl/fa2-integrate.wgsl.ts webgpu-graph-algorithms/src/layouts/forceatlas2.ts webgpu-graph-algorithms/test/helpers/override-matrix.ts webgpu-graph-algorithms/test/kernel/wgsl-compile.test.ts webgpu-graph-algorithms/test/kernel/registry.test.ts webgpu-graph-algorithms/test/kernel/state-roundtrip.test.ts webgpu-graph-algorithms/test/browser/state-roundtrip.test.ts webgpu-graph-algorithms/test/layouts/fa2-options.test.ts"
-    [fr]="webgpu-graph-algorithms/src/layouts/fruchterman-reingold.ts webgpu-graph-algorithms/test/oracle/fruchterman-reingold.ts webgpu-graph-algorithms/test/layouts/fr-options.test.ts webgpu-graph-algorithms/test/layouts/fr-behaviour.test.ts webgpu-graph-algorithms/test/layouts/fr-properties.test.ts webgpu-graph-algorithms/test/oracle/oracles.test.ts"
-    [spring]="webgpu-graph-algorithms/package.json pnpm-lock.yaml webgpu-graph-algorithms/src/layouts/spring-electrical.ts webgpu-graph-algorithms/test/oracle/spring-electrical.ts webgpu-graph-algorithms/test/oracle/spring-electrical-ngraph.test.ts webgpu-graph-algorithms/test/helpers/story-graph.ts webgpu-graph-algorithms/test/layouts/se-options.test.ts webgpu-graph-algorithms/test/layouts/se-behaviour.test.ts webgpu-graph-algorithms/test/layouts/se-properties.test.ts webgpu-graph-algorithms/test/layouts/se-settle.test.ts"
-    [parity]="webgpu-graph-algorithms/test/helpers/fr-parity.ts webgpu-graph-algorithms/test/helpers/se-parity.ts webgpu-graph-algorithms/test/layouts/fr-inspect.test.ts webgpu-graph-algorithms/test/layouts/fr-trace.test.ts webgpu-graph-algorithms/test/layouts/fr-twins.test.ts webgpu-graph-algorithms/test/layouts/fr-layout-oracle.test.ts webgpu-graph-algorithms/test/layouts/fr-lifecycle.test.ts webgpu-graph-algorithms/test/layouts/fr-force-sum.test.ts webgpu-graph-algorithms/test/layouts/fr-distributional.test.ts webgpu-graph-algorithms/test/layouts/se-inspect.test.ts webgpu-graph-algorithms/test/layouts/se-trace.test.ts webgpu-graph-algorithms/test/layouts/se-force-sum.test.ts webgpu-graph-algorithms/test/layouts/se-distributional.test.ts webgpu-graph-algorithms/test/helpers/fa2-parity.ts webgpu-graph-algorithms/test/noise-floor.test.ts webgpu-graph-algorithms/benchmarks/results/noise-floor.json webgpu-graph-algorithms/test/fixtures/noise"
-    [accelerator]="webgpu-graph-algorithms/src/types/accelerator.ts webgpu-graph-algorithms/src/accelerator.ts webgpu-graph-algorithms/src/index.ts webgpu-graph-algorithms/test/index.test.ts webgpu-graph-algorithms/test/accelerator.test.ts webgpu-graph-algorithms/test/types/public-api.test-d.ts webgpu-graph-algorithms/test/types/accelerator.test-d.ts webgpu-graph-algorithms/test/types/options.test-d.ts webgpu-graph-algorithms/test/types/conformance.test-d.ts"
-    [sabotage]="webgpu-graph-algorithms/test/helpers/sabotage.ts webgpu-graph-algorithms/test/sabotage/fr.test.ts webgpu-graph-algorithms/test/sabotage/se.test.ts"
-    [bench]="webgpu-graph-algorithms/benchmarks/layout-fr.bench.ts webgpu-graph-algorithms/benchmarks/layout-exact.bench.ts webgpu-graph-algorithms/benchmarks/run.ts webgpu-graph-algorithms/test/benchmarks.test.ts webgpu-graph-algorithms/README.md webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json"
-    [smoke]="webgpu-graph-algorithms/test/helpers/frame-loop.ts webgpu-graph-algorithms/test/layouts/fr-frame-loop.test.ts webgpu-graph-algorithms/test/browser/spring-layouts.test.ts"
-    [cooling]="layout/src/simulation/types.ts webgpu-graph-algorithms/test/layouts/fr-adaptive.test.ts"
-    [demo]="webgpu-graph-algorithms/demo/main.ts webgpu-graph-algorithms/demo/index.html"
-    [decisions]="design/decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md design/decisions/2026-09-20-spring-electrical-integrates-like-ngraph.md design/decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md design/decisions/README.md design/README.md"
-    [gate]="webgpu-graph-algorithms/docs/decisions/G5.md webgpu-graph-algorithms/CLAUDE.md"
+    [indirect]="$W/src/kernel/dispatch.ts $W/src/kernel/kernel.ts $W/src/kernels.ts $W/src/wgsl/indirect-finalize.wgsl.ts $W/test/helpers/indirect.ts $W/test/helpers/override-matrix.ts $W/test/helpers/sabotage.ts $W/test/kernel/dispatch.test.ts $W/test/kernel/indirect.test.ts $W/test/kernel/registry.test.ts $W/test/kernel/bind-group-budget.test.ts $W/test/kernel/wgsl-compile.test.ts $W/test/sabotage/indirect.test.ts $NOISE/indirect-finalize-counts9-nvidia-lovelace-node.json $NOISE/indirect-finalize-counts9-mesa-software-node.json"
+    [scan]="$W/src/wgsl/scan-block.wgsl.ts $W/src/wgsl/scan-add.wgsl.ts $W/src/primitives/scan.ts $W/test/oracle/scan.ts $W/test/oracle/oracles.test.ts $W/test/helpers/scan.ts $W/test/primitives/scan.test.ts $W/test/sabotage/scan.test.ts $NOISE/scan-block-random1m-nvidia-lovelace-node.json $NOISE/scan-block-random1m-mesa-software-node.json"
+    [histogram]="$W/src/wgsl/histogram.wgsl.ts $W/src/wgsl/counting-scatter.wgsl.ts $W/src/primitives/histogram.ts $W/test/oracle/histogram.ts $W/test/helpers/histogram.ts $W/test/primitives/histogram.test.ts $W/test/sabotage/histogram.test.ts $NOISE/histogram-random1m-4096-nvidia-lovelace-node.json $NOISE/histogram-random1m-4096-mesa-software-node.json $NOISE/counting-scatter-random1m-4096-keys-nvidia-lovelace-node.json $NOISE/counting-scatter-random1m-4096-keys-mesa-software-node.json"
+    [radix]="$W/src/kernel/prelude.ts $W/src/wgsl/radix-hist.wgsl.ts $W/src/wgsl/radix-scatter.wgsl.ts $W/src/primitives/radix-sort.ts $W/src/constants.ts $W/test/oracle/radix-sort.ts $W/test/helpers/radix-sort.ts $W/test/primitives/radix-sort.test.ts $W/test/sabotage/radix-sort.test.ts $NOISE/radix-hist-random1m-24-table-nvidia-lovelace-node.json $NOISE/radix-hist-random1m-24-table-mesa-software-node.json $NOISE/radix-scatter-random1m-24-nvidia-lovelace-node.json $NOISE/radix-scatter-random1m-24-mesa-software-node.json"
+    [tiers]="$W/src/wgsl/segmented-reduce.wgsl.ts $W/src/wgsl/fa2-attraction.wgsl.ts $W/src/wgsl/spmv-pull.wgsl.ts $W/src/primitives/core-shape.ts $W/src/primitives/segmented-reduce.ts $W/src/primitives/spmv.ts $W/src/layouts/forceatlas2.ts $W/src/layouts/fruchterman-reingold.ts $W/src/layouts/spring-electrical.ts $W/test/helpers/graphs.ts $W/test/helpers/segmented-reduce.ts $W/test/helpers/spmv.ts $W/test/kernel/wgsl.test.ts $W/test/layouts/fa2-options.test.ts $W/test/primitives/segmented-reduce.test.ts $W/test/primitives/spmv.test.ts $W/test/primitives/tiers.test.ts $W/test/sabotage/tiers.test.ts $NOISE/segmented-reduce-hub10k-tiers-nvidia-lovelace-node.json $NOISE/segmented-reduce-hub10k-tiers-mesa-software-node.json $NOISE/segmented-reduce-hub10k-tiers-oracle-f64.json $NOISE/spmv-pull-hub10k-tiers-nvidia-lovelace-node.json $NOISE/spmv-pull-hub10k-tiers-mesa-software-node.json $NOISE/spmv-pull-hub10k-tiers-oracle-f64.json"
+    [attraction]="$W/src/layouts/force-simulation.ts $W/src/layouts/model-common.ts $W/test/helpers/fa2-parity.ts $W/test/helpers/attraction-check.ts $W/test/layouts/tiers-inspect.test.ts $W/test/layouts/attraction-windowed.test.ts $NOISE/fa2-attraction-hub10k-K2-tiers-nvidia-lovelace-node.json $NOISE/fa2-attraction-hub10k-K2-tiers-mesa-software-node.json $NOISE/fa2-attraction-hub10k-K2-tiers-oracle-f64.json"
+    [windowed]="$W/src/memory/residency.ts $W/src/algorithms/degree.ts $W/src/algorithms/components.ts $W/src/algorithms/pagerank.ts $W/src/algorithms/power-iteration.ts $W/test/memory/windowed.test.ts $W/test/memory/residency.test.ts $W/test/algorithms/degree.test.ts $W/test/algorithms/components.test.ts $W/test/algorithms/pagerank.test.ts $W/test/algorithms/spectral.test.ts $W/test/helpers/degree-check.ts design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md"
+    [grid]="$W/src/wgsl/grid-cell-key.wgsl.ts $W/src/primitives/grid.ts $W/test/oracle/grid.ts $W/test/helpers/grid.ts $W/test/primitives/grid.test.ts $W/test/sabotage/grid-build.test.ts $W/test/kernel/state-roundtrip.test.ts $W/test/device/constants.test.ts $NOISE/grid-cell-key-random20k-nvidia-lovelace-node.json $NOISE/grid-cell-key-random20k-mesa-software-node.json $NOISE/grid-cell-key-random20k-oracle-f64.json $NOISE/histogram-random20k-cellHist-nvidia-lovelace-node.json $NOISE/histogram-random20k-cellHist-mesa-software-node.json $NOISE/histogram-random20k-cellHist-oracle-f64.json $NOISE/scan-add-random20k-cellStart-nvidia-lovelace-node.json $NOISE/scan-add-random20k-cellStart-mesa-software-node.json $NOISE/scan-add-random20k-cellStart-oracle-f64.json"
+    [pyramid]="$W/src/wgsl/grid-centroid.wgsl.ts $W/src/wgsl/grid-centroid-hub.wgsl.ts $W/src/wgsl/grid-downsample.wgsl.ts $W/src/primitives/grid-pyramid.ts $W/test/oracle/grid-pyramid.ts $W/test/helpers/grid-pyramid.ts $W/test/primitives/grid-pyramid.test.ts $W/test/sabotage/grid-pyramid.test.ts $NOISE/grid-downsample-random20k-L1-nvidia-lovelace-node.json $NOISE/grid-downsample-random20k-L1-mesa-software-node.json $NOISE/grid-downsample-random20k-L1-oracle-f64.json $NOISE/grid-centroid-hub-hubcell-L0-nvidia-lovelace-node.json $NOISE/grid-centroid-hub-hubcell-L0-mesa-software-node.json $NOISE/grid-centroid-hub-hubcell-L0-oracle-f64.json"
+    [repulsion]="$W/src/wgsl/grid-far-field.wgsl.ts $W/src/wgsl/grid-near-field.wgsl.ts $W/src/wgsl/fa2-stats-finalize.wgsl.ts $W/src/layouts/repulsion-grid.ts $W/src/kernel/profiler.ts $W/test/kernel/profiler.test.ts $W/test/layouts/grid-behaviour.test.ts $W/test/layouts/grid-lifecycle.test.ts $W/test/layouts/force-simulation.test.ts $W/test/layouts/fr-lifecycle.test.ts $W/test/layouts/se-behaviour.test.ts"
+    [parity]="$W/test/oracle/grid-field.ts $W/test/helpers/grid-parity.ts $W/test/layouts/grid-unbiased.test.ts $W/test/layouts/grid-inspect.test.ts $W/test/layouts/grid-twins.test.ts $W/test/layouts/grid-exact.test.ts $W/test/noise-floor.test.ts $W/benchmarks/results/noise-floor.json $NOISE/grid-centroid-random20k-pyramid-nvidia-lovelace-node.json $NOISE/grid-centroid-random20k-pyramid-mesa-software-node.json $NOISE/grid-centroid-random20k-pyramid-oracle-f64.json $NOISE/grid-far-field-random20k-far-nvidia-lovelace-node.json $NOISE/grid-far-field-random20k-far-mesa-software-node.json $NOISE/grid-far-field-random20k-far-oracle-f64.json $NOISE/grid-near-field-random20k-near-nvidia-lovelace-node.json $NOISE/grid-near-field-random20k-near-mesa-software-node.json $NOISE/grid-near-field-random20k-near-oracle-f64.json $NOISE/grid-near-field-random20k-near-nvidia-lovelace-node-no-subgroups.json $NOISE/grid-near-field-random20k-near-mesa-software-node-no-subgroups.json $NOISE/fa2-stats-finalize-random20k-K1-grid-nvidia-lovelace-node.json $NOISE/fa2-stats-finalize-random20k-K1-grid-mesa-software-node.json $NOISE/fa2-stats-finalize-random20k-K1-grid-oracle-f64.json $NOISE/fa2-stats-finalize-isolated-K1-grid-nvidia-lovelace-node.json $NOISE/fa2-stats-finalize-isolated-K1-grid-mesa-software-node.json $NOISE/fa2-stats-finalize-isolated-K1-grid-oracle-f64.json $NOISE/fa2-integrate-random20k-K5-grid-nvidia-lovelace-node.json $NOISE/fa2-integrate-random20k-K5-grid-mesa-software-node.json $NOISE/fa2-integrate-random20k-K5-grid-oracle-f64.json $NOISE/grid-centroid-hub-hubcell-L0-nvidia-lovelace-node-no-subgroups.json $NOISE/grid-centroid-hub-hubcell-L0-mesa-software-node-no-subgroups.json $NOISE/grid-exact-random20k-rms-nvidia-lovelace-node.json $NOISE/grid-exact-random20k-rms-mesa-software-node.json $NOISE/grid-exact-random20k-rms-oracle-f64.json $NOISE/grid-exact-random20k-p99-nvidia-lovelace-node.json $NOISE/grid-exact-random20k-p99-mesa-software-node.json $NOISE/grid-exact-random20k-p99-oracle-f64.json $NOISE/grid-expansion-random20k-spread200-nvidia-lovelace-node.json $NOISE/grid-expansion-random20k-spread200-mesa-software-node.json $NOISE/grid-expansion-random20k-spread200-oracle-f64.json $NOISE/grid-distributional-random20k-metrics200-nvidia-lovelace-node.json $NOISE/grid-distributional-random20k-metrics200-mesa-software-node.json $NOISE/grid-distributional-random20k-metrics200-oracle-f64.json $NOISE/grid-unbiased-hubcell-mean4096-nvidia-lovelace-node.json $NOISE/grid-unbiased-hubcell-mean4096-mesa-software-node.json $NOISE/grid-unbiased-hubcell-mean4096-oracle-f64.json $W/test/helpers/matchers.ts"
+    [sabotage]="$W/test/sabotage/coverage.test.ts $W/test/sabotage/grid.test.ts $W/test/layouts/grid-settle.test.ts"
+    [law]="$W/test/helpers/grid-law.ts $W/test/layouts/grid-law.test.ts $W/test/layouts/fr-options.test.ts $W/test/layouts/se-options.test.ts"
+    [calibrate]="$W/src/layouts/calibrate.ts $W/src/types/layout.ts $W/src/index.ts $W/test/layouts/calibrate.test.ts $W/test/index.test.ts $W/test/types/public-api.test-d.ts $W/test/benchmarks.test.ts $W/test/browser/bench.test.ts $W/test/layouts/frame-loop.test.ts $W/benchmarks/layout-grid.bench.ts $W/benchmarks/layout-exact.bench.ts $W/benchmarks/layout-fr.bench.ts $W/benchmarks/run.ts $W/benchmarks/layout-run.ts $W/benchmarks/results/nvidia-lovelace-driver580.json $W/README.md"
+    [limits]="$W/test/limits/binding-2gib.test.ts $W/test/limits/windowed-200mb.test.ts $W/test/limits/dispatch-2d-100m.test.ts $W/test/limits/oom-scope.test.ts $W/test/limits/vendor-features.test.ts $W/test/limits/layout-1m.test.ts $W/test/limits/README.md"
+    [decisions]="design/decisions/2026-09-20-compact-lands-with-the-frontier-phase.md design/decisions/2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md design/decisions/2026-09-20-sort-scratch-is-model-owned.md design/decisions/2026-09-20-scan-has-no-subgroup-variant.md design/decisions/2026-09-20-far-field-levels-are-a-uniform.md design/decisions/2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md design/decisions/2026-09-20-workgroup-row-tiers-fold-without-kahan.md design/decisions/README.md design/README.md"
+    [gate]="$W/docs/decisions/G4.md $W/CLAUDE.md $W/test/browser/state-roundtrip.test.ts $W/test/memory/upload-plan.test.ts"
     [tools]="tools/commit-changes.sh"
 )
 
@@ -174,320 +180,533 @@ declare -A PATHS=(
 # that is commitlint's body-max-line-length, and it is checked before staging.
 # ---------------------------------------------------------------------------
 
-body_g6() {
+body_indirect() {
     cat <<'BODY'
-The G6 algorithms record was written before any of the M8a commits existed and
-carried placeholders for the hashes, the released versions, the lane runs and
-the signature. They are filled: the nine commits 061c9626 .. 8bc1cda1 merged to
-master as pull request 15 (ffd6b329); algorithms 1.7.2 became 1.8.0 and
-webgpu-graph-algorithms 0.3.0 became 0.5.0 in the release of 2026-09-20; ci.yml
-35515822729, hosts.yml 35515822757 and the gpu.yml run on the merge commit
-35519114142 are all green. No measured number changed.
+The device-side dispatch of spec 5.4: planIndirect(count, wg, caps) is plan1d's
+rule on a u32 count through the same grid() the other planners use, so the
+host twin and the kernel cannot drift; the indirect-finalize kernel (one lane,
+ceil without the u32 wrap, the 2D split above 65,535 workgroups) writes the
+16-byte slot (x, y, 1, count) of an args buffer from a count another kernel
+left in a storage word; Kernel.dispatchIndirect(pass, bound, args, slot)
+records the same setPipeline / setBindGroup prefix as dispatch() and then
+dispatchWorkgroupsIndirect at args.offset + 16 * slot, with a slot beyond the
+binding rejected as E_INVALID_ARGUMENT. INDIRECT_ARGS_STRIDE is exported beside
+it and IndirectParams (countIndex, wg, slot) is the kernel's uniform.
+
+The kernel registry gains the "P4" phase and its first entry; the registry,
+storage-count, compile-matrix and override-matrix tests gain their rows, and
+the sabotage table its first three rows (the ceil dropped, the 2D split never
+taken, a 12-byte slot stride). kernels.ts, sabotage.ts, override-matrix.ts and
+the three registry-shaped tests are shared by every kernel commit of this
+phase; they are claimed here, in the first commit that touches them, so the
+later commits' rows in them land with this one.
+
+indirect.test.ts runs the finalize against planIndirect bitwise over nine
+counts, twice, fills 4M words through an indirect dispatch on slot 7 and a
+count of 0 on slot 0 over a poisoned buffer in one pass, and covers the slot,
+bound-kernel and offset errors; sabotage/indirect.test.ts measures every
+mutant at factor Infinity. The counts9 noise fixtures were recorded on the RTX
+4070 SUPER and on lavapipe and are bitwise identical.
 BODY
 }
 
-body_plans() {
+body_scan() {
     cat <<'BODY'
-Two implementation plans for the WebGPU package's layout phases. The P5 plan
-lands Fruchterman-Reingold and the spring-electrical preset on the exact tier
-that P3 built: three pair laws, two integrators and two statistics as override
-axes on the four existing FA2 kernels, two f64 oracles (the second checked
-against ngraph.forcelayout), the accelerator members, the parity, sabotage and
-noise-floor rows of every branch, the layout-fr benchmark group and the G5
-record. Its section 0 records why it runs before P4 (the tree has no grid
-kernel, and the LAW override reaches the grid's near-field kernel as one more
-declaration) and its four departures from the design, three of which carry a
-decision record.
+exclusiveScan over u32 words: scan-block is a Hillis-Steele exclusive scan of
+one workgroup-wide block that writes the block's total to a sums array, and
+scan-add folds the scanned sums back into every block. prepareScan(scope)
+returns a planner whose record(pass, src, count, out) validates the count and
+both bindings before recording anything, builds the level list recursively
+while a level has more than one block, dispatches scan-block bottom-up and
+scan-add top-down (2 x levels - 1 dispatches, exposed as lastDispatches) and
+returns the binding and index of the top level's one sums word, the grand
+total. A count of 0 records nothing and returns a one-word scratch zeroed at
+prepare time. There is no subgroup variant (the decision record of the docs
+commit below says why).
 
-The P4 plan is the scale layer that follows on the same branch: the grid
-primitives, the degree tiers, windowed execution, the grid pyramid under all
-three layout models, calibrateLayout, and the G4 record.
-
-design/webgpu/README.md indexes both.
+The two entries take the registry's next rows; oracles.test.ts gains three
+hand-computed scan cases, primitives/scan.test.ts the ladder 0 / 1 / 255 / 256
+/ 257 / 4097 / 65537 / 2^20 (scaled on a software adapter), each run twice
+with bitwise equality first and then against the sequential oracle, plus the
+dispatch counts, the count-0 path and the argument errors. The six sabotage
+rows all report Infinity on both adapters. The random1m noise fixtures were
+recorded on the RTX 4070 SUPER and on lavapipe and are bitwise identical, as a
+u32 scan must be.
 BODY
 }
 
-body_amendments() {
+body_histogram() {
     cat <<'BODY'
-Section 16 amends the P8 / P11 algorithm phases in four parts: the visited
-pre-check before the frontier claim in BFS, SSSP and betweenness's forward
-pass; contraction by bitmap when the emitted frontier is dense; the Louvain
-gain floor; and edge / node masks that run an algorithm on a filtered graph
-without a new snapshot. The mask binding is for the algorithm kernels only:
-16.4's item 5 puts the layouts out of its scope, so no layout kernel's binding
-table changes.
+histogram and countingSortByKey, the two primitives the grid build sorts with
+when determinism is off. The histogram kernel counts keys into bins with one
+global atomicAdd per key (a fill of the bins runs first, so the count needs no
+clearBuffer); counting-scatter places every key at outStart[key] plus an
+atomically advanced cursor, so the sort is stable within a bin only by chance
+and is the non-deterministic path. prepareHistogram and prepareCountingSort
+return planners whose record() validates count, bins and every binding before
+recording, chain histogram -> exclusiveScan -> fill -> scatter, and expose
+lastDispatches.
 
-Section 17 is the future-work register: every algorithm the design does not
-schedule, with the GPU case for each, so a later phase starts from a written
-argument rather than a blank page.
-
-No review-log entry: that practice was retired on 2026-09-19
-(design/decisions/README.md), and the amendments are dated in their headings.
+The oracle is a sequential histogram and a stable counting sort; the primitive
+suite runs 2^20 seeded keys over 4096 bins twice bitwise, a hot bucket over
+1 / 256 / 4096 / 262,146 bins, the sort's start offsets bitwise with the index
+array a permutation and the key sequence non-decreasing, the count-0 path and
+the argument errors. The six sabotage rows (a plain store for the atomic, the
+last key skipped, a bin off by one; the cursor not advanced, the start
+ignored, the index off by one) all report Infinity. The four u32 noise
+fixtures are bitwise identical across the two adapters.
 BODY
 }
 
-body_seams() {
+body_radix() {
     cat <<'BODY'
-The shared ground the two P5 models stand on, before either exists.
-src/layouts/model-common.ts holds the twelve option / value helpers, the
-Overrides alias, U32_MODULUS and the two buffer constants that were private to
-forceatlas2.ts; this commit copies them and the next one deletes the originals
-and imports them, so no FA2 line moves here. constants.ts gains FR_DEFAULTS,
-FR_START_TEMPERATURE, FR_REHEAT_FRACTION and SE_DEFAULTS (ngraph.forcelayout
-3.3.1's values); options.ts the two resolved option records; layout.ts the two
-stats records and their per-iteration trace records.
+radixSort, the stable LSD sort of (key, value) pairs the grid build orders its
+cells with: 8 bits per pass, so bits 8 / 16 / 24 / 32 mean one to four passes.
+radix-hist builds each workgroup's 256-bin digit histogram in workgroup memory
+and stores it digit-major (hist[digit * groups + group]) so one exclusiveScan
+over the table yields every (digit, group) offset at once; radix-scatter ranks
+its block serially on lane 0 with a counter table -- 256 steps, deterministic,
+no atomics -- and every lane writes at offsets[digit * groups + group] + rank.
+prepareRadixSort(scope).record(pass, keys, vals, count, bits, scratch)
+validates the width, the count, the four pair bindings and the histogram
+scratch before recording, alternates the pairs per pass and returns the pair
+holding the result (the scratch pair after an odd pass count); radixHistBytes
+sizes the table. The bin count comes from a new RADIX_BINS constant. The WGSL
+prelude (src/kernel/prelude.ts) interpolates it as RADIX_BINS and
+RADIX_DIGIT_MASK and gains the grid constants GRID_HUB_CELL, GRID_EXTENT_FLOOR
+and GRID_BBOX_MARGIN beside them. Its six adaptive-cooling lines (FA2_FLAG_ADAPTIVE,
+FR_COOLING_STEP, FR_COOLING_PATIENCE) ride along unchanged: they are the lines
+origin/master already carries (da33fa61), which this branch does not yet contain.
 
-ModelInputs gains an optional `fixed` mask (the FR option), validated against
-ceil(n / 32) words in load()'s check phase and applied after the resize block,
-before any submit; a throwing load leaves the mask as it was. No reheat is
-triggered by it. force-simulation.test.ts pins that; constants.test.ts pins
-the two tables. model-common.ts is imported by nothing until the next commit.
+constants.ts is shared by the grid and calibration commits below and is
+claimed here, so it also carries the grid geometry constants (GRID_MIN_SIDE,
+GRID_COARSEST_SIDE, GRID_HUB_CELL, GRID_EXTENT_FLOOR, GRID_BBOX_MARGIN,
+GRID_SORT_BITS) and the JSDoc of EXACT_MAX_NODES, which keeps 32768 by owner
+decision G4-D1 although the crossover rule re-checked at G4 computes 1024
+(the calibration commit records the measurement).
+
+The oracle is a stable Array.sort on the masked key with the index as the
+tie-break. The suite runs the ladder 0 .. 2^22 at every width twice with
+bitwise equality first, all-equal, sorted and reverse-sorted keys, the
+result-pair identity, the dispatch counts and the argument errors. The six
+sabotage rows (a group-major table, the shift ignored, the last key uncounted;
+the rank not advanced, values not permuted, group 0's offset for every group)
+all report Infinity. The noise fixtures are bitwise identical across the two
+adapters.
 BODY
 }
 
-body_laws() {
+body_tiers() {
     cat <<'BODY'
-The three pair laws, the two integrators and the two extra statistics become
-override axes on the FA2 kernels rather than new kernel ids: LAW on K2 / K3
-(0 FA2, 1 Fruchterman-Reingold, 2 Coulomb / Hooke), APPLY on K5 (0 FA2, 1 the
-temperature-capped FR step, 2 ngraph's semi-implicit Euler with the unit speed
-clamp) and STATS_MODE on K1 (0 FA2, 1 folds the temperature, 2 the kinetic
-energy). The binding tables are unchanged; the spring velocity lives in the
-oldForce slot, which the FR / spring models free by compiling K5 with
-SWING_MODE 1. Kinetic energy rides partials B, overwritten by K5 under APPLY 2.
+The row-walking kernels -- segmented-reduce, the attraction kernel and
+spmv-pull -- gain two degree tiers under a uniform TIER override: TIER 1 gives
+a row of degree 32..1023 thirty-two lanes, WG / 32 rows per workgroup and a
+five-step tree in workgroup memory (no subgroup builtin, so bitwise the same
+on every subgroup size); TIER 2 gives a row of degree >= 1024 a whole
+workgroup through the prelude's wg_reduce. The tier bodies are functions
+called under the override, so every barrier is reached in uniform control
+flow; the three entries declare needs: ["subgroups"] and get a twin.
+prepareSegmentedReduce and prepareSpmvPull accept the tiers, compile only the
+populated ones, dispatch TIER 2 over [0, hiEnd), TIER 1 over [hiEnd, midEnd)
+and TIER 0 over [midEnd, n) with a params record each, and expose
+lastDispatches. DegreeTiers and degreeTiersOf(view) move to core-shape.ts.
 
-Fa2Params grows from 96 to 128 bytes with seven f32 model fields after `pad`
-(frK, temperature, springLength, springCoefficient, coulomb, dragCoefficient,
-timeStep) and pad1; Fa2State.reserved0 becomes temperature, kineticEnergy and
-a vec2f reserve; Fa2Trace.pad0 becomes modelScalar. FA2's paramsFor is
-untouched because UniformBlock.write zeroes absent fields. Coincident pairs
-under LAW 1 / 2 take the FA2 antisymmetric kick with the law evaluated at the
-distance floor.
+Fa2Params takes arcBase, arcEnd, accumulate, hiEnd and midEnd in the bytes of
+the previous phase's padding, so no offset moves; SpmvParams.pad0 becomes
+start. The three layout models write zeros / arcCount for the new fields; the
+next commit is where they dispatch over the tiers. The compile-matrix pins
+move (P2 148, P3 157, P7 69), the registry rows and block offsets follow, and
+the attraction kernel's needs pin in fa2-options moves with them.
 
-The FA2 paths (LAW 0, APPLY 0, STATS_MODE 0) are the existing text plus one
-reduction K5 and one accumulator K1 never read under mode 0; the FA2 suites
-stay bitwise identical to their committed noise fixtures. The compile-matrix
-pins move (P1 37 -> 53, P3 22 -> 61) and the four tests that pin the exact
-block layouts and override lists follow: registry, the two state round trips
-and fa2-options.
+test/helpers/graphs.ts gains rmat14 and the ten positioned fixtures the grid
+suites share (random20k, clumpy10 / 100 / 1000, line, polyline163, onecell1k,
+onecell1025, outside5, hubcell). tiers.test.ts checks four fixtures against
+the f64 oracle with the tier keys asserted, the twins in one process, the pull
+over the in-degree tiers of hub10k and a directed R-MAT, and the rejections;
+the twelve tier sabotage rows all measure >= 1.1e3x on both adapters; the two
+E_UNSUPPORTED cases of the old suites became acceptance cases. The hub10k
+noise fixtures were recorded on the RTX 4070 SUPER, on lavapipe and in f64.
 BODY
 }
 
-body_fr() {
+body_attraction() {
     cat <<'BODY'
-createFruchtermanReingold(ctx, snapshot, options?) over ForceSimulation with
-LAW 1 / APPLY 1 / STATS_MODE 1: k defaults to 1 / sqrt(n), the temperature
-schedule is 0.1 - dt * index clamped at 0 with dt = 0.1 / (iterations + 1),
-`fixed` resolves at load through the seam of the previous commit, mass is 1
-and weights none, and reheat() re-arms the temperature at floor(0.7 *
-iterations) while the iteration budget restarts at 0 (the decision record of
-the next docs commit says why). setParams({ fixed }) is E_INVALID_ARGUMENT
-with a hint naming setFixed; iterations 0 is accepted and means settled at
-load, as the resolver documents.
+ForceAtlas2, Fruchterman-Reingold and the spring-electrical preset dispatch
+the attraction kernel over the degree tiers of the snapshot's degreeOrder
+view. ForceSimulation.load() reads the view's segmentOffsets on the CPU and,
+only when a row of degree >= 32 exists, uploads the view and binds the
+permutation; otherwise the rowPtr dummy stays bound with USE_PERM false, so
+every low-degree fixture runs the pipelines it ran before. The recompile path
+of setParams now passes the permutation too (it passed null, which would have
+flipped USE_PERM off after a law change). model-common.ts holds the shared
+bindAttraction / recordAttraction pair: TIER 0 always, TIER 1 when
+[hiEnd, midEnd) is non-empty, TIER 2 when hiEnd > 0, dispatched 2, 1, 0; a
+workgroup size under 32 with a permutation is E_UNSUPPORTED. Each model's
+paramsFor writes hiEnd / midEnd from the offsets and its TIER 0 range as
+[midEnd, n); the spec lists stay at the one TIER 0 attraction spec.
 
-test/oracle/fruchterman-reingold.ts is the f64 oracle with an f32 variant and
-per-stage capture, hand-checked by three cases in oracles.test.ts. The three
-suites are the option resolution and error branches, the behaviour pins
-(temperature trace, reheat, fixed nodes, a failed load leaving the simulation
-unloaded) and the fast-check properties (fixed nodes never move, setPosition
-lands, settle within the budget, the displacement bound with its f32
-rounding term stated in the file). The oracle carries its own copies of the
-reduction helpers that are module-private to the FA2 oracle.
+tiers-inspect.test.ts runs hub10k and rmat14, weighted and unweighted: every
+stage bitwise twice, the attraction force within the analytic per-node bound
+deg x 2^-22 (measured at 0.07-0.26 of the bound on both adapters), and the
+pipeline keys exactly the tiers the degrees populate on all three models;
+attraction-windowed.test.ts runs the TIER 0 kernel over hand-built 64-arc
+windows of karate with poison tails and matches the one-dispatch result
+bitwise on unsplit rows. Six attraction rows join the tier sabotage table
+(1.8e3x to Infinity). Every committed FA2 / FR / spring noise fixture still
+matches. The hub10k K2 fixtures were recorded on both adapters and in f64.
 BODY
 }
 
-body_spring() {
+body_windowed() {
     cat <<'BODY'
-createSpringElectrical(ctx, snapshot, options?) is the ngraph.forcelayout
-preset over the same simulation with LAW 2 / APPLY 2 / STATS_MODE 2: Coulomb
-repulsion with ngraph's `gravity` (-12) as the constant, Hooke springs at
-springLength 10 / springCoefficient 0.8, drag 0.9, timeStep 0.5, mass
-1 + degree / 3, semi-implicit Euler with the unit speed clamp, seeds in
-[-1, 1). It settles by the shared rule of design 7.17 and reports the kinetic
-energy per iteration; FA2's centre gravity is 0 for it.
+A core whose arc arrays exceed the storage-binding limit is now uploaded as
+the windows the upload planner already computed, instead of being refused:
+residency.core() uploads colIdx, weights and arcToEdge as per-window buffer
+ranges, keeps rowPtr and edgeToArc whole, and returns a CoreBinding with
+plan "windowed", the window list and an arcBuffers record; windowBinding(core,
+name, w) in core-shape.ts gives the binding of one window. degree runs a fill
+of zeros then one accumulating dispatch per window over the window's rows;
+segmentedReduce fills the identity (0, +max or -max) and dispatches per
+window, the untiered dispatch over the window's rows and arcs, every tier
+dispatch over its full tier range but folding only [w.start, nextWindow.start)
+-- consecutive windows overlap by up to 63 arcs because the next one opens at
+the aligned-down end of this one, and a tier dispatch visits every row, so
+without that partition the overlap was folded twice (a mid-tier row measured
+40 % high). The plan document's windowed-execution decision is amended to say
+so; the same file also carries the hub-path correction of the pyramid commit
+below (the finalize plans one workgroup per hub cell, not per WG cells).
 
-ngraph.forcelayout ^3.3.1 and ngraph.graph ^20.0.1 become devDependencies,
-imported by the oracle cross-check and the story-graph helper only. The oracle
-(test/oracle/spring-electrical.ts) is checked against ngraph itself: one
-iteration with theta 0 and explicit positions agrees to 1e-9 in f64, and a
-1,000-step run on the 150-node story graph (deduped on the unordered pair, so
-both sides see the same 249 springs) agrees on the edge-length distribution.
-The suites pin the options, the behaviour (the kineticEnergy trace under both
-step patterns), the fast-check properties (the speed clamp with the f32
-division margin measured on the RTX 4070) and the settle within 1,000 steps
-under both rules.
+spmvPull, PageRank, the power-iteration algorithms and connected components
+keep refusing a windowed core, now through assertWholeCore in core-shape.ts
+instead of re-throwing the residency's error, since the residency no longer
+throws; their suites pin E_TOO_LARGE { path: "windowed", algorithm } on a
+karate core forced windowed by a faked 256-byte limit, directed and
+undirected (Katz over a directed graph walks the per-array reverse view and
+completes).
 
-pnpm-lock.yaml carries the two entries; pnpm 10 also normalised unrelated
-peer-resolution keys in the same write.
+windowed.test.ts covers the shapes at faked limits of 256 and 512 bytes, the
+placements, the release and the memoisation; degree.test.ts runs the 1 MiB
+faked-limit case (20,992 B on a software adapter) with a 300k-leaf hub row
+spanning two or more windows, bitwise equal to outDegree() twice;
+segmented-reduce.test.ts runs sum / min / max x weight over a 2048-node
+windowedHub fixture with a 30k-arc hub row, untiered and tiered, at the
+smallest limit its rowPtr fits. The accumulate-ignored sabotage row measures
+2.28e46x on both adapters.
+BODY
+}
+
+body_grid() {
+    cat <<'BODY'
+The first half of the grid build of spec 7.7. gridSpecFor(n, dim, tuning)
+computes the geometry on the host: G = clamp(nextPow2(2 n^(1/dim)), 8,
+floorPow2(gridMax)) (a gridMax that is not a power of two rounds down),
+levels = log2(G / 4) + 1, the per-level cell offsets with the outside
+pseudo-cell after level 0, and gridPyramidBytes at 16 bytes per cell (38.3 MB
+at the 3D cap). The grid-cell-key kernel keys a node by floor((p - gridMin) *
+invCellSize) with the clamp before the floor and the outside pseudo-cell for a
+node beyond the box, and writes cellVal[i] = i; a multiply is correctly
+rounded on every adapter where a division is not, so an f64 oracle reading the
+GPU's gridMin / invCellSize reproduces every key bitwise (the nine noise
+fixtures -- keys, cell histogram, cell starts -- are identical on the RTX 4070
+SUPER, on lavapipe and in f64). Fa2State gains invCellSize (f32 @128) in the
+reserved bytes; the state round-trip pins follow.
+
+prepareGridBuild(scope, spec) returns a planner: bind(bindings) takes the
+sort's scratch from the scope once (the buffers are model-owned, per the
+decision record of the docs commit), record(pass, n, paramsOffset, upTo?)
+runs cell keys -> radixSort (24 bits) -> histogram over cells + 2 ->
+exclusiveScan into cellStart on the deterministic path, or cell keys ->
+countingSortByKey otherwise, and rejects n outside [1, capacity].
+
+constants.test.ts pins the six new grid constants; it is shared with the
+calibration commit, so it also carries that commit's EXACT_MAX_NODES pin. The
+suite runs six fixtures in 2D and 3D against the oracle and twice bitwise,
+the counting path, the empty-cell fraction of clumpy10, the upTo stops, n = 0
+and record-before-bind; the three cell-key sabotage rows report Infinity.
+BODY
+}
+
+body_pyramid() {
+    cat <<'BODY'
+The second half of the grid build: the level-0 centroids and the pyramid
+above them. grid-centroid is thread-per-cell over cells + 1 and sums a cell
+serially; a cell with more than GRID_HUB_CELL entries is appended to a hub
+list with an atomic counter instead, and atomicMax records the largest
+population so the stats finalize can report it next iteration. The
+indirect-finalize kernel then plans one workgroup per hub cell (wg = 1 in
+IndirectParams: the finalize counts items, and a hub cell is one item), and
+grid-centroid-hub sums each hub cell with a workgroup-strided loop and the
+prelude's vec4 reduction, guarding its work by h < hubCount instead of
+returning early so the reduction stays in uniform control flow; it needs
+subgroups and has a twin. grid-downsample folds 2^dim children into each
+parent cell of the coarser level with GridLevelParams written once per level.
+preparePyramid(scope, spec) binds all four and record(pass, paramsOffset,
+upTo?) dispatches centroid, finalize, the indirect hub pass and one
+downsample per coarser level (3 + levels - 1 dispatches).
+
+The f64 oracle computes every level, the hub list, the occupancy max and the
+analytic forward-error bound of every value; the suite runs seven fixtures in
+2D and 3D twice bitwise and within the bound with both counters checked, the
+pseudo-cell of outside5, the in-process subgroup twins on hubcell, the upTo
+dispatch counts and record-before-bind. The nine sabotage rows measure 25x to
+Infinity on both adapters. The level-1 and hub-cell noise fixtures were
+recorded on the RTX 4070 SUPER, on lavapipe and in f64.
+BODY
+}
+
+body_repulsion() {
+    cat <<'BODY'
+ForceAtlas2 runs its repulsion on the grid above exactMaxNodes (or under
+repulsion: "grid"). grid-far-field walks the pyramid per node: the coarsest
+level minus the node's 3x3 (3x3x3) neighbourhood, then per finer level the
+parent's neighbourhood refined minus the level's own, with the pseudo-cell's
+mass for a node inside the box and the coarsest level in full for a node
+outside; the level count is a uniform, not an override. grid-near-field
+applies the exact pair law and its fused epilogue over the 9 / 27 finest
+cells, sampling nearMax independent draws with replacement from a crowded
+cell (the node itself skipped) and scaling by others / sampled over the
+realised draws -- a Horvitz-Thompson estimate whose mean is the exact cell
+sum; it needs subgroups. The stats finalize gains
+the grid block: the frame from the fold with a 1 % margin and the extent
+floor, the outside count from the cell histogram, the largest cell population
+from the hub counters, and the counter reset; it binds cellHist and
+hubCounters (dummies on the exact tier).
+
+repulsion-grid.ts composes the build and pyramid planners of the two previous
+commits over a ReduceScope backed by one pool lease taken at create() and
+released by dispose(); forceatlas2.ts allocates the grid buffers on the grid
+tier, records the passes k1 / attraction / grid / toScene there, writes
+gridMax and levels into the params, reports repulsionTier, maxCellOccupancy
+and outsideGrid, and requires nearMax >= 2. force-simulation.ts drops the
+E_UNSUPPORTED refusal of the grid tier, exports tierFor, calls the model's
+dispose() after in-flight batches settle, exposes the last batch's pass
+timings and reads the grid's u32 buffers back as Uint32Array. A grid batch
+has more passes than the profiler's query set holds at a high iteration count,
+so the profiler now marks such a batch partial(request) and the simulation
+falls back to wall time instead of summing a prefix; profiler.test.ts pins
+that.
+
+grid-behaviour.test.ts runs the ten behaviour cases with bitwise equality
+first, grid-lifecycle.test.ts the three lifecycle cases on rmat14 with the
+pool back at 0 bytes after dispose; the grid-refusal pins of the FR and
+spring suites are deleted and the tier rule of force-simulation.test.ts now
+selects the grid.
 BODY
 }
 
 body_parity() {
     cat <<'BODY'
-The parity suites of both models and the one recording run that derives every
-P5 tolerance. fr-parity.ts and se-parity.ts hold the stage readers and the
-caps tables (every cap's basis is a noise row id); fa2-parity.ts exports three
-readers they share. Per model: inspect() stage comparison per kernel branch,
-the trace against the f32 / f64 oracles, the subgroup twins, the layout oracle
-at the admitted horizons, lifecycle, the force-sum invariant where the law is
-antisymmetric, and distributional parity over 100 iterations. The FR layout
-member at horizon 10 is recorded on karate with the fixed mask, the only
-configuration the file's own admission rule accepts there.
+The parity layer of the grid tier and the one recording run that derives its
+tolerances. test/oracle/grid-field.ts holds the f64 far field, the near field
+reproducing the independent hashed draws of a crowded cell, gravity,
+attraction, the stats finalize in f32 and the integrate step; test/helpers/grid-parity.ts the
+fixtures, the eight-stage capture, the stage reports and the caps table.
+grid-inspect.test.ts compares every stage per kernel on seven fixtures in 2D
+and 3D plus a pinned hub; grid-twins.test.ts the subgroup twins;
+grid-exact.test.ts the grid tier against the exact tier (the floored per-node
+RMS and p99 after one iteration, the expansion and the distributional
+comparison after 200) and the unbiasedness of the sampled near field as the
+whole-field ratio |mean - exact| / |exact| (fieldRelError, in
+test/helpers/matchers.ts) of the mean over 4,096 seeds, with the ladder from
+32 seeds printed.
 
-noise-floor.test.ts gains 42 P5 members (10 FR, 10 spring, 22 widening) and
-46 fr- / se- tolerances, 20 of them .cross; noise-floor.json gains 44 rows and
-test/fixtures/noise 158 files, all written by the recording run on the RTX
-4070 and lavapipe and never by hand.
-BODY
-}
+noise-floor.test.ts gains 9 u32 members recording cross rows, 11 f32 stage
+members, 5 approximation members and three metrics (floored-rms,
+floored-p99, field-ratio);
+noise-floor.json gains 43 rows and 32 tolerances, all written by the
+recording run on the RTX 4070 SUPER and lavapipe, never by hand. Every u32
+row has maxRelError 0 and every f32 stage floor is under its 1e-4 cap (worst
+3.2e-6).
 
-body_accelerator() {
-    cat <<'BODY'
-GpuAccelerator gains fruchtermanReingold(snapshot, options?) and
-springElectrical(snapshot, options?), the two optional members of the layout
-package's LayoutAccelerator, each returning the simulation the factories of
-the two previous feat commits build; createAccelerator wires them and its
-header stops saying they arrive with P5. The barrel exports the two factories,
-FR_DEFAULTS / SE_DEFAULTS and the four stats / trace record types.
-
-The pinned lists follow: index.test.ts's value list and its never-exported
-list (now the two model classes and the two resolvers, as it already names
-ForceAtlas2Model), accelerator.test.ts's member checks and the error cases
-(`k: -1` and `iterations: -1` are E_INVALID_ARGUMENT; iterations 0 is not),
-and the four type tests: public-api pins the eight new names, conformance
-compiles this accelerator against the real LayoutAccelerator.
+The exact-vs-grid caps are asserted on the uniform and hub fixtures on a
+hardware adapter (random20k at 0.87 %, clumpy1000, hub10k) and printed with
+their RMS, p99 and whole-field ratio on the clumpy and degenerate ones
+(clumpy10, polyline, one-cell, line, coincident, isolated) and on every
+fixture on a software adapter, where the far field's per-cell approximation
+misses the 5 % cap (owner decision G4-F1: the misses are recorded, the caps
+untouched). The unbiasedness member is the whole-field ratio of the
+4,096-seed mean, 2.41e-2 on the hub cell against the unchanged 5 % cap (its
+floor 2.378e-2, factor 2.10); the 32-seed per-node RMS the plan first named
+(0.93) is the sampling variance of eight draws of a 20,000-entry cell and
+falls as 1 / sqrt(seeds), not bias (owner decision G4-F2). One finding
+besides, kept in grid-exact.test.ts: the exact tier on lavapipe sums only the
+first 65,536 nodes, so the 100k size never runs there.
 BODY
 }
 
 body_sabotage() {
     cat <<'BODY'
-SABOTAGE_P5 is a separate table of 25 mutations over the LAW / APPLY /
-STATS_MODE branches of K1, K2, K3 and K5, measured only by the two P5 suites,
-so coverage.test.ts's row-name pins and fa2.test.ts's FA2 checks are
-untouched. fr.test.ts and se.test.ts run every row in check mode against the
-stage and trace comparisons of the parity commit and assert each one is
-caught at its derived tolerance. Every FA2 `find` string the rows anchor on is
-kept intact.
+The sabotage rows of the far and near field (four and three), the three rows
+of the stats finalize's grid block, and SABOTAGE_PHASES now naming P4, so
+coverage.test.ts requires at least three rows for each of the thirteen new
+kernels. grid.test.ts measures every row through the stage capture of the
+parity commit against a pristine baseline first; the smallest ratio is 35.5x
+(the near field's own-cell scale off by one, on the RTX 4070 SUPER), the
+extent floor dropped is Infinity. The law rows of the next commit run through
+the same file's law loop.
 
-One K5 row, the ignored Euler mass, is caught by the trajectory check rather
-than the one-iteration stage check: from v = 0 the first step saturates the
-unit speed clamp on every karate node, so the mass reaches the output only
-once |dt F / m| falls under 1. The row says so.
+grid-settle.test.ts pins what the grid tier promises beyond one iteration:
+the isolated fixture settles by the shared rule with the giant component's
+mean displacement under the threshold, two 100-iteration rmat14 runs are
+bitwise identical in positions, stats and trace, gridMax2D 32 is honoured on
+random20k, the 3D pyramid stays under 40 MB up to 10M nodes, and hubcell at
+nearMax 8 disperses its hub cell within the first iterations (occupancy 2 at
+the end) and settles by the rule from both starts (960 iterations under the
+independent-draw sampler, 900 with the contiguous window). The grid suite
+runs in 73 s on lavapipe with the 4,096-seed unbiasedness cases, under the
+240 s gate, once the grid-exact noise writer skips without
+GRAPHTY_NOISE_FLOOR_WRITE=1 (336 s while it ran the 20k ladder on every
+run: G4-F12 in the record).
 BODY
 }
 
-body_bench() {
+body_law() {
     cat <<'BODY'
-The layout-fr group times step(1) of createFruchtermanReingold and
-createSpringElectrical on the exact tier at 10k and 100k, through warmClock
-and reportedRow, now exported from layout-exact.bench.ts in a model-agnostic
-shape with a group parameter. run.ts registers it; benchmarks.test.ts covers
-it.
+Fruchterman-Reingold and the spring-electrical preset reach the grid tier
+through the LAW override the previous phase gave the exact kernels: the far
+field gains the per-cell FR and Coulomb branches, the near field takes the
+exact kernel's kick and three-way pair law verbatim, and both entries declare
+LAW with default 0. RepulsionGrid takes the override and the three models pass
+0 / 1 / 2; the FR and spring models get the union stage list, the grid
+buffers by tier, the grid frame at load, the passes k1 / attraction / grid
+before toScene, the grid stats and dispose(), with the exact kernel compiled
+only on the exact tier. The compile pins move (far field 4, near field 25,
+P4 40) and the spec and buffer pins of the three option suites carry LAW.
 
-T-14 on the dev box (RTX 4070 SUPER, session 2026-09-20T19:25:37Z):
-0.617 ms per FR iteration at 10k and 16.367 ms at 100k, the spring preset
-1.11x FR at 100k. The README's dev-box table carries the row; its T4 row is an
-OPEN marker until the gpu-linux-t4 lane runs on the labelled PR, which is the
-one number this phase cannot capture locally.
+grid-law.test.ts compares each model's grid repulsion against its own exact
+tier on random20k and a one-cell karate placement, 2D and 3D, twice bitwise
+(FR rms 2.1e-3 / 1.3e-2, spring 2.5e-2 / 5.4e-3 on the RTX 4070 SUPER), the
+far field alone against an f64 traversal on a 257-node sample, the FR run on
+the story graph finite and cooling, the spring run settled with the kinetic
+energy fallen 360x, the LAW keys on both grid kernels, and "auto" sending both
+models to the grid above exactMaxNodes. The twelve LAW sabotage rows detect at
+>= 14.2x on both adapters.
+
+Two findings for the gate record: the pseudo-cell term is unsound when
+outside nodes lie on opposite edges of the box (their centroid can land inside
+the grid next to a node, a 30x far field under the Coulomb law at n = 2,000),
+and the Coulomb law at the software scale of 400 nodes sits at the 5 % / 25 %
+caps, so the suite runs at 1/10 scale on a software adapter.
 BODY
 }
 
-body_smoke() {
+body_calibrate() {
     cat <<'BODY'
-test/helpers/frame-loop.ts takes two generic parameters so any model runs
-under it; its body reads no FA2 field. fr-frame-loop.test.ts is the FR frame
-loop: 600 ticks on karate under the default budget with settled reported, the
-setPosition-during-flight override and the pause run on random1k, whose
-temperature trace is bitwise the unpaused run's (no reheat on resume).
-test/browser/spring-layouts.test.ts is the Chromium smoke of both models:
-load, step, settle within the calibrated batches, dispose leaving the pool
-empty, and the same in-flight override.
+calibrateLayout(ctx, options?) of spec 2.2: seeded G(n, 10n) probes at 8k /
+16k / 32k / 65k (or the caller's sizes), ForceAtlas2 on the exact and the grid
+tier per size with one untimed and ten timed steps each, every probe released,
+and pairsPerSecond, the per-size ms per iteration of both tiers, the
+suggested exactMaxNodes by the spec 7.8 rule and the wall time of the call.
+CalibrateOptions and GpuCalibration are exported with it; the export pins and
+the public-api type test follow. calibrate.test.ts covers the shape, the
+rule, bad sizes, the release of every buffer and a second call compiling
+nothing.
+
+The layout-grid benchmark group times step(1) of the grid tier on the ladder
+32k / 65k / 100k / 262k / 1M in 2D and 3D, the attraction pass of the 1M 2D
+iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs
+in 2D so the crossover rule has a grid row at every exact rung;
+exactMaxNodesFromLadder gains the grid clause and layout-run.ts a --repulsion
+flag with the scale-feasible metrics of the final positions. Two dev-box
+sessions on the RTX 4070 SUPER are appended to the results file; the second
+(2026-09-21T06:15Z, the one with the exact rungs) is the baseline the README
+and the gate record read: grid 2D 0.298 ms per iteration at 32k, 0.634 at
+100k, 5.414 at 1M; 3D 1.306 at 100k; attraction 1.493 ms at 1M; Chromium
+3.700 ms per frame at 100k on the grid. T-5 at 100k, T-6 and T-7 are met.
+
+The crossover re-check by the rule in full -- under 4 ms per iteration AND
+not slower than the grid tier at the same n -- computes 1024: the grid costs
+a near-constant 0.19-0.3 ms per iteration up to 32k, so the exact tier is
+faster only at 1k. EXACT_MAX_NODES keeps 32768 by owner decision G4-D1 (the
+exact tier is the accurate one and "auto" is every consumer's default) until
+the far-field accuracy work G4-F1 leaves closes; the constant's JSDoc and
+its pin landed with the radix-sort and grid commits, which claim those shared
+files. The README's tables and status paragraph carry the decision and the
+new rows here, its two pre-P4 sentences that still called the grid tier
+E_UNSUPPORTED are rewritten (G4-F11) and its status names G4.md as this
+phase's record; the frame-loop tests pin repulsion: "exact" so their flight
+calibration keeps the n^2 cost it relies on. The T4 rows of the README stay OPEN markers until
+the labelled PR runs the GPU lane.
 BODY
 }
 
-body_cooling() {
+body_limits() {
     cat <<'BODY'
-FruchtermanReingoldOptions gains `cooling`: "linear" (the default, today's
-schedule) or "adaptive", Yifan Hu's step control -- the temperature grows by
-1 / 0.9 after five consecutive iterations whose free force energy fell and
-shrinks by 0.9 when it rose, so the run settles on its own instead of
-spending its whole budget; `iterations` is then only a cap, 10,000 when not
-given. The GPU package implements it as a flag bit in the params (no new
-pipeline key): K5 folds sum |F|^2 over the free nodes into the partials slot
-the spring preset already uses and K1 updates the temperature in the state
-block, which K5 reads back in place of the uniform's. Measured on the SNAP
-Brightkite graph (58k nodes): the linear schedule settles only when its
-2,000-iteration budget ends; adaptive settles at 200.
+The six node-limits files the G4 gate names, run on the GPU lane only:
+binding-2gib (the raised maxStorageBufferBindingSize, 2,147,483,644 on the
+RTX 4070 SUPER -- four bytes under 2^31, so the plan's ">= 2^31" cannot hold
+-- and a 1.5 GiB buffer bound whole and read back in 17 ms), windowed-200mb
+(a 200 MB per-array upload bound as two windows with the windowed degree
+equal to outDegree() in 454 ms, and the 16,776,961-item scan in five
+dispatches), dispatch-2d-100m (100M items in 65535 x 6 workgroups, filled and
+read back in 140 ms), oom-scope (a buffer of exactly maxBufferSize yields
+E_OUT_OF_MEMORY with requested / resident and the context stays usable),
+vendor-features (the adapter's feature and limit table) and layout-1m (the
+262k and 1M ForceAtlas2 fixtures: exact-vs-grid rms 3.1e-3 / p99 8.8e-3 at
+1M, the 262k 200-iteration distributional difference 1.06e-2, the 1M grid run
+at 5.31 ms per iteration). The README's rows say which have landed.
 
-SpringElectricalOptions.gravity and .springCoefficient accept null, and null
-(or absent) now means ngraph's constant times min(1, 300 / n). ngraph's values
-were tuned for a few hundred nodes; on tens of thousands every node moved at
-the unit speed clamp for thousands of iterations (3,350 on Brightkite, the
-kinetic energy never decaying). With the size rule Brightkite settles at
-1,200 with the energy decayed 4x, Gnutella at 800. The 150-node ngraph parity
-fixtures pass their constants explicitly and are unchanged.
-
-fr-adaptive.test.ts pins the option, the trace against the f32 oracle, the
-trace's structure (every step x0.9, x1/0.9 or unchanged), the reheat restart
-and the settle on random1k. The FR and spring commits carry the model, kernel
-and oracle sides of both changes.
-BODY
-}
-
-body_demo() {
-    cat <<'BODY'
-A "Layout model" select runs the resident snapshot under createForceAtlas2,
-createFruchtermanReingold or createSpringElectrical with the same seed, settle
-rule and iterations-per-frame; the stats box prints whatever numeric field a
-model's stats record adds beyond LayoutStatsBase, so it needs no per-model
-code. Four SNAP edge lists join the graph list (ca-CondMat, email-Enron,
-Brightkite, Gnutella31: 23k to 63k nodes, all under the 65,536-node exact
-tier the demo pins), fetched gzipped from the gitignored tmp/datasets/ through
-vite's /@fs route and inflated by the browser's DecompressionStream; ids are
-renumbered densely and each unordered pair is kept once. A dataset load that
-is superseded by a newer selection is dropped rather than installed. An
-"adaptive cooling" switch runs Fruchterman-Reingold under the adaptive
-schedule (the default) or the linear one with a 2,000-iteration budget.
+The 1M unbiasedness item is the re-scoped one (owner decision G4-F2): the
+whole-field ratio of a 1,024-seed mean on the hub cell, 2.52e-2 against the
+unchanged 5 % cap, with the 20k / 100k / 250k rungs and the ladder from 32
+seeds printed. The files require a hardware adapter (GRAPHTY_GPU_REQUIRE
+nvidia) and run on the GPU lane only.
 BODY
 }
 
 body_decisions() {
     cat <<'BODY'
-Three decision records for the P5 departures from the WebGPU design. The
-spring-electrical preset settles by the shared rule of 7.17 and reports the
-kinetic energy, rather than by ngraph's absolute per-body test, so the element
-has one settle semantics. It integrates like ngraph (semi-implicit Euler, unit
-speed clamp) rather than by the velocity-Verlet variant 7.20 names, because
-the gate compares its layout with ngraph's. A Fruchterman-Reingold reheat
-restarts the temperature index at 70% of the budget but the iteration budget
-at 0, because ForceSimulation.reheat() resets the count for every model and
-the hook carries no iteration argument.
+Seven decision records for the P4 departures from the WebGPU design, each
+quoting the design text it sets aside and the conditions that would reverse
+it: compact and dedupe land with the frontier phase rather than the grid;
+windowed execution covers degree and segmentedReduce only; the grid's sort
+scratch is model-owned rather than a pool lease per batch; exclusiveScan has
+no subgroup variant; the far field's level count is a uniform, not an
+override; the cell histogram is zeroed by a fill dispatch, not clearBuffer;
+and the workgroup-per-row tiers fold plainly, without Kahan compensation.
 
-design/decisions/README.md indexes the three; design/README.md's counts move
-to 13 decisions and 13 webgpu documents.
+design/decisions/README.md indexes the seven; design/README.md's decisions
+count moves from 13 to 20.
 BODY
 }
 
 body_gate() {
     cat <<'BODY'
-docs/decisions/G5.md records the P5 gate as measured on the dev box: the
-deliverables of spec 13 row P5 mapped to their evidence, the adapters
-exercised, T-14, the cross-adapter noise floors, coverage over the thresholds,
-the baselines committed, and the findings. The T4 lane rows and the commit
-list are OPEN markers until the branch runs on the labelled PR.
+docs/decisions/G4.md records the gate as measured on the dev box: the
+deliverables mapped to their evidence, the adapters exercised, the T-5 / T-6
+/ T-7 numbers, the 1M 200-iteration comparison of both tiers (exact 1663.6
+ms per iteration against grid 8.283, within 1.72 % of each other after 200),
+the crossover re-check and the owner's decision on the value, the knob
+sweep (the defaults stay), the 74 sabotage rows all >= 10x, the 43 noise
+rows, coverage over the thresholds, the lavapipe and browser runs, and the
+findings. All twenty-five items are green on the dev box after the owner's
+two decisions: G4-F1 splits the exact-vs-grid suite into the
+fixtures it asserts (uniform, hub) and the ones it prints with their numbers
+(clumpy, degenerate, every fixture on a software adapter), and G4-F2 fixes
+the near-field sampler (independent draws) and re-scopes the unbiasedness
+item to the whole-field ratio of a 4,096-seed mean under the unchanged 5 %
+cap; exactMaxNodes keeps 32768 by G4-D1 while the rule computes 1024. Item
+20 was red on time (G4-F12: 336 s against 240 s, the grid-exact noise writer
+running its 4,096-seed ladder without the write flag) and reads 73 s now
+that the writer skips without the flag; the GPU lane rows carry OPEN markers
+until the labelled PR runs. The two exports G4-F4 named file-local are, and so are
+the re-scope's UnbiasedRung / UnbiasedLadder.
 
-CLAUDE.md names the four kernels' P5 branches in the wgsl inventory, the three
-model files under layouts, the layout-fr benchmark group, the two models as
-landed in "Adding a Layout Model", and a Settled-at-G5 table with the measured
-wall times of the four gate runs.
+CLAUDE.md names the thirteen kernels in the wgsl inventory, the new
+primitives and layout files, the layout-grid benchmark group, the re-fixed
+exactMaxNodes paragraph and a Settled-at-G4 table. Two pins the whole-project
+runs found stale are fixed: the browser state round trip mirrors the node
+twin's new Fa2State fields, and the upload-plan fixture count moves from 13
+to the 24 fixtures graphs.ts now holds.
 BODY
 }
 
 body_tools() {
     cat <<'BODY'
-The step list now names the seventeen commits of the P5 phase: the G6 sign-off,
-the two phase plans, the design amendments, the eleven P5 tasks in the plan's
-execution order, the cooling option, the demo, then this script.
+The step list now names the eighteen commits of the P4 phase: the seventeen
+P4 task areas in the plan's execution order, then this script; the prelude's
+adaptive-cooling fix is already on origin/master, so its lines ride with the
+radix commit.
 BODY
 }
 

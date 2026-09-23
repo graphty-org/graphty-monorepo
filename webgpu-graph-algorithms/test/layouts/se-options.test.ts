@@ -21,6 +21,7 @@ import {
     resolveSpringElectricalOptions,
     SpringElectricalModel,
 } from "../../src/layouts/spring-electrical.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
 import { type GpuLayoutSimulation, type GpuLayoutTuning, type SpringElectricalStats } from "../../src/types/layout.js";
 import { type SpringElectricalOptions } from "../../src/types/options.js";
 import { KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
@@ -217,9 +218,23 @@ describe("resolveSpringElectricalOptions (spec 7.20, 9.3; ngraph's names and def
 describe("SpringElectricalModel (no device; contract 3.13)", () => {
     const model = new SpringElectricalModel(resolveLayoutTuning(undefined), resolveSpringElectricalOptions(undefined));
 
-    it("has the springElectrical kind, the four-kernel stages, the FA2 blocks and the velocity buffer (PD-2)", () => {
+    it("has the springElectrical kind, the union stage list (PD-17), the FA2 blocks, the velocity buffer (PD-2) and hubCounters; the grid buffers by tierFor (PD-18)", () => {
         expect(model.kind).toBe("springElectrical");
-        expect(model.stages).toEqual(["K1", "K2", "K3", "K5", "toScene"]);
+        expect(model.stages).toEqual([
+            "K1",
+            "K2",
+            "K3",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "K4",
+            "K5",
+            "toScene",
+        ]);
         expect(model.params.name).toBe("Fa2Params");
         expect(model.state.name).toBe("Fa2State");
         expect(model.trace.name).toBe("Fa2Trace");
@@ -227,8 +242,28 @@ describe("SpringElectricalModel (no device; contract 3.13)", () => {
             ["force", 408, true],
             ["velocity", 408, true],
             ["fillParams", 256, false],
+            ["hubCounters", 16, true],
         ]);
-        expect(model.buffers(0, 3).map((b) => b.byteLength)).toEqual([12, 12, 256]);
+        expect(model.buffers(0, 3).map((b) => b.byteLength)).toEqual([12, 12, 256, 16]);
+        const grid = new SpringElectricalModel(
+            resolveLayoutTuning({ repulsion: "grid" }),
+            resolveSpringElectricalOptions(undefined),
+        );
+        expect(grid.buffers(34, 2).map((b) => b.name)).toEqual([
+            "force",
+            "velocity",
+            "fillParams",
+            "hubCounters",
+            "cellKey",
+            "cellVal",
+            "sortedKey",
+            "sortedIdx",
+            "cellHist",
+            "cellStart",
+            "hubList",
+            "hubArgs",
+            "pyramid",
+        ]);
     });
 
     it("compiles every option record to the constant override set (PD-1, PD-20)", () => {
@@ -257,6 +292,21 @@ describe("SpringElectricalModel (no device; contract 3.13)", () => {
             {},
             {},
         ]);
+        // the grid specs join the list once inputs() resolved a grid load; G6 / G7 carry the coulomb law (P4-T13, PD-22)
+        const grid = new SpringElectricalModel(
+            resolveLayoutTuning({ repulsion: "grid" }),
+            resolveSpringElectricalOptions(undefined),
+        );
+        grid.inputs(snapshotOf(KARATE_EDGES, { label: "karate" }), resolveSpringElectricalOptions(undefined));
+        const gridSpecs = grid.specs(merged, true);
+        expect(gridSpecs.map((s) => s.id)).toContain("grid-near-field");
+        expect(gridSpecs.find((s) => s.id === "grid-far-field")?.overrides).toEqual({ LAW: 2 });
+        expect(gridSpecs.find((s) => s.id === "grid-near-field")?.overrides).toEqual({
+            SWING_MODE: 1,
+            STRONG_GRAVITY: false,
+            GRAVITY_CENTER: 0,
+            LAW: 2,
+        });
     });
 
     it("inputs(): mass 1 + degree / 3 (PD-11; karate node 33 has degree 17), weights none, no fixed", () => {
@@ -465,11 +515,15 @@ describe("createSpringElectrical on the device (spec 7.20; PD-12)", () => {
     it("compiles its six pipelines on the device, every key covered by OVERRIDE_MATRIX", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
+        // the device self-check compiles the two scan pipelines once per device before any layout runs
+        // (src/primitives/verify.ts); count what THIS run added
+        await verifyDevice(ctx);
+        const gate = ctx.pipelines.size;
         const sim = createSpringElectrical(ctx, { seed: 7 });
         try {
             sim.load(s, nanPositions(s.nodeCount));
             await sim.step(1);
-            expect(ctx.pipelines.size).toBe(6);
+            expect(ctx.pipelines.size - gate).toBe(6);
             const keys = ctx.pipelines.keys();
             expect(keys.filter((k) => k.startsWith("fa2-speed-finalize|"))).toHaveLength(0);
             expect(keys.some((k) => k.startsWith("fa2-integrate|") && k.includes('"APPLY":2'))).toBe(true);

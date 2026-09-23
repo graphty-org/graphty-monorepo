@@ -1,0 +1,7 @@
+{
+    "kernel": "grid-centroid-hub",
+    "fixture": "hubcell-L0",
+    "adapterClass": "nvidia-lovelace-node-no-subgroups",
+    "dtype": "f32",
+    "values": [2000.00244140625, 1999.9775390625, 1999.965087890625, 20000]
+}

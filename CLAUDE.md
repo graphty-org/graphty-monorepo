@@ -286,6 +286,7 @@ All dev servers use ports 9000-9999:
 - `browser` - Playwright tests (5 CI shards)
 - `storybook` - Component tests (4 CI shards)
 - `interactions` - Interaction tests
+- `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
 - `llm-regression` - LLM regression tests
 
 ### Running Specific Test Projects

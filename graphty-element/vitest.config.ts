@@ -29,6 +29,13 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
+/** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
+const XR_BROWSER_TESTS = [
+    "test/browser/xr-session.test.ts",
+    "test/browser/XRUIManager.test.ts",
+    "test/browser/NodeBehavior-xr-compatibility.test.ts",
+];
+
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -247,6 +254,27 @@ export default defineConfig({
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
                     },
                 },
+                // WebXR, in its own project so the pre-push gate can run it without the rest of the
+                // browser lane. It starts real immersive VR and AR sessions on an emulated headset
+                // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
+                // the fixed cost of starting a browser project. These files are excluded from
+                // "browser" below, so CI runs them once, through this project, in its browser shards.
+                optimizeDeps: { include: ["iwer"] },
+                test: {
+                    name: "xr",
+                    setupFiles: ["./test/setup.ts"],
+                    include: XR_BROWSER_TESTS,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: "playwright",
+                        instances: [{ browser: "chromium" }],
+                        fileParallelism: false,
+                    },
+                },
+            },
+            {
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer"] },
@@ -272,6 +300,8 @@ export default defineConfig({
                     exclude: [
                         // Interaction tests have their own project
                         "test/interactions/**/*.test.ts",
+                        // So do the WebXR tests: see the "xr" project
+                        ...XR_BROWSER_TESTS,
                         // Tests using Node.js-only libraries (pngjs).
                         //
                         // This file therefore runs in NO project: "default" excludes all of

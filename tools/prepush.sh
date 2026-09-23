@@ -95,7 +95,7 @@ echo "  Testing algorithms..."
 echo "  Testing layout..."
 (cd layout && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
 
-# graphty-element - three projects: default, mesh and contract. The browser, interactions,
+# graphty-element - four projects: default, mesh, contract and xr. The browser, interactions,
 # storybook and llm-regression projects stay in CI.
 #
 # What each of the three buys, with the wall clock measured on 2026-09-21 on a loaded box:
@@ -115,13 +115,18 @@ echo "  Testing layout..."
 #                               layered-style story rendering the same picture -- and the only reason
 #                               they are worth 25 seconds is that nothing else in this gate can see it.
 #
+#   xr       (3 files)          WebXR: real immersive VR and AR sessions on an emulated headset (IWER),
+#                               plus the XR buttons and UI. Nothing else anywhere starts an XR session,
+#                               so without this lane a broken headset path ships unnoticed. CI runs the
+#                               same project inside its five browser shards.
+#
 # What is deliberately NOT here, and why. The full browser project is 463s and the storybook project
 # is 290s, measured. Either one roughly doubles a gate that already costs about six minutes, and a
 # storybook failure is the slow kind: a failing story spends its whole 12-second settle budget before
 # giving up. A gate people bypass with --no-verify catches nothing at all, so both stay in CI, where
 # five and four shards absorb them. The contract lane is the cheap substitute: same class of defect,
 # a twentieth of the time.
-echo "  Testing graphty-element (default + mesh + contract)..."
+echo "  Testing graphty-element (default + mesh + contract + xr)..."
 (cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }
 
 # graphty is NOT run here -- it has no 'default' project to run. Its whole suite is

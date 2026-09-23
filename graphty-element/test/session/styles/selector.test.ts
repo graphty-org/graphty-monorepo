@@ -470,3 +470,39 @@ describe("the expression subset: what it refuses", () => {
         assert.strictEqual(refuse("data.tags[0]").details.where, "data.tags[0]");
     });
 });
+
+describe("the expression subset: expressions that ignore the element", () => {
+    const harness = makeSource([{}]);
+
+    function refuse(where: string): { code: string; message: string; details: Record<string, unknown> } {
+        return refusalOf(() => compileSelector({ match: "expression", where }, "node", harness.source));
+    }
+
+    it("refuses a whole expression wrapped in single quotes, which is a string and always true", () => {
+        const refusal = refuse("'algorithmResults.graphty.bipartite.inMatching == false'");
+
+        assert.strictEqual(refusal.code, "E_BAD_SELECTOR");
+        assert.include(refusal.message, "quoted string literal");
+        assert.include(refusal.message, "always true");
+        assert.include(refusal.message, "outer quotes");
+    });
+
+    it("refuses a literal true, and names the match-all selector instead", () => {
+        const refusal = refuse("`true`");
+
+        assert.strictEqual(refusal.code, "E_BAD_SELECTOR");
+        assert.include(refusal.message, '{ match: "everything" }');
+    });
+
+    it("refuses any expression that reads no attribute, however it is dressed", () => {
+        for (const where of ["(`true`)", "'a' == 'a'", "!(`false`)", "`1` > `0` && 'x'", "''"]) {
+            assert.strictEqual(refuse(where).code, "E_BAD_SELECTOR", where);
+        }
+    });
+
+    it("accepts a comparison against a literal, because it reads the element", () => {
+        const rows: Row[] = [{ "data.a": false }, { "data.a": true }];
+
+        assert.deepStrictEqual(matched({ match: "expression", where: "data.a == `false`" }, rows, makeSource(rows)), [0]);
+    });
+});

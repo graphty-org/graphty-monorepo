@@ -182,7 +182,9 @@ export const MaxFlow: Story = {
             // the node names carry the demonstration, so show them
             nodeEncode: { "node.label": { by: "data.label", scale: "passthrough" } },
             viewMode: "2d",
-            algorithms: ["graphty:max-flow"],
+            // No on-load run: the on-load list carries no options, so it would run max flow
+            // between no source and no sink and stack a second, wrong set of layers under the
+            // run the play function starts with the real endpoints.
         }),
         layout: "multipartite",
         layoutConfig: {
@@ -194,7 +196,6 @@ export const MaxFlow: Story = {
             },
             align: "vertical",
         },
-        runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));

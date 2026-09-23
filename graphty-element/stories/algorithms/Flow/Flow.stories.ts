@@ -101,9 +101,8 @@ const waterSupplyNetworkData = {
 /**
  * Bipartite Matching - maximum matching in bipartite graphs
  * Demonstrates job candidate ↔ job position matching
- * Matched edges are highlighted in purple (thick)
- * Left partition (candidates) are blue, right partition (jobs) are red
- * Non-matched edges are dimmed gray
+ * Matched edges are highlighted in blue over a reader layer that greys every edge
+ * Nodes are coloured by the side of the pairing they are on
  */
 export const BipartiteMatching: Story = {
     args: {
@@ -113,15 +112,15 @@ export const BipartiteMatching: Story = {
         setup: storySetup({
             viewMode: "2d",
             algorithms: ["graphty:bipartite-matching"],
+            // The reader's own layer, beneath the algorithm's: every edge pale, so the pairing
+            // stands out when the algorithm's highlight repaints it on top. Colour only -- an
+            // opacity here would dim the pairing too, because the highlight does not set one.
             layers: [
                 {
-                    name: "Reader - dim non-matched edges",
+                    name: "Reader - dim every edge",
                     target: "edge",
-                    selector: {
-                        match: "expression",
-                        where: "'algorithmResults.graphty.\"bipartite-matching\".inMatching == `false`'",
-                    },
-                    set: { "edge.color": "#CCCCCC", "edge.opacity": 0.3 },
+                    selector: { match: "everything" },
+                    set: { "edge.color": "#CCCCCC" },
                 },
             ],
         }),
@@ -169,9 +168,9 @@ export const BipartiteMatching: Story = {
 
 /**
  * Max Flow - network flow visualization on a water supply network
- * Edge width is proportional to the flow carried, and colour intensity with it
- * (light -> dark blue), so the saturated plant -> city mains read darkest and widest
- * Source node (Reservoir) is orange, sink node (City) is sky blue
+ * Edge colour follows the flow carried along the element's sequential ramp, so the
+ * mains carrying the most read at the bright end
+ * The source (Reservoir) and the sink (City) are coloured by their role
  * Max flow is 26 megalitres/day; the three plant -> city mains are the bottleneck
  */
 export const MaxFlow: Story = {
@@ -231,9 +230,8 @@ export const MaxFlow: Story = {
 
 /**
  * Min Cut - minimum cut visualization
- * Cut edges are highlighted in orange
- * Partition 1 nodes are blue, partition 2 nodes are red
- * Non-cut edges are dimmed
+ * Cut edges are highlighted in blue over a reader layer that greys every edge
+ * Nodes are coloured by the side of the cut they are on
  */
 export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {
     paints: "edge",

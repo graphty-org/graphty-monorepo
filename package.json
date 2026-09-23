@@ -47,7 +47,7 @@
         "coverage:preview:webgpu-graph-algorithms": "npx serve webgpu-graph-algorithms/coverage -p 9058"
     },
     "engines": {
-        "node": ">=18.19.0"
+        "node": ">=22.0.0"
     },
     "packageManager": "pnpm@10.0.0",
     "config": {
@@ -134,7 +134,7 @@
         "@vitest/browser": "^3.2.4",
         "@vitest/coverage-v8": "^3.2.4",
         "@vitest/ui": "^3.2.4",
-        "chromatic": "^13.1.2",
+        "chromatic": "^18.9.5",
         "commitizen": "^4.3.1",
         "cz-conventional-changelog": "^3.3.0",
         "eruda": "^3.4.3",

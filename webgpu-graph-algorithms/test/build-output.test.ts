@@ -174,7 +174,8 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.scripts.lint).toContain("tsconfig.strict-consumer.json");
         expect(packageJson.scripts["test:run"]).toBe("vitest run --project=node");
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
-        expect(packageJson.scripts["coverage:preview"]).toContain("9058");
+        // No fixed port: servherd assigns one through PORT, and the script refuses to start without it.
+        expect(packageJson.scripts["coverage:preview"]).toContain("${PORT:?");
     });
 });
 

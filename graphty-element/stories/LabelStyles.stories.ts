@@ -16,7 +16,7 @@ import {
     holds,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
-import { drawnMargins, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
+import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
 
 /**
  * WHAT A STYLE LAYER CAN SAY ABOUT A LABEL.
@@ -45,6 +45,13 @@ const CAT_NETWORK = {
 } as const;
 
 /** The cats that live indoors, which is the half of the network the two-layer stories single out. */
+/**
+ * The font a label with the element's default style is drawn in: its default weight, 48px and
+ * Verdana (src/config/RichTextStyle.ts). Stories measure text in it, so if that default changes
+ * these checks fail loudly rather than measuring the wrong face.
+ */
+const DEFAULT_LABEL_FONT = "normal normal 48px Verdana";
+
 const INDOOR = [
     "Princess_Fluffington",
     "Sir_Naps_A_Lot",
@@ -693,7 +700,7 @@ export const Margin: Story = {
         // of five, and -0.6-1.7 with none. A floor of 8 sits between the first two.
         const tight = labelGeometry(scene, "#000000")
             .map((label) => {
-                const margin = drawnMargins(label, label.id, "normal normal 48px Verdana", 48 * 1.2);
+                const margin = drawnMargins(label, label.id, DEFAULT_LABEL_FONT, 48 * 1.2);
 
                 return { id: label.id, ...margin, mean: (margin.top + margin.bottom) / 2 };
             })
@@ -1206,23 +1213,13 @@ export const Badge: Story = {
  * Shortening a number too big to show.
  *
  * Every cat is given a count of 1500 in an ordinary label, drawn with the element's default label
- * style. The cats that live indoors have smart overflow switched off and draw all four digits; the
- * rest have it on and draw `1k`. Put side by side, the rule is the only difference between the two
- * halves of the graph.
+ * style, and smart overflow draws each one as `1k`.
  */
 export const SmartOverflow: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
             node: { "node.label": "1500", "node.labelStyle": { smartOverflow: true } },
-            layers: [
-                {
-                    name: "Indoor cats show the whole number",
-                    target: "node",
-                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
-                    set: { "node.labelStyle": { smartOverflow: false } },
-                },
-            ],
         }),
     },
     parameters: {
@@ -1232,19 +1229,20 @@ export const SmartOverflow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "SmartOverflow");
-        // MEASURED AS INK. A default label has no panel behind its words, so the width of what it
-        // paints is the width of the words: `1k` is two glyphs and `1500` is four.
-        const labels = labelGeometry(scene);
-        const whole = labels.filter((label) => INDOOR.includes(label.id));
-        const short = labels.filter((label) => !INDOOR.includes(label.id));
-        const widest = Math.max(...short.map((label) => label.ink.width));
-        const narrowest = Math.min(...whole.map((label) => label.ink.width));
+        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `1k` and
+        // `1500` measured with this browser's own fallback for the element's default font, so the
+        // check does not depend on which font a machine happens to have (see drawnText).
+        const wrong = labelGeometry(scene)
+            .map((label) => ({ label, read: drawnText(label, ["1k", "1500"], DEFAULT_LABEL_FONT, 10) }))
+            .filter(({ read }) => read.best !== "1k");
 
         await holds(
-            widest < narrowest,
-            `Styles/Label SmartOverflow: the thirteen shortened labels should all be narrower than the seven ` +
-                `showing 1500 in full; the widest shortened one is ${String(widest)}px and the narrowest whole ` +
-                `one is ${String(narrowest)}px`,
+            wrong.length === 0,
+            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 1k; ` +
+                `${String(wrong.length)} read otherwise -- ${ 
+                wrong
+                    .map(({ label, read }) => `${label.id} reads ${read.best || "nothing"} ${JSON.stringify(read.errors)}`)
+                    .join("; ")}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));

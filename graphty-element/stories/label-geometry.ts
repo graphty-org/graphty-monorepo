@@ -424,6 +424,48 @@ export function drawnMargins(
 }
 
 /**
+ * Which of several texts a label's ink is, read in the font the browser actually drew.
+ *
+ * FONT-INDEPENDENT BY CONSTRUCTION, like {@link drawnMargins}: the widths come from this browser's
+ * own `measureText`, so a machine that falls back to a different font measures the candidates in
+ * that font too. The renderer sizes its canvas to the words plus the side margins and stretches it
+ * to fill the texture, so each candidate predicts its own horizontal scale and, from it, how wide
+ * its ink should be on the texture. The candidate whose prediction is nearest wins.
+ * @param label - The label, as {@link labelGeometry} read it.
+ * @param candidates - The texts it might be showing.
+ * @param font - The CSS font the label is drawn in.
+ * @param marginX - The label's left plus right margin, in canvas pixels.
+ * @returns The best candidate and each candidate's relative error.
+ */
+export function drawnText(
+    label: LabelGeometry,
+    candidates: readonly string[],
+    font: string,
+    marginX: number,
+): { readonly best: string; readonly errors: Readonly<Record<string, number>> } {
+    const context = document.createElement("canvas").getContext("2d");
+    const errors: Record<string, number> = {};
+
+    if (context === null || label.ink.width === 0) {
+        return { best: "", errors };
+    }
+
+    context.font = font;
+    let best = "";
+    for (const text of candidates) {
+        const metrics = context.measureText(text);
+        const scale = label.texture.width / (metrics.width + marginX);
+        const predicted = (metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight) * scale;
+        errors[text] = Math.abs(label.ink.width - predicted) / predicted;
+        if (best === "" || errors[text] < errors[best]) {
+            best = text;
+        }
+    }
+
+    return { best, errors };
+}
+
+/**
  * Watch one label's plane for a while and report how far it moved.
  *
  * FOR THE STORIES WHOSE SUBJECT IS MOTION. An animated label is the one case where a single

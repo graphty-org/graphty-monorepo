@@ -62,7 +62,9 @@
         "./dist/chunks/*.js",
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
-        "./src/layout/index.ts"
+        "./src/layout/index.ts",
+        "./index.ts",
+        "./src/graphty-element.ts"
     ],
     "files": [
         "dist/",

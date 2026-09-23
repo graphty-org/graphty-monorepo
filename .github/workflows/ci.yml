@@ -325,11 +325,13 @@ jobs:
                     # needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
                     # path the twin would never exercise the PageRank reduction on a device without the feature.
                     # the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
-                    # vitest's own code, and if the output goes quiet for 90 seconds it prints the process table and a
-                    # Node diagnostic report per process, so a silent hang says where it is stuck (G4-F14).
+                    # vitest's own code. On a non-zero exit its FIRST line is the [missing-files] block -- how many test
+                    # files started, how many reported, and the names of the difference, which is what a dead worker
+                    # swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
+                    # wait channel and a Node diagnostic report per surviving process (G4-F14).
                     - shard: webgpu-graph-algorithms-node
                       package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && node scripts/run-node-shard.js --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js test/primitives test/layouts test/algorithms --passWithNoTests
+                      test-command: cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests
                       needs-browser: false
                       needs-storybook: false
                       needs-lavapipe: true

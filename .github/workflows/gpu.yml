@@ -82,8 +82,11 @@ jobs:
             - name: graph-format GPU audit on NVIDIA (canary)
               working-directory: graph-format
               run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
-            - run: pnpm exec vitest run --project=node --project=node-limits
-            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node # the whole node project on the twins
+            # both node projects through scripts/run-node-shard.js: it forwards every argument, exits with vitest's
+            # own code, and on a non-zero exit or 90 seconds of silence prints the test files that started but never
+            # reported, the process table and a Node diagnostic report per surviving process (G4-F14)
+            - run: node scripts/run-node-shard.js --project=node --project=node-limits
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node # the whole node project on the twins
             - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4

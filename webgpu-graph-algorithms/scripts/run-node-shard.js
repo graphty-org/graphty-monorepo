@@ -1,34 +1,103 @@
 /**
- * The node shard runner: runs the `node` vitest project and, if the run goes silent, says WHERE it is stuck
- * instead of leaving a gap in the log (G4-F14).
+ * The node test-project wrapper: runs one or more vitest projects and, when the run fails or goes quiet, names the
+ * test file that never finished instead of leaving a gap in the log (G4-F14).
  *
- * The default lane's `webgpu-graph-algorithms-node` shard has aborted after every one of its 121 files reported
- * green, with `Unhandled Rejection: Channel closed` and the code ERR_IPC_CHANNEL_CLOSED, which vitest raises when
- * its pool writes to a worker whose channel has gone. In every failing run the abort arrives about 175 seconds
- * after the last test line, with no summary, no JSON report and no coverage file. The same command passes here,
- * at the runner's worker count and pinned to the runner's core count, so the difference is the runner itself.
+ * A forked vitest worker that dies takes its file's result with it. The pool's next write to it raises
+ * `Unhandled Rejection: Channel closed` with the code ERR_IPC_CHANNEL_CLOSED, and the run aborts with no summary, no
+ * JSON report and no coverage file -- the same one line whether the worker crashed in a graphics driver, was killed
+ * for memory, or hung in teardown. The one thing that does tell those apart is already in the log: the test files the
+ * reporter announced output for, minus the files it printed a result for. That difference is this wrapper's FIRST
+ * line on any non-zero exit, under the fixed marker [missing-files].
  *
- * This wrapper spawns vitest, forwarding every argument, and watches its output. After SILENCE_MS with nothing
- * written it takes one snapshot: the process table of every node process with its kernel wait channel and state,
- * and a Node diagnostic report from the runner and each of its children, which carries the JavaScript stack and
- * every libuv handle still holding the loop open. Reports go to the directory below and their essentials are
- * printed. The snapshot is taken at most MAX_SNAPSHOTS times, so a genuinely slow test file cannot flood the log.
- * The wrapper never changes the verdict: it exits with vitest's own code.
+ * The wrapper spawns vitest, forwarding every argument (and adding --project=node when the caller named no project),
+ * and watches its output. It takes a snapshot -- the process table of every node process with its kernel wait channel
+ * and state, plus a Node diagnostic report from the runner and each of its children, which carries the JavaScript
+ * stack and every libuv handle still holding the loop open -- after SILENCE_MS with nothing written, at most
+ * MAX_SNAPSHOTS times, and once more when vitest exits non-zero, so a fast crash gets the same treatment as a hang.
+ * Reports go to the directory below and their essentials are printed. The wrapper never changes the verdict: it exits
+ * with vitest's own code.
+ *
+ * The signalling half of a snapshot is POSIX only: Windows has neither --report-on-signal nor a SIGUSR2 that leaves
+ * its target alive, so there the wrapper prints the process table and the missing files and signals nothing.
  */
 
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Silence, in milliseconds, that counts as a hang worth a snapshot; GRAPHTY_HANG_SILENCE_MS overrides it. */
 const SILENCE_MS = Number(process.env.GRAPHTY_HANG_SILENCE_MS ?? "90000");
-/** How many snapshots one run may take. */
+/** How many silence snapshots one run may take; the exit-code snapshot is taken on top of these. */
 const MAX_SNAPSHOTS = 3;
 /** Where the Node diagnostic reports land, relative to the package root. */
 const REPORT_DIR = "tmp/hang-report";
+/** Whether this platform has a SIGUSR2 that dumps a diagnostic report instead of killing its target. */
+const CAN_SIGNAL = process.platform !== "win32";
+/** The fixed marker on every missing-file line, so a log can be grepped for one string. */
+const MISSING_MARKER = "[missing-files]";
+
+/** The colour escapes the reporters write around every glyph and path. */
+const ANSI = /\u001B\[[0-9;]*m/g;
+/** The head of a per-file or per-test result line: one of the reporters' status glyphs and its ASCII fallbacks. */
+const RESULT_HEAD = /^\s*[\u2713\u221A\u00D7\u2717\u276F\u203A\u2193]\s/;
+/** The `stdout | <file>` / `stderr | <file>` line vitest prints above output a test file wrote. */
+const OUTPUT_HEAD = /^\s*(?:stdout|stderr)\s*\|\s*(\S+)/;
+/** A test file path as the reporters print it, relative to the package root. */
+const TEST_FILE = /(?:[\w.@-]+\/)*[\w.@-]+\.test\.[cm]?tsx?/;
+
+/**
+ * The test files a vitest run started but never reported a result for, derived from the run's own output.
+ *
+ * A file is STARTED once the reporter has named it -- above the output it wrote (`stderr | test/x.test.ts`, which
+ * every file of the node project produces from its GPU setup) or on a result line. It has REPORTED once a result line
+ * names it: one of the status glyphs, then the path. The difference is what a dead worker swallowed. Equal sets mean
+ * no file went missing and the death is elsewhere.
+ *
+ * @param {string} output - everything the run wrote to stdout and stderr, in order
+ * @returns {{started: string[], reported: string[], missing: string[]}} the two sets and their difference, sorted
+ */
+export function missingTestFiles(output) {
+    const started = new Set();
+    const reported = new Set();
+    for (const raw of String(output).split("\n")) {
+        const line = raw.replace(ANSI, "");
+        const announced = OUTPUT_HEAD.exec(line);
+        if (announced !== null) {
+            const named = TEST_FILE.exec(announced[1]);
+            if (named !== null) {
+                started.add(named[0]);
+            }
+            continue;
+        }
+        if (!RESULT_HEAD.test(line)) {
+            continue;
+        }
+        const named = TEST_FILE.exec(line);
+        if (named !== null) {
+            started.add(named[0]);
+            reported.add(named[0]);
+        }
+    }
+    const missing = [...started].filter((file) => !reported.has(file)).sort();
+    return { started: [...started].sort(), reported: [...reported].sort(), missing };
+}
+
+/**
+ * The missing-file block, greppable by its fixed marker: the counts, then one line per file that never reported.
+ * @param {{started: string[], reported: string[], missing: string[]}} sets - the output of missingTestFiles
+ * @returns {string} the block, without a trailing newline
+ */
+export function formatMissingFiles(sets) {
+    const counts = `${MISSING_MARKER} started ${String(sets.started.length)}, reported ${String(sets.reported.length)}, missing ${String(sets.missing.length)}`;
+    if (sets.missing.length === 0) {
+        return `${counts} -- every file that started also reported, so nothing was swallowed and the death is elsewhere`;
+    }
+    return [counts, ...sets.missing.map((file) => `${MISSING_MARKER} no result for ${file}`)].join("\n");
+}
 
 /**
  * Every node process on the machine, with the kernel wait channel that says what it is blocked on.
@@ -115,25 +184,38 @@ export function digestReport(file) {
 }
 
 /**
- * Takes one snapshot: the process table, then a diagnostic report from every process in the run.
+ * Takes one snapshot: the process table, then a diagnostic report from every process still alive in the run.
  * @param {number} pid - the vitest process id
  * @param {number} index - which snapshot this is
+ * @param {string} reason - why the snapshot is being taken, printed with it
  * @returns {Promise<void>} resolves once the reports have been digested
  */
-async function snapshot(pid, index) {
+async function snapshot(pid, index, reason) {
     const dir = resolve(packageRoot, REPORT_DIR, String(index));
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
-    console.log(`\n[hang-report] no output for ${String(SILENCE_MS / 1000)}s; snapshot ${String(index)}`);
+    console.log(`\n[hang-report] ${reason}; snapshot ${String(index)}`);
     console.log(processTable());
+    if (!CAN_SIGNAL) {
+        console.log("[hang-report] no diagnostic reports: this platform has no report-on-signal");
+        return;
+    }
     const pids = descendants(pid);
-    console.log(`[hang-report] signalling ${String(pids.length)} process(es): ${pids.join(", ")}`);
+    let signalled = 0;
     for (const target of pids) {
         try {
             process.kill(target, "SIGUSR2");
+            signalled += 1;
         } catch {
             // the process may have exited between listing and signalling; nothing to report for it
         }
+    }
+    console.log(
+        `[hang-report] signalled ${String(signalled)} of ${String(pids.length)} process(es): ${pids.join(", ")}`,
+    );
+    if (signalled === 0) {
+        console.log("[hang-report] nothing was left alive to report on");
+        return;
     }
     await new Promise((done) => {
         setTimeout(done, 10_000);
@@ -153,45 +235,64 @@ async function snapshot(pid, index) {
 }
 
 /**
- * Runs the project and exits with vitest's code, taking a snapshot whenever the output goes quiet.
- * @param {readonly string[]} extra - arguments forwarded to vitest
+ * Runs the projects and exits with vitest's code, taking a snapshot whenever the output goes quiet and once more
+ * when the run fails.
+ * @param {readonly string[]} argv - the wrapper's arguments, forwarded to vitest unchanged
  * @returns {Promise<void>} resolves after process.exit is called
  */
-async function main(extra) {
+async function main(argv) {
     const dir = resolve(packageRoot, REPORT_DIR, "1");
     mkdirSync(dir, { recursive: true });
-    const env = {
-        ...process.env,
-        NODE_OPTIONS:
-            `${process.env.NODE_OPTIONS ?? ""} --report-on-signal --report-signal=SIGUSR2 --report-directory=${dir}`.trim(),
-    };
-    // `ulimit -c 0`: a worker that crashes in a graphics driver teardown used to have its 2 GB core written to the
-    // runner's disk, which took about 175 seconds, and the pool wrote to it during the dump (G4-F14). No core means
-    // a crash costs nothing, and the snapshot below still says which process died and what it was doing.
-    const command = [
-        "ulimit -c 0",
-        `exec pnpm exec vitest run --project=node ${extra.map((a) => `'${a}'`).join(" ")}`,
-    ].join("; ");
-    const child = spawn("sh", ["-c", command], {
-        cwd: packageRoot,
-        env,
-    });
+    // No project named means the node project: every caller of this wrapper runs a node project, and letting vitest
+    // default to all of them would silently pull in the browser project.
+    const named = argv.some((arg) => arg === "--project" || arg.startsWith("--project="));
+    const extra = named ? [...argv] : ["--project=node", ...argv];
+    const env = { ...process.env };
+    if (CAN_SIGNAL) {
+        env.NODE_OPTIONS =
+            `${process.env.NODE_OPTIONS ?? ""} --report-on-signal --report-signal=SIGUSR2 --report-directory=${dir}`.trim();
+    }
+    // On a POSIX host the run goes through a shell so `ulimit -c 0` applies: a worker that crashes in a graphics
+    // driver teardown had its 2 GB core written to the runner's disk, which took about 175 seconds, and the pool
+    // wrote to it during the dump (G4-F14). Windows has no such shell and no such dump, and `sh` may not resolve
+    // there at all, so that host spawns the runner directly -- going through a shell it might not have would fail
+    // the step before a single test ran.
+    const child = CAN_SIGNAL
+        ? spawn(
+              "sh",
+              ["-c", ["ulimit -c 0", `exec pnpm exec vitest run ${extra.map((a) => `'${a}'`).join(" ")}`].join("; ")],
+              {
+                  cwd: packageRoot,
+                  env,
+              },
+          )
+        : spawn("pnpm", ["exec", "vitest", "run", ...extra], { cwd: packageRoot, env, shell: true });
+    const transcript = [];
     let last = Date.now();
     let taken = 0;
     let busy = false;
-    const note = (chunk, stream) => {
+    // The bytes are forwarded untouched; the transcript is decoded through a StringDecoder because a chunk boundary
+    // can fall inside one of the reporter's multi-byte glyphs, and half a glyph would hide a file from the parser.
+    const note = (chunk, stream, decoder) => {
         last = Date.now();
+        transcript.push(decoder.write(chunk));
         stream.write(chunk);
     };
-    child.stdout.on("data", (chunk) => note(chunk, process.stdout));
-    child.stderr.on("data", (chunk) => note(chunk, process.stderr));
+    const outDecoder = new StringDecoder("utf8");
+    const errDecoder = new StringDecoder("utf8");
+    child.stdout.on("data", (chunk) => note(chunk, process.stdout, outDecoder));
+    child.stderr.on("data", (chunk) => note(chunk, process.stderr, errDecoder));
+    // Without this the shell failing to start (no `sh` on PATH) would be a silent exit 1 instead of a named cause.
+    child.on("error", (error) => {
+        console.error(`[hang-report] could not start the runner: ${String(error)}`);
+    });
     const timer = setInterval(() => {
         if (busy || taken >= MAX_SNAPSHOTS || Date.now() - last < SILENCE_MS) {
             return;
         }
         busy = true;
         taken += 1;
-        void snapshot(child.pid ?? 0, taken).finally(() => {
+        void snapshot(child.pid ?? 0, taken, `no output for ${String(SILENCE_MS / 1000)}s`).finally(() => {
             last = Date.now();
             busy = false;
         });
@@ -200,6 +301,12 @@ async function main(extra) {
         child.on("close", (code) => done(code ?? 1));
     });
     clearInterval(timer);
+    if (status !== 0) {
+        // First, before the process table and before anything else in the failure: which file never reported.
+        console.log(`\n${formatMissingFiles(missingTestFiles(transcript.join("")))}`);
+        taken += 1;
+        await snapshot(child.pid ?? 0, taken, `vitest exited ${String(status)}`);
+    }
     console.log(`[hang-report] vitest exited ${String(status)} after ${String(taken)} snapshot(s)`);
     process.exit(status);
 }

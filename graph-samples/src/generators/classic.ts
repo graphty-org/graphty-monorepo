@@ -8,6 +8,7 @@ import { type U32 } from "@graphty/graph-format";
 
 import { type SampleGraph } from "../types.js";
 import { checkEdgeCount, checkInt, EdgeBuffer, toGraph } from "./util.js";
+import { applyWeights, type WeightOptions } from "./weights.js";
 
 /**
  * Append every pair (lo + i, lo + j), i < j, of the clique on [lo, lo + size), row-major.
@@ -29,14 +30,14 @@ function pushClique(out: EdgeBuffer, lo: number, size: number): void {
  * @param options.n - the node count, >= 0
  * @returns the graph
  */
-export function pathGraph(options: { n: number }): SampleGraph {
+export function pathGraph(options: { n: number } & WeightOptions): SampleGraph {
     const { n } = options;
     checkInt("n", n, 0);
     const out = new EdgeBuffer(n);
     for (let i = 0; i + 1 < n; i++) {
         out.push(i, i + 1);
     }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -45,7 +46,7 @@ export function pathGraph(options: { n: number }): SampleGraph {
  * @param options.n - the node count, >= 3
  * @returns the graph
  */
-export function cycleGraph(options: { n: number }): SampleGraph {
+export function cycleGraph(options: { n: number } & WeightOptions): SampleGraph {
     const { n } = options;
     checkInt("n", n, 3);
     const out = new EdgeBuffer(n);
@@ -53,7 +54,7 @@ export function cycleGraph(options: { n: number }): SampleGraph {
         out.push(i, i + 1);
     }
     out.push(n - 1, 0);
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -62,14 +63,14 @@ export function cycleGraph(options: { n: number }): SampleGraph {
  * @param options.n - the node count including the hub, >= 1
  * @returns the graph
  */
-export function starGraph(options: { n: number }): SampleGraph {
+export function starGraph(options: { n: number } & WeightOptions): SampleGraph {
     const { n } = options;
     checkInt("n", n, 1);
     const out = new EdgeBuffer(n);
     for (let i = 1; i < n; i++) {
         out.push(0, i);
     }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -79,7 +80,7 @@ export function starGraph(options: { n: number }): SampleGraph {
  * @param options.n - the node count including the hub, >= 4
  * @returns the graph
  */
-export function wheelGraph(options: { n: number }): SampleGraph {
+export function wheelGraph(options: { n: number } & WeightOptions): SampleGraph {
     const { n } = options;
     checkInt("n", n, 4);
     const out = new EdgeBuffer(2 * n);
@@ -90,7 +91,7 @@ export function wheelGraph(options: { n: number }): SampleGraph {
         out.push(i, i + 1);
     }
     out.push(n - 1, 1);
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -99,14 +100,14 @@ export function wheelGraph(options: { n: number }): SampleGraph {
  * @param options.n - the node count, >= 0
  * @returns the graph
  */
-export function completeGraph(options: { n: number }): SampleGraph {
+export function completeGraph(options: { n: number } & WeightOptions): SampleGraph {
     const { n } = options;
     checkInt("n", n, 0);
     const m = (n * (n - 1)) / 2;
     checkEdgeCount(m);
     const out = new EdgeBuffer(m);
     pushClique(out, 0, n);
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -117,7 +118,7 @@ export function completeGraph(options: { n: number }): SampleGraph {
  * @param options.b - the right side's size, >= 0
  * @returns the graph
  */
-export function completeBipartiteGraph(options: { a: number; b: number }): SampleGraph {
+export function completeBipartiteGraph(options: { a: number; b: number } & WeightOptions): SampleGraph {
     const { a, b } = options;
     checkInt("a", a, 0);
     checkInt("b", b, 0);
@@ -130,57 +131,7 @@ export function completeBipartiteGraph(options: { a: number; b: number }): Sampl
         }
     }
     const side = new Uint8Array(a + b).fill(1, a);
-    return toGraph(a + b, out, false, { side });
-}
-
-/**
- * The rows x cols grid with 4-neighbour edges. Node (r, c) is index r * cols + c; for each node in
- * index order, the edge to its right neighbour, then the edge to the one below.
- * @param options - the options
- * @param options.rows - the number of rows, >= 1
- * @param options.cols - the number of columns, >= 1
- * @returns the graph
- */
-export function gridGraph(options: { rows: number; cols: number }): SampleGraph {
-    return grid3dGraph({ rows: options.rows, cols: options.cols, layers: 1 });
-}
-
-/**
- * The rows x cols x layers grid with 6-neighbour edges. Node (l, r, c) is index
- * (l * rows + r) * cols + c; for each node in index order, the edge to its +column, +row and
- * +layer neighbours, in that order.
- * @param options - the options
- * @param options.rows - the number of rows, >= 1
- * @param options.cols - the number of columns, >= 1
- * @param options.layers - the number of layers, >= 1
- * @returns the graph
- */
-export function grid3dGraph(options: { rows: number; cols: number; layers: number }): SampleGraph {
-    const { rows, cols, layers } = options;
-    checkInt("rows", rows, 1);
-    checkInt("cols", cols, 1);
-    checkInt("layers", layers, 1);
-    const n = rows * cols * layers;
-    checkInt("rows * cols * layers", n, 1);
-    const plane = rows * cols;
-    const out = new EdgeBuffer(3 * n);
-    for (let l = 0; l < layers; l++) {
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const i = l * plane + r * cols + c;
-                if (c + 1 < cols) {
-                    out.push(i, i + 1);
-                }
-                if (r + 1 < rows) {
-                    out.push(i, i + cols);
-                }
-                if (l + 1 < layers) {
-                    out.push(i, i + plane);
-                }
-            }
-        }
-    }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(a + b, out, false, { side }), options);
 }
 
 /**
@@ -190,7 +141,7 @@ export function grid3dGraph(options: { rows: number; cols: number; layers: numbe
  * @param options.dimension - d, in [0, 26]
  * @returns the graph
  */
-export function hypercubeGraph(options: { dimension: number }): SampleGraph {
+export function hypercubeGraph(options: { dimension: number } & WeightOptions): SampleGraph {
     const { dimension } = options;
     checkInt("dimension", dimension, 0, 26);
     const n = 2 ** dimension;
@@ -203,7 +154,7 @@ export function hypercubeGraph(options: { dimension: number }): SampleGraph {
             }
         }
     }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -212,20 +163,11 @@ export function hypercubeGraph(options: { dimension: number }): SampleGraph {
  * @param options.n - the number of rungs, >= 1
  * @returns the graph
  */
-export function ladderGraph(options: { n: number }): SampleGraph {
+export function ladderGraph(options: { n: number } & WeightOptions): SampleGraph {
     const { n } = options;
     checkInt("n", n, 1);
     checkInt("2n", 2 * n, 2);
-    const out = new EdgeBuffer(3 * n);
-    for (let side = 0; side < 2; side++) {
-        for (let i = 0; i + 1 < n; i++) {
-            out.push(side * n + i, side * n + i + 1);
-        }
-    }
-    for (let i = 0; i < n; i++) {
-        out.push(i, n + i);
-    }
-    return toGraph(2 * n, out, false);
+    return applyWeights(toGraph(2 * n, ladderEdges(n), false), options);
 }
 
 /**
@@ -237,7 +179,7 @@ export function ladderGraph(options: { n: number }): SampleGraph {
  * @param options.pathLength - m2, the number of nodes on the bar, >= 0
  * @returns the graph
  */
-export function barbellGraph(options: { cliqueSize: number; pathLength: number }): SampleGraph {
+export function barbellGraph(options: { cliqueSize: number; pathLength: number } & WeightOptions): SampleGraph {
     const { cliqueSize: m1, pathLength: m2 } = options;
     checkInt("cliqueSize", m1, 2);
     checkInt("pathLength", m2, 0);
@@ -250,7 +192,7 @@ export function barbellGraph(options: { cliqueSize: number; pathLength: number }
         out.push(i, i + 1);
     }
     pushClique(out, m1 + m2, m1);
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
@@ -260,7 +202,7 @@ export function barbellGraph(options: { cliqueSize: number; pathLength: number }
  * @param options.pathLength - n, the number of tail nodes, >= 0
  * @returns the graph
  */
-export function lollipopGraph(options: { cliqueSize: number; pathLength: number }): SampleGraph {
+export function lollipopGraph(options: { cliqueSize: number; pathLength: number } & WeightOptions): SampleGraph {
     const { cliqueSize: m, pathLength } = options;
     checkInt("cliqueSize", m, 2);
     checkInt("pathLength", pathLength, 0);
@@ -271,7 +213,7 @@ export function lollipopGraph(options: { cliqueSize: number; pathLength: number 
     for (let i = m - 1; i + 1 < m + pathLength; i++) {
         out.push(i, i + 1);
     }
-    return toGraph(m + pathLength, out, false);
+    return applyWeights(toGraph(m + pathLength, out, false), options);
 }
 
 /**
@@ -296,7 +238,7 @@ function groupLabels(cliques: number, size: number): U32 {
  * @param options.size - the clique size, >= 1
  * @returns the graph
  */
-export function cavemanGraph(options: { cliques: number; size: number }): SampleGraph {
+export function cavemanGraph(options: { cliques: number; size: number } & WeightOptions): SampleGraph {
     const { cliques, size } = options;
     checkInt("cliques", cliques, 1);
     checkInt("size", size, 1);
@@ -307,7 +249,7 @@ export function cavemanGraph(options: { cliques: number; size: number }): Sample
     for (let g = 0; g < cliques; g++) {
         pushClique(out, g * size, size);
     }
-    return toGraph(n, out, false, { community: groupLabels(cliques, size) });
+    return applyWeights(toGraph(n, out, false, { community: groupLabels(cliques, size) }), options);
 }
 
 /**
@@ -319,7 +261,7 @@ export function cavemanGraph(options: { cliques: number; size: number }): Sample
  * @param options.size - the clique size, >= 2
  * @returns the graph
  */
-export function connectedCavemanGraph(options: { cliques: number; size: number }): SampleGraph {
+export function connectedCavemanGraph(options: { cliques: number; size: number } & WeightOptions): SampleGraph {
     const { cliques, size } = options;
     checkInt("cliques", cliques, 2);
     checkInt("size", size, 2);
@@ -339,7 +281,7 @@ export function connectedCavemanGraph(options: { cliques: number; size: number }
             }
         }
     }
-    return toGraph(n, out, false, { community: groupLabels(cliques, size) });
+    return applyWeights(toGraph(n, out, false, { community: groupLabels(cliques, size) }), options);
 }
 
 /**
@@ -350,7 +292,7 @@ export function connectedCavemanGraph(options: { cliques: number; size: number }
  * @param options.height - h, >= 0 (a single root at 0)
  * @returns the graph
  */
-export function balancedTreeGraph(options: { branching: number; height: number }): SampleGraph {
+export function balancedTreeGraph(options: { branching: number; height: number } & WeightOptions): SampleGraph {
     const { branching: r, height: h } = options;
     checkInt("branching", r, 1);
     checkInt("height", h, 0);
@@ -365,15 +307,16 @@ export function balancedTreeGraph(options: { branching: number; height: number }
     for (let c = 1; c < n; c++) {
         out.push(Math.floor((c - 1) / r), c);
     }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /**
  * The Petersen graph: outer cycle 0 .. 4, spokes (i, i + 5), inner pentagram (5 + i, 5 + (i + 2) mod 5).
  * 3-regular, girth 5, non-planar.
+ * @param options - the common weight options
  * @returns the graph
  */
-export function petersenGraph(): SampleGraph {
+export function petersenGraph(options: WeightOptions = {}): SampleGraph {
     const out = new EdgeBuffer(15);
     for (let i = 0; i < 5; i++) {
         out.push(i, (i + 1) % 5);
@@ -384,5 +327,135 @@ export function petersenGraph(): SampleGraph {
     for (let i = 0; i < 5; i++) {
         out.push(5 + i, 5 + ((i + 2) % 5));
     }
-    return toGraph(10, out, false);
+    return applyWeights(toGraph(10, out, false), options);
+}
+
+/**
+ * The empty graph: n isolated nodes, no edges.
+ * @param options - the options
+ * @param options.n - the node count, >= 0
+ * @returns the graph
+ */
+export function emptyGraph(options: { n: number } & WeightOptions): SampleGraph {
+    checkInt("n", options.n, 0);
+    return applyWeights(toGraph(options.n, new EdgeBuffer(0), false), options);
+}
+
+/**
+ * The complete multipartite graph K_{s0, s1, ...}: part p holds the next `sizes[p]` node indices,
+ * and every pair of nodes in different parts is joined; for each node in index order, the edges to
+ * every later node of a later part, ascending. Node column `part` (u32).
+ * @param options - the options
+ * @param options.sizes - the part sizes, each >= 0
+ * @returns the graph
+ */
+export function completeMultipartiteGraph(options: { sizes: readonly number[] } & WeightOptions): SampleGraph {
+    const { sizes } = options;
+    const starts = [0];
+    for (let p = 0; p < sizes.length; p++) {
+        checkInt(`sizes[${p}]`, sizes[p], 0);
+        starts.push(starts[p] + sizes[p]);
+    }
+    const n = starts[sizes.length];
+    checkInt("the total size", n, 0);
+    let m = (n * (n - 1)) / 2;
+    for (const size of sizes) {
+        m -= (size * (size - 1)) / 2;
+    }
+    checkEdgeCount(m);
+    const part = new Uint32Array(n);
+    for (let p = 0; p < sizes.length; p++) {
+        part.fill(p, starts[p], starts[p + 1]);
+    }
+    const out = new EdgeBuffer(m);
+    for (let u = 0; u < n; u++) {
+        for (let v = starts[part[u] + 1]; v < n; v++) {
+            out.push(u, v);
+        }
+    }
+    return applyWeights(toGraph(n, out, false, { part }), options);
+}
+
+/**
+ * The circular ladder CL_n (the n-prism): the ladder's rails 0 .. n - 1 and n .. 2n - 1 and rungs
+ * (i, n + i), as {@link ladderGraph} lists them, then the closing edges (n - 1, 0) and
+ * (2n - 1, n). 3-regular and planar.
+ * @param options - the options
+ * @param options.n - the number of rungs, >= 3
+ * @returns the graph
+ */
+export function circularLadderGraph(options: { n: number } & WeightOptions): SampleGraph {
+    const { n } = options;
+    checkInt("n", n, 3);
+    checkEdgeCount(3 * n);
+    const out = ladderEdges(n);
+    out.push(n - 1, 0);
+    out.push(2 * n - 1, n);
+    return applyWeights(toGraph(2 * n, out, false), options);
+}
+
+/**
+ * The Moebius ladder M_{2n}: the cycle 0 .. 2n - 1 (edges (i, i + 1), then (2n - 1, 0)) and the n
+ * chords (i, i + n). 3-regular and, unlike the circular ladder, not planar for n >= 3.
+ * @param options - the options
+ * @param options.n - the number of rungs, >= 3
+ * @returns the graph
+ */
+export function mobiusLadderGraph(options: { n: number } & WeightOptions): SampleGraph {
+    const { n } = options;
+    checkInt("n", n, 3);
+    checkEdgeCount(3 * n);
+    const out = new EdgeBuffer(3 * n);
+    for (let i = 0; i + 1 < 2 * n; i++) {
+        out.push(i, i + 1);
+    }
+    out.push(2 * n - 1, 0);
+    for (let i = 0; i < n; i++) {
+        out.push(i, i + n);
+    }
+    return applyWeights(toGraph(2 * n, out, false), options);
+}
+
+/**
+ * The ladder's edges: two rails 0 .. n - 1 and n .. 2n - 1, then the rungs (i, n + i).
+ * @param n - the number of rungs
+ * @returns the buffer
+ */
+function ladderEdges(n: number): EdgeBuffer {
+    const out = new EdgeBuffer(3 * n);
+    for (let side = 0; side < 2; side++) {
+        for (let i = 0; i + 1 < n; i++) {
+            out.push(side * n + i, side * n + i + 1);
+        }
+    }
+    for (let i = 0; i < n; i++) {
+        out.push(i, n + i);
+    }
+    return out;
+}
+
+/**
+ * The ring of cliques, as networkx's `ring_of_cliques`: for each clique i in order, its edges
+ * (row-major), then the ring edge (i size + 1, (i + 1) size mod n). The standard example of
+ * modularity's resolution limit (Fortunato and Barthelemy, PNAS 104:36-41, 2007,
+ * doi:10.1073/pnas.0605965104). Node column `community` (u32): the clique.
+ * @param options - the options
+ * @param options.cliques - the number of cliques, >= 2
+ * @param options.size - the clique size, >= 2
+ * @returns the graph
+ */
+export function ringOfCliquesGraph(options: { cliques: number; size: number } & WeightOptions): SampleGraph {
+    const { cliques, size } = options;
+    checkInt("cliques", cliques, 2);
+    checkInt("size", size, 2);
+    const n = cliques * size;
+    checkInt("cliques * size", n, 4);
+    const m = (n * (size - 1)) / 2 + cliques;
+    checkEdgeCount(m);
+    const out = new EdgeBuffer(m);
+    for (let g = 0; g < cliques; g++) {
+        pushClique(out, g * size, size);
+        out.push(g * size + 1, ((g + 1) * size) % n);
+    }
+    return applyWeights(toGraph(n, out, false, { community: groupLabels(cliques, size) }), options);
 }

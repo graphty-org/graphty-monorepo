@@ -2,12 +2,15 @@
 Copyright (c) 2024 Adam Powers. The code is under the MIT License (see LICENSE).
 
 The sample datasets are not the work of this package's authors. Each is listed below with where
-it was taken from, what to cite and its license as far as it is known. Each was converted by
-scripts/convert-datasets.mjs, which records the exact source file and its SHA-256; the
-converted data are changed files, not the originals (node order, encoding and, for the
-football network, the corrections listed). To have a dataset removed, open an issue at
+it was taken from, what to cite and its license as far as it is known. The bundled datasets
+(datasets/<name>) were converted by scripts/convert-datasets.mjs and the hosted ones (hosted:
+<name>, published at https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz) by
+scripts/build-hosted.mjs; both record the exact source files and their SHA-256. The converted
+data are changed files, not the originals (node order, encoding, merged or dropped repeated
+links, and the corrections listed). To have a dataset removed, open an issue at
 https://github.com/graphty-org/graphty-monorepo/issues; removing one means deleting its
-src/datasets/<name>/ directory and its entries in src/datasets/catalog.ts and this file.
+src/datasets/<name>/ directory (or its entry in scripts/build-hosted.mjs) and its entries in
+src/datasets/catalog.ts and this file.
 
 ----------------------------------------------------------------------------------------------------
 Zachary's karate club (datasets/karate)
@@ -58,3 +61,63 @@ Source:   https://web.archive.org/web/20231115052843id_/https://www-personal.umi
 Cite:     D. Lusseau, K. Schneider, O. J. Boisseau, P. Haase, E. Slooten and S. M. Dawson, The bottlenose dolphin community of Doubtful Sound features a large proportion of long-lasting associations, Behavioral Ecology and Sociobiology 54, 396-405 (2003). doi:10.1007/s00265-003-0651-y
 License:  unclear: posted on Mark Newman's data page with the permission of D. Lusseau, "free for scientific use"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.
 
+----------------------------------------------------------------------------------------------------
+Contiguous United States (datasets/contiguous-usa)
+
+Source:   https://www2.census.gov/geo/docs/reference/county_adjacency/county_adjacency2024.txt
+Also:     https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt
+Cite:     U.S. Census Bureau, County Adjacency File (2024); U.S. Census Bureau, Centers of Population by State, 2020 Census.
+License:  Public domain: works of the US federal government (17 U.S.C. 105). Borders derived from the Census county adjacency file; centres of population from https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt
+
+----------------------------------------------------------------------------------------------------
+Knuth's North American city mileages (datasets/knuth-miles)
+
+Source:   https://mirrors.ctan.org/support/graphbase/miles.dat
+Cite:     D. E. Knuth, The Stanford GraphBase: A Platform for Combinatorial Computing, Addison-Wesley (1993).
+License:  Derived from the Stanford GraphBase file miles.dat (copyright 1992 Stanford University; "may be freely copied but please do not change it in any way") -- this is a changed file, converted to a graph, and is not part of the Stanford GraphBase.
+
+----------------------------------------------------------------------------------------------------
+C. elegans neural network (datasets/celegans-neural)
+
+Source:   https://web.archive.org/web/20231227004245id_/https://public.websites.umich.edu/~mejn/netdata/celegansneural.zip
+Cite:     D. J. Watts and S. H. Strogatz, Collective dynamics of 'small-world' networks, Nature 393, 440-442 (1998). doi:10.1038/30918; J. G. White, E. Southgate, J. N. Thomson and S. Brenner, The structure of the nervous system of the nematode Caenorhabditis elegans, Phil. Trans. R. Soc. London B 314, 1-340 (1986). doi:10.1098/rstb.1986.0056
+License:  unclear: Mark Newman's data page says only "free for scientific use to the best of my knowledge"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.
+
+----------------------------------------------------------------------------------------------------
+US political blogs, 2004 (datasets/political-blogs)
+
+Source:   https://web.archive.org/web/20240730122800id_/https://public.websites.umich.edu/~mejn/netdata/polblogs.zip
+Cite:     L. A. Adamic and N. Glance, The political blogosphere and the 2004 U.S. election: divided they blog, Proceedings of the 3rd International Workshop on Link Discovery (LinkKDD 2005), 36-43. doi:10.1145/1134271.1134277
+License:  unclear: posted on Mark Newman's data page with the authors' permission, "free for scientific use"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.
+
+----------------------------------------------------------------------------------------------------
+OpenFlights airline routes (datasets/openflights)
+
+Source:   https://github.com/jpatokal/openflights/tree/e3bc6dedbcceb8b7b74248a00dcd6207254da6bd/data
+Also:     https://openflights.org/data.php
+Cite:     OpenFlights.org, Airport, airline and route databases (routes as of June 2014), https://openflights.org/data.php
+License:  Open Database License (ODbL) 1.0, contents under the Database Contents License 1.0. This converted database is a derived database and is itself available under the ODbL 1.0.
+
+----------------------------------------------------------------------------------------------------
+New York City road network (DIMACS) (hosted: road-ny)
+
+Source:   http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz
+Also:     http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz (coordinates); http://www.diag.uniroma1.it/challenge9/download.shtml
+Cite:     C. Demetrescu, A. V. Goldberg and D. S. Johnson (eds.), The Shortest Path Problem: Ninth DIMACS Implementation Challenge, DIMACS Series in Discrete Mathematics and Theoretical Computer Science 74, AMS (2009). Data: US Census Bureau TIGER/Line.
+License:  Public domain: derived from the US Census Bureau TIGER/Line files, a work of the US federal government; the challenge page states no further terms.
+
+----------------------------------------------------------------------------------------------------
+arXiv computer-science citations (ogbn-arxiv) (hosted: ogbn-arxiv)
+
+Source:   http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+Also:     https://ogb.stanford.edu/docs/nodeprop/#ogbn-arxiv
+Cite:     W. Hu, M. Fey, M. Zitnik, Y. Dong, H. Ren, B. Liu, M. Catasta and J. Leskovec, Open Graph Benchmark: Datasets for Machine Learning on Graphs, NeurIPS 2020. arXiv:2005.00687; K. Wang, Z. Shen, C. Huang, C.-H. Wu, Y. Dong and A. Kanakia, Microsoft Academic Graph: When experts are not enough, Quantitative Science Studies 1(1), 396-413 (2020). doi:10.1162/qss_a_00021
+License:  ODC-BY 1.0 (Open Data Commons Attribution License), as stated by the Open Graph Benchmark.
+
+----------------------------------------------------------------------------------------------------
+DBLP co-authorship (SNAP com-DBLP) (hosted: com-dblp)
+
+Source:   https://snap.stanford.edu/data/bigdata/communities/com-dblp.ungraph.txt.gz
+Also:     https://snap.stanford.edu/data/com-DBLP.html
+Cite:     J. Yang and J. Leskovec, Defining and evaluating network communities based on ground-truth, IEEE ICDM 2012, 745-754. doi:10.1109/ICDM.2012.138; dblp computer science bibliography, https://dblp.org
+License:  unclear: SNAP states no license for its files; the underlying dblp data is CC0 1.0 (https://dblp.org/db/about/copyright.html).

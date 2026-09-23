@@ -39,6 +39,24 @@ export function domainId(name: string): number {
 }
 
 /**
+ * The seed every random generator uses when the caller gives none: 0. A fixed default, never the
+ * clock, so an unseeded call is as reproducible as a seeded one. Frozen with the rest of the
+ * contract: changing it changes every unseeded graph.
+ */
+export const DEFAULT_SEED = 0;
+
+/**
+ * The caller's seed, or {@link DEFAULT_SEED} when it is undefined; throws on an invalid seed.
+ * @param seed - the seed option
+ * @returns the seed to use
+ */
+export function resolveSeed(seed: number | undefined): number {
+    const resolved = seed ?? DEFAULT_SEED;
+    checkSeed(resolved);
+    return resolved;
+}
+
+/**
  * Throw unless `seed` is a safe non-negative integer.
  * @param seed - the seed
  */

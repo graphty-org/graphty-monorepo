@@ -7,6 +7,16 @@
     "type": "module",
     "main": "dist/graph-samples.js",
     "types": "dist/graph-samples.d.ts",
+    "typesVersions": {
+        "*": {
+            "generators": [
+                "dist/generators.d.ts"
+            ],
+            "datasets/*": [
+                "dist/datasets/*.d.ts"
+            ]
+        }
+    },
     "exports": {
         ".": {
             "types": "./dist/graph-samples.d.ts",
@@ -52,6 +62,7 @@
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "datasets:convert": "node scripts/convert-datasets.mjs",
+        "datasets:hosted": "node scripts/build-hosted.mjs",
         "ready:commit": "npm run build:all && npm run lint && npm run test:run"
     },
     "repository": {

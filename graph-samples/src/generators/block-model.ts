@@ -8,18 +8,19 @@
 import { type U32 } from "@graphty/graph-format";
 
 import { detLog } from "../random/log.js";
-import { checkSeed, RandomStream } from "../random/stream.js";
+import { RandomStream, resolveSeed } from "../random/stream.js";
 import { type SampleGraph } from "../types.js";
 import { bernoulliSegment, binomialBuffer, checkInt, checkProbability, type EdgeBuffer, toGraph } from "./util.js";
+import { applyWeights, type WeightOptions } from "./weights.js";
 
 /** Options of {@link stochasticBlockModelGraph}. */
-export interface StochasticBlockModelOptions {
+export interface StochasticBlockModelOptions extends WeightOptions {
     /** The size of every block; block b holds the next `sizes[b]` node indices. */
     sizes: readonly number[];
     /** The symmetric B x B matrix of edge probabilities between blocks. */
     probabilities: readonly (readonly number[])[];
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /** The checked and precomputed form of the options. */
@@ -39,8 +40,8 @@ interface BlockPlan {
  * @returns the plan
  */
 export function planBlocks(options: StochasticBlockModelOptions): BlockPlan {
-    const { sizes, probabilities, seed } = options;
-    checkSeed(seed);
+    const { sizes, probabilities } = options;
+    const seed = resolveSeed(options.seed);
     const count = sizes.length;
     checkInt("sizes.length", count, 1);
     if (probabilities.length !== count) {
@@ -121,11 +122,11 @@ export function stochasticBlockModelGraph(options: StochasticBlockModelOptions):
     }
     const out = binomialBuffer(pairs, pairs === 0 ? 0 : expected / pairs);
     blockModelRows(plan, 0, plan.n, out);
-    return toGraph(plan.n, out, false, { community: plan.block });
+    return applyWeights(toGraph(plan.n, out, false, { community: plan.block }), options);
 }
 
 /** Options of {@link plantedPartitionGraph}. */
-export interface PlantedPartitionOptions {
+export interface PlantedPartitionOptions extends WeightOptions {
     /** The number of groups, >= 1. */
     groups: number;
     /** The size of every group, >= 1. */
@@ -134,8 +135,8 @@ export interface PlantedPartitionOptions {
     pIn: number;
     /** The edge probability between groups. */
     pOut: number;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -154,5 +155,6 @@ export function plantedPartitionGraph(options: PlantedPartitionOptions): SampleG
             Array.from({ length: groups }, (_2, c) => (b === c ? pIn : pOut)),
         ),
         seed,
+        weights: options.weights,
     });
 }

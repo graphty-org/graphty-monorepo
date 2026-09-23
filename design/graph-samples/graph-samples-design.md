@@ -1,6 +1,6 @@
 # @graphty/graph-samples: design
 
-Status: phase 1 implemented (2026-09-23). Package: `graph-samples/`.
+Status: phases 1 and 2 implemented (2026-09-23). Package: `graph-samples/`.
 
 @graphty/graph-samples produces graphs to demonstrate, test and benchmark the rest of the
 monorepo: random-graph generators whose output is fixed by their seed, the deterministic classic
@@ -75,9 +75,14 @@ one object per node and edge, so it is for graphs a browser draws, not for the m
 
 ### 2.3 Generators
 
-Every generator takes one options object and returns a `SampleGraph`. Random generators take a
-**required** `seed`, an integer in [0, 2^53). A required seed can later become optional without a
-breaking change; the reverse is breaking, so required is the reversible choice.
+Every generator takes one options object and returns a `SampleGraph`. Random generators take an
+optional `seed`, an integer in [0, 2^53). Phase 1 required it; phase 2 made it optional with a
+fixed default, `DEFAULT_SEED = 0` (owner decision, 2026-09-23). An unseeded call is therefore as
+reproducible as a seeded one -- the same graph everywhere -- and never draws from the clock or
+`Math.random`. The default is frozen with the rest of section 3.5: changing it changes every
+unseeded graph.
+
+Every generator also takes the common `weights` option (section 2.5).
 
 Phase 1 generators (all undirected and simple unless noted):
 
@@ -105,6 +110,26 @@ Phase 1 generators (all undirected and simple unless noted):
 Every generator's JSDoc states its node order, edge order and draw order; they are part of the
 contract (section 3.5). Invalid options throw `RangeError` naming the option.
 
+Phase 2 generators are listed in section 2.6.
+
+### 2.5 The `weights` option
+
+Every generator (random or deterministic) accepts `weights`, and `withWeights(graph, spec, seed?)`
+applies the same to any existing graph (a dataset, a hand-built one):
+
+| Spec | Weight |
+| --- | --- |
+| `{ kind: "uniform", min?, max? }` | a real in [min, max), default [0, 1) |
+| `{ kind: "integer", min, max }` | an integer in [min, max] |
+| `{ kind: "exponential", mean? }` | -mean ln(1 - u) |
+| `{ kind: "euclidean" }` | the distance between the endpoints' `x`, `y` (and `z`) columns |
+| `{ kind: "column", column, combine? }` | from a numeric node column: source, target, sum (default), mean, product, min, max, or difference |
+
+Random kinds draw one value per edge, in edge order, from stream (seed, "weights", 0); a
+deterministic generator's `seed` option exists only for its weights. Weights never change the
+edges, so adding them to a seeded graph keeps its structure. Flow networks do not take the option:
+their weights are their capacities.
+
 ### 2.4 Datasets
 
 A bundled dataset directory holds three files:
@@ -130,9 +155,85 @@ few kilobytes. Phase 1 datasets:
 | `political-books` | 105 / 441 | Newman's page (archived) | unclear | `lean` |
 | `dolphins` | 62 / 159 | Newman's page (archived) | unclear | |
 
+Phase 2 adds five bundled and three hosted datasets:
+
+| Name | Nodes / edges | Source | License | Ground truth |
+| --- | --- | --- | --- | --- |
+| `contiguous-usa` | 49 / 107, lat/lon | Census county adjacency 2024 + 2020 centres of population | public domain | |
+| `knuth-miles` | 128 / 8,128 complete, weighted, lat/lon | Stanford GraphBase `miles.dat` (CTAN) | SGB terms: changed file | |
+| `celegans-neural` | 297 / 2,345 directed, weighted | Newman's page (archived) | unclear | |
+| `political-blogs` | 1,490 / 19,022 directed | Newman's page (archived) | unclear | `lean` |
+| `openflights` | 3,214 / 36,906 directed, weighted, lat/lon | OpenFlights GitHub, pinned commit | ODbL | |
+| `road-ny` (hosted) | 264,346 / 733,846 directed, weighted, lon/lat | DIMACS 9th challenge | public domain | |
+| `ogbn-arxiv` (hosted) | 169,343 / 1,166,243 directed | Open Graph Benchmark | ODC-BY | `subject` |
+| `com-dblp` (hosted) | 317,080 / 1,049,866 | SNAP | unclear (dblp itself is CC0) | |
+
+Contiguous states are joined by land borders only: the Census county file also pairs the Four
+Corners (AZ-CO, NM-UT) and three across water (IL-MI, MI-MN, NY-RI), which are dropped, giving the
+107 edges of the usual copies. The C. elegans file lists 14 arcs twice (merged, weights summed);
+the blogs crawl lists 65 links twice and 3 self-links (kept once, self-links dropped). OpenFlights
+keeps routes whose two airport ids are known, one arc per origin-destination pair, weighted by the
+number of route rows (airlines); the data file is about 1 MB of source, the limit for bundling.
+
 The karate weights follow networkx exactly: its matrix is not symmetric (entry [0][12] is 2,
 [12][0] is 1) and networkx keeps the later row's entry. The conversion was cross-checked edge by
 edge against networkx and against the raw GML files.
+
+
+### 2.6 Phase 2 generators
+
+Stream domains are in brackets; every one is frozen. Each generator's JSDoc gives the node, edge
+and draw order, the paper and the cost.
+
+| Function | Model, paper | Cost, caps | Domains |
+| --- | --- | --- | --- |
+| `gridGraph` / `grid3dGraph` options | torus, king / 26-neighbour, forward-only DAG, obstacles, positions | O(n) | `grid-obstacles` |
+| `triangularLatticeGraph`, `hexagonalLatticeGraph` | triangulated grid; honeycomb in brick-wall form, unit-edge positions | O(n) | |
+| `emptyGraph`, `completeMultipartiteGraph`, `circularLadderGraph`, `mobiusLadderGraph`, `ringOfCliquesGraph` | classic families; ring of cliques as networkx (Fortunato and Barthelemy 2007) | O(n + m) | |
+| `namedGraph` | 21 named graphs, networkx 3.1 edge order | | |
+| `powerLawDegreeSequence` | discrete power law by a detPow cumulative table | O(n log D), D <= 2^24 | `power-law` |
+| `configurationModelGraph`, `directedConfigurationModelGraph` | Bender-Canfield 1978, Molloy-Reed 1995, Newman-Strogatz-Watts 2001; stub shuffle, keep or erase loops and multi-edges | O(n + m) | `configuration`, `configuration-directed` |
+| `bipartiteConfigurationModelGraph` | the bipartite form | O(n + m) | `bipartite-configuration` |
+| `chungLuGraph` | Chung and Lu 2002, Miller and Hagberg 2011 skipping, row-parallel | O(n log n + m) | `chung-lu` |
+| `degreeCorrectedSbmGraph` | Karrer and Newman 2011, Bernoulli form on the Chung-Lu core, row-parallel | O(n log n + n B + m) | `dcsbm` |
+| `randomRegularGraph` | Steger and Wormald 1999 (networkx's structure) | expected O(n d^2); 100 attempts then RangeError | `random-regular` |
+| `lfrGraph` | Lancichinetti, Fortunato and Radicchi 2008: power-law degrees and community sizes, per-community and external configuration models with erasure (no edge switching, so mixing lands within about 0.02 of mu and the mean degree up to about 10 percent low) | O(n log n + m), n <= 1,000,000, bounded loops | `lfr-degrees`, `lfr-sizes`, `lfr-assign`, `lfr-internal`, `lfr-external` |
+| `randomGeometricGraph` | Gilbert 1961, Penrose 2003; counting-sort cell grid, 2D/3D, torus | expected O(n + m) | `rgg-points` |
+| `waxmanGraph` | Waxman 1988, L = sqrt(2); skipping at beta, then a log test (no exp) | O(n + beta n^2 / 2), cap 5e8 draws | `waxman-points`, `waxman` |
+| `knnGraph` | exact k-NN by expanding cell rings; optional Gaussian mixture (Marsaglia polar) | about O(n k^2) | `knn-points`, `knn-centres` |
+| `hyperbolicGraph` | Krioukov et al. 2010, threshold and temperature models; mean degree within about 10 percent for exponent >= 2.5 and T <= 0.7, lower outside | O(n^2), n <= 20,000 | `hyperbolic-points`, `hyperbolic` |
+| `rmatGraph`, `kroneckerGraph` | Chakrabarti, Zhan and Faloutsos 2004; Leskovec et al. 2010; per-edge streams, optional Graph500 permutation and erasure | O(m log n) | `rmat`, `rmat-permute`, `kronecker`, `kronecker-permute` |
+| `priceGraph` | Price 1965 / 1976 citation DAG, attractiveness a | O(n m) | `price` |
+| `randomOrderDagGraph`, `erdosRenyiGraph({ directed })` | Karrer and Newman 2009; directed G(n, p) | O(n + m), row-parallel | `order-dag`, `gnp-directed` |
+| `gridFlowNetwork`, `layeredFlowNetwork` | segmentation-shaped grid and layered DAG with integer capacities | O(n + m) | `grid-flow`, `layered-flow` |
+| `genrmfGraph` | Goldfarb and Grigoriadis 1988, Badics' GENRMF structure (not its random numbers) | O(a^2 b) | `genrmf` |
+| `akGraph` | Cherkassky and Goldberg 1997; verified arc for arc against igraph's `ak-4102.max`; max flow 2k + 3 | O(k) | |
+| `randomRecursiveTreeGraph`, `forestFireGraph`, `duplicationDivergenceGraph`, `newmanWattsGraph`, `bianconiBarabasiGraph`, `randomApollonianGraph`, `wilsonMazeGraph` | Smythe-Mahmoud 1995; Leskovec-Kleinberg-Faloutsos 2005 (burn cap); Ispolatov-Krapivsky-Yuryev 2005 (attempt cap); Newman-Watts 1999; Bianconi-Barabasi 2001 (Fenwick tree); Zhou-Yan-Wang 2005; Wilson 1996 | linear or O(n m log n) | `recursive-tree`, `forest-fire`, `duplication-divergence`, `newman-watts`, `bianconi-barabasi`, `fitness`, `apollonian`, `wilson` |
+| `randomMultigraph`, `addPathologicalEdges`, `edgeCaseGraph` | multigraphs; self-loops, parallel and anti-parallel copies added to any graph; 14 fixtures | O(m) | `multigraph`, `pathological` |
+
+Flow networks return a `FlowNetwork` (`SampleGraph` plus `source` and `sink`), capacities as f32
+integers below 2^24, a `role` u8 column, and do not take the `weights` option.
+
+**Structural variants and graph-format.** graph-format's builder keeps self-loops and parallel
+edges by default (`selfLoops`, `duplicateEdges` policies), and `directed` is one boolean per graph:
+there are no mixed graphs, so none is generated. The configuration models, R-MAT and Kronecker take
+`selfLoops` / `multiEdges: "keep" | "erase"` (`EdgePolicy`); erasing keeps the first occurrence in
+edge order. Every edge case loads through `fromEdgeArrays` with default options (a test checks it).
+
+**Deferred.**
+
+- Delaunay, Gabriel and relative-neighbourhood graphs: a correct triangulation needs robust
+  orientation and in-circle predicates (Shewchuk's adaptive arithmetic) or a dependency such as
+  `delaunator` (ISC). That dependency is an owner decision; `randomApollonianGraph` covers maximal
+  planar graphs meanwhile.
+- The worker helper of section 8: not started; the row-parallel generators already expose their
+  `...Rows` functions.
+- The band algorithm for hyperbolic graphs (von Looz, Meyerhenke and Prutkin 2015), to lift the
+  20,000-node cap.
+- Moving webgpu-graph-algorithms' three R-MAT copies (`benchmarks/datasets.ts`, `test/helpers/graphs.ts`,
+  `demo/main.ts`) onto `rmatGraph`: `selfLoops: "erase"` plus integer weights 1..10 covers them,
+  except that they move a self-loop to (u, v + 1 mod n) to keep exactly m edges; tests pinning
+  their edge counts or hashes change when they move.
 
 ---------------------------------------------------------------------------------------------------
 
@@ -193,8 +294,9 @@ Derived draws, each defined only in terms of the words:
 | `nextBelow(n)` | masked rejection: keep the low `ceil(log2 n)` bits of a word, retry while >= n (for n > 2^32 one extra high word first); exact and unbiased |
 | `nextSkip(logQ)` | `floor(detLog(1 - nextFloat()) / logQ)`, the geometric number of failures before a Bernoulli(p) success, `logQ = detLog(1 - p)` |
 
-Domains frozen so far: `gnp`, `gnm`, `sbm`, `bipartite`, `bipartite-matching`, `layered-dag`,
-`prufer`, `barabasi-albert`, `watts-strogatz`.
+Domains frozen in phase 1: `gnp`, `gnm`, `sbm`, `bipartite`, `bipartite-matching`, `layered-dag`,
+`prufer`, `barabasi-albert`, `watts-strogatz`. Phase 2 adds one or more per new generator (listed
+with them in section 2.6), plus `weights` and `grid-obstacles`.
 
 ### 3.4 The one logarithm
 
@@ -205,8 +307,21 @@ choose a different edge. `detLog` in `src/random/log.ts` is a port of fdlibm's `
 only double addition, subtraction, multiplication and division, which ECMAScript requires to be
 correctly rounded and forbids from fusing. Its result is therefore a pure function of the input's
 bits. It returned the same bits as V8's `Math.log` (itself fdlibm) on all of 1,000,000 sampled
-inputs across (1e-200, 1e6), and its error stays below 1 ulp. `Math.floor` and comparisons are exact. No other transcendental function is used; a future
-generator that needs `exp` or `pow` ports fdlibm's too, or uses an integer method.
+inputs across (1e-200, 1e6), and its error stays below 1 ulp. `Math.floor` and comparisons are exact. 
+
+Phase 2 added the other functions the new models need, built the same way:
+
+- `detExp` (`src/random/exp.ts`) ports fdlibm's `__ieee754_exp` (e_exp.c). It returned the same bits
+  as V8's `Math.exp` on over 99 percent of 200,000 sampled inputs and is within 1 ulp on the rest
+  (fdlibm gives e one ulp above `Math.E`). `detPow(x, y) = detExp(y detLog(x))` is deterministic but
+  not correctly rounded (relative error about 1e-13 at the magnitudes used).
+- `detCosSinTurn(u)` (`src/random/trig.ts`) returns cos and sin of 2 pi u for a turn fraction u in
+  [0, 1): the reduction 8u = octant + fraction is exact, and the fraction times pi/4 rounds once
+  before fdlibm's `__kernel_sin` / `__kernel_cos` polynomials. Error below 2e-15.
+- `Math.sqrt` is used directly. IEEE 754 requires a correctly rounded square root, and every engine
+  compiles `Math.sqrt` to the hardware instruction, so it is treated as exact; the golden hashes
+  (which include positions and weights for the geometric generators) would catch an engine that
+  differs. Decisions compare squared distances where they can.
 
 ### 3.5 What is frozen
 
@@ -281,19 +396,27 @@ graphty.app and fetched on demand.
 - GitHub Pages limits: 1 GB per site, 100 MB per file, and it sends
   `Access-Control-Allow-Origin: *`, so browsers on any origin can fetch the files.
 
-### 6.3 Publishing (phase 2)
+### 6.3 Publishing (phase 2, done)
 
-- `graph-samples/scripts/build-hosted.mjs` converts each large source (URL + SHA-256 recorded, as in
-  `convert-datasets.mjs`) into `graph-samples/public-data/v1/<name>.gsnp.gz` and a
-  `graph-samples/public-data/v1/index.json` of their metas and checksums. The binaries are build
-  output, not committed; the sources are cached in the CI cache keyed by their checksums.
-- `ci.yml` uploads `graph-samples/public-data/` as an artifact; `deploy-pages.yml` downloads it and
-  copies it to `public/data/graph-samples/` next to the app, docs and storybooks.
-- Each hosted dataset still gets a `DatasetMeta` (with `hosting: "remote"`, added then) in
-  `DATASETS`, so a picker lists bundled and hosted datasets together.
-- Candidates from the research: New York road network (DIMACS, public domain, 264k nodes with
-  coordinates), ogbn-arxiv (ODC-BY, 169k, subjects as ground truth), DBLP co-authorship rebuilt
-  from the CC0 dblp dump, OpenFlights (ODbL, coordinates), Luxembourg OSM roads.
+- `graph-samples/scripts/build-hosted.mjs` (`npm run datasets:hosted`) converts each large source
+  (URL + SHA-256 recorded, as in `convert-datasets.mjs`) into
+  `graph-samples/public-data/v1/<name>.gsnp.gz`, a `public-data/v1/index.json` of their metas,
+  URLs, sizes and checksums, and the generated `src/datasets/hosted.ts` that `DATASETS` spreads in.
+  The binaries are build output (`public-data/` is gitignored); `hosted.ts` is committed. The output
+  is deterministic for a Node.js major version, so the committed checksums match the published
+  files.
+- `deploy-pages.yml` downloads CI's graph-format build, runs the script with its sources in an
+  `actions/cache` keyed on the script's hash (older caches restore the unchanged sources), and
+  copies `public-data/v1/` to `/data/graph-samples/v1/` next to the app, docs and storybooks. A
+  failed download fails the deploy, which leaves the previous site and its data live. The script
+  imports graph-format from `graph-format/dist`, so the job needs no workspace install.
+- Each hosted dataset has a `DatasetMeta` with `hosting: "remote"`, `bytes` and `sha256` in
+  `DATASETS`, so a picker lists bundled and hosted datasets together. `fetchDataset` does not
+  verify the checksum (a consumer can); the gzip and the snapshot decoder already reject a corrupt
+  or truncated file.
+- Hosted so far: `road-ny` (9.4 MB), `ogbn-arxiv` (10.6 MB), `com-dblp` (15.6 MB). Candidates left
+  from the research: DBLP rebuilt from the CC0 dblp dump (to replace SNAP's unlicensed file),
+  Luxembourg OSM roads, larger DIMACS regions.
 
 ---------------------------------------------------------------------------------------------------
 
@@ -330,9 +453,9 @@ the main thread (they depend only on the options). Nothing in the phase 1 API ch
 
 | Where | What | Plan |
 | --- | --- | --- |
-| `layout/src/generators/*` (public API of @graphty/layout) | `completeGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `gridGraph`, `randomGraph`, `scaleFreeGraph`, `bipartiteGraph` | keep the exports; re-implement each as a thin alias that calls graph-samples and adapts to layout's `Graph` shape; deprecate in JSDoc; remove at layout's next major. Their seeded output WILL change (the old LCG has period 233,280 and `randomGraph` / `scaleFreeGraph` are quadratic), so that step is a layout minor with a changelog note. Not in phase 1. |
+| `layout/src/generators/*` (public API of @graphty/layout) | `completeGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `gridGraph`, `randomGraph`, `scaleFreeGraph`, `bipartiteGraph` | keep the exports; re-implement each as a thin alias that calls graph-samples and adapts to layout's `Graph` shape; deprecate in JSDoc; remove at layout's next major. Their seeded output WILL change (the old LCG has period 233,280 and `randomGraph` / `scaleFreeGraph` are quadratic), so that step is a layout minor with a changelog note. Done in phase 2: unseeded calls still draw a fresh seed from Math.random, and inputs graph-samples rejects keep their old results. |
 | `algorithms/stories/utils/graph-generators.ts` | story graphs (Mulberry32) | import from graph-samples |
-| `webgpu-graph-algorithms/test/helpers/graphs.ts`, `benchmarks/datasets.ts`, `demo/main.ts` | karate, grids, paths, G(n, m), R-MAT (xorshift32) | import from graph-samples once R-MAT lands (phase 2); fixtures pinned to old outputs are regenerated deliberately |
+| `webgpu-graph-algorithms/test/helpers/graphs.ts`, `benchmarks/datasets.ts`, `demo/main.ts` | karate, grids, paths, G(n, m), R-MAT (xorshift32) | import from graph-samples (`rmatGraph` landed in phase 2; see section 2.6 for the self-loop difference); fixtures pinned to old outputs are regenerated deliberately |
 | `graphty/src/data/sampleGraphs.ts`, `sampleManifest.ts` | the app's sample library | read `DATASETS` and the dataset subpaths through graphty-element's data loading, per the architectural principles (the app does not compute graphs) |
 
 ---------------------------------------------------------------------------------------------------
@@ -345,7 +468,7 @@ Watts-Strogatz, the stochastic block model and planted partition, random biparti
 matching, Pruefer trees and layered DAGs; seven bundled datasets with NOTICE; `fetchDataset`;
 `toElementData`.
 
-**Phase 2:** the rest of the research's first set -- complete multipartite, circular and Mobius
+**Phase 2 (done, 2026-09-23, except as deferred in section 2.6):** the rest of the research's first set -- complete multipartite, circular and Mobius
 ladders, torus and triangular/hexagonal lattices with optional obstacles, random recursive trees,
 more named graphs (Krackhardt kite, Frucht, Tutte, the platonic solids), Chung-Lu with power-law
 weights (Miller and Hagberg 2011) and the configuration model, degree-corrected SBM, random
@@ -355,7 +478,8 @@ AK) with integer capacities, a common `weights` option, position columns for gri
 helper (section 8); hosted large datasets and their publishing (section 6.3); the layout aliases
 (section 9).
 
-**Phase 3:** the second wave -- LFR benchmark, hyperbolic random graphs, Delaunay / Gabriel /
+**Phase 3:** what section 2.6 defers. The second wave below was pulled into phase 2 except
+Delaunay / Gabriel / relative-neighbourhood graphs. Originally planned: the second wave -- LFR benchmark, hyperbolic random graphs, Delaunay / Gabriel /
 relative-neighbourhood graphs and Apollonian networks, forest fire, duplication-divergence, random
 regular graphs, Wilson mazes, Gaussian-mixture k-NN clouds, Waxman, Bianconi-Ginestra fitness.
 
@@ -363,7 +487,8 @@ regular graphs, Wilson mazes, Gaussian-mixture k-NN clouds, Waxman, Bianconi-Gin
 
 ## 11. Decisions made without the owner (all reversible)
 
-- Seeds are required, not defaulted (section 2.3).
+- Seeds were required in phase 1; phase 2 made them optional with the fixed default 0 at the
+  owner's decision (section 2.3).
 - Generator names end in `Graph` (`erdosRenyiGraph`), matching layout's existing names so the
   aliases in section 9 read naturally; options objects everywhere.
 - Barabasi-Albert starts from m isolated nodes (networkx's `powerlaw_cluster_graph`), so plain BA

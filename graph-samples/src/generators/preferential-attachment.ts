@@ -3,12 +3,13 @@
  * and the Watts-Strogatz small world.
  */
 
-import { checkSeed, RandomStream } from "../random/stream.js";
+import { RandomStream, resolveSeed } from "../random/stream.js";
 import { type SampleGraph } from "../types.js";
 import { checkEdgeCount, checkInt, checkProbability, EdgeBuffer, toGraph } from "./util.js";
+import { applyWeights, type WeightOptions } from "./weights.js";
 
 /** Options of {@link barabasiAlbertGraph}. */
-export interface BarabasiAlbertOptions {
+export interface BarabasiAlbertOptions extends WeightOptions {
     /** The node count, > m. */
     n: number;
     /** The number of edges each new node brings, >= 1. */
@@ -19,8 +20,8 @@ export interface BarabasiAlbertOptions {
      * Barabasi-Albert.
      */
     triadProbability?: number | undefined;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -42,12 +43,12 @@ export interface BarabasiAlbertOptions {
  * @returns the undirected graph
  */
 export function barabasiAlbertGraph(options: BarabasiAlbertOptions): SampleGraph {
-    const { n, m, seed } = options;
+    const { n, m } = options;
     const triad = options.triadProbability ?? 0;
     checkInt("m", m, 1);
     checkInt("n", n, m + 1);
     checkProbability("triadProbability", triad);
-    checkSeed(seed);
+    const seed = resolveSeed(options.seed);
     const edgeCount = (n - m) * m;
     checkEdgeCount(edgeCount);
     const stream = new RandomStream(seed, "barabasi-albert", 0);
@@ -110,19 +111,19 @@ export function barabasiAlbertGraph(options: BarabasiAlbertOptions): SampleGraph
             repeated[length++] = s;
         }
     }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /** Options of {@link wattsStrogatzGraph}. */
-export interface WattsStrogatzOptions {
+export interface WattsStrogatzOptions extends WeightOptions {
     /** The node count, > k. */
     n: number;
     /** Each node's ring neighbours before rewiring, even, >= 2. */
     k: number;
     /** The rewiring probability of each edge, in [0, 1]. */
     beta: number;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -139,14 +140,14 @@ export interface WattsStrogatzOptions {
  * @returns the undirected graph
  */
 export function wattsStrogatzGraph(options: WattsStrogatzOptions): SampleGraph {
-    const { n, k, beta, seed } = options;
+    const { n, k, beta } = options;
     checkInt("k", k, 2);
     if (k % 2 !== 0) {
         throw new RangeError(`k must be even, got ${k}`);
     }
     checkInt("n", n, k + 1);
     checkProbability("beta", beta);
-    checkSeed(seed);
+    const seed = resolveSeed(options.seed);
     const half = k / 2;
     const m = n * half;
     checkEdgeCount(m);
@@ -183,5 +184,5 @@ export function wattsStrogatzGraph(options: WattsStrogatzOptions): SampleGraph {
             dst[slot] = w;
         }
     }
-    return { directed: false, nodeCount: n, src, dst };
+    return applyWeights({ directed: false, nodeCount: n, src, dst }, options);
 }

@@ -5,16 +5,17 @@
 import { type U32 } from "@graphty/graph-format";
 
 import { detLog } from "../random/log.js";
-import { checkSeed, RandomStream } from "../random/stream.js";
+import { RandomStream, resolveSeed } from "../random/stream.js";
 import { type SampleGraph } from "../types.js";
 import { bernoulliSegment, binomialBuffer, checkInt, checkProbability, EdgeBuffer, toGraph } from "./util.js";
+import { applyWeights, type WeightOptions } from "./weights.js";
 
 /** Options of {@link randomTreeGraph}. */
-export interface RandomTreeOptions {
+export interface RandomTreeOptions extends WeightOptions {
     /** The node count, >= 1. */
     n: number;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -26,12 +27,12 @@ export interface RandomTreeOptions {
  * @returns the undirected tree
  */
 export function randomTreeGraph(options: RandomTreeOptions): SampleGraph {
-    const { n, seed } = options;
+    const { n } = options;
     checkInt("n", n, 1);
-    checkSeed(seed);
+    const seed = resolveSeed(options.seed);
     const out = new EdgeBuffer(n);
     if (n === 1) {
-        return toGraph(1, out, false);
+        return applyWeights(toGraph(1, out, false), options);
     }
     const stream = new RandomStream(seed, "prufer", 0);
     const code = new Uint32Array(n - 2);
@@ -60,17 +61,17 @@ export function randomTreeGraph(options: RandomTreeOptions): SampleGraph {
         }
     }
     out.push(leaf, n - 1);
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }
 
 /** Options of {@link randomDagGraph}. */
-export interface RandomDagOptions {
+export interface RandomDagOptions extends WeightOptions {
     /** The width of every layer, top to bottom; layer i holds the next `layers[i]` node indices. */
     layers: readonly number[];
     /** The probability of each arc from a node to a node of the next layer. */
     p: number;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -113,10 +114,10 @@ export function dagRows(
  * @returns the directed graph
  */
 export function randomDagGraph(options: RandomDagOptions): SampleGraph {
-    const { layers, p, seed } = options;
+    const { layers, p } = options;
     checkInt("layers.length", layers.length, 1);
     checkProbability("p", p);
-    checkSeed(seed);
+    const seed = resolveSeed(options.seed);
     const starts = [0];
     let pairs = 0;
     for (let i = 0; i < layers.length; i++) {
@@ -134,5 +135,5 @@ export function randomDagGraph(options: RandomDagOptions): SampleGraph {
     }
     const out = binomialBuffer(pairs, p);
     dagRows(starts, layerOf, p, seed, 0, n, out);
-    return toGraph(n, out, true, { layer: layerOf });
+    return applyWeights(toGraph(n, out, true, { layer: layerOf }), options);
 }

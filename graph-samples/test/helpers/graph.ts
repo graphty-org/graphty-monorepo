@@ -115,3 +115,47 @@ export function graphHash(g: SampleGraph): string {
     }
     return (h >>> 0).toString(16).padStart(8, "0");
 }
+
+/**
+ * A golden hash that also covers the weights and every typed-array node column (by name, in
+ * sorted order, bit for bit): for generators whose weights or positions are part of the contract.
+ * @param g - the graph
+ * @returns the hash as 8 hex digits
+ */
+export function fullGraphHash(g: SampleGraph): string {
+    let h = Number.parseInt(graphHash(g), 16);
+    const bytes = (view: ArrayBufferView): void => {
+        const u8 = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+        for (const b of u8) {
+            h ^= b;
+            h = Math.imul(h, 0x01000193);
+        }
+    };
+    h ^= g.directed ? 1 : 0;
+    if (g.weights !== undefined) {
+        bytes(g.weights);
+    }
+    for (const name of Object.keys(g.nodeColumns ?? {}).sort()) {
+        const column = g.nodeColumns?.[name];
+        if (ArrayBuffer.isView(column)) {
+            for (let i = 0; i < name.length; i++) {
+                h ^= name.charCodeAt(i);
+                h = Math.imul(h, 0x01000193);
+            }
+            bytes(column);
+        }
+    }
+    return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * The edge list of a graph as sorted "u-v" keys (unordered for undirected graphs), for comparing
+ * structure regardless of edge order.
+ * @param g - the graph
+ * @returns the sorted keys
+ */
+export function edgeKeys(g: SampleGraph): string[] {
+    return pairs(g)
+        .map(([u, v]) => (g.directed || u <= v ? `${u}-${v}` : `${v}-${u}`))
+        .sort();
+}

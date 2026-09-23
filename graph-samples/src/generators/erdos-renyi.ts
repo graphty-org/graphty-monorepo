@@ -4,18 +4,24 @@
  */
 
 import { detLog } from "../random/log.js";
-import { checkSeed, RandomStream } from "../random/stream.js";
+import { RandomStream, resolveSeed } from "../random/stream.js";
 import { type SampleGraph } from "../types.js";
 import { bernoulliSegment, binomialBuffer, checkInt, checkProbability, EdgeBuffer, toGraph } from "./util.js";
+import { applyWeights, type WeightOptions } from "./weights.js";
 
 /** Options of {@link erdosRenyiGraph}. */
-export interface ErdosRenyiOptions {
+export interface ErdosRenyiOptions extends WeightOptions {
     /** The node count, >= 0. */
     n: number;
     /** The probability of each pair, in [0, 1]. */
     p: number;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /**
+     * Directed: every ordered pair (u, v), u != v, is an arc independently with probability p.
+     * Default false (unordered pairs).
+     */
+    directed?: boolean | undefined;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -28,9 +34,13 @@ export interface ErdosRenyiOptions {
  * @param out - receives the edges
  */
 export function erdosRenyiRows(options: ErdosRenyiOptions, start: number, end: number, out: EdgeBuffer): void {
-    const { n, p, seed } = options;
+    const { n, p } = options;
     const logQ = detLog(1 - p);
-    const stream = new RandomStream(seed, "gnp", 0);
+    if (options.directed === true) {
+        directedRows(n, p, logQ, resolveSeed(options.seed), start, end, out);
+        return;
+    }
+    const stream = new RandomStream(resolveSeed(options.seed), "gnp", 0);
     for (let u = start; u < end; u++) {
         stream.reset(u);
         bernoulliSegment(stream, p, logQ, u, u + 1, n, out);
@@ -38,9 +48,37 @@ export function erdosRenyiRows(options: ErdosRenyiOptions, start: number, end: n
 }
 
 /**
+ * Rows [start, end) of the directed G(n, p): row u draws from stream (seed, "gnp-directed", u)
+ * and skips over its n - 1 candidates, candidate j being the node j < u ? j : j + 1, so the arcs
+ * (u, v) come in ascending v.
+ * @param n - the node count
+ * @param p - the probability
+ * @param logQ - detLog(1 - p)
+ * @param seed - the resolved seed
+ * @param start - the first row
+ * @param end - one past the last row
+ * @param out - receives the arcs
+ */
+function directedRows(n: number, p: number, logQ: number, seed: number, start: number, end: number, out: EdgeBuffer): void {
+    if (p === 0) {
+        return;
+    }
+    const stream = new RandomStream(seed, "gnp-directed", 0);
+    for (let u = start; u < end; u++) {
+        stream.reset(u);
+        let j = p === 1 ? 0 : stream.nextSkip(logQ);
+        while (j < n - 1) {
+            out.push(u, j < u ? j : j + 1);
+            j += p === 1 ? 1 : 1 + stream.nextSkip(logQ);
+        }
+    }
+}
+
+/**
  * Gilbert's G(n, p) in O(n + m) by geometric skipping (Batagelj and Brandes 2005). Edges are the
  * pairs (u, v), u < v, in row-major order; row u draws from its own stream, so the graph does not
- * depend on how the rows are split between workers.
+ * depend on how the rows are split between workers. With `directed: true`, the arcs (u, v) of
+ * every ordered pair u != v, by u then v ascending, each row from stream (seed, "gnp-directed", u).
  * @param options - n, p and seed
  * @returns the undirected graph
  */
@@ -48,21 +86,22 @@ export function erdosRenyiGraph(options: ErdosRenyiOptions): SampleGraph {
     const { n, p } = options;
     checkInt("n", n, 0);
     checkProbability("p", p);
-    checkSeed(options.seed);
-    const pairs = (n * (n - 1)) / 2;
+    resolveSeed(options.seed);
+    const directed = options.directed === true;
+    const pairs = (n * (n - 1)) / (directed ? 1 : 2);
     const out = binomialBuffer(pairs, p);
     erdosRenyiRows(options, 0, n, out);
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, directed), options);
 }
 
 /** Options of {@link erdosRenyiGnmGraph}. */
-export interface ErdosRenyiGnmOptions {
+export interface ErdosRenyiGnmOptions extends WeightOptions {
     /** The node count, >= 0. */
     n: number;
     /** The edge count, in [0, n (n - 1) / 2]. */
     m: number;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -114,7 +153,8 @@ class NumberSet {
  * @returns the undirected graph
  */
 export function erdosRenyiGnmGraph(options: ErdosRenyiGnmOptions): SampleGraph {
-    const { n, m, seed } = options;
+    const { n, m } = options;
+    const seed = resolveSeed(options.seed);
     // the pair indices must stay below 2^53 to be exact doubles
     checkInt("n", n, 0, 2 ** 27);
     const total = (n * (n - 1)) / 2;
@@ -144,5 +184,5 @@ export function erdosRenyiGnmGraph(options: ErdosRenyiGnmOptions): SampleGraph {
         }
         out.push(u, u + 1 + (index - rowStart));
     }
-    return toGraph(n, out, false);
+    return applyWeights(toGraph(n, out, false), options);
 }

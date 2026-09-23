@@ -5,17 +5,22 @@ import {
     balancedTreeGraph,
     barbellGraph,
     cavemanGraph,
+    circularLadderGraph,
     completeBipartiteGraph,
     completeGraph,
+    completeMultipartiteGraph,
     connectedCavemanGraph,
     cycleGraph,
+    emptyGraph,
     grid3dGraph,
     gridGraph,
     hypercubeGraph,
     ladderGraph,
     lollipopGraph,
+    mobiusLadderGraph,
     pathGraph,
     petersenGraph,
+    ringOfCliquesGraph,
     starGraph,
     wheelGraph,
 } from "../../src/generators/index.js";
@@ -240,5 +245,62 @@ describe("argument checks and snapshot loading", () => {
             expect(snapshot.nodeCount).toBe(g.nodeCount);
             expect(snapshot.edgeCount).toBe(g.src.length);
         }
+    });
+});
+
+describe("phase 2 classic families", () => {
+    it("emptyGraph has n isolated nodes", () => {
+        const g = emptyGraph({ n: 7 });
+        expect(g.nodeCount).toBe(7);
+        expect(g.src.length).toBe(0);
+        expect(emptyGraph({ n: 0 }).nodeCount).toBe(0);
+        expect(fromEdgeArrays(g).nodeCount).toBe(7);
+    });
+
+    it("completeMultipartiteGraph joins every pair of nodes in different parts", () => {
+        const g = completeMultipartiteGraph({ sizes: [2, 3, 1] });
+        expectSimple(g);
+        expect(g.nodeCount).toBe(6);
+        expect(g.src.length).toBe(2 * 3 + 2 * 1 + 3 * 1);
+        expect(Array.from(g.nodeColumns?.part as Uint32Array)).toEqual([0, 0, 1, 1, 1, 2]);
+        expect(pairs(g).slice(0, 3)).toEqual([
+            [0, 2],
+            [0, 3],
+            [0, 4],
+        ]);
+        expect(completeMultipartiteGraph({ sizes: [] }).nodeCount).toBe(0);
+        expect(() => completeMultipartiteGraph({ sizes: [2, -1] })).toThrow(RangeError);
+    });
+
+    it("circular and Moebius ladders are 3-regular with 3n edges", () => {
+        const circular = circularLadderGraph({ n: 6 });
+        const moebius = mobiusLadderGraph({ n: 6 });
+        for (const g of [circular, moebius]) {
+            expectSimple(g);
+            expect(g.nodeCount).toBe(12);
+            expect(g.src.length).toBe(18);
+            expect(degrees(g).every((d) => d === 3)).toBe(true);
+            expect(componentCount(g)).toBe(1);
+        }
+        // the Moebius ladder on 3 rungs is K_{3,3}
+        expect(mobiusLadderGraph({ n: 3 }).src.length).toBe(9);
+        expect(() => circularLadderGraph({ n: 2 })).toThrow(RangeError);
+        expect(() => mobiusLadderGraph({ n: 2 })).toThrow(RangeError);
+    });
+
+    it("ringOfCliquesGraph is networkx's ring_of_cliques with community labels", () => {
+        const g = ringOfCliquesGraph({ cliques: 4, size: 3 });
+        expectSimple(g);
+        expect(g.src.length).toBe(4 * 3 + 4);
+        expect(pairs(g).slice(0, 4)).toEqual([
+            [0, 1],
+            [0, 2],
+            [1, 2],
+            [1, 3],
+        ]);
+        expect(pairs(g).at(-1)).toEqual([10, 0]);
+        expect(componentCount(g)).toBe(1);
+        expect(Array.from(g.nodeColumns?.community as Uint32Array).slice(0, 4)).toEqual([0, 0, 0, 1]);
+        expect(() => ringOfCliquesGraph({ cliques: 1, size: 3 })).toThrow(RangeError);
     });
 });

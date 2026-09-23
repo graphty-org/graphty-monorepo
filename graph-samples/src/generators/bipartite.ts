@@ -5,12 +5,13 @@
 import { type U32 } from "@graphty/graph-format";
 
 import { detLog } from "../random/log.js";
-import { checkSeed, RandomStream } from "../random/stream.js";
+import { RandomStream, resolveSeed } from "../random/stream.js";
 import { type SampleGraph } from "../types.js";
 import { binomialBuffer, checkInt, checkProbability, type EdgeBuffer, toGraph } from "./util.js";
+import { applyWeights, type WeightOptions } from "./weights.js";
 
 /** Options of {@link randomBipartiteGraph}. */
-export interface RandomBipartiteOptions {
+export interface RandomBipartiteOptions extends WeightOptions {
     /** The left side's size, >= 0. */
     n1: number;
     /** The right side's size, >= 0. */
@@ -22,8 +23,8 @@ export interface RandomBipartiteOptions {
      * uniformly random permutation, so a perfect matching is guaranteed. Needs n1 === n2.
      */
     perfectMatching?: boolean | undefined;
-    /** The seed, an integer in [0, 2^53). */
-    seed: number;
+    /** The seed, an integer in [0, 2^53); default 0. */
+    seed?: number | undefined;
 }
 
 /**
@@ -65,7 +66,8 @@ export function bipartiteRows(
     end: number,
     out: EdgeBuffer,
 ): void {
-    const { n1, n2, p, seed } = options;
+    const { n1, n2, p } = options;
+    const seed = resolveSeed(options.seed);
     const logQ = detLog(1 - p);
     const stream = new RandomStream(seed, "bipartite", 0);
     for (let u = start; u < end; u++) {
@@ -105,12 +107,12 @@ export function bipartiteRows(
  * @returns the undirected graph
  */
 export function randomBipartiteGraph(options: RandomBipartiteOptions): SampleGraph {
-    const { n1, n2, p, seed } = options;
+    const { n1, n2, p } = options;
     checkInt("n1", n1, 0);
     checkInt("n2", n2, 0);
     checkInt("n1 + n2", n1 + n2, 0);
     checkProbability("p", p);
-    checkSeed(seed);
+    const seed = resolveSeed(options.seed);
     let match: U32 | null = null;
     if (options.perfectMatching === true) {
         if (n1 !== n2) {
@@ -121,5 +123,5 @@ export function randomBipartiteGraph(options: RandomBipartiteOptions): SampleGra
     const out = binomialBuffer(n1 * n2, p);
     bipartiteRows(options, match, 0, n1, out);
     const side = new Uint8Array(n1 + n2).fill(1, n1);
-    return toGraph(n1 + n2, out, false, { side });
+    return applyWeights(toGraph(n1 + n2, out, false, { side }), options);
 }

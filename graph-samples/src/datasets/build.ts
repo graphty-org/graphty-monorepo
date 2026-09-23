@@ -3,7 +3,7 @@
  * file is written in, and the one function that turns that form into a {@link SampleGraph}.
  */
 
-import { type ColumnInput, type U8 } from "@graphty/graph-format";
+import { type ColumnInput, type TypedArrayData } from "@graphty/graph-format";
 
 import { type SampleGraph } from "../types.js";
 
@@ -35,6 +35,15 @@ export interface DatasetMeta {
     readonly groundTruth: string | null;
     /** The algorithms and layouts it shows off. */
     readonly showcases: readonly string[];
+    /**
+     * Where the graph data lives: "bundled" (the subpath `@graphty/graph-samples/datasets/<name>`;
+     * the meaning when absent) or "remote" (on graphty.app, loaded with `fetchDataset(name)`).
+     */
+    readonly hosting?: "bundled" | "remote";
+    /** A remote dataset's download size: the bytes of its `.gsnp.gz` file. */
+    readonly bytes?: number;
+    /** A remote dataset's checksum: the SHA-256 of its `.gsnp.gz` file, lowercase hex. */
+    readonly sha256?: string;
 }
 
 /** A categorical column: codes into a list of category names. */
@@ -57,6 +66,18 @@ interface U8ColumnData {
     readonly values: readonly number[];
 }
 
+/** A number column, e.g. a latitude. */
+interface F64ColumnData {
+    readonly dtype: "f64";
+    readonly values: readonly number[];
+}
+
+/** An unsigned 32-bit integer column, e.g. a population. */
+interface U32ColumnData {
+    readonly dtype: "u32";
+    readonly values: readonly number[];
+}
+
 /** The compact form of a dataset, as scripts/convert-datasets.mjs writes it into data.ts. */
 export interface DatasetData {
     readonly directed: boolean;
@@ -66,7 +87,7 @@ export interface DatasetData {
     /** Flat edge endpoints: src0, dst0, src1, dst1, ... */
     readonly edges: readonly number[];
     readonly weights: readonly number[] | null;
-    readonly columns: Readonly<Record<string, DictColumnData | StringColumnData | U8ColumnData>>;
+    readonly columns: Readonly<Record<string, DictColumnData | StringColumnData | U8ColumnData | F64ColumnData | U32ColumnData>>;
 }
 
 /**
@@ -82,7 +103,7 @@ export function buildDataset(data: DatasetData): SampleGraph {
         src[e] = data.edges[2 * e];
         dst[e] = data.edges[2 * e + 1];
     }
-    const nodeColumns: Record<string, U8 | ColumnInput> = {};
+    const nodeColumns: Record<string, TypedArrayData | ColumnInput> = {};
     for (const [name, column] of Object.entries(data.columns)) {
         switch (column.dtype) {
             case "dict":
@@ -96,6 +117,12 @@ export function buildDataset(data: DatasetData): SampleGraph {
                 break;
             case "u8":
                 nodeColumns[name] = Uint8Array.from(column.values);
+                break;
+            case "u32":
+                nodeColumns[name] = Uint32Array.from(column.values);
+                break;
+            case "f64":
+                nodeColumns[name] = Float64Array.from(column.values);
                 break;
             default:
                 throw new TypeError(`unknown column dtype in dataset column "${name}"`);

@@ -30,22 +30,25 @@ Sections with superseded text, in order: 1.4 (D16), 2.4, 4.6, 6, 7.3, 7.7, 7.19,
 8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12 and T-13), 12.1, 12.2, 12.3, 12.6, 13 (the phase
 table), 14.1 (the risk register) and the Review log's applied-findings table.
 
-**Two things here are open and need the owner, not a lookup.** Both fall out of one decision --
-the GPU lane lost its nightly cron -- and neither is settled anywhere in the repository.
+**Two things here were open and are now decided**, both by
+`design/decisions/2026-09-23-what-stands-in-for-the-nightly-lane.md`. Both fell out of one
+earlier decision -- the GPU lane lost its nightly cron -- which left a gate nobody could meet and
+a measurement with nowhere to run. The nightly is not coming back; neither decision reintroduces
+a schedule trigger.
 
-1. **What replaces the dead clause in gate G12.** The gate on the final element-polish phase
-   requires "nightly GPU lane green for a week". There is no nightly lane, so no run exists that
-   could be green for a week and the gate cannot be met by anyone as written. To close it: either
-   a replacement clause naming the evidence that stands in -- the nearest thing the lane still
-   produces is some number of consecutive green `gpu.yml` runs on master -- or a decision that the
-   clause is dropped and G12 is its other two clauses. Full entry: section 13, row P12, gate G12.
+1. **The dead clause in gate G12.** The gate on the final element-polish phase required "nightly
+   GPU lane green for a week", and no nightly lane exists. It now asks for the GPU lane green on
+   three consecutive runs on master with the benchmark comparison included in each -- three
+   different commits rather than one commit judged seven times, and a comparison against the
+   pinned baseline rather than a bare pass, because a bare pass let a doubling of PageRank's cost
+   through in September while every suite stayed green. Full entry: section 13, row P12, gate G12.
 2. **Where the 1M exact-versus-grid comparison runs.** The 1M-node, 200-iteration comparison of
-   11.4 is deliberately excluded from the default CI lane on time budget and was sent to a nightly
-   benchmark job that no longer exists, so the largest size the grid tier is designed for is
-   currently measured nowhere and nothing fails to report it. To close it: name the lane, the
-   trigger and the budget it runs under. Nothing moved it to the GPU lane, so do not assume it is
-   there. Full entries: section 10.4 target T-12, section 14.1 risk row R-5, and the Review log's
-   row PERF-10.
+   11.4 is excluded from the default CI lane on time budget and was sent to a nightly benchmark
+   job that no longer exists. It now runs as a deliberate dispatch of `gpu.yml` that runs the
+   comparison instead of the suites, and it is required by the gate of any phase that changes the
+   grid tier, the exact tier or the crossover between them. Between phases nothing measures that
+   size; the record says so plainly rather than implying otherwise. Full entries: section 10.4
+   target T-12, section 14.1 risk row R-5, and the Review log's row PERF-10.
 
 The design also carries its own Review log (section "Review log", near the end), which records
 corrections made before this directory of decision records existed -- the GPU runner that was

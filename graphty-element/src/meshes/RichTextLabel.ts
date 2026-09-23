@@ -18,6 +18,9 @@ import { RichTextAnimator } from "./RichTextAnimator";
 import { RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 
+/** The Babylon rendering group every label is drawn in: after nodes and edges (group 0). */
+const LABEL_RENDERING_GROUP = 1;
+
 export type BadgeType =
     | "notification"
     | "label"
@@ -900,6 +903,11 @@ export class RichTextLabel {
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
+        // Text is drawn over the graph, never inside it. Nodes and edges are in rendering group
+        // 0; group 1 is drawn after it with the depth buffer cleared, so an edge or a node that
+        // sits nearer the camera than a label, a tooltip or an edge's text can no longer cut
+        // through the words. Labels still depth-test and sort against each other.
+        this.mesh.renderingGroupId = LABEL_RENDERING_GROUP;
     }
 
     private _attachToTarget(): void {

@@ -295,6 +295,17 @@ export interface RepaintEngine extends ElementPaint {
      * over a graph that is visibly, correctly painted.
      */
     invalidate(): void;
+    /**
+     * Forget which elements each layer was applied to, because the dense indices now name
+     * different elements.
+     *
+     * A DATASET BOUNDARY, and only that. The record is kept by index, so across a new snapshot
+     * index 1 is somebody else, and revisiting "what the old layer painted" would repaint the new
+     * elements that happen to sit at the old indices -- the whole new graph, for a layer that
+     * painted the whole old one. A run publishing does not renumber anything and must not call
+     * this: the record is what lets a removed run's layer take its paint back.
+     */
+    renumbered(): void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -679,10 +690,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * Keyed by the compiled layer for the reason {@link lastPreparedFrom} is, and weak so a layer
      * dropped from the stack takes its record with it.
      *
-     * Only ever set, never cleared, so it can over-report an element the layer stopped matching.
-     * That costs a repaint of an element that did not need one, never a wrong picture.
+     * Set by a pass and emptied only by {@link RepaintEngine.renumbered}, so within one index space
+     * it can over-report an element the layer stopped matching. That costs a repaint of an
+     * element that did not need one, never a wrong picture.
      */
-    const appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
+    let appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
 
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
@@ -1557,6 +1569,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // layer on top of a picture that is no longer current.
             stores.node.painted.fill(0);
             stores.edge.painted.fill(0);
+        },
+
+        renumbered(): void {
+            appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
         },
     };
 }

@@ -657,6 +657,15 @@ export class Graph implements GraphContext {
             // the wrong one. See `applyOpeningViewMode` for why this line is where it is.
             this.applyOpeningViewMode();
 
+            // The default layout is built in the constructor, before a consumer can have asked
+            // for 2D, so it was given a Z axis. An opening 2D is not a transition and never
+            // reaches the rebuild in `_setViewModeInternal`, so the engine is brought into line
+            // here, before any data reaches it. Without this every node keeps a Z the
+            // orthographic camera cannot show, and each flat 2D edge -- sized from the 3D
+            // distance -- runs past its nodes into empty space.
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- applyOpeningViewMode keeps twoD in step
+            await this.layoutManager.updateLayoutDimension(this.styles.config.graph.twoD);
+
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
             this.operationQueue.markCategoryCompleted("style-init");

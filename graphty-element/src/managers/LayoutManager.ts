@@ -73,6 +73,12 @@ export class LayoutManager implements Manager {
      */
     private preStepsOwed = false;
 
+    /**
+     * The dimension the running engine was built for, so a view mode that already matches it
+     * does not rebuild the layout. See {@link LayoutManager.updateLayoutDimension}.
+     */
+    private engineDimension?: 2 | 3;
+
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
     /**
@@ -197,6 +203,7 @@ export class LayoutManager implements Manager {
         // consumer configured it.
         const previousEngine = this.layoutEngine;
         const previousOptions = this.currentLayoutOptions;
+        const previousDimension = this.engineDimension;
 
         // THE CONSUMER'S OPTIONS, not the merged ones: a 2D/3D switch rebuilds the engine from
         // these, and the element re-derives the dimension options for the new mode itself.
@@ -210,6 +217,7 @@ export class LayoutManager implements Manager {
             engine.addEdges(edgeArray);
 
             this.layoutEngine = engine;
+            this.engineDimension = dimension;
             await engine.init();
 
             // AFTER init(), and before any step runs. See `replayPins`.
@@ -262,6 +270,7 @@ export class LayoutManager implements Manager {
             // Restore previous layout engine if initialization failed
             this.layoutEngine = previousEngine;
             this.currentLayoutOptions = previousOptions;
+            this.engineDimension = previousDimension;
             this.dataManager.setLayoutEngine(previousEngine);
 
             throw this.reportLayoutFailure(type, error, "initialised");
@@ -486,7 +495,8 @@ export class LayoutManager implements Manager {
      * @param twoD - Whether to use 2D mode
      */
     async updateLayoutDimension(twoD: boolean): Promise<void> {
-        if (!this.layoutEngine) {
+        // Already built for this dimension: rebuilding would only restart a settled layout.
+        if (!this.layoutEngine || this.engineDimension === (twoD ? 2 : 3)) {
             return;
         }
 

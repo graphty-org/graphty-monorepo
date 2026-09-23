@@ -861,13 +861,18 @@ export const TextOutline: Story = {
 };
 
 /**
- * A soft, half-transparent black shadow thrown down and to the right of the letters.
+ * A hard red shadow thrown down and to the right of black letters, on a white panel.
  *
- * READ AS HOW MUCH MID-GREY THE LABEL HOLDS, not as whether it holds any. A grey shadow under
- * black letters shares its colour with the antialiasing on their edges, so the mere presence of
- * grey is true of every label with or without a shadow -- which is exactly how a story comes to
- * pass while drawing nothing. The amount is what differs: pixels within 40 of #8C8C8C cover
- * 1.0%-2.0% of each label's texture with the shadow switched off, and 4.2%-6.1% with it on.
+ * RED SO THAT IT CAN BE SEEN. The 1.x story threw a soft, half-transparent black shadow three
+ * pixels down, which on black letters reads as a slightly heavier weight: in a side-by-side of two
+ * renderings nobody can say whether a shadow is there at all. An unblurred red copy of every
+ * letter eight pixels down and to the right is unmistakable, and its colour belongs to nothing
+ * else on the label, so it can be counted.
+ *
+ * COUNTED AS A SHARE OF THE LETTERS' OWN INK, so the reading does not depend on the font. The
+ * story leaves the typeface to the element (Verdana, which few machines have), and a heavier
+ * fallback font draws both more black and more red, so red over black stays put: the part of each
+ * letter's copy that the letter itself does not cover, roughly half to most of it at eight pixels.
  */
 export const TextShadow: Story = {
     args: {
@@ -875,13 +880,13 @@ export const TextShadow: Story = {
         setup: storySetup({
             node: {
                 "node.labelStyle": {
-                    background: "rgba(255, 255, 255, 0.9)",
+                    background: "#FFFFFF",
                     color: "#000000",
                     shadow: true,
-                    shadowColor: "rgba(0, 0, 0, 0.5)",
-                    shadowBlur: 4,
-                    shadowOffsetX: 3,
-                    shadowOffsetY: 3,
+                    shadowColor: "#FF3B30",
+                    shadowBlur: 0,
+                    shadowOffsetX: 8,
+                    shadowOffsetY: 8,
                 },
             },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -905,22 +910,27 @@ export const TextShadow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "TextShadow");
+        const black = new Map(labelGeometry(scene, "#000000").map((label) => [label.id, label.pixels]));
 
-        // A floor of 3% is 1.4x under the lowest shadowed label and 1.5x over the greyest
-        // unshadowed one. A label with no texture is a label that is not drawn, and reads as 0.
-        const faint = labelGeometry(scene, "#8C8C8C").filter(
-            (label) => label.pixels / Math.max(1, label.texture.width * label.texture.height) < 0.03,
-        );
+        // Red pixels per black one, measured per label across eight faces standing in for Verdana
+        // (Liberation Serif, Sans and Mono, DejaVu Serif, Sans Mono and Sans Bold, Z003 and the
+        // browser's own fallback): 0.47-0.86 as drawn, the low end from the bold face, whose thick
+        // strokes hide more of their own shadow. With the shadow switched off, or thrown at no
+        // offset so the letters cover it, there is no red at all. A floor of 0.25 is 1.9x under
+        // the lowest reading. It does not try to catch a shadow thrown too short: at a quarter of
+        // the offset the readings run 0.10-0.46 depending on the face, which overlaps.
+        const shadowed = (label: LabelGeometry): number => label.pixels / Math.max(1, black.get(label.id) ?? 0);
+        const bare = labelGeometry(scene, "#FF3B30").filter((label) => shadowed(label) < 0.25);
 
         await holds(
-            faint.length === 0,
-            `Styles/Label TextShadow: a blurred grey shadow is asked for and on ${String(faint.length)} labels ` +
-                `there is no more grey than the antialiasing on unshadowed letters -- ` +
-                `${faint
+            bare.length === 0,
+            `Styles/Label TextShadow: a red shadow is asked for under every label, and on ` +
+                `${String(bare.length)} labels there is little or no red beside the black letters -- ` +
+                `${bare
                     .map(
                         (label) =>
-                            `${label.id} has ${String(label.pixels)} grey pixels on its ` +
-                            `${String(label.texture.width)}x${String(label.texture.height)} texture`,
+                            `${label.id} has ${String(label.pixels)} red pixels to ` +
+                            `${String(black.get(label.id) ?? 0)} black`,
                     )
                     .join(", ")}`,
         );

@@ -497,17 +497,44 @@ export const ComplexMultiProperty: Story = {
 };
 
 /**
- * Two layers enabling labels on specific nodes.
- * Layer 1: primary nodes -> labels enabled showing node ID
- * Layer 2: node E -> label enabled showing "E" in RED color
+ * Two layers, each switching labels on for nodes the other does not touch.
+ *
+ * The first layer labels the two `primary` nodes, A at the top and C on the right, with their own
+ * ids in the element's default black. The second labels B, on the left, the same way and paints
+ * its words red. D and E are in neither layer and draw no label, so the picture reads as three
+ * labels -- two black from one layer, one red from the other -- and two bare nodes.
+ *
+ * WHY B AND NOT E. The 1.x story put the red label on E, which sits two units further from the
+ * camera than the other four nodes, in the middle of the picture. A label hangs above its node,
+ * so E's hung behind node A and across the arrow from E to A, and the nearer sphere and arrowhead
+ * hid most of it: what showed was a sliver of red cut off by A's sphere. That is correct depth
+ * sorting, not a rendering fault, but it left the layer's effect unreadable. B's label hangs in
+ * open space, the mirror of C's.
  */
 export const LabelEnabledLayers: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered LabelEnabledLayers");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
         await assertLayerPainted(scene, "nodes where data.type == 'primary'", { nodes: 2 });
-        await assertLayerPainted(scene, "nodes where data.id == 'E'", { nodes: 1 });
-        await assertLabelsDrawn(scene, { ids: ["A", "C", "E"] });
+        await assertLayerPainted(scene, "nodes where data.id == 'B'", { nodes: 1 });
+        await assertLabelsDrawn(scene, { ids: ["A", "B", "C"] });
+
+        // Each label's most-used colour is its lettering, since these labels have no panel. Only
+        // B's may be red: a red A or C means the second layer leaked past its selector, and a
+        // black B means its colour never landed.
+        const red = (hex: string | undefined): boolean =>
+            hex !== undefined &&
+            Number.parseInt(hex.slice(1, 3), 16) > 200 &&
+            Number.parseInt(hex.slice(3, 5), 16) < 60 &&
+            Number.parseInt(hex.slice(5, 7), 16) < 60;
+        const wrong = scene.nodes
+            .filter((node) => node.hasLabelMesh && red(node.labelColours[0]) !== (node.id === "B"))
+            .map((node) => `${node.id} is lettered ${node.labelColours[0] ?? "in nothing"}`);
+
+        await holds(
+            wrong.length === 0,
+            `Styles/Layered LabelEnabledLayers: only B's label is asked to be red, and ${wrong.join(", ")}`,
+        );
         await assertDistinctPicture(scene, "Styles/Layered");
     },
     args: {
@@ -520,9 +547,9 @@ export const LabelEnabledLayers: Story = {
                     encode: { "node.label": { by: "data.id", scale: "passthrough" } },
                 },
                 {
-                    name: "nodes where data.id == 'E'",
+                    name: "nodes where data.id == 'B'",
                     target: "node",
-                    selector: { match: "expression", where: "data.id == 'E'" },
+                    selector: { match: "expression", where: "data.id == 'B'" },
                     set: { "node.labelStyle": { color: "red" } },
                     encode: { "node.label": { by: "data.id", scale: "passthrough" } },
                 },

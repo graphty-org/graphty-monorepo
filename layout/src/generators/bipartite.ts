@@ -1,11 +1,20 @@
 /**
- * Bipartite graph generation function
+ * Bipartite graph generation function: a deprecated alias of @graphty/graph-samples/generators.
  */
 
-import { Edge,Graph, Node } from "../types";
+import { randomBipartiteGraph } from "@graphty/graph-samples/generators";
+
+import { type Graph, type Node } from "../types";
+import { sampleCount, sampleProbability, sampleSeed, toLayoutGraph } from "./sample";
 
 /**
- * Create a bipartite graph with two sets of nodes
+ * Create a bipartite graph with two sets of nodes, "A0" .. and "B0" .., each A-B pair joined with
+ * probability p; edges run from set A to set B, row by row. Seeds behave as in `randomGraph`: the
+ * same seed gives the same graph, no seed a different graph per call, and a negative, fractional or
+ * non-finite seed maps to a valid one. p is clamped to [0, 1].
+ * @deprecated Use `randomBipartiteGraph({ n1, n2, p, seed })` from
+ * `@graphty/graph-samples/generators` (node i there is "A" + i below n1, else "B" + (i - n1));
+ * removed in layout's next major.
  * @param n1 - Number of nodes in first set
  * @param n2 - Number of nodes in second set
  * @param p - Probability of edge between nodes in different sets
@@ -18,34 +27,11 @@ export function bipartiteGraph(
     p: number,
     seed?: number,
 ): Graph & { setA: Node[]; setB: Node[] } {
-    const setA: Node[] = Array.from({ length: n1 }, (_, i) => `A${i}`);
-    const setB: Node[] = Array.from({ length: n2 }, (_, i) => `B${i}`);
-    const nodes = [...setA, ...setB];
-    const edges: Edge[] = [];
-
-    // Simple deterministic pseudo-random if seed provided
-    let currentSeed = seed;
-    const random =
-        seed !== undefined
-            ? () => {
-                  currentSeed = ((currentSeed as number) * 9301 + 49297) % 233280;
-                  return currentSeed / 233280;
-              }
-            : Math.random;
-
-    // Only connect nodes between sets
-    for (const a of setA) {
-        for (const b of setB) {
-            if (random() < p) {
-                edges.push([a, b]);
-            }
-        }
-    }
-
-    return {
-        nodes: () => nodes,
-        edges: () => edges,
-        setA,
-        setB,
-    };
+    const a = sampleCount(n1);
+    const graph = toLayoutGraph(
+        randomBipartiteGraph({ n1: a, n2: sampleCount(n2), p: sampleProbability(p), seed: sampleSeed(seed) }),
+        (i) => (i < a ? `A${i}` : `B${i - a}`),
+    );
+    const nodes = graph.nodes();
+    return { ...graph, setA: nodes.slice(0, a), setB: nodes.slice(a) };
 }

@@ -1,73 +1,32 @@
 /**
- * Scale-free graph generation function
+ * Scale-free graph generation function: a deprecated alias of @graphty/graph-samples/generators.
  */
 
-import { Edge,Graph, Node } from "../types";
+import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
+
+import { type Graph } from "../types";
+import { listGraph, sampleCount, sampleSeed, toLayoutGraph } from "./sample";
 
 /**
- * Create a scale-free graph using Barabási-Albert model
+ * Create a scale-free graph using the Barabasi-Albert model of graph-samples: m isolated seed
+ * nodes, then each new node joins m distinct existing nodes by preferential attachment, giving
+ * (n - m) * m edges. Seeds behave as in `randomGraph`. m = 0 gives n isolated nodes.
+ * @deprecated Use `barabasiAlbertGraph({ n, m, seed })` from `@graphty/graph-samples/generators`;
+ * removed in layout's next major.
  * @param n - Total number of nodes
  * @param m - Number of edges to attach from new node
  * @param seed - Random seed for reproducibility
  * @returns Graph object with scale-free properties
+ * @throws Error when m >= n
  */
 export function scaleFreeGraph(n: number, m: number, seed?: number): Graph {
     if (m >= n) {
         throw new Error("m must be less than n");
     }
-
-    const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
-    const edges: Edge[] = [];
-    const degrees = new Array(n).fill(0);
-
-    // Simple deterministic pseudo-random if seed provided
-    let currentSeed = seed;
-    const random =
-        seed !== undefined
-            ? () => {
-                  currentSeed = ((currentSeed as number) * 9301 + 49297) % 233280;
-                  return currentSeed / 233280;
-              }
-            : Math.random;
-
-    // Start with complete graph of m+1 nodes
-    for (let i = 0; i <= m; i++) {
-        for (let j = i + 1; j <= m; j++) {
-            edges.push([i, j]);
-            degrees[i]++;
-            degrees[j]++;
-        }
+    const size = sampleCount(n);
+    const edgesPerNode = sampleCount(m);
+    if (edgesPerNode === 0) {
+        return listGraph(Array.from({ length: size }, (_, i) => i), []);
     }
-
-    // Add remaining nodes
-    for (let i = m + 1; i < n; i++) {
-        const targets = new Set<number>();
-        const totalDegree = degrees.reduce((sum: number, d: number) => sum + d, 0);
-
-        // Choose m targets based on preferential attachment
-        while (targets.size < m) {
-            const r = random() * totalDegree;
-            let cumSum = 0;
-
-            for (let j = 0; j < i; j++) {
-                cumSum += degrees[j] as number;
-                if (r <= cumSum && !targets.has(j)) {
-                    targets.add(j);
-                    break;
-                }
-            }
-        }
-
-        // Add edges to targets
-        for (const target of targets) {
-            edges.push([i, target]);
-            degrees[i]++;
-            degrees[target]++;
-        }
-    }
-
-    return {
-        nodes: () => nodes,
-        edges: () => edges,
-    };
+    return toLayoutGraph(barabasiAlbertGraph({ n: size, m: edgesPerNode, seed: sampleSeed(seed) }));
 }

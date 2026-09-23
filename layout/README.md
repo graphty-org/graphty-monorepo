@@ -32,7 +32,9 @@ The library offers various graph layout algorithms, including:
 
 Additionally, the library includes:
 
-**Graph Generators** for creating common graph types:
+**Graph Generators** for creating common graph types. These are deprecated aliases of
+[`@graphty/graph-samples/generators`](../graph-samples/README.md), which returns typed arrays and
+has many more families; they will be removed in layout's next major version:
 
 - **Complete Graph** - All nodes connected to each other
 - **Cycle Graph** - Nodes connected in a circular path

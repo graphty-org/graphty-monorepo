@@ -725,6 +725,9 @@ importers:
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
+      '@graphty/graph-samples':
+        specifier: workspace:^
+        version: link:../graph-samples
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^4.0.0

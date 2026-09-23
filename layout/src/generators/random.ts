@@ -1,40 +1,27 @@
 /**
- * Random graph generation function
+ * Random graph generation function: a deprecated alias of @graphty/graph-samples/generators.
  */
 
-import { Edge,Graph, Node } from "../types";
+import { erdosRenyiGraph } from "@graphty/graph-samples/generators";
+
+import { type Graph } from "../types";
+import { sampleCount, sampleProbability, sampleSeed, toLayoutGraph } from "./sample";
 
 /**
- * Create a random graph with n nodes and given edge probability
+ * Create a random graph with n nodes and given edge probability: the Erdos-Renyi G(n, p) of
+ * graph-samples, edges (i, j) with i < j in row order. The same seed gives the same graph on every
+ * platform. Without a seed each call draws one from Math.random, so each call gives a different
+ * graph; a negative, fractional or oversized seed maps to |trunc(seed)| mod 2^53, a non-finite one
+ * to 0. p is clamped to [0, 1].
+ * @deprecated Use `erdosRenyiGraph({ n, p, seed })` from `@graphty/graph-samples/generators`;
+ * removed in layout's next major.
  * @param n - Number of nodes
  * @param p - Probability of edge between any two nodes (0-1)
  * @param seed - Random seed for reproducibility
  * @returns Graph object with random edges
  */
 export function randomGraph(n: number, p: number, seed?: number): Graph {
-    const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
-    const edges: Edge[] = [];
-
-    // Simple deterministic pseudo-random if seed provided
-    let currentSeed = seed;
-    const random =
-        seed !== undefined
-            ? () => {
-                  currentSeed = ((currentSeed as number) * 9301 + 49297) % 233280;
-                  return currentSeed / 233280;
-              }
-            : Math.random;
-
-    for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) {
-            if (random() < p) {
-                edges.push([i, j]);
-            }
-        }
-    }
-
-    return {
-        nodes: () => nodes,
-        edges: () => edges,
-    };
+    return toLayoutGraph(
+        erdosRenyiGraph({ n: sampleCount(n), p: sampleProbability(p), seed: sampleSeed(seed) }),
+    );
 }

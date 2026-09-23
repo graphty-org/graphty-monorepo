@@ -93,6 +93,15 @@ describe("Graph Generators", () => {
             assert.equal(g4.nodes().length, 4);
             assert.equal(g4.edges().length, 4);
         });
+
+        it("should keep the old edges below three nodes", () => {
+            assert.deepEqual(cycleGraph(0).edges(), []);
+            assert.deepEqual(cycleGraph(1).edges(), [[0, 0]]);
+            assert.deepEqual(cycleGraph(2).edges(), [
+                [0, 1],
+                [1, 0],
+            ]);
+        });
     });
 
     describe("starGraph", () => {
@@ -134,6 +143,11 @@ describe("Graph Generators", () => {
             const g2 = starGraph(2);
             assert.equal(g2.nodes().length, 2);
             assert.equal(g2.edges().length, 1);
+
+            // No nodes
+            const g0 = starGraph(0);
+            assert.equal(g0.nodes().length, 0);
+            assert.equal(g0.edges().length, 0);
         });
     });
 
@@ -164,6 +178,18 @@ describe("Graph Generators", () => {
             const g4 = wheelGraph(4);
             assert.equal(g4.nodes().length, 4);
             assert.equal(g4.edges().length, 6);
+        });
+
+        it("should keep the old edges below four nodes", () => {
+            assert.deepEqual(wheelGraph(0).edges(), []);
+            assert.deepEqual(wheelGraph(1).edges(), []);
+            assert.deepEqual(wheelGraph(2).edges(), [[0, 1]]);
+            assert.deepEqual(wheelGraph(3).edges(), [
+                [0, 1],
+                [0, 2],
+                [1, 2],
+                [2, 1],
+            ]);
         });
     });
 
@@ -213,6 +239,19 @@ describe("Graph Generators", () => {
             const vline = gridGraph(5, 1);
             assert.equal(vline.nodes().length, 5);
             assert.equal(vline.edges().length, 4);
+
+            // Empty grids
+            assert.equal(gridGraph(0, 4).nodes().length, 0);
+            assert.equal(gridGraph(3, 0).edges().length, 0);
+        });
+
+        it("should list each node's right edge, then its down edge", () => {
+            assert.deepEqual(gridGraph(2, 2).edges(), [
+                ["0,0", "0,1"],
+                ["0,0", "1,0"],
+                ["0,1", "1,1"],
+                ["1,0", "1,1"],
+            ]);
         });
     });
 
@@ -262,8 +301,33 @@ describe("Graph Generators", () => {
             const g1 = randomGraph(15, 0.5, 123);
             const g2 = randomGraph(15, 0.5, 456);
 
-            // Very unlikely to have same edge count
-            assert.notEqual(g1.edges().length, g2.edges().length);
+            assert.notDeepEqual(g1.edges(), g2.edges());
+        });
+
+        it("should produce a different graph on each unseeded call", () => {
+            assert.notDeepEqual(randomGraph(30, 0.5).edges(), randomGraph(30, 0.5).edges());
+        });
+
+        it("should produce a simple graph with ascending pairs", () => {
+            const edges = randomGraph(40, 0.3, 7).edges();
+            const seen = new Set<string>();
+            edges.forEach(([u, v]) => {
+                assert.isBelow(u as number, v as number);
+                seen.add(`${u},${v}`);
+            });
+            assert.equal(seen.size, edges.length);
+        });
+
+        it("should map a negative or fractional seed to a valid one", () => {
+            const expected = randomGraph(20, 0.4, 7).edges();
+            assert.deepEqual(randomGraph(20, 0.4, -7).edges(), expected);
+            assert.deepEqual(randomGraph(20, 0.4, 7.9).edges(), expected);
+            assert.deepEqual(randomGraph(20, 0.4, Number.NaN).edges(), randomGraph(20, 0.4, 0).edges());
+        });
+
+        it("should clamp a probability outside [0, 1] as before", () => {
+            assert.equal(randomGraph(6, -0.5, 1).edges().length, 0);
+            assert.equal(randomGraph(6, 1.5, 1).edges().length, 15);
         });
     });
 
@@ -321,6 +385,18 @@ describe("Graph Generators", () => {
 
             assert.deepEqual(edges1, edges2);
         });
+
+        it("should list edges from set A to set B", () => {
+            const graph = bipartiteGraph(6, 5, 0.5, 3);
+            graph.edges().forEach(([a, b]) => {
+                assert.isTrue(graph.setA.includes(a));
+                assert.isTrue(graph.setB.includes(b));
+            });
+        });
+
+        it("should produce a different graph on each unseeded call", () => {
+            assert.notDeepEqual(bipartiteGraph(10, 10, 0.5).edges(), bipartiteGraph(10, 10, 0.5).edges());
+        });
     });
 
     describe("scaleFreeGraph", () => {
@@ -332,14 +408,23 @@ describe("Graph Generators", () => {
             assert.isAtLeast(graph.edges().length, 35); // Initial complete graph + added edges
         });
 
-        it("should start with complete graph of m+1 nodes", () => {
+        it("should add m distinct edges for every node after the first m", () => {
             const graph = scaleFreeGraph(10, 3, 123);
             const edges = graph.edges();
 
-            // First 4 nodes (0,1,2,3) should form complete graph
-            const initialEdges = edges.filter((e) => e[0] <= 3 && e[1] <= 3);
+            // Barabasi-Albert from m isolated seed nodes: (n - m) * m edges, no loops, no repeats
+            assert.equal(edges.length, 21);
+            const seen = new Set(edges.map(([u, v]) => `${Math.min(u as number, v as number)},${Math.max(u as number, v as number)}`));
+            assert.equal(seen.size, edges.length);
+            edges.forEach(([u, v]) => {
+                assert.notEqual(u, v);
+            });
+        });
 
-            assert.equal(initialEdges.length, 6); // 4*3/2
+        it("should create no edges when m is 0", () => {
+            const graph = scaleFreeGraph(5, 0, 1);
+            assert.equal(graph.nodes().length, 5);
+            assert.equal(graph.edges().length, 0);
         });
 
         it("should throw error if m >= n", () => {

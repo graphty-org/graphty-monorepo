@@ -86,7 +86,17 @@ jobs:
             # own code, and on a non-zero exit or 90 seconds of silence prints the test files that started but never
             # reported, the process table and a Node diagnostic report per surviving process (G4-F14)
             - run: node scripts/run-node-shard.js --project=node --project=node-limits
-            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node # the whole node project on the twins
+            # The files that break a device on purpose, in an invocation of their own so a worker they kill takes
+            # eleven files with it instead of the whole lane. Its own invocation is also what makes it run one file
+            # at a time: vitest reads fileParallelism from the ROOT config, so a run that selects this project
+            # together with another would serialise that one too.
+            - run: node scripts/run-node-shard.js --project=node-device-errors
+            # The twin pass, in two invocations because the device-error files are their own project now.
+            # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
+            # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
+            # where a missing-subgroup code path is most likely to behave differently.
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
             - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4

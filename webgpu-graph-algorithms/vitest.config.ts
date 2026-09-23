@@ -29,16 +29,23 @@ export const BROWSER_FLAGS = Object.freeze({
     // The host lane on macOS (hosts.yml): Dawn's Metal backend when headless Chromium reaches the VM's device (the
     // blocklist ignored), SwiftShader otherwise -- the tests accept either under this set; WebKit takes no flags.
     metal: Object.freeze(["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--use-angle=metal"]),
-    // The host lane on Windows (hosts.yml): Dawn's D3D12 backend on WARP, Microsoft's software rasterizer. Only the
-    // FULL Chromium build grants it (BROWSER_CHANNEL below); Playwright's headless shell returns no adapter under any
-    // flag set on windows-latest, and an ANGLE override (--use-angle=swiftshader) hides WARP even in the full build.
+    // The host lane on Windows (hosts.yml): Dawn's D3D12 backend on WARP, Microsoft's software rasterizer. Under THIS
+    // set only the full Chromium build grants it (BROWSER_CHANNEL below); Playwright's headless shell returns no
+    // adapter on windows-latest under this set or any other set this config uses, and an ANGLE override
+    // (--use-angle=swiftshader) hides WARP even in the full build. The headless shell is not categorically
+    // WebGPU-less there: it reaches WARP under --enable-unsafe-webgpu --ignore-gpu-blocklist --use-angle=metal,
+    // a set nothing here uses (run 35553291152).
     warp: Object.freeze(["--enable-unsafe-webgpu", "--ignore-gpu-blocklist"]),
 });
 
 /**
  * The Playwright channel per flag set: undefined selects Playwright's default headless shell; "chromium" the full
- * Chromium build in its new headless mode, the only one that exposes WebGPU on windows-latest (measured by
- * scripts/probe-browser-flags.mjs, hosts.yml run 35129487903).
+ * Chromium build in its new headless mode, the only one that exposes WebGPU on windows-latest under the flag sets
+ * above (measured by scripts/probe-browser-flags.mjs. Run 35129487903 measured it on 2026-09-16 and no longer exists
+ * on GitHub; hosts.yml run 35553291152 (2026-09-21) shows the same: its probe step reports a null adapter for the
+ * headless shell under every set this config uses -- the `warp` set included, under all three option shapes -- and
+ * vendor `microsoft` / architecture `warp` for the full build under that same set. The headless shell does reach
+ * WARP in that run, but only under the probe's `metal-angle+ignore-blocklist` set, which nothing here uses).
  */
 const BROWSER_CHANNEL: Readonly<Partial<Record<keyof typeof BROWSER_FLAGS, "chromium">>> = Object.freeze({
     warp: "chromium",
@@ -100,6 +107,46 @@ const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_
 /** A coverage run on a runner, where the report is an upload rather than something a person opens. */
 const coverageOnRunner = coverageRun && process.env.CI === "true";
 const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;
+
+/**
+ * The test files that put a device into an error state on purpose: an uncaptured validation error, an error scope
+ * around a bad bind group or a bad pipeline, an out-of-memory scope, or a `device.destroy()` while work is in
+ * flight. They are the `node-device-errors` project below, and the `node` project excludes them, so each list is
+ * written once here.
+ *
+ * What each one does, from its own code (the labels are the ones Dawn prints):
+ *   device/acquire.test.ts       an `it.fails` case leaves an uncaptured validation error for the setup's hook
+ *   device/context.test.ts       three broken bind groups (sink-ctx, slot-ctx, hook) and a device.destroy() mid-life
+ *   device/error-scope.test.ts   broken bind groups inside validation scopes; an out-of-memory scope left on a device
+ *   device/lost.test.ts          broken bind groups on raw devices, then device.destroy() under a pending read and
+ *                                mid-batch
+ *   kernel/batch.test.ts         a wrong-usage buffer reaches the pending-error slot
+ *   kernel/kernel.test.ts        a wrong-size uniform binding reaches the pending-error slot
+ *   kernel/pipeline-cache.test.ts  a WGSL body Tint rejects, and an oversized workgroup the pipeline rejects
+ *   layouts/{fa2,fr,grid}-lifecycle.test.ts, layouts/force-simulation.test.ts
+ *                                device.destroy() under a running simulation
+ */
+const DEVICE_ERROR_TESTS: readonly string[] = [
+    "test/device/acquire.test.ts",
+    "test/device/context.test.ts",
+    "test/device/error-scope.test.ts",
+    "test/device/lost.test.ts",
+    "test/kernel/batch.test.ts",
+    "test/kernel/kernel.test.ts",
+    "test/kernel/pipeline-cache.test.ts",
+    "test/layouts/fa2-lifecycle.test.ts",
+    "test/layouts/force-simulation.test.ts",
+    "test/layouts/fr-lifecycle.test.ts",
+    "test/layouts/grid-lifecycle.test.ts",
+];
+
+/**
+ * Whether this run selected the device-error project. It then runs ONE FILE AT A TIME: `fileParallelism` is one of
+ * vitest's NonProjectOptions (like the `maxWorkers` of nodeForks below), so a project that sets it is ignored and the
+ * root is the only place it takes effect. Selecting the project together with another one makes the WHOLE run
+ * serial, which is why the lanes give it an invocation of its own.
+ */
+const deviceErrorRun = projects.includes("node-device-errors");
 
 /**
  * The browser-side benchmark bridge (spec 11.6 item 8, 11.7): a browser test cannot write files, so it calls
@@ -174,39 +221,34 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
 }
 
 /**
- * The fork count of the two node projects: one core is left to the main process. Every fork runs Dawn and the
- * adapter's own threads, and a saturated main process misses a worker's 60 s `onTaskUpdate` RPC deadline, which
- * vitest reports as an unhandled error and an exit code 1 with every test green (docs/decisions/G5.md finding
- * G5-F2: the 32-core dev box under `--coverage`; then the 4-core T4 lane on 2026-09-21, run 35547623119, three
- * timeouts without coverage). `--maxWorkers=<n>` on the command line still overrides it.
+ * The fork count of the node projects, set at the ROOT below: one core is left to the main process, and a coverage
+ * run on a machine with eight cores or fewer gets 2 forks instead, because v8 coverage roughly doubles a worker's
+ * processor and memory cost (G5-F2 measured 515 s of summed case time without coverage against 1,048 s with).
+ * `--maxWorkers=<n>` on the command line still overrides it.
  *
- * A coverage run on a machine with eight cores or fewer gets 2 forks instead. Three forks, each holding a Dawn
- * device over Mesa's software rasteriser, with v8 coverage on top, killed a worker outright on the four-core
- * continuous integration runner: the pool reported `ERR_IPC_CHANNEL_CLOSED` after 56 files on one run and after 61
- * on the next, each time in a different suite, which is a process dying under load rather than a test failing.
- * Coverage is what makes the difference -- it roughly doubles a worker's processor and memory cost (G5-F2 measured
- * 515 s of summed case time without it against 1,048 s with) -- so the GPU lane, which runs the same projects on a
- * four-core runner WITHOUT coverage and needs every one of its eighteen minutes, keeps three.
+ * It APPLIES for the first time here. It used to be written inside each node project, where vitest drops it:
+ * `maxWorkers` is one of the NonProjectOptions (`vitest/dist/chunks/reporters.d.*.d.ts` line 2347, the same list
+ * that holds `fileParallelism`), so a project that sets it is ignored without a warning and the pool takes its own
+ * default of `availableParallelism() - 1`. The hang report of CI run 35788215777 shows that default: three forks
+ * (`node (vitest 1)` .. `node (vitest 3)`) on the four-core runner under `--coverage`, where this asks for two.
+ * Measured on the dev box, the whole node project on four pinned cores with coverage: three forks before the move,
+ * two after.
+ *
+ * It is a load default and nothing more. The `onTaskUpdate` RPC timeouts it was first reached for turned out to be
+ * a worker blocking its own event loop in synchronous oracle work, which the tests now yield out of (G5-F2's
+ * resolution), and the shard's aborts were one test file's native memory and crash (G4-F13, G4-F18).
  */
-/**
- * How long vitest waits for a worker to close, against its default of ten seconds. A worker's teardown destroys
- * every context and raw device it acquired and drains the pipeline-key log, which on a four-core runner over Mesa's
- * software rasteriser outlasts that default: vitest then terminates the worker, the pool's next message to it
- * rejects with ERR_IPC_CHANNEL_CLOSED, and the run exits 1 with every test green. The continuous integration shard
- * did that five times on the P4 branch -- twice mid-run, three times after all 120 files had passed (runs
- * 35668273734, 35670726138, 35673182975, 35676832166, 35681073818).
- */
-const TEARDOWN_TIMEOUT = 120_000;
-
 const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1);
 
 export default defineConfig({
     test: {
-        // Root, not per project: vitest lists teardownTimeout among its NonProjectOptions, so a project that
-        // sets it is silently ignored (measured: the shard failed the same way with it set on both node projects).
-        teardownTimeout: TEARDOWN_TIMEOUT,
-        // verbose prints a line per test: useful locally, needless noise in CI (and 6fc56c1b: the nx -> npm ->
-        // vitest pipe chain starved the worker RPC behind it in the sibling packages)
+        // Root, not per project: vitest lists maxWorkers among its NonProjectOptions, so a project that sets it
+        // is silently ignored (see nodeForks above). It applies to every project, and the node ones are the only
+        // ones it binds: the browser project runs its files one at a time through browser.fileParallelism.
+        maxWorkers: nodeForks,
+        // Root, not per project, for the same reason: one file at a time for the device-error run (see below).
+        fileParallelism: deviceErrorRun ? false : undefined,
+        // verbose prints a line per test: useful locally, needless noise in CI
         reporters: process.env.CI ? ["default"] : ["verbose"],
         coverage: {
             all: true,
@@ -232,14 +274,35 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    maxWorkers: nodeForks,
                     testTimeout: 30_000,
                     hookTimeout: 60_000,
                     include: [
                         "test/*.test.ts",
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
                     ],
-                    exclude: ["test/limits/**", "test/browser/**"],
+                    // The device-error files run as their own project below, never here: nothing runs twice.
+                    exclude: ["test/limits/**", "test/browser/**", ...DEVICE_ERROR_TESTS],
+                    setupFiles: ["test/setup/gpu.ts"],
+                    globalSetup: ["test/setup/global.ts"],
+                },
+            },
+            {
+                test: {
+                    // The files that break a device on purpose (DEVICE_ERROR_TESTS above), one file at a time, in
+                    // the `node` project's environment. It does NOT stop a worker dying: the graphics lane's abort
+                    // on 2026-09-23 came three seconds after this set's last four validation errors, and nothing
+                    // here changes what the driver does. What it changes is the blast radius. A worker that dies
+                    // here takes eleven files with it instead of the hundred and ten that were running beside it,
+                    // the `node` project still reports and still writes its coverage, and the file that died is the
+                    // one the run was on -- which is the whole of the diagnosis, since a dead worker leaves only
+                    // "Channel closed" with no file name (G4-F14).
+                    name: "node-device-errors",
+                    globals: true,
+                    environment: "node",
+                    pool: "forks",
+                    testTimeout: 30_000,
+                    hookTimeout: 60_000,
+                    include: [...DEVICE_ERROR_TESTS],
                     setupFiles: ["test/setup/gpu.ts"],
                     globalSetup: ["test/setup/global.ts"],
                 },
@@ -250,7 +313,6 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    maxWorkers: nodeForks,
                     testTimeout: 600_000,
                     hookTimeout: 120_000,
                     include: ["test/limits/**/*.test.ts"],

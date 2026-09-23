@@ -66,6 +66,9 @@ export default defineConfig({
                 test: {
                     name: "default",
                     setupFiles: ["./test/setup.ts"],
+                    // The shared config's figure. Tests that import a whole entry point take several
+                    // seconds on a CI runner or under the pre-push gate, past vitest's default five.
+                    testTimeout: 30000,
                     include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
                         // Timing benchmarks, which run as their own project -- see "bench" above.

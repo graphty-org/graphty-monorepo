@@ -131,9 +131,7 @@ function importGraph(entry: string): Reached[] {
     return [...reached.entries()].map(([specifier, importer]) => ({ specifier, chain: chainTo(importer) }));
 }
 
-// Each case compiles its entry's whole import graph, which takes about seven seconds on a CI
-// runner -- past the default five.
-describe("the Node-safe entry points", { timeout: 30_000 }, () => {
+describe("the Node-safe entry points", () => {
     it.each(NODE_SAFE_ENTRIES)("%s reaches no renderer, no component framework and no LLM runtime", (entry) => {
         const offenders = importGraph(entry).filter((found) => FORBIDDEN.some((pattern) => pattern.test(found.specifier)));
 

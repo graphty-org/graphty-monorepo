@@ -1,35 +1,11 @@
+// Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
+// A stand-in element must never be registered under the tag: whichever story file loads first
+// would own it, and the real element would then find its name taken.
+import "@graphty/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { Graphty } from "../components/Graphty";
-
-// Mock the graphty-element module for Storybook
-if (typeof window !== "undefined" && !window.customElements.get("graphty-element")) {
-    class MockGraphtyElement extends HTMLElement {
-        connectedCallback(): void {
-            this.innerHTML = `<div style="
-                width: 100%;
-                height: 100%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: #f0f0f0;
-                border: 2px dashed #ccc;
-                color: #666;
-                font-family: system-ui;
-            ">
-                <div style="text-align: center;">
-                    <h3 style="margin: 0 0 1rem 0;">Graphty Element Mock</h3>
-                    <p style="margin: 0;">Layout: ${this.getAttribute("layout") ?? "default"}</p>
-                    <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; opacity: 0.7;">
-                        (graphty-element will be loaded from @graphty/graphty-element)
-                    </p>
-                </div>
-            </div>`;
-        }
-    }
-
-    window.customElements.define("graphty-element", MockGraphtyElement);
-}
 
 const meta: Meta<typeof Graphty> = {
     title: "Components/Graphty",

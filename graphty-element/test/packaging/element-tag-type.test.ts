@@ -22,8 +22,8 @@
  *   be read by `tsc --noEmit`, which `npm run lint` runs over this directory: if the tag stops
  *   resolving to `Graphty`, or resolves to something that has lost a property, this file stops
  *   compiling and the lint gate is red. This is the half that catches a regression in the SHAPE.
- * - The parse below reads `src/graphty-element.ts` and requires the tag the `@customElement`
- *   decorator registers to be exactly the tag the global declaration names. This is the half that
+ * - The parse below reads `src/graphty-element.ts` and requires the tag the `customElements.define`
+ *   call registers to be exactly the tag the global declaration names. This is the half that
  *   catches a regression in the WIRING -- a renamed tag, or a declaration deleted as unused -- and
  *   it runs in the ordinary test run rather than only under the type checker.
  *
@@ -113,7 +113,7 @@ const TAG_TYPE_ASSERTIONS: TagTypeAssertions = [true, true, true];
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The tag name the `@customElement` decorator registers, read out of the source.
+ * The tag name the `customElements.define` call registers, read out of the source.
  * @param source - The parsed element source file.
  * @returns Every tag registered in the file.
  */
@@ -123,9 +123,11 @@ function registeredTags(source: ts.SourceFile): string[] {
     const visit = (node: ts.Node): void => {
         if (
             ts.isCallExpression(node) &&
-            ts.isIdentifier(node.expression) &&
-            node.expression.text === "customElement" &&
-            node.arguments.length === 1 &&
+            ts.isPropertyAccessExpression(node.expression) &&
+            ts.isIdentifier(node.expression.expression) &&
+            node.expression.expression.text === "customElements" &&
+            node.expression.name.text === "define" &&
+            node.arguments.length === 2 &&
             ts.isStringLiteral(node.arguments[0])
         ) {
             tags.push(node.arguments[0].text);

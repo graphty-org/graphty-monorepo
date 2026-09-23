@@ -1,6 +1,6 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import { LitElement } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
 import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
@@ -30,7 +30,6 @@ const RUN_PROGRESS_INTERVAL_MS = 100;
 /**
  * Graphty creates a graph
  */
-@customElement("graphty-element")
 export class Graphty extends LitElement {
     #graph: Graph;
     #element: Element;
@@ -3216,6 +3215,24 @@ export class Graphty extends LitElement {
 export type GraphtyElement = Graphty;
 
 /*
+ * Registration is guarded rather than done by Lit's `@customElement`, which throws when the tag is
+ * taken. A page can evaluate this module twice (two bundles that each carry a copy, or a page that
+ * registered its own element first), and a throw here would abort every script that imported it.
+ * The first definition wins; a different class under the tag is reported, because elements the
+ * second copy creates will not be instances of its own class.
+ */
+const registered = customElements.get("graphty-element");
+if (registered === undefined) {
+    customElements.define("graphty-element", Graphty);
+} else if (registered !== Graphty) {
+    console.warn(
+        "<graphty-element> is already defined by another class, so this copy of " +
+            "@graphty/graphty-element was not registered. Two copies of the package are loaded; " +
+            "make every import resolve to one.",
+    );
+}
+
+/*
  * The tag, declared to TypeScript.
  *
  * `document.createElement("graphty-element")` and `document.querySelector("graphty-element")` are
@@ -3226,7 +3243,7 @@ export type GraphtyElement = Graphty;
  * type the element already has", and this is the declaration that makes the ordinary two lines of
  * DOM code obey it.
  *
- * It lives beside the `@customElement` call on purpose: the tag name is written twice in this
+ * It lives beside the `customElements.define` call on purpose: the tag name is written twice in this
  * file and nowhere else, so the two cannot drift apart unnoticed.
  */
 declare global {

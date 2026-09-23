@@ -17,8 +17,14 @@
  *    `{match:"has", path}` walks those instead of the element list. A run that measured 300 nodes
  *    of 50,000 visits 300, not 50,000, and the elements the run never measured are not consulted.
  * 3. AN EDIT REPAINTS A DIRTY SET, NOT THE GRAPH. The elements the edited layer matches, unioned
- *    with those its previous version matched. A layer that matches nothing repaints nothing, and
- *    an edit to a layer over 300 elements costs 300 elements whatever the graph's size.
+ *    with those its previous version matched AND those its previous version was last applied to.
+ *    A layer that matches nothing repaints nothing, and an edit to a layer over 300 elements
+ *    repaints 300 elements whatever the graph's size. The "applied to" half is not redundant:
+ *    removing a run deletes its result column before its layers are removed, so by then a
+ *    `{match:"has"}` selector over that column matches nothing, and marking by the selector alone
+ *    left the run's paint on screen after the run had gone. One byte per element per layer
+ *    records it -- membership, not values, which is why it is cheap where a per-layer history of
+ *    what was painted (below) is not.
  * 4. THE REPRESENTATION IS COLUMNAR. A resolved style is a 23-key object, and building one per
  *    element costs about 47 ms at 50,000 nodes on its own. So one is built only where a caller
  *    asks about ONE element -- {@link RepaintEngine.styleOf} -- and the pass itself merges one
@@ -665,6 +671,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      */
     const lastPreparedFrom = new WeakMap<CompiledLayer, PreparedLayer>();
 
+    /**
+     * Which elements each layer was applied to, one byte per element.
+     *
+     * READ WHEN THE LAYER IS TAKEN AWAY OR REPLACED, because by then its selector is no longer a
+     * reliable answer to "what did this paint": the data it selected on may have moved or gone.
+     * Keyed by the compiled layer for the reason {@link lastPreparedFrom} is, and weak so a layer
+     * dropped from the stack takes its record with it.
+     *
+     * Only ever set, never cleared, so it can over-report an element the layer stopped matching.
+     * That costs a repaint of an element that did not need one, never a wrong picture.
+     */
+    const appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
+
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
 
@@ -1021,6 +1040,54 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
+     * Put everything one layer was applied to in the dirty set, whatever its selector matches now.
+     *
+     * A walk over one byte per element rather than over the layer's own elements: at fifty
+     * thousand nodes that is tens of microseconds, against a frame of sixteen milliseconds.
+     * @param entry - The compiled layer, as it was painted.
+     */
+    const markApplied = (entry: CompiledLayer): void => {
+        const covered = appliedTo.get(entry);
+
+        if (covered === undefined) {
+            return;
+        }
+
+        const store = stores[entry.layer.target];
+        const end = Math.min(covered.length, store.count);
+
+        for (let index = 0; index < end; index++) {
+            if (covered[index] === 1) {
+                markDirty(store, index);
+            }
+        }
+    };
+
+    /**
+     * The record of which elements one layer was applied to, sized to the store.
+     * @param entry - The compiled layer.
+     * @param store - The store it paints.
+     * @returns The record.
+     */
+    const appliedRecord = (entry: CompiledLayer, store: TargetStore): Uint8Array => {
+        const existing = appliedTo.get(entry);
+
+        if (existing !== undefined && existing.length >= store.capacity) {
+            return existing;
+        }
+
+        const grown = new Uint8Array(store.capacity);
+
+        if (existing !== undefined) {
+            grown.set(existing);
+        }
+
+        appliedTo.set(entry, grown);
+
+        return grown;
+    };
+
+    /**
      * Take the dirty elements' values out of every column, so the stack can paint them again.
      * @param store - The store.
      */
@@ -1085,6 +1152,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const total = walk === null ? store.dirtyCount : walk.length;
         const { channels } = layer;
         const { elements } = store;
+        const covered = appliedRecord(entry, store);
         let slice = deadline;
 
         /**
@@ -1105,6 +1173,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 if (test !== null && !test(index)) {
                     continue;
                 }
+
+                covered[index] = 1;
 
                 // Indexed rather than `for ... of`, which would allocate an iterator per element
                 // for a list whose length was settled when the layer was prepared.
@@ -1379,6 +1449,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                         // and one it now matches has to be repainted to gain it.
                         if (edit.previous !== null) {
                             markLayer(edit.previous);
+                            markApplied(edit.previous);
                         }
 
                         if (edit.next !== null) {

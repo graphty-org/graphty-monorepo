@@ -6,6 +6,7 @@
  * holds and the renderer never applies is caught here.
  */
 
+import { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
@@ -118,13 +119,10 @@ describe("sizing nodes by a run with style: { size }", () => {
         assert.closeTo(after.get("hub") ?? 0, before.get("hub") ?? -1, 1e-6, "the hub is back to the default size");
     });
 
-    // KNOWN ELEMENT DEFECT, pinned so it is seen: `runs.remove()` deletes the run -- and with it
-    // the result column -- before the queued removal of its layers repaints. The repaint marks the
-    // elements a removed layer's selector matches NOW, `{ match: "has" }` over a column that has
-    // gone matches nothing, and so nothing loses the paint: the nodes keep the run's size (and its
-    // colour, for any run) on screen after the run and its layers are gone. Removing the layer
-    // itself, as the test above does, repaints correctly. When this starts passing, drop `.fails`.
-    it.fails("draws the nodes at the default size again once the RUN is removed", async () => {
+    // `runs.remove()` deletes the run -- and its result column -- before its layers are removed,
+    // so by then the layers' `{ match: "has" }` selector matches nothing. The repaint has to reach
+    // the elements the layers were applied to regardless, or the run's size stays on screen.
+    it("draws the nodes at the default size again once the RUN is removed", async () => {
         const before = await drawnRadii();
         const run = session.runs.start("degree", {}, { style: { size: true } });
         await run;
@@ -135,5 +133,39 @@ describe("sizing nodes by a run with style: { size }", () => {
         const after = await drawnRadii();
 
         assert.closeTo(after.get("hub") ?? 0, before.get("hub") ?? -1, 1e-6, "the hub is back to the default size");
+    });
+
+    it("draws each node in its colour from before the run once the run is removed", async () => {
+        /**
+         * The per-instance colour the renderer draws each node in.
+         * @returns Each node's drawn colour as "r,g,b", by id.
+         */
+        async function drawnColours(): Promise<Map<string, string>> {
+            await drawnRadii();
+
+            return new Map(
+                graph.getNodes().map((node) => {
+                    const color = (node.mesh as InstancedMesh).instancedBuffers.color as
+                        | { r: number; g: number; b: number }
+                        | undefined;
+
+                    return [
+                        String(node.id),
+                        color === undefined ? "none" : [color.r, color.g, color.b].map((c) => c.toFixed(3)).join(","),
+                    ];
+                }),
+            );
+        }
+
+        const before = await drawnColours();
+        const run = session.runs.start("degree", {});
+        await run;
+        const coloured = await drawnColours();
+
+        assert.notStrictEqual(coloured.get("hub"), before.get("hub"), "the run colours the hub");
+
+        session.runs.remove(run.id);
+
+        assert.deepStrictEqual(await drawnColours(), before, "every node is back to the colour it had");
     });
 });

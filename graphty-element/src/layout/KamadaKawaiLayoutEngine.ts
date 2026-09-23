@@ -105,16 +105,6 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
      * larger number is a stronger connection. Nothing on screen would say which convention was in
      * force. So the element hands this solver `1 / weight` and the whole package keeps one
      * reading: heavier means more strongly connected, means drawn closer together.
-     *
-     * WHAT IS ASKED FOR IS NOT YET WHAT IS DRAWN, and a reader comparing this code against a
-     * screenshot needs to know why. `@graphty/layout`'s Kamada-Kawai solver does not converge from
-     * its own circular starting layout once the ideal distances stop being uniform: its
-     * backtracking line search gives up after twenty halvings and takes the step anyway, so a
-     * large first gradient -- which is exactly what a non-uniform distance matrix produces -- lands
-     * it somewhere with a stress many times higher than the optimum. Started AT the optimum it
-     * stays there, which is how the cost function and its gradient are known to be right. The
-     * defect is upstream and the fix belongs there; the request this engine makes is correct as it
-     * stands and needs no change when it is fixed.
      */
     doLayout(): void {
         this.stale = false;

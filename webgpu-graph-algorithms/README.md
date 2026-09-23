@@ -5,7 +5,7 @@ WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format`
 
 | Entry                                      | Import        | What it gives you                                                                                                                                                                                                                                       |
 | ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@graphty/webgpu-graph-algorithms`         | the core      | `createForceAtlas2`, `createAccelerator`, `GpuContext`, `degree`, `seedPositions`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
+| `@graphty/webgpu-graph-algorithms`         | the core      | `createForceAtlas2`, `createAccelerator`, `GpuContext`, `degree`, `seedPositions`, `verifyDevice`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
 | `@graphty/webgpu-graph-algorithms/node`    | Node only     | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`                                                                                                                                                                          |
 | `@graphty/webgpu-graph-algorithms/browser` | browsers only | `probeBrowserWebGpu`, `requestGpuContext`                                                                                                                                                                                                               |
 
@@ -247,7 +247,7 @@ requestGpuContext();` replace the first import and line; the rest is identical.
 ## Errors
 
 Every condition the package detects itself is a `WebGpuGraphError` with a stable `code`
-(`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_NO_DEVICE`, `E_SOFTWARE_ONLY`, `E_DEVICE_LOST`, `E_DISPOSED`,
+(`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_NO_DEVICE`, `E_SOFTWARE_ONLY`, `E_DEVICE_LOST`, `E_DEVICE_INCORRECT`, `E_DISPOSED`,
 `E_VALIDATION`, `E_SHADER_COMPILE`, `E_OUT_OF_MEMORY`, `E_TOO_LARGE`, `E_UNSUPPORTED`,
 `E_INVALID_ARGUMENT`, `E_SNAPSHOT`, `E_RELEASED`, `E_NOT_LOADED`, `E_ABORTED`) and frozen `details`.
 `isWebGpuGraphError(x)` and `hasErrorCode(x, code)` are structural brand checks, so they survive two copies
@@ -255,6 +255,38 @@ of the package. The graph-format codes `E_GPU_INELIGIBLE`, `E_UNKNOWN_NODE`, `E_
 `E_COLUMN_LENGTH` pass through unchanged (`PASSTHROUGH_FORMAT_CODES`). A simulation whose snapshot was
 released rejects its next `step()` with `E_RELEASED`; a lost device disposes every simulation and rejects
 every pending `step()` with `E_DEVICE_LOST` (create a new context from a fresh adapter and `load()` again).
+
+## The device self-check
+
+Some GPU drivers return wrong answers rather than failing. On Windows over the Microsoft Basic Render Driver,
+compute shaders that synchronise across a workgroup produce silently incorrect results, which would make every
+number this package computes there unreliable with no error anywhere.
+
+So the first algorithm or layout you run on a context asks the device for an answer this package already knows --
+an exclusive scan across 33 workgroups of known numbers (8,193 words on a 256-lane device), verified word by word
+on the host -- and refuses a device that gets it wrong with `E_DEVICE_INCORRECT`, naming the first wrong word,
+what belonged there and the adapter's description string. It runs once per device and is remembered: 14-20 ms
+the first time, nearly all of it compiling the two scan pipelines that any scan-using algorithm would compile
+anyway, and 0.6-1.0 ms of work under that (measured on Dawn over lavapipe and over an RTX 4070 SUPER). It cannot be switched off: a flag for it would be off in
+somebody's production build, which is the silent wrong answers walking back in.
+
+Choosing the processor instead is your decision, not the package's, so nothing falls back. To ask before you
+commit work to a device, call it yourself:
+
+```ts
+import { verifyDevice } from "@graphty/webgpu-graph-algorithms";
+
+const check = await verifyDevice(ctx); // memoised: the algorithms below reuse this result
+if (!check.ok) {
+    // check.mismatch names the first wrong word; check.description is the adapter string that identifies the driver
+    runOnTheCpuInstead();
+}
+```
+
+It checks one property -- that values crossing a workgroup barrier, and block totals crossing dispatches of one
+compute pass, survive. A device that gets that right and gets atomics or float rounding wrong still passes. It is
+a refusal mechanism, not a certificate of correctness; `docs/decisions/device-self-check.md` records what it
+covers, what it does not, and why the package refuses such a device rather than computing around it.
 
 ## Benchmarks
 

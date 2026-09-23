@@ -21,6 +21,7 @@ import {
     resolveSpringElectricalOptions,
     SpringElectricalModel,
 } from "../../src/layouts/spring-electrical.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
 import { type GpuLayoutSimulation, type GpuLayoutTuning, type SpringElectricalStats } from "../../src/types/layout.js";
 import { type SpringElectricalOptions } from "../../src/types/options.js";
 import { KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
@@ -514,11 +515,15 @@ describe("createSpringElectrical on the device (spec 7.20; PD-12)", () => {
     it("compiles its six pipelines on the device, every key covered by OVERRIDE_MATRIX", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
+        // the device self-check compiles the two scan pipelines once per device before any layout runs
+        // (src/primitives/verify.ts); count what THIS run added
+        await verifyDevice(ctx);
+        const gate = ctx.pipelines.size;
         const sim = createSpringElectrical(ctx, { seed: 7 });
         try {
             sim.load(s, nanPositions(s.nodeCount));
             await sim.step(1);
-            expect(ctx.pipelines.size).toBe(6);
+            expect(ctx.pipelines.size - gate).toBe(6);
             const keys = ctx.pipelines.keys();
             expect(keys.filter((k) => k.startsWith("fa2-speed-finalize|"))).toHaveLength(0);
             expect(keys.some((k) => k.startsWith("fa2-integrate|") && k.includes('"APPLY":2'))).toBe(true);

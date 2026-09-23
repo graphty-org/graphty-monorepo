@@ -41,6 +41,11 @@ export { GpuContext } from "./context.js";
 export { isSoftwareAdapter } from "./device/acquire.js";
 export type { PassTiming, Profiler } from "./kernel/profiler.js";
 
+// ==================== the device self-check: what this device computed when it was asked an answer we already
+// know. Every compute entry point awaits it and refuses a device that got it wrong (E_DEVICE_INCORRECT); a
+// caller may await it first to ask before committing.
+export { verifyDevice } from "./primitives/verify.js";
+
 // ==================== algorithms (P1: the walking-skeleton diagnostic, spec 3.3)
 export { degree } from "./algorithms/degree.js";
 
@@ -98,6 +103,8 @@ export type {
 export type {
     AdapterInfoLike,
     AdapterSummary,
+    DeviceCheck,
+    DeviceCheckMismatch,
     GpuCaps,
     GpuContextOptions,
     LimitPolicy,

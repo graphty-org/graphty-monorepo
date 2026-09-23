@@ -242,7 +242,11 @@ Rules of every test (spec 11.2, 11.9): a wrong result is never a skip; every ker
 oracle or an invariant; every kernel test runs its kernel twice and asserts bitwise equality first; every
 `uncapturederror` fails the current test; fixture sizes scale with `gpuScale()` (1 on hardware, 1/50 on a
 software adapter). `acquireRaw()` / `acquire()` give a FRESH adapter per device because an adapter is consumed
-by its first `requestDevice` (spec 2.2 step 1). The one policy variable (D19), parsed and checked by
+by its first `requestDevice` (spec 2.2 step 1). The device self-check (`src/primitives/verify.ts`) runs once per
+device at the FIRST algorithm or layout on it, so on a fresh context that first call compiles the two scan
+pipelines and maps two extra staging buffers: a test that counts pipelines or `mapAsync` calls must `await
+verifyDevice(ctx)` first and count from there (`test/layouts/fa2-options.test.ts`,
+`test/algorithms/pagerank.test.ts` do). The one policy variable (D19), parsed and checked by
 `scripts/gpu-policy.js` for the Node setup, the browser setup and `scripts/gpu-report.js`:
 
 | `GRAPHTY_GPU_REQUIRE`        | Meaning                                                                                                        |

@@ -27,6 +27,7 @@ import { kernelSpec, PR_PARAMS, PR_PARTIAL } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
 import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
 import { prepareSpmvPull } from "../primitives/spmv.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type Binding } from "../types/memory.js";
 import { algorithmScope } from "./scope.js";
 
@@ -170,6 +171,7 @@ export async function runPowerIteration(
     n: number,
     config: PowerIterationConfig,
 ): Promise<PowerIterationRun> {
+    await assertDeviceComputes(ctx);
     const scope = algorithmScope(ctx, config.label, RING_SLOTS);
     try {
         const bytes = 4 * n;

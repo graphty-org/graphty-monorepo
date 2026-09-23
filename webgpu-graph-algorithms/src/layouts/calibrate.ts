@@ -18,6 +18,7 @@ import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type CalibrateOptions, type GpuCalibration } from "../types/layout.js";
 import { createForceAtlas2 } from "./forceatlas2.js";
 import { Lcg } from "./seed.js";
@@ -153,6 +154,7 @@ export function suggestedExactMaxNodes(
  */
 export async function calibrateLayout(ctx: GpuContext, options?: CalibrateOptions): Promise<GpuCalibration> {
     ctx.assertReady();
+    await assertDeviceComputes(ctx);
     const sizes = options?.sizes ?? CALIBRATE_SIZES;
     if (!Array.isArray(sizes) || sizes.length === 0 || !sizes.every((n) => Number.isInteger(n) && n >= 1)) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", "sizes must be a non-empty list of integers >= 1", {

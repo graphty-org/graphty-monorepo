@@ -32,6 +32,7 @@ import { graphOverrides } from "../kernels.js";
 import { type BufferPool } from "../memory/buffer-pool.js";
 import { type ArrayBinding, type CoreBinding } from "../memory/residency.js";
 import { type DegreeTiers, degreeTiersOf } from "../primitives/core-shape.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type PlanCaps } from "../types/context.js";
 import {
     type GpuLayoutSimulation,
@@ -1345,6 +1346,7 @@ export class ForceSimulation<
     private async submitBatch(record: PendingBatch): Promise<void> {
         try {
             await this.ready;
+            await assertDeviceComputes(this.ctx);
             await this.ctx.allocator.check();
         } catch (err) {
             this.finish(record);

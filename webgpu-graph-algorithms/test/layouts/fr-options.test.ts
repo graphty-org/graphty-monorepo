@@ -21,6 +21,7 @@ import {
     FruchtermanReingoldModel,
     resolveFruchtermanReingoldOptions,
 } from "../../src/layouts/fruchterman-reingold.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
 import { type FruchtermanReingoldStats, type GpuLayoutSimulation } from "../../src/types/layout.js";
 import { type FruchtermanReingoldOptions } from "../../src/types/options.js";
 import { KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
@@ -254,6 +255,10 @@ describe("createFruchtermanReingold (spec 3.3, 7.20)", () => {
     it("overrides() is the constant FR set for every record; specs() names K1, K2, K3, K5, fa2-to-scene, fill; every key the run creates is covered by OVERRIDE_MATRIX", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
+        // the device self-check compiles the two scan pipelines once per device before any layout runs
+        // (src/primitives/verify.ts); count what THIS run added
+        await verifyDevice(ctx);
+        const gate = ctx.pipelines.size;
         const s = snapshotOf(KARATE_EDGES);
         try {
             const model = new FruchtermanReingoldModel(
@@ -345,7 +350,7 @@ describe("createFruchtermanReingold (spec 3.3, 7.20)", () => {
             const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
             sim.load(s, positions);
             await sim.step(1);
-            expect(ctx.pipelines.size).toBe(6);
+            expect(ctx.pipelines.size - gate).toBe(6);
             const cover = matrixCovers(ctx.pipelines.keys(), ctx.caps);
             expect(cover.missing, `keys missing from OVERRIDE_MATRIX: ${cover.missing.join(" ; ")}`).toEqual([]);
             expect(cover.ok).toBe(true);

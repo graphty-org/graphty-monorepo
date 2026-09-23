@@ -21,6 +21,7 @@ import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
 import { createFruchtermanReingold } from "../src/layouts/fruchterman-reingold.js";
 import { seedPositions } from "../src/layouts/seed.js";
 import { createSpringElectrical } from "../src/layouts/spring-electrical.js";
+import { verifyDevice } from "../src/primitives/verify.js";
 
 /**
  * The VALUE exports of contract 3.15 at the end of P3 (the P0, P1 and P3 lists; P2 added none). Types are pinned
@@ -62,6 +63,8 @@ const VALUE_EXPORTS = [
     "eigenvectorCentrality",
     "katzCentrality",
     "connectedComponents",
+    // the device self-check (the capability record a caller reads before committing work to a device)
+    "verifyDevice",
 ];
 
 /**
@@ -109,6 +112,8 @@ const NEVER_EXPORTED = [
     "weaklyConnectedComponents",
     "runPowerIteration",
     "spmvPull",
+    "assertDeviceComputes", // the guard the entry points await; callers read verifyDevice instead
+    "checkScanWords",
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {
@@ -147,6 +152,7 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.katzCentrality).toBe(katzCentrality);
         expect(api.connectedComponents).toBe(connectedComponents);
         expect(api.calibrateLayout).toBe(calibrateLayout);
+        expect(api.verifyDevice).toBe(verifyDevice);
         expect(typeof api.WebGpuGraphError).toBe("function");
         expect(typeof api.isWebGpuGraphError).toBe("function");
         expect(typeof api.hasErrorCode).toBe("function");

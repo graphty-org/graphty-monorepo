@@ -26,6 +26,7 @@ import { type ArrayBinding, type CoreBinding } from "../memory/residency.js";
 import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
 import { prepareSegmentedReduce } from "../primitives/segmented-reduce.js";
 import { prepareSpmvPull } from "../primitives/spmv.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type GpuPageRankResult, type PageRankOptions } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
@@ -117,6 +118,7 @@ async function run(
     algorithm: string,
 ): Promise<GpuPageRankResult> {
     ctx.assertReady();
+    await assertDeviceComputes(ctx);
     const n = s.nodeCount;
     const alpha = options?.dampingFactor ?? 0.85;
     const maxIterations = options?.maxIterations ?? 100;

@@ -152,6 +152,7 @@ expectTypeOf<WebGpuGraphErrorCode>().toEqualTypeOf<
     | "E_NO_DEVICE"
     | "E_SOFTWARE_ONLY"
     | "E_DEVICE_LOST"
+    | "E_DEVICE_INCORRECT"
     | "E_DISPOSED"
     | "E_VALIDATION"
     | "E_SHADER_COMPILE"

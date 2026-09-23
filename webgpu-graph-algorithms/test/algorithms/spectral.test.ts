@@ -14,6 +14,7 @@ import { coreOf, reverseOf, runPowerIteration } from "../../src/algorithms/power
 import { eigenvectorCentrality, hits, katzCentrality } from "../../src/algorithms/spectral.js";
 import { GpuContext } from "../../src/context.js";
 import { GraphResidency } from "../../src/memory/residency.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
 import { fakeCaps } from "../helpers/caps-tables.js";
 import { withResidency } from "../helpers/degree-check.js";
 import { fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from "../helpers/graphs.js";
@@ -379,6 +380,9 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         const own = GpuContext.from(device);
         const s = snapshotOf(randomEdges(100, 300, 5), { nodeCount: 100, label: "leak" });
         try {
+            // the device self-check runs once per device, on an ADOPTED device too (GpuContext.from); pay it
+            // before counting, so what is counted is one algorithm run (src/primitives/verify.ts)
+            await verifyDevice(own);
             counter.resetMapAsync();
             const eigen = await eigenvectorCentrality(own, s, { maxIterations: 8 });
             expect(counter.mapAsyncCalls, "mapAsync calls of eigenvectorCentrality over 8 iterations").toBe(1);

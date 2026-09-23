@@ -25,6 +25,7 @@ import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { FILL_PARAMS, graphBindings, graphOverrides, kernelSpec, WCC_PARAMS } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
 import { assertWholeCore } from "../primitives/core-shape.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type ComponentsOptions, type GpuLabelResult } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
@@ -189,6 +190,7 @@ export async function connectedComponents(
     options?: ComponentsOptions & GpuRunOptions,
 ): Promise<GpuLabelResult> {
     ctx.assertReady();
+    await assertDeviceComputes(ctx);
     const n = s.nodeCount;
     const renumber = options?.renumber !== false;
     const dest = checkDest(options?.dest, n);

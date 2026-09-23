@@ -25,6 +25,7 @@ import {
     resolveLayoutTuning,
 } from "../../src/layouts/forceatlas2.js";
 import { seedPositions } from "../../src/layouts/seed.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
 import { type ForceAtlas2Stats, type GpuLayoutSimulation, type GpuLayoutTuning } from "../../src/types/layout.js";
 import { type ForceAtlas2Options } from "../../src/types/options.js";
 import { KARATE_EDGES, pathEdges, snapshotOf } from "../helpers/graphs.js";
@@ -1185,6 +1186,10 @@ describe("createForceAtlas2: every option combination compiles through the overr
     it("16 law x compat combinations over weights / dim run one iteration each; 19 pipelines; every key covered", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
+        // the device self-check compiles the two scan pipelines once per device before any layout runs
+        // (src/primitives/verify.ts); count what THIS run added
+        await verifyDevice(ctx);
+        const gate = ctx.pipelines.size;
         const weighted = snapshotOf(WEIGHTED_KARATE);
         for (const compat of ["paper", "networkx"] as const) {
             for (const linlog of [false, true]) {
@@ -1218,7 +1223,7 @@ describe("createForceAtlas2: every option combination compiles through the overr
                 }
             }
         }
-        expect(ctx.pipelines.size).toBe(19);
+        expect(ctx.pipelines.size - gate).toBe(19);
         const keys = ctx.pipelines.keys();
         const cover = matrixCovers(keys, ctx.caps);
         expect(cover.missing, `keys missing from OVERRIDE_MATRIX: ${cover.missing.join(" ; ")}`).toEqual([]);

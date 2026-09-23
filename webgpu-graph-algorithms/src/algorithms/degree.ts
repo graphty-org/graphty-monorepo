@@ -26,6 +26,7 @@ import { plan1d } from "../kernel/dispatch.js";
 import { type UniformBlock, type UniformValues } from "../kernel/struct-block.js";
 import { FILL_PARAMS, graphBindings, graphOverrides, kernelSpec, RANGE_PARAMS } from "../kernels.js";
 import { windowBinding } from "../primitives/core-shape.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
 
@@ -83,6 +84,7 @@ function paramsBinding(ctx: GpuContext, pooled: GPUBuffer[], block: UniformBlock
  */
 export async function degree(ctx: GpuContext, s: GraphSnapshot, options?: GpuRunOptions): Promise<U32> {
     ctx.assertReady();
+    await assertDeviceComputes(ctx);
     const n = s.nodeCount;
     const dest = checkDest(options?.dest, n);
     if (options?.signal?.aborted) {

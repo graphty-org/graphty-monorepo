@@ -4,20 +4,24 @@
  */
 
 /**
- * Okabe-Ito palette - R 4.0+ default, universally accessible
- * ✅ Colorblind-safe (all types) ✅ Industry standard
+ * Okabe-Ito palette, as published -- the R 4.0+ default, safe for every form of colour blindness
  * Research: Okabe & Ito (2008) "Color Universal Design"
- * Maximum 8 categories (Tableau recommendation)
+ *
+ * The eight published colours, with one change of ORDER and none of colour. Yellow is moved to
+ * the last slot because it barely shows on the element's light background (1.21:1 against
+ * whitesmoke), so it is only reached when all eight colours are needed. The published black is
+ * kept: an earlier copy replaced it with grey #999999, which sits too close to sky blue for
+ * normal vision and to bluish green under protanopia.
  */
 export const OKABE_ITO_COLORS = [
     "#E69F00", // 0 - Orange
     "#56B4E9", // 1 - Sky Blue
     "#009E73", // 2 - Bluish Green
-    "#F0E442", // 3 - Yellow
-    "#0072B2", // 4 - Blue
-    "#D55E00", // 5 - Vermillion
-    "#CC79A7", // 6 - Reddish Purple
-    "#999999", // 7 - Gray
+    "#0072B2", // 3 - Blue
+    "#D55E00", // 4 - Vermillion
+    "#CC79A7", // 5 - Reddish Purple
+    "#000000", // 6 - Black
+    "#F0E442", // 7 - Yellow (last: faint on a light background)
 ] as const;
 
 /**

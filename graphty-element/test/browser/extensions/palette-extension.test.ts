@@ -5,9 +5,9 @@
  * WHAT A PALETTE IS, for a reader who has never opened this package. graphty-element colours a
  * graph by putting a style layer on a stack and telling that layer to read a value out of the
  * data -- a degree, a score, a team name -- and turn it into a colour. Which colours it may reach
- * for is a palette: a named, ordered list of colour anchors. Seventeen ship with the element
+ * for is a palette: a named, ordered list of colour anchors. Eighteen ship with the element
  * (viridis, okabe-ito, purple-green and the rest), and until this extension point existed those
- * seventeen were the whole world. There was no registration call of any kind, and a layer naming
+ * built-ins were the whole world. There was no registration call of any kind, and a layer naming
  * anything else was refused.
  *
  * WHY THAT MATTERS TO SOMEONE OUTSIDE. A company that has a brand does not have viridis. If the
@@ -23,7 +23,7 @@
  * object, and `registerPalette` is a free function rather than a class registration.
  *
  * WHAT THIS FILE PROVES. That two palettes nobody here has heard of get everything the element's
- * own seventeen get: a place in the catalogue a picker reads, resolution by the same lookup that
+ * own eighteen get: a place in the catalogue a picker reads, resolution by the same lookup that
  * finds a built-in, a value ramped onto a colour by the continuous path and by the categorical
  * one, a capacity that refuses over-subscription rather than wrapping two groups onto one colour,
  * reversal, a missing-value policy, a legend block, and a round trip through a saved document.
@@ -348,7 +348,7 @@ describe("a third party's palette, in the catalogue a picker reads", () => {
         assert.deepStrictEqual(
             offered.slice(0, PALETTE_DESCRIPTORS.length),
             [...PALETTE_DESCRIPTORS],
-            "the element's own seventeen come first and are unchanged",
+            "the element's own eighteen come first and are unchanged",
         );
     });
 

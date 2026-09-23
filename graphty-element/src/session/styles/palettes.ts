@@ -45,13 +45,24 @@ import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation
 import { type ColorValue, toColorValue } from "./channels";
 import { groupCount, isScaleMiss, type ScaleContext, type ScaleRegistry } from "./scales";
 
-/** The palette a colour binding uses when it does not name one and reads a measurement. */
-const DEFAULT_PALETTE: PaletteId = "viridis";
+/**
+ * The palette a colour binding uses when it does not name one and reads a measurement.
+ *
+ * Paul Tol's YlOrBr, one hue family from orange to dark brown, because a ramp inside one hue
+ * family reads as "how much". Viridis, the default before it, sweeps from purple through green
+ * to yellow, and a hue sweep makes a sparse set of nodes read as separate groups rather than as
+ * amounts (Reda & Szafir 2021; Tseng et al. 2024). It is trimmed to the steps that stand off the
+ * element's light background by at least 2:1, so the palest node is still visible. Viridis stays
+ * in the catalogue for a binding that names it. `test/catalog/default-palette-quality.test.ts`
+ * measures whatever this is.
+ */
+const DEFAULT_PALETTE: PaletteId = "ylorbr";
 
 /**
  * The palette a colour binding uses when it does not name one and reads groups.
  *
- * Eight distinct colours, safe for every form of colour blindness the catalogue names. It is the
+ * Okabe-Ito as published: eight distinct colours, safe for every form of colour blindness the
+ * catalogue names, with yellow last because it barely shows on a light background. It is the
  * first choice rather than the only one: a partition with more groups than it has colours gets a
  * larger palette from {@link defaultPaletteFor}, and every partition that fits keeps this one, so
  * a picture that is right today does not change colour because the rule grew a branch.
@@ -171,7 +182,7 @@ function requirePalette(id: PaletteId): PaletteDescriptor {
  *
  * DERIVED FROM THE CATALOGUE'S DECLARED CAPACITIES, not from a list of names written here. A
  * palette added to the catalogue with room for twelve groups becomes the answer for twelve groups
- * with nothing edited in this file, and a rule spelled "okabe-ito, then tol-muted, then viridis"
+ * with nothing edited in this file, and a rule spelled "okabe-ito, then tol-muted, then ylorbr"
  * would have been wrong the day that happened while still looking right.
  *
  * The order of preference, and what each one is for:
@@ -184,7 +195,7 @@ function requirePalette(id: PaletteId): PaletteDescriptor {
  *   spends the fewest extra colours to keep nominal values looking nominal.
  * - More groups than any categorical palette in the catalogue: the continuous default, sampled at
  *   one colour per group. This is a compromise and is worth naming as one -- community ids are
- *   handed out in discovery order, so a dark-to-light ramp across them suggests a rank that does
+ *   handed out in discovery order, so a light-to-dark ramp across them suggests a rank that does
  *   not exist. It is taken anyway because the alternatives are worse: wrapping says two groups
  *   are one group, and refusing leaves the reader a blank frame where an algorithm did finish.
  *   The escape the element does NOT take here is lumping the rare groups into an "other" bucket:

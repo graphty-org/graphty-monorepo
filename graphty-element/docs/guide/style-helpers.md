@@ -84,14 +84,19 @@ than a footnote a reader has to remember.
 | Id        | Plain name       | Safe for                             |
 | --------- | ---------------- | ------------------------------------ |
 | `viridis` | Purple to Yellow | deuteranopia, protanopia, tritanopia |
+| `ylorbr`  | Orange to Brown  | deuteranopia, protanopia, tritanopia |
 | `plasma`  | Blue to Yellow   | deuteranopia, protanopia, tritanopia |
 | `inferno` | Black to Yellow  | deuteranopia, protanopia, tritanopia |
 | `blues`   | Shades of Blue   | deuteranopia, protanopia, tritanopia |
 | `greens`  | Shades of Green  | not checked safe                     |
 | `oranges` | Shades of Orange | not checked safe                     |
 
-`viridis` is the default for a measure. It, `plasma` and `inferno` are perceptually uniform: equal
-steps in the number look like equal steps in the colour, which a rainbow ramp does not.
+`ylorbr` is the default for a measure: Paul Tol's YlOrBr ("Colour Schemes", 2021), trimmed to the
+five steps that stand off the element's light background, so the palest node is still visible. It
+stays inside one hue family, from orange for the lowest value to dark brown for the highest, which
+reads as "how much"; a ramp that sweeps through several hues makes a sparse set of nodes read as
+separate groups. `viridis`, `plasma` and `inferno` are perceptually uniform: equal steps in the
+number look like equal steps in the colour, which a rainbow ramp does not.
 
 ### Categorical -- groups with no order
 
@@ -103,7 +108,8 @@ steps in the number look like equal steps in the colour, which a rainbow ramp do
 | `pastel`      | Eight Pale Colours     | 8        | deuteranopia, protanopia, tritanopia |
 | `carbon`      | Five Enterprise Colours| 5        | not checked safe                     |
 
-`okabe-ito` is the default for groups. Capacity is a real limit: a community detection that finds
+`okabe-ito` is the default for groups: the eight colours Okabe and Ito published in 2008, black
+included, with yellow in the last slot because it barely shows on a light background. Capacity is a real limit: a community detection that finds
 thirty communities has more groups than any of these has colours, and the honest answers are to
 colour the largest few and leave the rest alone, or to pick a different channel.
 

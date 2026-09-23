@@ -137,15 +137,16 @@ export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot",
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 /**
- * The built-in palettes: six sequential ramps, five categorical sets, three diverging ramps and
+ * The built-in palettes: seven sequential ramps, five categorical sets, three diverging ramps and
  * three highlight pairs, in the order `PALETTE_DESCRIPTORS` lists them.
  *
- * All seventeen are here because this list is what autocomplete offers. Four of them used to be,
+ * All eighteen are here because this list is what autocomplete offers. Four of them used to be,
  * so a consumer typing a palette name was shown a quarter of the element's own palettes and had
  * to read the catalogue table to find the rest.
  */
 export const KNOWN_PALETTE_IDS = [
     "viridis",
+    "ylorbr",
     "plasma",
     "inferno",
     "blues",

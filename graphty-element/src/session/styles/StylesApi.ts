@@ -796,7 +796,7 @@ function checkDocument(document: StyleDocument): void {
  * name makes the document self-describing: the consumer opening it can see exactly which palettes
  * it needs, show them, and register them -- rather than getting a refusal naming a palette they
  * have no way to reconstruct. The element's own palettes are left out on purpose, because they
- * are the same everywhere and copying seventeen descriptors into every saved file would make a
+ * are the same everywhere and copying eighteen descriptors into every saved file would make a
  * document larger than the look it records.
  * @param specs - The layers being written out.
  * @returns The descriptors, in the order the palettes were first named.

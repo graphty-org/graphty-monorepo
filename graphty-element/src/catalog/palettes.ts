@@ -40,6 +40,7 @@ import {
     ORANGES_COLORS,
     PLASMA_COLORS,
     VIRIDIS_COLORS,
+    YLORBR_COLORS,
 } from "../config/palettes/sequential";
 import { registeredPaletteById, registeredPaletteDescriptors } from "./paletteRegistry";
 import type { PaletteDescriptor, PaletteId } from "./types";
@@ -62,6 +63,16 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
         plainName: "Purple to Yellow",
         kind: "sequential",
         colors: VIRIDIS_COLORS,
+        capacity: null,
+        colorblindSafe: ALL_TYPES,
+    },
+    // Paul Tol, "Colour Schemes" (2021): YlOrBr, trimmed to the steps that stand off a light
+    // background. The default for a measurement.
+    {
+        id: "ylorbr",
+        plainName: "Orange to Brown",
+        kind: "sequential",
+        colors: YLORBR_COLORS,
         capacity: null,
         colorblindSafe: ALL_TYPES,
     },
@@ -234,7 +245,7 @@ export function palettesOfKind(kind: PaletteDescriptor["kind"]): readonly Palett
  * Every palette that can be named right now: the element's own, then the registered ones.
  *
  * THE REGISTERED ONES ARE IN IT, which is the whole reason this is a function rather than a
- * literal list of seventeen names. A reader who registered a palette, misspelled it in a layer,
+ * literal list of eighteen names. A reader who registered a palette, misspelled it in a layer,
  * and was then shown a list their own palette is missing from would conclude the registration had
  * not taken -- and go and debug the wrong thing.
  *

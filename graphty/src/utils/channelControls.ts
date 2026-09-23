@@ -1,7 +1,7 @@
 /**
  * What control the style inspector draws for each channel a layer can paint.
  *
- * A layer paints CHANNELS, and the set of them is closed: twenty-two names, each accepting one
+ * A layer paints CHANNELS, and the set of them is closed: thirty-five names, each accepting one
  * kind of value. This table says which control a reader edits each one with, what it is called
  * on the surface, which group it sits in, and what the element draws when no layer sets it. It
  * is keyed by the element's own `Channel` union, so a channel added to or removed from the
@@ -123,9 +123,11 @@ export const CHANNEL_CONTROLS: Readonly<Record<Channel, ChannelControl>> = {
     "node.label": { label: "Label", group: "Text", kind: "text" },
     "node.labelStyle": { label: "Label style", group: "Text", kind: "labelStyle" },
     "node.tooltip": { label: "Tooltip", group: "Text", kind: "text" },
+    "node.tooltipStyle": { label: "Tooltip style", group: "Text", kind: "labelStyle" },
     "node.opacity": { label: "Opacity", group: "Color", kind: "number", fallback: 1, min: 0, max: 1, step: 0.05 },
     "node.outline": { label: "Outline", group: "Effects", kind: "color" },
     "node.glow": { label: "Glow", group: "Effects", kind: "color" },
+    "node.glowStrength": { label: "Glow strength", group: "Effects", kind: "number", min: 0, step: 0.1 },
     "node.wireframe": { label: "Wireframe", group: "Effects", kind: "boolean", fallback: false },
     "node.flat": { label: "Flat shaded", group: "Effects", kind: "boolean", fallback: false },
     "node.marker": { label: "Marker", group: "Effects", kind: "none", unavailable: MARKER_REASON },
@@ -162,11 +164,61 @@ export const CHANNEL_CONTROLS: Readonly<Record<Channel, ChannelControl>> = {
         fallback: defaultEdgeStyle.arrowHead?.type ?? "none",
         options: ARROW_TYPE_OPTIONS,
     },
+    "edge.arrowHeadSize": {
+        label: "Head size",
+        group: "Arrows",
+        kind: "number",
+        fallback: defaultEdgeStyle.arrowHead?.size ?? 1,
+        min: 0,
+        step: 0.1,
+    },
+    "edge.arrowHeadColor": {
+        label: "Head color",
+        group: "Arrows",
+        kind: "color",
+        fallback: hexOf(defaultEdgeStyle.arrowHead?.color),
+    },
+    "edge.arrowHeadOpacity": {
+        label: "Head opacity",
+        group: "Arrows",
+        kind: "number",
+        fallback: defaultEdgeStyle.arrowHead?.opacity ?? 1,
+        min: 0,
+        max: 1,
+        step: 0.05,
+    },
+    "edge.arrowHeadText": { label: "Head caption", group: "Arrows", kind: "text" },
+    "edge.arrowHeadTextStyle": { label: "Head caption style", group: "Arrows", kind: "labelStyle" },
     "edge.arrowTail": { label: "Tail", group: "Arrows", kind: "enum", fallback: "none", options: ARROW_TYPE_OPTIONS },
+    "edge.arrowTailSize": {
+        label: "Tail size",
+        group: "Arrows",
+        kind: "number",
+        fallback: defaultEdgeStyle.arrowTail?.size ?? 1,
+        min: 0,
+        step: 0.1,
+    },
+    "edge.arrowTailColor": {
+        label: "Tail color",
+        group: "Arrows",
+        kind: "color",
+        fallback: hexOf(defaultEdgeStyle.arrowTail?.color),
+    },
+    "edge.arrowTailOpacity": {
+        label: "Tail opacity",
+        group: "Arrows",
+        kind: "number",
+        fallback: defaultEdgeStyle.arrowTail?.opacity ?? 1,
+        min: 0,
+        max: 1,
+        step: 0.05,
+    },
+    "edge.arrowTailText": { label: "Tail caption", group: "Arrows", kind: "text" },
+    "edge.arrowTailTextStyle": { label: "Tail caption style", group: "Arrows", kind: "labelStyle" },
+    "edge.patternCount": { label: "Pattern count", group: "Line", kind: "number", min: 2, step: 1 },
     "edge.animationSpeed": { label: "Animation", group: "Line", kind: "number", fallback: 0, min: 0, step: 0.1 },
     "edge.label": { label: "Label", group: "Text", kind: "text" },
     "edge.labelStyle": { label: "Label style", group: "Text", kind: "labelStyle" },
-    "edge.tooltip": { label: "Tooltip", group: "Text", kind: "text" },
 };
 
 /** Every channel, in the order the inspector draws them. */

@@ -3,7 +3,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import _ from "lodash";
 
-import type { AdHocData, EdgeStyleConfig } from "./config";
+import type { AdHocData, EdgeStyleConfig, RichTextStyleType } from "./config";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
@@ -25,6 +25,53 @@ interface InterceptPoint {
 interface EdgeLine {
     srcPoint: Vector3 | null;
     dstPoint: Vector3 | null;
+}
+
+/**
+ * Where an edge's own label hangs when its block does not say, and how far off.
+ *
+ * The middle of the line, touching it. A label's block always carries a `location` once the
+ * schema has parsed it, so this is what a caller who assembled a block by hand falls back to.
+ */
+const EDGE_LABEL_LOCATION: AttachPosition = "center";
+
+/** How far an edge's own label sits from the middle of the line when its block does not say. */
+const EDGE_LABEL_OFFSET = 0;
+
+/**
+ * Where a caption hangs from the cap it belongs to, when its own block does not say.
+ *
+ * Above the cap and a little clear of it, which is where the 1.x arrow captions sat. Unlike a
+ * label's block, an arrow caption's is optional in the schema and carries no parsed defaults, so
+ * this is the ordinary case rather than the fallback.
+ */
+const ARROW_CAPTION_LOCATION: AttachPosition = "top";
+
+/** How far a caption sits from its cap when its own block does not say. */
+const ARROW_CAPTION_OFFSET = 0.3;
+
+/**
+ * The caption one end of an edge should be drawing, or undefined when it should draw none.
+ *
+ * TWO WAYS TO GET NOTHING, AND THEY MEAN DIFFERENT THINGS.
+ *
+ * Words are what switch a caption on, exactly as they switch a label on: `StylePainter` sets a
+ * rich-text block's `enabled` whenever a layer writes the words that land in it, so a layer that
+ * wrote only the APPEARANCE -- `edge.arrowHeadTextStyle` with no `edge.arrowHeadText` beneath it
+ * -- has said how a caption should look without ever asking for one, and gets none. That is the
+ * same rule `node.labelStyle` follows beside `node.label`, and it is what lets a theme carry a
+ * caption's typeface for every edge while only the edges a layer names actually carry a caption.
+ *
+ * And a caption hangs from the cap at its end: `Edge.update` positions it against that cap's
+ * mesh. An end drawn with no arrow has no mesh to hang one from, and a caption built anyway
+ * would never be positioned at all -- it would be drawn at the middle of the scene, which is
+ * what a reader would see rather than a missing caption.
+ * @param block - The resolved rich-text block at that end of the edge, if there is one.
+ * @param cap - The arrow mesh at that end, which is null when the end is drawn with no arrow.
+ * @returns The block when a caption should be drawn from it, and undefined otherwise.
+ */
+function captionWanted(block: RichTextStyleType | undefined, cap: AbstractMesh | null): RichTextStyleType | undefined {
+    return cap !== null && block?.enabled === true ? block : undefined;
 }
 
 interface EdgeOpts {
@@ -90,10 +137,42 @@ export class Edge {
     label: RichTextLabel | null = null;
     arrowHeadText: RichTextLabel | null = null;
     arrowTailText: RichTextLabel | null = null;
-    private _arrowHeadTextOffset = 0.3;
-    private _arrowTailTextOffset = 0.3;
-    private _labelOffset = 0;
-    private _labelAttachPosition: AttachPosition = "center";
+    private _arrowHeadTextOffset = ARROW_CAPTION_OFFSET;
+    private _arrowTailTextOffset = ARROW_CAPTION_OFFSET;
+    private _arrowHeadTextAttachPosition: AttachPosition = ARROW_CAPTION_LOCATION;
+    private _arrowTailTextAttachPosition: AttachPosition = ARROW_CAPTION_LOCATION;
+    private _labelOffset = EDGE_LABEL_OFFSET;
+    private _labelAttachPosition: AttachPosition = EDGE_LABEL_LOCATION;
+
+    /**
+     * The words the label on screen is drawing, and undefined when this edge draws no label.
+     *
+     * WHY THIS EXISTS, which is the defect it closes. `edge.label`, `edge.labelStyle` and the
+     * four arrow-caption channels are `role: "content"` in `src/session/styles/intern.ts` and
+     * deliberately key no source mesh. So a paint that changes only an edge's words arrives carrying the same
+     * mesh key as the paint before it, and the comparison at the top of `paintFrom` -- which
+     * returns having applied NOTHING at all, an edge having no per-instance state to write --
+     * discarded it. `styles.add({ set: { "edge.label": "..." } })` over a graph already on
+     * screen resolved the text, reported it, and drew nothing.
+     *
+     * Held beside {@link drawnLabelStyle} so {@link syncContent} can run on every paint and
+     * still cost nothing when the text has not moved.
+     */
+    private drawnLabelText?: string;
+
+    /**
+     * The resolved label block the label on screen was built from.
+     *
+     * Deep-compared rather than compared by reference: `StylePainter.edgePaint` builds a fresh
+     * paint on every call, so two paints that say the same thing are never the same object.
+     */
+    private drawnLabelStyle?: EdgeStyleConfig["label"];
+
+    /** The arrow-head text block the glyph on screen was built from. See {@link syncContent}. */
+    private drawnArrowHeadText?: NonNullable<EdgeStyleConfig["arrowHead"]>["text"];
+
+    /** The arrow-tail text block the glyph on screen was built from. See {@link syncContent}. */
+    private drawnArrowTailText?: NonNullable<EdgeStyleConfig["arrowTail"]>["text"];
     // Debug flag for logging lineDirection (reserved for future use)
     private _loggedLineDirection: boolean = false;
 
@@ -287,27 +366,8 @@ export class Edge {
             }
         }
 
-        // create label if configured
-        if (style.label?.enabled) {
-            const { label, offset, attachPosition } = this.createLabel(style);
-            this.label = label;
-            this._labelOffset = offset;
-            this._labelAttachPosition = attachPosition;
-        }
-
-        // create arrow head text if configured
-        if (style.arrowHead?.text) {
-            const { label, offset } = this.createArrowText(style.arrowHead.text, "arrowHead");
-            this.arrowHeadText = label;
-            this._arrowHeadTextOffset = offset;
-        }
-
-        // create arrow tail text if configured
-        if (style.arrowTail?.text) {
-            const { label, offset } = this.createArrowText(style.arrowTail.text, "arrowTail");
-            this.arrowTailText = label;
-            this._arrowTailTextOffset = offset;
-        }
+        // create the label and the arrow glyphs if configured
+        this.syncContent(style, true);
     }
 
     /**
@@ -421,14 +481,22 @@ export class Edge {
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 
-        // Update arrow head text position if exists
+        // Update arrow head caption position if exists
         if (this.arrowHeadText && this.arrowMesh) {
-            this.arrowHeadText.attachTo(this.arrowMesh.position, "top", this._arrowHeadTextOffset);
+            this.arrowHeadText.attachTo(
+                this.arrowMesh.position,
+                this._arrowHeadTextAttachPosition,
+                this._arrowHeadTextOffset,
+            );
         }
 
-        // Update arrow tail text position if exists
+        // Update arrow tail caption position if exists
         if (this.arrowTailText && this.arrowTailMesh) {
-            this.arrowTailText.attachTo(this.arrowTailMesh.position, "top", this._arrowTailTextOffset);
+            this.arrowTailText.attachTo(
+                this.arrowTailMesh.position,
+                this._arrowTailTextAttachPosition,
+                this._arrowTailTextOffset,
+            );
         }
 
         // Cache positions for next frame
@@ -498,7 +566,14 @@ export class Edge {
                 ? false // PatternedLineMesh is always "alive" (check individual meshes if needed)
                 : this.mesh.isDisposed();
 
+        // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
+        // role is `mesh`, with the colour and the opacity folded back into the string by
+        // `StylePainter.edgePaintOf` because an edge has no per-instance state to write them
+        // into -- so an unchanged key means the line, its caps and its colour are all unchanged.
+        // The `content` channels are keyed by nothing, so they are applied here. See
+        // `drawnLabelText` for the defect that reached a consumer.
         if (meshKey === this.meshKey && !meshDisposed) {
+            this.syncContent(style, false);
             return;
         }
 
@@ -602,52 +677,98 @@ export class Edge {
             }
         }
 
-        // Update label if needed
-        if (style.label?.enabled) {
-            if (this.label) {
-                this.label.dispose();
-            }
-
-            const { label, offset, attachPosition } = this.createLabel(style);
-            this.label = label;
-            this._labelOffset = offset;
-            this._labelAttachPosition = attachPosition;
-        } else if (this.label) {
-            this.label.dispose();
-            this.label = null;
-        }
-
-        // Update arrow head text if needed
-        if (style.arrowHead?.text) {
-            if (this.arrowHeadText) {
-                this.arrowHeadText.dispose();
-            }
-
-            const { label, offset } = this.createArrowText(style.arrowHead.text, "arrowHead");
-            this.arrowHeadText = label;
-            this._arrowHeadTextOffset = offset;
-        } else if (this.arrowHeadText) {
-            this.arrowHeadText.dispose();
-            this.arrowHeadText = null;
-        }
-
-        // Update arrow tail text if needed
-        if (style.arrowTail?.text) {
-            if (this.arrowTailText) {
-                this.arrowTailText.dispose();
-            }
-
-            const { label, offset } = this.createArrowText(style.arrowTail.text, "arrowTail");
-            this.arrowTailText = label;
-            this._arrowTailTextOffset = offset;
-        } else if (this.arrowTailText) {
-            this.arrowTailText.dispose();
-            this.arrowTailText = null;
-        }
+        // Update the label and the arrow glyphs.
+        //
+        // UNCONDITIONALLY, which is what the `true` says: the arrow meshes the two glyphs are
+        // positioned against were replaced above, so a glyph asking for exactly what was drawn
+        // a moment ago is still pointing at a mesh that is gone.
+        this.syncContent(style, true);
 
         // Every mesh above is new, so whatever the visibility mask said about this edge has to be
         // said again -- otherwise a restyle silently puts a filtered-out edge back on screen.
         this.applyRenderState();
+    }
+
+    /**
+     * Bring the text this edge draws into line with what one resolved style asks for.
+     *
+     * SEPARATE FROM THE GEOMETRY REBUILD, and the separation is the whole point. `paintFrom`
+     * skips its work when the source mesh has not changed, which is correct for a line and its
+     * caps; an edge's words are not keyed by that mesh, so they have to be looked at on every
+     * paint instead. Each of the three has its own comparison, so a repaint that leaves the
+     * text alone rebuilds nothing.
+     *
+     * WHY A REBUILD INVALIDATES THE POSITION CACHE. A `RichTextLabel` built here is at the
+     * origin until `update()` places it, and `update()` returns early when neither endpoint has
+     * moved -- so on a settled layout, which is exactly when a reader switches labels on, the
+     * label would be built and then left in the middle of the scene. Clearing the cached
+     * endpoints is what asks the next frame to place it.
+     * @param style - The resolved style.
+     * @param rebuild - True when the meshes the text is positioned against have just been
+     *     replaced, so text asking for what was drawn a moment ago must still be built again.
+     */
+    private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
+        let rebuilt = false;
+
+        const wantedLabel = style.label?.enabled === true ? style.label : undefined;
+        const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
+
+        if (rebuild || labelText !== this.drawnLabelText || !_.isEqual(wantedLabel, this.drawnLabelStyle)) {
+            this.label?.dispose();
+            this.label = null;
+
+            if (wantedLabel !== undefined) {
+                const { label, offset, attachPosition } = this.createLabel(style);
+                this.label = label;
+                this._labelOffset = offset;
+                this._labelAttachPosition = attachPosition;
+            }
+
+            this.drawnLabelText = labelText;
+            // CLONED rather than held: the block belongs to an `EdgePaint` that
+            // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
+            // reference somebody else can still write to silently starts passing.
+            this.drawnLabelStyle = wantedLabel === undefined ? undefined : _.cloneDeep(wantedLabel);
+            rebuilt = true;
+        }
+
+        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowMesh);
+
+        if (rebuild || !_.isEqual(wantedHead, this.drawnArrowHeadText)) {
+            this.arrowHeadText?.dispose();
+            this.arrowHeadText = null;
+
+            if (wantedHead !== undefined) {
+                const { label, offset, attachPosition } = this.createArrowText(wantedHead, "arrowHead");
+                this.arrowHeadText = label;
+                this._arrowHeadTextOffset = offset;
+                this._arrowHeadTextAttachPosition = attachPosition;
+            }
+
+            this.drawnArrowHeadText = wantedHead === undefined ? undefined : _.cloneDeep(wantedHead);
+            rebuilt = true;
+        }
+
+        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailMesh);
+
+        if (rebuild || !_.isEqual(wantedTail, this.drawnArrowTailText)) {
+            this.arrowTailText?.dispose();
+            this.arrowTailText = null;
+
+            if (wantedTail !== undefined) {
+                const { label, offset, attachPosition } = this.createArrowText(wantedTail, "arrowTail");
+                this.arrowTailText = label;
+                this._arrowTailTextOffset = offset;
+                this._arrowTailTextAttachPosition = attachPosition;
+            }
+
+            this.drawnArrowTailText = wantedTail === undefined ? undefined : _.cloneDeep(wantedTail);
+            rebuilt = true;
+        }
+
+        if (rebuilt) {
+            this.invalidatePositionCache();
+        }
     }
 
     /**
@@ -705,6 +826,12 @@ export class Edge {
         this.arrowHeadText = null;
         this.arrowTailText?.dispose();
         this.arrowTailText = null;
+
+        // Cleared with them, so the caches never say text is drawn that is not.
+        this.drawnLabelText = undefined;
+        this.drawnLabelStyle = undefined;
+        this.drawnArrowHeadText = undefined;
+        this.drawnArrowTailText = undefined;
     }
 
     /**
@@ -1248,17 +1375,47 @@ export class Edge {
         };
     }
 
+    /**
+     * Where one of this edge's three pieces of text hangs, and how far off.
+     *
+     * ONE PLACE FOR BOTH ANSWERS, because they were worked out twice and could disagree: the
+     * label's builder resolved `location` into an attach position, and its caller resolved the
+     * same field again to decide where `update()` would hang the plane every frame. A block that
+     * says "automatic" falls back to whatever the caller's own default is -- the renderer has no
+     * rule for choosing a side of an edge, so "automatic" here means "wherever this piece of text
+     * normally sits" rather than a computation.
+     * @param block - The resolved rich-text block, if there is one.
+     * @param fallbackLocation - Where this piece of text sits when its block does not say.
+     * @param fallbackOffset - How far off it sits when its block does not say.
+     * @returns The side it hangs from and the distance, in world units.
+     */
+    private placementOf(
+        block: RichTextStyleType | undefined,
+        fallbackLocation: AttachPosition,
+        fallbackOffset: number,
+    ): { attachPosition: AttachPosition; attachOffset: number } {
+        const location = block?.location ?? fallbackLocation;
+
+        return {
+            attachPosition: location === "automatic" ? fallbackLocation : location,
+            attachOffset: block?.attachOffset ?? fallbackOffset,
+        };
+    }
+
     private createLabel(styleConfig: EdgeStyleConfig): {
         label: RichTextLabel;
         offset: number;
         attachPosition: AttachPosition;
     } {
         const labelText = this.extractLabelText(styleConfig.label);
-        const labelOptions = this.createLabelOptions(labelText, styleConfig);
-        const offset = styleConfig.label?.attachOffset ?? 0;
-        const labelLocation = styleConfig.label?.location ?? "center";
-        const attachPosition = (labelLocation === "automatic" ? "center" : labelLocation) as AttachPosition;
-        return { label: new RichTextLabel(this.context.getScene(), labelOptions), offset, attachPosition };
+        const placement = this.placementOf(styleConfig.label, EDGE_LABEL_LOCATION, EDGE_LABEL_OFFSET);
+        const labelOptions = this.createLabelOptions(labelText, styleConfig.label, placement);
+
+        return {
+            label: new RichTextLabel(this.context.getScene(), labelOptions),
+            offset: placement.attachOffset,
+            attachPosition: placement.attachPosition,
+        };
     }
 
     /**
@@ -1300,36 +1457,58 @@ export class Edge {
         return "";
     }
 
-    private createLabelOptions(labelText: string, styleConfig: EdgeStyleConfig): RichTextLabelOptions {
-        const { label } = styleConfig;
-        if (!label) {
+    /**
+     * Turn one rich-text block into the options the label renderer takes.
+     *
+     * TAKES THE BLOCK, not the whole edge style, because an edge draws three of them: its own
+     * label at the middle of the line, and a caption at each end of it. They are the same schema
+     * (`RichTextStyle`), the same class draws all three, and the only difference is which key of
+     * the resolved style they came from and where they hang. The node's equivalent has taken the
+     * block since it grew a tooltip beside its label, for the same reason.
+     *
+     * WHAT THIS REPLACED FOR A CAPTION. The captions used to be built by a mapping of their own
+     * that read seven fields of the block -- the words, the font size, the text and background
+     * colours, the corner radius and the offset -- and dropped the other fifty. A caption could
+     * not be given a typeface, a border, a shadow, a badge or a margin by any route at all, not
+     * even by a caller writing the style out by hand, and nothing said so.
+     * @param labelText - The words to draw.
+     * @param block - The resolved rich-text block: `style.label`, `style.arrowHead.text` or
+     *     `style.arrowTail.text`.
+     * @param placement - Where it hangs, from {@link placementOf}.
+     * @param placement.attachPosition - Which side of its anchor it sits on.
+     * @param placement.attachOffset - How far off, in world units.
+     * @returns The options, with the placement the caller worked out already applied.
+     */
+    private createLabelOptions(
+        labelText: string,
+        block: RichTextStyleType | undefined,
+        placement: { attachPosition: AttachPosition; attachOffset: number },
+    ): RichTextLabelOptions {
+        if (!block) {
             return {
                 text: labelText,
-                attachPosition: "center",
-                attachOffset: 0,
+                attachPosition: placement.attachPosition,
+                attachOffset: placement.attachOffset,
             };
         }
 
-        const labelLocation = label.location ?? "center";
-        const attachPosition = labelLocation === "automatic" ? "center" : labelLocation;
-
         // Transform backgroundColor to string if it's an advanced color style
         let backgroundColor: string | undefined = undefined;
-        if (label.backgroundColor) {
-            if (typeof label.backgroundColor === "string") {
-                ({ backgroundColor } = label);
-            } else if (label.backgroundColor.colorType === "solid") {
-                ({ value: backgroundColor } = label.backgroundColor);
-            } else if (label.backgroundColor.colorType === "gradient") {
+        if (block.backgroundColor) {
+            if (typeof block.backgroundColor === "string") {
+                ({ backgroundColor } = block);
+            } else if (block.backgroundColor.colorType === "solid") {
+                ({ value: backgroundColor } = block.backgroundColor);
+            } else if (block.backgroundColor.colorType === "gradient") {
                 // For gradients, use the first color as a fallback
-                [backgroundColor] = label.backgroundColor.colors;
+                [backgroundColor] = block.backgroundColor.colors;
             }
         }
 
         // Filter out undefined values from backgroundGradientColors
         let backgroundGradientColors: string[] | undefined = undefined;
-        if (label.backgroundGradientColors) {
-            backgroundGradientColors = label.backgroundGradientColors.filter(
+        if (block.backgroundGradientColors) {
+            backgroundGradientColors = block.backgroundGradientColors.filter(
                 (color): color is string => color !== undefined,
             );
             if (backgroundGradientColors.length === 0) {
@@ -1339,8 +1518,8 @@ export class Edge {
 
         // Transform borders to ensure colors are strings
         let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
-        if (label.borders && label.borders.length > 0) {
-            const validBorders = label.borders
+        if (block.borders && block.borders.length > 0) {
+            const validBorders = block.borders
                 .filter((border): border is typeof border & { color: string } => border.color !== undefined)
                 .map((border) => ({
                     width: border.width,
@@ -1354,13 +1533,13 @@ export class Edge {
             }
         }
 
-        // Create label options by spreading the entire label object
+        // Create label options by spreading the entire block
         const labelOptions: RichTextLabelOptions = {
-            ...label,
+            ...block,
             // Override with computed values
             text: labelText,
-            attachPosition: attachPosition as AttachPosition,
-            attachOffset: label.attachOffset ?? 0,
+            attachPosition: placement.attachPosition,
+            attachOffset: placement.attachOffset,
             backgroundColor,
             backgroundGradientColors,
             ...(borders !== undefined && { borders }),
@@ -1382,55 +1561,35 @@ export class Edge {
         return finalLabelOptions;
     }
 
+    /**
+     * Build the caption that hangs from the cap at one end of this edge.
+     *
+     * THE SAME BUILDER AS THE EDGE'S OWN LABEL, which is the whole of what changed here: the
+     * caption is a `RichTextLabel` written in the same schema, so every field the label
+     * vocabulary publishes reaches it, rather than the seven a mapping of its own used to copy.
+     * @param textConfig - The resolved rich-text block at this end.
+     * @param source - Which end it is, which decides the glyph an unworded caption falls back to.
+     * @returns The caption, and where to hang it from the cap.
+     */
     private createArrowText(
-        textConfig: Record<string, unknown>,
+        textConfig: RichTextStyleType,
         source: "arrowHead" | "arrowTail",
-    ): { label: RichTextLabel; offset: number } {
-        // Extract text from config - either direct text or textPath.
+    ): { label: RichTextLabel; offset: number; attachPosition: AttachPosition } {
         // The two arrow glyphs below are the only non-ASCII bytes in this file and they are
-        // DELIBERATE: this is the rendered default for an arrow label the caller declared but
-        // gave no text for, so it is UI content, not source punctuation. Replacing it with
-        // "->" / "<-" would change what the scene draws, which is not a formatting fix.
-        let labelText: string = source === "arrowHead" ? "→" : "←";
+        // DELIBERATE: this is what is drawn for a caption that was switched on and given no
+        // words, so it is UI content, not source punctuation. Replacing it with "->" / "<-"
+        // would change what the scene draws, which is not a formatting fix.
+        const glyph = source === "arrowHead" ? "→" : "←";
+        const words = this.extractLabelText(textConfig);
+        const labelText = words === "" ? glyph : words;
+        const placement = this.placementOf(textConfig, ARROW_CAPTION_LOCATION, ARROW_CAPTION_OFFSET);
+        const labelOptions = this.createLabelOptions(labelText, textConfig, placement);
 
-        if (textConfig.text !== undefined && textConfig.text !== null) {
-            if (
-                typeof textConfig.text === "string" ||
-                typeof textConfig.text === "number" ||
-                typeof textConfig.text === "boolean"
-            ) {
-                labelText = String(textConfig.text);
-            }
-        } else if (textConfig.textPath && typeof textConfig.textPath === "string") {
-            try {
-                const result = jmespath.search(this.data, textConfig.textPath);
-                if (result !== null && result !== undefined) {
-                    labelText = String(result);
-                }
-            } catch {
-                // Ignore jmespath errors
-            }
-        }
-
-        // Extract offset from config
-        const offset = typeof textConfig.attachOffset === "number" ? textConfig.attachOffset : 0.3;
-
-        // Build label options from text config
-        const labelOptions: RichTextLabelOptions = {
-            text: labelText,
-            fontSize: typeof textConfig.fontSize === "number" ? textConfig.fontSize : 12,
-            textColor: typeof textConfig.textColor === "string" ? textConfig.textColor : "#FFFFFF",
-            backgroundColor: typeof textConfig.backgroundColor === "string" ? textConfig.backgroundColor : "#333333",
-            attachPosition: "top" as AttachPosition,
-            attachOffset: offset,
+        return {
+            label: new RichTextLabel(this.context.getScene(), labelOptions),
+            offset: placement.attachOffset,
+            attachPosition: placement.attachPosition,
         };
-
-        // Pass through additional styling options if provided
-        if (typeof textConfig.cornerRadius === "number") {
-            labelOptions.cornerRadius = textConfig.cornerRadius;
-        }
-
-        return { label: new RichTextLabel(this.context.getScene(), labelOptions), offset };
     }
 }
 

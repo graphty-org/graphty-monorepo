@@ -100,21 +100,23 @@
         "test": "npm run test:shards:parallel && npm run test:visual",
         "test:default": "vitest --project=default",
         "test:browser": "vitest --project=browser",
+        "test:xr": "vitest run --project=xr",
         "test:storybook": "vitest --project=storybook",
-        "test:visual": "npx chromatic",
+        "test:visual": "../tools/chromatic.sh graphty-element",
         "test:shard:default": "npm run test:shard:default:run",
-        "test:shard:default:run": "vitest run --project=default",
+        "test:shard:default:run": "vitest run --project=default --project=mesh",
+        "test:prepush": "vitest run --project=default --project=mesh --project=contract --project=xr",
         "test:shard:browser": "npm run test:shard:browser:run",
-        "test:shard:browser:run": "vitest run --project=browser --project=interactions",
+        "test:shard:browser:run": "vitest run --project=browser --project=interactions --project=xr",
         "test:shard:storybook": "npm run test:shard:storybook:run",
         "test:shard:storybook:run": "vitest run --project=storybook",
-        "test:shard:visual": "npx chromatic",
+        "test:shard:visual": "../tools/chromatic.sh graphty-element",
         "test:shards": "npm run test:shard:default && npm run test:shard:browser && npm run test:shard:storybook && npm run test:shard:visual",
-        "test:shards:parallel": "npm run test:shard:default:run & npm run test:shard:browser:run & npm run test:shard:storybook:run & wait",
-        "test:visual:debug": "npx chromatic --debug",
-        "test:mesh": "vitest run --config test/mesh-testing/vitest-mesh.config.ts",
-        "test:mesh:watch": "vitest --config test/mesh-testing/vitest-mesh.config.ts",
-        "test:mesh:coverage": "vitest run --config test/mesh-testing/vitest-mesh.config.ts --coverage",
+        "test:shards:parallel": "pids=''; npm run test:shard:default:run & pids=\"$pids $!\"; npm run test:shard:browser:run & pids=\"$pids $!\"; npm run test:shard:storybook:run & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "test:visual:debug": "../tools/chromatic.sh graphty-element --debug",
+        "test:mesh": "vitest run --project=mesh",
+        "test:mesh:watch": "vitest --project=mesh",
+        "test:mesh:coverage": "vitest run --project=mesh --coverage",
         "test:interactions": "vitest run --project=interactions",
         "test:interactions:unit": "vitest run --project=interactions test/interactions/unit/",
         "test:interactions:browser": "vitest run --project=interactions test/interactions/integration/",
@@ -126,15 +128,15 @@
         "coverage:merge": "./scripts/coverage-merge.sh",
         "coverage:shards": "npm run coverage:shards:clean && npm run coverage:shards:run",
         "coverage:shards:clean": "rm -rf .coverage-parts",
-        "coverage:shards:run": "npm run coverage:shard:default & npm run coverage:shard:browser & npm run coverage:shard:storybook & wait",
-        "coverage:shard:default": "COVERAGE_DIR=.coverage-parts/default vitest run --project=default --coverage",
-        "coverage:shard:browser": "npm run coverage:shard:browser:1 & npm run coverage:shard:browser:2 & npm run coverage:shard:browser:3 & npm run coverage:shard:browser:4 & npm run coverage:shard:browser:5 & wait",
+        "coverage:shards:run": "pids=''; npm run coverage:shard:default & pids=\"$pids $!\"; npm run coverage:shard:browser & pids=\"$pids $!\"; npm run coverage:shard:storybook & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "coverage:shard:default": "COVERAGE_DIR=.coverage-parts/default vitest run --project=default --project=mesh --coverage",
+        "coverage:shard:browser": "pids=''; npm run coverage:shard:browser:1 & pids=\"$pids $!\"; npm run coverage:shard:browser:2 & pids=\"$pids $!\"; npm run coverage:shard:browser:3 & pids=\"$pids $!\"; npm run coverage:shard:browser:4 & pids=\"$pids $!\"; npm run coverage:shard:browser:5 & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
         "coverage:shard:browser:1": "COVERAGE_DIR=.coverage-parts/browser-1 vitest run --project=browser --project=interactions --shard=1/5 --coverage",
         "coverage:shard:browser:2": "COVERAGE_DIR=.coverage-parts/browser-2 vitest run --project=browser --project=interactions --shard=2/5 --coverage",
         "coverage:shard:browser:3": "COVERAGE_DIR=.coverage-parts/browser-3 vitest run --project=browser --project=interactions --shard=3/5 --coverage",
         "coverage:shard:browser:4": "COVERAGE_DIR=.coverage-parts/browser-4 vitest run --project=browser --project=interactions --shard=4/5 --coverage",
         "coverage:shard:browser:5": "COVERAGE_DIR=.coverage-parts/browser-5 vitest run --project=browser --project=interactions --shard=5/5 --coverage",
-        "coverage:shard:storybook": "npm run coverage:shard:storybook:1 & npm run coverage:shard:storybook:2 & npm run coverage:shard:storybook:3 & npm run coverage:shard:storybook:4 & wait",
+        "coverage:shard:storybook": "pids=''; npm run coverage:shard:storybook:1 & pids=\"$pids $!\"; npm run coverage:shard:storybook:2 & pids=\"$pids $!\"; npm run coverage:shard:storybook:3 & pids=\"$pids $!\"; npm run coverage:shard:storybook:4 & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
         "coverage:shard:storybook:1": "COVERAGE_DIR=.coverage-parts/storybook-1 vitest run --project=storybook --shard=1/4 --coverage",
         "coverage:shard:storybook:2": "COVERAGE_DIR=.coverage-parts/storybook-2 vitest run --project=storybook --shard=2/4 --coverage",
         "coverage:shard:storybook:3": "COVERAGE_DIR=.coverage-parts/storybook-3 vitest run --project=storybook --shard=3/4 --coverage",
@@ -144,14 +146,14 @@
         "lint": "eslint && tsc --noEmit && npm run typecheck:strict-consumer",
         "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty-element",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
         "dev": "vite --force --mode development",
         "dev:xr": "node examples/xr/xr-demo-server.js",
         "build": "vite build && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs",
         "preview": "vite preview",
         "build:storybook": "npm run build-storybook",
         "storybook": "rm -rf node_modules/.vite && npm run build-storybook && . ./.env 2>/dev/null; storybook dev -p ${PORT:-6006} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
-        "chromatic": "npx chromatic --exit-zero-on-changes",
+        "chromatic": "../tools/chromatic.sh graphty-element",
         "build-storybook": "storybook build",
         "ready:commit": "npm run build && npm run lint && npm test",
         "merge:upstream": "git pull origin master --no-rebase",
@@ -163,6 +165,9 @@
         "docs:preview": "vitepress preview docs"
     },
     "devDependencies": {
+        "@ai-sdk/anthropic": "^2.0.50",
+        "@ai-sdk/google": "^2.0.44",
+        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.36.1",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
@@ -175,6 +180,8 @@
         "@types/jmespath": "^0.15.2",
         "@types/lodash": "^4.17.19",
         "@types/toposort": "^2.0.7",
+        "ai": "^5.0.104",
+        "encrypt-storage": "^2.14.7",
         "eslint-plugin-jsdoc": "^50.6.17",
         "fast-check": "^4.2.0",
         "iwer": "^2.1.1",
@@ -191,34 +198,49 @@
         "vitest": "^3.2.4"
     },
     "peerDependencies": {
+        "@ai-sdk/anthropic": "^2.0.50",
+        "@ai-sdk/google": "^2.0.44",
+        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@graphty/graph-format": "^1.0.0",
         "@graphty/webgpu-graph-algorithms": ">=0.5.1 <1.0.0",
         "@mlc-ai/web-llm": ">=0.2.0",
+        "ai": "^5.0.104",
+        "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0"
     },
     "peerDependenciesMeta": {
+        "@ai-sdk/anthropic": {
+            "optional": true
+        },
+        "@ai-sdk/google": {
+            "optional": true
+        },
+        "@ai-sdk/openai": {
+            "optional": true
+        },
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },
         "@mlc-ai/web-llm": {
             "optional": true
+        },
+        "ai": {
+            "optional": true
+        },
+        "encrypt-storage": {
+            "optional": true
         }
     },
     "dependencies": {
-        "@ai-sdk/anthropic": "^2.0.50",
-        "@ai-sdk/google": "^2.0.44",
-        "@ai-sdk/openai": "^2.0.74",
         "@graphty/algorithms": "workspace:^",
         "@graphty/graph-format": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
         "@types/papaparse": "^5.5.0",
-        "ai": "^5.0.104",
         "colorjs.io": "^0.5.2",
         "d3-force-3d": "^3.0.6",
-        "encrypt-storage": "^2.14.7",
         "fast-xml-parser": "^5.3.1",
         "hammerjs": "^2.0.8",
         "jmespath": "^0.16.0",

@@ -408,11 +408,25 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
 function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
-    return prepared.categories.map((category) => ({
+    const swatches: LegendSwatch[] = prepared.categories.map((category) => ({
         label: category,
         value: category,
         ...swatchPaint(prepared.paint(category)),
     }));
+    const { lumped } = prepared;
+    const folded = lumped.length > 0 ? prepared.paint(lumped[0]) : undefined;
+
+    // The bucket gets one row saying what it holds, so a reader is told what the grey means
+    // rather than left to guess. A binding that paints nothing for the bucket gets no row.
+    if (folded !== undefined) {
+        swatches.push({
+            label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
+            value: lumped,
+            ...swatchPaint(folded),
+        });
+    }
+
+    return swatches;
 }
 
 /**

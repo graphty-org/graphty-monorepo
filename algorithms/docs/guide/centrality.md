@@ -142,6 +142,22 @@ const centrality = eigenvectorCentrality(graph, {
 });
 ```
 
+If the power iteration has not met the tolerance after `maxIterations` passes, `eigenvectorCentrality` throws a `ConvergenceError` rather than returning unconverged scores, as networkx raises `PowerIterationFailedConvergence`. The error carries `algorithm`, `iterations` and `tolerance`. Long paths and large grids converge slowly; raise `maxIterations` (or `tolerance`) and call again:
+
+```typescript
+import { ConvergenceError, eigenvectorCentrality } from "@graphty/algorithms";
+
+try {
+  eigenvectorCentrality(graph);
+} catch (error) {
+  if (error instanceof ConvergenceError) {
+    eigenvectorCentrality(graph, { maxIterations: 1000 });
+  }
+}
+```
+
+A graph with no cycle (no edges, or a directed acyclic graph) is not an error: every score is exactly 0.
+
 ## PageRank
 
 Google's algorithm for ranking web pages. Similar to eigenvector centrality but handles directed graphs and dangling nodes.
@@ -177,6 +193,22 @@ const ranks = pageRank(web, {
   tolerance: 1e-6,
 });
 ```
+
+If the power iteration has not met the tolerance after `maxIterations` passes, `eigenvectorCentrality` throws a `ConvergenceError` rather than returning unconverged scores, as networkx raises `PowerIterationFailedConvergence`. The error carries `algorithm`, `iterations` and `tolerance`. Long paths and large grids converge slowly; raise `maxIterations` (or `tolerance`) and call again:
+
+```typescript
+import { ConvergenceError, eigenvectorCentrality } from "@graphty/algorithms";
+
+try {
+  eigenvectorCentrality(graph);
+} catch (error) {
+  if (error instanceof ConvergenceError) {
+    eigenvectorCentrality(graph, { maxIterations: 1000 });
+  }
+}
+```
+
+A graph with no cycle (no edges, or a directed acyclic graph) is not an error: every score is exactly 0.
 
 ## HITS (Hubs and Authorities)
 

@@ -7,39 +7,40 @@
  * Run with: npm test -- --project=browser
  */
 import {
-    MantineProvider,
-    // Input components
-    TextInput,
-    NumberInput,
-    Select,
+    ActionIcon,
+    Avatar,
+    Badge,
+    // Navigation components
+    Burger,
     // Button components
     Button,
-    ActionIcon,
-    CloseButton,
-    // Control components
-    Switch,
     Checkbox,
-    Radio,
-    Slider,
-    SegmentedControl,
-    // Display components
-    Text,
-    Badge,
-    Pill,
-    Avatar,
-    ThemeIcon,
+    CloseButton,
     Indicator,
     Kbd,
     // Feedback components
     Loader,
-    Progress,
-    // Navigation components
-    Burger,
+    MantineProvider,
+    NumberInput,
     Pagination,
+    Pill,
+    Progress,
+    Radio,
+    SegmentedControl,
+    Select,
+    Slider,
     Stepper,
+    // Control components
+    Switch,
+    // Display components
+    Text,
+    // Input components
+    TextInput,
+    ThemeIcon,
 } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
 import { compactTheme } from "../../src";
 
 // Simple icon placeholder for tests

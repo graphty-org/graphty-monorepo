@@ -12,8 +12,8 @@
  * builds JavaScript out of a string.
  *
  * THE SET IS CLOSED OVER WHAT THE ELEMENT CAN DRAW, which is a stronger claim and the reason
- * every entry below names the field of the parsed style it lands on. Two entries do not make
- * that claim, and both say so in `caveat` rather than pretending:
+ * every entry below names the field of the parsed style it lands on. Several entries narrow that
+ * claim, and every one of them says so in `caveat` rather than pretending:
  *
  * - `node.marker` draws nothing at all. `NodeStyle.texture.icon` is declared in the schema and
  *   no renderer reads it, and the badge vocabulary that does exist belongs to a label, not to a
@@ -21,6 +21,28 @@
  *   compile error rather than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
+ * - `node.glowStrength` is drawn, but Babylon keeps a glow's intensity on the LAYER rather than
+ *   on a mesh, so two glowing styles on screen share whichever strength was applied last.
+ * - `node.outline` is a colour and no width, for the same reason in the same shape: the stroke
+ *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
+ *   screen is one width. This is the sentence the element's natural-language layer reads out
+ *   when someone asks for an outline width, so it answers with a reason rather than a refusal.
+ * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count.
+ * - The four arrow caption channels draw words at ONE END of an edge, hanging from the cap
+ *   there. An end with no cap carries no caption, and the words are what switch one on.
+ * - The two node tooltip channels draw on HOVER and only on hover, so a graph at rest carries
+ *   none however many layers write one -- and only a node has a tooltip. `edge.tooltip` was
+ *   published through 1.x, drawn by nothing, and withdrawn in 2.0 because an edge cannot be
+ *   hovered at all.
+ *
+ * WHAT A CAVEAT IS NOT. It is not a place to record that a capability has no channel at all. A
+ * caveat says what the renderer can and cannot draw; a style field that IS declared and that no
+ * channel reaches belongs in the reachability waiver list, `src/catalog/unreachable.ts`, where a
+ * test can see it rather than only a reader. `node.glow` used to carry a note about the glow's
+ * strength having no channel, and the strength has one now. The outline's width is the other
+ * shape: `NodeStyle.effect.outline` declares no `width` at all any more, because a declared one
+ * was accepted, validated and ignored -- so there is no field for the waiver list to name, and
+ * the limit belongs here, beside the colour that IS drawn.
  *
  * The enumerated channels take their values from the element's own schemas -- the node shape
  * list, the line pattern list, the arrow list -- read out of the Zod enums rather than retyped.
@@ -35,7 +57,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Channel, LabelStyle, Rgba } from "../../catalog/types";
+import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { EdgeStyle, type EdgeStyleConfig } from "../../config/EdgeStyle";
 import { NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
@@ -111,6 +133,25 @@ function parseHex(text: string): Rgba | null {
 }
 
 /**
+ * Whether a value a repaint resolved for a channel is one of the colours it carries.
+ *
+ * ONE GUARD, BECAUSE TWO DISAGREED. A colour reaches a renderer as a {@link ColorValue} object
+ * rather than as a string, and every reader of a resolved style has to recognise one. Both the
+ * style painter and the mesh-key interner had to; only the painter did, so a colour that keys a
+ * source mesh was folded into that key as "nothing painted this" and two edges whose arrow caps
+ * differed only in colour shared one cap. See `pushMeshValue` in `./repaint`.
+ * @param value - The value the repaint resolved, out of a column or a resolved style.
+ * @returns The colour, or null when the value is not one.
+ */
+export function asColorValue(value: unknown): ColorValue | null {
+    if (typeof value !== "object" || value === null || !("hex" in value)) {
+        return null;
+    }
+
+    return value as ColorValue;
+}
+
+/**
  * Turn anything the element accepts as a colour into the form a repaint reads.
  *
  * TOTAL, deliberately. It is called from the encoding path that runs once per element, which has
@@ -176,11 +217,12 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
 /**
  * A line pattern the edge renderer can draw.
  *
- * These are the nine the renderer ships, taken from the schema. They are NOT the nine names
- * `EdgeLinePattern` carries in the catalogue: that list says "dashed", "dotted", "long-dash" and
- * five more the renderer has never had a mesh for, and omits seven it does.
+ * These are the nine the renderer ships. The catalogue's `EdgeLinePattern` is now this same type
+ * rather than a second list beside it: it used to name nine patterns of which seven had never had
+ * a mesh, while omitting seven that did, so a consumer who wrote a value the published type
+ * accepted got a layer the element refused.
  */
-export type EdgeLineValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["type"]>;
+export type EdgeLineValue = EdgeLinePattern;
 
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
@@ -212,9 +254,11 @@ export interface ChannelValues {
     "node.label": string;
     "node.labelStyle": LabelStyle;
     "node.tooltip": string;
+    "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
     "node.outline": ColorValue;
     "node.glow": ColorValue;
+    "node.glowStrength": number;
     "node.wireframe": boolean;
     "node.flat": boolean;
     "node.marker": never;
@@ -222,13 +266,23 @@ export interface ChannelValues {
     "edge.width": number;
     "edge.opacity": number;
     "edge.style": EdgeLineValue;
+    "edge.patternCount": number;
     "edge.curvature": boolean;
     "edge.arrowHead": ArrowValue;
+    "edge.arrowHeadSize": number;
+    "edge.arrowHeadColor": ColorValue;
+    "edge.arrowHeadOpacity": number;
+    "edge.arrowHeadText": string;
+    "edge.arrowHeadTextStyle": LabelStyle;
     "edge.arrowTail": ArrowValue;
+    "edge.arrowTailSize": number;
+    "edge.arrowTailColor": ColorValue;
+    "edge.arrowTailOpacity": number;
+    "edge.arrowTailText": string;
+    "edge.arrowTailTextStyle": LabelStyle;
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
-    "edge.tooltip": string;
 }
 
 /**
@@ -238,7 +292,13 @@ export interface ChannelValues {
  * extends every type and would quietly join any union derived by a conditional. The list is tied
  * to the table by {@link COLOR_CHANNELS} and asserted in the tests, so the two cannot drift.
  */
-export type ColorChannel = "node.color" | "node.outline" | "node.glow" | "edge.color";
+export type ColorChannel =
+    | "node.color"
+    | "node.outline"
+    | "node.glow"
+    | "edge.color"
+    | "edge.arrowHeadColor"
+    | "edge.arrowTailColor";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -280,6 +340,70 @@ export interface ChannelDescriptor {
      */
     readonly caveat?: string;
 }
+
+/**
+ * Why an outline is a colour and nothing else, written once and read in two places.
+ *
+ * It is `node.outline`'s caveat. A caveat is not shelf decoration: `Layer.ts` and `encoding.ts`
+ * quote the caveat of a channel when they refuse a value for it, so this is the sentence a
+ * consumer gets back in the refusal rather than one they have to go looking for. The element's
+ * natural-language layer now quotes the same sentence when someone asks for an outline WIDTH
+ * (`src/ai/commands/StyleCommands.ts`), because a request the element cannot carry out deserves
+ * the same explanation however it arrived -- and two copies of it would be two answers to one
+ * question the day either is edited.
+ */
+export const NODE_OUTLINE_CAVEAT =
+    "An outline has a colour and no width. Babylon draws it with a highlight LAYER, and the " +
+    "stroke's blur size belongs to that layer rather than to a mesh, so every outline on screen " +
+    "is drawn at one width whatever a style asks for -- which is why the node style declares no " +
+    "outline width to ask with. The outline's COLOUR is per style; a width per style would need " +
+    "one highlight layer per width, at a full-screen pass each.";
+
+/**
+ * What an arrow caption narrows, written once and read by all four caption channels.
+ *
+ * A caption is the words an edge carries at ONE END of itself -- what Graphviz calls a headlabel
+ * and a taillabel -- as opposed to `edge.label`, which is the words at the middle of the line.
+ * Two things about it are worth a consumer knowing before they write a layer:
+ *
+ * A caption hangs from the cap at its end, so an end drawn with no arrow carries none. Setting
+ * `edge.arrowTailText` without also setting `edge.arrowTail` draws nothing, because an edge's
+ * tail has no cap unless a layer asks for one; a head does, from the element's own defaults.
+ *
+ * And the words are what switch a caption on. Writing only the appearance -- the `...TextStyle`
+ * channel with no words beneath it -- says how a caption should look without asking for one,
+ * which is the same rule `node.labelStyle` follows beside `node.label`.
+ */
+const ARROW_CAPTION_CAVEAT =
+    "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
+    "none: a tail caption needs `edge.arrowTail` set to something other than \"none\". The words " +
+    "are what switch a caption on, so a layer that writes only the caption's appearance and no " +
+    "words draws nothing, exactly as `node.labelStyle` draws nothing without `node.label`.";
+
+/**
+ * What a node tooltip narrows, written once and read by both of its channels.
+ *
+ * A tooltip is not part of the picture: it is drawn when the pointer arrives over a node and
+ * taken down when the pointer leaves, so a graph at rest carries none however many layers write
+ * one. That is the whole difference between a tooltip and a label, and it is the first thing a
+ * consumer needs to know, because a layer that writes a tooltip and changes nothing on screen
+ * looks exactly like a layer that did not land.
+ *
+ * The words are what switch a tooltip on, on the same terms as a label: `node.tooltipStyle`
+ * written with no `node.tooltip` beneath it says how a tooltip should look without asking for
+ * one, and nothing is drawn.
+ *
+ * AN EDGE HAS NO TOOLTIP. `edge.tooltip` was published through 1.x, drawn by nothing in any
+ * released version, and withdrawn in 2.0 -- an edge cannot be hovered at all, which is the same
+ * fact that leaves the element with no `edge-click` event. The record is `WITHDRAWN_CAPABILITIES`
+ * in `src/catalog/unreachable.ts`.
+ */
+const NODE_TOOLTIP_CAVEAT =
+    "A tooltip is drawn on hover and only on hover, so a graph at rest shows none: a layer that " +
+    "writes one changes nothing until a reader points at the node. The words are what switch it " +
+    "on, so a layer that writes only the tooltip's appearance and no words draws nothing, " +
+    "exactly as `node.labelStyle` draws nothing without `node.label`. Only a NODE has a " +
+    "tooltip; `edge.tooltip` was withdrawn in 2.0 because an edge cannot be hovered.";
 
 /**
  * Every channel, with what the element actually does with it.
@@ -329,7 +453,6 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         accepts: "labelStyle",
         stylePath: "label",
         renderable: true,
-        caveat: "The renderer sizes a label to its text, so maxWidth and wrap are not drawn.",
     },
     "node.tooltip": {
         channel: "node.tooltip",
@@ -338,6 +461,16 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         accepts: "text",
         stylePath: "tooltip.text",
         renderable: true,
+        caveat: NODE_TOOLTIP_CAVEAT,
+    },
+    "node.tooltipStyle": {
+        channel: "node.tooltipStyle",
+        target: "node",
+        plainName: "Node Tooltip Style",
+        accepts: "labelStyle",
+        stylePath: "tooltip",
+        renderable: true,
+        caveat: NODE_TOOLTIP_CAVEAT,
     },
     "node.opacity": {
         channel: "node.opacity",
@@ -356,7 +489,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         accepts: "color",
         stylePath: "effect.outline.color",
         renderable: true,
-        caveat: "The outline's width is not a channel, so every outline is drawn at one width.",
+        caveat: NODE_OUTLINE_CAVEAT,
     },
     "node.glow": {
         channel: "node.glow",
@@ -365,7 +498,19 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         accepts: "color",
         stylePath: "effect.glow.color",
         renderable: true,
-        caveat: "The glow's strength is not a channel, so every glow is drawn at one strength.",
+    },
+    "node.glowStrength": {
+        channel: "node.glowStrength",
+        target: "node",
+        plainName: "Node Glow Strength",
+        accepts: "number",
+        min: 0,
+        stylePath: "effect.glow.strength",
+        renderable: true,
+        caveat:
+            "Babylon's glow intensity belongs to the glow LAYER rather than to a mesh, so with " +
+            "two glowing styles on screen both are drawn at whichever strength was applied last. " +
+            "The glow's COLOUR is per style. Per-style strength needs one full-screen pass each.",
     },
     "node.wireframe": {
         channel: "node.wireframe",
@@ -430,6 +575,19 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         stylePath: "line.type",
         renderable: true,
     },
+    "edge.patternCount": {
+        channel: "edge.patternCount",
+        target: "edge",
+        plainName: "Edge Pattern Count",
+        accepts: "number",
+        min: 2,
+        stylePath: "line.patternCount",
+        renderable: true,
+        caveat:
+            "A cap on how many dots or dashes a patterned edge draws, and it applies to a " +
+            "patterned line only: a solid line has no elements to count. Left unset, the spacing " +
+            "rule decides, so a long edge or a thin one draws more of them.",
+    },
     "edge.curvature": {
         channel: "edge.curvature",
         target: "edge",
@@ -450,6 +608,51 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         stylePath: "arrowHead.type",
         renderable: true,
     },
+    "edge.arrowHeadSize": {
+        channel: "edge.arrowHeadSize",
+        target: "edge",
+        plainName: "Arrow Head Size",
+        accepts: "number",
+        min: 0,
+        stylePath: "arrowHead.size",
+        renderable: true,
+    },
+    "edge.arrowHeadColor": {
+        channel: "edge.arrowHeadColor",
+        target: "edge",
+        plainName: "Arrow Head Colour",
+        accepts: "color",
+        stylePath: "arrowHead.color",
+        renderable: true,
+    },
+    "edge.arrowHeadOpacity": {
+        channel: "edge.arrowHeadOpacity",
+        target: "edge",
+        plainName: "Arrow Head Opacity",
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "arrowHead.opacity",
+        renderable: true,
+    },
+    "edge.arrowHeadText": {
+        channel: "edge.arrowHeadText",
+        target: "edge",
+        plainName: "Arrow Head Caption",
+        accepts: "text",
+        stylePath: "arrowHead.text.text",
+        renderable: true,
+        caveat: ARROW_CAPTION_CAVEAT,
+    },
+    "edge.arrowHeadTextStyle": {
+        channel: "edge.arrowHeadTextStyle",
+        target: "edge",
+        plainName: "Arrow Head Caption Style",
+        accepts: "labelStyle",
+        stylePath: "arrowHead.text",
+        renderable: true,
+        caveat: ARROW_CAPTION_CAVEAT,
+    },
     "edge.arrowTail": {
         channel: "edge.arrowTail",
         target: "edge",
@@ -458,6 +661,51 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         values: ARROW_VALUES,
         stylePath: "arrowTail.type",
         renderable: true,
+    },
+    "edge.arrowTailSize": {
+        channel: "edge.arrowTailSize",
+        target: "edge",
+        plainName: "Arrow Tail Size",
+        accepts: "number",
+        min: 0,
+        stylePath: "arrowTail.size",
+        renderable: true,
+    },
+    "edge.arrowTailColor": {
+        channel: "edge.arrowTailColor",
+        target: "edge",
+        plainName: "Arrow Tail Colour",
+        accepts: "color",
+        stylePath: "arrowTail.color",
+        renderable: true,
+    },
+    "edge.arrowTailOpacity": {
+        channel: "edge.arrowTailOpacity",
+        target: "edge",
+        plainName: "Arrow Tail Opacity",
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "arrowTail.opacity",
+        renderable: true,
+    },
+    "edge.arrowTailText": {
+        channel: "edge.arrowTailText",
+        target: "edge",
+        plainName: "Arrow Tail Caption",
+        accepts: "text",
+        stylePath: "arrowTail.text.text",
+        renderable: true,
+        caveat: ARROW_CAPTION_CAVEAT,
+    },
+    "edge.arrowTailTextStyle": {
+        channel: "edge.arrowTailTextStyle",
+        target: "edge",
+        plainName: "Arrow Tail Caption Style",
+        accepts: "labelStyle",
+        stylePath: "arrowTail.text",
+        renderable: true,
+        caveat: ARROW_CAPTION_CAVEAT,
     },
     "edge.animationSpeed": {
         channel: "edge.animationSpeed",
@@ -482,15 +730,6 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         plainName: "Edge Label Style",
         accepts: "labelStyle",
         stylePath: "label",
-        renderable: true,
-        caveat: "The renderer sizes a label to its text, so maxWidth and wrap are not drawn.",
-    },
-    "edge.tooltip": {
-        channel: "edge.tooltip",
-        target: "edge",
-        plainName: "Edge Tooltip",
-        accepts: "text",
-        stylePath: "tooltip.text",
         renderable: true,
     },
 };

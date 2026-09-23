@@ -68,7 +68,10 @@ describe("Graph Queue Integration", () => {
 
         // A style edit takes its turn in the same queue as everything else. It used to be a
         // `style-init` operation, queued by `setStyleTemplate`; a layer edit is a session run
-        // now, and the repaint that follows a data load is the queue's own `style-apply`.
+        // now, queued as `style-edit`, and the repaint that follows a data load is the queue's
+        // own `style-apply`. The category is its own rather than shared with `algorithm-run`
+        // because `data-add` obsoletes an algorithm run -- a computation over data that has just
+        // changed -- and must not cancel a layer, which says how to paint whatever arrives.
         await graph.getSession().styles.add({
             name: "every node blue",
             target: "node",
@@ -82,7 +85,7 @@ describe("Graph Queue Integration", () => {
         // Wait for operations to complete
         await graph.operationQueue.waitForCompletion();
 
-        const styleEditIndex = operations.indexOf("algorithm-run");
+        const styleEditIndex = operations.indexOf("style-edit");
         const dataAddIndex = operations.indexOf("data-add");
         const repaintIndex = operations.indexOf("style-apply");
 

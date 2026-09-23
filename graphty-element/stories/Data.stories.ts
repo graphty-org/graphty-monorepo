@@ -1,13 +1,27 @@
 import "../index.ts";
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
+import { assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
+import {
+    edgeData,
+    eventWaitingDecorator,
+    nodeData,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Data",
     component: "graphty-element",
+    // Every story below passes `setup`, which only `renderFn` reads: it is a story convention,
+    // not an element property, so without this line the element is handed a dead `setup`
+    // property and the pre-steps these stories ask for never arrive.
+    render: renderFn,
     decorators: [eventWaitingDecorator],
     parameters: {
         controls: { exclude: /^(#|_)/ },
@@ -20,6 +34,31 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
+/**
+ * Every story in this file exists to prove ONE importer produces the graph its own document
+ * declares, so every one of them asserts the same two things and differs only in the two numbers.
+ *
+ * WHY THE NUMBERS ARE THE WHOLE POINT. Nothing here used to check them. `waitForDataLoaded`
+ * resolves on a five-second timer with the comment "Data may already be loaded (e.g., inline
+ * data) or failed", and the project-level check asks only whether any node arrived -- so a GraphML
+ * fetch that returned three nodes of thirty-four, or a CSV importer that quietly dropped every row
+ * with a quoted field, rendered a picture and passed. The importer's own report is read beside
+ * them, because an edge whose endpoints the store would not take is a dropped row the counts alone
+ * cannot always show.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - Which importer this is, for the failure message.
+ * @param nodes - The nodes the story's document declares.
+ * @param edges - The edges it declares.
+ */
+const imported = async (canvasElement: HTMLElement, story: string, nodes: number, edges: number): Promise<void> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Data ${story}`);
+
+    await assertGraphLoaded(scene, { nodes, edges });
+    await assertLayoutPlaced(scene, { distinct: nodes > 1 && edges > 0 });
+};
+
 export const Basic: Story = {
     args: {
         nodeData,
@@ -31,7 +70,7 @@ export const Basic: Story = {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data3.json (77 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "Basic", 6, 6);
     },
 };
 
@@ -48,7 +87,7 @@ export const Json: Story = {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data3.json (77 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "Json", 77, 254);
     },
 };
 
@@ -68,7 +107,7 @@ export const ModifiedJson: Story = {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data2.json (80 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "ModifiedJson", 77, 254);
     },
 };
 
@@ -80,7 +119,7 @@ export const GraphML: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "GraphML", 34, 78);
     },
 };
 
@@ -102,7 +141,7 @@ backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CSV", 8, 10);
     },
 };
 
@@ -228,7 +267,7 @@ graph [
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "GML", 5, 5);
     },
 };
 
@@ -381,7 +420,7 @@ export const GEXF: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "GEXF", 5, 6);
     },
 };
 
@@ -536,7 +575,7 @@ digraph ComprehensiveTest {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for DOT with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "DOT", 9, 12);
     },
 };
 
@@ -557,7 +596,7 @@ user-1,user-3,MANAGES,2019,1.0`,
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvNeo4j", 3, 3);
     },
 };
 
@@ -576,7 +615,7 @@ cache-1,database-1,Directed,1.2,Cache Miss`,
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvGephi", 4, 5);
     },
 };
 
@@ -595,7 +634,7 @@ protein-D,protein-A,feedback,0.70,medium`,
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvCytoscape", 4, 5);
     },
 };
 
@@ -613,7 +652,7 @@ router-5,router-1:2.2`,
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvAdjacencyList", 5, 9);
     },
 };
 
@@ -635,7 +674,7 @@ node-8,Henry Moore,person,4,false,HR,henry@example.com`,
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvNodeList", 8, 0);
     },
 };
 
@@ -673,7 +712,7 @@ export const JsonD3: Story = {
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonD3", 5, 6);
     },
 };
 
@@ -733,7 +772,7 @@ export const JsonCytoscapeJs: Story = {
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonCytoscapeJs", 5, 6);
     },
 };
 
@@ -771,7 +810,7 @@ export const JsonSigma: Story = {
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonSigma", 5, 6);
     },
 };
 
@@ -808,7 +847,7 @@ export const JsonVisJs: Story = {
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonVisJs", 5, 6);
     },
 };
 
@@ -847,7 +886,7 @@ export const JsonNetworkX: Story = {
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonNetworkX", 5, 6);
     },
 };
 
@@ -876,7 +915,7 @@ monitor-1,database-1,Directed,0.3,Metrics,8`)}`,
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvPairedFiles", 6, 8);
     },
 };
 
@@ -913,7 +952,7 @@ export const Pajek: Story = {
         setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "Pajek", 8, 13);
     },
 };
 
@@ -1070,5 +1109,8 @@ export const GraphMLYFiles: Story = {
 </graphml>`,
         },
         layout: "fixed",
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "GraphMLYFiles", 6, 6);
     },
 };

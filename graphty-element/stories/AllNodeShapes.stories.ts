@@ -1,7 +1,10 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../src/catalog/types";
-import { Graphty } from "../src/graphty-element";
+import { assertGraphLoaded, assertLabelsDrawn, assertLayerPainted, assertShapeVariety, drawn } from "./assertions";
 import { eventWaitingDecorator, nodeShapes, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
@@ -74,6 +77,23 @@ const generateLayers = (): LayerSpec[] => {
  * Arranged in a 5x5 grid for easy visual comparison.
  */
 export const AllNodeShapes: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Node AllNodeShapes");
+
+        await assertGraphLoaded(scene, { nodes: nodeShapes.length, edges: 0 });
+
+        // ONE SOURCE MESH PER SHAPE, read off the scene. Two nodes are the same shape when and
+        // only when they are instanced from the same mesh, so a grid that promises 24 shapes and
+        // draws one sphere 24 times reads back here as one -- whatever the style model reports.
+        await assertShapeVariety(scene, nodeShapes.length);
+
+        // Each shape's layer names exactly one node, and each node is captioned with its shape.
+        for (const shape of nodeShapes) {
+            await assertLayerPainted(scene, `Shape - ${shape}`, { nodes: 1 });
+        }
+
+        await assertLabelsDrawn(scene);
+    },
     args: {
         setup: storySetup({
             viewMode: "3d",

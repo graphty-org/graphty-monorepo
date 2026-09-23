@@ -1,8 +1,9 @@
-import { eigenvectorCentrality } from "@graphty/algorithms";
+import { ConvergenceError, eigenvectorCentrality } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
 import { walkInChunks } from "./metrics/context";
@@ -16,7 +17,7 @@ import type { OptionsSchema } from "./types/OptionSchema";
  */
 const eigenvectorCentralityOptionsSchema = defineOptions({
     maxIterations: {
-        schema: z.number().int().min(1).max(1000).default(100),
+        schema: z.number().int().min(1).max(10000).default(1000),
         meta: {
             label: "Max Iterations",
             description: "Maximum power iterations",
@@ -96,11 +97,11 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
     static optionsSchema: OptionsSchema = {
         maxIterations: {
             type: "integer",
-            default: 100,
+            default: 1000,
             label: "Max Iterations",
             description: "Maximum power iterations",
             min: 1,
-            max: 1000,
+            max: 10000,
             advanced: true,
         },
         tolerance: {
@@ -171,14 +172,32 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
         });
         // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
         // The element's own half -- reading the scores back out -- is chunked below.
-        const scores = eigenvectorCentrality(graphData, {
-            normalized,
-            maxIterations,
-            tolerance,
-            mode,
-            endpoints,
-            startVector,
-        });
+        let scores: Record<string, number>;
+        try {
+            scores = eigenvectorCentrality(graphData, {
+                normalized,
+                maxIterations,
+                tolerance,
+                mode,
+                endpoints,
+                startVector,
+            });
+        } catch (error) {
+            if (!(error instanceof ConvergenceError)) {
+                throw error;
+            }
+            const algorithm = `${EigenvectorCentralityAlgorithm.namespace}:${EigenvectorCentralityAlgorithm.type}`;
+            throw new GraphtyError({
+                code: "E_NOT_CONVERGED",
+                message:
+                    `Eigenvector centrality did not converge in ${String(maxIterations)} iterations (tolerance ${String(tolerance)}). ` +
+                    "Raise the maxIterations param (up to 10000), or loosen tolerance, and run it again.",
+                source: "run",
+                target: { kind: "run", id: context.runId },
+                details: { algorithm, maxIterations, tolerance },
+                cause: error,
+            });
+        }
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
@@ -198,12 +217,11 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                 weight: null,
                 precision: "f64",
                 method: "power-iteration",
-                // `converged` and `iterations` are deliberately absent: the algorithm stops either
-                // at its tolerance or at its iteration cap and reports neither, so saying it
-                // converged would be an assertion nothing measured.
+                // Measured, not assumed: the algorithm throws when it hits its iteration cap, and
+                // that becomes E_NOT_CONVERGED above, so a result exists only when it converged.
+                converged: true,
                 notes: [
-                    `Power iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
-                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    `Power iteration reached a tolerance of ${String(tolerance)} within ${String(maxIterations)} passes.`,
                     "Edge weights are not read.",
                 ],
             },

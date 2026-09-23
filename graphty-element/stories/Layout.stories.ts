@@ -6,7 +6,42 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import isChromatic from "chromatic/isChromatic";
 
 import { Graphty } from "../src/graphty-element";
+import {
+    assertDistinctPicture,
+    assertGraphLoaded,
+    assertHeavyEdgesShorter,
+    assertLayoutPlaced,
+    assertNodesOnACircle,
+    type Drawn,
+    drawn,
+    holds,
+} from "./assertions";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
+
+/**
+ * Settle a layout story and read where its nodes ended up.
+ *
+ * WHAT TWENTY LAYOUT STORIES USED TO ASSERT ABOUT POSITION: nothing at all. A layout that placed
+ * three of seventy-seven nodes, or stacked every node on the origin, or never ran, rendered a
+ * picture and passed. Positions are read off the MESHES rather than out of the element's
+ * coordinate array, because a layout that wrote coordinates the renderer never applied is one of
+ * the ways this goes wrong.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @param dim - Whether the story promises a flat picture.
+ * @returns What the story drew.
+ */
+const placed = async (canvasElement: HTMLElement, story: string, dim: 2 | 3 = 3): Promise<Drawn> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, story);
+
+    // data3.json, which every story in this file loads over the network at render time.
+    await assertGraphLoaded(scene, { nodes: 77, edges: 254 });
+    await assertLayoutPlaced(scene, { dim });
+
+    return scene;
+};
 
 const meta: Meta = {
     title: "Layout/3D",
@@ -227,8 +262,9 @@ export const ngraph: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D ngraph");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -266,8 +302,9 @@ export const D3: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D D3");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -291,8 +328,10 @@ export const Circular: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Circular");
+
+        await assertNodesOnACircle(scene);
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -309,8 +348,9 @@ export const Random: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Random");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -330,11 +370,16 @@ export const Spring: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Spring");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
+/**
+ * Kamada-Kawai ignoring edge weights: every edge is one hop. The layout weighs edges by default,
+ * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
+ */
 export const KamadaKawai: Story = {
     args: {
         dataSource: "json", // Add data source
@@ -346,10 +391,10 @@ export const KamadaKawai: Story = {
         layoutConfig: {
             dim: 3,
             scale: 1,
-            weighted: true,
+            weighted: false,
         },
         kamadaScale: 1,
-        kamadaWeighted: true,
+        kamadaWeighted: false,
     },
     parameters: {
         controls: {
@@ -357,11 +402,16 @@ export const KamadaKawai: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D KamadaKawai");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
+/**
+ * ForceAtlas2 ignoring edge weights: every edge pulls equally hard. The layout weighs edges by
+ * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
+ */
 export const ForceAtlas2: Story = {
     args: {
         dataSource: "json", // Add data source
@@ -380,7 +430,7 @@ export const ForceAtlas2: Story = {
             strongGravity: false,
             dissuadeHubs: false,
             linlog: false,
-            weighted: true,
+            weighted: false,
             seed: 42,
         },
         // Individual parameter args for controls
@@ -392,7 +442,7 @@ export const ForceAtlas2: Story = {
         fa2StrongGravity: false,
         fa2DissuadeHubs: false,
         fa2Linlog: false,
-        fa2Weighted: true,
+        fa2Weighted: false,
         fa2Seed: 42,
     },
     parameters: {
@@ -412,8 +462,57 @@ export const ForceAtlas2: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D ForceAtlas2");
+
+        await assertDistinctPicture(scene, "Layout/3D");
+    },
+};
+
+/**
+ * Kamada-Kawai laid out by the dataset's edge weights.
+ *
+ * Kamada-Kawai places every pair of nodes at their shortest-path distance. Weighted, an edge's
+ * length in that distance is `1 / weight`, so a heavy edge counts as a short hop and draws
+ * shorter than a light one. The weight is the `value` column of the Les Miserables data (how
+ * many scenes two characters share). `weighted` is the layout's default; it is named here so the
+ * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
+ */
+export const KamadaKawaiWeighted: Story = {
+    args: {
+        ...KamadaKawai.args,
+        layoutConfig: { dim: 3, scale: 1, weighted: true },
+        kamadaWeighted: true,
+    },
+    parameters: KamadaKawai.parameters,
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "Layout/3D KamadaKawaiWeighted");
+
+        await assertHeavyEdgesShorter(scene, "value");
+        await assertDistinctPicture(scene, "Layout/3D");
+    },
+};
+
+/**
+ * ForceAtlas2 laid out by the dataset's edge weights.
+ *
+ * Weighted, the spring pulling an edge's two ends together is multiplied by the edge's weight,
+ * so heavily weighted pairs are drawn closer together than lightly weighted ones. The weight is
+ * the `value` column of the Les Miserables data (how many scenes two characters share).
+ * `weighted` is the layout's default; it is named here so the story shows the switch a consumer
+ * turns, next to the unweighted ForceAtlas2 story above.
+ */
+export const ForceAtlas2Weighted: Story = {
+    args: {
+        ...ForceAtlas2.args,
+        layoutConfig: { ...(ForceAtlas2.args?.layoutConfig as Record<string, unknown>), weighted: true },
+        fa2Weighted: true,
+    },
+    parameters: ForceAtlas2.parameters,
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "Layout/3D ForceAtlas2Weighted");
+
+        await assertHeavyEdgesShorter(scene, "value");
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -438,7 +537,17 @@ export const Fixed: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Fixed");
+
+        // The coordinates come out of the file rather than out of a layout, so the element must
+        // report every one of them as having arrived with the data. That is the reading that
+        // separates "the file placed these nodes" from "a layout placed them one frame later".
+        await holds(
+            scene.session.seededNodeCount === scene.nodeCount,
+            `Layout/3D Fixed: the file carries a position for every node and the element reports ` +
+                `${String(scene.session.seededNodeCount)} of ${String(scene.nodeCount)} arrived with one`,
+        );
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };

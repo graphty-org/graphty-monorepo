@@ -26,6 +26,7 @@
 
 export type {
     Binding,
+    BindingOverflow,
     Channel,
     ChannelValue,
     EdgeId,
@@ -63,6 +64,8 @@ export type {
     AdHocData,
     EdgeStyleConfig,
     GraphBackgroundConfig,
+    GraphSelectionStyleConfig,
+    GraphSelectionStyleInput,
     ImageData,
     NodeStyleConfig,
     RichTextStyleType,
@@ -70,12 +73,14 @@ export type {
 } from "./src/config/index";
 export {
     colorToHex,
+    DEFAULT_SELECTION_STYLE,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
     defaultNodeStyle,
     defaultRichTextLabelStyle,
     EdgeStyle,
     GraphBackground,
+    GraphSelectionStyleOpts,
     isViewMode,
     NodeShapes,
     NodeStyle,

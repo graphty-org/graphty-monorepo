@@ -16,6 +16,7 @@ import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import type { Layer } from "../../../src/session/styles";
+import { CHANNEL_DESCRIPTORS, NODE_OUTLINE_CAVEAT } from "../../../src/session/styles/channels";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("StyleCommands", () => {
@@ -215,6 +216,68 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
+        });
+
+        it("applies an arrow's own colour, size and opacity instead of refusing them", async () => {
+            // THIS COMMAND ADVERTISED ALL THREE TO THE MODEL AND THEN ANSWERED "unsupported".
+            // A model asked for a red arrow, was told the element has no channel for it, and the
+            // reader saw a grey one -- while `EdgeStyle` declared the field and the renderer drew
+            // it. The refusal was correct at the time and the gap was in the channel table.
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { arrowColor: "#FF0000", arrowSize: 2, arrowOpacity: 0.5 },
+                    layerName: "red-arrows",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            // Nothing is refused, so the answer carries no "was not applied" clause at all.
+            assert.notInclude(result.message, "was not applied");
+        });
+
+        it("applies a glow's strength on nodes instead of refusing it", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { glowColor: "#00FF00", glowStrength: 2 },
+                    layerName: "bright-glow",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            // Nothing is refused, so the answer carries no "was not applied" clause at all.
+            assert.notInclude(result.message, "was not applied");
+        });
+
+        it("answers an outline width with the reason the element publishes for it", async () => {
+            // THE OUTLINE ITSELF IS DRAWN NOW -- `NodeEffects.applyOutlineEffect` resolves the
+            // instance's source mesh and hands it to a Babylon highlight layer -- so this is no
+            // longer "outlines do not work". It is narrower and permanent: the stroke's blur size
+            // belongs to that LAYER and not to a mesh, so one width is drawn for the whole scene.
+            // A channel for a per-node width would be a channel that claims to paint and does
+            // not, which is the defect the other direction.
+            //
+            // What is asserted is that the refusal carries a REASON, and that the reason is the
+            // element's own published words rather than a second wording living in the AI layer.
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { outlineColor: "#0000FF", outlineWidth: 4 },
+                    layerName: "thick-outline",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            assert.include(result.message, "outlineWidth was not applied");
+            assert.include(result.message, NODE_OUTLINE_CAVEAT);
+            assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].caveat, NODE_OUTLINE_CAVEAT);
         });
     });
 

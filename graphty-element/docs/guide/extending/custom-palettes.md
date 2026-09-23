@@ -1,7 +1,7 @@
 # Custom palettes
 
 A palette is a named, ordered list of colour anchors that a style layer ramps a value through. The
-element ships seventeen; `registerPalette` adds yours, and from that moment it is reachable
+element ships eighteen; `registerPalette` adds yours, and from that moment it is reachable
 everywhere a built-in name is.
 
 A company with a brand does not have viridis. Without a palette seam, the only way to paint a
@@ -148,7 +148,7 @@ try {
 `options` field, because every knob -- scale, domain, clamp, midpoint, reverse, missing, bins --
 belongs to the binding rather than to the palette. No built-in palette takes configuration either.
 
-**The element's default palettes are fixed.** `viridis` for a continuous encoding, `okabe-ito` for
+**The element's default palettes are fixed.** `ylorbr` for a continuous encoding, `okabe-ito` for
 a categorical one, `blue-highlight` for a highlight: these are what `encode()` writes when no
 palette is named, and there is no hook to change them. Changing them would change what every
 already-saved document means. Name your palette in the call.

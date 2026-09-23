@@ -133,7 +133,7 @@ describe("Graphty API Parity", () => {
         });
 
         describe("Utility Methods", () => {
-            const utilityMethods = ["zoomToFit", "waitForSettled", "batchOperations"];
+            const utilityMethods = ["zoomToFit", "waitForSettled", "waitForStableFrame", "batchOperations"];
 
             for (const method of utilityMethods) {
                 it(`has ${method} method`, () => {

@@ -39,7 +39,6 @@ import { Styles } from "../../src/Styles";
 const NODE_STYLE: NodeStyleConfig = {
     shape: { type: "icosphere", size: 1 },
     texture: { color: "#6366F1" },
-    enabled: true,
 };
 
 /**

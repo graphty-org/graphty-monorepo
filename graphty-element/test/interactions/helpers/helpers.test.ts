@@ -21,7 +21,7 @@ import {
     teardownTestGraph,
     waitForGraphReady,
 } from "./interaction-helpers";
-import { createMockController, createMockHand, createPinchingHand, isIWERAvailable } from "./iwer-setup";
+import { createMockController, createMockHand, createPinchingHand } from "./iwer-setup";
 
 describe("Interaction Test Helpers", () => {
     let graph: Graph | undefined;
@@ -354,15 +354,6 @@ describe("IWER Setup Helpers", () => {
 
             assert.isBelow(left.position.x, 0, "Left controller should be at negative X");
             assert.isAbove(right.position.x, 0, "Right controller should be at positive X");
-        });
-    });
-
-    describe("isIWERAvailable", () => {
-        test("returns boolean indicating IWER availability", async () => {
-            const available = await isIWERAvailable();
-
-            // The result depends on whether iwer is installed
-            assert.isBoolean(available, "Should return a boolean");
         });
     });
 });

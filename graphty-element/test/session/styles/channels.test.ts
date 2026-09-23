@@ -1,5 +1,7 @@
 import { assert, describe, it } from "vitest";
 
+import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
+import type { EdgeLinePattern } from "../../../src/catalog/types";
 import { NodeShapes } from "../../../src/config/NodeStyle";
 import {
     type ArrowValue,
@@ -20,7 +22,7 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The twenty-three channels the design declares, in the order it declares them. */
+/** The thirty-five channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
@@ -28,9 +30,11 @@ const DECLARED = [
     "node.label",
     "node.labelStyle",
     "node.tooltip",
+    "node.tooltipStyle",
     "node.opacity",
     "node.outline",
     "node.glow",
+    "node.glowStrength",
     "node.wireframe",
     "node.flat",
     "node.marker",
@@ -38,13 +42,23 @@ const DECLARED = [
     "edge.width",
     "edge.opacity",
     "edge.style",
+    "edge.patternCount",
     "edge.curvature",
     "edge.arrowHead",
+    "edge.arrowHeadSize",
+    "edge.arrowHeadColor",
+    "edge.arrowHeadOpacity",
+    "edge.arrowHeadText",
+    "edge.arrowHeadTextStyle",
     "edge.arrowTail",
+    "edge.arrowTailSize",
+    "edge.arrowTailColor",
+    "edge.arrowTailOpacity",
+    "edge.arrowTailText",
+    "edge.arrowTailTextStyle",
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
-    "edge.tooltip",
 ];
 
 describe("the channel set", () => {
@@ -71,9 +85,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twelve node channels and eleven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 12);
-        assert.strictEqual(channelsFor("edge").length, 11);
+    it("splits into fourteen node channels and twenty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 14);
+        assert.strictEqual(channelsFor("edge").length, 21);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -113,12 +127,74 @@ describe("what the element can really draw", () => {
     });
 
     it("records what the renderer narrows, on the channels it narrows", () => {
-        // A curvature is a switch, and a label's own box is sized to its text.
+        // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.labelStyle"].caveat);
         assert.isDefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.glow"].caveat);
+        // A glow's strength is drawn, and Babylon keeps the intensity on the glow LAYER, so two
+        // glowing styles on screen share whichever landed last. Said on the channel that has the
+        // limit rather than on its neighbour.
+        assert.isDefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
+        assert.isDefined(CHANNEL_DESCRIPTORS["edge.patternCount"].caveat);
+    });
+
+    it("stops saying a capability has no channel on the caveat of a neighbouring channel", () => {
+        // `node.glow` used to carry "the glow's strength is not a channel", which is where a
+        // missing capability was recorded until it became a waiver list a test can read. The
+        // strength has a channel now, so the sentence would be false as well as misplaced.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.glow"].caveat);
+    });
+
+    it("says nothing about label fields the vocabulary no longer has", () => {
+        // Both labelStyle channels carried "The renderer sizes a label to its text, so maxWidth
+        // and wrap are not drawn." Those two fields were taken OFF `LabelStyle` for 2.0 rather
+        // than implemented -- the renderer never read either -- so the sentence named two fields
+        // a consumer cannot write, which is the same documented lie as a field with no renderer
+        // pointing the other way. A caveat is published: a settings panel, a plugin or a model
+        // reading the catalogue sees it.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].caveat);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.labelStyle"].caveat);
+        assert.notInclude(LABEL_STYLE_FIELDS as string[], "maxWidth");
+        assert.notInclude(LABEL_STYLE_FIELDS as string[], "wrap");
+    });
+
+    it("says on both tooltip channels that a tooltip is hover-only, and that an edge has none", () => {
+        // Two things a consumer meets as silence otherwise. A tooltip is drawn on hover, so a
+        // layer that writes one changes nothing on a graph at rest -- which looks exactly like a
+        // layer that never landed. And `edge.tooltip` was published through 1.x and withdrawn in
+        // 2.0, so somebody who had one needs to be told where it went by the channels that are
+        // left rather than by a parse error alone.
+        for (const channel of ["node.tooltip", "node.tooltipStyle"] as const) {
+            const { caveat } = CHANNEL_DESCRIPTORS[channel];
+
+            assert.isDefined(caveat, channel);
+            assert.include(caveat, "hover", channel);
+            assert.include(caveat, "edge.tooltip", channel);
+        }
+
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltip"].stylePath, "tooltip.text");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipStyle"].stylePath, "tooltip");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipStyle"].accepts, "labelStyle");
+        assert.isFalse(isChannel("edge.tooltip"));
+    });
+
+    it("says what a caption at the end of an arrow narrows, on all four of its channels", () => {
+        // Two narrowings, and a consumer meets both by writing a layer that draws nothing: a
+        // caption hangs from a cap, so an end with no arrow carries none; and the WORDS are what
+        // switch one on, so an appearance written on its own asks for nothing.
+        for (const channel of [
+            "edge.arrowHeadText",
+            "edge.arrowHeadTextStyle",
+            "edge.arrowTailText",
+            "edge.arrowTailTextStyle",
+        ] as const) {
+            assert.isDefined(CHANNEL_DESCRIPTORS[channel].caveat, channel);
+        }
+
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].stylePath, "arrowHead.text.text");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextStyle"].stylePath, "arrowHead.text");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailText"].stylePath, "arrowTail.text.text");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailTextStyle"].stylePath, "arrowTail.text");
     });
 
     it("takes the node shapes from the schema the mesh builder reads, not from a second list", () => {
@@ -131,10 +207,26 @@ describe("what the element can really draw", () => {
         assert.deepEqual([...patterns], ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
     });
 
-    it("does not offer the line patterns the catalogue's EdgeLinePattern invented", () => {
-        // EdgeLinePattern in src/catalog/types.ts names nine patterns of which seven have never
-        // had a mesh. Offering one would be a control that silently draws something else.
+    it("publishes the same nine patterns from the catalogue that the control offers", () => {
+        // EdgeLinePattern used to be a second list, written out by hand in src/catalog/types.ts:
+        // nine names of which seven -- "dashed", "dotted", "dash-dot-dot", "long-dash",
+        // "short-dash", "double", "wave" -- had never had a mesh, while seven the renderer does
+        // draw were missing from it. It is derived from the schema now, so a consumer who writes
+        // a value the published type accepts gets a layer the element accepts.
         const patterns = CHANNEL_DESCRIPTORS["edge.style"].values ?? [];
+        const fromTheCatalogue: EdgeLinePattern[] = [
+            "solid",
+            "dot",
+            "star",
+            "box",
+            "dash",
+            "diamond",
+            "dash-dot",
+            "sinewave",
+            "zigzag",
+        ];
+
+        assert.deepEqual([...patterns], fromTheCatalogue);
 
         for (const invented of ["dashed", "dotted", "dash-dot-dot", "long-dash", "short-dash", "double", "wave"]) {
             assert.notInclude(patterns, invented);
@@ -149,6 +241,19 @@ describe("what the element can really draw", () => {
         assert.include(head, "none");
     });
 
+    it("offers the same size, colour and opacity at both ends, because 1.x drew them at both", () => {
+        for (const property of ["Size", "Color", "Opacity"] as const) {
+            const head = CHANNEL_DESCRIPTORS[`edge.arrowHead${property}`];
+            const tail = CHANNEL_DESCRIPTORS[`edge.arrowTail${property}`];
+
+            assert.strictEqual(head.accepts, tail.accepts, property);
+            assert.strictEqual(head.min, tail.min, property);
+            assert.strictEqual(head.max, tail.max, property);
+            assert.strictEqual(head.stylePath, `arrowHead.${property.toLowerCase()}`);
+            assert.strictEqual(tail.stylePath, `arrowTail.${property.toLowerCase()}`);
+        }
+    });
+
     it("bounds the numbers the renderer bounds", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.opacity"].max, 1);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.opacity"].max, 1);
@@ -158,8 +263,15 @@ describe("what the element can really draw", () => {
 });
 
 describe("colour channels", () => {
-    it("are the four that carry a colour, and the type says the same four", () => {
-        const fromTheType: readonly ColorChannel[] = ["node.color", "node.outline", "node.glow", "edge.color"];
+    it("are the six that carry a colour, and the type says the same six", () => {
+        const fromTheType: readonly ColorChannel[] = [
+            "node.color",
+            "node.outline",
+            "node.glow",
+            "edge.color",
+            "edge.arrowHeadColor",
+            "edge.arrowTailColor",
+        ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);
     });

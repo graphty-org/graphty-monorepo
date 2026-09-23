@@ -1,6 +1,9 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../../src/graphty-element";
+import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "../assertions";
 import {
     eventWaitingDecorator,
     remoteLoggingDecorator,
@@ -87,7 +90,14 @@ export const Default: Story = {
         }),
         xr: {
             enabled: true,
-            ui: { enabled: true, position: "bottom-right", showAvailabilityWarning: true },
+            ui: {
+                enabled: true,
+                position: "bottom-right",
+                showAvailabilityWarning: true,
+                // The "not available" notice normally leaves after 5 s, so a snapshot caught it or
+                // missed it by timing alone. A day keeps it on screen for every snapshot.
+                unavailableMessageDuration: 86_400_000,
+            },
             input: {
                 handTracking: true, // Required for two-hand gestures
                 controllers: true, // For thumbstick pan and squeeze drag
@@ -101,5 +111,44 @@ export const Default: Story = {
     play: async ({ canvasElement }) => {
         // Wait for the graph to fully settle before taking the screenshot
         await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "XR Default");
+
+        // The edge list is generated from a fixed seed and holds repeats and self-loops, so the
+        // number the element keeps is the number that survived them rather than the forty-five
+        // handed over. What must be true is that every record was accounted for and none was
+        // refused.
+        const report = scene.session.data.lastImport();
+
+        await holds(
+            report === null || report.counts.edgeRecords === 45,
+            `XR Default: the story generates 45 edge records and the importer was handed ` +
+                `${String(report?.counts.edgeRecords)}`,
+        );
+
+        await assertGraphLoaded(scene, { nodes: 30, edges: scene.edgeCount });
+        await assertLayoutPlaced(scene, {});
+
+        // The gestures cannot be driven headless. What can be checked is the story's one visible
+        // affordance: VR / AR buttons where the browser can start a session, and the element's
+        // "not available" notice where it cannot, which is every snapshot browser.
+        const overlay = scene.element.shadowRoot ?? scene.element;
+        const vr = await scene.element.isVRSupported();
+        const ar = await scene.element.isARSupported();
+
+        if (vr || ar) {
+            await holds(
+                overlay.querySelectorAll("button.webxr-available").length === Number(vr) + Number(ar),
+                "XR Default: the browser supports XR and the element did not draw one button per supported mode",
+            );
+        } else {
+            const notice = overlay.querySelector(".webxr-not-available");
+
+            await holds(
+                notice?.textContent === "VR / AR NOT AVAILABLE",
+                `XR Default: the browser has no XR and the element's notice read ` +
+                    `${JSON.stringify(notice?.textContent ?? null)} instead of "VR / AR NOT AVAILABLE"`,
+            );
+        }
     },
 };

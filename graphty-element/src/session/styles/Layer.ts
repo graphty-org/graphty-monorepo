@@ -48,6 +48,7 @@
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
 import type {
     Binding,
+    BindingOverflow,
     ChannelValue,
     Encoding,
     GraphtyErrorCode,
@@ -333,6 +334,9 @@ const ID_FALLBACK = "layer";
 
 /** The path prefix a run's published result sits under, which is what makes an encoding run-bound. */
 const RUN_PATH_PREFIX = "results.";
+
+/** The overflow policies a binding may name. */
+const OVERFLOW_POLICIES: readonly BindingOverflow[] = Object.freeze(["other", "shape", "extend"]);
 
 /** The source a specification that named none is given. */
 const USER_SOURCE: LayerSource = Object.freeze({ by: "user" });
@@ -718,6 +722,22 @@ function checkBinding(
             message: `There is no palette called "${binding.palette}".`,
             path: `${path}.palette`,
             candidates: knownPaletteIds(),
+        });
+    }
+
+    if (binding.overflow !== undefined && !OVERFLOW_POLICIES.includes(binding.overflow)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${binding.overflow}" is not an overflow policy.`,
+            path: `${path}.overflow`,
+            candidates: OVERFLOW_POLICIES,
+        });
+    } else if (binding.overflow === "shape" && descriptor.target === "edge") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            path: `${path}.overflow`,
+            candidates: ["other", "extend"],
         });
     }
 

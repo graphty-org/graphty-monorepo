@@ -19,7 +19,9 @@
  */
 
 import type { DrawingMode } from "../camera/types";
+import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { LabelStyle } from "./label-style";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -85,6 +87,7 @@ export const KNOWN_ALGORITHMS = [
     "label-propagation",
     "components",
     "shortest-path",
+    "all-pairs-distance",
     "all-paths",
     "max-flow",
     "min-cut",
@@ -134,15 +137,16 @@ export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot",
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 /**
- * The built-in palettes: six sequential ramps, five categorical sets, three diverging ramps and
+ * The built-in palettes: seven sequential ramps, five categorical sets, three diverging ramps and
  * three highlight pairs, in the order `PALETTE_DESCRIPTORS` lists them.
  *
- * All seventeen are here because this list is what autocomplete offers. Four of them used to be,
+ * All eighteen are here because this list is what autocomplete offers. Four of them used to be,
  * so a consumer typing a palette name was shown a quarter of the element's own palettes and had
  * to read the catalogue table to find the rest.
  */
 export const KNOWN_PALETTE_IDS = [
     "viridis",
+    "ylorbr",
     "plasma",
     "inferno",
     "blues",
@@ -321,9 +325,11 @@ export type Channel =
     | "node.label"
     | "node.labelStyle"
     | "node.tooltip"
+    | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
     | "node.glow"
+    | "node.glowStrength"
     | "node.wireframe"
     | "node.flat"
     | "node.marker"
@@ -331,25 +337,34 @@ export type Channel =
     | "edge.width"
     | "edge.opacity"
     | "edge.style"
+    | "edge.patternCount"
     | "edge.curvature"
     | "edge.arrowHead"
+    | "edge.arrowHeadSize"
+    | "edge.arrowHeadColor"
+    | "edge.arrowHeadOpacity"
+    | "edge.arrowHeadText"
+    | "edge.arrowHeadTextStyle"
     | "edge.arrowTail"
+    | "edge.arrowTailSize"
+    | "edge.arrowTailColor"
+    | "edge.arrowTailOpacity"
+    | "edge.arrowTailText"
+    | "edge.arrowTailTextStyle"
     | "edge.animationSpeed"
     | "edge.label"
-    | "edge.labelStyle"
-    | "edge.tooltip";
+    | "edge.labelStyle";
 
-/** The values the "edge.style" channel accepts. */
-export type EdgeLinePattern =
-    | "solid"
-    | "dashed"
-    | "dotted"
-    | "dash-dot"
-    | "dash-dot-dot"
-    | "long-dash"
-    | "short-dash"
-    | "double"
-    | "wave";
+/**
+ * The values the "edge.style" channel accepts.
+ *
+ * DERIVED FROM THE SCHEMA THE MESH BUILDER READS, never written out here. This name used to be a
+ * hand-typed list of nine -- "dashed", "dotted", "long-dash" and five more the edge renderer has
+ * never had a mesh for -- while omitting seven it does have, so a consumer who typed a value this
+ * type accepted got a layer the element refused, and the one place that noticed was a test
+ * asserting the discrepancy still existed.
+ */
+export type EdgeLinePattern = NonNullable<NonNullable<EdgeStyleConfig["line"]>["type"]>;
 
 /**
  * A pre-parsed colour. Components are 0..255 and alpha is 0..1. The repaint reads this form;
@@ -363,24 +378,46 @@ export interface Rgba {
     a: number;
 }
 
-/** How a label is drawn. */
-export interface LabelStyle {
-    font?: string;
-    sizePx?: number;
-    weight?: number | "normal" | "bold";
-    color?: string;
-    background?: string;
-    outline?: string;
-    padding?: number;
-    maxWidth?: number;
-    wrap?: boolean;
-}
+/**
+ * How a label is drawn.
+ *
+ * Declared in `./label-style` and re-exported here so that a consumer importing the channel
+ * vocabulary gets the value type its labelStyle channels take, without the two files having to
+ * be edited together. The interface grows a field whenever the renderer grows something a reader
+ * can point at; the channel union next door grows for entirely different reasons.
+ *
+ * Only the interface travels this way. Its member unions -- `LabelLocation`, `LabelTextAlign`
+ * and the rest -- reach `./catalog` straight from `./label-style`, so re-exporting them here as
+ * well gave every one of them two paths out of the package and left the copy here reaching
+ * nobody.
+ */
+export type { LabelStyle } from "./label-style";
 
 /** A literal value written to a channel. */
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
+
+/**
+ * What a categorical colour encoding does when the column holds more groups than the palette has
+ * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
+ *
+ * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
+ *   first, and every remaining group is painted one dark grey (#505050). The legend names the
+ *   grey "other: K groups".
+ * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
+ *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
+ *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
+ *   edge encoding it is refused, because an edge has no shape to cycle.
+ * - `"extend"`: every group gets a colour of its own. With no palette named, the smallest
+ *   categorical palette that fits, else the sequential default sampled once per group; with a
+ *   palette named, its colours and then samples of the sequential default. Distinctness is NOT
+ *   guaranteed past the palette's capacity.
+ *
+ * Ignored by a scale that reads numbers, which has no groups to overflow.
+ */
+export type BindingOverflow = "other" | "shape" | "extend";
 
 /** One channel's binding: a literal, or a declarative mapping from a value in the data. */
 export type Binding =
@@ -404,6 +441,12 @@ export type Binding =
           range?: [number, number];
           map?: Record<string, string | number>;
           other?: { threshold: number; value: string | number };
+          /**
+           * What a categorical colour binding does with more groups than its palette can keep
+           * apart. See {@link BindingOverflow}. Absent, a palette the binding names is refused with
+           * `E_CAP_EXCEEDED` and one it leaves to the element is chosen large enough.
+           */
+          overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
           reverse?: boolean;
           midpoint?: number;

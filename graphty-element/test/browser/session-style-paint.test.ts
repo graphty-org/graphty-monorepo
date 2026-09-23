@@ -88,7 +88,7 @@ describe("session style paint", () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.operationQueue.waitForCompletion();
-        graph.getUpdateManager().renderFixedFrames(2);
+        graph.getUpdateManager().stepFrames(2);
     }
 
     it("paints a freshly loaded graph from the session's own stack", async () => {
@@ -148,7 +148,7 @@ describe("session style paint", () => {
 
         await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
         await graph.operationQueue.waitForCompletion();
-        graph.getUpdateManager().renderFixedFrames(2);
+        graph.getUpdateManager().stepFrames(2);
 
         assert.isTrue(graph.getStylePainter().owns, "the session is still what paints");
 
@@ -218,7 +218,7 @@ describe("session style paint", () => {
 
             await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
             await graph.operationQueue.waitForCompletion();
-            graph.getUpdateManager().renderFixedFrames(2);
+            graph.getUpdateManager().stepFrames(2);
 
             // The degree layer writes node colours and says nothing about edge width, so the
             // reader's layer underneath is still what decides how wide an edge is drawn. A stack
@@ -261,7 +261,7 @@ describe("session style paint", () => {
                 set: { "node.color": "#00FF00" },
             });
             await graph.operationQueue.waitForCompletion();
-            graph.getUpdateManager().renderFixedFrames(2);
+            graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
                 assert.notDeepEqual(
@@ -275,7 +275,7 @@ describe("session style paint", () => {
             const run = session.runs.start("degree", {}, { as: "later" });
             await run;
             await graph.operationQueue.waitForCompletion();
-            graph.getUpdateManager().renderFixedFrames(2);
+            graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
                 assert.deepStrictEqual(
@@ -302,7 +302,7 @@ describe("session style paint", () => {
                 set: { "node.color": "#00FF00" },
             });
             await graph.operationQueue.waitForCompletion();
-            graph.getUpdateManager().renderFixedFrames(2);
+            graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
                 assert.notDeepEqual(graph.getStylePainter().nodePaint(node.index)?.color, green);
@@ -310,7 +310,7 @@ describe("session style paint", () => {
 
             await graph.runAlgorithm("test-plugin", "mark-every-node");
             await graph.operationQueue.waitForCompletion();
-            graph.getUpdateManager().renderFixedFrames(2);
+            graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
                 assert.deepStrictEqual(

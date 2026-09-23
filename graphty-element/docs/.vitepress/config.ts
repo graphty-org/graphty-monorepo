@@ -64,7 +64,7 @@ export default defineConfig({
                         { text: "Web Component API", link: "/guide/web-component" },
                         { text: "JavaScript API", link: "/guide/javascript-api" },
                         { text: "Styling", link: "/guide/styling" },
-                        { text: "Style Helpers & Palettes", link: "/guide/style-helpers" },
+                        { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
                         { text: "Acceleration", link: "/guide/acceleration" },
                         { text: "Algorithms", link: "/guide/algorithms" },

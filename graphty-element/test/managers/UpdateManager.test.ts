@@ -53,9 +53,9 @@ describe("UpdateManager", () => {
             assert.equal(updateManager.getRenderFrameCount(), initialFrameCount + 1);
         });
 
-        it("should call update multiple times via renderFixedFrames", () => {
+        it("should call update multiple times via stepFrames", () => {
             const initialFrameCount = updateManager.getRenderFrameCount();
-            updateManager.renderFixedFrames(5);
+            updateManager.stepFrames(5);
             assert.equal(updateManager.getRenderFrameCount(), initialFrameCount + 5);
         });
     });
@@ -131,7 +131,7 @@ describe("UpdateManager", () => {
             updateManager.enableZoomToFit();
 
             // Render enough frames for zoom to complete
-            updateManager.renderFixedFrames(5);
+            updateManager.stepFrames(5);
 
             // Should have zoomed by now
             assert.isTrue(updateManager.zoomToFitCompleted);

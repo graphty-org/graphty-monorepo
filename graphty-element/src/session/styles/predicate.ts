@@ -1166,5 +1166,27 @@ export function compileExpressionPredicate(
     const paths: Path[] = [];
     collectPaths(parsed, paths);
 
+    // An expression that reads no attribute answers the same for every element, so it either
+    // paints the whole graph or nothing -- a mistake either way. The usual one is an expression
+    // wrapped whole in single quotes, which is a raw string and therefore always true.
+    if (paths.length === 0) {
+        let root = parsed;
+        while (root.kind === "group") {
+            root = root.inner;
+        }
+
+        const quoted = root.kind === "literal" && typeof root.value === "string";
+        throw badSelector(
+            quoted
+                ? "The selector is a quoted string literal, which is always true, so it would match every element. " +
+                      "Remove the outer quotes so it is read as an expression"
+                : "The selector reads no attribute of the element, so it answers the same for every element. " +
+                      'Write { match: "everything" } for a layer that really is meant to paint the whole graph',
+            where,
+            0,
+            { constant: true },
+        );
+    }
+
     return { paths: Object.freeze(paths), test: compileTest(parsed, columns) };
 }

@@ -1375,10 +1375,17 @@ failure.
 interface StartOptions extends RunOptions {
   scope?: Scope; seed?: number; timeBoxMs?: number;
   as?: RunId;                    // author-assigned id; REQUIRED for anything persisted
-  style?: boolean;               // opt out of the auto-applied derived layer
+  style?: RunStyle;              // false opts out; { size } also sizes by a node metric
   exact?: boolean;               // refuse to approximate; above the cap this throws
   sample?: number;               // sample size for an approximable algorithm
 }
+
+// true / omitted: the derived colour suggestion. false: nothing.
+// { size: true | [min, max] }: the colour suggestion PLUS a node.size encoding of the same field,
+// for a run whose shape is "node-metric" only (ignored, without an error, for any other shape).
+// size: true is the range [1, 3] -- 1 is the default node size, so the lowest node is unchanged.
+// The size layer is scoped { match: "has" } like every run layer and is removed with the run.
+type RunStyle = boolean | { size?: boolean | readonly [min: number, max: number] };
 
 interface RunsApi {
   start(algorithm: AlgorithmKey, params?: Record<string, unknown>, o?: StartOptions): Run;
@@ -1593,7 +1600,10 @@ the bands without rewriting the sentence, and the locale is a parameter.
 
 On a run's **first** completion the element applies the derived encoding layer, never again;
 suppressed when a user-authored layer already drives that channel; once per batch, so six runs
-never paint six times. `{ style: false }` opts out.
+never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
+`{ size: [min, max] }`) also suggests a `node.size` encoding of a node metric's primary field,
+through the same `encode()` and the same batch coalescing (keyed by channel); it is the one-flag
+form of `encode({ run, channel: "node.size", range })`.
 
 **An explicit `encode()` replaces the derived layer for the same `(runId, channel)` pair**, it
 does not stack on it, and it returns that layer's id. This is the case the suppression rule
@@ -2043,6 +2053,7 @@ type Binding =
       range?: [number, number];
       map?: Record<string, string | number>;               // per-value overrides
       other?: { threshold: number; value: string | number };
+      overflow?: "other" | "shape" | "extend";             // too many groups; see above
       missing?: "skip" | { value: string | number };       // DEFAULT: "skip"
       reverse?: boolean; midpoint?: number; bins?: number; exponent?: number };
 
@@ -2054,7 +2065,10 @@ interface EncodingSpec {
   channel: Channel;
   scale?: Binding["scale"]; palette?: PaletteId;
   domain?: Binding["domain"]; clamp?: Binding["clamp"];
+  range?: Binding["range"];             // a numeric channel's output, e.g. [1, 5] for a size
   missing?: Binding["missing"]; reverse?: boolean;
+  overflow?: "other" | "shape" | "extend";  // DEFAULT "other" for a categorical colour with no
+                                            // palette named; see the overflow rule above
   name?: string;
 }
 ```
@@ -2103,10 +2117,28 @@ the `missing` branch -- by default `"skip"`, so it is not painted -- and is coun
 `LegendBlock.departures` as "N not plottable on a log scale"; it is never `NaN`, never clamped
 to the domain floor, and never silently reassigned. Betweenness has zeros on every real graph,
 so this is the common case, not the edge case. And a categorical or ordinal encoding with more
-distinct values than `PaletteDescriptor.capacity` takes `Binding.other` when one is declared;
-when none is, the layer is **disabled** with `E_CAP_EXCEEDED` in `disabledReason` naming the
-value count and the capacity. The palette never wraps. Silent wrapping -- group 8 colliding
-with group 0 -- is why the one consumer refuses the element's Louvain layer today.
+distinct values than `PaletteDescriptor.capacity` follows `Binding.overflow`:
+
+- `"other"` -- **what `encode()` writes by default** onto a categorical colour binding that names
+  no palette. The N largest groups (N = the palette's capacity, 8 for Okabe-Ito) keep its colours
+  in palette order, largest first; every remaining group is painted one grey, #505050 (Delta E
+  >= 15 from every Okabe-Ito colour, >= 2:1 on the background -- the light greys fail), and the
+  legend's last row reads "other: K groups".
+- `"shape"` -- node encodings only; refused with `E_BAD_COMMAND` from `encode()` and `E_BAD_LAYER`
+  from a hand-written edge layer. Group i is colour i mod N and node shape floor(i / N) from
+  icosphere (the default), box, octahedron, cylinder, cone, torus; past N x 6 groups the rest fold
+  to the grey. `encode()` writes the `node.shape` binding into the SAME layer as the colour, so
+  the two are added, scoped and removed together.
+- `"extend"` -- a distinct colour per group: the smallest categorical palette that fits, else the
+  sequential default sampled once per group; with a named palette, its colours then samples of
+  the sequential default. Distinctness past the capacity is not guaranteed.
+
+With no `overflow`, the older rule holds: `Binding.other` when declared; a palette the element
+picks is chosen large enough; a palette the CALLER named that is too small disables the layer
+with `E_CAP_EXCEEDED` in `disabledReason` naming the value count and the capacity. So a caller
+who names a palette and no overflow is still refused, and naming an overflow applies it. The
+palette never wraps silently. Silent wrapping -- group 8 colliding with group 0 -- is why the
+one consumer refused the element's Louvain layer.
 
 `encode()` **writes the selector itself**: the resulting layer's selector is
 `{ match: "has", path: "results.<runId>.<field>" }`, scoped to exactly the elements the run
@@ -2606,7 +2638,7 @@ type Command =
   | { op: "data.sample"; name: SampleDatasetId }
   | { op: "data.match"; pattern: Pattern | string; similarity?: number; limit?: number }
   | { op: "algo.run"; algorithm: AlgorithmKey; params?: Record<string, unknown>;
-      scope?: Scope; seed?: number; as?: RunId; style?: boolean }
+      scope?: Scope; seed?: number; as?: RunId; style?: RunStyle }
   | { op: "algo.remove"; runId: RunId }
   | { op: "style.patch"; add?: readonly LayerSpec[]; update?: Record<LayerId, Partial<LayerSpec>>;
       remove?: readonly LayerId[]; order?: readonly LayerId[] }
@@ -2956,7 +2988,7 @@ type GraphtyErrorCode =
   | "E_UNKNOWN_PALETTE" | "E_UNKNOWN_CAMERA" | "E_UNKNOWN_SINK" | "E_UNKNOWN_RUN"
   | "E_UNSTABLE_RUN_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_PLUGIN" | "E_PROTECTED"
   | "E_FETCH_FAILED" | "E_PARSE_FAILED" | "E_EDGE_ENDPOINTS_UNRESOLVED" | "E_ID_MISSING"
-  | "E_TOO_LARGE" | "E_OUT_OF_MEMORY" | "E_CAP_EXCEEDED" | "E_SCOPE_EMPTY"
+  | "E_TOO_LARGE" | "E_OUT_OF_MEMORY" | "E_CAP_EXCEEDED" | "E_SCOPE_EMPTY" | "E_NOT_CONVERGED"
   | "E_NO_ACCELERATOR" | "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST"
   | "E_NO_WEBGL"
   | "E_UNSUPPORTED" | "E_READONLY" | "E_DISPOSED" | "E_INTERNAL";
@@ -4139,7 +4171,7 @@ type Direction = "in" | "out" | "all";
 
 // --- runs ------------------------------------------------------------------------
 interface RunSpec { algorithm: AlgorithmKey; params?: Record<string, unknown>;
-                    scope?: Scope; seed?: number; as?: RunId; style?: boolean }
+                    scope?: Scope; seed?: number; as?: RunId; style?: RunStyle }
 interface BatchResult { label: string; total: number; completed: number; partial: boolean;
                         steps: readonly { index: number; runId?: RunId; ok: boolean;
                                           reason?: string }[] }

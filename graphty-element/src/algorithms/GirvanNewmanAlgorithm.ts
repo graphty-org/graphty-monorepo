@@ -123,7 +123,24 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
             maxIterations,
         });
 
-        const best = dendrogram.reduce<(typeof dendrogram)[number] | undefined>(
+        // A CUT CAN OVERSHOOT THE CAP. `girvanNewman` removes every edge tied for the highest
+        // betweenness in one step, so the step that reaches `maxCommunities` can pass it -- two
+        // tied bridges go together and a graph asked for two communities falls into three. The
+        // dendrogram is right to record that, because it is what the cuts produced, but this
+        // option reads "stop when this many communities reached", and publishing more communities
+        // than the caller asked for would make that a false promise. So the published cut is
+        // chosen among the levels that honour the cap.
+        const within =
+            maxCommunities > 0
+                ? dendrogram.filter((level) => level.communities.length <= maxCommunities)
+                : dendrogram;
+
+        // Nothing honours the cap when the graph arrived in more pieces than the cap allows,
+        // before a single edge was cut. The first level is then the closest thing to an answer,
+        // and it is the graph's own shape rather than anything this chose.
+        const choices = within.length > 0 ? within : dendrogram.slice(0, 1);
+
+        const best = choices.reduce<(typeof dendrogram)[number] | undefined>(
             (winner, candidate) => (winner === undefined || candidate.modularity > winner.modularity ? candidate : winner),
             undefined,
         );

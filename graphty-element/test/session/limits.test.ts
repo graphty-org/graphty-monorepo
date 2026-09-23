@@ -35,16 +35,30 @@ describe("the limits the element ships with", () => {
         assert.strictEqual(DEFAULT_LIMITS.selectionCap, DEFAULT_SELECTION_CAP);
     });
 
-    it("publishes no field whose name means something else on the cost gate", () => {
-        // `exactComputationCap` is a NODE COUNT on Limits and SECONDS on CostGateLimits;
-        // `memoryBudgetBytes` is a whole graph's memory on one and one run's published columns on
-        // the other. Publishing either here would hand a consumer the wrong unit under a name
-        // they would reasonably read as the same number.
-        assert.notProperty(DEFAULT_LIMITS, "exactComputationCap");
-        assert.notProperty(DEFAULT_LIMITS, "memoryBudgetBytes");
+    it("shares no field name with the cost gate, so no name can carry two units", () => {
+        // THE DEFECT THIS REPLACES. `exactComputationCap` was a node count here and SECONDS on
+        // the gate; `memoryBudgetBytes` was a whole graph's memory here and one run's published
+        // columns there. A consumer reading either name on one type and applying it to the other
+        // would have been off by the difference between 2,000 nodes and 30 seconds. Both now
+        // carry their unit, so the names cannot be confused -- and this asserts the property
+        // rather than the two former offenders, so a THIRD colliding name fails here too.
+        const shared = Object.keys(DEFAULT_LIMITS).filter((key) => key in DEFAULT_COST_GATE_LIMITS);
 
-        // Both quantities the cost gate means are still reachable, under the gate's own name.
-        assert.isAbove(DEFAULT_COST_GATE_LIMITS.exactComputationCap, 0);
-        assert.isAbove(DEFAULT_COST_GATE_LIMITS.memoryBudgetBytes, 0);
+        assert.deepStrictEqual(shared, [], "a name on both types is a unit a reader has to guess");
+    });
+
+    it("says in each name what it measures", () => {
+        // A node count and a duration are the two that used to collide, so they are the two worth
+        // pinning: each is reachable under a name that states which it is.
+        assert.isAbove(DEFAULT_LIMITS.approximateAboveNodes, 0);
+        assert.isAbove(DEFAULT_COST_GATE_LIMITS.exactComputationSeconds, 0);
+        assert.isAbove(DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes, 0);
+    });
+
+    it("still withholds the one budget the design names no figure for", () => {
+        // Not a naming problem any more -- graphMemoryBudgetBytes is unambiguous. There is simply
+        // nothing measured or designed to publish, and inventing a number here is what this
+        // module exists to stop a consumer doing.
+        assert.notProperty(DEFAULT_LIMITS, "graphMemoryBudgetBytes");
     });
 });

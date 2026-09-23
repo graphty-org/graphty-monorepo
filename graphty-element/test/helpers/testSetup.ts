@@ -91,7 +91,6 @@ export function edgeStyleConfig(opts: {
     arrowHeadColor?: string;
 }): EdgeStyleConfig {
     return {
-        enabled: true,
         line: {
             type: opts.lineType ?? "solid",
             color: opts.lineColor ?? "#AAAAAA",

@@ -157,7 +157,7 @@ describe("PopoutManager z-index", () => {
         // Get initial z-indexes
         let panels = screen.getAllByRole("dialog");
         let parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
-        let childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
+        const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
 
         const initialZIndexParent = parseInt(parentPanel!.style.zIndex, 10);
         const initialZIndexChild = parseInt(childPanel!.style.zIndex, 10);
@@ -349,7 +349,7 @@ describe("PopoutManager close behavior", () => {
     it("closes popout when clicking outside", async () => {
         const user = userEvent.setup();
 
-        const { container } = renderPopout(
+        renderPopout(
             <>
                 <div data-testid="outside-area">Outside area</div>
                 <Popout>

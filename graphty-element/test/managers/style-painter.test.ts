@@ -294,6 +294,37 @@ describe("StylePainter channels", () => {
         assert.isTrue(paint?.style.label?.enabled, "a label nobody switched on is never drawn");
     });
 
+    it("switches an arrow caption on beside its words, not on the arrow the words hang from", async () => {
+        // THE DEFECT THIS CLOSES, and it was silent. A layer that writes a text channel also
+        // writes the `enabled` flag of the block the words land in, because text nobody switched
+        // on is resolved, carried and never drawn. That flag used to be derived from the FIRST
+        // segment of the channel's style path, which was right for every text channel published
+        // before the arrow captions -- `label.text` and `tooltip.text` are two segments, so the
+        // first segment and the words' own block are the same thing. A caption's words are three
+        // segments deep, so the first segment named `arrowHead.enabled`, which is not a field of
+        // an arrow style at all: the paint is merged into the defaults rather than re-parsed, so
+        // nothing would have rejected it and the caption would simply never have been drawn.
+        const held = harness();
+        const spec: LayerSpec = {
+            name: "captions",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHeadText": "callee" },
+        };
+        await held.styles.add(spec);
+        await held.paintAll();
+
+        const paint = held.painter.edgePaint(0);
+
+        assert.strictEqual(paint?.style.arrowHead?.text?.text, "callee");
+        assert.isTrue(paint?.style.arrowHead?.text?.enabled, "a caption nobody switched on is never drawn");
+        assert.notProperty(
+            paint?.style.arrowHead ?? {},
+            "enabled",
+            "and the flag goes beside the words rather than onto the arrow style, which has no such field",
+        );
+    });
+
     it("keeps an edge's colour in its style, because an edge has no per-instance state", async () => {
         const held = harness();
         const spec: LayerSpec = {

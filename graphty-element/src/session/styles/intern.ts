@@ -72,18 +72,48 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     "node.flat": "mesh",
+    // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
+    // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
+    // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
+    // nodes that share a source mesh cannot be given two outline colours or two glow colours --
+    // whichever was applied last is what both are drawn in. A source mesh per distinct effect
+    // colour is therefore not a cost this table is choosing to pay, it is the only granularity
+    // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
+    // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
+    "node.outline": "mesh",
+    "node.glow": "mesh",
     "edge.width": "mesh",
     "edge.style": "mesh",
+    "edge.patternCount": "mesh",
     "edge.curvature": "mesh",
-    "edge.arrowHead": "mesh",
-    "edge.arrowTail": "mesh",
     "edge.animationSpeed": "mesh",
+
+    // An arrow cap is its own mesh with its own material, built per edge by
+    // `EdgeMesh.createArrowHead` out of the style the paint carries. Nothing about it is
+    // per-instance state, and the renderer rebuilds a cap only when the edge's mesh key changes
+    // -- so a size, a colour or an opacity left out of the key is a change that never reaches
+    // the screen.
+    "edge.arrowHead": "mesh",
+    "edge.arrowHeadSize": "mesh",
+    "edge.arrowHeadColor": "mesh",
+    "edge.arrowHeadOpacity": "mesh",
+    "edge.arrowTail": "mesh",
+    "edge.arrowTailSize": "mesh",
+    "edge.arrowTailColor": "mesh",
+    "edge.arrowTailOpacity": "mesh",
 
     // Per-instance state: one buffer write, and never a reason to build a second mesh.
     "node.color": "instance",
     "node.opacity": "instance",
-    "node.outline": "instance",
-    "node.glow": "instance",
+    // A glow's STRENGTH is the opposite case to its colour. Babylon keeps a glow's intensity on
+    // the LAYER, one per scene, so no two nodes can ever be drawn at two strengths and a source
+    // mesh per strength would buy nothing at all -- which is what it was minting, because
+    // `Node.paintFrom` used to apply a node's effects only on the branch that rebuilds the mesh
+    // and a channel outside the key therefore never reached the screen. That branch now applies
+    // every `instance` channel whether it rebuilds or not, so a strength edit repaints without
+    // minting anything. The caveat on the channel says the rest: the last strength applied is
+    // the strength every glowing node is drawn at.
+    "node.glowStrength": "instance",
     "edge.color": "instance",
     "edge.opacity": "instance",
 
@@ -91,10 +121,21 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.label": "content",
     "node.labelStyle": "content",
     "node.tooltip": "content",
+    "node.tooltipStyle": "content",
     "node.marker": "content",
     "edge.label": "content",
     "edge.labelStyle": "content",
-    "edge.tooltip": "content",
+
+    // A caption at the end of an arrow is drawn beside the cap, not by it: it is a
+    // `RichTextLabel` on its own plane, and `Edge.syncContent` compares and rebuilds it on every
+    // paint rather than only when the edge's mesh key moves. So it keys no source mesh, and
+    // adding a layer that captions an edge already on screen reaches the screen -- which is
+    // exactly what a `mesh` role here would prevent, since the caption's words change nothing
+    // about the line or the cap.
+    "edge.arrowHeadText": "content",
+    "edge.arrowHeadTextStyle": "content",
+    "edge.arrowTailText": "content",
+    "edge.arrowTailTextStyle": "content",
 });
 
 /**

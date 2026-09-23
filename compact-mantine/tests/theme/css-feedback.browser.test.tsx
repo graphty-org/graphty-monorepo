@@ -10,6 +10,7 @@
 import { Loader, MantineProvider, Progress, RingProgress } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
 import { compactTheme } from "../../src";
 
 /**
@@ -23,7 +24,9 @@ function renderWithTheme(ui: React.ReactElement) {
  * Helper to get CSS variable value from an element
  */
 function getCssVar(element: Element | null, varName: string): string {
-    if (!element) return "";
+    if (!element) {
+        return "";
+    }
     return getComputedStyle(element).getPropertyValue(varName).trim();
 }
 

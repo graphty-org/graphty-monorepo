@@ -183,7 +183,16 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             const inFlow = arriving.get(key) ?? 0;
             const outFlow = leaving.get(key) ?? 0;
 
-            nodes.push({ id: nodeId, values: { netFlow: inFlow - outFlow } });
+            const values: Record<string, number | string> = { netFlow: inFlow - outFlow };
+
+            // Only the two ends carry a role, so a picture drawn from it paints those two alone.
+            if (key === source) {
+                values.role = "source";
+            } else if (key === sink) {
+                values.role = "sink";
+            }
+
+            nodes.push({ id: nodeId, values });
         });
 
         return {
@@ -193,6 +202,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
                 { name: "capacity", kind: "edge", type: "number" },
                 { name: "utilization", kind: "edge", type: "number" },
                 { name: "netFlow", kind: "node", type: "number" },
+                { name: "role", kind: "node", type: "string" },
                 { name: "maxFlow", kind: "graph", type: "number" },
             ],
             nodes,

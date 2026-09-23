@@ -297,7 +297,23 @@ function getEdgeKey(source: NodeId, target: NodeId): string {
 }
 
 /**
- * Calculate modularity for a given community structure - optimized version
+ * Calculate modularity for a given community structure
+ *
+ * Newman's Q, written per community:
+ *
+ *     Q = sum over communities c of [ w_in(c) / m - ( K_c / (2m) )^2 ]
+ *
+ * where m is the total edge weight with each undirected edge counted once, w_in(c) is the summed
+ * weight of the edges with both endpoints inside c, and K_c is the summed weighted degree of c's
+ * nodes.
+ *
+ * WHY NOT A SUM OVER EDGES. The textbook double sum runs over every ordered PAIR of nodes inside
+ * a community, not only over the pairs an edge happens to join. Collecting the null-model term
+ * only where an edge exists leaves the penalty far too small, and the shortfall grows with
+ * community size -- so the uncut whole graph, whose modularity is 0 by definition, outscores
+ * every real cut and a caller reading the dendrogram the standard way is handed one community
+ * containing everything. The per-community form above counts every pair exactly once and still
+ * costs one pass over the edges rather than a pass over every pair.
  * @param graph - The original graph
  * @param communityMap - Map from node IDs to community indices
  * @returns The modularity score of the partition
@@ -308,32 +324,37 @@ function calculateModularity(graph: Graph, communityMap: Map<NodeId, number>): n
         return 0;
     }
 
-    let modularity = 0;
-    const degrees = new Map<NodeId, number>();
-
-    // Pre-calculate all degrees
+    // Summed weighted degree of each community's nodes.
+    const degreeSum = new Map<number, number>();
     for (const node of graph.nodes()) {
-        degrees.set(node.id, getNodeDegree(graph, node.id));
+        const community = communityMap.get(node.id);
+        if (community === undefined) {
+            continue;
+        }
+
+        degreeSum.set(community, (degreeSum.get(community) ?? 0) + getNodeDegree(graph, node.id));
     }
 
-    // Only iterate over existing edges
+    // Summed weight of the edges that stay inside a community.
+    const internalWeight = new Map<number, number>();
     for (const edge of graph.edges()) {
         const communityI = communityMap.get(edge.source);
         const communityJ = communityMap.get(edge.target);
 
-        if (communityI === communityJ) {
-            const edgeWeight = edge.weight ?? 1;
-            const degreeI = degrees.get(edge.source);
-            const degreeJ = degrees.get(edge.target);
-            if (degreeI === undefined || degreeJ === undefined) {
-                continue;
-            }
-
-            modularity += edgeWeight - (degreeI * degreeJ) / (2 * totalEdgeWeight);
+        if (communityI === undefined || communityI !== communityJ) {
+            continue;
         }
+
+        internalWeight.set(communityI, (internalWeight.get(communityI) ?? 0) + (edge.weight ?? 1));
     }
 
-    return modularity / (2 * totalEdgeWeight);
+    let modularity = 0;
+    for (const [community, degrees] of degreeSum) {
+        const share = degrees / (2 * totalEdgeWeight);
+        modularity += (internalWeight.get(community) ?? 0) / totalEdgeWeight - share * share;
+    }
+
+    return modularity;
 }
 
 /**

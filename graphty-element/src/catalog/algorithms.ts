@@ -34,7 +34,10 @@
  * **A field list is a union, not a promise.** Where a parameter changes what a run publishes --
  * the shortest-path engine is the only case in this table -- the descriptor declares every
  * field any run of that algorithm can produce. `RunResult.fields` is the per-run truth and
- * lists only the fields that run actually filled.
+ * lists only the fields that run actually filled. A parameter may vary the FIELDS a key
+ * publishes; it may never vary the SHAPE, because a run fixes its shape from this table once and
+ * a consumer reading the table up front would otherwise be wrong about what it gets back. That
+ * is why the all-pairs sweep has its own key rather than a switch on shortest-path.
  */
 
 import { z } from "zod/v4";
@@ -288,7 +291,10 @@ function mergeOptions(...lists: readonly (readonly OptionDescriptor[])[]): reado
 }
 
 /**
- * The parameter that replaces the three 1.10 shortest-path keys.
+ * The parameter that replaces the two single-source 1.10 shortest-path keys.
+ *
+ * The third 1.10 key, floyd-warshall, is NOT an engine choice here: it answers a different
+ * question and publishes a different result shape, so it has its own catalogue key.
  *
  * It is authored as a Zod schema rather than as a descriptor so it goes through the same emitter
  * as every other option, and so the session has a schema to validate a caller's params against
@@ -296,21 +302,11 @@ function mergeOptions(...lists: readonly (readonly OptionDescriptor[])[]): reado
  */
 const shortestPathEngineOptions = defineOptions({
     method: {
-        schema: z.enum(["dijkstra", "bellman-ford", "floyd-warshall"]).nullable().default(null),
+        schema: z.enum(["dijkstra", "bellman-ford"]).nullable().default(null),
         meta: {
             label: "Method",
             description:
                 "Which engine computes the paths. Left unset, the element uses Dijkstra when every weight is zero or above and Bellman-Ford when any weight is negative.",
-            advanced: true,
-            group: "engine",
-        },
-    },
-    allPairs: {
-        schema: z.boolean().default(false),
-        meta: {
-            label: "Every pair",
-            description:
-                "Measure the distance between every pair of nodes rather than the routes out of one source. Only the Floyd-Warshall engine does this, it costs O(n^3), and its result is a set of graph-wide facts rather than one route.",
             advanced: true,
             group: "engine",
         },
@@ -336,10 +332,10 @@ const componentStrengthOptions = defineOptions({
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Twenty descriptors for twenty-three registered algorithms: the three shortest-path engines are
- * one key with a `method` parameter, and the two component algorithms are one key with a
- * `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it replaces and the
- * parameters that reproduce them.
+ * Twenty-one descriptors for twenty-three registered algorithms: the two single-source
+ * shortest-path engines are one key with a `method` parameter, and the two component algorithms
+ * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
+ * replaces and the parameters that reproduce them.
  */
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     {
@@ -560,29 +556,51 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "graph",
                 type: "boolean",
             }),
-            field({
-                name: "eccentricity",
-                plainName: "Distance to the furthest node",
-                technicalName: "eccentricity",
-                kind: "node",
-                type: "number",
-            }),
-            field({ name: "diameter", plainName: "Widest distance", technicalName: "diameter", kind: "graph", type: "number" }),
-            field({ name: "radius", plainName: "Narrowest distance", technicalName: "radius", kind: "graph", type: "number" }),
         ],
         options: mergeOptions(
             optionsOf(DijkstraAlgorithm),
             optionsOf(BellmanFordAlgorithm),
-            optionsOf(FloydWarshallAlgorithm),
             optionsFromZod(shortestPathEngineOptions),
         ),
         costClass: "instant",
-        complexity: "O((n + m) log n) with dijkstra, O(n * m) with bellman-ford, O(n^3) with floyd-warshall",
+        complexity: "O((n + m) log n) with dijkstra, O(n * m) with bellman-ford",
         legacyKeys: [
             { key: "dijkstra", params: { method: "dijkstra" } },
             { key: "bellman-ford", params: { method: "bellman-ford" } },
-            { key: "floyd-warshall", params: { method: "floyd-warshall", allPairs: true } },
         ],
+    },
+    {
+        /* ONE KEY, ONE RESULT SHAPE. The all-pairs sweep used to be a PARAMETER on shortest-path
+           -- `allPairs: true`, engine floyd-warshall -- which made one catalogue key claim two
+           different result shapes: a route for the single-source engines, and a measurement of
+           every node for this one. A run takes its shape from its descriptor once, at creation,
+           so the all-pairs run reported "path", found no `onPath` to paint from, and suggested
+           nothing; `styles.encode` refused a hand-written encoding for the same reason. Its own
+           key is what makes the shape true, and every consumer that reads the catalogue up front
+           right about what a run of it will publish. */
+        key: "all-pairs-distance",
+        plainName: "How far from everything else",
+        technicalName: "All-pairs shortest paths",
+        description:
+            "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
+        category: "path",
+        shape: "node-metric",
+        fields: [
+            ...metricFields("node", { plainName: "Distance to the furthest node", technicalName: "eccentricity" }),
+            field({ name: "diameter", plainName: "Widest distance", technicalName: "diameter", kind: "graph", type: "number" }),
+            field({ name: "radius", plainName: "Narrowest distance", technicalName: "radius", kind: "graph", type: "number" }),
+            field({
+                name: "hasNegativeCycle",
+                plainName: "Has a loop that costs less every time round",
+                technicalName: "hasNegativeCycle",
+                kind: "graph",
+                type: "boolean",
+            }),
+        ],
+        options: optionsOf(FloydWarshallAlgorithm),
+        costClass: "cubic",
+        complexity: "O(n^3)",
+        legacyKeys: [{ key: "floyd-warshall" }],
     },
     {
         key: "bfs",
@@ -697,6 +715,7 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             field({ name: "capacity", plainName: "Capacity", technicalName: "capacity", kind: "edge", type: "number" }),
             field({ name: "utilization", plainName: "Share of capacity used", technicalName: "utilization", kind: "edge", type: "number" }),
             field({ name: "netFlow", plainName: "Net flow", technicalName: "netFlow", kind: "node", type: "number" }),
+            field({ name: "role", plainName: "Source or sink", technicalName: "role", kind: "node", type: "string" }),
             field({ name: "maxFlow", plainName: "Most that can flow", technicalName: "maxFlow", kind: "graph", type: "number" }),
         ],
         options: optionsOf(MaxFlowAlgorithm),

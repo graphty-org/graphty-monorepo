@@ -6,6 +6,7 @@ import {
     AdvancedButton,
     DataRow,
     DataRowHeader,
+    type DataRowSortDirection,
     FieldGlyph,
     LabelsProvider,
     PANEL_GRID,
@@ -13,7 +14,6 @@ import {
     UiGlyph,
     useCollator,
 } from "../src";
-import type { DataRowSortDirection } from "../src";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -190,7 +190,7 @@ export const MultipleSelection: Story = {
          * @param event - The click, or the click a browser made from Enter or Space
          */
         function activate(index: number, event: React.MouseEvent | React.KeyboardEvent): void {
-            const name = CATS[index].name;
+            const {name} = CATS[index];
             setActive(index);
 
             if (event.shiftKey) {
@@ -234,6 +234,10 @@ export const MultipleSelection: Story = {
                 <div
                     ref={listRef}
                     role="listbox"
+                    // The rows carry the tab stop (roving tabIndex below), so the list itself is
+                    // focusable only in code -- it needs to be something, because the arrow-key
+                    // handler lives here and fires on events that bubble up from the focused row.
+                    tabIndex={-1}
                     aria-label="Most connected nodes"
                     aria-multiselectable
                     onKeyDown={handleKeyDown}

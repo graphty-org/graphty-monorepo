@@ -19,9 +19,9 @@ describe("Centrality Algorithm Options", () => {
                 const schema = EigenvectorCentralityAlgorithm.getOptionsSchema();
                 assert.isDefined(schema.maxIterations);
                 assert.strictEqual(schema.maxIterations.type, "integer");
-                assert.strictEqual(schema.maxIterations.default, 100);
+                assert.strictEqual(schema.maxIterations.default, 1000);
                 assert.strictEqual(schema.maxIterations.min, 1);
-                assert.strictEqual(schema.maxIterations.max, 1000);
+                assert.strictEqual(schema.maxIterations.max, 10000);
                 assert.isTrue(schema.maxIterations.advanced);
             });
 
@@ -71,12 +71,12 @@ describe("Centrality Algorithm Options", () => {
                 );
             });
 
-            it("rejects maxIterations > 1000", async () => {
+            it("rejects maxIterations > 10000", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new EigenvectorCentralityAlgorithm(graph, { maxIterations: 1001 }),
+                    () => new EigenvectorCentralityAlgorithm(graph, { maxIterations: 10001 }),
                     OptionValidationError,
-                    "must be <= 1000",
+                    "must be <= 10000",
                 );
             });
 

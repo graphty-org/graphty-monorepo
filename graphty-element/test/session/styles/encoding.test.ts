@@ -344,6 +344,57 @@ describe("the palette's capacity", () => {
         );
     });
 
+    it("gives a binding that names no palette and no overflow a palette big enough to name it", () => {
+        // The eight-colour default cannot name ten groups, and a categorical palette never wraps.
+        // What the element must NOT do is hand ITSELF that palette and then refuse its own layer:
+        // this is a run of ten communities that got exactly that, and drew nothing at all.
+        // encode() now writes overflow "other" onto such a binding (see overflow.test.ts); a layer
+        // written by hand with no policy still gets the larger palette.
+        const column = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+        const prepared = prepare("node.color", { by: "g", scale: "ordinal" }, column);
+        const painted = new Set(column.map((value) => hex(prepared.paint(value))));
+
+        assert.strictEqual(prepared.groups, 10, "every group has a slot of its own");
+        assert.strictEqual(painted.size, 10, "and a colour of its own, so no two groups read as one");
+        assert.isFalse(painted.has(undefined), "and every one of them is painted");
+    });
+
+    it("keeps the eight-colour default for every partition it can still name", () => {
+        // The rule only reaches for a bigger palette when the smaller one has run out, so a
+        // picture that is right today is the same picture tomorrow.
+        const binding = bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color");
+        const prepared = prepare("node.color", { ...binding, by: "g" }, ["a", "b", "c", "d", "e", "f", "g", "h"]);
+
+        assert.strictEqual(prepared.palette?.id, "okabe-ito");
+    });
+
+    it("still refuses a palette the CALLER named that cannot name the groups", () => {
+        // The element choosing for itself is what changed. A consumer who asked for these eight
+        // colours and has ten groups is told so, rather than shown a picture in colours it did
+        // not ask for.
+        const chosen: PaletteId = "okabe-ito";
+        const layer = plan({ run: "louvain", channel: "node.color", palette: chosen });
+
+        assert.strictEqual(bindingOf(layer, "node.color").palette, chosen);
+        assert.strictEqual(
+            codeOf(() =>
+                prepare("node.color", { ...bindingOf(layer, "node.color"), by: "g" }, [
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                    "e",
+                    "f",
+                    "g",
+                    "h",
+                    "i",
+                    "j",
+                ]),
+            ),
+            "E_CAP_EXCEEDED",
+        );
+    });
+
     it("fits once an 'other' bucket has absorbed the rare groups", () => {
         const column = ["a", "a", "b", "b", "c", "c", "d", "d", "e", "e", "f", "f", "g", "g", "h", "h", "i"];
         const prepared = prepare(
@@ -662,6 +713,16 @@ const ROUTE: EncodingRun = {
     fields: [field("onPath", "node", "boolean"), field("order", "node", "integer")],
 };
 
+/** A cut run: a chosen set of edges, and the side every node ended up on. */
+const CUT: EncodingRun = {
+    id: "cut",
+    label: "Weakest link",
+    algorithm: "min-cut",
+    params: {},
+    shape: "edge-set",
+    fields: [field("in", "edge", "boolean"), field("side", "node", "string")],
+};
+
 /** A prediction run, which publishes a table and nothing per element. */
 const PAIRS: EncodingRun = {
     id: "pairs",
@@ -673,7 +734,7 @@ const PAIRS: EncodingRun = {
 };
 
 /** Every run these tests can look up. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, PAIRS];
+const RUNS: readonly EncodingRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, CUT, PAIRS];
 
 /** A source over the runs above, which is all `encode()` needs from a session. */
 const SOURCE: EncodingSource = {
@@ -762,14 +823,15 @@ describe("encode()", () => {
         assert.strictEqual(bindingOf(layer, "node.size").scale, "linear");
     });
 
-    it("picks a palette that never wraps for groups and a ramp for measurements", () => {
-        const groups: PaletteId = "okabe-ito";
-
-        assert.strictEqual(bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color").palette, groups);
-        assert.strictEqual(
-            bindingOf(plan({ run: "betweenness", channel: "node.color" }), "node.color").palette,
-            "viridis",
-        );
+    it("names no palette, so the one that paints can fit the groups the run turns out to have", () => {
+        // A palette written in here would be a guess: nothing at this point has read a single one
+        // of the run's values, and how many groups there are is what decides whether a palette can
+        // name them. The guess was made and it was wrong -- a ten-community result was planned
+        // onto the eight-colour default, refused by the capacity check one step later, and left in
+        // the stack enabled and painting nothing. Choosing is deferred to the paint, where the
+        // count is known; see the capacity tests below for the choice itself.
+        assert.isUndefined(bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color").palette);
+        assert.isUndefined(bindingOf(plan({ run: "betweenness", channel: "node.color" }), "node.color").palette);
     });
 
     it("leaves the palette off a channel that carries no colour", () => {
@@ -793,6 +855,12 @@ describe("encode()", () => {
         assert.deepEqual(binding.clamp, [2, 98]);
         assert.strictEqual(binding.reverse, true);
         assert.deepEqual(binding.missing, { value: "#cccccc" });
+    });
+
+    it("carries a range to a numeric channel, so sizing by a run is not stuck at 0 to 1", () => {
+        const layer = plan({ run: "betweenness", channel: "node.size", range: [1, 5] });
+
+        assert.deepEqual(bindingOf(layer, "node.size").range, [1, 5]);
     });
 
     it("generates a layer the binding preparation then accepts", () => {
@@ -862,6 +930,16 @@ describe("what encode() refuses", () => {
         } catch (error) {
             assert.include(error instanceof Error ? error.message : "", "highlight()");
         }
+    });
+
+    it("encodes a field a chosen set publishes beside its choice, because every element carrying it was measured", () => {
+        // The cut's primary field names a subset and is highlighted. The side is not a subset:
+        // the cut put every node on one side or the other, so every node carries one.
+        const layer = plan({ run: "cut", field: "side", channel: "node.color" });
+
+        assert.deepEqual(layer.selector, { match: "has", path: "results.cut.side" });
+        assert.strictEqual(bindingOf(layer, "node.color").scale, "ordinal");
+        assert.strictEqual(codeOf(() => plan({ run: "cut", channel: "edge.color" })), "E_BAD_COMMAND");
     });
 
     it("refuses a result with nothing per element on it", () => {

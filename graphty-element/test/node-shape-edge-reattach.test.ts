@@ -194,13 +194,11 @@ function nodeStyle(overrides: NodeStyleConfig): NodeStyleConfig {
     return {
         shape: { type: "icosphere", size: 1 },
         texture: { color: "#6366F1" },
-        enabled: true,
         ...overrides,
     };
 }
 
 const ARROW_EDGE_STYLE: EdgeStyleConfig = {
-    enabled: true,
     line: { type: "solid", color: "#AAAAAA", width: 0.5 },
     arrowHead: { type: "normal", size: 1, color: "#AAAAAA", opacity: 1 },
 };

@@ -112,32 +112,121 @@ A channel is one visual property with one name. These are all of them:
 | `node.size`       | a number                                                      |
 | `node.shape`      | `sphere`, `box`, `cylinder`, `icosphere`, ...                 |
 | `node.label`      | the words to draw                                             |
-| `node.labelStyle` | `{font, sizePx, weight, color, background, outline, padding}` |
+| `node.labelStyle` | `{font, sizePx, weight, color, background, outline, padding, ...}` |
 | `node.tooltip`    | the words to show on hover                                    |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                       |
 | `node.opacity`    | 0 to 1                                                        |
 | `node.outline`    | a colour                                                      |
 | `node.glow`       | a colour                                                      |
+| `node.glowStrength` | a number                                                    |
 | `node.wireframe`  | true or false                                                 |
 | `node.flat`       | true or false                                                 |
 
-| Edge channel          | Takes                                        |
-| --------------------- | -------------------------------------------- |
-| `edge.color`          | any CSS colour                               |
-| `edge.width`          | a number                                     |
-| `edge.opacity`        | 0 to 1                                       |
-| `edge.style`          | `solid`, `dash`, `dot`, `zigzag`, ...        |
-| `edge.curvature`      | true or false (a bezier)                     |
-| `edge.arrowHead`      | `normal`, `inverted`, `diamond`, `none`, ... |
-| `edge.arrowTail`      | the same arrows                              |
-| `edge.animationSpeed` | a number                                     |
-| `edge.label`          | the words to draw                            |
-| `edge.labelStyle`     | as `node.labelStyle`                         |
-| `edge.tooltip`        | the words to show on hover                   |
+| Edge channel             | Takes                                        |
+| ------------------------ | -------------------------------------------- |
+| `edge.color`             | any CSS colour                               |
+| `edge.width`             | a number                                     |
+| `edge.opacity`           | 0 to 1                                       |
+| `edge.style`             | `solid`, `dash`, `dot`, `zigzag`, ...        |
+| `edge.patternCount`      | how many dots or dashes to draw, 2 or more   |
+| `edge.curvature`         | true or false (a bezier)                     |
+| `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
+| `edge.arrowHeadSize`     | a number, 1 being the element's own size     |
+| `edge.arrowHeadColor`    | a colour                                     |
+| `edge.arrowHeadOpacity`  | 0 to 1                                       |
+| `edge.arrowHeadText`     | words drawn beside the head cap              |
+| `edge.arrowHeadTextStyle` | as `node.labelStyle`                        |
+| `edge.arrowTail`         | the same arrows                              |
+| `edge.arrowTailSize`     | a number                                     |
+| `edge.arrowTailColor`    | a colour                                     |
+| `edge.arrowTailOpacity`  | 0 to 1                                       |
+| `edge.arrowTailText`     | words drawn beside the tail cap              |
+| `edge.arrowTailTextStyle` | as `node.labelStyle`                        |
+| `edge.animationSpeed`    | a number                                     |
+| `edge.label`             | the words to draw                            |
+| `edge.labelStyle`        | as `node.labelStyle`                         |
 
-Writing `node.label` or `edge.label` is what switches a label on. An arrow's own size and colour,
-and everything a label renderer can do beyond the seven `labelStyle` fields, are **not** channels:
-a layer chooses which arrow is drawn and what a label says, and the rest follows the element it
-is attached to.
+Writing `node.label` or `edge.label` is what switches a label on.
+
+### A tooltip on a node
+
+A tooltip is drawn when the pointer rests on a node and taken down when it leaves, which is the
+whole difference between a tooltip and a label: a label is part of the picture, a tooltip is an
+answer to pointing at something. So a graph at rest shows none, and a layer that writes one
+changes nothing on screen until a reader points at the node.
+
+```typescript
+await element.session.styles.add({
+    name: "What each city is",
+    target: "node",
+    selector: { match: "everything" },
+    encode: { "node.tooltip": { by: "data.note", scale: "passthrough" } },
+    set: { "node.tooltipStyle": { sizePx: 32, color: "#FFFFFF", background: "#10B981", cornerRadius: 12 } },
+});
+```
+
+`node.tooltip` carries the words and `node.tooltipStyle` carries how they are drawn, in the same
+vocabulary `node.labelStyle` takes. The words are what switch a tooltip on, so a layer that
+writes only the appearance draws nothing.
+
+**An edge has no tooltip.** `edge.tooltip` was published through 1.x and drawn by nothing in any
+released version, and it was withdrawn in 2.0: a tooltip needs the pointer to land on the thing
+it belongs to, and an edge is not pickable -- the same reason the element emits no `edge-click`.
+Put the words on the edge itself with `edge.label`, or at one of its ends with
+`edge.arrowHeadText` and `edge.arrowTailText`.
+
+An arrow that is told nothing about its own appearance follows the line it caps, at either end:
+
+```typescript
+await element.session.styles.add({
+    name: "Big red heads on the heavy edges",
+    target: "edge",
+    selector: { match: "expression", where: "data.weight > `5`" },
+    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 2.5, "edge.arrowHeadColor": "#EF4444" },
+});
+```
+
+Each end is named separately -- `arrowHead` and `arrowTail` -- because each is drawn separately,
+and each property is its own channel so it can be bound to a value in the data:
+`encode: {"edge.arrowHeadSize": {by: "data.weight", scale: "linear", range: [0.5, 2]}}`.
+
+### Words at the ends of an edge
+
+An edge carries words in three places and they are three different things. `edge.label` puts
+words at the MIDDLE of the line. `edge.arrowHeadText` and `edge.arrowTailText` put words at the
+two ENDS, hanging from the cap drawn there -- what Graphviz calls a `headlabel` and a `taillabel`
+and Cytoscape calls a source and target label. Each end has a second channel carrying the whole
+of how those words are drawn, in the same vocabulary `node.labelStyle` takes:
+
+```typescript
+await element.session.styles.add({
+    name: "Who calls whom",
+    target: "edge",
+    selector: { match: "everything" },
+    set: {
+        "edge.arrowTail": "normal",
+        "edge.arrowTailText": "caller",
+        "edge.arrowHeadText": "callee",
+        "edge.arrowHeadTextStyle": { sizePx: 28, color: "#B91C1C", background: "#FEE2E2", padding: 8 },
+    },
+});
+```
+
+Two things are worth knowing before writing one. A caption hangs from a cap, so an end drawn with
+no arrow carries none -- an edge's tail has no cap until a layer asks for one, which is why the
+example above sets `edge.arrowTail`. And the WORDS are what switch a caption on, so a layer that
+writes only a `...TextStyle` draws nothing, exactly as `node.labelStyle` draws nothing without
+`node.label`.
+
+A label is sized to the words in it, and there is no automatic wrapping: to draw a label on two
+lines, put a newline in the words. The parser measures, aligns and draws each line on its own, so
+`textAlign`, `lineHeight` and the four margins all apply across them.
+
+What a label renderer can do beyond the `labelStyle` vocabulary is **not** a channel. That
+vocabulary is a closed list named for what a reader can see -- the typeface, the panel, the
+margins, the speech-bubble pointer, the outline, the shadow, the badge -- and the renderer's own
+canvas settings, such as the resolution of the texture a label is drawn on, are deliberately not
+in it. The row above lists the fields a reader reaches for first, not all of them.
 
 ## Literal values and bound values
 
@@ -161,9 +250,11 @@ await element.session.styles.add({
 ```
 
 A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quantile`, `ordinal`,
-`passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map` and a
-`missing` rule. `missing` defaults to `skip`, which leaves an element with no value exactly as the
-layers underneath painted it.
+`passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map`, an
+`overflow` policy and a `missing` rule. `missing` defaults to `skip`, which leaves an element with
+no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"` or
+`"extend"`) says what a categorical colour does with more groups than its palette has colours;
+`encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
 ## Painting an algorithm's result
 

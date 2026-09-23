@@ -52,7 +52,7 @@ interface BoardProps {
 }
 
 /** The real status bar, fed the model the shell builds for one fixed status. */
-function Board({ status, counts }: BoardProps) {
+function Board({ status, counts }: BoardProps): React.JSX.Element {
     const text = formatAcceleration(status);
     const completion: StatusBarCompletion | undefined =
         status.state === "error"

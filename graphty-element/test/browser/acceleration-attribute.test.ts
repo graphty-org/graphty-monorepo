@@ -158,7 +158,7 @@ interface Mounted {
  */
 async function mount(attributes: Record<string, string> = {}): Promise<Mounted> {
     const container = makeContainer();
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
 
     element.style.width = "100%";
     element.style.height = "100%";

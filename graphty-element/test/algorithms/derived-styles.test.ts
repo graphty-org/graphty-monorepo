@@ -67,9 +67,8 @@ describe("what a built-in algorithm draws by itself", () => {
 
             const painted = suggestions.flatMap((suggestion) => [...suggestion.channels]);
 
-            for (const suggestion of suggestions) {
-                assert.strictEqual(suggestion.as, expected.as);
-            }
+            // The first suggestion is the one the shape's primary field draws.
+            assert.strictEqual(suggestions[0].as, expected.as);
 
             for (const channel of expected.channels) {
                 // A route publishes membership on both halves, so both are painted. A metric or a
@@ -80,15 +79,46 @@ describe("what a built-in algorithm draws by itself", () => {
             }
         });
 
-        it(`${descriptor.key} binds the field its shape calls primary`, () => {
+        it(`${descriptor.key} binds the field its shape calls primary first`, () => {
             const { primaryField } = resultShapeContract(descriptor.shape);
             const suggestions = suggestStyles(runOf(descriptor.key, descriptor.shape, descriptor.fields));
 
-            for (const suggestion of suggestions) {
-                assert.strictEqual(suggestion.spec.field, primaryField);
+            if (suggestions.length > 0) {
+                assert.strictEqual(suggestions[0].spec.field, primaryField);
             }
         });
     }
+
+    // A result drawn on its edges also says which group it put each node in: the two sides of a
+    // pairing, the two sides of a cut, the source and the sink of a flow. Every node carrying that
+    // value is part of the result, so painting it is the algorithm's to do, and 1.x did.
+    for (const [key, name] of [
+        ["bipartite-matching", "side"],
+        ["min-cut", "side"],
+        ["max-flow", "role"],
+    ] as const) {
+        it(`${key} colours its nodes by their ${name}`, () => {
+            const descriptor = BUILT_IN_ALGORITHMS.find((entry) => entry.key === key);
+            assert.ok(descriptor);
+
+            const suggestions = suggestStyles(runOf(key, descriptor.shape, descriptor.fields));
+            const byGroup = suggestions.find((suggestion) => suggestion.spec.field === name);
+
+            assert.ok(byGroup, `${key} suggests nothing for its nodes' ${name}`);
+            assert.strictEqual(byGroup.as, "encoding");
+            assert.deepEqual([...byGroup.channels], ["node.color"]);
+        });
+    }
+
+    it("does not colour nodes by a group when the primary field already paints the nodes", () => {
+        const fields = [
+            { name: "group", plainName: "g", technicalName: "g", kind: "node", type: "integer", path: "results.x.group" },
+            { name: "label", plainName: "l", technicalName: "l", kind: "node", type: "string", path: "results.x.label" },
+        ] as const satisfies readonly FieldDescriptor[];
+        const suggestions = suggestStyles(runOf("louvain", "community", fields));
+
+        assert.lengthOf(suggestions, 1);
+    });
 
     it("suggests nothing for a run that published none of the fields its shape declares", () => {
         // A run that stopped early, or an algorithm that fills fewer fields than it declares,

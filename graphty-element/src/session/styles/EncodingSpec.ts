@@ -27,7 +27,8 @@
  *   of nodes or edges -- is a highlight, and `highlight()` paints it. Encoding one would produce
  *   a layer scoped to every element the run looked at, including the ones that are not on the
  *   route, and then colour them by whether they are: exactly the "this algorithm painted my whole
- *   graph" defect, one level down.
+ *   graph" defect, one level down. Only the field that names the subset is refused: a field
+ *   published beside it, like the side of a cut every node ended up on, is encoded like any other.
  * - A field the run did not publish, or a field of the wrong half -- a node field driving an edge
  *   channel -- is a spelling mistake that would otherwise match nothing in silence, which reads
  *   exactly like a correct answer of zero.
@@ -38,7 +39,9 @@
 import { scaleDescriptor } from "../../catalog/scales";
 import type {
     AlgorithmKey,
+    BindingOverflow,
     Channel,
+    Encoding,
     FieldDescriptor,
     LayerSpec,
     PaletteId,
@@ -71,12 +74,45 @@ export interface EncodingSpec {
     readonly channel: Channel;
     /** The scale to read the values through. Defaults to one that suits the field. */
     readonly scale?: RuleBinding["scale"];
-    /** The palette. Defaults to a categorical one for groups and a continuous one for measures. */
+    /**
+     * The palette.
+     *
+     * Left off, the element picks one when the layer is painted, from the groups the run actually
+     * produced: a ramp for a measurement, and for groups the smallest palette in the catalogue
+     * that can name them all. Named, it is honoured as named -- and refused if the run has more
+     * groups than it has colours, because a categorical palette never wraps.
+     */
     readonly palette?: PaletteId;
+    /**
+     * What a categorical colour encoding does when the run found more groups than the palette has
+     * colours (8 for the default palette). Ignored for a measurement, which has no groups.
+     *
+     * - `"other"` -- THE DEFAULT. The 8 largest groups keep the palette's colours in palette order,
+     *   largest first, and every remaining group is painted one grey (#505050), which the legend
+     *   names "other: K groups".
+     * - `"shape"` -- node encodings only. Colours cycle through the palette and each full cycle
+     *   moves to the next node shape: group i is colour i mod 8 and shape floor(i / 8) from
+     *   icosphere (the default shape), box, octahedron, cylinder, cone, torus. Groups past 48 fold
+     *   into the grey. The shape is written by the same layer, so it is added and removed with
+     *   the colour. Refused with `E_BAD_COMMAND` on an edge channel, since an edge has no shape.
+     * - `"extend"` -- every group gets a colour of its own: a larger categorical palette when one
+     *   fits, and past that the sequential default sampled once per group. Colours past the
+     *   palette's capacity are NOT guaranteed to be told apart.
+     *
+     * With a `palette` named, N is that palette's capacity. A named palette with NO overflow keeps
+     * the strict rule: too many groups is refused with `E_CAP_EXCEEDED`, because the caller asked
+     * for exactly those colours. Naming an overflow applies it instead.
+     */
+    readonly overflow?: BindingOverflow;
     /** The extent to read values against. Defaults to the extent the run measured. */
     readonly domain?: RuleBinding["domain"];
     /** Percentiles to cut the extent at, so a few outliers do not flatten everything else. */
     readonly clamp?: RuleBinding["clamp"];
+    /**
+     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to the
+     * unit interval, which is a colour ramp's positions and far too small for most sizes.
+     */
+    readonly range?: RuleBinding["range"];
     /** What an element with no value is painted. Defaults to "skip", which is to leave it alone. */
     readonly missing?: RuleBinding["missing"];
     /** Send the smallest value to the far end of the range instead of the near end. */
@@ -140,12 +176,6 @@ const PRIMARY_FIELD_SCALES: Partial<Record<ResultShape, string>> = {
     "category-table": "ordinal",
 };
 
-/** The palette a colour encoding of groups takes: eight distinct colours that never wrap. */
-const CATEGORICAL_PALETTE: PaletteId = "okabe-ito";
-
-/** The palette a colour encoding of a measurement takes. */
-const CONTINUOUS_PALETTE: PaletteId = "viridis";
-
 /**
  * The scale an encoding reads its field through when the caller names none.
  * @param field - The field being read.
@@ -165,19 +195,6 @@ function defaultScale(field: FieldDescriptor, shape: ResultShape, primary: boole
     }
 
     return field.type === "string" || field.type === "boolean" ? "ordinal" : "linear";
-}
-
-/**
- * The palette a colour encoding takes when the caller names none.
- *
- * Recorded on the layer even when it is the one a palette lookup would have defaulted to, so that
- * an exported document says which colours it was authored with rather than inheriting whichever
- * default the element ships next.
- * @param scale - The scale's name.
- * @returns The palette's id.
- */
-function defaultPalette(scale: string): PaletteId {
-    return scaleDescriptor(scale)?.domainKind === "categorical" ? CATEGORICAL_PALETTE : CONTINUOUS_PALETTE;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -234,10 +251,11 @@ function requireRun(spec: EncodingSpec, source: EncodingSource): EncodingRun {
 /**
  * Check the run's shape has something per element to bind a channel to.
  * @param run - The run.
+ * @param primary - Whether the field being encoded is the one the shape declares primary.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the shape publishes nothing per element,
- *   or when it names a subset rather than measuring everything.
+ *   or when the field is the one that names a subset rather than measuring everything.
  */
-function assertShapeEncodes(run: EncodingRun): void {
+function assertShapeEncodes(run: EncodingRun, primary: boolean): void {
     const { layer } = resultShapeContract(run.shape);
 
     if (layer === "none") {
@@ -247,7 +265,10 @@ function assertShapeEncodes(run: EncodingRun): void {
         );
     }
 
-    if (layer === "highlight") {
+    // Only the field that names the subset is refused. A field published beside it -- the side of
+    // a cut every node ended up on -- is carried by exactly the elements it describes, so the
+    // "has" selector scopes it as tightly as any metric.
+    if (layer === "highlight" && primary) {
         throw badEncoding(
             `A "${run.shape}" result names a subset rather than measuring every element, so it is painted with highlight() rather than encoded. Encoding it would scope the layer to every element the run looked at, including the ones it did not choose.`,
             { run: run.id, shape: run.shape },
@@ -344,8 +365,16 @@ function assertFieldFits(field: FieldDescriptor, run: EncodingRun, descriptor: C
 function buildBinding(spec: EncodingSpec, path: string, scale: string, descriptor: ChannelDescriptor): RuleBinding {
     const binding: RuleBinding = { by: path, scale };
 
-    if (descriptor.accepts === "color") {
-        binding.palette = spec.palette ?? defaultPalette(scale);
+    // THE PALETTE IS LEFT OFF WHEN THE CALLER NAMED NONE, and that is the point rather than an
+    // omission. Nothing here knows how many groups the run found -- the field's values are not
+    // read at plan time and the count is only settled when the column is walked -- so a palette
+    // written in now is a guess, and the guess was wrong: a ten-community result was planned onto
+    // an eight-colour palette and then refused by the capacity check one step later, leaving a
+    // correct, enabled layer painting nothing. A binding with no palette is chosen for in
+    // `prepareRamp`, where the real count is in hand. A caller who wants the colours pinned names
+    // the palette, and then it is recorded and honoured exactly as written.
+    if (descriptor.accepts === "color" && spec.palette !== undefined) {
+        binding.palette = spec.palette;
     }
 
     if (spec.domain !== undefined) {
@@ -356,6 +385,10 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
         binding.clamp = spec.clamp;
     }
 
+    if (spec.range !== undefined) {
+        binding.range = spec.range;
+    }
+
     if (spec.missing !== undefined) {
         binding.missing = spec.missing;
     }
@@ -364,7 +397,66 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
         binding.reverse = spec.reverse;
     }
 
+    const overflow = overflowOf(spec, scale, descriptor);
+    if (overflow !== undefined) {
+        binding.overflow = overflow;
+    }
+
     return binding;
+}
+
+/**
+ * The overflow policy a binding records.
+ *
+ * The default, "other", is written only onto a colour binding whose scale names groups and whose
+ * palette the element picks. A named palette with no policy keeps the strict refusal, and a
+ * measurement has no groups to overflow, so writing a policy onto either would be noise in every
+ * saved document. A policy the caller asked for is always recorded.
+ * @param spec - The encoding.
+ * @param scale - The scale's name.
+ * @param descriptor - The channel.
+ * @returns The policy, or undefined when the binding carries none.
+ */
+function overflowOf(spec: EncodingSpec, scale: string, descriptor: ChannelDescriptor): BindingOverflow | undefined {
+    if (descriptor.accepts !== "color") {
+        return undefined;
+    }
+
+    if (spec.overflow !== undefined) {
+        return spec.overflow;
+    }
+
+    const groups = scaleDescriptor(scale)?.domainKind === "categorical";
+
+    return groups && spec.palette === undefined ? "other" : undefined;
+}
+
+/**
+ * The node shape half of `overflow: "shape"`, written into the same layer as the colour.
+ * @param spec - The encoding.
+ * @param colour - The colour binding it pairs with.
+ * @param descriptor - The channel, refused when it paints edges.
+ * @returns The extra channel bindings, empty unless the policy is "shape".
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel.
+ */
+function overflowCompanion(spec: EncodingSpec, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
+    if (colour.overflow !== "shape") {
+        return {};
+    }
+
+    if (descriptor.target === "edge") {
+        throw badEncoding(
+            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            { channel: descriptor.channel, overflow: colour.overflow },
+        );
+    }
+
+    const shape: RuleBinding = { by: colour.by, scale: colour.scale, overflow: "shape" };
+    if (colour.palette !== undefined) {
+        shape.palette = colour.palette;
+    }
+
+    return { "node.shape": shape };
 }
 
 /**
@@ -379,25 +471,27 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
  * @returns The layer, ready to be validated and added like any other.
  * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL` for a channel the element does not have,
  *   `E_UNKNOWN_RUN` for a run this session does not hold, `E_UNKNOWN_ATTRIBUTE` for a field the
- *   run does not publish, and `E_BAD_COMMAND` when the result has nothing per element to bind, or
- *   names a subset rather than measuring one.
+ *   run does not publish, and `E_BAD_COMMAND` when the result has nothing per element to bind,
+ *   names a subset rather than measuring one, or is an edge encoding asked for `overflow: "shape"`.
  */
 export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerSpec {
     const descriptor = requireChannel(spec.channel);
     const run = requireRun(spec, source);
 
-    assertShapeEncodes(run);
+    const { primaryField } = resultShapeContract(run.shape);
+    assertShapeEncodes(run, (spec.field ?? primaryField) === primaryField);
 
     const { field, primary } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);
     const scale = spec.scale ?? defaultScale(field, run.shape, primary, descriptor.accepts);
+    const binding = buildBinding(spec, path, scale, descriptor);
 
     return {
         name: spec.name ?? `${run.label} - ${descriptor.plainName}`,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },
-        encode: { [spec.channel]: buildBinding(spec, path, scale, descriptor) },
+        encode: { [spec.channel]: binding, ...overflowCompanion(spec, binding, descriptor) },
         source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
     };
 }

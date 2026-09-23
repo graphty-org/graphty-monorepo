@@ -398,6 +398,15 @@ export class NodeDragHandler {
             // Emit node-hover when entering the node (not when already hovering)
             if (isOverThisNode && !this.isHovered) {
                 this.isHovered = true;
+
+                // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
+                // an answer to pointing at something, so no style pass knows when to draw one:
+                // the paint records what this node's tooltip should say and the pointer arriving
+                // is what puts it on screen. The channel has been published as `renderable` and
+                // documented as "the words to show on hover" since before there were channels,
+                // and until this line nothing drew one in any version of the package.
+                this.node.showTooltip();
+
                 const context = this.getContext();
                 const eventManager = context.getEventManager?.();
                 if (eventManager) {
@@ -409,6 +418,7 @@ export class NodeDragHandler {
             } else if (!isOverThisNode && this.isHovered) {
                 // Reset hover state when leaving
                 this.isHovered = false;
+                this.node.hideTooltip();
             }
         });
     }
@@ -558,6 +568,14 @@ export class NodeBehavior {
 
     /**
      * Add click behavior for node expansion
+     *
+     * REGISTERED UNCONDITIONALLY, and the pair of fetchers is looked up when the reader
+     * double-clicks rather than when the node is built. A consumer switches expansion on by
+     * setting `element.layoutBehavior`, which can happen at any moment -- before the data
+     * arrives, after it, or from a settings panel while the graph is on screen. Deciding at
+     * construction meant every node already drawn kept the answer it was born with, so a
+     * consumer who loaded a graph and THEN turned expansion on had a graph of nodes that ignored
+     * a double-click for ever.
      * @param node - The graph node to add click behavior to
      */
     private static addClickBehavior(node: GraphNode): void {
@@ -575,65 +593,71 @@ export class NodeBehavior {
         // Only Graph has fetchNodes/fetchEdges, not GraphContext
         // For now, check if parentGraph is the full Graph instance
         const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
-        if (graph.fetchNodes && graph.fetchEdges) {
-            const { fetchNodes, fetchEdges } = graph;
 
-            node.mesh.actionManager.registerAction(
-                new ExecuteCodeAction(
-                    {
-                        trigger: ActionManager.OnDoublePickTrigger,
-                        // trigger: ActionManager.OnLongPressTrigger,
-                    },
-                    () => {
-                        // make sure the graph is running
-                        context.setRunning(true);
+        node.mesh.actionManager.registerAction(
+            new ExecuteCodeAction(
+                {
+                    trigger: ActionManager.OnDoublePickTrigger,
+                    // trigger: ActionManager.OnLongPressTrigger,
+                },
+                () => {
+                    const { fetchNodes, fetchEdges } = graph;
 
-                        // fetch all edges for current node
-                        const edgeSet = fetchEdges(node, graph as unknown as Graph);
-                        const edges = Array.from(edgeSet);
+                    // No fetchers means no on-demand expansion, which is the default and is not
+                    // an error: a graph that holds everything it is ever going to hold has
+                    // nothing to expand.
+                    if (!fetchNodes || !fetchEdges) {
+                        return;
+                    }
 
-                        // Which keys name this batch's endpoints is decided ONCE, by the same
-                        // resolver the data manager uses, and the answer is then passed to
-                        // `addEdges` so both halves of the expansion read the same columns.
-                        //
-                        // Reading `e.src` and `e.dst` here, as this handler used to, made the
-                        // expansion work for exactly one spelling -- and not the canonical one. A
-                        // `fetchEdges` written the way every guide teaches, returning
-                        // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
-                        // fetched, and the edges queued as pending for ever.
-                        const endpoints = resolveEndpoints(edges, { source: null, target: null });
-                        const nodeIds = new Set<NodeIdType>();
-                        edges.forEach((e) => {
-                            nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
-                            nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
-                        });
-                        nodeIds.delete(node.id);
+                    // make sure the graph is running
+                    context.setRunning(true);
 
-                        // fetch all nodes from associated edges
-                        const nodes = fetchNodes(nodeIds, graph);
+                    // fetch all edges for current node
+                    const edgeSet = fetchEdges(node, graph as unknown as Graph);
+                    const edges = Array.from(edgeSet);
 
-                        // add all the nodes and edges we collected
-                        //
-                        // `repeated: "first"` because expanding a node's neighbourhood
-                        // LEGITIMATELY re-supplies edges the graph already holds -- the edge the
-                        // reader followed to get here is in every one of its endpoints'
-                        // neighbourhoods. The element defaults to keeping a repeated edge, which
-                        // is right for a file that really does carry two, and would double every
-                        // known edge on every expand. Only the call site knows which of the two
-                        // this is, and this one knows.
-                        const dataManager = context.getDataManager();
-                        dataManager.addNodes([...nodes]);
-                        dataManager.addEdges([...edges], {
-                            repeated: "first",
-                            source: endpoints.source,
-                            target: endpoints.target,
-                        });
+                    // Which keys name this batch's endpoints is decided ONCE, by the same
+                    // resolver the data manager uses, and the answer is then passed to
+                    // `addEdges` so both halves of the expansion read the same columns.
+                    //
+                    // Reading `e.src` and `e.dst` here, as this handler used to, made the
+                    // expansion work for exactly one spelling -- and not the canonical one. A
+                    // `fetchEdges` written the way every guide teaches, returning
+                    // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
+                    // fetched, and the edges queued as pending for ever.
+                    const endpoints = resolveEndpoints(edges, { source: null, target: null });
+                    const nodeIds = new Set<NodeIdType>();
+                    edges.forEach((e) => {
+                        nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
+                        nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
+                    });
+                    nodeIds.delete(node.id);
 
-                        // TODO: fetch and add secondary edges
-                    },
-                ),
-            );
-        }
+                    // fetch all nodes from associated edges
+                    const nodes = fetchNodes(nodeIds, graph);
+
+                    // add all the nodes and edges we collected
+                    //
+                    // `repeated: "first"` because expanding a node's neighbourhood
+                    // LEGITIMATELY re-supplies edges the graph already holds -- the edge the
+                    // reader followed to get here is in every one of its endpoints'
+                    // neighbourhoods. The element defaults to keeping a repeated edge, which
+                    // is right for a file that really does carry two, and would double every
+                    // known edge on every expand. Only the call site knows which of the two
+                    // this is, and this one knows.
+                    const dataManager = context.getDataManager();
+                    dataManager.addNodes([...nodes]);
+                    dataManager.addEdges([...edges], {
+                        repeated: "first",
+                        source: endpoints.source,
+                        target: endpoints.target,
+                    });
+
+                    // TODO: fetch and add secondary edges
+                },
+            ),
+        );
     }
 
     /**

@@ -439,20 +439,20 @@ describe("binding a palette to a scale", () => {
         const spec: RampSpec = { domain: [0, 10] };
         const ramp: PreparedRamp = prepareRamp(spec, registry);
 
-        assert.strictEqual(ramp.palette.id, "viridis");
+        assert.strictEqual(ramp.palette.id, "ylorbr");
         assert.strictEqual(ramp.scale, "linear");
         assert.strictEqual(ramp.groups, 0);
-        assert.strictEqual(ramp.color(0)?.hex, "#440154");
-        assert.strictEqual(ramp.color(10)?.hex, "#fde724");
+        assert.strictEqual(ramp.color(0)?.hex, "#ef7818");
+        assert.strictEqual(ramp.color(10)?.hex, "#662506");
     });
 
     it("carries the numbers beside the string, so a repaint parses nothing", () => {
         assert.deepEqual(prepareRamp({ domain: [0, 10] }, registry).color(0), {
-            r: 0x44,
-            g: 0x01,
-            b: 0x54,
+            r: 0xef,
+            g: 0x78,
+            b: 0x18,
             a: 1,
-            hex: "#440154",
+            hex: "#ef7818",
         });
     });
 
@@ -482,8 +482,8 @@ describe("binding a palette to a scale", () => {
         const ramp = prepareRamp({ scale: "bins", domain: [0, 100], bins: 3 }, registry);
 
         assert.strictEqual(ramp.groups, 3);
-        assert.strictEqual(ramp.color(0)?.hex, "#440154");
-        assert.strictEqual(ramp.color(99)?.hex, "#fde724");
+        assert.strictEqual(ramp.color(0)?.hex, "#ef7818");
+        assert.strictEqual(ramp.color(99)?.hex, "#662506");
     });
 
     it("does not paint a value with no place on the scale", () => {
@@ -577,13 +577,13 @@ describe("the cost of a colour", () => {
     });
 
     it("samples the ramp finely enough that the table costs no colour", () => {
-        const viridis = PALETTE_DESCRIPTORS.find((descriptor) => descriptor.id === "viridis");
-        assert.isDefined(viridis);
+        const ylorbr = PALETTE_DESCRIPTORS.find((descriptor) => descriptor.id === "ylorbr");
+        assert.isDefined(ylorbr);
         const ramp = prepareRamp({ domain: [0, 1] }, registry);
 
         for (let step = 0; step <= 200; step++) {
             const at = step / 200;
-            const exact = toColorValue(interpolatePalette(at, viridis.colors));
+            const exact = toColorValue(interpolatePalette(at, ylorbr.colors));
             const table = ramp.color(at);
             if (exact === null || table === undefined) {
                 assert.fail(`no colour at ${at}`);
@@ -598,8 +598,8 @@ describe("the cost of a colour", () => {
     it("hits both ends of the ramp exactly", () => {
         const ramp = prepareRamp({ domain: [0, 1] }, registry);
 
-        assert.strictEqual(ramp.color(0)?.hex, "#440154");
-        assert.strictEqual(ramp.color(1)?.hex, "#fde724");
+        assert.strictEqual(ramp.color(0)?.hex, "#ef7818");
+        assert.strictEqual(ramp.color(1)?.hex, "#662506");
     });
 });
 

@@ -796,7 +796,7 @@ function checkDocument(document: StyleDocument): void {
  * name makes the document self-describing: the consumer opening it can see exactly which palettes
  * it needs, show them, and register them -- rather than getting a refusal naming a palette they
  * have no way to reconstruct. The element's own palettes are left out on purpose, because they
- * are the same everywhere and copying seventeen descriptors into every saved file would make a
+ * are the same everywhere and copying eighteen descriptors into every saved file would make a
  * document larger than the look it records.
  * @param specs - The layers being written out.
  * @returns The descriptors, in the order the palettes were first named.
@@ -1136,7 +1136,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         stale: () => null,
         resolveScope: () => sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope(),
         enqueue: (body: RunBody): RunTicket => {
-            const id = queue.queueOperation("algorithm-run", body, { description: label });
+            // `style-edit`, NOT `algorithm-run`, and the difference is whether the edit survives
+            // a load. A `data-add` obsoletes an `algorithm-run` -- correctly, because a
+            // computation's answer describes the data it read -- and a style write is not one of
+            // those: it says how to paint whatever the graph holds next. While it shared that
+            // category, the one order a render function can use (issue the edits, then set the
+            // data, because it cannot await a run) aborted every edit before its body ran, and an
+            // operation dropped from the batch settles nothing: no commit, no refusal, no
+            // problem recorded, and a forgotten promise that never resolves.
+            const id = queue.queueOperation("style-edit", body, { description: label });
 
             return {
                 cancel: () => {

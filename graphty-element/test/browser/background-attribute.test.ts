@@ -45,7 +45,7 @@ describe("the background and starting camera distance attributes", () => {
      * @returns The element.
      */
     async function mount(attributes: Readonly<Record<string, string>>): Promise<Graphty> {
-        const element = document.createElement("graphty-element") as Graphty;
+        const element = document.createElement("graphty-element");
 
         for (const [name, value] of Object.entries(attributes)) {
             element.setAttribute(name, value);

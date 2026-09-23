@@ -52,7 +52,9 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 | Method                      | Parameters         | Returns         | Description                  |
 | --------------------------- | ------------------ | --------------- | ---------------------------- |
 | `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm         |
-| `waitForSettled()`          | -                  | `Promise<void>` | Wait for layout to stabilize |
+| `waitForSettled()`          | -                  | `Promise<void>` | Wait for queued operations to finish |
+| `waitForStableFrame(opts?)` | `{ timeoutMs? }`   | `Promise<void>` | Wait for the picture to stop changing |
+| `isFrameStable`             | -                  | `boolean`       | Whether the drawn frame is the final one |
 | `isSettled()`               | -                  | `boolean`       | Check if layout is stable    |
 
 ### Algorithms
@@ -124,7 +126,15 @@ await graph.dataManager.clear();
 
 ```typescript
 graph.layoutManager.setLayout("ngraph", options);
-await graph.layoutManager.waitForSettled();
+```
+
+Waiting belongs to the graph rather than to the layout manager: `graph.waitForSettled()` waits for
+the operation queue, and `graph.waitForStableFrame()` waits for the picture -- the layout
+converged, the camera framed, and a frame drawn in that state.
+
+```typescript
+await graph.waitForStableFrame();
+const shot = await graph.captureScreenshot();
 ```
 
 ### AlgorithmManager

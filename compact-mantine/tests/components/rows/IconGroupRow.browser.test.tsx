@@ -14,8 +14,8 @@
  * numbers is a layout result rather than a style declaration.
  */
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { userEvent } from "@vitest/browser/context";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { userEvent } from "@vitest/browser/context";
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 

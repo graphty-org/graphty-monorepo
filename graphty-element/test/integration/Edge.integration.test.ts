@@ -186,49 +186,41 @@ describe("Edge Integration", () => {
         // One paint per distinct style, each with a mesh key of its own
         defaultPaint = paintOf("default", {
             line: { width: 0.5, color: "#A9A9A9" },
-            enabled: true,
         });
 
         arrowHeadPaint = paintOf("arrowHead", {
             line: { width: 0.5, color: "#FF0000" },
             arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
-            enabled: true,
         });
 
         arrowTailPaint = paintOf("arrowTail", {
             line: { width: 0.5, color: "#00FF00" },
             arrowTail: { type: "tee", size: 1, color: "#00FF00", opacity: 1 },
-            enabled: true,
         });
 
         bidirectionalPaint = paintOf("bidirectional", {
             line: { width: 0.5, color: "#0000FF" },
             arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
             arrowTail: { type: "inverted", size: 1, color: "#00FF00", opacity: 1 },
-            enabled: true,
         });
 
         initialPaint = paintOf("initial", {
             line: { width: 0.5, color: "#FF0000" },
-            enabled: true,
         });
 
         updatedPaint = paintOf("updated", {
             line: { width: 1.0, color: "#00FF00" },
             arrowHead: { type: "diamond", size: 1.5, color: "#00FF00", opacity: 1 },
-            enabled: true,
         });
 
         styleAPaint = paintOf("styleA", {
             line: { width: 0.5, color: "#FF0000" },
             arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
-            enabled: true,
         });
 
         styleBPaint = paintOf("styleB", {
             line: { width: 1.0, color: "#0000FF" },
             arrowHead: { type: "box", size: 1, color: "#0000FF", opacity: 1 },
-            enabled: true,
         });
     });
 
@@ -314,6 +306,12 @@ describe("Edge Integration", () => {
             const edge = new Edge(context, "src", "dst", 0, initialPaint, asData({}));
 
             assert.isTrue(edge.arrowMesh === null, "no arrow before the repaint");
+            /* WHICH STYLE THE EDGE IS DRAWN FROM, BEFORE. Two assertions on `edge.styleId` used
+               to bracket this repaint, and they are what said "drawn from THAT style" rather
+               than "drawn from something". A style id is gone with the 1.x style table and the
+               mesh key that replaced it is private, so the identity is read where it is public:
+               the line renderer names its source mesh `edge-style-<the paint's mesh key>`. */
+            assert.include(edge.mesh.name, initialPaint.meshKey);
 
             // Repaint from a style that carries an arrow cap. `applySessionPaint` is the door the
             // session's own pass uses; `updateStyle()` is the no-argument rebuild request beside
@@ -330,6 +328,70 @@ describe("Edge Integration", () => {
                from outside -- read off the paint rather than spelled out here, so the two cannot
                drift. */
             assert.include(drawn.name, updatedPaint.style.arrowHead?.type ?? "none");
+
+            // AND THE SECOND HALF OF THE BRACKET: the line the repaint rebuilt is drawn from the
+            // new paint's mesh key, not the old one's.
+            assert.include(edge.mesh.name, updatedPaint.meshKey);
+            assert.notInclude(edge.mesh.name, initialPaint.meshKey);
+        });
+
+        test("draws an arrow at the size its own style asks for, not at one fixed size", () => {
+            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
+            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
+
+            const nodes = new Map<string | number, Node>();
+            nodes.set("src", srcNode);
+            nodes.set("dst", dstNode);
+
+            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const small = new Edge(context, "src", "dst", 0, arrowHeadPaint, asData({}));
+            const large = new Edge(
+                context,
+                "src",
+                "dst",
+                1,
+                paintOf("bigArrowHead", {
+                    line: { width: 0.5, color: "#FF0000" },
+                    arrowHead: { type: "normal", size: 3, color: "#FF0000", opacity: 1 },
+                }),
+                asData({}),
+            );
+
+            assert.exists(small.arrowMesh);
+            assert.exists(large.arrowMesh);
+
+            /* `EdgeStyle.arrowHead.size` has been in the schema and read by the renderer since
+               1.x, and for the whole of the 2.0 branch no public route wrote it. This is the
+               renderer half of that gap: the cap really is built at the size the style names,
+               which is what makes `edge.arrowHeadSize` worth publishing. */
+            const spanOf = (mesh: AbstractMesh): number => mesh.getBoundingInfo().boundingBox.extendSize.length();
+
+            assert.isAbove(spanOf(large.arrowMesh), spanOf(small.arrowMesh) * 2);
+        });
+
+        test("draws an arrow at the opacity its own style asks for", () => {
+            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
+            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
+
+            const nodes = new Map<string | number, Node>();
+            nodes.set("src", srcNode);
+            nodes.set("dst", dstNode);
+
+            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const faint = new Edge(
+                context,
+                "src",
+                "dst",
+                0,
+                paintOf("faintArrowHead", {
+                    line: { width: 0.5, color: "#FF0000" },
+                    arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 0.25 },
+                }),
+                asData({}),
+            );
+
+            assert.exists(faint.arrowMesh);
+            assert.strictEqual(faint.arrowMesh.visibility, 0.25);
         });
 
         test("disposes edge resources when style changes", () => {

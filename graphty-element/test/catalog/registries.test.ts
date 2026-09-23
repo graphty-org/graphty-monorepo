@@ -31,6 +31,7 @@ import {
     ORANGES_COLORS,
     PLASMA_COLORS,
     VIRIDIS_COLORS,
+    YLORBR_COLORS,
 } from "../../src/config/palettes/sequential";
 import { DataSource } from "../../src/data/DataSource";
 import { LayoutEngine } from "../../src/layout/LayoutEngine";
@@ -323,6 +324,7 @@ describe("format catalogue", () => {
 
 const paletteAnchors: readonly [string, readonly string[]][] = [
     ["viridis", VIRIDIS_COLORS],
+    ["ylorbr", YLORBR_COLORS],
     ["plasma", PLASMA_COLORS],
     ["inferno", INFERNO_COLORS],
     ["blues", BLUES_COLORS],

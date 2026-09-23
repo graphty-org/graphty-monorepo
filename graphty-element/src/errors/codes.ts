@@ -195,11 +195,11 @@ export type GraphtyErrorCode =
     /**
      * An allocation failed, or the work would exceed the session's memory budget.
      * `details` carry the budget and the estimate where one exists. The caller loads a subset,
-     * raises `memoryBudgetBytes`, or frees another session.
+     * raises `runColumnBudgetBytes`, or frees another session.
      */
     | "E_OUT_OF_MEMORY"
     /**
-     * A run's estimated cost is above `config.exactComputationCap` and it has no approximate
+     * A run's estimated cost is above `config.exactComputationSeconds` and it has no approximate
      * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
      * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
      * disabled when a categorical encoding has more distinct values than the palette's capacity
@@ -214,6 +214,13 @@ export type GraphtyErrorCode =
      * graph. The caller widens the scope; the session is unchanged.
      */
     | "E_SCOPE_EMPTY"
+    /**
+     * An iterative algorithm used every pass it was allowed without meeting its tolerance, so it
+     * has no answer to publish. `details` carry the algorithm, `maxIterations` and `tolerance`,
+     * and `cause` the algorithm's own error. The caller raises the run's `maxIterations` param,
+     * or loosens `tolerance`, and runs again; the same params always fail the same way.
+     */
+    | "E_NOT_CONVERGED"
     /**
      * Acceleration was required (the `acceleration` attribute set to `required`) and no
      * accelerator is available. `details` carry the reason acceleration is absent. The caller
@@ -313,6 +320,7 @@ const CODE_TABLE = {
     E_OUT_OF_MEMORY: "E_OUT_OF_MEMORY",
     E_CAP_EXCEEDED: "E_CAP_EXCEEDED",
     E_SCOPE_EMPTY: "E_SCOPE_EMPTY",
+    E_NOT_CONVERGED: "E_NOT_CONVERGED",
     E_NO_ACCELERATOR: "E_NO_ACCELERATOR",
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",

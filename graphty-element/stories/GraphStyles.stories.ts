@@ -1,6 +1,18 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
+import {
+    assertBackgroundColour,
+    assertDistinctPicture,
+    assertDrawnColour,
+    assertGraphLoaded,
+    assertLayerPainted,
+    assertSkyboxDrawn,
+    type Drawn,
+    drawn,
+} from "./assertions";
 import {
     eventWaitingDecorator,
     renderFn,
@@ -46,13 +58,31 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
-// Common play function for all stories
-const waitForSettle = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+/**
+ * Settle the story and read what it drew. Every story here is the cat network: twenty nodes,
+ * twenty-nine edges, fetched over the network at render time.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @returns What the story drew.
+ */
+const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn> => {
     await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Styles/Graph ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+
+    return scene;
 };
 
 export const Default: Story = {
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Default");
+
+        // No background of the story's own, so the element's own is what is behind the graph.
+        await assertBackgroundColour(scene, "#f5f5f5");
+        await assertDistinctPicture(scene, "Styles/Graph");
+    },
 };
 
 export const Skybox: Story = {
@@ -84,7 +114,11 @@ export const Skybox: Story = {
     play: async ({ canvasElement }) => {
         // Wait for the skybox to fully load before taking the screenshot
         await waitForSkyboxLoaded(canvasElement);
-        await waitForGraphSettled(canvasElement);
+
+        const scene = await settled(canvasElement, "Skybox");
+
+        await assertSkyboxDrawn(scene);
+        await assertDistinctPicture(scene, "Styles/Graph");
     },
 };
 
@@ -100,7 +134,12 @@ export const BackgroundColor: Story = {
             include: ["background.color"],
         },
     },
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "BackgroundColor");
+
+        await assertBackgroundColour(scene, "#ff69b4");
+        await assertDistinctPicture(scene, "Styles/Graph");
+    },
 };
 
 /**
@@ -143,5 +182,22 @@ export const Layers: Story = {
             include: [],
         },
     },
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Layers");
+
+        // The cat network carries `indoor_outdoor` on every node: seven indoor, five outdoor,
+        // four strays, and four -- a clinic, a human, a kitten and a working cat -- that none of
+        // the three layers names and that are deliberately left to the element's own colour.
+        await assertLayerPainted(scene, "Indoor cats are black", { nodes: 7 });
+        await assertLayerPainted(scene, "Outdoor cats are yellow", { nodes: 5 });
+        await assertLayerPainted(scene, "Strays are red", { nodes: 4 });
+
+        const untouched = scene.nodes.filter((node) => node.hex === "#6366f1");
+
+        await assertDrawnColour(
+            scene,
+            Object.fromEntries(untouched.map((node) => [node.id, "#6366f1"])),
+        );
+        await assertDistinctPicture(scene, "Styles/Graph");
+    },
 };

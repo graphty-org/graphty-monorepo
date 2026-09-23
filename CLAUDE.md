@@ -243,7 +243,7 @@ The `tools/` directory contains build scripts:
 
 ### Port Assignments
 
-All dev servers use ports 9000-9099:
+All dev servers use ports 9000-9999:
 - algorithms: 9000
 - algorithms Storybook: 9001
 - layout: 9010
@@ -286,6 +286,7 @@ All dev servers use ports 9000-9099:
 - `browser` - Playwright tests (5 CI shards)
 - `storybook` - Component tests (4 CI shards)
 - `interactions` - Interaction tests
+- `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
 - `llm-regression` - LLM regression tests
 
 ### Running Specific Test Projects

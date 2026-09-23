@@ -18,7 +18,6 @@ import "../../src/graphty-element";
 
 import { assert, describe, test } from "vitest";
 
-import type { Graphty } from "../../index.js";
 import type { EndpointSpelling } from "../../src/data/endpoints";
 import { isGraphtyError } from "../../src/errors";
 import type { DataLoadingCompleteEvent } from "../../src/events";
@@ -304,7 +303,7 @@ describe("the declarative load path, which is how a page without any script load
         container.style.height = "300px";
         document.body.appendChild(container);
 
-        const element = document.createElement("graphty-element") as Graphty;
+        const element = document.createElement("graphty-element");
         element.style.width = "100%";
         element.style.height = "100%";
         element.style.display = "block";
@@ -343,7 +342,7 @@ describe("the declarative load path, which is how a page without any script load
         container.style.height = "300px";
         document.body.appendChild(container);
 
-        const element = document.createElement("graphty-element") as Graphty;
+        const element = document.createElement("graphty-element");
         element.style.width = "100%";
         element.style.height = "100%";
         element.style.display = "block";

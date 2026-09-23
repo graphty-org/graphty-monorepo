@@ -169,7 +169,7 @@ const READS: Readonly<Record<string, Read>> = {
     "max-flow.maxFlow": graphField("maxFlow"),
 
     // -- all pairs: how far each node is from the farthest one ----------------------------------
-    "floyd-warshall.eccentricity": field("eccentricity"),
+    "floyd-warshall.eccentricity": field("value"),
     "floyd-warshall.diameter": graphField("diameter"),
     "floyd-warshall.radius": graphField("radius"),
     "floyd-warshall.hasNegativeCycle": graphField("hasNegativeCycle"),

@@ -122,10 +122,12 @@ const CASES: readonly Case[] = [
     },
     {
         // Asked for every pair, shortest-path stops being one route: there is no `onPath` to
-        // publish, so the run's shape is `fact` where the catalogue's key is `path`.
+        // publish. What it measures instead is every node's eccentricity, so it is a node metric
+        // under a key of its own -- the catalogue and the run agree on the shape, which is what
+        // lets the element derive a picture from it.
         name: "floyd-warshall",
-        key: "shortest-path",
-        shape: "fact",
+        key: "all-pairs-distance",
+        shape: "node-metric",
         method: "floyd-warshall",
         make: (g) => new FloydWarshallAlgorithm(g),
     },
@@ -328,6 +330,15 @@ describe("declared algorithm results", () => {
                 onRoute.map((_node, index) => index),
             );
             assert.isTrue(output.edges?.some((edge) => edge.values.onPath === true));
+        });
+
+        it("a flow names its source and its sink, and no other node", async () => {
+            const output = await runCase(CASES.find((entry) => entry.name === "max flow")!);
+            const roles = (output.nodes ?? [])
+                .filter((node) => node.values.role !== undefined)
+                .map((node) => `${String(node.id)}:${String(node.values.role)}`);
+
+            assert.sameMembers(roles, ["A:source", "F:sink"]);
         });
 
         it("a set publishes membership per element and one headline number", async () => {

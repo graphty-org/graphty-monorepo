@@ -71,7 +71,7 @@ async function mount(): Promise<Graphty> {
     document.body.appendChild(container);
     containers.push(container);
 
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
     element.style.width = "100%";
     element.style.height = "100%";
     element.style.display = "block";

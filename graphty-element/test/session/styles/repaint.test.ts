@@ -838,3 +838,117 @@ describe("the bindings the last pass painted from", () => {
         );
     });
 });
+
+/**
+ * A layer's removal has to reach every element the layer PAINTED, not the elements its selector
+ * happens to match when the removal lands. Removing a run deletes its result column first and
+ * removes the run's layers after, so by the time the removal repaints, a `{ match: "has" }`
+ * selector over that column matches nothing -- and an element nobody revisits keeps the removed
+ * layer's paint on screen.
+ */
+describe("removing a layer whose selector no longer matches what it painted", () => {
+    /**
+     * A harness whose rows and measured columns can be changed under the painter, as a run being
+     * removed changes them, without the whole-graph pass a dataset load would bring.
+     * @returns The harness, the rows and the measured columns it reads.
+     */
+    function mutableHarness(): {
+        harness: Harness;
+        rows: Record<Path, unknown>[];
+        measured: Record<Path, number[] | undefined>;
+    } {
+        const rows = NODES.map((row) => ({ ...row }));
+        const measured: Record<Path, number[] | undefined> = {
+            "results.louvain.group": [0, 1, 2],
+        };
+        const harness = makeHarness(rows, {
+            measured: (path, target) => (target === "node" ? measured[path] : undefined),
+        });
+
+        return { harness, rows, measured };
+    }
+
+    it("gives an element back the layers beneath it when the column its layer selected on has gone", async () => {
+        const { harness, rows, measured } = mutableHarness();
+
+        await harness.paintAll();
+        const layer = await harness.styles.add({
+            name: "Communities",
+            selector: { match: "has", path: "results.louvain.group" },
+            set: { "node.color": "#ff0000" },
+        });
+
+        assert.strictEqual(colorOf(harness.engine, 1), "#ff0000");
+
+        // The run goes, and its column with it, before its layer is removed.
+        for (const row of rows) {
+            delete row["results.louvain.group"];
+        }
+        measured["results.louvain.group"] = undefined;
+
+        await harness.styles.remove(layer.id);
+
+        assert.strictEqual(paintedNodes(harness), 3, "the three nodes it painted are repainted");
+        assert.strictEqual(colorOf(harness.engine, 0), "#333333");
+        assert.strictEqual(colorOf(harness.engine, 1), "#333333");
+        assert.strictEqual(colorOf(harness.engine, 2), "#333333");
+    });
+
+    it("takes the paint away from an element whose data stopped matching an expression layer", async () => {
+        const { harness, rows } = mutableHarness();
+
+        await harness.paintAll();
+        const layer = await harness.styles.add({
+            name: "Switches",
+            selector: { match: "expression", where: 'data.kind == `"switch"`' },
+            set: { "node.size": 4 },
+        });
+
+        assert.strictEqual(harness.engine.styleOf("node", 2)["node.size"], 4);
+
+        rows[2]["data.kind"] = "host";
+        await harness.styles.remove(layer.id);
+
+        assert.isUndefined(harness.engine.styleOf("node", 2)["node.size"], "node 2 lost the size it was painted");
+        assert.strictEqual(colorOf(harness.engine, 2), "#333333");
+    });
+
+    it("repaints what the previous version painted when a layer is updated after its column went", async () => {
+        const { harness, rows, measured } = mutableHarness();
+
+        await harness.paintAll();
+        const layer = await harness.styles.add({
+            name: "Communities",
+            selector: { match: "has", path: "results.louvain.group" },
+            set: { "node.color": "#ff0000" },
+        });
+
+        for (const row of rows) {
+            delete row["results.louvain.group"];
+        }
+        measured["results.louvain.group"] = undefined;
+
+        await harness.styles.update(layer.id, { enabled: false });
+
+        assert.strictEqual(colorOf(harness.engine, 1), "#333333");
+    });
+
+    it("falls back to the layers beneath once a whole-graph pass sees the data has changed", async () => {
+        const { harness, rows } = mutableHarness();
+
+        await harness.paintAll();
+        await harness.styles.add({
+            name: "Switches",
+            selector: { match: "expression", where: 'data.kind == `"switch"`' },
+            set: { "node.color": "#0000ff" },
+        });
+
+        assert.strictEqual(colorOf(harness.engine, 2), "#0000ff");
+
+        // A data edit on the element ends in a whole-graph pass, which is what un-matches it.
+        rows[2]["data.kind"] = "host";
+        await harness.paintAll();
+
+        assert.strictEqual(colorOf(harness.engine, 2), "#333333");
+    });
+});

@@ -104,7 +104,6 @@ describe("Phase 7 Performance Benchmarks", () => {
         test("mesh cache provides instances for same style edges", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             // Create first mesh
@@ -148,12 +147,10 @@ describe("Phase 7 Performance Benchmarks", () => {
         test("mesh cache creates new meshes for different styles", () => {
             const style1: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             const style2: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#00FF00" },
-                enabled: true,
             };
 
             // Create first mesh
@@ -274,7 +271,6 @@ describe("Phase 7 Performance Benchmarks", () => {
             const iterations = 100;
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             const times: number[] = [];
@@ -304,7 +300,6 @@ describe("Phase 7 Performance Benchmarks", () => {
             const iterations = 50;
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000", bezier: true },
-                enabled: true,
             };
 
             const times: number[] = [];
@@ -370,7 +365,6 @@ describe("Phase 7 Performance Benchmarks", () => {
             const iterations = 1000;
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             // Create a mesh to transform

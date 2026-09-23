@@ -107,7 +107,7 @@ async function mount(acceleration: "required" | "off"): Promise<Graphty> {
     document.body.appendChild(container);
     mounted.push(container);
 
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
 
     element.style.width = "100%";
     element.style.height = "100%";

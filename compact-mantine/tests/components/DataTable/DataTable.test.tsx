@@ -5,8 +5,12 @@ import React, { useRef, useState } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
-import { DataTable } from "../../../src/components/DataTable";
-import type { DataTableColumn, DataTableHandle, DataTableSort } from "../../../src/components/DataTable";
+import {
+    DataTable,
+    type DataTableColumn,
+    type DataTableHandle,
+    type DataTableSort,
+} from "../../../src/components/DataTable";
 import { LabelsProvider } from "../../../src/i18n";
 
 // The virtualizer measures the scrolling area with offsetHeight, which JSDOM

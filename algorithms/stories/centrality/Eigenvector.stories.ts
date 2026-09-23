@@ -8,7 +8,7 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { eigenvectorCentrality, Graph } from "@graphty/algorithms";
+import { ConvergenceError, eigenvectorCentrality, Graph } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
@@ -65,7 +65,17 @@ function createEigenvectorStory(args: EigenvectorArgs): HTMLElement {
     const graph = toAlgorithmGraph(generatedGraph);
 
     // Calculate eigenvector centrality using actual algorithm
-    const scores = eigenvectorCentrality(graph, { maxIterations, normalized: true });
+    // A long path or grid under a low cap does not converge, and the algorithm says so by throwing.
+    let scores: Record<string, number> = {};
+    let failure: string | null = null;
+    try {
+        scores = eigenvectorCentrality(graph, { maxIterations, normalized: true });
+    } catch (error) {
+        if (!(error instanceof ConvergenceError)) {
+            throw error;
+        }
+        failure = error.message;
+    }
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -135,6 +145,10 @@ function createEigenvectorStory(args: EigenvectorArgs): HTMLElement {
      */
     function apply(): void {
         if (isApplied) {return;}
+        if (failure !== null) {
+            updateStatus(statusPanel, failure);
+            return;
+        }
         isApplied = true;
 
         // Apply heat map coloring

@@ -37,6 +37,9 @@ export type {
     TraversalResult,
 } from "./types/index.js";
 
+// Error exports
+export { ConvergenceError } from "./errors.js";
+
 // Algorithm exports
 export * from "./algorithms/index.js";
 

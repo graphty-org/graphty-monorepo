@@ -13,7 +13,7 @@ import jmespath from "jmespath";
 import _ from "lodash";
 
 import type { Rgba } from "./catalog/types";
-import { AdHocData, NodeStyleConfig } from "./config";
+import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
@@ -45,14 +45,13 @@ const SELECTION_HALO_MESH = "graphty-selection-halo";
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
-/** The halo colour. Gold, which is the colour selection has always been drawn in here. */
-const SELECTION_HALO_COLOR = "#FFD700";
-
-/** How much of the node's size the halo is drawn at, so it reads as a ring around the node. */
-const SELECTION_HALO_SCALE = 1.45;
-
-/** How transparent the halo is. Low enough to read as a highlight rather than as a new node. */
-const SELECTION_HALO_ALPHA = 0.4;
+/*
+ * The halo's colour, size and opacity are NOT constants any more: they are
+ * `graph.selection` in the element's configuration, set through
+ * `element.selectionStyle` or `graph.setSelectionStyle()`. The gold, the 1.45 and the 0.4 that
+ * used to live here are the schema's defaults, in `src/config/GraphStyle.ts`, so an element
+ * nobody has configured still draws exactly what it always drew.
+ */
 
 /** The context point's colour: neutral, so it never reads as a category. */
 const CONTEXT_POINT_COLOR = "#8A8A8A";
@@ -89,6 +88,55 @@ export class Node {
     data: AdHocData<string | number>;
     mesh: AbstractMesh;
     label?: RichTextLabel;
+
+    /**
+     * The tooltip on screen, and undefined whenever the pointer is not over this node.
+     *
+     * A tooltip is HOVER-ONLY, which is the whole difference between it and a label: a label is
+     * part of the picture and a tooltip is an answer to pointing at something. So it exists only
+     * between {@link Node.showTooltip} and {@link Node.hideTooltip}, and a graph of fifty
+     * thousand nodes with a tooltip on every one of them carries at most one label mesh for
+     * them.
+     */
+    tooltip?: RichTextLabel;
+
+    /**
+     * The tooltip block the style stack resolved for this node, or undefined when it has none.
+     *
+     * Kept rather than looked up on hover, because the pointer arriving is not a moment at which
+     * a style pass can be run. The whole block is held -- not only the words -- so that a
+     * tooltip drawn while the pointer is already resting on the node can be rebuilt when a layer
+     * changes what it should say.
+     */
+    private wantedTooltip?: NodeStyleConfig["tooltip"];
+
+    /**
+     * The words the label on screen is drawing, and undefined when this node draws no label.
+     *
+     * WHY THIS EXISTS, which is the defect it closes. A label, a tooltip and a label's
+     * typography are `role: "content"` in `src/session/styles/intern.ts`: they deliberately key
+     * no source mesh, because keying one on free text would mint one source mesh per node and
+     * gain nothing. So a paint that changes only the words arrives carrying the SAME mesh key as
+     * the paint before it, and the geometry comparison in `paintFrom` -- which is right about
+     * geometry -- cannot see it. Until now the label was built only inside the geometry rebuild,
+     * so `styles.add({ set: { "node.label": "..." } })` on a graph already on screen resolved
+     * the text, reported it from `nodePaint(index)`, and drew nothing at all. Every consumer
+     * switching labels on from a settings panel had it.
+     *
+     * Held beside {@link drawnLabelStyle} so that {@link syncLabel} can be run on every paint
+     * and still cost nothing when the label has not moved.
+     */
+    private drawnLabelText?: string;
+
+    /**
+     * The resolved label block the label on screen was built from.
+     *
+     * Deep-compared rather than compared by reference: `StylePainter.nodePaint` builds a fresh
+     * paint on every call, so two paints that say the same thing are never the same object. See
+     * {@link drawnLabelText} for why the comparison is needed at all.
+     */
+    private drawnLabelStyle?: NodeStyleConfig["label"];
+
     dragHandler?: NodeDragHandler;
     dragging = false;
     pinOnDrag!: boolean;
@@ -226,18 +274,13 @@ export class Node {
             nodeId: this.id,
         };
 
-        // Apply outline and glow effects if configured in style
-        NodeEffects.applyOutlineEffect(this.mesh, o.effect);
-        NodeEffects.applyGlowEffect(this.mesh, o.effect);
-
         // create label
-        if (o.label?.enabled) {
-            this.label = this.createLabel(o);
-        }
+        this.syncLabel(o, true);
+        this.syncTooltip(o);
 
-        // The colour lives beside the style rather than in the source mesh's material, so the
-        // instance this node was just given has to be told what it is. See applyInstanceColor.
-        this.applyInstanceColor(paint.color);
+        // Everything that lives on the instance rather than in its source: the colour, the
+        // outline and the glow. See applyInstancePaint.
+        this.applyInstancePaint(o, paint.color);
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
     }
@@ -371,6 +414,35 @@ export class Node {
     }
 
     /**
+     * Apply everything about this node that lives on the drawn mesh rather than in its geometry.
+     *
+     * THE ROLE DECIDES THE BRANCH, AND IT USED NOT TO. `CHANNEL_ROLES` in
+     * `src/session/styles/intern.ts` is the one statement of what a channel costs to change on an
+     * element already on screen: a `mesh` channel is part of the source mesh's identity, and an
+     * `instance` channel is a write against a mesh that already exists. `paintFrom` restated that
+     * contract in its own words and got it wrong in one direction -- it applied the node's
+     * EFFECTS only on the branch that rebuilds the mesh, so an `instance` channel's edit reached
+     * the screen only if some unrelated `mesh` channel happened to change in the same repaint.
+     * That is why a glow was drawn when its colour was in the stack before the first frame and
+     * ignored when a layer added it afterwards, and why `node.glowStrength` had been declared a
+     * `mesh` channel: minting a source mesh per strength was the only way to force the rebuild
+     * that made the strength visible.
+     *
+     * So this method is everything the `instance` role promises, and `paintFrom` calls it on BOTH
+     * of its branches -- once when it has just rebuilt the mesh, because every one of these lives
+     * ON an instance and the instance is new, and once when it has not, because that is the whole
+     * of what the role means. `test/browser/channel-paints.test.ts` is the gate: it edits a live
+     * session and requires the picture to move.
+     * @param style - The resolved style the effects are read from.
+     * @param color - The per-instance colour, or null when no layer painted one.
+     */
+    private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
+        this.applyInstanceColor(color);
+        NodeEffects.applyOutlineEffect(this.mesh, style.effect);
+        NodeEffects.applyGlowEffect(this.mesh, style.effect);
+    }
+
+    /**
      * Build the mesh, the label and the effects one resolved style asks for.
      *
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
@@ -386,8 +458,17 @@ export class Node {
 
         // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
+        //
+        // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
+        // role is `mesh` alone, so an unchanged key means the GEOMETRY is unchanged and nothing
+        // more. The two `instance` channels are compensated for by `StylePainter.nodePaintOf`,
+        // which folds opacity into the key string, and by the colour write below. The `content`
+        // channels -- the label and its typography -- are compensated for by nothing at all, so
+        // they are applied here. See `drawnLabelText` for the defect that reached a consumer.
         if (meshKey === this.meshKey && !this.mesh.isDisposed()) {
-            this.applyInstanceColor(color);
+            this.applyInstancePaint(o, color);
+            this.syncLabel(o, false);
+            this.syncTooltip(o);
             this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
@@ -498,18 +579,14 @@ export class Node {
             this.mesh.position.z = pos.z ?? 0;
         }
 
-        // Apply outline and glow effects if configured in style
-        NodeEffects.applyOutlineEffect(this.mesh, o.effect);
-        NodeEffects.applyGlowEffect(this.mesh, o.effect);
-
         // recreate label if needed
-        if (o.label?.enabled) {
-            this.label?.dispose();
-            this.label = this.createLabel(o);
-        } else if (this.label) {
-            this.label.dispose();
-            this.label = undefined;
-        }
+        //
+        // UNCONDITIONALLY, which is what the `true` says. A label's plane is PARENTED to the
+        // node's mesh (`RichTextLabel._attachToTarget`), and Babylon disposes a mesh's children
+        // with it -- so the label that was on screen a moment ago went with the mesh disposed
+        // above, whatever the new style says about it.
+        this.syncLabel(o, true);
+        this.syncTooltip(o);
 
         // Dispose old drag handler before creating new one to prevent duplicate event listeners
         if (this.dragHandler) {
@@ -518,12 +595,12 @@ export class Node {
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
-        // The mesh above is a NEW instance, so both of the things that live ON an instance rather
-        // than in its source have to be said again: what the masks said about this node, and the
-        // colour the session's stack resolved for it. Otherwise a restyle silently un-hides a
-        // filtered node, drops its halo, and repaints it in its source mesh's own colour.
+        // The mesh above is a NEW instance, so everything that lives ON an instance rather than
+        // in its source has to be said again: what the masks said about this node, and everything
+        // the `instance` role covers. Otherwise a restyle silently un-hides a filtered node,
+        // drops its halo, and repaints it in its source mesh's own colour.
         this.applyRenderState();
-        this.applyInstanceColor(color);
+        this.applyInstancePaint(o, color);
 
         this.context.getStatsManager().endMeasurement("Node.updateMesh");
     }
@@ -543,12 +620,16 @@ export class Node {
      * own meshes and scene observers; then the mesh itself last, so nothing is asked about a mesh
      * that is already gone.
      *
-     * GLOW IS DELIBERATELY NOT REMOVED HERE. Glow membership is keyed by the SHARED source mesh
-     * that MeshCache hands out instances of -- one source per style id -- so calling
-     * `NodeEffects.applyGlowEffect(mesh, undefined)` from here would darken every OTHER node that
-     * still uses this style. The source is owned by the cache, so it is freed when the cache is
-     * cleared, and the layer's leftover uniqueId is inert: Babylon's uniqueIds are monotonic per
-     * scene and never reused, so no future mesh can inherit a dead style's glow.
+     * NEITHER EFFECT IS DELIBERATELY REMOVED HERE. Membership of both the glow layer and the
+     * highlight layer is keyed by the SHARED source mesh that MeshCache hands out instances of --
+     * one source per style id -- so calling `NodeEffects.applyGlowEffect(mesh, undefined)` from
+     * here would darken every OTHER node that still uses this style, and resolving the source
+     * before removing it from the highlight layer would take those nodes' outlines away too. The
+     * source is owned by the cache, so it is freed when the cache is cleared, and the layer's
+     * leftover uniqueId is inert: Babylon's uniqueIds are monotonic per scene and never reused,
+     * so no future mesh can inherit a dead style's glow or its outline. The
+     * `removeFromHighlight` call below is what is safe to do: it removes THIS mesh, which for an
+     * instanced node the layer never held.
      *
      * A DISPOSED NODE STILL RECEIVES CALLS, which is why {@link Node.disposed} exists rather than
      * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
@@ -576,6 +657,16 @@ export class Node {
             this.label.dispose();
             this.label = undefined;
         }
+
+        // A tooltip outlives no node: its plane is not parented to the node's mesh, so nothing
+        // else would take it down and a hovered node that is then removed would leave its words
+        // floating over the graph.
+        this.hideTooltip();
+        this.wantedTooltip = undefined;
+
+        // Cleared with it, so the cache never says a label is drawn that is not.
+        this.drawnLabelText = undefined;
+        this.drawnLabelStyle = undefined;
 
         if (this.halo) {
             if (!this.halo.isDisposed()) {
@@ -690,10 +781,44 @@ export class Node {
             labelMesh.setEnabled(drawn);
         }
 
+        // A node that has just been filtered out cannot be under the pointer any more, and a
+        // tooltip left hanging over a node that is no longer drawn is words with nothing under
+        // them. Taken down rather than disabled, on the same terms as leaving a node: a tooltip
+        // carries a dynamic texture and is cheap to build again when the pointer comes back.
+        if (!drawn) {
+            this.hideTooltip();
+        }
+
         this.showOverlay("context", this.renderState === "context");
         // A hidden node draws no halo: the selection is still the selection, but there is nothing
         // on screen for it to ring.
         this.showOverlay("halo", drawn && this.selected);
+    }
+
+    /**
+     * What a selected node is configured to look like.
+     *
+     * Read on every overlay pass rather than cached, because a consumer can restyle the
+     * selection while a selection is on screen and a cached answer would keep drawing the old
+     * one until something else happened to rebuild the node.
+     * @returns The configured colour, scale and opacity.
+     */
+    private selectionStyle(): GraphSelectionStyleConfig {
+        return this.context.getStyles().config.graph.selection ?? DEFAULT_SELECTION_STYLE;
+    }
+
+    /**
+     * Redraw this node's selection halo from the configuration as it now stands.
+     *
+     * Called for every node when `graph.setSelectionStyle()` changes it. A node that is not
+     * selected has no halo and nothing happens.
+     */
+    refreshSelectionOverlay(): void {
+        if (this.disposed) {
+            return;
+        }
+
+        this.showOverlay("halo", this.renderState === "visible" && this.selected);
     }
 
     /**
@@ -712,19 +837,69 @@ export class Node {
             return;
         }
 
+        const selection = this.selectionStyle();
         const overlay = existing && !existing.isDisposed() ? existing : this.createOverlay(kind);
 
         if (kind === "halo") {
             this.halo = overlay;
+            // WRITTEN ON EVERY PASS, not only when the halo is built. Every halo in the graph is
+            // an instance of ONE source mesh and shares ONE material, so a selection restyled
+            // while a selection is on screen is this one write -- and it is the same write for
+            // one selected node and for forty thousand. Minting a source mesh per appearance
+            // instead would leave one behind in the cache for every colour a colour picker
+            // passed through.
+            Node.paintHalo(overlay, selection);
         } else {
             this.contextPoint = overlay;
         }
 
         const scale =
-            Math.max(this.size, MIN_OVERLAY_SIZE) * (kind === "halo" ? SELECTION_HALO_SCALE : CONTEXT_POINT_SCALE);
+            kind === "halo"
+                ? this.haloScale(selection.scale)
+                : Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE;
         overlay.scaling.setAll(scale);
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
+    }
+
+    /**
+     * How big to draw the selection halo, so that it really is a ring around the node.
+     *
+     * MEASURED FROM THE NODE ON SCREEN, and that is the fix. The halo used to be scaled by the
+     * style's `size` NUMBER -- `size * 1.45` -- against a source sphere one unit across, giving a
+     * halo of radius 0.725 for a node of size 1. The element draws a node of size 1 at radius
+     * 0.75. So the halo was SMALLER than the node it was meant to ring and sat entirely inside
+     * it: the selection highlight has never been visible, in this version of the package or any
+     * earlier one, and no test could see it because the one assertion there was checked that the
+     * halo OBJECT existed.
+     *
+     * Reading the drawn extent also makes the multiplier mean the same thing for every shape: a
+     * box, a cone and a sphere of one size do not have one radius between them, and the largest
+     * half-extent is the one a halo has to clear to be seen.
+     * @param multiplier - The configured scale: how many times the node's own radius.
+     * @returns The scaling for a unit-diameter overlay sphere.
+     */
+    private haloScale(multiplier: number): number {
+        // THE NODE'S OWN EXTENT, not its world one. The halo is a sibling of the node under
+        // `graph-root`, and an XR gesture scales that root -- so measuring in world space and
+        // then writing a local scaling would count the gesture twice and the halo would grow away
+        // from the node every time a reader pinched to zoom.
+        const box = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox;
+        const own = this.mesh.scaling;
+        const radius =
+            box === null
+                ? 0
+                : Math.max(box.extendSize.x, box.extendSize.y, box.extendSize.z) *
+                  Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
+
+        // A mesh whose bounds have not been computed yet answers zero, which would collapse the
+        // halo. Falling back to the style's own size keeps a halo on screen at roughly the right
+        // place until the next pass measures it properly.
+        const drawn = radius > 0 ? radius : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+
+        // Doubled because the source is a sphere of DIAMETER one, so a scaling of `s` draws a
+        // radius of `s / 2`.
+        return 2 * drawn * multiplier;
     }
 
     /**
@@ -738,9 +913,10 @@ export class Node {
      */
     private createOverlay(kind: "halo" | "context"): AbstractMesh {
         const scene = this.context.getScene();
+        const selection = this.selectionStyle();
         const name = kind === "halo" ? SELECTION_HALO_MESH : CONTEXT_POINT_MESH;
-        const color = kind === "halo" ? SELECTION_HALO_COLOR : CONTEXT_POINT_COLOR;
-        const alpha = kind === "halo" ? SELECTION_HALO_ALPHA : CONTEXT_POINT_ALPHA;
+        const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
+        const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
         const overlay = this.context
             .getMeshCache()
             .get(name, () => Node.createOverlaySource(name, color, alpha, scene));
@@ -755,6 +931,22 @@ export class Node {
         }
 
         return overlay;
+    }
+
+    /**
+     * Bring the shared halo material into line with the configured appearance.
+     * @param overlay - Any halo instance; its material is the shared one.
+     * @param selection - The configured colour and opacity.
+     */
+    private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
+        const {material} = overlay;
+
+        if (!(material instanceof StandardMaterial)) {
+            return;
+        }
+
+        material.emissiveColor = Color3.FromHexString(selection.color);
+        material.alpha = selection.opacity;
     }
 
     /**
@@ -879,9 +1071,114 @@ export class Node {
         return this.context.getDataManager?.()?.positions;
     }
 
+    /**
+     * Bring the label on screen into line with what one resolved style asks for.
+     *
+     * SEPARATE FROM THE GEOMETRY REBUILD, and the separation is the whole point. `paintFrom`
+     * skips the geometry when the source mesh has not changed, which is correct and is what
+     * makes a colour change one buffer write; the label is not geometry and is not keyed by the
+     * mesh, so it has to be looked at on every paint instead. Its own comparison is what keeps
+     * that free: a repaint that leaves the words and their typography alone rebuilds nothing.
+     *
+     * NOT A STYLE DECISION. What the label says and how it is drawn is the style stack's answer,
+     * resolved into `o.label` by `StylePainter` from the `node.label` and `node.labelStyle`
+     * channels. This method only makes the scene agree with it.
+     * @param o - The resolved style.
+     * @param rebuild - True when the mesh the label hangs from has just been replaced, so a
+     *     label asking for exactly what was drawn a moment ago must still be built again.
+     */
+    private syncLabel(o: NodeStyleConfig, rebuild: boolean): void {
+        const wanted = o.label?.enabled === true ? o.label : undefined;
+        const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
+
+        if (!rebuild && text === this.drawnLabelText && _.isEqual(wanted, this.drawnLabelStyle)) {
+            return;
+        }
+
+        this.label?.dispose();
+        this.label = wanted === undefined ? undefined : this.createLabel(o);
+        this.drawnLabelText = text;
+
+        // CLONED rather than held. The block belongs to a `NodePaint` that
+        // `StylePainter.nodePaint` builds fresh on every call, and a comparison against a
+        // reference somebody else can still write to is a comparison that silently starts
+        // passing. Paid only when the label actually changes.
+        this.drawnLabelStyle = wanted === undefined ? undefined : _.cloneDeep(wanted);
+    }
+
+    /**
+     * Remember what this node's tooltip should say, and redraw it if one is on screen.
+     *
+     * A tooltip is not drawn by a paint. It is drawn when the pointer arrives, which is a moment
+     * the style stack knows nothing about, so what a paint can do is record the answer for when
+     * that happens. If the reader is already resting on this node, the tooltip in front of them
+     * is rebuilt so it does not keep saying what a layer has just stopped saying.
+     *
+     * NOT A STYLE DECISION, on exactly the same terms as {@link Node.syncLabel}: what a tooltip
+     * says and how it is drawn is resolved into `o.tooltip` by `StylePainter` from the
+     * `node.tooltip` channel.
+     * @param o - The resolved style.
+     */
+    private syncTooltip(o: NodeStyleConfig): void {
+        const wanted = o.tooltip?.enabled === true ? o.tooltip : undefined;
+
+        if (_.isEqual(wanted, this.wantedTooltip)) {
+            return;
+        }
+
+        // CLONED for the reason `drawnLabelStyle` is cloned: the block belongs to a paint the
+        // painter rebuilds on every call, and holding the reference makes the comparison above
+        // start passing whenever somebody else writes through it.
+        this.wantedTooltip = wanted === undefined ? undefined : _.cloneDeep(wanted);
+
+        if (this.tooltip) {
+            this.hideTooltip();
+            this.showTooltip();
+        }
+    }
+
+    /**
+     * Draw this node's tooltip, if a layer gave it one.
+     *
+     * Called when the pointer arrives over the node. Does nothing at all when no layer has
+     * written `node.tooltip`, which is the ordinary case, so hovering an unannotated graph costs
+     * one comparison per node entered.
+     */
+    showTooltip(): void {
+        if (this.disposed || this.tooltip || this.wantedTooltip === undefined || this.mesh.isDisposed()) {
+            return;
+        }
+
+        const text = this.extractLabelText(this.wantedTooltip);
+        this.tooltip = new RichTextLabel(this.mesh.getScene(), {
+            ...this.createLabelOptions(text, this.wantedTooltip),
+            onTop: true,
+        });
+    }
+
+    /**
+     * Take this node's tooltip off the screen.
+     *
+     * Called when the pointer leaves, and on dispose. Disposing rather than hiding, because a
+     * tooltip's plane carries a dynamic texture of its own: keeping one per node that has ever
+     * been hovered is a texture per node, which is the cost the hover-only rule exists to avoid.
+     */
+    hideTooltip(): void {
+        this.tooltip?.dispose();
+        this.tooltip = undefined;
+    }
+
+    /**
+     * The words this node's tooltip draws, or undefined when no layer gave it one.
+     * @returns The tooltip text.
+     */
+    get tooltipText(): string | undefined {
+        return this.wantedTooltip === undefined ? undefined : this.extractLabelText(this.wantedTooltip);
+    }
+
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
         const labelText = this.extractLabelText(styleConfig.label);
-        const labelOptions = this.createLabelOptions(labelText, styleConfig);
+        const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
         return new RichTextLabel(this.mesh.getScene(), labelOptions);
     }
 
@@ -914,8 +1211,18 @@ export class Node {
         return this.id.toString();
     }
 
-    private createLabelOptions(labelText: string, styleConfig: NodeStyleConfig): RichTextLabelOptions {
-        const labelStyle = styleConfig.label ?? {};
+    /**
+     * Turn one rich-text block into the options the label renderer takes.
+     *
+     * TAKES THE BLOCK, not the whole style, because a node draws two of them: its label and its
+     * tooltip. They are the same schema (`RichTextStyle`), they are drawn by the same class, and
+     * the only difference is which key of the resolved style they came from and when they are on
+     * screen.
+     * @param labelText - The words to draw.
+     * @param labelStyle - The resolved rich-text block: `style.label` or `style.tooltip`.
+     * @returns The options, with this node's mesh as the thing they attach to.
+     */
+    private createLabelOptions(labelText: string, labelStyle: NodeStyleConfig["label"] = {}): RichTextLabelOptions {
 
         // Get attach position and offset
         const attachPosition = this.getAttachPosition(labelStyle.location ?? "top");

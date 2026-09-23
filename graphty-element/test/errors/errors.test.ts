@@ -49,6 +49,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_OUT_OF_MEMORY",
     "E_CAP_EXCEEDED",
     "E_SCOPE_EMPTY",
+    "E_NOT_CONVERGED",
     "E_NO_ACCELERATOR",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
@@ -105,6 +106,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_OUT_OF_MEMORY":
         case "E_CAP_EXCEEDED":
         case "E_SCOPE_EMPTY":
+        case "E_NOT_CONVERGED":
             return "size";
         case "E_NO_ACCELERATOR":
         case "E_NO_WEBGPU":

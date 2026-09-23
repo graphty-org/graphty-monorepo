@@ -800,7 +800,7 @@ describe("an algorithm written outside this package", () => {
 
         await run;
         await graph.operationQueue.waitForCompletion();
-        graph.getUpdateManager().renderFixedFrames(2);
+        graph.getUpdateManager().stepFrames(2);
 
         return run.id;
     }

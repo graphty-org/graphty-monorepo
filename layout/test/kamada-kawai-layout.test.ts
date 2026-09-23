@@ -481,7 +481,10 @@ describe("Kamada-Kawai Layout", () => {
         });
 
         it("should use all three dimensions effectively", () => {
-            const graph = gridGraph(3, 3);
+            // Four mutually linked nodes: the only layout with every pair at distance one is a
+            // tetrahedron, which no plane holds. (A grid is the wrong graph here -- its best
+            // layout is flat, so a solver that converges draws it in a plane.)
+            const graph = completeGraph(4);
             const positions = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3);
 
             // Extract coordinate ranges

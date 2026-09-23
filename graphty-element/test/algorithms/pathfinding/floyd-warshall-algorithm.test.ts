@@ -77,7 +77,7 @@ describe("FloydWarshallAlgorithm", () => {
             // Should not throw
         });
 
-        it("stores eccentricity on nodes", async () => {
+        it("measures every node's eccentricity", async () => {
             const smallGraph = await mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
@@ -85,8 +85,12 @@ describe("FloydWarshallAlgorithm", () => {
             const { result } = algo;
             assert.ok(result);
 
+            // Eccentricity is published under the node-metric shape's own name for "the number
+            // this run measured on this element", which is `value`. Published under a name of its
+            // own it was unpaintable: the shape a run declares is what tells the element there is
+            // a per-element measurement here to colour by at all.
             for (const node of smallGraph.nodes.values()) {
-                assert.property(result.node(node.id as string) ?? {}, "eccentricity");
+                assert.property(result.node(node.id as string) ?? {}, "value");
             }
         });
 
@@ -119,7 +123,7 @@ describe("FloydWarshallAlgorithm", () => {
 
             let hasCentralNode = false;
             for (const node of smallGraph.nodes.values()) {
-                if (result.node(node.id as string)?.eccentricity === result.graph.radius) {
+                if (result.node(node.id as string)?.value === result.graph.radius) {
                     hasCentralNode = true;
                     break;
                 }

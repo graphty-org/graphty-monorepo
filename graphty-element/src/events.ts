@@ -171,7 +171,12 @@ export interface GraphGenericEvent {
         // Emitted when auto-framing has finished moving the camera around the whole graph. It
         // was emitted and not declared, so `addListener` could not name it and no consumer could
         // subscribe to an event the element was already sending.
-        | "zoom-to-fit-complete";
+        | "zoom-to-fit-complete"
+        // Emitted when the PICTURE is final: the layout has converged, the camera has finished
+        // framing it, and a frame has been drawn in that state. `graph-settled` fires one pass
+        // earlier -- the instant the layout stops, before the final framing has even been asked
+        // for -- so anything that photographs, records or measures the view wants this one.
+        | "graph-frame-stable";
     [key: string]: unknown;
 }
 
@@ -421,6 +426,12 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
 // live `Edge` -- a Babylon mesh -- which cannot be structure-cloned and so could never have left
 // the element. A declared event that never fires is a documented lie; it comes back, with a
 // serialisable detail, when edge picking lands.
+//
+// The same fact took the edge TOOLTIP with it in 2.0. A tooltip is drawn when the pointer lands
+// on the thing it belongs to, so an unpickable edge can never show one, and `edge.tooltip` was
+// published as something the element draws for the whole of 1.x and drawn by nothing. The
+// channel and the tooltip block on `EdgeStyle` are withdrawn, recorded in
+// `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`. Both come back together.
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
 
 export interface EdgeGenericEvent {

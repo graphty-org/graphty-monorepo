@@ -100,11 +100,11 @@ describe("built-in algorithm catalogue", () => {
             );
         });
 
-        it("folds twenty-three registered algorithms into twenty keys", () => {
+        it("folds twenty-three registered algorithms into twenty-one keys", () => {
             const legacyCount = BUILT_IN_ALGORITHMS.reduce((total, d) => total + d.legacyKeys.length, 0);
 
             assert.lengthOf(registeredTypes(), 23);
-            assert.lengthOf(BUILT_IN_ALGORITHMS, 20);
+            assert.lengthOf(BUILT_IN_ALGORITHMS, 21);
             assert.strictEqual(legacyCount, 23);
         });
 
@@ -311,22 +311,25 @@ describe("built-in algorithm catalogue", () => {
     });
 
     describe("the folded keys", () => {
-        it("offers the shortest-path engine as a parameter, with each engine as a choice", () => {
+        it("offers the shortest-path engine as a parameter, with each single-source engine as a choice", () => {
             const method = descriptorFor("shortest-path").options.find((option) => option.name === "method");
 
             assert.strictEqual(method?.type, "enum");
             assert.deepEqual(
                 method?.values?.map((choice) => choice.value),
-                ["dijkstra", "bellman-ford", "floyd-warshall"],
+                ["dijkstra", "bellman-ford"],
             );
             assert.isNull(method?.default);
             assert.isTrue(method?.advanced);
         });
 
-        it("offers the all-pairs switch that floyd-warshall became", () => {
-            const allPairs = descriptorFor("shortest-path").options.find((option) => option.name === "allPairs");
-
-            assert.deepInclude(allPairs, { type: "boolean", default: false });
+        it("gives the all-pairs sweep a key of its own rather than a switch on shortest-path", () => {
+            // A run fixes its result shape from its descriptor once, at creation, so a parameter
+            // that changed the shape would make the catalogue wrong about every run of that key:
+            // the all-pairs sweep measures every node where shortest-path names one route.
+            assert.isUndefined(descriptorFor("shortest-path").options.find((option) => option.name === "allPairs"));
+            assert.strictEqual(descriptorFor("shortest-path").shape, "path");
+            assert.strictEqual(descriptorFor("all-pairs-distance").shape, "node-metric");
         });
 
         it("offers the two shortest-path engines' shared options exactly once", () => {
@@ -364,8 +367,8 @@ describe("built-in algorithm catalogue", () => {
                 params: { method: "bellman-ford" },
             });
             assert.deepNestedInclude(algorithmByLegacyKey("floyd-warshall"), {
-                "descriptor.key": "shortest-path",
-                params: { method: "floyd-warshall", allPairs: true },
+                "descriptor.key": "all-pairs-distance",
+                params: {},
             });
             assert.deepNestedInclude(algorithmByLegacyKey("connected-components"), {
                 "descriptor.key": "components",
@@ -388,11 +391,10 @@ describe("built-in algorithm catalogue", () => {
             }
         });
 
-        it("says floyd-warshall costs a cube, where the single-source engines do not", () => {
-            const shortestPath = descriptorFor("shortest-path");
-
-            assert.strictEqual(shortestPath.costClass, "instant");
-            assert.include(shortestPath.complexity, "O(n^3) with floyd-warshall");
+        it("says the all-pairs sweep costs a cube, where the single-source engines do not", () => {
+            assert.strictEqual(descriptorFor("shortest-path").costClass, "instant");
+            assert.strictEqual(descriptorFor("all-pairs-distance").costClass, "cubic");
+            assert.include(descriptorFor("all-pairs-distance").complexity, "O(n^3)");
         });
     });
 

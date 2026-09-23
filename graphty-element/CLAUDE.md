@@ -342,8 +342,67 @@ Algorithm.register(MyAlgorithm);
 - `globals: true` is set, so `assert` and `expect` are available without an import, but every test file imports them explicitly anyway. Match that.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Store temporary files (screenshots, debug scripts) in `./tmp`
-- Don't create `__screenshots__` directories under `./test` unless intended for commit
+- Don't create `__screenshots__` directories under `./test` unless intended for commit. Vitest's browser-mode failure screenshots used to land there; `vitest.config.ts` now sends them to `tmp/vitest-screenshots` instead, so a failing run leaves `test/` alone
 - Don't increase Playwright timeouts to fix timeout issues - find the root cause
+
+## A story is a test, and a capability must never lose its last door quietly
+
+These four rules exist because of one change set in September 2026, and they are written here
+rather than inferred because every agent involved in it complied with every instruction it had.
+
+- **A story is a test.** Everything the no-weakening rule says about a test applies to a story:
+  never delete one, never hollow one out, never leave it named for something it no longer draws.
+  A story that pins behaviour which is deliberately going away is REPLACED by one that pins the
+  new behaviour, and the removal is recorded in `stories/story-roster.json`. Twenty stories were
+  deleted in `ff12a515` under a rule that said "test" three times and "story" never; the commit
+  subject is "drive a dummy extension through everything a built-in does", because
+  `tools/commit-changes.sh` sorts `stories/` into the tests bucket and no message in the
+  forty-one-commit branch mentions a story.
+
+- **A capability that loses its only public route is a blocking finding, recorded in the
+  repository before the change lands.** A row in `design/element-api/capability-losses.md`, and
+  an entry in `src/catalog/unreachable.ts` so a gate can see it too. Not a comment in the file
+  being gutted, and not a paragraph in an agent's report. The arrow head kept a size, a colour
+  and an opacity through the whole of the 2.0 development -- declared, defaulted, rendered, and
+  reachable by nothing. Three agents on three days noticed, wrote it down where they were
+  working, and none of those places could reach a person.
+
+- **An agent that computes a loss list writes it to a file before it reports**, and puts "what I
+  could not do" at the TOP of its report. The converter that migrated the stories computed the
+  exact list of dropped fields and printed it to stdout inside the run that caused the loss. The
+  report that named the seventeen deleted stories was past the 9,656-character truncation of the
+  notification that carried it, and the phrase "17 stories removed" appears nowhere in the 92 MB
+  session transcript.
+
+- **When one of the five contract tests goes red, the fix is to write the answer down, not to
+  loosen the test.** `test/contracts/story-roster.test.ts` wants the story's id and the reason it
+  went; `test/contracts/config-reachability.test.ts` wants the schema field and why no channel
+  writes it; `test/browser/channel-paints.test.ts` wants the channel and what it fails to draw.
+  Each of them is green only when a sentence exists in a file in the repository, which is the
+  one place a truncated report, a partial read and a commit splitter cannot lose it.
+
+- **A story named after a style channel has to paint that channel, and
+  `test/contracts/story-demonstrates-its-subject.test.ts` is what enforces it.** The roster
+  counts ids, and an id is a name, so a story kept by name whose body stops showing its subject
+  passes it -- which is how `Styles/Layered::ArrowSizeVariations` spent the 2.0 migration
+  promising three arrow sizes in a comment while all three of its layers wrote only a cap type.
+  The gate splits every story name in the `Styles/` tree into words, keeps the ones that are
+  words of a real channel name, and requires the story to write something that accounts for each
+  of them. The vocabulary is derived from `CHANNELS`, so a newly published channel becomes a
+  subject with nothing edited. A red here has two honest answers: put the missing layers back,
+  or rename the story -- and renaming changes its id, so the roster is edited in the same breath
+  and the lost demonstration is recorded rather than mislaid.
+
+- **A waiver that records a DEFECT expires, and the fourth test is what happens when it does.**
+  A sentence written into `src/catalog/unreachable.ts` says one of two things, and the entry now
+  declares which: `by-design` records a decision and is permanent, `defect` records something
+  broken and carries an owner and an expiry. `test/contracts/waiver-expiry.test.ts` goes red the
+  day after that expiry, naming the subject, the reason, the date and the two moves available --
+  fix the defect and delete the waiver, or decide it still stands and set a new date. Write the
+  kind honestly: when it is arguable, it is a defect, because a decision waiver is silent for
+  ever and that silence is what let every repaint defect in this package go quiet. Nothing
+  automated may put a person's name in `owner`; agents write `WAIVER_OWNER_UNASSIGNED` and the
+  owner replaces it.
 
 ## Storybook Notes
 

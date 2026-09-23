@@ -228,9 +228,13 @@ describe("metric results", () => {
             );
         });
 
-        it("the iterative metrics do not claim to have converged", async () => {
+        it("eigenvector says it converged, because an unconverged run fails instead", async () => {
+            const result = await runMetric((g) => new EigenvectorCentralityAlgorithm(g));
+            assert.isTrue(result.summary().caveats.converged);
+        });
+
+        it("the other iterative metrics do not claim to have converged", async () => {
             for (const make of [
-                (g: Graph): MetricAlgorithm => new EigenvectorCentralityAlgorithm(g),
                 (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g),
                 (g: Graph): MetricAlgorithm => new HITSAlgorithm(g),
             ]) {

@@ -40,6 +40,7 @@ import {
     type RunRecord,
     type RunScopeRecord,
     type RunStatus,
+    type RunStyle,
     type StaleNote,
 } from "./types";
 
@@ -186,8 +187,8 @@ export interface RunDefinition<T = RunResult> {
     readonly sample: number | null;
     /** How long it may take before it publishes what it has, or null when it is not boxed. */
     readonly timeBoxMs: number | null;
-    /** Whether the element may apply the derived encoding layer on first completion. */
-    readonly style: boolean;
+    /** What the element may paint on first completion; false for nothing. */
+    readonly style: RunStyle;
     /** The shape of the result, which fixes its field names. */
     readonly shape: ResultShape;
     /** The fields the algorithm declares, until the run says which it actually filled. */
@@ -395,7 +396,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      *
      * Read by the auto-apply policy, which is not this module's to enforce.
      */
-    readonly style: boolean;
+    readonly style: RunStyle;
 
     /** The journal has not landed, so every run reports that it wrote no entry. */
     readonly journalId: JournalId | null = null;
@@ -730,7 +731,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The suggestions, empty when the result is read rather than painted.
      */
     suggestEncodings(): readonly StyleSuggestion[] {
-        return suggestStyles(this);
+        return suggestStyles(this, this.style);
     }
 
     // -- execution ----------------------------------------------------------------------------

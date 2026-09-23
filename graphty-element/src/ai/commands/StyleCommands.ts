@@ -20,7 +20,24 @@ import { z } from "zod";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
+import { NODE_OUTLINE_CAVEAT } from "../../session/styles/channels";
 import type { CommandResult, GraphCommand } from "./types";
+
+/**
+ * One property a request named that the element cannot carry out, and the reason it cannot.
+ *
+ * THE REASON IS THE POINT. A refusal with no reason -- "outlineWidth is unsupported" -- leaves
+ * the person who asked with nothing to do next, and leaves the model that relayed it free to
+ * guess: try a bigger number, try a different word, try it on the edges. So nothing goes in this
+ * list without a sentence saying what the element draws instead and why, and the sentence is the
+ * element's OWN published words for it rather than a second wording invented here.
+ */
+interface UnsupportedProperty {
+    /** The property as the request spelled it. */
+    readonly property: string;
+    /** Why no channel can carry it, in the words the channel table publishes. */
+    readonly reason: string;
+}
 
 /**
  * Schema for node style properties that can be applied via AI commands.
@@ -32,9 +49,20 @@ const NodeStyleParamsSchema = z
         size: z.number().positive().optional().describe("Size of the node (default is 1)"),
         shape: z.string().optional().describe("Shape type (e.g., 'sphere', 'box', 'cylinder')"),
         glowColor: z.string().optional().describe("Glow effect color"),
-        glowStrength: z.number().positive().optional().describe("Glow effect strength"),
+        glowStrength: z
+            .number()
+            .positive()
+            .optional()
+            .describe("Glow effect strength. One strength is drawn at a time for the whole scene"),
         outlineColor: z.string().optional().describe("Outline color"),
-        outlineWidth: z.number().positive().optional().describe("Outline width"),
+        outlineWidth: z
+            .number()
+            .positive()
+            .optional()
+            .describe(
+                "Outline width. Not drawn: every outline in the scene is stroked at one width, " +
+                    "so asking for this is answered with the reason rather than applied",
+            ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
     })
     .describe("Style properties for nodes");
@@ -50,6 +78,7 @@ const EdgeStyleParamsSchema = z
         lineType: z.string().optional().describe("Line pattern (e.g., 'solid', 'dash', 'dot')"),
         arrowColor: z.string().optional().describe("Color for the arrow head"),
         arrowSize: z.number().positive().optional().describe("Size of the arrow head"),
+        arrowOpacity: z.number().min(0).max(1).optional().describe("Opacity of the arrow head, 0 to 1"),
         enabled: z.boolean().optional().describe("Whether the edge is visible"),
     })
     .describe("Style properties for edges");
@@ -60,19 +89,24 @@ const AI_LAYER_SOURCE: LayerSource = { by: "plugin", name: "graphty-ai" };
 /**
  * Turn the simplified node parameters into literal channel values.
  *
- * TWO OF THEM HAVE NO CHANNEL, and this says so rather than dropping them. The outline's width
- * and the glow's strength are drawn at one fixed value for the whole graph -- that is stated in
- * the `node.outline` and `node.glow` channel caveats -- so a request for either is reported back
- * to the caller instead of being written somewhere it does nothing.
+ * ONE OF THEM HAS NO CHANNEL, and this says WHY rather than dropping it or refusing it blankly.
+ * An outline is drawn by adding the node's source mesh to a Babylon highlight layer, and that
+ * layer owns the stroke width for the whole scene -- so a per-node width is not a channel the
+ * element has not got round to, it is a picture the renderer cannot draw. The node style declares
+ * no `effect.outline.width` either, for the same reason and so that nothing accepts one and
+ * quietly ignores it. The sentence that explains all this is `NODE_OUTLINE_CAVEAT`, which is
+ * `node.outline`'s published caveat, so a reader who asks the catalogue and a reader who asks in
+ * words get the same answer. The glow's STRENGTH used to be refused beside it and is a channel
+ * now, with a caveat of its own, which is what the difference looks like when it can be closed.
  * @param params - What was asked for.
  * @returns The channel values to write, and the properties the channel set cannot express.
  */
 function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     set: StaticStyle;
-    unsupported: string[];
+    unsupported: UnsupportedProperty[];
 } {
     const set: Partial<Record<Channel, ChannelValue>> = {};
-    const unsupported: string[] = [];
+    const unsupported: UnsupportedProperty[] = [];
 
     if (params.color !== undefined) {
         set["node.color"] = params.color;
@@ -90,6 +124,10 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
         set["node.glow"] = params.glowColor;
     }
 
+    if (params.glowStrength !== undefined) {
+        set["node.glowStrength"] = params.glowStrength;
+    }
+
     if (params.outlineColor !== undefined) {
         set["node.outline"] = params.outlineColor;
     }
@@ -100,12 +138,8 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
         set["node.opacity"] = 0;
     }
 
-    if (params.glowStrength !== undefined) {
-        unsupported.push("glowStrength");
-    }
-
     if (params.outlineWidth !== undefined) {
-        unsupported.push("outlineWidth");
+        unsupported.push({ property: "outlineWidth", reason: NODE_OUTLINE_CAVEAT });
     }
 
     return { set, unsupported };
@@ -114,17 +148,18 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
 /**
  * Turn the simplified edge parameters into literal channel values.
  *
- * An arrow's colour and size are not channels: `edge.arrowHead` chooses WHICH arrow is drawn and
- * the rest of its appearance follows the line. Both are reported back rather than dropped.
+ * NOTHING IS REFUSED HERE ANY MORE. An arrow's colour, size and opacity each have a channel of
+ * their own at each end, so the three this function used to answer "unsupported" to are written
+ * like everything else. They are written to the HEAD, which is what the parameters are named
+ * for; a tail is drawn only when a layer asks for one.
  * @param params - What was asked for.
  * @returns The channel values to write, and the properties the channel set cannot express.
  */
 function edgeChannels(params: z.infer<typeof EdgeStyleParamsSchema>): {
     set: StaticStyle;
-    unsupported: string[];
+    unsupported: UnsupportedProperty[];
 } {
     const set: Partial<Record<Channel, ChannelValue>> = {};
-    const unsupported: string[] = [];
 
     if (params.color !== undefined) {
         set["edge.color"] = params.color;
@@ -144,14 +179,21 @@ function edgeChannels(params: z.infer<typeof EdgeStyleParamsSchema>): {
     }
 
     if (params.arrowColor !== undefined) {
-        unsupported.push("arrowColor");
+        set["edge.arrowHeadColor"] = params.arrowColor;
     }
 
     if (params.arrowSize !== undefined) {
-        unsupported.push("arrowSize");
+        set["edge.arrowHeadSize"] = params.arrowSize;
     }
 
-    return { set, unsupported };
+    if (params.arrowOpacity !== undefined) {
+        set["edge.arrowHeadOpacity"] = params.arrowOpacity;
+    }
+
+    // The pair is the shape `addLayer` takes, and the second half is empty because every edge
+    // property this command accepts now has a channel. A property added to the schema above with
+    // no channel to write it belongs in this list rather than being dropped.
+    return { set, unsupported: [] };
 }
 
 /**
@@ -219,7 +261,7 @@ function refusalOf(error: unknown): string {
 async function addLayer(
     graph: Graph,
     spec: LayerSpec,
-    unsupported: readonly string[],
+    unsupported: readonly UnsupportedProperty[],
     subject: "node" | "edge",
 ): Promise<CommandResult> {
     const { styles } = graph.getSession();
@@ -239,10 +281,14 @@ async function addLayer(
 
     try {
         const layer = await styles.add(spec);
-        const caveat =
-            unsupported.length === 0
-                ? ""
-                : ` The element has no style channel for ${unsupported.join(" or ")}, so ${unsupported.length === 1 ? "it was" : "they were"} not applied.`;
+        // One sentence per refused property, each carrying its own reason. Joining the NAMES and
+        // appending a single "no channel for these" is what this used to do, and it produced an
+        // answer nobody could act on: the reader learned a word had been dropped and not what the
+        // element draws instead. An empty list contributes an empty string, so an ordinary layer
+        // still reads "Added the node style layer" and stops.
+        const caveat = unsupported
+            .map(({ property, reason }) => ` ${property} was not applied: ${reason}`)
+            .join("");
         const unbound =
             verdict.unresolvedPaths.length === 0
                 ? ""

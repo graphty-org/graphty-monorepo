@@ -4,6 +4,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { VIEW_MODE_VALUES, type ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
+import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn } from "./assertions";
 import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps } from "./helpers";
 
 // Track WebXR availability to avoid repeated checks
@@ -119,5 +120,15 @@ export const SwitchViewModes: Story = {
         graphEl.viewMode = args.viewMode;
 
         return graphEl;
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "ViewMode SwitchViewModes");
+
+        await assertGraphLoaded(scene, { nodes: 6, edges: 6 });
+        await assertLayoutPlaced(scene, {});
+
+        // The control is the story; its opening position is 3d, and the camera the element
+        // actually draws through is how a reader can tell the control did anything.
+        await assertViewMode(scene, "3d");
     },
 };

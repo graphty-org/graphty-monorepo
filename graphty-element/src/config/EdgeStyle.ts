@@ -26,7 +26,17 @@ const ArrowType = z.enum([
 const ArrowStyle = z.strictObject({
     type: ArrowType.default("normal").optional(),
     size: z.number().positive().default(1).optional(),
-    color: ColorStyle.default("white").optional(),
+    /**
+     * The colour to draw the cap in, or unset to follow the line it caps.
+     *
+     * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
+     * `style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF"`, so an unset colour is how an
+     * arrow is told to follow its line -- and a default here fills one in whenever the arrow key
+     * is present at all, which made that fallback unreachable for the head. With the head pinned
+     * and the tail (optional, and absent from the element's defaults) unpinned, one magenta edge
+     * with caps at both ends was drawn with a magenta tail and a grey head.
+     */
+    color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).default(1).optional(),
     text: RichTextStyle.optional(),
 });
@@ -68,14 +78,32 @@ const LineStyle = z.strictObject({
     bezier: z.boolean().optional(),
 });
 
+/**
+ * Everything a style layer can say about how one edge is drawn.
+ *
+ * TWO FIELDS WERE WITHDRAWN IN 2.0, and both were declared here and drawn by nothing.
+ *
+ * `tooltip` was a full rich-text block, published through 1.x as a channel and never drawn in
+ * any released version: a tooltip appears on hover, and an edge cannot be hovered, because
+ * `Edge.ts` sets `isPickable = false` in three places and `PatternedLineMesh` declares it false
+ * as a field -- the same fact that leaves the element with no `edge-click` event. Keeping the
+ * field would have gone on publishing sixty-two settings that reach no pixel.
+ *
+ * `enabled` was a switch superseded by the session's visibility mask, which is what decides
+ * whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is read, and
+ * that one stays.
+ *
+ * Both removals are recorded in `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`, with
+ * what a consumer who wrote either one should do instead. This object is strict, so a style
+ * document that still carries either key is now a parse error rather than a silent no-op --
+ * which is the point of removing them in a major rather than leaving them accepted and ignored.
+ */
 export const EdgeStyle = z.strictObject({
     arrowHead: ArrowStyle.optional(),
     arrowTail: ArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
-    tooltip: RichTextStyle.prefault({ location: "bottom" }).optional(),
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35
-    enabled: z.boolean().default(true).optional(),
 });
 
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
@@ -86,9 +114,10 @@ export const defaultEdgeStyle: EdgeStyleConfig = {
         width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
         color: "darkgrey",
     },
+    // NO COLOUR HERE EITHER. This object is parsed once into the base every painted edge is
+    // filled out from, so a colour named here reaches every edge in the graph and no layer
+    // beneath the arrow channels can be seen past it. Unset, a cap follows the line it caps.
     arrowHead: ArrowStyle.parse({
         type: "normal",
-        color: "darkgrey",
     }),
-    enabled: true,
 };

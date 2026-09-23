@@ -20,7 +20,6 @@ describe("Arrow Tail Support", () => {
             arrowHead: { type: "normal", color: "#FF0000", size: 1, opacity: 1 },
             arrowTail: { type: "tee", color: "#0000FF", size: 1, opacity: 1 },
             line: { width: 0.5 },
-            enabled: true,
         };
 
         // Create arrow head
@@ -62,7 +61,6 @@ describe("Arrow Tail Support", () => {
             arrowHead: { type: "normal", size: 1.0, color: "#FF0000", opacity: 1.0 },
             arrowTail: { type: "dot", size: 2.0, color: "#00FF00", opacity: 0.5 },
             line: { width: 0.5 },
-            enabled: true,
         };
 
         // Create arrow head
@@ -119,7 +117,6 @@ describe("Arrow Tail Support", () => {
             arrowHead: { type: "normal", size: 3.0, color: "#FF0000", opacity: 1 },
             arrowTail: { type: "tee", size: 3.0, color: "#0000FF", opacity: 1 },
             line: { width: 0.5 },
-            enabled: true,
         };
 
         // Both should respect the size parameter

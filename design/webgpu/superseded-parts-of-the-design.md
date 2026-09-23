@@ -2,7 +2,7 @@
 
 `webgpu-acceleration-plan.md` in this directory is the accepted design for
 `@graphty/webgpu-graph-algorithms`, approved on 2026-09-14. Since then, decision records under
-`design/decisions/` have reversed about thirty passages of it. None of those passages were
+`design/decisions/` have reversed forty-four passages of it. None of those passages were
 edited: the convention in this repository is that a decision record names the lines it
 overrules and the design keeps its original text, because deleting the argument that was
 rejected is how a decision gets quietly reversed a year later. `design/decisions/README.md`
@@ -17,21 +17,35 @@ and the record that decided it.
 if it is absent the design stands. Entries are in design order and each one is self-contained;
 where two entries share a location they cover different clauses of it, so read both. The list
 is derived from the records, not from re-reading the design, so a passage nobody decided
-against is not listed -- see the last section for the passages that look superseded but that no
-record covers.
+against is not listed. Where an entry says the record named the passage in an amendment, the
+record's original list did not reach that far and was completed later; the decision itself is the
+one the record always made.
 
 **Line numbers.** The numbers here are for the design as it stands today. The note added at the
 top of it on 2026-09-23 pushed the body down by eight lines, so a line number quoted inside a
 decision record -- all of which were written earlier -- is eight lower than the line that text
 sits on now.
 
-Sections with superseded text, in order: 1.4 (D16), 2.4\*, 4.6, 6, 7.3, 7.7, 7.19, 7.20, 8.2,
-8.8, 8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (T-13), 12.1, 12.2\*, 12.3\*, 12.6, 13 (the phase table).
-An asterisk means no record names it; those are in the last section.
+Sections with superseded text, in order: 1.4 (D16), 2.4, 4.6, 6, 7.3, 7.7, 7.19, 7.20, 8.2, 8.8,
+8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12 and T-13), 12.1, 12.2, 12.3, 12.6, 13 (the phase
+table), 14.1 (the risk register) and the Review log's applied-findings table.
 
-**One item needs a decision, not a lookup.** Gate G12 in the phase table requires a nightly GPU
-lane to be green for a week, and the nightly lane was removed. The gate cannot be met by
-anyone, in any circumstance, as written. It is the entry for section 13, row P12, gate G12.
+**Two things here are open and need the owner, not a lookup.** Both fall out of one decision --
+the GPU lane lost its nightly cron -- and neither is settled anywhere in the repository.
+
+1. **What replaces the dead clause in gate G12.** The gate on the final element-polish phase
+   requires "nightly GPU lane green for a week". There is no nightly lane, so no run exists that
+   could be green for a week and the gate cannot be met by anyone as written. To close it: either
+   a replacement clause naming the evidence that stands in -- the nearest thing the lane still
+   produces is some number of consecutive green `gpu.yml` runs on master -- or a decision that the
+   clause is dropped and G12 is its other two clauses. Full entry: section 13, row P12, gate G12.
+2. **Where the 1M exact-versus-grid comparison runs.** The 1M-node, 200-iteration comparison of
+   11.4 is deliberately excluded from the default CI lane on time budget and was sent to a nightly
+   benchmark job that no longer exists, so the largest size the grid tier is designed for is
+   currently measured nowhere and nothing fails to report it. To close it: name the lane, the
+   trigger and the budget it runs under. Nothing moved it to the GPU lane, so do not assume it is
+   there. Full entries: section 10.4 target T-12, section 14.1 risk row R-5, and the Review log's
+   row PERF-10.
 
 The design also carries its own Review log (section "Review log", near the end), which records
 corrections made before this directory of decision records existed -- the GPU runner that was
@@ -49,6 +63,25 @@ names none, so the rule reads as covering `exclusiveScan` along with the rest.
 apply to it. The rule itself, and the four kernels that do have a subgroup twin, are unchanged.
 
 **Decided by:** [2026-09-20-scan-has-no-subgroup-variant.md](../decisions/2026-09-20-scan-has-no-subgroup-variant.md)
+
+## Section 2.4, the first and last rows of the who-answers table (lines 443 and 448)
+
+**The design says:** the first row answers "Is WebGPU present, is the adapter hardware, is it
+worth using?" with "The APP (graphty) at start-up, or a Node script", which probes, creates and
+then calls `element.setAccelerator(gpu)`. The last row gives the app the decision whether to
+inject a software adapter such as lavapipe or SwiftShader.
+
+**What is true instead:** graphty-element answers both, once the `@graphty/graphty-element/webgpu`
+entry point is imported.
+
+**Read the rest of the section anyway.** Every other row of that table is still exactly right, and
+together they are the no-silent-degradation rule: the dispatcher choosing the CPU only when no
+accelerator was injected, the missing-method branch, an error propagating rather than falling
+back, `E_TOO_LARGE` thrown before allocation. The root `CLAUDE.md` cites 2.4 for that rule. This
+section is half-live, not dead, which is the worse state -- a reader who is right to trust it for
+the rule gets no signal that its first and last rows are gone.
+
+**Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
 
 ## Section 4.6, the per-row gather row of the dispatch-limits table (line 1298)
 
@@ -328,6 +361,19 @@ the W0, A2, L1, E1, W1 and D1 rows -- is unchanged.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md)
 
+## Section 10.4, target T-12 (line 3425)
+
+**The design says:** T-12 holds the default CI lane to 15 minutes, and does it by excluding the
+1M-node, 200-iteration exact-versus-grid comparison of 11.4 from the lane: that run "runs in the
+nightly benchmark job".
+
+**What is true instead:** there is no nightly benchmark job. The run is still excluded from the
+lane, so it currently happens nowhere, and the largest size the grid tier is designed for goes
+unmeasured with nothing failing to say so. Where it should run is open; see the open questions at
+the top of this file. The 15-minute lane budget itself is unchanged.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
 ## Section 10.4, target T-13 (line 3426)
 
 **The design says:** T-13 ends "a nightly tracking issue is opened only after two consecutive
@@ -364,6 +410,33 @@ point of the decision: it re-ran a commit the lane had already judged, and the r
 already blocks a publish on that commit's result.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
+
+## Section 12.2, two of the cost and security controls (lines 3840-3844)
+
+**The design says:** among the controls applied to the hosted GPU lane are "the nightly run is
+skipped when `master` has not moved since the last green GPU run" and, as the reason workflow
+permissions can stay read-only, "the nightly tracking-issue job is a SEPARATE `ubuntu-latest` job
+with `issues: write`".
+
+**What is true instead:** neither job exists, so neither control is doing anything. Every other
+control in that paragraph stands unchanged: the same-repo clause, the `gpu` label, the $50
+org-level spending limit, `concurrency: gpu-lane` with `cancel-in-progress`, the 45-minute
+timeout, read-only workflow permissions and no secrets in the GPU job.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
+## Section 12.3, the `gpu.yml` listing (lines 3949-4027)
+
+**The design says:** the workflow is printed in full, and the listing contains
+`schedule: [{ cron: "17 6 * * *" }]`, the `changed` job that skips the cron when master has not
+moved, and the `gpu-nightly-report` job that opens a tracking issue after two consecutive nightly
+failures.
+
+**What is true instead:** all three are gone and the lane is one job. This is the one place in the
+design where the dead lane could be copied verbatim, which is why it is worth knowing before
+reading the listing rather than after.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
 ## Section 12.6, the nightly row of the budget table (line 4174)
 
@@ -415,6 +488,18 @@ the layouts are compared rather than the stop counters.
 
 **Decided by:** [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](../decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md)
 
+## Section 13, the phase table, row P6 (line 4221)
+
+**The design says:** the deliverables cell ends "app: 9.5 `attachAccelerator`", and the row's
+outcome column reads "the GPU layout 'detected' in the app".
+
+**What is true instead:** detection, the context request and construction are graphty-element's,
+behind the `@graphty/graphty-element/webgpu` import; the app consumes the element like any other
+consumer. The rest of the row -- the algorithms, layout and graphty-element deliverables, and the
+G6 gate with its fake-accelerator tests -- is unchanged.
+
+**Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
+
 ## Section 13, the phase table, row P7, the connected-components deliverable (line 4222)
 
 **The design says:** the deliverables cell lists "Afforest WCC (with the two-dispatch atomic
@@ -436,6 +521,19 @@ has no host-side prerequisite left, but the tiers themselves belong to the phase
 degree tiers.
 
 **Decided by:** [2026-09-19-spmv-tier-zero-only.md](../decisions/2026-09-19-spmv-tier-zero-only.md)
+
+## Section 13, the phase table, row P12, the deliverables cell (line 4227)
+
+**The design says:** the app gets "`calibrateLayout()` + `createAccelerator` defaults wiring in
+the app" and "device-loss UX (toast + the CPU simulation taking over the running layout)".
+
+**What is true instead:** calibration, construction and device-loss recovery are inside
+graphty-element; the CPU simulation taking over a running layout is something the element does for
+every consumer. What is left for the app is the toast, if it wants one, the real-GPU stories and
+the status it renders. The `gpuMinNodes` default measured from 7.21 is still wanted -- it is the
+element's setting, and gate G12 is the thing that measures it.
+
+**Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
 
 ## Section 13, the phase table, row P12, gate G12 -- this gate cannot be satisfied (line 4227)
 
@@ -463,6 +561,76 @@ has nowhere to run. Whatever replaces G12's clause should say where it goes.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
 removed the lane; no record addresses this gate.
+
+## Section 14.1, risk row R-5 (line 4272)
+
+**The design says:** the mitigation for lavapipe being slow enough to blow the default lane's
+budget ends with "the 1M 200-iteration exact-vs-grid run only in the nightly benchmark job".
+
+**What is true instead:** there is no nightly benchmark job, so that part of the mitigation is not
+in place and the run happens nowhere; where it should run is open, see the open questions at the
+top of this file. R-5's other mitigations -- `gpuScale` fixture scaling, the two-minute per-file
+budget, sharding the node project, heavy sizes only in the benchmarks and `node-limits` -- stand.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
+## Section 14.1, risk row R-6 (line 4273)
+
+**The design says:** among the mitigations for the hosted GPU lane becoming unavailable or drifting
+in cost is "nightly skipped on quiet days".
+
+**What is true instead:** there is no nightly to skip; removing it is why the cost risk is smaller
+than the row assumes. Every other mitigation in the row stands: the lane in its own workflow so it
+can never delay a release or a coverage publish, label and same-repo gating, the spending limit,
+fork PRs never reaching it, `machine.dev` as the escape hatch.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
+## Section 14.1, risk row R-25 (line 4292)
+
+**The design says:** the risk is that a shared-tenant T4 makes benchmark medians vary and "a
+nightly that opens tracking issues for noise trains people to ignore it"; one mitigation is "an
+issue only after two consecutive nightly failures".
+
+**What is true instead:** no nightly runs and no job opens an issue, so the training-people-to-
+ignore-it risk is gone rather than mitigated. The other mitigations stand and are what actually
+hold the noise down: medians of 5 runs, the 3x threshold against the T4's own baseline,
+`gpu-report.js` recording clocks and utilisation, and the T-table targets measured by hand on the
+dev box rather than on the T4.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
+## The Review log's applied-findings table, row PERF-10 (line 4516)
+
+**The design says:** the row records how finding PERF-10 was closed -- "1M runs only the
+one-iteration and unbiasedness checks in the lane; 200-iteration comparison at <= 262k; nightly
+for 1M".
+
+**What is true instead:** the first two clauses hold; the third does not, because there is no
+nightly. The finding is therefore only partly closed: the 1M 200-iteration comparison has no lane.
+Where it runs is open, see the open questions at the top of this file.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
+## The Review log's applied-findings table, row VERIFY-14 (line 4615)
+
+**The design says:** the row records the change that closed finding VERIFY-14 as a
+"`gpu-nightly-report` job with `issues: write` on `ubuntu-latest`".
+
+**What is true instead:** that job was removed with the cron, so the row describes something that
+is no longer in the repository.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
+
+## The Review log's applied-findings table, row VERIFY-20 (line 4621)
+
+**The design says:** the row records three changes -- a utilisation sample, a skip on a busy GPU,
+and "two nightly failures before an issue".
+
+**What is true instead:** the first two are in place and unchanged; the third is not, because
+nothing runs nightly and no job opens an issue.
+
+**Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
 ---
 
@@ -498,43 +666,9 @@ accounts for all twenty records.
 
 ---
 
-## Superseded in practice, with no record
+## Outside the design: guidance that is narrower than the decision it points at
 
-These passages contradict a decision that was made, but no decision record names them, so they
-are not part of the derived list above. They are recorded here as findings, not as decisions.
-
-**Section 2.4, the first row of the who-answers table (line 443), and its last row (line 448).**
-The first row says that whether WebGPU is present, whether the adapter is hardware and whether
-it is worth using are answered by "The APP (graphty) at start-up, or a Node script", which then
-calls `element.setAccelerator(gpu)`; the last row says the app decides whether to inject a
-software adapter. graphty-element answers all of that now. The rest of the table is important
-and is NOT superseded -- the dispatcher choosing the CPU only when no accelerator was injected,
-the missing-method branch, errors propagating rather than falling back, and `E_TOO_LARGE` before
-allocation are the no-silent-degradation rule and are still exactly right. The root `CLAUDE.md`
-cites this section for that rule.
-
-**Section 13, the phase table, row P6 (line 4221).** The deliverables cell ends "app: 9.5
-`attachAccelerator`" and the outcome column reads "the GPU layout 'detected' in the app". Both
-describe work the ownership decision moved into the element.
-
-**Section 13, the phase table, row P12 (line 4227), the deliverables cell.** It gives the app
-"`calibrateLayout()` + `createAccelerator` defaults wiring" and "device-loss UX (toast + the CPU
-simulation taking over the running layout)". Construction and device-loss recovery are the
-element's; what is left for the app is the toast, if it wants one.
-
-**Section 12.3, the `gpu.yml` listing (lines 3949-4027).** The workflow is printed in full and
-still contains `schedule: [{ cron: "17 6 * * *" }]`, the `changed` cost-guard job and the
-`gpu-nightly-report` job. The no-nightly decision describes removing all three and gives the
-resulting line count, but its list of superseded sections does not include 12.3, so the listing
-reads as current.
-
-**Section 12.2 (lines 3840-3844).** Two of the cost and security controls are the nightly skip
-on a quiet master and the separate tracking-issue job with `issues: write`. Neither exists.
-
-**Risk rows R-6 (line 4273) and R-25 (line 4292), and verification rows VERIFY-14 (line 4615)
-and VERIFY-20 (line 4621).** Each cites the nightly skip or the two-consecutive-failures
-tracking issue as a mitigation or as something to verify.
-
-The root `CLAUDE.md` names section 9.1 as superseded by the ownership decision and does not
-mention 9.4, 9.5 or 9.8, so the guidance that exists to warn people is narrower than the
-decision it points at.
+The root `CLAUDE.md` names design 9.1 as superseded by the ownership decision and does not
+mention 9.4, 9.5 or 9.8. The guidance written to warn people about that decision therefore covers
+one of the four places it reaches. Nothing here changes that file; it is noted so that a reader
+who arrives from `CLAUDE.md` knows the warning is partial.

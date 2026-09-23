@@ -1700,3 +1700,41 @@ export async function assertControlsPresent(
             `them are not on the page -- ${listed(missing)}`,
     );
 }
+
+/**
+ * Heavily weighted edges are drawn shorter, on average, than lightly weighted ones.
+ *
+ * WHAT A WEIGHTED LAYOUT PROMISES and an unweighted one does not. The edges are split at the
+ * median weight; the mean drawn length of those above it must be well under the mean of the
+ * rest. Read from where the nodes are DRAWN, so a layout that computed weighted positions the
+ * renderer never applied fails too.
+ * @param scene - What the story drew.
+ * @param column - The edge data field the story's data carries its weights in.
+ * @param atMost - The largest heavy-to-light ratio of mean lengths that still counts as weighted.
+ *     On Les Miserables the unweighted Kamada-Kawai and ForceAtlas2 stories measure 0.83 to 0.95
+ *     and the weighted ones 0.33 to 0.60, so 0.7 separates them with room on both sides.
+ */
+export async function assertHeavyEdgesShorter(scene: Drawn, column: string, atMost = 0.7): Promise<void> {
+    const at = new Map(scene.nodes.map((node) => [node.id, node.position]));
+    const edges = [...scene.graph.getDataManager().edges.values()].map((edge) => {
+        const from = at.get(String(edge.srcId)) ?? [0, 0, 0];
+        const to = at.get(String(edge.dstId)) ?? [0, 0, 0];
+
+        return {
+            weight: Number((edge.data as Record<string, unknown>)[column]),
+            length: Math.hypot(from[0] - to[0], from[1] - to[1], from[2] - to[2]),
+        };
+    });
+    const weights = edges.map((edge) => edge.weight).sort((a, b) => a - b);
+    const median = weights[Math.floor(weights.length / 2)];
+    const mean = (lengths: number[]): number => lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+    const heavy = mean(edges.filter((edge) => edge.weight > median).map((edge) => edge.length));
+    const light = mean(edges.filter((edge) => edge.weight <= median).map((edge) => edge.length));
+
+    await holds(
+        heavy / light <= atMost,
+        `${scene.story}: a weighted layout draws heavy edges shorter, and the edges weighing more than ` +
+            `${String(median)} average ${heavy.toFixed(3)} long against ${light.toFixed(3)} for the rest ` +
+            `(ratio ${(heavy / light).toFixed(3)}, at most ${String(atMost)} expected)`,
+    );
+}

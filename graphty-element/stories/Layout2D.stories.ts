@@ -6,6 +6,7 @@ import { Graphty } from "../src/graphty-element";
 import {
     assertDistinctPicture,
     assertGraphLoaded,
+    assertHeavyEdgesShorter,
     assertLayoutPlaced,
     assertNodeBands,
     assertNodesOnACircle,
@@ -419,11 +420,15 @@ export const Planar: Story = {
     },
 };
 
+/**
+ * Kamada-Kawai ignoring edge weights: every edge is one hop. The layout weighs edges by default,
+ * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
+ */
 export const KamadaKawai: Story = {
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "kamada-kawai",
-        layoutConfig: { dim: 2 },
+        layoutConfig: { dim: 2, weighted: false },
         kamadaScale: 1,
     },
     parameters: {
@@ -438,6 +443,10 @@ export const KamadaKawai: Story = {
     },
 };
 
+/**
+ * ForceAtlas2 ignoring edge weights: every edge pulls equally hard. The layout weighs edges by
+ * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
+ */
 export const ForceAtlas2: Story = {
     args: {
         setup: storySetup({ viewMode: "2d" }),
@@ -448,7 +457,7 @@ export const ForceAtlas2: Story = {
         // engine is BUILT, and this story assigns `viewMode` and `layout` in the same turn. Which
         // of the two has landed first is not something a story should be betting on, and the one
         // story in this file that bets on it is the one that draws a graph with depth in it.
-        layoutConfig: { dim: 2 },
+        layoutConfig: { dim: 2, weighted: false },
         fa2MaxIter: 100,
         fa2ScalingRatio: 2.0,
         fa2Gravity: 1.0,
@@ -473,6 +482,46 @@ export const ForceAtlas2: Story = {
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "ForceAtlas2");
 
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * Kamada-Kawai laid out by the dataset's edge weights.
+ *
+ * Kamada-Kawai places every pair of nodes at their shortest-path distance. Weighted, an edge's
+ * length in that distance is `1 / weight`, so a heavy edge counts as a short hop and draws
+ * shorter than a light one. The weight is the `value` column of the Les Miserables data (how
+ * many scenes two characters share). `weighted` is the layout's default; it is named here so the
+ * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
+ */
+export const KamadaKawaiWeighted: Story = {
+    args: { ...KamadaKawai.args, layoutConfig: { dim: 2, weighted: true } },
+    parameters: KamadaKawai.parameters,
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "KamadaKawaiWeighted");
+
+        await assertHeavyEdgesShorter(scene, "value");
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * ForceAtlas2 laid out by the dataset's edge weights.
+ *
+ * Weighted, the spring pulling an edge's two ends together is multiplied by the edge's weight,
+ * so heavily weighted pairs are drawn closer together than lightly weighted ones. The weight is
+ * the `value` column of the Les Miserables data (how many scenes two characters share).
+ * `weighted` is the layout's default; it is named here so the story shows the switch a consumer
+ * turns, next to the unweighted ForceAtlas2 story above.
+ */
+export const ForceAtlas2Weighted: Story = {
+    args: { ...ForceAtlas2.args, layoutConfig: { dim: 2, weighted: true } },
+    parameters: ForceAtlas2.parameters,
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "ForceAtlas2Weighted");
+
+        await assertHeavyEdgesShorter(scene, "value");
         await assertDistinctPicture(scene, "Layout/2D");
     },
 };

@@ -9,6 +9,7 @@ import { Graphty } from "../src/graphty-element";
 import {
     assertDistinctPicture,
     assertGraphLoaded,
+    assertHeavyEdgesShorter,
     assertLayoutPlaced,
     assertNodesOnACircle,
     type Drawn,
@@ -375,6 +376,10 @@ export const Spring: Story = {
     },
 };
 
+/**
+ * Kamada-Kawai ignoring edge weights: every edge is one hop. The layout weighs edges by default,
+ * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
+ */
 export const KamadaKawai: Story = {
     args: {
         dataSource: "json", // Add data source
@@ -386,10 +391,10 @@ export const KamadaKawai: Story = {
         layoutConfig: {
             dim: 3,
             scale: 1,
-            weighted: true,
+            weighted: false,
         },
         kamadaScale: 1,
-        kamadaWeighted: true,
+        kamadaWeighted: false,
     },
     parameters: {
         controls: {
@@ -403,6 +408,10 @@ export const KamadaKawai: Story = {
     },
 };
 
+/**
+ * ForceAtlas2 ignoring edge weights: every edge pulls equally hard. The layout weighs edges by
+ * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
+ */
 export const ForceAtlas2: Story = {
     args: {
         dataSource: "json", // Add data source
@@ -421,7 +430,7 @@ export const ForceAtlas2: Story = {
             strongGravity: false,
             dissuadeHubs: false,
             linlog: false,
-            weighted: true,
+            weighted: false,
             seed: 42,
         },
         // Individual parameter args for controls
@@ -433,7 +442,7 @@ export const ForceAtlas2: Story = {
         fa2StrongGravity: false,
         fa2DissuadeHubs: false,
         fa2Linlog: false,
-        fa2Weighted: true,
+        fa2Weighted: false,
         fa2Seed: 42,
     },
     parameters: {
@@ -455,6 +464,54 @@ export const ForceAtlas2: Story = {
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Layout/3D ForceAtlas2");
 
+        await assertDistinctPicture(scene, "Layout/3D");
+    },
+};
+
+/**
+ * Kamada-Kawai laid out by the dataset's edge weights.
+ *
+ * Kamada-Kawai places every pair of nodes at their shortest-path distance. Weighted, an edge's
+ * length in that distance is `1 / weight`, so a heavy edge counts as a short hop and draws
+ * shorter than a light one. The weight is the `value` column of the Les Miserables data (how
+ * many scenes two characters share). `weighted` is the layout's default; it is named here so the
+ * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
+ */
+export const KamadaKawaiWeighted: Story = {
+    args: {
+        ...KamadaKawai.args,
+        layoutConfig: { dim: 3, scale: 1, weighted: true },
+        kamadaWeighted: true,
+    },
+    parameters: KamadaKawai.parameters,
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "Layout/3D KamadaKawaiWeighted");
+
+        await assertHeavyEdgesShorter(scene, "value");
+        await assertDistinctPicture(scene, "Layout/3D");
+    },
+};
+
+/**
+ * ForceAtlas2 laid out by the dataset's edge weights.
+ *
+ * Weighted, the spring pulling an edge's two ends together is multiplied by the edge's weight,
+ * so heavily weighted pairs are drawn closer together than lightly weighted ones. The weight is
+ * the `value` column of the Les Miserables data (how many scenes two characters share).
+ * `weighted` is the layout's default; it is named here so the story shows the switch a consumer
+ * turns, next to the unweighted ForceAtlas2 story above.
+ */
+export const ForceAtlas2Weighted: Story = {
+    args: {
+        ...ForceAtlas2.args,
+        layoutConfig: { ...(ForceAtlas2.args?.layoutConfig as Record<string, unknown>), weighted: true },
+        fa2Weighted: true,
+    },
+    parameters: ForceAtlas2.parameters,
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "Layout/3D ForceAtlas2Weighted");
+
+        await assertHeavyEdgesShorter(scene, "value");
         await assertDistinctPicture(scene, "Layout/3D");
     },
 };

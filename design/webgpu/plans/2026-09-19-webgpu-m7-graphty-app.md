@@ -1889,9 +1889,9 @@ Add `import React from "react";` if the file's `React.Fragment` and `React.JSX.E
 Run: `cd AT/graphty && npx tsc --noEmit && npx prettier --check "src/stories/**" && pnpm exec nx run graphty:build-storybook`
 Expected: tsc and prettier clean; the Storybook build succeeds and `graphty/storybook-static/index.json` contains `components-acceleration--states`. Check with `python3 -c "import json;d=json.load(open('storybook-static/index.json'));print([k for k in d['entries'] if k.startswith('components-acceleration')])"`. NOT eslint: `eslint.config.js:40` ignores `**/stories/**`, so a green run there proves nothing; `tsc` does check them, because `graphty/tsconfig.json`'s `include` is `["src", ".storybook"]`.
 
-- [ ] **Step 2: The Chromatic leftover**
+- [x] **Step 2: The Chromatic leftover** -- ALREADY DONE, and done differently: `graphty/chromatic.config.json` was DELETED rather than edited, so do not recreate it. Every behavioural setting is gone from the per-package Chromatic configs (the app's, algorithms' and layout's files deleted; graphty-element's reduced to its project id), and the app's `chromatic`, `test:visual` and `test:visual:debug` scripts now call `tools/chromatic.sh graphty`, which runs the CLI from the repository root exactly as CI does. With no config file in the directory the CLI runs in, a local run and a CI run cannot disagree -- which is the whole point the paragraph below was making. Skip to Step 3.
 
-`graphty/chromatic.config.json` becomes:
+The original step, kept for its reasoning: `graphty/chromatic.config.json` becomes:
 
 ```json
 {
@@ -1902,8 +1902,8 @@ Expected: tsc and prettier clean; the Storybook build succeeds and `graphty/stor
 
 Reason, and the limit of the change: CI already has TurboSnap off and `exitZeroOnChanges: false` (`ci.yml:625-660`), with a comment naming the cause -- "TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json". The CI action does not read this file (it runs at repo root with `storybookBuildDir: ./graphty/storybook-static`), so this flag only affects a LOCAL `npm run test:visual`. Leaving it `true` tells a reader TurboSnap is on when the thing that actually runs has it off, and a local run would skip the acceleration story whenever its own file had not changed. Nothing else about Chromatic changes: this plan asks for NO edit to `ci.yml`'s `chromatic-app` job, because both conditions the integration plan's M7 cell names are already met there.
 
-Run: `cd AT && python3 -c "import json;print(json.load(open('graphty/chromatic.config.json')))"`
-Expected: `{'onlyChanged': False, 'zip': True}`.
+Run: `cd AT && test ! -e graphty/chromatic.config.json && grep -n chromatic graphty/package.json`
+Expected: no config file, and the three Chromatic scripts all reading `../tools/chromatic.sh graphty`.
 
 - [ ] **Step 3: Checkpoint** -- `pnpm exec nx run-many -t lint,build --projects=graphty --parallel=1` and `pnpm exec nx run graphty:build-storybook` both green; `grep -c disableSnapshot src/stories/Acceleration.stories.tsx` returns 0 (this task adds no such parameter); no commit by this task.
 

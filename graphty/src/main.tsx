@@ -1,22 +1,12 @@
 import "./index.css";
 import "@mantine/core/styles.css";
-// WORKAROUND: Import InstancedMesh first to satisfy Babylon.js side-effect requirement
-// This is needed in development mode where Vite may bypass the package's index.ts
-import "@babylonjs/core/Meshes/instancedMesh";
+// Defines <graphty-element>. The element declares its entry files as side effects, so a bare
+// import survives tree-shaking.
+import "@graphty/graphty-element";
 // The element's optional GPU peer, switched on. This is the whole integration: the element
 // probes, constructs, attaches, applies its threshold and recovers, and reports through
 // `capabilities.acceleration`. Nothing in this application touches WebGPU.
 import "@graphty/graphty-element/webgpu";
-
-// IMPORTANT: Import the Graphty class to ensure the @customElement decorator runs
-// and registers the <graphty-element> custom element. A bare import like
-// `import "@graphty/graphty-element"` gets tree-shaken away because nothing uses the exports.
-import { Graphty } from "@graphty/graphty-element";
-
-// Force Graphty class to be retained (prevents tree-shaking of the custom element registration)
-if (typeof Graphty === "undefined") {
-    throw new Error("Graphty class failed to load");
-}
 
 import { MantineProvider } from "@mantine/core";
 import React from "react";

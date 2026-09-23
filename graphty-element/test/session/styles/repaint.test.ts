@@ -952,3 +952,38 @@ describe("removing a layer whose selector no longer matches what it painted", ()
         assert.strictEqual(colorOf(harness.engine, 2), "#333333");
     });
 });
+
+/**
+ * What a layer was applied to is recorded by dense index, and a dataset boundary renumbers the
+ * index space: index 1 after a reload is a different element from index 1 before it. A record
+ * carried across the boundary would make a later edit to the layer repaint whichever new elements
+ * happen to sit at the old indices -- the whole new graph, for a layer that painted the whole old
+ * one.
+ */
+describe("what a layer was applied to, across a dataset boundary", () => {
+    it("forgets the old dataset's indices, so an edit to a layer that matches nothing now repaints nothing", async () => {
+        const rows: Row[] = NODES.map((row) => ({ ...row }));
+        const measured: Record<Path, number[] | undefined> = { "results.louvain.group": [0, 1, 2] };
+        const harness = makeHarness(rows, {
+            measured: (path, target) => (target === "node" ? measured[path] : undefined),
+        });
+
+        await harness.paintAll();
+        const layer = await harness.styles.add({
+            name: "Communities",
+            selector: { match: "has", path: "results.louvain.group" },
+            set: { "node.color": "#ff0000" },
+        });
+
+        assert.strictEqual(paintedNodes(harness), 3);
+
+        // A different dataset of five nodes, none measured by the run the layer is bound to.
+        rows.splice(0, rows.length, ...[0, 1, 2, 3, 4].map(() => ({ "data.kind": "host" })));
+        measured["results.louvain.group"] = undefined;
+        harness.engine.renumbered();
+
+        await harness.styles.update(layer.id, { name: "Communities, over a graph it never saw" });
+
+        assert.strictEqual(paintedNodes(harness), 0, "nothing in the new dataset was painted by this layer");
+    });
+});

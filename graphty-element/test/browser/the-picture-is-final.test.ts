@@ -176,6 +176,43 @@ describe("knowing the picture is final", () => {
     );
 
     it(
+        "does not call the picture final while a style edit is still waiting to be drawn",
+        async () => {
+            await graph.addNodes(NODES);
+            await graph.addEdges(EDGES);
+            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+
+            let drawn = 0;
+
+            graph.getScene().onAfterRenderObservable.add(() => {
+                drawn++;
+            });
+
+            // A style edit resolves once the style pass has run; the meshes catch up on the next
+            // update pass the render loop runs. Between the two, the picture on screen is the old
+            // one, and a consumer photographing it must be told to wait.
+            await graph.getSession().styles.add({
+                name: "recolour",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#ff00ff" },
+            });
+
+            const drawnAtEdit = drawn;
+
+            if (graph.getStylePainter().hasPending) {
+                assert.isFalse(graph.isFrameStable, "the edit is not on screen yet, so the frame is not final");
+            }
+
+            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+
+            assert.isFalse(graph.getStylePainter().hasPending, "the wait resolved with the edit still undrawn");
+            assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
+        },
+        CASE_TIMEOUT_MS,
+    );
+
+    it(
         "fails out loud rather than handing back a moving picture",
         async () => {
             // Deliberately not awaited: the queue is busy, so a one millisecond wait cannot be

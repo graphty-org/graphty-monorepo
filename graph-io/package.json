@@ -79,7 +79,7 @@
         "test:ui": "vitest --ui",
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
-        "coverage:preview": "npx serve coverage -p 9057",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "benchmark": "tsx benchmarks/run.ts",
         "ready:commit": "npm run build:all && npm run lint && npm run typecheck:strict-consumer && npm run test:run"
     },

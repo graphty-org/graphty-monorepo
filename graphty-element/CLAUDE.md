@@ -219,7 +219,7 @@ npm run test:mesh        # Run mesh tests (separate vitest config)
 # Coverage
 npm run coverage         # Full coverage with shards
 npm run coverage:fast    # Quick coverage (default project only)
-npm run coverage:preview # Serve coverage report on port 9053
+npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Linting
 npm run lint             # ESLint + TypeScript check
@@ -235,8 +235,8 @@ npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
 
-The monorepo assigns this package port 9020 for the dev server and 9025 for Storybook; both are
-read from `PORT`, so without an `.env` you get Vite's and Storybook's own defaults.
+The dev server, Storybook and the docs server take their port from `PORT` and refuse to start
+without it: start them through servherd with PORT={{port}} (see the root CLAUDE.md).
 
 ## Architecture
 
@@ -407,7 +407,7 @@ rather than inferred because every agent involved in it complied with every inst
 ## Storybook Notes
 
 - Storybook auto-reloads on changes (no manual rebuild needed)
-- Check if Storybook is running on port 9025 before starting a new instance
+- Check `servherd_list` for a running Storybook before starting a new instance
 - All story data URLs must be fully qualified (non-local) for Chromatic compatibility
 - Visual regression via Chromatic
 

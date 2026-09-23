@@ -1436,14 +1436,12 @@ The project includes interactive HTML examples demonstrating each algorithm. To 
     # HOST=0.0.0.0       # For network access
     # HOST=my.server.com # Custom domain
 
-    # Server port (defaults to 9000)
-    PORT=9000           # Must be between 9000-9099
     ```
 
-3. **Start the development server:**
+3. **Start the development server** (the port is required and comes from `PORT`):
 
     ```bash
-    npm run examples:html
+    PORT=9000 npm run examples:html
     ```
 
 4. **Open your browser** to `http://localhost:9000` (or your configured host/port)

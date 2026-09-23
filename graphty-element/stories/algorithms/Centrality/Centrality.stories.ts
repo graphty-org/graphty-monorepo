@@ -22,8 +22,9 @@ export const Degree: Story = createAlgorithmStory("graphty:degree", { varies: "h
  * PageRank - colours AND sizes nodes by importance; the most important node is the largest and
  * darkest.
  *
- * A node metric suggests a colour and no size, so the size is asked for when the run starts:
- * `session.runs.start("pagerank", {}, { style: { size: [1, 5] } })`, the 1 to 5 range 1.x drew.
+ * A node metric suggests a colour and no size, so the size is asked for in the load-time list:
+ * `algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }]`, the 1 to 5
+ * range 1.x drew.
  * The colour is kept alongside it: the two channels say the same thing, which makes the ranking
  * easier to read rather than harder.
  */
@@ -48,7 +49,8 @@ export const Eigenvector: Story = createAlgorithmStory("graphty:eigenvector", { 
  * HITS - hub and authority scores, coloured and sized by the combined score, as 1.x drew it (size
  * 1 to 4); dark brown and large = most important.
  *
- * The size is asked for when the run starts: `session.runs.start("hits", {}, { style: { size: [1, 4] } })`.
+ * The size is asked for in the load-time list:
+ * `algorithmsOnLoad = [{ algorithm: "graphty:hits", style: { size: [1, 4] } }]`.
  */
 export const HITS: Story = createAlgorithmStory("graphty:hits", { varies: "hex", atLeast: 3, size: [1, 4] });
 

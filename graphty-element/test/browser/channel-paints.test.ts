@@ -65,7 +65,7 @@ const WIDTH = 480;
 const HEIGHT = 360;
 
 /**
- * How many frames to render before taking a reading.
+ * How many frames to render before taking a reading, once the element says the picture is final.
  *
  * Eight rather than the sixty `label-paint.test.ts` waits for. That file reads glyphs, which
  * arrive only after a canvas has been drawn, uploaded as a texture and had its material's shader
@@ -270,7 +270,12 @@ describe("every channel the table says is renderable", () => {
              * @returns The structure of the scene and a histogram of the frame.
              */
             async function read(): Promise<Reading> {
-                await graph.operationQueue.waitForCompletion();
+                // The element's own "this is on screen" signal, NOT the queue: a style edit
+                // resolves once its pass has run, and the meshes take its paint on the render
+                // loop's next update. The frames pumped below draw the scene without updating
+                // it, so on a loaded machine whose render loop had not come round yet they drew
+                // the picture from before the edit.
+                await graph.waitForStableFrame();
 
                 for (let frame = 0; frame < FRAMES; frame++) {
                     graph.scene.render();

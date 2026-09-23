@@ -1,3 +1,6 @@
+// Installs scene.pick and scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
+import "@babylonjs/core/Culling/ray";
+
 import {
     ActionManager,
     ExecuteCodeAction,

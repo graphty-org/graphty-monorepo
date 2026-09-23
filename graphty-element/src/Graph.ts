@@ -2,6 +2,10 @@
 import "./data/index"; // register all internal data sources
 import "./layout/index"; // register all internal layouts
 import "./algorithms/index"; // register all internal algorithms
+// Babylon.js installs scene.pick and scene.beginAnimation / stopAnimation only when these load.
+// test/packaging/babylon-side-effects.test.ts requires them wherever those methods are called.
+import "@babylonjs/core/Culling/ray";
+import "@babylonjs/core/Animations/animatable";
 
 import {
     AbstractMesh,
@@ -64,6 +68,7 @@ import {
     type ViewMode,
     type XRConfig,
 } from "./config";
+import type { AlgorithmOnLoad } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
@@ -609,21 +614,13 @@ export class Graph implements GraphContext {
                     this.updateManager.enableZoomToFit();
                 }
 
-                // Run algorithms if runAlgorithmsOnLoad is true
-                // Queue algorithms instead of running them directly
+                // Run algorithms if runAlgorithmsOnLoad is true. Each is queued, not awaited.
                 const { algorithms } = this.styles.config.data;
                 if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
-                    // Parse and queue each algorithm through the public API
-                    for (const algName of algorithms) {
-                        const trimmedName = algName.trim();
-                        const [namespace, type] = trimmedName.split(":");
-
-                        if (namespace && type) {
-                            // Queue through public API which handles queueing
-                            void this.runLegacyAddress(namespace.trim(), type.trim()).catch((error: unknown) => {
-                                console.error(`[Graph] Error running algorithm ${trimmedName}:`, error);
-                            });
-                        }
+                    for (const entry of algorithms) {
+                        void this.runOnLoad(entry).catch((error: unknown) => {
+                            console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
+                        });
                     }
                 }
             }
@@ -763,9 +760,60 @@ export class Graph implements GraphContext {
      * Executes all algorithms specified in the style template configuration.
      */
     async runAlgorithmsFromTemplate(): Promise<void> {
-        if (this.runAlgorithmsOnLoad && this.styles.config.data.algorithms) {
-            await this.algorithmManager.runAlgorithmsFromTemplate(this.styles.config.data.algorithms);
+        const { algorithms } = this.styles.config.data;
+
+        if (!this.runAlgorithmsOnLoad || !algorithms) {
+            return;
         }
+
+        const errors: Error[] = [];
+
+        for (const entry of algorithms) {
+            try {
+                await this.runOnLoad(entry);
+            } catch (error) {
+                errors.push(error instanceof Error ? error : new Error(String(error)));
+            }
+        }
+
+        if (errors.length > 0) {
+            const summaryError = new Error(
+                `${errors.length} algorithm(s) failed during template execution: ${errors.map((e) => e.message).join(", ")}`,
+            );
+
+            this.eventManager.emitGraphError(this, summaryError, "algorithm", {
+                errorCount: errors.length,
+                component: "Graph.runAlgorithmsFromTemplate",
+            });
+
+            throw summaryError;
+        }
+    }
+
+    /**
+     * Run one entry of the load-time algorithm list.
+     *
+     * A 1.x "namespace:type" address takes the same road `runAlgorithm` does, so a plugin with no
+     * catalogue descriptor still runs; a bare catalogue key goes straight to `session.runs.start`.
+     * The entry's run options ride along either way, with no per-algorithm branch.
+     * @param entry - An algorithm, or an algorithm with its run options.
+     */
+    private async runOnLoad(entry: AlgorithmOnLoad): Promise<void> {
+        const { algorithm, params, ...start } = typeof entry === "string" ? { algorithm: entry } : entry;
+        const separator = algorithm.indexOf(":");
+
+        if (separator === -1) {
+            await this.session.runs.start(algorithm, params, start);
+
+            return;
+        }
+
+        await this.runLegacyAddress(
+            algorithm.slice(0, separator).trim(),
+            algorithm.slice(separator + 1).trim(),
+            params === undefined ? undefined : { algorithmOptions: params },
+            start,
+        );
     }
 
     /**
@@ -1502,12 +1550,19 @@ export class Graph implements GraphContext {
      * @param namespace - Algorithm namespace.
      * @param type - Algorithm type, which is the 1.10 registry key.
      * @param options - Algorithm options and queue settings.
+     * @param start - Run options for a catalogue run, such as `style`; a plugin without a
+     *     descriptor has no run to give them to.
      */
-    private async runLegacyAddress(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void> {
+    private async runLegacyAddress(
+        namespace: string,
+        type: string,
+        options?: RunAlgorithmOptions,
+        start?: StartOptions,
+    ): Promise<void> {
         const mapping = namespace === BUILT_IN_ALGORITHM_NAMESPACE ? algorithmByLegacyKey(type) : undefined;
 
         if (mapping !== undefined) {
-            await this.runLegacyAsRun(mapping, namespace, type, options);
+            await this.runLegacyAsRun(mapping, namespace, type, options, start);
 
             return;
         }
@@ -1525,6 +1580,7 @@ export class Graph implements GraphContext {
                 namespace,
                 type,
                 options,
+                start,
             );
 
             return;
@@ -1614,18 +1670,20 @@ export class Graph implements GraphContext {
      * @param namespace - The 1.10 namespace, for the error event and the suggested styles.
      * @param type - The 1.10 type, for the same two.
      * @param options - What the caller passed.
+     * @param start - Run options to start it with, such as `style`.
      */
     private async runLegacyAsRun(
         mapping: RunnableAlgorithm,
         namespace: string,
         type: string,
         options?: RunAlgorithmOptions,
+        start?: StartOptions,
     ): Promise<void> {
         try {
             const run = this.session.runs.start(
                 mapping.descriptor.key,
                 { ...mapping.params, ...options?.algorithmOptions },
-                { queue: options?.skipQueue === true ? "now" : "append" },
+                { ...start, queue: options?.skipQueue === true ? "now" : "append" },
             );
 
             // Inside `batchOperations`, the queue holds everything until the batch closes -- which

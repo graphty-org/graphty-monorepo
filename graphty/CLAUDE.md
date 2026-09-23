@@ -46,14 +46,14 @@ graphty/
 
 ```bash
 # Development
-npm run dev              # Start Vite dev server (port 9050)
-npm run storybook        # Start Storybook (port 9035, requires SSL cert)
+npm run dev              # Start Vite dev server (start it through servherd with PORT={{port}})
+npm run storybook        # Start Storybook (servherd, https, PORT/HTTPS_CERT_PATH/HTTPS_KEY_PATH)
 
 # Testing
 npm test                 # Run tests in watch mode
 npm run test:run         # Run tests once
 npm run coverage         # Run with coverage
-npm run coverage:preview # Serve coverage report on port 9054
+npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Linting
 npm run lint             # ESLint + TypeScript check
@@ -107,7 +107,9 @@ Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is t
 
 ## Storybook
 
-- Runs on port 9035 with HTTPS (requires SSL certificate)
+- Requires HTTPS: start it through servherd with protocol "https", env PORT={{port}} and
+  HOST=0.0.0.0, and the command
+  `env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook`
 - Stories are in `src/stories/`
 - Visual regression via Chromatic
 

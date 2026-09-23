@@ -282,6 +282,9 @@ const config: KnipConfig = {
     ignoreBinaries: [
         "wait", // Shell built-in used in npm scripts
         "http-server", // Used in CI for serving files
+        // coverage:preview scripts run `npx serve` with a ${PORT:?...} guard, which knip no longer
+        // recognises as an npx invocation.
+        "serve",
     ],
 };
 

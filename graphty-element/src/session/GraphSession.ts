@@ -921,6 +921,8 @@ function repaintAgainstCurrentData(
     invalidate: () => void;
 } {
     let painted: GraphSnapshot | null = null;
+    /** The snapshot whose index space the engine's record of what each layer painted is in. */
+    let indexedBy: GraphSnapshot | null = null;
 
     /**
      * Prepare the bindings again when the graph behind them has been replaced.
@@ -935,6 +937,13 @@ function repaintAgainstCurrentData(
         if (painted !== graph) {
             engine.invalidate();
             painted = graph;
+        }
+
+        // Its own identity rather than `painted`, which a published run clears without the
+        // elements being renumbered at all.
+        if (indexedBy !== graph) {
+            engine.renumbered();
+            indexedBy = graph;
         }
     };
 

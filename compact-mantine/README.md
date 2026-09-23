@@ -652,7 +652,7 @@ under `compact-mantine/`.
 ```bash
 pnpm install                 # from the monorepo root
 cd compact-mantine
-npm run storybook            # http://localhost:9060
+PORT=6006 npm run storybook  # any free port; PORT is required
 npm run test:run             # unit and browser tests, once
 npm run lint                 # ESLint
 npm run build                # library build into dist/

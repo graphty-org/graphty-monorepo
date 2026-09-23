@@ -10,7 +10,6 @@ export default defineConfig({
     vite: {
         server: {
             host: env.HOST || true,
-            port: env.DOCS_PORT ? parseInt(env.DOCS_PORT) : 9027,
             https:
                 env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH
                     ? {

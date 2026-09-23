@@ -47,6 +47,8 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `directed`               | `directed`                 | `boolean \| 'auto'`            | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide |
 | `selectionStyle`         | property only              | `{ color?, scale?, opacity? }` | gold halo   | What a selected node looks like |
 | `layoutBehavior`         | property only              | `object`                       | `{}`        | How the element drives the layout, and the two on-demand expansion functions |
+| `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`      | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads)) |
+| `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                      | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence |
 | `debug`                  | `debug`                    | `boolean`                      | `false`     | Enable debug overlay           |
 
 ### How the element finds an edge's endpoints

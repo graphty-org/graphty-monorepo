@@ -252,11 +252,18 @@ async function main(argv) {
         env.NODE_OPTIONS =
             `${process.env.NODE_OPTIONS ?? ""} --report-on-signal --report-signal=SIGUSR2 --report-directory=${dir}`.trim();
     }
-    // On a POSIX host the run goes through a shell so `ulimit -c 0` applies: a worker that crashes in a graphics
-    // driver teardown had its 2 GB core written to the runner's disk, which took about 175 seconds, and the pool
-    // wrote to it during the dump (G4-F14). Windows has no such shell and no such dump, and `sh` may not resolve
-    // there at all, so that host spawns the runner directly -- going through a shell it might not have would fail
-    // the step before a single test ran.
+    // On a POSIX host the run goes through a shell so `ulimit -c 0` applies. It does NOT make a crash free, which
+    // is what it was added for: on the first run that carried it (CI run 35788215777, 2026-09-22) the dump happened
+    // anyway -- this wrapper's own snapshot caught `node (vitest 2)` in the kernel's `vfs_coredump` with 2,003,660
+    // KB resident, 90 s into the silence this wrapper watches for. That write is what the run's silent gap is made
+    // of (170-179 s on the runs of G4-F14), and it ends with the pool writing to the channel the dying worker had
+    // already closed (the crashing file is named in G4-F18 and now walks a short ladder on a software rasteriser).
+    // core(5) has the explanation that fits: "The RLIMIT_CORE limit is not enforced for core dumps that are piped
+    // to a program", which is what a /proc/sys/kernel/core_pattern beginning with a pipe asks the kernel to do.
+    // That runner's pattern was not captured, so the pipe is inferred; the limit failing to stop the dump is not.
+    // The limit stays because it does bind on a host whose pattern writes a file. Windows has no such shell and no
+    // such dump, and `sh` may not resolve there at all, so that host spawns the runner directly -- going through a
+    // shell it might not have would fail the step before a single test ran.
     const child = CAN_SIGNAL
         ? spawn(
               "sh",

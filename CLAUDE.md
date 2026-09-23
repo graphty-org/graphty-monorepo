@@ -139,7 +139,7 @@ graphty-monorepo/
 ├── webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
 ├── algorithms/           # @graphty/algorithms package
-├── layout/               # @graphty/layout package
+├── layout/               # @graphty/layout package (depends on graph-format, graph-samples)
 ├── graphty-element/      # @graphty/graphty-element package
 ├── graphty/              # @graphty/graphty React app
 ├── tools/                # Build scripts

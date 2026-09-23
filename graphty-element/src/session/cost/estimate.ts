@@ -116,12 +116,21 @@ export interface CostRates {
  * rate for iterative work is the specific mistake that made the consumer's gate optimistic by up
  * to 6.9x, because a per-iteration pass allocates and a single linear pass does not.
  *
- * The cubic rate has never been measured and is a placeholder at the linear rate, which makes a
- * cubic estimate the most pessimistic of the four for any graph big enough to matter. If a cubic
- * algorithm is ever timed, replace this constant; do not fit an exponent to hide it.
+ * The linear rate is NOT the consumer's. Its 20M elements/s timed a pass over degrees already in
+ * memory, but an element run builds a fresh `@graphty/algorithms` Graph from the snapshot every
+ * time (`toAlgorithmGraph`) and then writes one result object per node. Measured on 2026-09-23 that
+ * whole path retires 1.7-4.4M elements/s for degree under plain Node (n = 10,000 to 200,000,
+ * m = 5n, falling with size) and about 1.1M/s at n = 100,000 inside a vitest worker, so 20M was
+ * optimistic by 5x to 18x. It is pinned at 1M, the floor of that band.
+ *
+ * The cubic rate has never been measured and is a placeholder at the consumer's old linear figure,
+ * which makes a cubic estimate the most pessimistic of the four for any graph big enough to matter.
+ * If a cubic algorithm is ever timed, replace this constant; do not fit an exponent to hide it.
+ *
+ * `test/session/cost/estimate-against-measured-runs.test.ts` times real runs against these rates.
  */
 export const DEFAULT_COST_RATES: Readonly<CostRates> = Object.freeze({
-    linearElementsPerSecond: 20_000_000,
+    linearElementsPerSecond: 1_000_000,
     iterativeElementsPerSecond: 3_000_000,
     heavyPairsPerSecond: 5_000_000,
     cubicOperationsPerSecond: 20_000_000,

@@ -40,6 +40,27 @@ const PROBE_NODES = 20_000;
 /** Arcs per node in each synthetic workload, which is a density an ordinary graph reaches. */
 const PROBE_DEGREE = 8;
 
+/**
+ * What the three probe workloads retire per second on the machine `DEFAULT_COST_RATES` were
+ * fitted on (an Intel i9-14900, Node 22 under vitest, warm JIT; the fastest of nine probes, so a
+ * single probe on that machine reads at or below it and the calibrated rate errs cautious).
+ *
+ * The probe is tight typed-array arithmetic, and the real algorithms walk Maps of objects, so
+ * the probe runs one to two hundred times faster than the work it stands for: on the fitting
+ * machine the iterative probe retires about 1,250M elements/s where PageRank retires 3-5M. Using
+ * the probe's throughput as the rate -- which this function did until 2026-09-23 -- made every
+ * calibrated estimate optimistic by that factor, so a calibrated session waved through runs
+ * that locked the frame for minutes. The probe is only good for the RATIO between two machines,
+ * so a calibrated rate is the default rate scaled by this machine's probe over this one's.
+ * `test/session/cost/estimate-against-measured-runs.test.ts` re-measures real runs against it.
+ */
+const REFERENCE_PROBE_RATES: Readonly<CostRates> = Object.freeze({
+    linearElementsPerSecond: 1_710_000_000,
+    iterativeElementsPerSecond: 1_250_000_000,
+    heavyPairsPerSecond: 830_000_000,
+    cubicOperationsPerSecond: 1_710_000_000,
+});
+
 /** Iterations the iterative workload performs per repeat. */
 const PROBE_ITERATIONS = 10;
 
@@ -337,11 +358,17 @@ export async function calibrateCost(options: CalibrateCostOptions = {}): Promise
         return defaulted;
     }
 
+    // The probe says how fast this machine is RELATIVE to the one the defaults were fitted on; it
+    // is not itself the rate of any algorithm. See REFERENCE_PROBE_RATES.
+    const linearSpeed = linear.perSecond / REFERENCE_PROBE_RATES.linearElementsPerSecond;
     const rates: CostRates = {
-        linearElementsPerSecond: linear.perSecond,
-        iterativeElementsPerSecond: iterative.perSecond,
-        heavyPairsPerSecond: heavy.perSecond,
-        cubicOperationsPerSecond: linear.perSecond,
+        linearElementsPerSecond: DEFAULT_COST_RATES.linearElementsPerSecond * linearSpeed,
+        iterativeElementsPerSecond:
+            DEFAULT_COST_RATES.iterativeElementsPerSecond *
+            (iterative.perSecond / REFERENCE_PROBE_RATES.iterativeElementsPerSecond),
+        heavyPairsPerSecond:
+            DEFAULT_COST_RATES.heavyPairsPerSecond * (heavy.perSecond / REFERENCE_PROBE_RATES.heavyPairsPerSecond),
+        cubicOperationsPerSecond: DEFAULT_COST_RATES.cubicOperationsPerSecond * linearSpeed,
     };
 
     return Object.freeze({ rates: Object.freeze(rates), at, machine, basis: "probe" as const });

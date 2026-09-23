@@ -65,7 +65,7 @@
         "test": "vitest",
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
-        "storybook": ". ../.env 2>/dev/null; storybook dev -p 9060 --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
         "build-storybook": "storybook build",
         "lint": "eslint && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",

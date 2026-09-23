@@ -145,8 +145,9 @@ export default defineConfig(({ mode }) => {
     };
 
     /*
-     * The three settings below belong to `npm run dev` only: a LAN hostname, a fixed port, and a
-     * TLS certificate, all read from the developer's .env at the monorepo root. They must not
+     * The two settings below belong to `npm run dev` only: a LAN hostname and a TLS certificate,
+     * read from the environment or the developer's .env at the monorepo root. (The port is not
+     * here: the `dev` script passes `--port $PORT`, which servherd sets.) They must not
      * reach the Vite server that Vitest's browser mode starts, because the storybook test project
      * pulls this file in through `extends: "vite.config.ts"`.
      *
@@ -166,10 +167,6 @@ export default defineConfig(({ mode }) => {
     if (!drivenByVitest) {
         if (env.HOST && config.server) {
             config.server.host = env.HOST;
-        }
-
-        if (env.PORT && config.server) {
-            config.server.port = parseInt(env.PORT);
         }
 
         if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH && config.server) {

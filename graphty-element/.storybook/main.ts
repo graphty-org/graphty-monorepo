@@ -29,10 +29,6 @@ const config: StorybookConfig = {
             allowedHosts: true,
         };
 
-        if (env.PORT) {
-            server.port = parseInt(env.PORT);
-        }
-
         if (useHttps) {
             server.https = {
                 key: fs.readFileSync(sslKeyPath),

@@ -59,7 +59,6 @@ export default defineConfig(({ mode }) => {
         },
         server: {
             host: true,
-            port: 9000,
             fs: {
                 allow: [
                     // Allow serving files from the project root
@@ -81,10 +80,6 @@ export default defineConfig(({ mode }) => {
 
     if (env.HOST && config.server) {
         config.server.host = env.HOST;
-    }
-
-    if (env.PORT && config.server) {
-        config.server.port = parseInt(env.PORT);
     }
 
     if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH && config.server) {

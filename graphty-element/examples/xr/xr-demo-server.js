@@ -10,13 +10,20 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// SSL certificate paths
-const CERT_PATH = "/home/apowers/ssl/atoms.crt";
-const KEY_PATH = "/home/apowers/ssl/atoms.key";
-
-// Server configuration (using port in allowed range 9000-9099)
-const PORT = 9077;
-const HOST = "dev.ato.ms";
+// Port, hostname and TLS files come from the environment. Start it through servherd
+// with protocol "https", env PORT={{port}} and HOST={{hostname}}, and the command
+// `env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run dev:xr`.
+function required(name) {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(`${name} is not set: start the XR demo server through servherd, which sets it`);
+    }
+    return value;
+}
+const CERT_PATH = required("HTTPS_CERT_PATH");
+const KEY_PATH = required("HTTPS_KEY_PATH");
+const PORT = Number(required("PORT"));
+const HOST = process.env.HOST ?? "localhost";
 
 // MIME types
 const mimeTypes = {

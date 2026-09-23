@@ -1,0 +1,5300 @@
+{
+  "format": "json",
+  "description": "JSON layer (JSONTestSuite) and the JSON graph dialects: JGF, networkx node_link / adjacency / cytoscape / tree, Cytoscape.js and desktop, d3, graphology, vis-network, Gephi / sigma; encodings.",
+  "fixtures": [
+    {
+      "file": "JSONTestSuite/i_number_double_huge_neg_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_double_huge_neg_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number double huge neg exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_huge_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_huge_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number huge exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_neg_int_huge_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_neg_int_huge_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number neg int huge exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_pos_double_huge_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_pos_double_huge_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number pos double huge exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_real_neg_overflow.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_real_neg_overflow.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number real neg overflow",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_real_pos_overflow.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_real_pos_overflow.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number real pos overflow",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_real_underflow.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_real_underflow.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number real underflow",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_too_big_neg_int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_too_big_neg_int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number too big neg int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_too_big_pos_int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_too_big_pos_int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number too big pos int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_number_very_big_negative_int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_number_very_big_negative_int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): number very big negative int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_object_key_lone_2nd_surrogate.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_object_key_lone_2nd_surrogate.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): object key lone 2nd surrogate",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_1st_surrogate_but_2nd_missing.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_1st_surrogate_but_2nd_missing.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string 1st surrogate but 2nd missing",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_1st_valid_surrogate_2nd_invalid.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_1st_valid_surrogate_2nd_invalid.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string 1st valid surrogate 2nd invalid",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_UTF-16LE_with_BOM.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_UTF-16LE_with_BOM.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string UTF-16LE with BOM",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_UTF-8_invalid_sequence.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_UTF-8_invalid_sequence.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string UTF-8 invalid sequence",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_UTF8_surrogate_U+D800.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_UTF8_surrogate_U+D800.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string UTF8 surrogate U+D800",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_incomplete_surrogate_and_escape_valid.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_incomplete_surrogate_and_escape_valid.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string incomplete surrogate and escape valid",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_incomplete_surrogate_pair.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_incomplete_surrogate_pair.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string incomplete surrogate pair",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_incomplete_surrogates_escape_valid.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_incomplete_surrogates_escape_valid.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string incomplete surrogates escape valid",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_invalid_lonely_surrogate.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_invalid_lonely_surrogate.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string invalid lonely surrogate",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_invalid_surrogate.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_invalid_surrogate.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string invalid surrogate",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_invalid_utf-8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_invalid_utf-8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string invalid utf-8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_inverted_surrogates_U+1D11E.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_inverted_surrogates_U+1D11E.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string inverted surrogates U+1D11E",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_iso_latin_1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_iso_latin_1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string iso latin 1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_lone_second_surrogate.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_lone_second_surrogate.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string lone second surrogate",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_lone_utf8_continuation_byte.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_lone_utf8_continuation_byte.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string lone utf8 continuation byte",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_not_in_unicode_range.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_not_in_unicode_range.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string not in unicode range",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_overlong_sequence_2_bytes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_overlong_sequence_2_bytes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string overlong sequence 2 bytes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_overlong_sequence_6_bytes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_overlong_sequence_6_bytes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string overlong sequence 6 bytes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_overlong_sequence_6_bytes_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_overlong_sequence_6_bytes_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string overlong sequence 6 bytes null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_truncated-utf-8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_truncated-utf-8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string truncated-utf-8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_utf16BE_no_BOM.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_utf16BE_no_BOM.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string utf16BE no BOM",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_string_utf16LE_no_BOM.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_string_utf16LE_no_BOM.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): string utf16LE no BOM",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_structure_500_nested_arrays.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_structure_500_nested_arrays.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): structure 500 nested arrays",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/i_structure_UTF-8_BOM_empty_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/i_structure_UTF-8_BOM_empty_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (implementation-defined): structure UTF-8 BOM empty object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_1_true_without_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_1_true_without_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array 1 true without comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_a_invalid_utf8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_a_invalid_utf8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array a invalid utf8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_colon_instead_of_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_colon_instead_of_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array colon instead of comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_comma_after_close.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_comma_after_close.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array comma after close",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_comma_and_number.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_comma_and_number.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array comma and number",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_double_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_double_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array double comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_double_extra_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_double_extra_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array double extra comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_extra_close.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_extra_close.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array extra close",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_extra_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_extra_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array extra comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_incomplete.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_incomplete.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array incomplete",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_incomplete_invalid_value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_incomplete_invalid_value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array incomplete invalid value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_inner_array_no_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_inner_array_no_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array inner array no comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_invalid_utf8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_invalid_utf8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array invalid utf8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_items_separated_by_semicolon.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_items_separated_by_semicolon.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array items separated by semicolon",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_just_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_just_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array just comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_just_minus.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_just_minus.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array just minus",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_missing_value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_missing_value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array missing value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_newlines_unclosed.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_newlines_unclosed.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array newlines unclosed",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_number_and_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_number_and_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array number and comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_number_and_several_commas.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_number_and_several_commas.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array number and several commas",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_spaces_vertical_tab_formfeed.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_spaces_vertical_tab_formfeed.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array spaces vertical tab formfeed",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_star_inside.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_star_inside.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array star inside",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_unclosed.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_unclosed.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array unclosed",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_unclosed_trailing_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_unclosed_trailing_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array unclosed trailing comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_unclosed_with_new_lines.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_unclosed_with_new_lines.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array unclosed with new lines",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_array_unclosed_with_object_inside.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_array_unclosed_with_object_inside.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): array unclosed with object inside",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_incomplete_false.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_incomplete_false.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): incomplete false",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_incomplete_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_incomplete_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): incomplete null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_incomplete_true.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_incomplete_true.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): incomplete true",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_multidigit_number_then_00.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_multidigit_number_then_00.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): multidigit number then 00",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_++.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_++.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number ++",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_+1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_+1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number +1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_+Inf.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_+Inf.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number +Inf",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_-01.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_-01.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number -01",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_-1.0..json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_-1.0..json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number -1.0.",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_-2..json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_-2..json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number -2.",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_-NaN.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_-NaN.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number -NaN",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_.-1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_.-1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number .-1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_.2e-3.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_.2e-3.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number .2e-3",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0.1.2.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0.1.2.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0.1.2",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0.3e+.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0.3e+.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0.3e+",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0.3e.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0.3e.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0.3e",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0.e1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0.e1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0.e1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0_capital_E+.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0_capital_E+.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0 capital E+",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0_capital_E.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0_capital_E.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0 capital E",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0e+.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0e+.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0e+",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_0e.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_0e.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 0e",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_1.0e+.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_1.0e+.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 1.0e+",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_1.0e-.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_1.0e-.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 1.0e-",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_1.0e.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_1.0e.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 1.0e",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_1_000.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_1_000.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 1 000",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_1eE2.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_1eE2.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 1eE2",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_2.e+3.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_2.e+3.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 2.e+3",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_2.e-3.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_2.e-3.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 2.e-3",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_2.e3.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_2.e3.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 2.e3",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_9.e+.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_9.e+.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number 9.e+",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_Inf.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_Inf.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number Inf",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_NaN.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_NaN.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number NaN",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_U+FF11_fullwidth_digit_one.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_U+FF11_fullwidth_digit_one.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number U+FF11 fullwidth digit one",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_expression.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_expression.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number expression",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_hex_1_digit.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_hex_1_digit.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number hex 1 digit",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_hex_2_digits.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_hex_2_digits.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number hex 2 digits",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_infinity.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_infinity.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number infinity",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_invalid+-.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_invalid+-.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number invalid+-",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_invalid-negative-real.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_invalid-negative-real.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number invalid-negative-real",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_invalid-utf-8-in-bigger-int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_invalid-utf-8-in-bigger-int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number invalid-utf-8-in-bigger-int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_invalid-utf-8-in-exponent.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_invalid-utf-8-in-exponent.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number invalid-utf-8-in-exponent",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_invalid-utf-8-in-int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_invalid-utf-8-in-int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number invalid-utf-8-in-int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_minus_infinity.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_minus_infinity.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number minus infinity",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_minus_sign_with_trailing_garbage.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_minus_sign_with_trailing_garbage.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number minus sign with trailing garbage",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_minus_space_1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_minus_space_1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number minus space 1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_neg_int_starting_with_zero.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_neg_int_starting_with_zero.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number neg int starting with zero",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_neg_real_without_int_part.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_neg_real_without_int_part.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number neg real without int part",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_neg_with_garbage_at_end.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_neg_with_garbage_at_end.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number neg with garbage at end",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_real_garbage_after_e.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_real_garbage_after_e.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number real garbage after e",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_real_with_invalid_utf8_after_e.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_real_with_invalid_utf8_after_e.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number real with invalid utf8 after e",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_real_without_fractional_part.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_real_without_fractional_part.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number real without fractional part",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_starting_with_dot.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_starting_with_dot.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number starting with dot",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_with_alpha.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_with_alpha.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number with alpha",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_with_alpha_char.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_with_alpha_char.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number with alpha char",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_number_with_leading_zero.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_number_with_leading_zero.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): number with leading zero",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_bad_value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_bad_value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object bad value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_bracket_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_bracket_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object bracket key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_comma_instead_of_colon.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_comma_instead_of_colon.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object comma instead of colon",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_double_colon.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_double_colon.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object double colon",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_emoji.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_emoji.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object emoji",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_garbage_at_end.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_garbage_at_end.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object garbage at end",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_key_with_single_quotes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_key_with_single_quotes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object key with single quotes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_lone_continuation_byte_in_key_and_trailing_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_lone_continuation_byte_in_key_and_trailing_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object lone continuation byte in key and trailing comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_missing_colon.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_missing_colon.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object missing colon",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_missing_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_missing_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object missing key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_missing_semicolon.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_missing_semicolon.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object missing semicolon",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_missing_value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_missing_value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object missing value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_no-colon.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_no-colon.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object no-colon",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_non_string_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_non_string_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object non string key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_non_string_key_but_huge_number_instead.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_non_string_key_but_huge_number_instead.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object non string key but huge number instead",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_repeated_null_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_repeated_null_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object repeated null null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_several_trailing_commas.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_several_trailing_commas.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object several trailing commas",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_single_quote.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_single_quote.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object single quote",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_trailing_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_trailing_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object trailing comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_trailing_comment.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_trailing_comment.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object trailing comment",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_trailing_comment_open.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_trailing_comment_open.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object trailing comment open",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_trailing_comment_slash_open.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_trailing_comment_slash_open.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object trailing comment slash open",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_trailing_comment_slash_open_incomplete.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_trailing_comment_slash_open_incomplete.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object trailing comment slash open incomplete",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_two_commas_in_a_row.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_two_commas_in_a_row.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object two commas in a row",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_unquoted_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_unquoted_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object unquoted key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_unterminated-value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_unterminated-value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object unterminated-value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_with_single_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_with_single_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object with single string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_object_with_trailing_garbage.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_object_with_trailing_garbage.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): object with trailing garbage",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_single_space.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_single_space.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): single space",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_1_surrogate_then_escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_1_surrogate_then_escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string 1 surrogate then escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_1_surrogate_then_escape_u.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_1_surrogate_then_escape_u.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string 1 surrogate then escape u",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_1_surrogate_then_escape_u1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_1_surrogate_then_escape_u1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string 1 surrogate then escape u1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_1_surrogate_then_escape_u1x.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_1_surrogate_then_escape_u1x.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string 1 surrogate then escape u1x",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_accentuated_char_no_quotes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_accentuated_char_no_quotes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string accentuated char no quotes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_backslash_00.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_backslash_00.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string backslash 00",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_escape_x.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_escape_x.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string escape x",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_escaped_backslash_bad.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_escaped_backslash_bad.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string escaped backslash bad",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_escaped_ctrl_char_tab.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_escaped_ctrl_char_tab.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string escaped ctrl char tab",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_escaped_emoji.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_escaped_emoji.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string escaped emoji",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_incomplete_escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_incomplete_escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string incomplete escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_incomplete_escaped_character.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_incomplete_escaped_character.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string incomplete escaped character",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_incomplete_surrogate.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_incomplete_surrogate.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string incomplete surrogate",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_incomplete_surrogate_escape_invalid.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_incomplete_surrogate_escape_invalid.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string incomplete surrogate escape invalid",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_invalid-utf-8-in-escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_invalid-utf-8-in-escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string invalid-utf-8-in-escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_invalid_backslash_esc.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_invalid_backslash_esc.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string invalid backslash esc",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_invalid_unicode_escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_invalid_unicode_escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string invalid unicode escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_invalid_utf8_after_escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_invalid_utf8_after_escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string invalid utf8 after escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_leading_uescaped_thinspace.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_leading_uescaped_thinspace.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string leading uescaped thinspace",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_no_quotes_with_bad_escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_no_quotes_with_bad_escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string no quotes with bad escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_single_doublequote.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_single_doublequote.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string single doublequote",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_single_quote.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_single_quote.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string single quote",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_single_string_no_double_quotes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_single_string_no_double_quotes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string single string no double quotes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_start_escape_unclosed.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_start_escape_unclosed.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string start escape unclosed",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_unescaped_ctrl_char.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_unescaped_ctrl_char.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string unescaped ctrl char",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_unescaped_newline.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_unescaped_newline.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string unescaped newline",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_unescaped_tab.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_unescaped_tab.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string unescaped tab",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_unicode_CapitalU.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_unicode_CapitalU.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string unicode CapitalU",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_string_with_trailing_garbage.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_string_with_trailing_garbage.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): string with trailing garbage",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_100000_opening_arrays.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_100000_opening_arrays.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure 100000 opening arrays",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_U+2060_word_joined.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_U+2060_word_joined.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure U+2060 word joined",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_UTF8_BOM_no_data.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_UTF8_BOM_no_data.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure UTF8 BOM no data",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_angle_bracket_..json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_angle_bracket_..json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure angle bracket .",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_angle_bracket_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_angle_bracket_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure angle bracket null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_array_trailing_garbage.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_array_trailing_garbage.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure array trailing garbage",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_array_with_extra_array_close.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_array_with_extra_array_close.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure array with extra array close",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_array_with_unclosed_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_array_with_unclosed_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure array with unclosed string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_ascii-unicode-identifier.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_ascii-unicode-identifier.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure ascii-unicode-identifier",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_capitalized_True.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_capitalized_True.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure capitalized True",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_close_unopened_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_close_unopened_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure close unopened array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_comma_instead_of_closing_brace.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_comma_instead_of_closing_brace.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure comma instead of closing brace",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_double_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_double_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure double array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_end_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_end_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure end array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_incomplete_UTF8_BOM.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_incomplete_UTF8_BOM.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure incomplete UTF8 BOM",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_lone-invalid-utf-8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_lone-invalid-utf-8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure lone-invalid-utf-8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_lone-open-bracket.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_lone-open-bracket.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure lone-open-bracket",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_no_data.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_no_data.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure no data",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_null-byte-outside-string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_null-byte-outside-string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure null-byte-outside-string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_number_with_trailing_garbage.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_number_with_trailing_garbage.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure number with trailing garbage",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_object_followed_by_closing_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_object_followed_by_closing_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure object followed by closing object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_object_unclosed_no_value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_object_unclosed_no_value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure object unclosed no value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_object_with_comment.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_object_with_comment.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure object with comment",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_object_with_trailing_garbage.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_object_with_trailing_garbage.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure object with trailing garbage",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_array_apostrophe.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_array_apostrophe.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open array apostrophe",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_array_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_array_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open array comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_array_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_array_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open array object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_array_open_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_array_open_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open array open object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_array_open_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_array_open_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open array open string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_array_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_array_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open array string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_object_close_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_object_close_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open object close array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_object_comma.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_object_comma.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open object comma",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_object_open_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_object_open_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open object open array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_object_open_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_object_open_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open object open string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_object_string_with_apostrophes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_object_string_with_apostrophes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open object string with apostrophes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_open_open.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_open_open.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure open open",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_single_eacute.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_single_eacute.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure single eacute",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_single_star.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_single_star.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure single star",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_trailing_#.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_trailing_#.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure trailing #",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_uescaped_LF_before_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_uescaped_LF_before_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure uescaped LF before string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_unclosed_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_unclosed_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure unclosed array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_unclosed_array_partial_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_unclosed_array_partial_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure unclosed array partial null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_unclosed_array_unfinished_false.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_unclosed_array_unfinished_false.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure unclosed array unfinished false",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_unclosed_array_unfinished_true.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_unclosed_array_unfinished_true.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure unclosed array unfinished true",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_unclosed_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_unclosed_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure unclosed object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_unicode-identifier.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_unicode-identifier.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure unicode-identifier",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_whitespace_U+2060_word_joiner.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_whitespace_U+2060_word_joiner.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure whitespace U+2060 word joiner",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/n_structure_whitespace_formfeed.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/n_structure_whitespace_formfeed.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must reject): structure whitespace formfeed",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_arraysWithSpaces.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_arraysWithSpaces.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array arraysWithSpaces",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_empty-string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_empty-string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array empty-string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_empty.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_empty.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array empty",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_ending_with_newline.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_ending_with_newline.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array ending with newline",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_false.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_false.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array false",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_heterogeneous.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_heterogeneous.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array heterogeneous",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_with_1_and_newline.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_with_1_and_newline.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array with 1 and newline",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_with_leading_space.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_with_leading_space.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array with leading space",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_with_several_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_with_several_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array with several null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_array_with_trailing_space.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_array_with_trailing_space.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): array with trailing space",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_0e+1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_0e+1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number 0e+1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_0e1.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_0e1.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number 0e1",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_after_space.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_after_space.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number after space",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_double_close_to_zero.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_double_close_to_zero.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number double close to zero",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_int_with_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_int_with_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number int with exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_minus_zero.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_minus_zero.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number minus zero",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_negative_int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_negative_int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number negative int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_negative_one.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_negative_one.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number negative one",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_negative_zero.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_negative_zero.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number negative zero",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_capital_e.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_capital_e.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real capital e",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_capital_e_neg_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_capital_e_neg_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real capital e neg exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_capital_e_pos_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_capital_e_pos_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real capital e pos exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_exponent.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_exponent.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real exponent",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_fraction_exponent.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_fraction_exponent.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real fraction exponent",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_neg_exp.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_neg_exp.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real neg exp",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_real_pos_exponent.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_real_pos_exponent.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number real pos exponent",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_simple_int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_simple_int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number simple int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_number_simple_real.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_number_simple_real.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): number simple real",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_basic.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_basic.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object basic",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_duplicated_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_duplicated_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object duplicated key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_duplicated_key_and_value.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_duplicated_key_and_value.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object duplicated key and value",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_empty.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_empty.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object empty",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_empty_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_empty_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object empty key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_escaped_null_in_key.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_escaped_null_in_key.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object escaped null in key",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_extreme_numbers.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_extreme_numbers.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object extreme numbers",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_long_strings.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_long_strings.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object long strings",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_simple.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_simple.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object simple",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_string_unicode.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_string_unicode.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object string unicode",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_object_with_newlines.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_object_with_newlines.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): object with newlines",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_1_2_3_bytes_UTF-8_sequences.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_1_2_3_bytes_UTF-8_sequences.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string 1 2 3 bytes UTF-8 sequences",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_accepted_surrogate_pair.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_accepted_surrogate_pair.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string accepted surrogate pair",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_accepted_surrogate_pairs.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_accepted_surrogate_pairs.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string accepted surrogate pairs",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_allowed_escapes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_allowed_escapes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string allowed escapes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_backslash_and_u_escaped_zero.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_backslash_and_u_escaped_zero.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string backslash and u escaped zero",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_backslash_doublequotes.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_backslash_doublequotes.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string backslash doublequotes",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_comments.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_comments.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string comments",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_double_escape_a.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_double_escape_a.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string double escape a",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_double_escape_n.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_double_escape_n.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string double escape n",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_escaped_control_character.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_escaped_control_character.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string escaped control character",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_escaped_noncharacter.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_escaped_noncharacter.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string escaped noncharacter",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_in_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_in_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string in array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_in_array_with_leading_space.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_in_array_with_leading_space.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string in array with leading space",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_last_surrogates_1_and_2.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_last_surrogates_1_and_2.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string last surrogates 1 and 2",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_nbsp_uescaped.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_nbsp_uescaped.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string nbsp uescaped",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_nonCharacterInUTF-8_U+10FFFF.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_nonCharacterInUTF-8_U+10FFFF.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string nonCharacterInUTF-8 U+10FFFF",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_nonCharacterInUTF-8_U+FFFF.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_nonCharacterInUTF-8_U+FFFF.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string nonCharacterInUTF-8 U+FFFF",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_null_escape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_null_escape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string null escape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_one-byte-utf-8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_one-byte-utf-8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string one-byte-utf-8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_pi.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_pi.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string pi",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_reservedCharacterInUTF-8_U+1BFFF.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_reservedCharacterInUTF-8_U+1BFFF.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string reservedCharacterInUTF-8 U+1BFFF",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_simple_ascii.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_simple_ascii.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string simple ascii",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_space.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_space.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string space",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string surrogates U+1D11E MUSICAL SYMBOL G CLEF",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_three-byte-utf-8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_three-byte-utf-8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string three-byte-utf-8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_two-byte-utf-8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_two-byte-utf-8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string two-byte-utf-8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_u+2028_line_sep.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_u+2028_line_sep.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string u+2028 line sep",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_u+2029_par_sep.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_u+2029_par_sep.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string u+2029 par sep",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_uEscape.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_uEscape.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string uEscape",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_uescaped_newline.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_uescaped_newline.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string uescaped newline",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unescaped_char_delete.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unescaped_char_delete.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unescaped char delete",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicodeEscapedBackslash.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicodeEscapedBackslash.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicodeEscapedBackslash",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_2.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_2.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode 2",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_U+10FFFE_nonchar.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_U+10FFFE_nonchar.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode U+10FFFE nonchar",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_U+1FFFE_nonchar.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_U+1FFFE_nonchar.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode U+1FFFE nonchar",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_U+200B_ZERO_WIDTH_SPACE.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_U+200B_ZERO_WIDTH_SPACE.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode U+200B ZERO WIDTH SPACE",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_U+2064_invisible_plus.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_U+2064_invisible_plus.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode U+2064 invisible plus",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_U+FDD0_nonchar.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_U+FDD0_nonchar.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode U+FDD0 nonchar",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_U+FFFE_nonchar.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_U+FFFE_nonchar.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode U+FFFE nonchar",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_unicode_escaped_double_quote.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_unicode_escaped_double_quote.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string unicode escaped double quote",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_utf8.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_utf8.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string utf8",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_string_with_del_character.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_string_with_del_character.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): string with del character",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_lonely_false.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_lonely_false.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure lonely false",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_lonely_int.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_lonely_int.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure lonely int",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_lonely_negative_real.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_lonely_negative_real.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure lonely negative real",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_lonely_null.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_lonely_null.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure lonely null",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_lonely_string.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_lonely_string.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure lonely string",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_lonely_true.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_lonely_true.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure lonely true",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_string_empty.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_string_empty.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure string empty",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_trailing_newline.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_trailing_newline.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure trailing newline",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_true_in_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_true_in_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure true in array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "JSONTestSuite/y_structure_whitespace_array.json",
+      "origin": "https://raw.githubusercontent.com/nst/JSONTestSuite/master/test_parsing/y_structure_whitespace_array.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JSON layer (must accept): structure whitespace array",
+      "oracle": "JSONTestSuite-prefix",
+      "expected": {
+        "outcome": "any",
+        "forbidCodes": [
+          "E_SYNTAX",
+          "E_EMPTY_INPUT"
+        ]
+      }
+    },
+    {
+      "file": "jgf/car_graphs.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/car_graphs.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 graphs array of two graphs; import() reads the first and warns, importAllGraphs() returns both",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "nissan",
+          "infiniti",
+          "toyota",
+          "lexus"
+        ],
+        "labels": [
+          "Nissan",
+          "Infiniti",
+          "Toyota"
+        ],
+        "edgeChecks": [
+          {
+            "source": "nissan",
+            "target": "infiniti"
+          },
+          {
+            "source": "toyota",
+            "target": "lexus"
+          }
+        ],
+        "graphs": 2,
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "jgf/empty_test.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/empty_test.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 graph with no nodes and no edges",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [],
+        "labels": [],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "jgf/hyper-directed.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/hyper-directed.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 directed hyperedges (skipped by default with a warning)",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "labels": [],
+        "edgeChecks": [],
+        "warnings": [
+          "W_HYPEREDGES_SKIPPED"
+        ]
+      }
+    },
+    {
+      "file": "jgf/hyper-undirected.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/hyper-undirected.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 undirected hyperedges (skipped by default with a warning)",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "labels": [],
+        "edgeChecks": [],
+        "warnings": [
+          "W_HYPEREDGES_SKIPPED"
+        ]
+      }
+    },
+    {
+      "file": "jgf/les_miserables.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/les_miserables.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 real dataset, nodes keyed by id, metadata",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "directed": true,
+        "nodeIds": [
+          "Myriel",
+          "Napoleon",
+          "Mlle.Baptistine",
+          "Mme.Magloire",
+          "CountessdeLo"
+        ],
+        "labels": [
+          "Myriel",
+          "Napoleon",
+          "Mlle.Baptistine"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Napoleon",
+            "target": "Myriel"
+          },
+          {
+            "source": "Mlle.Baptistine",
+            "target": "Myriel"
+          },
+          {
+            "source": "Mme.Magloire",
+            "target": "Myriel"
+          }
+        ]
+      }
+    },
+    {
+      "file": "jgf/test.network.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/test.network.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 network with metadata on nodes and edges",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 8,
+        "directed": true,
+        "nodeIds": [
+          "p(HGNC:LTA)",
+          "r(HGNC:IFNG)",
+          "bp(GO:\"T-helper 1 type immune response\")",
+          "r(HGNC:LTA)",
+          "r(HGNC:IL2)"
+        ],
+        "labels": [
+          "p(HGNC:LTA)",
+          "r(HGNC:IFNG)",
+          "bp(GO:\"T-helper 1 type immune response\")"
+        ],
+        "edgeChecks": [
+          {
+            "source": "r(HGNC:IL2)",
+            "target": "p(HGNC:IL2)"
+          },
+          {
+            "source": "p(HGNC:LTA)",
+            "target": "bp(GO:\"T-helper 1 type immune response\")"
+          },
+          {
+            "source": "p(HGNC:IFNG)",
+            "target": "bp(GO:\"T-helper 1 type immune response\")"
+          }
+        ]
+      }
+    },
+    {
+      "file": "jgf/usual_suspects.json",
+      "origin": "https://raw.githubusercontent.com/jsongraph/json-graph-specification/master/examples/usual_suspects.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "JGF v2 small graph with labels and relations",
+      "oracle": "python-json-jgf",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "Roger Kint",
+          "Keyser S\u00f6ze"
+        ],
+        "labels": [
+          "Roger Kint",
+          "Keyser S\u00f6ze"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Roger Kint",
+            "target": "Keyser S\u00f6ze"
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/karate.node_link.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py)",
+      "license": "BSD-3-Clause (networkx output; karate data public)",
+      "version": "networkx 3.1",
+      "exercises": "node_link_data with the 'links' key (networkx <= 3.5), weights, a club attribute",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 4
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 5
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 3
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "club",
+            "value": "Mr. Hi"
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/multidigraph.node_link.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py)",
+      "license": "BSD-3-Clause (networkx output; karate data public)",
+      "version": "networkx 3.1",
+      "exercises": "node_link_data of a MultiDiGraph: parallel edges with keys, a self-loop",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "b"
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/nan-inf-bigint-tuple.node_link.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py)",
+      "license": "BSD-3-Clause (networkx output; karate data public)",
+      "version": "networkx 3.1",
+      "exercises": "NaN / Infinity literals Python writes, 2^64+1, a tuple node id, both 1 and \"1\" as ids",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 3,
+        "directed": false,
+        "nodeIds": [
+          1,
+          "1",
+          2,
+          3,
+          "[0,1]"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": "1"
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      },
+      "knownFailure": "NaN / Infinity literals written by networkx are rejected (sources.md 8.4 JSON layer)"
+    },
+    {
+      "file": "networkx/karate.adjacency.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py)",
+      "license": "BSD-3-Clause (networkx output; karate data public)",
+      "version": "networkx 3.1",
+      "exercises": "adjacency_data dialect",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 4
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 5
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 3
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "club",
+            "value": "Mr. Hi"
+          }
+        ]
+      },
+      "knownFailure": "networkx adjacency_data / tree_data not supported (sources.md 8.4 other dialects)"
+    },
+    {
+      "file": "networkx/karate.cytoscape.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py)",
+      "license": "BSD-3-Clause (networkx output; karate data public)",
+      "version": "networkx 3.1",
+      "exercises": "cytoscape_data dialect (elements with data, directed flag)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 4
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 5
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 3
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "club",
+            "value": "Mr. Hi"
+          }
+        ]
+      },
+      "knownFailure": "networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape)"
+    },
+    {
+      "file": "networkx/tree.tree_data.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py)",
+      "license": "BSD-3-Clause (networkx output; karate data public)",
+      "version": "networkx 3.1",
+      "exercises": "tree_data dialect (nested id / children)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 3,
+            "target": 4
+          }
+        ]
+      },
+      "knownFailure": "networkx adjacency_data / tree_data not supported (sources.md 8.4 other dialects)"
+    },
+    {
+      "file": "networkx/karate.node_link-edges.json",
+      "origin": "generated locally with networkx 3.1 json_graph (tmp/format-conformance/gen-networkx-fixtures.py), 'links' renamed to 'edges' as networkx >= 3.6 writes",
+      "license": "BSD-3-Clause (networkx output)",
+      "version": "networkx 3.1 + rename",
+      "exercises": "node_link_data with the 'edges' key (networkx >= 3.6)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 4
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 5
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 3
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "club",
+            "value": "Mr. Hi"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/abcde.json",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape.js/unstable/benchmark/graphs/abcde.json",
+      "license": "MIT",
+      "version": "unstable branch, retrieved 2026-09-23",
+      "exercises": "Cytoscape.js top-level {nodes, edges} of {data} elements",
+      "oracle": "python-json-cytoscape",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 7,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "e"
+          },
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "e"
+          }
+        ]
+      },
+      "knownFailure": "top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape)"
+    },
+    {
+      "file": "cytoscape/gal.json",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape.js/unstable/debug/gal.json",
+      "license": "MIT",
+      "version": "unstable branch, retrieved 2026-09-23",
+      "exercises": "Cytoscape.js Cytoscape desktop export shape: top-level {nodes, edges} with data, SUIDs, many typed attributes",
+      "oracle": "python-json-cytoscape",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 331,
+        "edges": 362,
+        "nodeIds": [
+          "392",
+          "391",
+          "390",
+          "389",
+          "388"
+        ],
+        "edgeChecks": [
+          {
+            "source": "392",
+            "target": "391"
+          },
+          {
+            "source": "391",
+            "target": "379"
+          },
+          {
+            "source": "390",
+            "target": "389"
+          }
+        ]
+      },
+      "knownFailure": "top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape)"
+    },
+    {
+      "file": "cytoscape/network-compound-nodes.json",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape.js/unstable/debug/webgl/network-compound-nodes.json",
+      "license": "MIT",
+      "version": "unstable branch, retrieved 2026-09-23",
+      "exercises": "Cytoscape.js elements with compound parents and positions",
+      "oracle": "python-json-cytoscape",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 2,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "d"
+          },
+          {
+            "source": "e",
+            "target": "b"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "role": "position",
+            "value": [
+              215,
+              85,
+              0
+            ]
+          },
+          {
+            "id": "c",
+            "role": "position",
+            "value": [
+              300,
+              85,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/network-images.json",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape.js/unstable/debug/webgl/network-images.json",
+      "license": "MIT",
+      "version": "unstable branch, retrieved 2026-09-23",
+      "exercises": "Cytoscape.js elements with style and image data",
+      "oracle": "python-json-cytoscape",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 10,
+        "nodeIds": [
+          "n1",
+          "n2",
+          "n3",
+          "n4",
+          "n5"
+        ],
+        "edgeChecks": [
+          {
+            "source": "n1",
+            "target": "n2"
+          },
+          {
+            "source": "n1",
+            "target": "n3"
+          },
+          {
+            "source": "n1",
+            "target": "n4"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "n1",
+            "role": "position",
+            "value": [
+              -29,
+              26,
+              0
+            ]
+          },
+          {
+            "id": "n2",
+            "role": "position",
+            "value": [
+              77,
+              -15,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape/desktop-export.cyjs",
+      "origin": "authored from the Cytoscape manual's .cyjs description (tmp/format-conformance/cyjs.txt)",
+      "license": "MIT (authored)",
+      "version": "Cytoscape 3.10 .cyjs shape",
+      "exercises": "Cytoscape desktop .cyjs: format_version, generated_by, data, elements; data.id is the SUID as a string; one position with z",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "104",
+          "106",
+          "108"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "104",
+            "role": "position",
+            "value": [
+              10.5,
+              -3.0,
+              0
+            ]
+          },
+          {
+            "id": "108",
+            "role": "position",
+            "value": [
+              5.0,
+              90.0,
+              7.5
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": "104",
+            "target": "106"
+          },
+          {
+            "source": "106",
+            "target": "108"
+          }
+        ]
+      },
+      "knownFailure": "Cytoscape position.z ignored (sources.md 8.4 Cytoscape)"
+    },
+    {
+      "file": "cytoscape/flat-array.json",
+      "origin": "authored from the Cytoscape.js elements documentation (https://js.cytoscape.org/)",
+      "license": "MIT (authored)",
+      "version": "cytoscape.js 3.x docs",
+      "exercises": "Cytoscape.js flat element array with group",
+      "oracle": "python-json-cytoscape",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          }
+        ]
+      }
+    },
+    {
+      "file": "d3/vega-miserables.json",
+      "origin": "https://raw.githubusercontent.com/vega/vega-datasets/main/data/miserables.json",
+      "license": "BSD-3-Clause (vega-datasets); data Knuth Stanford GraphBase",
+      "version": "main branch, retrieved 2026-09-23",
+      "exercises": "d3 force shape, links by node INDEX, value weights, nodes identified by name",
+      "oracle": "python-json-d3",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "nodeIds": [
+          "Myriel",
+          "Napoleon",
+          "Mlle.Baptistine",
+          "Mme.Magloire",
+          "CountessdeLo"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Napoleon",
+            "target": "Myriel"
+          },
+          {
+            "source": "Mlle.Baptistine",
+            "target": "Myriel"
+          },
+          {
+            "source": "Mme.Magloire",
+            "target": "Myriel"
+          }
+        ]
+      }
+    },
+    {
+      "file": "d3/mbostock-miserables.json",
+      "origin": "https://gist.githubusercontent.com/mbostock/4062045/raw/miserables.json",
+      "license": "GPL-3.0 per bl.ocks convention (uncertain); data Knuth; test-only",
+      "version": "gist 4062045, retrieved 2026-09-23",
+      "exercises": "d3 force shape, links by node ID",
+      "oracle": "python-json-d3",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "nodeIds": [
+          "Myriel",
+          "Napoleon",
+          "Mlle.Baptistine",
+          "Mme.Magloire",
+          "CountessdeLo"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Napoleon",
+            "target": "Myriel"
+          },
+          {
+            "source": "Mlle.Baptistine",
+            "target": "Myriel"
+          },
+          {
+            "source": "Mme.Magloire",
+            "target": "Myriel"
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/eurosis-400.json",
+      "origin": "https://raw.githubusercontent.com/graphology/graphology/master/src/communities-louvain/test/datasets/eurosis.json (first 400 nodes and the edges among them)",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "graphology serialisation {attributes, nodes:[{key, attributes}], edges:[{source, target}]} from a Gephi export, no options (graphology default: mixed, edges directed)",
+      "oracle": "python-json-graphology",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 400,
+        "edges": 670,
+        "directed": true,
+        "nodeIds": [
+          "2",
+          "4",
+          "5",
+          "6",
+          "8"
+        ],
+        "edgeChecks": [
+          {
+            "source": "4",
+            "target": "164"
+          },
+          {
+            "source": "6",
+            "target": "258"
+          },
+          {
+            "source": "6",
+            "target": "477"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "2",
+            "column": "label",
+            "value": "FP7 in Bulgaria"
+          },
+          {
+            "id": "4",
+            "column": "label",
+            "value": "ADRECA - Association pour le d\u00c3\u00a9veloppement d'une recherche citoyenne active (Grenoble)"
+          },
+          {
+            "id": "5",
+            "column": "label",
+            "value": "Institute of Archaeology and Museum at the Bulgarian Academy of Sciences "
+          }
+        ]
+      }
+    },
+    {
+      "file": "sigma/clique3.json",
+      "origin": "https://raw.githubusercontent.com/graphology/graphology/master/src/communities-louvain/test/datasets/clique3.json",
+      "license": "MIT",
+      "version": "master branch, retrieved 2026-09-23",
+      "exercises": "Gephi JSON exporter / sigma.js shape: id, label, x, y, size, color rgb(), attributes",
+      "oracle": "python-json-sigma",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 21,
+        "nodeIds": [
+          "6",
+          "9",
+          "0",
+          "4",
+          "11"
+        ],
+        "edgeChecks": [
+          {
+            "source": "1",
+            "target": "2"
+          },
+          {
+            "source": "6",
+            "target": "7"
+          },
+          {
+            "source": "2",
+            "target": "3"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "6",
+            "column": "label",
+            "value": "7"
+          },
+          {
+            "id": "9",
+            "column": "label",
+            "value": "10"
+          },
+          {
+            "id": "0",
+            "column": "label",
+            "value": "1"
+          },
+          {
+            "id": "6",
+            "role": "position",
+            "value": [
+              -7.354604244232178,
+              3.655773639678955,
+              0
+            ]
+          },
+          {
+            "id": "9",
+            "role": "position",
+            "value": [
+              209.4161376953125,
+              181.29530334472656,
+              0
+            ]
+          }
+        ]
+      },
+      "knownFailure": "Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects)"
+    },
+    {
+      "file": "graphology/mixed-multi.json",
+      "origin": "authored from https://graphology.github.io/serialization.html",
+      "license": "MIT (authored)",
+      "version": "graphology 0.25 serialisation spec",
+      "exercises": "graphology options type mixed / multi, a parallel edge, an undirected edge in a mixed graph, a self-loop, edge keys, weight attribute",
+      "oracle": "python-json-graphology",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "x",
+          "y",
+          "z"
+        ],
+        "edgeChecks": [
+          {
+            "source": "x",
+            "target": "y",
+            "weight": 2.5
+          },
+          {
+            "source": "x",
+            "target": "y"
+          },
+          {
+            "source": "y",
+            "target": "z"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "x",
+            "column": "label",
+            "value": "X"
+          },
+          {
+            "id": "y",
+            "column": "label",
+            "value": "Y"
+          }
+        ]
+      }
+    },
+    {
+      "file": "vis/network.json",
+      "origin": "authored from https://visjs.github.io/vis-network/docs/network/",
+      "license": "MIT (authored)",
+      "version": "vis-network 9 docs",
+      "exercises": "vis-network {nodes:[{id,label,x,y}], edges:[{from,to,arrows}]}",
+      "oracle": "python-json-vis",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 2,
+            "target": 3
+          },
+          {
+            "source": 3,
+            "target": 1
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "label",
+            "value": "Node 1"
+          },
+          {
+            "id": 2,
+            "column": "label",
+            "value": "Node 2"
+          },
+          {
+            "id": 3,
+            "column": "label",
+            "value": "Node 3"
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              100,
+              50,
+              0
+            ]
+          }
+        ]
+      },
+      "knownFailure": "vis x / y not mapped to position (sources.md 8.4 other dialects)"
+    },
+    {
+      "file": "authored/utf16le-bom.json",
+      "origin": "authored for this suite",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "exercises": "UTF-16LE with a BOM (RFC 8259 allows a reader to accept it; Excel / Windows tools write it)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "label",
+            "value": "caf\u00e9"
+          },
+          {
+            "id": "b",
+            "column": "label",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16be-bom.json",
+      "origin": "authored for this suite",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "exercises": "UTF-16BE with a BOM",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "label",
+            "value": "caf\u00e9"
+          },
+          {
+            "id": "b",
+            "column": "label",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf8-bom.json",
+      "origin": "authored for this suite",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "exercises": "UTF-8 with a BOM and a non-ASCII label",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "label",
+            "value": "caf\u00e9"
+          },
+          {
+            "id": "b",
+            "column": "label",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/windows-1252.json",
+      "origin": "authored for this suite",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "exercises": "windows-1252 bytes (0xE9, 0x80) that are not valid UTF-8: decoded as windows-1252 with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "label",
+            "value": "caf\u00e9 \u20ac"
+          },
+          {
+            "id": "b",
+            "column": "label",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-explicit-encoding.json",
+      "origin": "authored for this suite",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "exercises": "ISO-8859-1 bytes read with the explicit encoding option (no fallback warning)",
+      "oracle": "spec",
+      "options": {
+        "encoding": "iso-8859-1"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "label",
+            "value": "caf\u00e9"
+          },
+          {
+            "id": "b",
+            "column": "label",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/links-and-edges.json",
+      "origin": "authored for this suite",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "exercises": "node-link document with BOTH a links and an edges array: neither may be dropped silently (read both)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      },
+      "knownFailure": "links silently dropped when edges is also present (sources.md 8.4 node-link)"
+    }
+  ]
+}

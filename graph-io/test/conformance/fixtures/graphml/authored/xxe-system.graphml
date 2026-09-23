@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE graphml [
+ <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<key id="d0" for="node" attr.name="label" attr.type="string"/>
+<graph edgedefault="directed">
+<node id="n0"><data key="d0">&xxe;</data></node>
+</graph>
+</graphml>

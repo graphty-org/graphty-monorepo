@@ -1,0 +1,2419 @@
+{
+  "format": "gexf",
+  "description": "GEXF 1.0, 1.1draft, 1.2draft and 1.3 files from Gephi, gexf.net, graphology, gexf4j, OGDF, Tulip and networkx, plus authored XML-layer cases (encodings, entity attacks, empty graphs, namespace variants). Subsampled datasets keep the first N nodes and the edges among them.",
+  "fixtures": [
+    {
+      "file": "gephi-tests/basic.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/basic.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: minimal 1.2draft directed graph",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/data.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/data.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: typed attributes, a boolean <default>, self-loop",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "url",
+            "value": "http://gephi.org"
+          },
+          {
+            "id": 0,
+            "column": "indegree",
+            "value": 1
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0
+        ],
+        "labels": [
+          "Node1"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/dynamicedgeweight.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/dynamicedgeweight.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: 1.3 dynamic edge weight (timed weight attvalues)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/infinity.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/infinity.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: INF / -INF attribute values",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          0
+        ],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "gephi-tests/meta.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/meta.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: meta only, no <graph> element (schema requires one)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_NO_GRAPH"
+      }
+    },
+    {
+      "file": "gephi-tests/slice.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/slice.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: 1.3 mode=\"slice\", timerepresentation timestamp, <attvalue> without <attvalues> wrapper",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "Node 1",
+          "Node 2"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/timezone.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/timezone.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: 1.3 timezone attribute on <graph>",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/zeroweight.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/gexf/zeroweight.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi importer test: weight=\"0\" edge",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/exporter-includenullattvalues.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ExportPlugin/src/test/resources/org/gephi/io/exporter/plugin/gexf/includenullattvalues.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi exporter output: 1.3 attvalue value=\"null\" for a double",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-tests/exporter-infinity.gexf",
+      "origin": "https://github.com/gephi/gephi/blob/master/modules/ExportPlugin/src/test/resources/org/gephi/io/exporter/plugin/gexf/infinity.gexf",
+      "license": "GPL-3.0 (Gephi dual CDDL-1.0/GPL-3.0; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi exporter output: 1.3 Infinity values",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-toolkit-demos/timeframe1.gexf",
+      "origin": "https://github.com/gephi/gephi-toolkit-demos/blob/master/src/main/resources/org/gephi/toolkit/demos/timeframe1.gexf",
+      "license": "no licence file in the repository (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi toolkit demo: 1.3 slice mode with per-node timed values",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "labels": [
+          "Node 1",
+          "Node 2",
+          "Node 3"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-toolkit-demos/timeframe2.gexf",
+      "origin": "https://github.com/gephi/gephi-toolkit-demos/blob/master/src/main/resources/org/gephi/toolkit/demos/timeframe2.gexf",
+      "license": "no licence file in the repository (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi toolkit demo: 1.3 slice mode",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          4
+        ],
+        "labels": [
+          "Node 1",
+          "Node 2",
+          "Node 4"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 4.0
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-toolkit-demos/timeframe3.gexf",
+      "origin": "https://github.com/gephi/gephi-toolkit-demos/blob/master/src/main/resources/org/gephi/toolkit/demos/timeframe3.gexf",
+      "license": "no licence file in the repository (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi toolkit demo: 1.3 slice mode",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          3,
+          4
+        ],
+        "labels": [
+          "Node 1",
+          "Node 3",
+          "Node 4"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 5.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf4j/dynamicGraph.gexf",
+      "origin": "https://github.com/francesco-ficarola/gexf4j/blob/master/src/test/resources/dynamicGraph.gexf",
+      "license": "Apache-2.0",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf4j writer: 1.2draft dynamic graph with dateTime spells",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 6,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf4j/staticGraph.gexf",
+      "origin": "https://github.com/francesco-ficarola/gexf4j/blob/master/src/test/resources/staticGraph.gexf",
+      "license": "Apache-2.0",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf4j writer: static graph with parallel edges and viz",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf4j/testStaticUtf.gexf",
+      "origin": "https://github.com/francesco-ficarola/gexf4j/blob/master/src/test/resources/testStaticUtf.gexf",
+      "license": "Apache-2.0",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf4j writer: non-ASCII (UTF-8) labels",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Tadas \u0160ubonis",
+          "\u0105\u010d\u010d\u0117\u0119\u012f\u0173\u0161\u016b"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/basic.gexf",
+      "origin": "https://gexf.net/data/basic.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net basic sample (1.3 namespace)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/celegans.gexf",
+      "origin": "https://gexf.net/data/celegans.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net C. elegans dataset (real data, 1.3)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 306,
+        "edges": 2345,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          10
+        ],
+        "labels": [
+          "1",
+          "2",
+          "11"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 157
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/data.gexf",
+      "origin": "https://gexf.net/data/data.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net data sample: attributes with defaults and options",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/dynamics.gexf",
+      "origin": "https://gexf.net/data/dynamics.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net dynamics sample: spells, start/end, timed attvalues",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Network",
+          "Visualization"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/hello-world.gexf",
+      "origin": "https://gexf.net/data/hello-world.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net hello world",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/hierarchy1.gexf",
+      "origin": "https://gexf.net/data/hierarchy1.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net hierarchy: nested <nodes>",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "labels": [
+          "Kevin Bacon",
+          "God",
+          "human1"
+        ],
+        "edgeChecks": [
+          {
+            "source": "b",
+            "target": "e"
+          },
+          {
+            "source": "c",
+            "target": "d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/hierarchy4.gexf",
+      "origin": "https://gexf.net/data/hierarchy4.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net hierarchy: pid attributes",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "g",
+          "a",
+          "c"
+        ],
+        "labels": [
+          "frog2",
+          "Kevin Bacon",
+          "human1"
+        ],
+        "edgeChecks": [
+          {
+            "source": "b",
+            "target": "e"
+          },
+          {
+            "source": "c",
+            "target": "d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/phylogeny.gexf",
+      "origin": "https://gexf.net/data/phylogeny.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net phylogeny: <parents><parent for>",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "labels": [
+          "cheese",
+          "cherry",
+          "cake"
+        ],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "gexf.net/viz.gexf",
+      "origin": "https://gexf.net/data/viz.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "gexf.net viz sample: color, position, size, shape",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a"
+        ],
+        "labels": [
+          "glossy"
+        ],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "gexf.net/WebAtlas_EuroSiS-subsample.gexf",
+      "origin": "https://gexf.net/data/WebAtlas_EuroSiS.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "WebAtlas EuroSiS (first 60 nodes and the edges among them): 1.1draft with the \"http://gexf.net/1.1draft\" (no www) namespace, many string attributes",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 60,
+        "edges": 26,
+        "directed": false,
+        "nodeIds": [
+          10,
+          1002,
+          1003
+        ],
+        "labels": [
+          "Astronomical Institute",
+          "CCSTI La Turbine Rh\u00f4ne-Alpes ",
+          "Laurea University of Applied Sciences "
+        ],
+        "edgeChecks": [
+          {
+            "source": 1007,
+            "target": 1006
+          },
+          {
+            "source": 1013,
+            "target": 1020
+          }
+        ]
+      }
+    },
+    {
+      "file": "gexf.net/yeast-subsample.gexf",
+      "origin": "https://gexf.net/data/yeast.gexf",
+      "license": "CC-BY-SA-3.0 (gexf.net site); dataset terms unstated (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "yeast (first 150 nodes and the edges among them): real dataset with viz",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 150,
+        "edges": 302,
+        "directed": false,
+        "nodeIds": [
+          4941,
+          4942,
+          4943
+        ],
+        "labels": [
+          "YBR236C",
+          "YOR151C",
+          "YML010W"
+        ],
+        "edgeChecks": [
+          {
+            "source": 4941,
+            "target": 4941
+          },
+          {
+            "source": 4941,
+            "target": 4942
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/basic.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/basic.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: 1.2draft with mixed edge types, attributes, viz",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "Suzy",
+          "John"
+        ],
+        "labels": [
+          "Suzy, Ghost",
+          "John, Appleseed"
+        ],
+        "edgeChecks": [
+          {
+            "source": "John",
+            "target": "Suzy"
+          },
+          {
+            "source": "John",
+            "target": "Suzy"
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/basic_formatted.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/basic_formatted.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: same graph, indented",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "Suzy",
+          "John"
+        ],
+        "labels": [
+          "(Node) - Suzy, Ghost",
+          "(Node) - John, Appleseed"
+        ],
+        "edgeChecks": [
+          {
+            "source": "John",
+            "target": "Suzy"
+          },
+          {
+            "source": "John",
+            "target": "Suzy"
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/case.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/case.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: case sensitivity of ids and attributes",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 20,
+        "directed": true,
+        "nodeIds": [
+          "5362389af1e6696e0395863f",
+          "5362389af1e6696e0395864e",
+          "5362389af1e6696e03958642"
+        ],
+        "labels": [
+          "1",
+          "2",
+          "3"
+        ],
+        "edgeChecks": [
+          {
+            "source": "5362389af1e6696e0395863f",
+            "target": "5362389af1e6696e03958645"
+          },
+          {
+            "source": "5362389af1e6696e0395863f",
+            "target": "5362389af1e6696e0395864e"
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/data.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/data.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: typed attributes",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/edge_data.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/edge_data.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: edge attributes",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/edge_viz.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/edge_viz.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: edge viz (color, thickness, shape)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "0.0",
+          "1.0"
+        ],
+        "labels": [
+          "Myriel",
+          "Napoleon"
+        ],
+        "edgeChecks": [
+          {
+            "source": "1.0",
+            "target": "0.0"
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/les_miserables.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/les_miserables.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: Les Miserables real dataset with viz",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "directed": true,
+        "nodeIds": [
+          "0.0",
+          "1.0",
+          "2.0"
+        ],
+        "labels": [
+          "Myriel",
+          "Napoleon",
+          "MlleBaptistine"
+        ],
+        "edgeChecks": [
+          {
+            "source": "1.0",
+            "target": "0.0"
+          },
+          {
+            "source": "2.0",
+            "target": "0.0",
+            "weight": 8.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/liststring.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/liststring.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: 1.2 liststring (pipe-separated)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/minimal.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/minimal.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: minimal file",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/missing_nodes.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/missing_nodes.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: edges to undeclared nodes (strict default: error, edge skipped)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "code": "E_UNKNOWN_NODE",
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/mixed.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/mixed.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: directed default with one undirected edge (mixed direction)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "labels": [
+          "one",
+          "two",
+          "three"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 4.56
+          }
+        ]
+      }
+    },
+    {
+      "file": "graphology/pedantic.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/pedantic.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: empty graph, broken viz namespace http:///www",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "graphology/sanitized.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/sanitized.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: sanitized meta",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "graphology/undeclared_attribute.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/undeclared_attribute.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: attvalue for an undeclared attribute (right: warn and keep)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "warnings": [
+          "W_GEXF_UNKNOWN_ATTRIBUTE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "url",
+            "value": "http://gephi.org"
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Gephi",
+          "Nansi"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      },
+      "knownFailure": "undeclared attvalue dropped instead of kept with a warning (sources.md 1.4 Attributes)"
+    },
+    {
+      "file": "graphology/v1_3.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/v1_3.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology resource: 1.3 list syntaxes (brackets, quotes, escaped quote), listboolean, listfloat, hex colour, edge kind",
+      "oracle": "gexf-structure",
+      "expected": {
+        "nodeAttrs": [
+          {
+            "id": "Suzy",
+            "column": "raw",
+            "value": [
+              "a",
+              "b",
+              "c"
+            ]
+          },
+          {
+            "id": "Suzy",
+            "column": "single",
+            "value": [
+              "a",
+              "'b'",
+              "c"
+            ]
+          },
+          {
+            "id": "Suzy",
+            "column": "double",
+            "value": [
+              "a",
+              "b",
+              "c"
+            ]
+          },
+          {
+            "id": "Suzy",
+            "column": "mixed",
+            "value": [
+              "a",
+              "b",
+              "c"
+            ]
+          },
+          {
+            "id": "Suzy",
+            "column": "booleans",
+            "value": [
+              true,
+              false,
+              false
+            ]
+          },
+          {
+            "id": "Suzy",
+            "column": "numbers",
+            "value": [
+              1,
+              1.5,
+              2
+            ]
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "Suzy",
+          "John"
+        ],
+        "labels": [
+          "Suzy",
+          "John"
+        ],
+        "edgeChecks": [
+          {
+            "source": "John",
+            "target": "Suzy"
+          }
+        ]
+      },
+      "knownFailure": "1.3 list with an escaped quote misparsed (sources.md 1.4 Attributes)"
+    },
+    {
+      "file": "graphology/v1_3_writer.gexf",
+      "origin": "https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/v1_3_writer.gexf",
+      "license": "MIT",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "graphology writer output (1.3)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "john",
+          "suzy"
+        ],
+        "edgeChecks": [
+          {
+            "source": "john",
+            "target": "suzy"
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/color.gexf",
+      "origin": "https://github.com/ogdf/ogdf/blob/master/test/resources/fileformats/gexf/valid/color.gexf",
+      "license": "GPL-2.0-or-GPL-3.0 (OGDF; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF test: viz colour",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a"
+        ],
+        "labels": [
+          "glossy"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "a"
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/hierarchy.gexf",
+      "origin": "https://github.com/ogdf/ogdf/blob/master/test/resources/fileformats/gexf/valid/hierarchy.gexf",
+      "license": "GPL-2.0-or-GPL-3.0 (OGDF; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF test: hierarchy",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "c",
+          "d",
+          "b"
+        ],
+        "labels": [
+          "human1",
+          "human2",
+          "God"
+        ],
+        "edgeChecks": [
+          {
+            "source": "c",
+            "target": "d"
+          },
+          {
+            "source": "b",
+            "target": "e"
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/metadata.gexf",
+      "origin": "https://github.com/ogdf/ogdf/blob/master/test/resources/fileformats/gexf/valid/metadata.gexf",
+      "license": "GPL-2.0-or-GPL-3.0 (OGDF; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF test: meta block and attributes",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Gephi",
+          "Webatlas",
+          "RTGI"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/simple.gexf",
+      "origin": "https://github.com/ogdf/ogdf/blob/master/test/resources/fileformats/gexf/valid/simple.gexf",
+      "license": "GPL-2.0-or-GPL-3.0 (OGDF; test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF test: simple graph",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "tulip/hierarchy2.gexf",
+      "origin": "https://github.com/Tulip-Dev/tulip/blob/master/tests/plugins/data/hierarchy2.gexf",
+      "license": "LGPL-3.0 (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Tulip test: nested hierarchy without edges",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "c",
+          "d",
+          "b"
+        ],
+        "labels": [
+          "human1",
+          "human2",
+          "God"
+        ],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "tulip/hierarchy3.gexf",
+      "origin": "https://github.com/Tulip-Dev/tulip/blob/master/tests/plugins/data/hierarchy3.gexf",
+      "license": "LGPL-3.0 (test-only)",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Tulip test: nested hierarchy with edges",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "labels": [
+          "Kevin Bacon",
+          "God",
+          "human1"
+        ],
+        "edgeChecks": [
+          {
+            "source": "b",
+            "target": "e"
+          },
+          {
+            "source": "c",
+            "target": "d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "primer/simple-1.3.gexf",
+      "origin": "https://github.com/gephi/gexf/blob/master/primer/1.3/simple.gexf",
+      "license": "CC-BY-4.0",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "GEXF 1.3 primer example",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "Hello",
+          "Word"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi-datasets/diseasome.gexf",
+      "origin": "https://docs.gephi.org/desktop/User_Manual/Datasets/ (diseasome.gexf)",
+      "license": "unstated (test-only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Gephi dataset diseasome: GEXF 1.0 namespace, <attvalue id=> instead of for=, pid=\"0\" naming no node (1419 times; right: warning, not failure)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "nodeAttrs": [
+          {
+            "id": 30,
+            "column": "type",
+            "value": "disease"
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 1419,
+        "edges": 3926,
+        "directed": false,
+        "nodeIds": [
+          30,
+          36,
+          37
+        ],
+        "labels": [
+          "Alzheimer disease",
+          "Cerebral amyloid angiopathy",
+          "Coronary artery disease"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1285,
+            "target": 3211
+          },
+          {
+            "source": 468,
+            "target": 2914
+          }
+        ]
+      },
+      "knownFailure": "pid naming a missing node is an error, not a warning (sources.md 1.4 Hierarchy)"
+    },
+    {
+      "file": "gephi-datasets/photoviz-dynamic.gexf",
+      "origin": "https://docs.gephi.org/desktop/User_Manual/Datasets/ (photoviz-dynamic.gexf)",
+      "license": "unstated (test-only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Gephi dataset photoviz: 1.1draft dynamic graph",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 393,
+        "edges": 623,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "bin.photoviz.photobar",
+          "bin",
+          "bin.photoviz.dirbar"
+        ],
+        "edgeChecks": [
+          {
+            "source": 15,
+            "target": 18,
+            "weight": 1.0
+          },
+          {
+            "source": 16,
+            "target": 20,
+            "weight": 1.0
+          }
+        ]
+      },
+      "roundTripFailure": "dynamic attribute values shift by one element on GEXF re-export"
+    },
+    {
+      "file": "gephi-datasets/ht2009_15min-subsample.gexf",
+      "origin": "https://docs.gephi.org/desktop/User_Manual/Datasets/ (ht2009_15min.gexf)",
+      "license": "unstated (test-only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "SocioPatterns ht2009 (first 12 nodes and edges among them): two <meta> blocks, misspelled defaultedgestyle, dynamic attvalues",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 17,
+        "directed": false,
+        "nodeIds": [
+          1026,
+          1029,
+          1032
+        ],
+        "labels": [
+          "1026",
+          "1029",
+          "1032"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1026,
+            "target": 1042
+          },
+          {
+            "source": 1035,
+            "target": 1047
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/undirected-1.1draft.gexf",
+      "origin": "generated locally with networkx 3.1 write_gexf",
+      "license": "BSD-3-Clause (networkx); data authored",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gexf 1.1draft: labels, float/bool attributes, weights",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          "n1",
+          "n2",
+          "n3"
+        ],
+        "labels": [
+          "First",
+          "Second",
+          "Third"
+        ],
+        "edgeChecks": [
+          {
+            "source": "n1",
+            "target": "n2",
+            "weight": 0.5
+          },
+          {
+            "source": "n2",
+            "target": "n3",
+            "weight": 4.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/undirected-1.2draft.gexf",
+      "origin": "generated locally with networkx 3.1 write_gexf",
+      "license": "BSD-3-Clause (networkx); data authored",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gexf 1.2draft (its default)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "nodeAttrs": [
+          {
+            "id": "n3",
+            "column": "score",
+            "value": -3.25
+          },
+          {
+            "id": "n1",
+            "column": "flag",
+            "value": true
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          "n1",
+          "n2",
+          "n3"
+        ],
+        "labels": [
+          "First",
+          "Second",
+          "Third"
+        ],
+        "edgeChecks": [
+          {
+            "source": "n1",
+            "target": "n2",
+            "weight": 0.5
+          },
+          {
+            "source": "n2",
+            "target": "n3",
+            "weight": 4.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/multidigraph-1.2draft.gexf",
+      "origin": "generated locally with networkx 3.1 write_gexf",
+      "license": "BSD-3-Clause (networkx); data authored",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gexf of a MultiDiGraph: parallel edges, self-loop, networkx_key attribute",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "labels": [
+          "1",
+          "2",
+          "3"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/special-floats-1.2draft.gexf",
+      "origin": "generated locally with networkx 3.1 write_gexf",
+      "license": "BSD-3-Clause (networkx); data authored",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gexf with NaN, INF, -INF attribute values",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "0",
+          "1",
+          "2"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/dynamic-1.2draft.gexf",
+      "origin": "generated locally with networkx 3.1 write_gexf",
+      "license": "BSD-3-Clause (networkx); data authored",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gexf of a dynamic graph (start/end on nodes and edges)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf8-bom.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-8 with a BOM",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "Na\u00efve"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16le-bom.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16LE with a BOM (XML 1.0 requires UTF-16 support)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "Na\u00efve"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16be-bom.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16BE with a BOM",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "Na\u00efve"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-prolog.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "ISO-8859-1 declared in the XML prolog, Latin-1 bytes",
+      "oracle": "gexf-structure",
+      "expected": {
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "Na\u00efve"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/windows1252-prolog.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "windows-1252 declared in the XML prolog (curly quotes 0x93/0x94)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "\u201cq\u201d"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/cp1252-undeclared.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "windows-1252 bytes with no encoding declaration (right: decode as windows-1252 and warn)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "\u201cq\u201d"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-encoding-option.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "Latin-1 bytes without a prolog, read with the explicit encoding option",
+      "oracle": "gexf-structure",
+      "options": {
+        "encoding": "iso-8859-1"
+      },
+      "expected": {
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "Caf\u00e9",
+          "Na\u00efve"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/billion-laughs.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "DOCTYPE internal subset with nested entities (billion laughs): must fail fast, never expand",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_XML_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/xxe-system.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "external SYSTEM entity file:///etc/passwd: must fail, never fetch",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_XML_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/empty-nodes-edges.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "empty graph: <nodes/><edges/>",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "authored/empty-no-nodes-element.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "empty graph: no <nodes> element",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "authored/empty-graph-selfclosing.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "empty graph: self-closing <graph/>",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "authored/ns-prefixed.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "namespace prefix on every element (<g:gexf>, <g:node>)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "one",
+          "two"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/ns-missing.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "no namespace at all",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "one",
+          "two"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/ns-www-1.3.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1.3 with the wrong www namespace (http://www.gexf.net/1.3)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "one",
+          "two"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/ns-1.2-version-1.3.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1.2draft namespace with version=\"1.3\"",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "one",
+          "two"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/parallel-kind-1.3.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1.3 parallel edges distinguished by kind, one without kind, a self-loop without id",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "a",
+            "target": "b"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/attvalue-id-1.0.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "GEXF 1.0 <attvalue id=> (right: accept id as an alias of for)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "kind",
+            "value": "disease"
+          },
+          {
+            "id": 2,
+            "column": "kind",
+            "value": "gene"
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "x",
+          "y"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      },
+      "knownFailure": "GEXF 1.0 attvalue id= not accepted as for= (sources.md 1.4 Root and versions)"
+    },
+    {
+      "file": "authored/rgba-hex-1.3.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1.3 viz colour: 8-digit #RRGGBBAA hex, and hex next to r/g/b",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "role": "color",
+            "value": [
+              1,
+              0,
+              0,
+              0.5019607843137255
+            ]
+          }
+        ]
+      },
+      "knownFailure": "8-digit #RRGGBBAA viz colour rejected (sources.md 1.4 viz)"
+    },
+    {
+      "file": "authored/slices-1.1.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1.1draft <slices><slice> (right: read as spells)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          }
+        ],
+        "forbidCodes": [
+          "W_UNKNOWN_ELEMENT"
+        ]
+      },
+      "knownFailure": "1.1 <slices> skipped instead of read as spells (sources.md 1.4 Graph element)"
+    },
+    {
+      "file": "authored/unknown-pid.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "pid naming a node that does not exist (right: warning, not a failure)",
+      "oracle": "gexf-structure",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "authored/bigdecimal-1.3.gexf",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1.3 bigdecimal and biginteger attributes beyond f64 precision",
+      "oracle": "gexf-structure",
+      "expected": {
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "huge",
+            "value": "123456789012345678901234567890"
+          }
+        ],
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a"
+        ],
+        "edgeChecks": []
+      }
+    }
+  ]
+}

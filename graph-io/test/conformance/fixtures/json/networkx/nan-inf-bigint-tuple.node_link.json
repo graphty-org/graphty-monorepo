@@ -1,0 +1,1 @@
+{"directed": false, "multigraph": false, "graph": {}, "nodes": [{"id": 1}, {"id": "1"}, {"id": 2}, {"id": 3}, {"id": [0, 1]}], "links": [{"weight": NaN, "source": 1, "target": "1"}, {"weight": Infinity, "source": 2, "target": 3}, {"big": 18446744073709551617, "source": 2, "target": [0, 1]}]}

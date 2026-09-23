@@ -1,0 +1,1 @@
+digraph { node[color=black]; a; { node[color=green]; b; }; c }

@@ -1,0 +1,3 @@
+graph [
+  node [ id 1 deep [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a [ a 1 ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ]
+]

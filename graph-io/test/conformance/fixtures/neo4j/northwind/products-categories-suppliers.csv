@@ -1,0 +1,162 @@
+productID:ID(Product),productName,unitPrice:double,unitsInStock:int,discontinued:boolean,:LABEL
+1,Chai,18.00,39,false,Product
+2,Chang,19.00,17,false,Product
+3,Aniseed Syrup,10.00,13,false,Product
+4,Chef Anton's Cajun Seasoning,22.00,53,false,Product
+5,Chef Anton's Gumbo Mix,21.35,0,true,Product
+6,Grandma's Boysenberry Spread,25.00,120,false,Product
+7,Uncle Bob's Organic Dried Pears,30.00,15,false,Product
+8,Northwoods Cranberry Sauce,40.00,6,false,Product
+9,Mishi Kobe Niku,97.00,29,true,Product
+10,Ikura,31.00,31,false,Product
+11,Queso Cabrales,21.00,22,false,Product
+12,Queso Manchego La Pastora,38.00,86,false,Product
+13,Konbu,6.00,24,false,Product
+14,Tofu,23.25,35,false,Product
+15,Genen Shouyu,15.50,39,false,Product
+16,Pavlova,17.45,29,false,Product
+17,Alice Mutton,39.00,0,true,Product
+18,Carnarvon Tigers,62.50,42,false,Product
+19,Teatime Chocolate Biscuits,9.20,25,false,Product
+20,Sir Rodney's Marmalade,81.00,40,false,Product
+21,Sir Rodney's Scones,10.00,3,false,Product
+22,Gustaf's Knäckebröd,21.00,104,false,Product
+23,Tunnbröd,9.00,61,false,Product
+24,Guaraná Fantástica,4.50,20,true,Product
+25,NuNuCa Nuß-Nougat-Creme,14.00,76,false,Product
+26,Gumbär Gummibärchen,31.23,15,false,Product
+27,Schoggi Schokolade,43.90,49,false,Product
+28,Rössle Sauerkraut,45.60,26,true,Product
+29,Thüringer Rostbratwurst,123.79,0,true,Product
+30,Nord-Ost Matjeshering,25.89,10,false,Product
+31,Gorgonzola Telino,12.50,0,false,Product
+32,Mascarpone Fabioli,32.00,9,false,Product
+33,Geitost,2.50,112,false,Product
+34,Sasquatch Ale,14.00,111,false,Product
+35,Steeleye Stout,18.00,20,false,Product
+36,Inlagd Sill,19.00,112,false,Product
+37,Gravad lax,26.00,11,false,Product
+38,Côte de Blaye,263.50,17,false,Product
+39,Chartreuse verte,18.00,69,false,Product
+40,Boston Crab Meat,18.40,123,false,Product
+categoryID:ID(Category),categoryName,description,:LABEL
+1,Beverages,"Soft drinks, coffees, teas, beers, and ales",Category
+2,Condiments,"Sweet and savory sauces, relishes, spreads, and seasonings",Category
+3,Confections,"Desserts, candies, and sweet breads",Category
+4,Dairy Products,Cheeses,Category
+5,Grains/Cereals,"Breads, crackers, pasta, and cereal",Category
+6,Meat/Poultry,Prepared meats,Category
+7,Produce,Dried fruit and bean curd,Category
+8,Seafood,Seaweed and fish,Category
+supplierID:ID(Supplier),companyName,country,:LABEL
+1,Exotic Liquids,UK,Supplier
+2,New Orleans Cajun Delights,USA,Supplier
+3,Grandma Kelly's Homestead,USA,Supplier
+4,Tokyo Traders,Japan,Supplier
+5,Cooperativa de Quesos 'Las Cabras',Spain,Supplier
+6,Mayumi's,Japan,Supplier
+7,Pavlova,3058,Supplier
+8,Specialty Biscuits,M14 GSD,Supplier
+9,PB Knäckebröd AB,Sweden,Supplier
+10,Refrescos Americanas LTDA,Brazil,Supplier
+11,Heli Süßwaren GmbH & Co. KG,Germany,Supplier
+12,Plutzer Lebensmittelgroßmärkte AG,Germany,Supplier
+13,Nord-Ost-Fisch Handelsgesellschaft mbH,Germany,Supplier
+14,Formaggi Fortini s.r.l.,48100,Supplier
+15,Norske Meierier,Norway,Supplier
+16,Bigfoot Breweries,USA,Supplier
+17,Svensk Sjöföda AB,Sweden,Supplier
+18,Aux joyeux ecclésiastiques,75004,Supplier
+19,New England Seafood Cannery,USA,Supplier
+20,Leka Trading,0512,Supplier
+21,Lyngbysild,Denmark,Supplier
+22,Zaanse Snoepfabriek,Netherlands,Supplier
+23,Karkki Oy,Finland,Supplier
+24,G'day,2042,Supplier
+25,Ma Maison,Canada,Supplier
+26,Pasta Buttini s.r.l.,84100,Supplier
+27,Escargots Nouveaux,71300,Supplier
+28,Gai pâturage,74000,Supplier
+29,Forêts d'érables,Canada,Supplier
+:START_ID(Product),:END_ID(Category),:TYPE
+1,1,PART_OF
+2,1,PART_OF
+3,2,PART_OF
+4,2,PART_OF
+5,2,PART_OF
+6,2,PART_OF
+7,7,PART_OF
+8,2,PART_OF
+9,6,PART_OF
+10,8,PART_OF
+11,4,PART_OF
+12,4,PART_OF
+13,8,PART_OF
+14,7,PART_OF
+15,2,PART_OF
+16,3,PART_OF
+17,6,PART_OF
+18,8,PART_OF
+19,3,PART_OF
+20,3,PART_OF
+21,3,PART_OF
+22,5,PART_OF
+23,5,PART_OF
+24,1,PART_OF
+25,3,PART_OF
+26,3,PART_OF
+27,3,PART_OF
+28,7,PART_OF
+29,6,PART_OF
+30,8,PART_OF
+31,4,PART_OF
+32,4,PART_OF
+33,4,PART_OF
+34,1,PART_OF
+35,1,PART_OF
+36,8,PART_OF
+37,8,PART_OF
+38,1,PART_OF
+39,1,PART_OF
+40,8,PART_OF
+:START_ID(Supplier),:END_ID(Product),:TYPE
+1,1,SUPPLIES
+1,2,SUPPLIES
+1,3,SUPPLIES
+2,4,SUPPLIES
+2,5,SUPPLIES
+3,6,SUPPLIES
+3,7,SUPPLIES
+3,8,SUPPLIES
+4,9,SUPPLIES
+4,10,SUPPLIES
+5,11,SUPPLIES
+5,12,SUPPLIES
+6,13,SUPPLIES
+6,14,SUPPLIES
+6,15,SUPPLIES
+7,16,SUPPLIES
+7,17,SUPPLIES
+7,18,SUPPLIES
+8,19,SUPPLIES
+8,20,SUPPLIES
+8,21,SUPPLIES
+9,22,SUPPLIES
+9,23,SUPPLIES
+10,24,SUPPLIES
+11,25,SUPPLIES
+11,26,SUPPLIES
+11,27,SUPPLIES
+12,28,SUPPLIES
+12,29,SUPPLIES
+13,30,SUPPLIES
+14,31,SUPPLIES
+14,32,SUPPLIES
+15,33,SUPPLIES
+16,34,SUPPLIES
+16,35,SUPPLIES
+17,36,SUPPLIES
+17,37,SUPPLIES
+18,38,SUPPLIES
+18,39,SUPPLIES
+19,40,SUPPLIES

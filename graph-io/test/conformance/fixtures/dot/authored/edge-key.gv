@@ -1,0 +1,5 @@
+digraph {
+  a -> b [key=k1]
+  a -> b [key=k2]
+  a -> b [key=k1, color=red]
+}

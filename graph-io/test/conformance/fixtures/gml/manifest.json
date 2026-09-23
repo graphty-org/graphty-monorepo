@@ -1,0 +1,1884 @@
+{
+  "format": "gml",
+  "description": "GML: Newman netdata, igraph, OGDF, Gephi, Netzschleuder (graph-tool) and networkx output, plus authored cases for the sources.md section 4 checklist (multi-line strings, entities, encodings, ids, multiple graphs, lexing).",
+  "fixtures": [
+    {
+      "file": "newman/karate.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/karate.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman karate: no labels, undirected, 78 edges",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 1,
+            "target": 4
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/lesmis.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/lesmis.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman lesmis: labels, value weights",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Myriel",
+          "Napoleon",
+          "MlleBaptistine"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 1
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 8
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 10
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/polbooks.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/polbooks.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman polbooks: labels, string value attribute",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 105,
+        "edges": 441,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "1000 Years for Revenge",
+          "Bush vs. the Beltway",
+          "Charlie Wilson's War"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 0,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/adjnoun.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/adjnoun.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman adjnoun: labels, integer value",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 112,
+        "edges": 425,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "agreeable",
+          "man",
+          "old"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 0,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/football.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/football.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman football: labels, value; football has one duplicated edge in some versions",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 115,
+        "edges": 613,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "BrighamYoung",
+          "FloridaState",
+          "Iowa"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 4
+          },
+          {
+            "source": 0,
+            "target": 9
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/dolphins.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/dolphins.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman dolphins: labels",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 62,
+        "edges": 159,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "Beak",
+          "Beescratch",
+          "Bumper"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 10
+          },
+          {
+            "source": 0,
+            "target": 14
+          },
+          {
+            "source": 0,
+            "target": 15
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/netscience.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/netscience.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman netscience: 1589 nodes, value weights, larger file",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1589,
+        "edges": 2742,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "ABRAMSON, G",
+          "KUPERMAN, M",
+          "ACEBRON, J"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 2.5
+          },
+          {
+            "source": 0,
+            "target": 1084,
+            "weight": 0.5
+          },
+          {
+            "source": 1,
+            "target": 946,
+            "weight": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/celegansneural.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/celegansneural.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman celegansneural: directed, 14 duplicate arcs without multigraph 1 (oracle re-read with multigraph 1 added), value weights",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 297,
+        "edges": 2359,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "1",
+          "51",
+          "72"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 1
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 2
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/polblogs-subsample.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/polblogs.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman polblogs subsampled to 157 nodes (every node with a self-loop, a duplicate arc or an &#38; label kept): directed, duplicate arcs without multigraph 1 (oracle re-read with multigraph 1 added), self-loops, &#38; entity, a node key named source",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 157,
+        "edges": 402,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "labels": [
+          "100monkeystyping.com",
+          "12thharmonic.com/wordpress",
+          "40ozblog.blogspot.com"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 23
+          },
+          {
+            "source": 1,
+            "target": 85
+          },
+          {
+            "source": 1,
+            "target": 55
+          }
+        ]
+      }
+    },
+    {
+      "file": "newman/cond-mat-2005-subsample.gml",
+      "origin": "https://public.websites.umich.edu/~mejn/netdata/cond-mat-2005.zip",
+      "license": "none stated (Newman netdata; cite the source papers); test-only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "Newman cond-mat-2005 subsampled to 211 nodes including 12 with duplicate labels; value weights",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 211,
+        "edges": 383,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "CHOU, T",
+          "KIM, KS",
+          "OSTER, G"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 0.5
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 0.5
+          },
+          {
+            "source": 0,
+            "target": 1772,
+            "weight": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/tests_unit_graph1.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/graph1.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: composite values, +2, -Inf, NAN, +inF, XML entities, sou_rce key, node declared after its edge, repeated key a; a second graph block (import reads the first and warns)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          5
+        ],
+        "graphs": 2,
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "igraph/tests_unit_graph2.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/graph2.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: nodes without id (generate ids and warn), Version 3, directed 2, composite graph key, no final newline",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0
+      },
+      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4)"
+    },
+    {
+      "file": "igraph/tests_unit_graph3.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/graph3.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: empty graph []",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": []
+      }
+    },
+    {
+      "file": "igraph/tests_regression_bug_2497.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/bug_2497.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: a node without id next to one with id 2 (generate an id and warn)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "nodeIds": [
+          2
+        ]
+      },
+      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4)"
+    },
+    {
+      "file": "igraph/tests_regression_invalid1.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid1.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: a misspelled element key ntde (an unknown graph key, kept or ignored); its node 1 is still created by the edges that reference it (addMissingNodes default true)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34
+      }
+    },
+    {
+      "file": "igraph/tests_regression_invalid2.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid2.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: no graph block",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_NO_GRAPH"
+      }
+    },
+    {
+      "file": "igraph/tests_regression_invalid4.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid4.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: garbage Version-0, no graph",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail"
+      }
+    },
+    {
+      "file": "igraph/tests_regression_invalid5.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid5.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph fuzz: a key without a value inside node",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "igraph/tests_regression_invalid6.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid6.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph fuzz: targetrgett key run together, key without value",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "igraph/fuzzing_test_inputs_graph1.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/fuzzing/test_inputs/graph1.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "yEd output: Version \"2.18\" string, hierarchic, graphics with x/y/w/h/fill, LabelGraphics, tab-separated",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "A",
+          "B",
+          "C"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 42
+          },
+          {
+            "source": 1,
+            "target": 0,
+            "weight": 1.23
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 34.27
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/examples_simple_weighted.gml",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/examples/simple/weighted.gml",
+      "license": "GPL-2.0-or-later; test-only, not published",
+      "version": "commit 8f123b89",
+      "exercises": "igraph: reals 1.23, 4.87e-5, -3.779e+2 and a weight key",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/valid_simple.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/valid/simple.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: minimal triangle",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/valid_attributes.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/valid/attributes.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: graph-level comment/id/label, node and edge attributes",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "labels": [
+          "A",
+          "B",
+          "C"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 2,
+            "target": 3
+          },
+          {
+            "source": 3,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/cluster_malformed-node-index.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/cluster/malformed-node-index.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: trailing rootcluster block after the graph (unknown top-level key)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/cluster_node-in-two-clusters.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/cluster/node-in-two-clusters.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: trailing rootcluster block after the graph (unknown top-level key)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "ogdf/invalid_ambiguous-id.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/ambiguous-id.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: duplicate node id and `target 2 3`, where 3 stands in key position (a GML syntax error)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "ogdf/invalid_ambiguous-source.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/ambiguous-source.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: an edge with two source keys (error for that edge)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "warnings": [
+          "E_GML_REPEATED_KEY"
+        ]
+      }
+    },
+    {
+      "file": "ogdf/invalid_ambiguous-target.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/ambiguous-target.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: an edge with two target keys (error for that edge)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "warnings": [
+          "E_GML_REPEATED_KEY"
+        ]
+      }
+    },
+    {
+      "file": "ogdf/invalid_invalid-integer.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/invalid-integer.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: a bare-word endpoint fooBar (accepted as a bare-word id outside the spec, with a warning)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "nodeIds": [
+          "fooBar"
+        ]
+      },
+      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4)"
+    },
+    {
+      "file": "ogdf/invalid_invalid-node.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/invalid-node.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: edge to an undeclared node 4 (addMissingNodes default true creates it)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3
+      }
+    },
+    {
+      "file": "ogdf/invalid_missing-id.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/missing-id.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: an isolated node without id (generate an id and warn, as igraph does)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1
+      },
+      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4)"
+    },
+    {
+      "file": "ogdf/invalid_missing-source.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/missing-source.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: an edge without source (error for that edge)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "warnings": [
+          "E_MISSING_ENDPOINT"
+        ]
+      }
+    },
+    {
+      "file": "ogdf/invalid_missing-target.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/missing-target.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: an edge without target (error for that edge)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "warnings": [
+          "E_MISSING_ENDPOINT"
+        ]
+      }
+    },
+    {
+      "file": "ogdf/invalid_no-graph.gml",
+      "origin": "https://github.com/ogdf/ogdf/tree/master/test/resources/fileformats/gml/invalid/no-graph.gml",
+      "license": "GPL-2.0 or GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "OGDF: node and edge records without a graph block",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_NO_GRAPH"
+      }
+    },
+    {
+      "file": "gephi/label.gml",
+      "origin": "https://github.com/gephi/gephi/tree/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/label.gml",
+      "license": "CDDL-1.0/GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi: bare-word node ids A B C (accepted outside the spec)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          "A",
+          "B",
+          "C"
+        ],
+        "labels": [
+          "Node A",
+          "Node B"
+        ],
+        "edgeChecks": [
+          {
+            "source": "B",
+            "target": "A"
+          }
+        ]
+      },
+      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4)"
+    },
+    {
+      "file": "gephi/emojis.gml",
+      "origin": "https://github.com/gephi/gephi/tree/master/modules/ImportPlugin/src/test/resources/org/gephi/io/importer/plugin/file/emojis.gml",
+      "license": "CDDL-1.0/GPL-3.0; test-only, not published",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "Gephi: bare-word id, raw UTF-8 emoji label (no final newline)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "nodeIds": [
+          "A"
+        ],
+        "labels": [
+          "\u2705"
+        ]
+      },
+      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4)"
+    },
+    {
+      "file": "netzschleuder/karate-77.gml",
+      "origin": "https://networks.skewed.de/net/karate/files/77.gml.zst",
+      "license": "per dataset, none stated globally (Netzschleuder); test-only",
+      "version": "retrieved 2026-09-23, decompressed from .gml.zst",
+      "exercises": "graph-tool dialect: _pos keys, &quot; and the HTML5 entity &NewLine; in a graph string, ids from 0",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 77,
+        "directed": false,
+        "nodeIds": [
+          0,
+          33
+        ]
+      },
+      "roundTripFailure": "exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4)"
+    },
+    {
+      "file": "netzschleuder/lesmis.gml",
+      "origin": "https://networks.skewed.de/net/lesmis/files/lesmis.gml.zst",
+      "license": "per dataset, none stated globally (Netzschleuder); test-only",
+      "version": "retrieved 2026-09-23, decompressed from .gml.zst",
+      "exercises": "graph-tool dialect: _pos keys, labels, edge ids, &quot; entities",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "directed": false,
+        "labels": [
+          "Myriel",
+          "Napoleon"
+        ]
+      },
+      "roundTripFailure": "exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4)"
+    },
+    {
+      "file": "networkx/simple-undirected.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: undirected, weight attribute, isolated node, name",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "0",
+          "1",
+          "2"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/directed-string-labels.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: directed, string node names as labels, value weights",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 3
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 4
+          },
+          {
+            "source": 2,
+            "target": 0,
+            "weight": 5
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/multidigraph.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: multigraph 1, key, parallel arcs, self-loop",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "0",
+          "1"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 1,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/special-floats.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: NAN, +INF, -INF, -0.0, integers beyond 32 bits written as strings",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "0",
+          "1"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/unicode-entities.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: non-ASCII names escaped as &#NNNN; including an astral code point, &#34; and &#38;",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "caf\u00e9 \u00fcber \u4e2d\u6587 \"q\" & amp",
+          "plain"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/lists-and-dicts.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: repeated keys for lists, _networkx_list_start one-element list, nested record",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "0",
+          "1"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/lesmis-weighted.gml",
+      "origin": "generated locally by networkx 3.1 write_gml",
+      "license": "BSD-3-Clause (generated data)",
+      "version": "networkx 3.1",
+      "exercises": "networkx write_gml: les_miserables_graph with weight attribute and string labels",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "directed": false,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "labels": [
+          "0",
+          "1",
+          "2"
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/multiline-string.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a newline inside a string (GML draft 3.2.5: part of the string), CRLF inside a string becomes LF",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "first line\nsecond line",
+          "crlf\ninside"
+        ]
+      },
+      "knownFailure": "multi-line strings are a fatal syntax error (sources.md 4.4)"
+    },
+    {
+      "file": "authored/html-named-entities.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "ISO 8859-1 / HTML named entities (&eacute; &auml;, as in the spec examples), HTML5 &NewLine;, the XML five, numeric decimal and hex references",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "labels": [
+          "Caf\u00e9 M\u00e4dchen",
+          "line&NewLine;break",
+          "<tag> & \"q\""
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      },
+      "knownFailure": "HTML named entities are left verbatim (sources.md 4.4)"
+    },
+    {
+      "file": "authored/unknown-entity.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an unknown named entity &foo; and a stray & (kept verbatim)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          1
+        ],
+        "labels": [
+          "&foo; and a stray & sign"
+        ]
+      }
+    },
+    {
+      "file": "authored/codepoint-out-of-range.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "&#99999999; beyond U+10FFFF: must be a warning with the text kept, never a raw RangeError",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "bad &#99999999; ref"
+        ]
+      },
+      "knownFailure": "&#99999999; escapes as a raw RangeError instead of an ImportError or warning (sources.md 0.4)"
+    },
+    {
+      "file": "authored/string-ids.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "quoted string node ids and endpoints (outside the spec; networkx and Gephi accept them)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "labels": [
+          "A",
+          "B"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          }
+        ]
+      },
+      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4)"
+    },
+    {
+      "file": "authored/bareword-ids.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "bare-word node ids and endpoints (outside the spec; networkx and Gephi accept them)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          }
+        ]
+      },
+      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4)"
+    },
+    {
+      "file": "authored/node-without-id.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an isolated node without id between two with ids (generate an id and warn, as igraph does)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "labels": [
+          "no id"
+        ]
+      },
+      "knownFailure": "a node without id is skipped instead of given a generated id (sources.md 4.4)"
+    },
+    {
+      "file": "authored/two-graphs.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "three graph blocks: import() reads the first and warns, importAllGraphs() returns all three",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "graphs": 3,
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-bytes.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "raw ISO 8859-1 bytes (the spec charset, outside its 7-bit rule): not UTF-8, decoded as windows-1252 with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "Caf\u00e9",
+          "M\u00fcller"
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-bytes-explicit-encoding.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "the same Latin-1 bytes with an explicit encoding option: no fallback warning",
+      "oracle": "spec",
+      "options": {
+        "encoding": "iso-8859-1"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "Caf\u00e9",
+          "M\u00fcller"
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16le-bom.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16LE with a byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "Caf\u00e9"
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16be-bom.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16BE with a byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "Caf\u00e9"
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf8-bom.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-8 with a byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "labels": [
+          "Caf\u00e9"
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-before-nodes.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an edge record before the node records it references (order does not matter in GML)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/crlf.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "CRLF line endings",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/bare-cr.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "bare CR line endings",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/no-final-newline.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "one line, no final newline",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/compact-no-spaces.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "graph[node[ with no whitespace before brackets",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/tabs-and-comments.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "tab separators, # comments at column 0, indented and trailing",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/deep-nesting-60.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a node attribute nested 60 records deep",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          1
+        ]
+      }
+    },
+    {
+      "file": "authored/deep-nesting-5000.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a node attribute nested 5000 records deep: a clean ImportError (depth guard), never a stack overflow",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail"
+      },
+      "knownFailure": "no nesting depth guard (sources.md 4.4)"
+    },
+    {
+      "file": "authored/underscore-keys.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "keys beginning with _ (graph-tool _pos)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "_private",
+            "value": 3
+          }
+        ]
+      },
+      "roundTripFailure": "exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4)"
+    },
+    {
+      "file": "authored/special-reals.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "reals NAN INF -INF 1.0E5 .5 5. 1E5 -0.0 +1 and nan -Inf +inF in other cases",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "d",
+            "value": 100000
+          },
+          {
+            "id": 1,
+            "column": "e",
+            "value": 0.5
+          },
+          {
+            "id": 1,
+            "column": "f",
+            "value": 5
+          },
+          {
+            "id": 1,
+            "column": "i",
+            "value": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/big-integers.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "integers at 2^31-1, beyond 32 bits and beyond 2^53 (W_PRECISION)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "i32",
+            "value": 2147483647
+          },
+          {
+            "id": 1,
+            "column": "over32",
+            "value": 2147483648
+          }
+        ],
+        "warnings": [
+          "W_PRECISION"
+        ]
+      }
+    },
+    {
+      "file": "authored/duplicate-keys.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a repeated attribute key becomes a list",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/graphics-position.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "graphics x/y/z become the position role; w/h/fill and edge Line/point are kept",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              10.5,
+              -3,
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/duplicate-node-id.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a node id declared twice (W_DUPLICATE_NODE, one node)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "W_DUPLICATE_NODE"
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-to-undefined-node.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an edge to an undeclared node (addMissingNodes default true creates it)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeIds": [
+          1,
+          99
+        ]
+      }
+    },
+    {
+      "file": "authored/unterminated-string.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an unterminated string (fatal syntax error)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/unmatched-bracket.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a stray ] after the graph (fatal syntax error)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/truncated.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a truncated file (fatal syntax error)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/empty.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an empty file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail"
+      }
+    },
+    {
+      "file": "authored/multigraph-undirected-both-ways.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "undirected A-B and B-A without multigraph 1, plus a self-loop: all kept",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 3,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/version-2.gml",
+      "origin": "authored for this suite",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "Creator and Version 2 before the graph (Version other than 1: warn)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          1
+        ]
+      }
+    }
+  ]
+}

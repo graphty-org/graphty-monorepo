@@ -1,0 +1,1787 @@
+{
+  "format": "csv",
+  "description": "CSV / TSV edge lists and node tables: the RFC 4180 record layer (csv-spectrum, PapaParse / CPython cases), encodings, Excel / Gephi / SNAP / KONECT / Netzschleuder / OpenFlights / networkx dialects.",
+  "fixtures": [
+    {
+      "file": "csv-spectrum/comma_in_quotes.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/comma_in_quotes.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "a quoted field holding the delimiter; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "first",
+        "targetColumn": "last"
+      },
+      "oracleHints": {
+        "source": "first",
+        "target": "last"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "John",
+          "Doe"
+        ],
+        "edgeChecks": [
+          {
+            "source": "John",
+            "target": "Doe"
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/empty.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/empty.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "empty quoted fields; a row whose target is blank is skipped with E_MISSING_ENDPOINT; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "code": "E_MISSING_ENDPOINT",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      },
+      "knownFailure": "a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4)"
+    },
+    {
+      "file": "csv-spectrum/empty_crlf.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/empty_crlf.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "as empty.csv with CRLF records; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "code": "E_MISSING_ENDPOINT",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      },
+      "knownFailure": "a quoted empty endpoint becomes an empty-string node id instead of E_MISSING_ENDPOINT (sources.md 7.4)"
+    },
+    {
+      "file": "csv-spectrum/escaped_quotes.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/escaped_quotes.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "doubled quotes inside a quoted field; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          1,
+          "ha \"ha\" ha",
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": "ha \"ha\" ha"
+          },
+          {
+            "source": 3,
+            "target": 4
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/json.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/json.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "a quoted JSON value full of doubled quotes; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "key",
+        "targetColumn": "val"
+      },
+      "oracleHints": {
+        "source": "key",
+        "target": "val"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          "{\"type\": \"Point\", \"coordinates\": [102.0, 0.5]}"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": "{\"type\": \"Point\", \"coordinates\": [102.0, 0.5]}"
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/location_coordinates.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/location_coordinates.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "header names with spaces, a non-ASCII (valid UTF-8) cell, no final newline; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "Contact Phone Number",
+        "targetColumn": "Location Coordinates"
+      },
+      "oracleHints": {
+        "source": "Contact Phone Number",
+        "target": "Location Coordinates"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          2095257564,
+          "37\ufffd36'37.8\"N 121\ufffd2'17.9\"W"
+        ],
+        "edgeChecks": [
+          {
+            "source": 2095257564,
+            "target": "37\ufffd36'37.8\"N 121\ufffd2'17.9\"W"
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/newlines.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/newlines.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "a LF inside a quoted id; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          "Once upon \na time"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": "Once upon \na time",
+            "target": 5
+          },
+          {
+            "source": 7,
+            "target": 8
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/newlines_crlf.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/newlines_crlf.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "a CRLF inside a quoted id, CRLF records; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          "Once upon \na time"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": "Once upon \na time",
+            "target": 5
+          },
+          {
+            "source": 7,
+            "target": 8
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/quotes_and_newlines.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/quotes_and_newlines.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "doubled quotes and newlines in one quoted field; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          1,
+          "ha \n\"ha\" \nha",
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": "ha \n\"ha\" \nha"
+          },
+          {
+            "source": 3,
+            "target": 4
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/simple.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/simple.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "the minimal header plus one row; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/simple_crlf.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/simple_crlf.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "the minimal file with CRLF; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "csv-spectrum/utf8.csv",
+      "origin": "https://github.com/max-mapper/csv-spectrum/blob/master/csvs/utf8.csv",
+      "license": "BSD-2-Clause",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "a multi-byte UTF-8 cell; endpoints named by option, the record layer checked against csv-spectrum's JSON",
+      "oracle": "python-csv",
+      "options": {
+        "header": true,
+        "sourceColumn": "a",
+        "targetColumn": "b"
+      },
+      "oracleHints": {
+        "source": "a",
+        "target": "b"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          4
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 4,
+            "target": 5
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/bom-utf8.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "a UTF-8 BOM before the header",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/cr-only.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "lone-CR record terminators (classic Mac)",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          },
+          {
+            "source": "c",
+            "target": "a"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/blank-lines.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "blank lines between and after records make no phantom rows",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/no-final-newline.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "no newline after the last record",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/trailing-delimiter.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "a trailing delimiter on every record (an empty last column) makes no phantom row",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/crlf-mixed-lf.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "CRLF and LF record terminators mixed in one file",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          },
+          {
+            "source": "c",
+            "target": "d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/bare-quote-in-field.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "a bare quote inside an unquoted field is kept literally",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a\"b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "records/text-after-quote.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "text after a closing quote is a fatal E_CSV_QUOTE (PapaParse and Python strict mode flag it too)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CSV_QUOTE"
+      }
+    },
+    {
+      "file": "records/unterminated-quote.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "an unterminated quoted field is fatal",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CSV_UNCLOSED_QUOTE"
+      }
+    },
+    {
+      "file": "records/quoted-whitespace-kept.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "whitespace inside quotes is data and stays",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          " a",
+          "b",
+          "c "
+        ]
+      }
+    },
+    {
+      "file": "records/duplicate-headers.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "a repeated header name (renamed name#pos)",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b"
+          },
+          {
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      }
+    },
+    {
+      "file": "records/ragged-long-row.csv",
+      "origin": "authored after PapaParse tests/test-cases.js (MIT) and CPython Lib/test/test_csv.py (PSF-2.0)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "a row with an extra field is E_CSV_FIELD_COUNT and skipped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "code": "E_CSV_FIELD_COUNT",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 1
+          },
+          {
+            "source": "e",
+            "target": "f",
+            "weight": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "encoding/utf16le-bom.tsv",
+      "origin": "authored: the owner's decoding rule (BOM, else declaration, else UTF-8, else windows-1252 with a warning)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "Excel 'Unicode text' export: UTF-16LE with a BOM, tab-separated, CRLF",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "encoding": "utf-16",
+        "delimiter": "\t",
+        "weight": 2
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "Zo\u00eb",
+          "Jos\u00e9",
+          "M\u00fcller"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Zo\u00eb",
+            "target": "Jos\u00e9",
+            "weight": 1.5
+          },
+          {
+            "source": "Jos\u00e9",
+            "target": "M\u00fcller",
+            "weight": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "encoding/utf16be-bom.csv",
+      "origin": "authored: the owner's decoding rule (BOM, else declaration, else UTF-8, else windows-1252 with a warning)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "UTF-16BE with a BOM",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "encoding": "utf-16"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "\u00e9t\u00e9"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "\u00e9t\u00e9"
+          }
+        ]
+      }
+    },
+    {
+      "file": "encoding/windows-1252.csv",
+      "origin": "authored: the owner's decoding rule (BOM, else declaration, else UTF-8, else windows-1252 with a warning)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "Excel's Windows-1252 CSV: not valid UTF-8, read as windows-1252 with W_ENCODING_FALLBACK",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "encoding": "cp1252"
+      },
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "Zo\u00eb",
+          "Jos\u00e9",
+          "Fran\u00e7ois"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Zo\u00eb",
+            "target": "Jos\u00e9"
+          },
+          {
+            "source": "Jos\u00e9",
+            "target": "Fran\u00e7ois"
+          }
+        ]
+      }
+    },
+    {
+      "file": "encoding/windows-1252-explicit.csv",
+      "origin": "authored: the owner's decoding rule (BOM, else declaration, else UTF-8, else windows-1252 with a warning)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "the explicit encoding option decodes Windows-1252 without a fallback warning",
+      "oracle": "python-csv",
+      "options": {
+        "encoding": "windows-1252"
+      },
+      "oracleHints": {
+        "encoding": "cp1252"
+      },
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK",
+          "E_INVALID_UTF8"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "Zo\u00eb",
+          "Jos\u00e9"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Zo\u00eb",
+            "target": "Jos\u00e9"
+          }
+        ]
+      }
+    },
+    {
+      "file": "encoding/utf8-no-bom.csv",
+      "origin": "authored: the owner's decoding rule (BOM, else declaration, else UTF-8, else windows-1252 with a warning)",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "valid UTF-8 without a BOM is UTF-8, no fallback warning",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "Zo\u00eb",
+          "Jos\u00e9"
+        ],
+        "edgeChecks": [
+          {
+            "source": "Zo\u00eb",
+            "target": "Jos\u00e9"
+          }
+        ]
+      }
+    },
+    {
+      "file": "dialect/excel-sep-line.csv",
+      "origin": "authored from sources.md section 7.4",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "Excel's sep= first line names the delimiter",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "knownFailure": "Excel sep= line not recognised (sources.md 7.4)"
+    },
+    {
+      "file": "dialect/whitespace-around-fields.csv",
+      "origin": "authored from sources.md section 7.4",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "spaces after the delimiter: unquoted id cells are trimmed (CSVW trim true)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "knownFailure": "unquoted id cells are not trimmed (sources.md 7.4)"
+    },
+    {
+      "file": "dialect/unknown-header-text.csv",
+      "origin": "authored from sources.md section 7.4",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "a header of unknown names over all-text rows must not be read as an edge silently",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_CSV_POSSIBLE_HEADER"
+        ]
+      },
+      "knownFailure": "a header of unknown names over text rows is read as data silently (sources.md 7.4)"
+    },
+    {
+      "file": "dialect/comment-lines-anywhere.csv",
+      "origin": "authored from sources.md section 7.4",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "# and % comment lines after the header are comments, not records",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "dialect/leading-zero-ids.csv",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "the canonical id rule: 1 is a number, 01 / 1.0 / 1e0 stay distinct strings",
+      "oracle": "python-csv",
+      "oracleHints": {},
+      "expected": {
+        "outcome": "pass",
+        "nodeIds": [
+          1,
+          "01",
+          "1.0"
+        ],
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": "01"
+          },
+          {
+            "source": "01",
+            "target": "1.0"
+          },
+          {
+            "source": "1e0",
+            "target": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "dialect/empty-endpoint.csv",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "blank endpoints: E_MISSING_ENDPOINT, row skipped",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "code": "E_MISSING_ENDPOINT",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "c",
+          "d"
+        ],
+        "edgeChecks": [
+          {
+            "source": "c",
+            "target": "d"
+          }
+        ]
+      }
+    },
+    {
+      "file": "dialect/pipe.csv",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "pipe delimiter sniffed",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "delimiter": "|",
+        "weight": 2
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 1.5
+          },
+          {
+            "source": "b",
+            "target": "c",
+            "weight": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "dialect/semicolon.csv",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "semicolon delimiter sniffed, capitalised header",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "delimiter": ";",
+        "weight": 2
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 3.0
+          },
+          {
+            "source": "b",
+            "target": "c",
+            "weight": 4.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "dialect/header-case.csv",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "header names matched case-insensitively",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "weight": 2
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 1.0
+          },
+          {
+            "source": "b",
+            "target": "c",
+            "weight": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "dialect/self-loops-repeats.csv",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "self-loop and a repeated edge are kept (Gephi would add weights instead)",
+      "oracle": "python-csv",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": []
+      }
+    },
+    {
+      "file": "dialect/space-runs.txt",
+      "origin": "authored",
+      "license": "MIT (this repository)",
+      "version": "2026-09-23",
+      "exercises": "runs of spaces as one delimiter (SNAP, KONECT, networkx, igraph)",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "mode": "whitespace",
+        "header": false
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 2,
+            "target": 3
+          },
+          {
+            "source": 3,
+            "target": 4
+          }
+        ]
+      },
+      "knownFailure": "runs of whitespace are not one delimiter (sources.md 7.4)"
+    },
+    {
+      "file": "gephi/edge-list.csv",
+      "origin": "https://web.archive.org/web/2023/https://gephi.org/users/supported-graph-formats/csv-format/",
+      "license": "example text from the Gephi documentation (CC-BY-3.0 site); re-typed",
+      "version": "archived 2023",
+      "exercises": "Gephi headerless edge list",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "gephi/adjacency-list.csv",
+      "origin": "https://web.archive.org/web/2023/https://gephi.org/users/supported-graph-formats/csv-format/",
+      "license": "example text from the Gephi documentation (CC-BY-3.0 site); re-typed",
+      "version": "archived 2023",
+      "exercises": "Gephi adjacency list: a row with more than 2 cells lists neighbours",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "b",
+            "target": "c"
+          },
+          {
+            "source": "b",
+            "target": "d"
+          }
+        ]
+      },
+      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4)"
+    },
+    {
+      "file": "gephi/mixed.csv",
+      "origin": "https://web.archive.org/web/2023/https://gephi.org/users/supported-graph-formats/csv-format/",
+      "license": "example text from the Gephi documentation (CC-BY-3.0 site); re-typed",
+      "version": "archived 2023",
+      "exercises": "Gephi mixed example: pairs, self-loop, repeated edge, adjacency rows",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 10,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "F",
+            "target": "B"
+          },
+          {
+            "source": "C",
+            "target": "C"
+          }
+        ]
+      },
+      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4)"
+    },
+    {
+      "file": "gephi/matrix.csv",
+      "origin": "https://web.archive.org/web/2023/https://gephi.org/users/supported-graph-formats/csv-format/",
+      "license": "example text from the Gephi documentation (CC-BY-3.0 site); re-typed",
+      "version": "archived 2023",
+      "exercises": "Gephi matrix CSV: an empty first header cell, labels repeated down the first column",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 6,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "A",
+            "target": "D"
+          },
+          {
+            "source": "C",
+            "target": "C"
+          }
+        ]
+      },
+      "knownFailure": "matrix CSV not detected (sources.md 7.4)"
+    },
+    {
+      "file": "gephi/spreadsheet-edges.csv",
+      "origin": "https://web.archive.org/web/2023/https://gephi.org/users/supported-graph-formats/spreadsheet/",
+      "license": "example text from the Gephi documentation (CC-BY-3.0 site); re-typed",
+      "version": "archived 2023",
+      "exercises": "Gephi spreadsheet edge table: Type per row (mixed direction), Id, Label, Weight, a blank Type and weight",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2
+          },
+          {
+            "source": "b",
+            "target": "c",
+            "weight": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "gephi/spreadsheet-nodes.csv",
+      "origin": "https://web.archive.org/web/2023/https://gephi.org/users/supported-graph-formats/spreadsheet/",
+      "license": "example text from the Gephi documentation (CC-BY-3.0 site); re-typed",
+      "version": "archived 2023",
+      "exercises": "Gephi spreadsheet node table read on its own",
+      "oracle": "spec",
+      "options": {
+        "table": "nodes"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "labels": [
+          "Alpha",
+          "Beta",
+          "Gamma"
+        ]
+      },
+      "roundTripFailure": "a node table without edges exports as an edge list, which drops isolated nodes (declared loss W_CSV_ISOLATED_NODES)"
+    },
+    {
+      "file": "snap/facebook_combined-head.txt",
+      "origin": "https://snap.stanford.edu/data/facebook_combined.txt.gz",
+      "license": "no explicit licence; cite Leskovec and Krevl 2014 (test use only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "first 300 lines: single-space separated, LF, no header",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "mode": "whitespace",
+        "header": false
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 301,
+        "edges": 300,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 0,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "snap/ca-GrQc-head.txt",
+      "origin": "https://snap.stanford.edu/data/ca-GrQc.txt.gz",
+      "license": "no explicit licence; cite Leskovec and Krevl 2014 (test use only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "first 4 header lines + 300 edges: '# Directed graph' and '# FromNodeId ToNodeId' comment header, tab-separated, CRLF",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "delimiter": "\t",
+        "header": false,
+        "comment": "#"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 258,
+        "edges": 300,
+        "directed": true,
+        "nodeIds": [
+          3466,
+          937,
+          5233
+        ],
+        "edgeChecks": [
+          {
+            "source": 3466,
+            "target": 937
+          },
+          {
+            "source": 3466,
+            "target": 5233
+          },
+          {
+            "source": 3466,
+            "target": 8579
+          }
+        ]
+      }
+    },
+    {
+      "file": "snap/wiki-Vote-head.txt",
+      "origin": "https://snap.stanford.edu/data/wiki-Vote.txt.gz",
+      "license": "no explicit licence; cite Leskovec and Krevl 2014 (test use only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "first 4 header lines + 300 edges: '# Directed graph' and '# FromNodeId ToNodeId' comment header, tab-separated, CRLF",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "delimiter": "\t",
+        "header": false,
+        "comment": "#"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 177,
+        "edges": 300,
+        "directed": true,
+        "nodeIds": [
+          30,
+          1412,
+          3352
+        ],
+        "edgeChecks": [
+          {
+            "source": 30,
+            "target": 1412
+          },
+          {
+            "source": 30,
+            "target": 3352
+          },
+          {
+            "source": 30,
+            "target": 5254
+          }
+        ]
+      }
+    },
+    {
+      "file": "konect/out.ucidata-zachary",
+      "origin": "http://konect.cc/networks/ucidata-zachary",
+      "license": "no explicit data licence on konect.cc; cite Kunegis 2013 (test use only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "'% sym unweighted' header: undirected, whitespace-separated, 1-based",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "mode": "whitespace",
+        "header": false,
+        "comment": "%",
+        "directed": false
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "konect/out.moreno_lesmis_lesmis",
+      "origin": "http://konect.cc/networks/moreno_lesmis",
+      "license": "no explicit data licence on konect.cc; cite Kunegis 2013 (test use only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "'% sym posweighted': undirected with a third weight column",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "mode": "whitespace",
+        "header": false,
+        "comment": "%",
+        "directed": false,
+        "weight": 2
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 77,
+        "edges": 254,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 8.0
+          },
+          {
+            "source": 2,
+            "target": 4,
+            "weight": 10.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "konect/out.brunson_southern-women_southern-women",
+      "origin": "http://konect.cc/networks/brunson_southern-women",
+      "license": "no explicit data licence on konect.cc; cite Kunegis 2013 (test use only)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "'% bip': two id spaces (5 women, 5 events) that must not collide; a trailing space on every line",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 14,
+        "directed": false
+      },
+      "knownFailure": "KONECT bip id spaces collide (sources.md 7.4)"
+    },
+    {
+      "file": "netzschleuder/karate-edges.csv",
+      "origin": "https://networks.skewed.de/net/karate/files/77.csv.zip",
+      "license": "Netzschleuder per-network licence field (karate: see page); test use only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "'# source, target' header in a comment, 0-based ids, CRLF",
+      "oracle": "python-csv",
+      "oracleHints": {
+        "header": false,
+        "comment": "#"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 77,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 0,
+            "target": 3
+          }
+        ]
+      }
+    },
+    {
+      "file": "netzschleuder/karate-nodes.csv",
+      "origin": "https://networks.skewed.de/net/karate/files/77.csv.zip",
+      "license": "Netzschleuder per-network licence field (karate: see page); test use only",
+      "version": "retrieved 2026-09-23",
+      "exercises": "node table whose header '# index, name, groups, _pos' is a comment; numpy-repr cells",
+      "oracle": "spec",
+      "options": {
+        "table": "nodes",
+        "idColumn": "index"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 0,
+        "nodeIds": [
+          0,
+          33
+        ]
+      },
+      "knownFailure": "a header in a leading # comment line is not read (sources.md 7.4)"
+    },
+    {
+      "file": "openflights/routes-sample.dat",
+      "origin": "https://github.com/jpatokal/openflights/blob/master/data/routes.dat",
+      "license": "ODbL-1.0",
+      "version": "master, retrieved 2026-09-23",
+      "exercises": "no header, 9 columns, endpoints in columns 2 and 4, \\N null cells",
+      "oracle": "python-csv",
+      "options": {
+        "header": false,
+        "sourceColumn": 2,
+        "targetColumn": 4,
+        "weightFrom": null
+      },
+      "oracleHints": {
+        "header": false,
+        "source": 2,
+        "target": 4
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 96,
+        "edges": 196,
+        "directed": true,
+        "nodeIds": [
+          "AER",
+          "KZN",
+          "ASF"
+        ],
+        "edgeChecks": [
+          {
+            "source": "MJZ",
+            "target": "OVB"
+          },
+          {
+            "source": "BKO",
+            "target": "ABJ"
+          },
+          {
+            "source": "COO",
+            "target": "LFW"
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/karate.edgelist",
+      "origin": "generated locally by tmp/format-conformance/gen-networkx-fixtures.py with networkx 3.1",
+      "license": "BSD-3-Clause (networkx); karate data public domain",
+      "version": "networkx 3.1",
+      "exercises": "write_edgelist: a Python dict repr data column {'weight': 4}",
+      "oracle": "networkx-3.1",
+      "oracleHints": {
+        "mode": "nx-edgelist"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 4
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 5
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 3
+          }
+        ]
+      },
+      "knownFailure": "networkx dict-repr data column not parsed (sources.md 7.4)"
+    },
+    {
+      "file": "networkx/karate.weighted_edgelist",
+      "origin": "generated locally by tmp/format-conformance/gen-networkx-fixtures.py with networkx 3.1",
+      "license": "BSD-3-Clause (networkx); karate data public domain",
+      "version": "networkx 3.1",
+      "exercises": "write_weighted_edgelist: 'u v w', space-separated",
+      "oracle": "networkx-3.1",
+      "oracleHints": {
+        "mode": "nx-weighted"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1,
+            "weight": 4.0
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "weight": 5.0
+          },
+          {
+            "source": 0,
+            "target": 3,
+            "weight": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/karate.adjlist",
+      "origin": "generated locally by tmp/format-conformance/gen-networkx-fixtures.py with networkx 3.1",
+      "license": "BSD-3-Clause (networkx); karate data public domain",
+      "version": "networkx 3.1",
+      "exercises": "write_adjlist: '#' comment lines then variable-width adjacency rows",
+      "oracle": "networkx-3.1",
+      "oracleHints": {
+        "mode": "nx-adjlist"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 0,
+            "target": 3
+          }
+        ]
+      },
+      "knownFailure": "adjacency-list rows misread as edge rows (sources.md 7.4)"
+    },
+    {
+      "file": "networkx/multidigraph.edgelist",
+      "origin": "generated locally by tmp/format-conformance/gen-networkx-fixtures.py with networkx 3.1",
+      "license": "BSD-3-Clause (networkx); karate data public domain",
+      "version": "networkx 3.1",
+      "exercises": "write_edgelist of a MultiDiGraph: parallel edges, a self-loop with an empty dict",
+      "oracle": "networkx-3.1",
+      "oracleHints": {
+        "mode": "nx-edgelist"
+      },
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": []
+      },
+      "knownFailure": "networkx dict-repr data column not parsed (sources.md 7.4)"
+    }
+  ]
+}

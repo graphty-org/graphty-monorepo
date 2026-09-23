@@ -1,0 +1,20 @@
+*Network tiny
+*Vertices 3
+1 "a"
+2 "b"
+3 "c"
+*Arcs
+1 2
+2 3
+
+*Partition groups
+*Vertices 3
+1
+2
+1
+
+*Vector sizes
+*Vertices 3
+0.5
+1.5
+2.25

@@ -1,0 +1,1 @@
+[{"group": "nodes", "data": {"id": "a"}}, {"group": "nodes", "data": {"id": "b"}}, {"group": "edges", "data": {"id": "ab", "source": "a", "target": "b"}}]

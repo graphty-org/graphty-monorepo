@@ -1,0 +1,3182 @@
+{
+  "format": "pajek",
+  "description": "Pajek .net / .paj / .tim / .mat: igraph's unit and regression files, the Pajek multinet teaching data, Batagelj's datasets (USAir97, divorce, Tina) and a broad sample of the bavla/Nets mirror of the Pajek datasets, networkx 3.1 writer output, and authored encoding and syntax cases. Expectations: networkx 3.1 read_pajek for single-section files, else a counter written from the Pajek 6.02 manual (tools/oracle_pajek.py); the right behaviour of sources.md section 6.4 and the owner decisions (first network plus W_MULTIPLE_GRAPHS; encoding: BOM, else option, else UTF-8, else windows-1252 with W_ENCODING_FALLBACK).",
+  "fixtures": [
+    {
+      "file": "igraph/pajek1.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek1.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "LF, *Edges, vertex coordinates + box shape + x_fact/y_fact/ic parameters",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": false,
+        "labels": [
+          "Vert 1",
+          "Vert 2",
+          "Vert 3",
+          "Vert 10"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek2.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek2.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "same network with bare CR line ends",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": false,
+        "labels": [
+          "Vert 1",
+          "Vert 2",
+          "Vert 3",
+          "Vert 10"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek3.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek3.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "same network with CRLF line ends",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": false,
+        "labels": [
+          "Vert 1",
+          "Vert 2",
+          "Vert 3",
+          "Vert 10"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek4.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek4.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "mixed CR and LF line ends",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": false,
+        "labels": [
+          "Vert 1",
+          "Vert 2",
+          "Vert 3",
+          "Vert 10"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek5.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek5.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*Edges 9 (a section header carrying a line count)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": false,
+        "labels": [
+          "Vert 1",
+          "Vert 2",
+          "Vert 3",
+          "Vert 10"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek6.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek6.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*Arcs 9 (a section header carrying a line count)",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": true,
+        "labels": [
+          "Vert 1",
+          "Vert 2",
+          "Vert 3",
+          "Vert 10"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek_arcslist.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek_arcslist.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*Arcslist, CRLF, free text before the first section",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 18,
+        "edges": 55,
+        "directed": true,
+        "labels": [
+          "ROMUL_10",
+          "BONAVEN_5",
+          "AMBROSE_9",
+          "SIMP_18"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 14,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek_edgeslist.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek_edgeslist.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*Network with a quoted name, *Edgeslist",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": false,
+        "labels": [
+          "Alice",
+          "Bob",
+          "Cedric"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek_bip.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek_bip.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "two-mode *vertices 15 10 with a rectangular 10 x 5 *matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 15,
+        "edges": 25,
+        "labels": [
+          "A",
+          "B",
+          "C",
+          "5"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 11,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 11,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 12,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+    },
+    {
+      "file": "igraph/pajek_bip2.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek_bip2.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "two-mode rectangular *matrix whose rows carry one extra column",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 15,
+        "edges": 25,
+        "labels": [
+          "A",
+          "B",
+          "C",
+          "5"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 11,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 11,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 12,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+    },
+    {
+      "file": "igraph/bipartite.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/bipartite.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "two-mode *Vertices 13 8 with *Edges",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 13,
+        "edges": 11,
+        "directed": false,
+        "labels": [
+          "A",
+          "B",
+          "C",
+          "x-5"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 10,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 13,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 12,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/pajek_signed.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/pajek_signed.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*NETWORK name with ; and date, signed (+1/-1) square *Matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 45,
+        "directed": true,
+        "labels": [
+          "S65",
+          "S29",
+          "S04",
+          "S39"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 6,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 10,
+            "weight": -1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/utf8_with_bom.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/unit/utf8_with_bom.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "UTF-8 BOM, Cyrillic / CJK / symbol labels, custom vertex parameters, edge label",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 10,
+        "edges": 6,
+        "directed": false,
+        "labels": [
+          "Vlado",
+          "\u0410\u043d\u0434\u0440\u0435\u0458",
+          "\u017dnidar\u0161i\u010d",
+          "\u0110ur\u0111i\u0107",
+          "\u03b1\u03bd\u03b4\u03c1\u03b5\u03b9"
+        ],
+        "edgeChecks": [
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 6,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/links.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/examples/simple/links.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "% comment, *Network, loops, negative weights, Bezier edge parameters (h2 w c a1 k1 l lc ...)",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 7,
+        "directed": true,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 1,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 1,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "igraph/invalid_pajek2.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid_pajek2.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*vertices 4 1 then vertex number 0 (igraph rejects it; graph-io reads a 0-based file with a warning, sources.md 6.4 keeps that)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "warnings": [
+          "W_PAJEK_ZERO_BASED"
+        ]
+      }
+    },
+    {
+      "file": "igraph/invalid_pajek1.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid_pajek1.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*Vertices 1 3: the first-mode count exceeds the vertex count (igraph rejects it)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail"
+      },
+      "knownFailure": "two-mode header whose first-mode count exceeds the vertex count is accepted (sources.md 6.4)"
+    },
+    {
+      "file": "igraph/invalid_pajek3.net",
+      "origin": "https://github.com/igraph/igraph/blob/8f123b893d5525205773da314185545f9d187921/tests/regression/invalid_pajek3.net",
+      "license": "GPL-2.0-or-later",
+      "version": "igraph commit 8f123b89",
+      "exercises": "*Vertices 1 2 1: three numbers, first-mode count beyond the total (igraph rejects it)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail"
+      },
+      "knownFailure": "two-mode header whose first-mode count exceeds the vertex count is accepted (sources.md 6.4)"
+    },
+    {
+      "file": "multinet/sampson.net",
+      "origin": "http://mrvar.fdv.uni-lj.si/sola/info4/multinet/DATA/sampson.net",
+      "license": "none stated (Pajek teaching material; Sampson data from UCINET)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "10 relations as *Arcs :k \"name\" sections, weights",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 18,
+        "edges": 510,
+        "directed": true,
+        "labels": [
+          "ROMUL_10",
+          "BONAVEN_5",
+          "AMBROSE_9",
+          "SIMP_18"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 2.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 3.0
+          },
+          {
+            "source": 1,
+            "target": 14,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "multinet/sampsonL.net",
+      "origin": "http://mrvar.fdv.uni-lj.si/sola/info4/multinet/DATA/sampsonL.net",
+      "license": "none stated (Pajek teaching material; Sampson data from UCINET)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "10 relations as *Arcslist :k sections",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 18,
+        "edges": 510,
+        "directed": true,
+        "labels": [
+          "ROMUL_10",
+          "BONAVEN_5",
+          "AMBROSE_9",
+          "SIMP_18"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 14,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "multinet/sampson.mat",
+      "origin": "http://mrvar.fdv.uni-lj.si/sola/info4/multinet/DATA/sampson.mat",
+      "license": "none stated (Pajek teaching material; Sampson data from UCINET)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "10 relations as *Matrix :k sections",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 18,
+        "edges": 510,
+        "directed": true,
+        "labels": [
+          "ROMUL_10",
+          "BONAVEN_5",
+          "AMBROSE_9",
+          "SIMP_18"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 2.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 3.0
+          },
+          {
+            "source": 1,
+            "target": 14,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "multinet/multiex.net",
+      "origin": "http://mrvar.fdv.uni-lj.si/sola/info4/multinet/DATA/multiex.net",
+      "license": "none stated (Pajek teaching material; Sampson data from UCINET)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "three *Arcs :k relations",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 12,
+        "directed": true,
+        "labels": [
+          "v1",
+          "v2",
+          "v3",
+          "v6"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "multinet/WRITE.NET",
+      "origin": "http://mrvar.fdv.uni-lj.si/sola/info4/multinet/DATA/WRITE.NET",
+      "license": "none stated (Pajek teaching material; Sampson data from UCINET)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "mixed *Arcs and *Edges, CRLF, uppercase file",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 56,
+        "edges": 97,
+        "directed": false,
+        "labels": [
+          "trace",
+          "truce",
+          "trick",
+          "watts"
+        ],
+        "edgeChecks": [
+          {
+            "source": 48,
+            "target": 49,
+            "weight": 1.0
+          },
+          {
+            "source": 49,
+            "target": 50,
+            "weight": 1.0
+          },
+          {
+            "source": 7,
+            "target": 9,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+    },
+    {
+      "file": "multinet/multi.tim",
+      "origin": "http://mrvar.fdv.uni-lj.si/sola/info4/multinet/DATA/multi.tim",
+      "license": "none stated (Pajek teaching material; Sampson data from UCINET)",
+      "version": "retrieved 2026-09-23",
+      "exercises": "*Vertices 3 without vertex lines, then an *Events (.tim) section",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "batagelj/USAir97.net",
+      "origin": "https://web.archive.org/web/20241004182638/http://vlado.fmf.uni-lj.si/pub/networks/data/mix/USAir97.net",
+      "license": "CC-BY-NC-SA-2.5",
+      "version": "archive snapshot 20241004182638",
+      "exercises": "CRLF, 332 vertices with coordinates, an empty *Arcs followed by *Edges",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 332,
+        "edges": 2126,
+        "directed": false,
+        "labels": [
+          "Wiley Post-Will Rogers Mem",
+          "Deadhorse",
+          "Ralph Wien Memorial",
+          "West Tinian"
+        ],
+        "edgeChecks": [
+          {
+            "source": 118,
+            "target": 201,
+            "weight": 0.1804
+          },
+          {
+            "source": 118,
+            "target": 258,
+            "weight": 0.1474
+          },
+          {
+            "source": 118,
+            "target": 182,
+            "weight": 0.0332
+          }
+        ]
+      },
+      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+    },
+    {
+      "file": "batagelj/divorce.net",
+      "origin": "https://web.archive.org/web/20230329233503/http://vlado.fmf.uni-lj.si/pub/networks/data/2mode/divorce.net",
+      "license": "CC-BY-NC-SA-2.5",
+      "version": "archive snapshot 20230329233503",
+      "exercises": "two-mode *vertices 59 50 with a rectangular *matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 59,
+        "edges": 225,
+        "labels": [
+          "Alabama",
+          "Alaska",
+          "Arizona",
+          "separate"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 51,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 52,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 53,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+    },
+    {
+      "file": "batagelj/Tina.paj",
+      "origin": "https://web.archive.org/web/20130507075927/http://vlado.fmf.uni-lj.si/pub/networks/data/soc/Tina/tina.zip",
+      "license": "CC-BY-NC-SA-2.5",
+      "version": "archive snapshot 20130507075927 (tina.zip)",
+      "exercises": "project file with 6 networks, lowercase keywords, % comments inside *vertices",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 41,
+        "directed": true,
+        "labels": [
+          "minister 1",
+          "p.minister",
+          "minister 2",
+          "adviser 3"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 6,
+            "weight": 1.0
+          }
+        ],
+        "graphs": 6
+      }
+    },
+    {
+      "file": "bavla/boys.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/mix/boys.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "UTF-8 BOM, German umlauts, *Network + *Partition project",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION",
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 53,
+        "edges": 179,
+        "directed": true,
+        "labels": [
+          "Schlegel",
+          "Albert Hager",
+          "B\u00f6ger",
+          "K\u00f6chel",
+          "Pr\u00f6se",
+          "Albin Hager"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 37,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/companionPlants.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/mix/companionPlants.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*arcs :k \"name\" relations mixed with plain *Arcs, *Partition",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 216,
+        "edges": 999,
+        "directed": true,
+        "labels": [
+          "alfalfa",
+          "alliums",
+          "almost everything",
+          "zinnia"
+        ],
+        "edgeChecks": [
+          {
+            "source": 2,
+            "target": 18,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 129,
+            "weight": 1.0
+          },
+          {
+            "source": 11,
+            "target": 121,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/TableA11.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/mix/TableA11.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "UTF-8 BOM, two-mode *vertices 103 63 with *arcs",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 103,
+        "edges": 146,
+        "directed": true,
+        "labels": [
+          "Chen [28]",
+          "Kwon [43]",
+          "Loorak [42]",
+          "CBM_Composition"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 65,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 103,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 65,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/polBooks.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/bib/cite/polBooks.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*network + *edges + *partition, apostrophes in labels",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 105,
+        "edges": 441,
+        "directed": false,
+        "labels": [
+          "Bush vs. the Beltway",
+          "Charlie Wilson's War",
+          "Losing Bin Laden",
+          "1000 Years for Revenge"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 105,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 105,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 105,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/dolphins.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/bio/dolphins.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "lowercase *vertices / *edges, CRLF",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 62,
+        "edges": 159,
+        "directed": false,
+        "labels": [
+          "Beak",
+          "Beescratch",
+          "Bumper",
+          "Zipfel"
+        ],
+        "edgeChecks": [
+          {
+            "source": 9,
+            "target": 4,
+            "weight": 1.0
+          },
+          {
+            "source": 10,
+            "target": 6,
+            "weight": 1.0
+          },
+          {
+            "source": 10,
+            "target": 7,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/Chesapeake.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/bio/FoodWeb/Chesapeake.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "food web: *network, *arcs with weights, *partition and *vector",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 39,
+        "edges": 177,
+        "directed": true,
+        "labels": [
+          "phytoplankton",
+          "bacteria in suspended poc",
+          "bacteria in sediment poc",
+          "Respiration"
+        ],
+        "edgeChecks": [
+          {
+            "source": 37,
+            "target": 1,
+            "weight": 522650.0
+          },
+          {
+            "source": 37,
+            "target": 4,
+            "weight": 77803.0
+          },
+          {
+            "source": 37,
+            "target": 34,
+            "weight": 103188.0
+          }
+        ]
+      },
+      "knownFailure": "a *Partition before the first *Network is read as the network itself, so the real network is skipped (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/glossTG.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/dic/TG/glossTG.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "dictionary network, *Arcs and *Edges",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 72,
+        "edges": 118,
+        "directed": true,
+        "labels": [
+          "Acyclic Graph",
+          "Adjacency Matrix",
+          "Adjacency Structure",
+          "Walk"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 20,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 30,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 6,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/Bales.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/Bales/Bales.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Arcslist :1 \"Positive\" / :2 \"Negative\" relations",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 20,
+        "edges": 84,
+        "directed": true,
+        "labels": [
+          "A",
+          "B",
+          "C",
+          "T"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 11,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 16,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 6,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/DeepSouth.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/Davis/DeepSouth.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "3 networks, two-mode *Vertices 32 18 with *Matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 32,
+        "edges": 89,
+        "labels": [
+          "Evelyn",
+          "Laura",
+          "Theresa",
+          "E14:08/03"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 19,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 20,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 21,
+            "weight": 1.0
+          }
+        ],
+        "graphs": 3
+      },
+      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/kansas.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/Kansas/kansas.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "square *matrix with integer weights, labels with trailing blanks",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 20,
+        "edges": 148,
+        "directed": true,
+        "labels": [
+          "OSherrif  ",
+          "Civil Def ",
+          "Coroner   ",
+          "Topeka RBW"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 4.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 4.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 4.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/SupremeCourt.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/SupremeCourt.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "two-mode *Vertices 35 26 with *Edges :k relations",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 35,
+        "edges": 234,
+        "directed": false,
+        "labels": [
+          "PresElection",
+          "Federalism",
+          "FreeSpeech",
+          "Scalia"
+        ],
+        "edgeChecks": [
+          {
+            "source": 13,
+            "target": 35,
+            "weight": 1.0
+          },
+          {
+            "source": 26,
+            "target": 34,
+            "weight": 1.0
+          },
+          {
+            "source": 26,
+            "target": 33,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/scvote26.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/SupremeCourt/scvote26.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "two-mode, empty *Arcs then *Edges with signed weights",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 35,
+        "edges": 233,
+        "directed": false,
+        "labels": [
+          "PresElection",
+          "Federalism",
+          "FreeSpeech",
+          "Scalia"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 27,
+            "weight": -1.0
+          },
+          {
+            "source": 1,
+            "target": 28,
+            "weight": -1.0
+          },
+          {
+            "source": 1,
+            "target": 29,
+            "weight": -1.0
+          }
+        ]
+      },
+      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/A03.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gd/GD03/A03.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "graph-drawing contest: 423 vertices, three *Arcs :k relations",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 423,
+        "edges": 578,
+        "directed": true,
+        "labels": [
+          "aceBAK",
+          "acnA",
+          "acrAB",
+          "zwf"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 190,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 359,
+            "weight": 1.0
+          },
+          {
+            "source": 5,
+            "target": 282,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/theory.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gd/GD06/Org/theory.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "LF, % comments, vertex lines without labels",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 101,
+        "edges": 190,
+        "directed": false,
+        "edgeChecks": [
+          {
+            "source": 101,
+            "target": 1,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/WC.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gd/GD06/Org/WC.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "four *arcs :k relations, weights",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 79,
+        "edges": 1460,
+        "directed": true,
+        "labels": [
+          "Algeria",
+          "Angola",
+          "Argentina",
+          "Zaire"
+        ],
+        "edgeChecks": [
+          {
+            "source": 27,
+            "target": 43,
+            "weight": 4.0
+          },
+          {
+            "source": 43,
+            "target": 27,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 27,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/A97.NET",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gd/A97.NET",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "quoted numeric labels, x y z coordinates, *Arcs then *Edges",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 84,
+        "edges": 332,
+        "directed": true,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "84"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 22,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 38,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 78,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/baboons.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/Baboons/baboons.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "4 networks of weighted *matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 12,
+        "edges": 48,
+        "directed": true,
+        "labels": [
+          "FadultD",
+          "M2year",
+          "Fadult",
+          "M1year"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 11.0
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 5.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 9.0
+          }
+        ],
+        "graphs": 4
+      }
+    },
+    {
+      "file": "bavla/borner.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/mix/borner.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "weighted *Matrix with decimal values plus a *Vector",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 13,
+        "edges": 78,
+        "directed": true,
+        "labels": [
+          "MOLECULAR_SEQUENCE_DATA",
+          "RECEPTORS",
+          "CELLS",
+          "PROTEIN"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 0.19
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 0.43
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 0.65
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/LondonTube.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/mix/LondonTube.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "relation :0, a repeated :5 header, a bare *arcs whose lines carry a \"10:\" relation prefix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 352,
+        "edges": 465,
+        "directed": true,
+        "labels": [
+          "Harrow & Wealdstone",
+          "Kenton",
+          "South Kenton",
+          "Finsbury Park"
+        ],
+        "edgeChecks": [
+          {
+            "source": 14,
+            "target": 76,
+            "weight": 1.0
+          },
+          {
+            "source": 17,
+            "target": 78,
+            "weight": 1.0
+          },
+          {
+            "source": 22,
+            "target": 222,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "per-line relation prefix \"k:\" in a line section rejected (sources.md 6.1, multiple relations)"
+    },
+    {
+      "file": "bavla/caviar.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/caviar.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "UTF-8 without BOM, 2 networks, *Partition sections",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION",
+          "W_ENCODING_FALLBACK"
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 110,
+        "edges": 651,
+        "directed": true,
+        "labels": [
+          "N1",
+          "N2",
+          "N3",
+          "N110"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 2.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 7.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 8.0
+          }
+        ],
+        "graphs": 2
+      },
+      "knownFailure": "time sets with blanks inside the brackets or an empty [] rejected (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/Davis.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/Davis.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "\"[2-Mode]\" inside a network NAME (not an interval), two-mode *Vertices 32 18",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 32,
+        "edges": 89,
+        "directed": false,
+        "labels": [
+          "Evelyn",
+          "Laura",
+          "Theresa",
+          "E14"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 19,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 20,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 21,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/GraphList.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/GraphList.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Arcslist and *Edgeslist in one network",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 23,
+        "directed": true,
+        "labels": [
+          "a",
+          "b",
+          "c",
+          "l"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 6,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/GraphMat.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/GraphMat.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "square 0/1 *Matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 26,
+        "directed": true,
+        "labels": [
+          "a",
+          "b",
+          "c",
+          "l"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 6,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/homoEna.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/homoEna.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Edges :1 and *edges :2 relations",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 15,
+        "edges": 23,
+        "directed": false,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "z"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/Friends.tim",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/Friends.tim",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": ".tim file: *Vertices 8 then *Events (AV / AA / CV events)",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 8,
+        "edges": 0
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/Padgett.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/ucinet/Padgett.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "3 networks (UCINET conversion), the third two-mode with \"[2-Mode]\" in its name, *Partition",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 16,
+        "edges": 40,
+        "directed": true,
+        "labels": [
+          "ACCIAIUOL",
+          "ALBIZZI",
+          "BARBADORI",
+          "TORNABUON"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 9,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 6,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 7,
+            "weight": 1.0
+          }
+        ],
+        "graphs": 3
+      }
+    },
+    {
+      "file": "bavla/Trade.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/wafa/Trade.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Matrix :k \"name\" relations",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 24,
+        "edges": 1428,
+        "directed": true,
+        "labels": [
+          "ALG",
+          "ARG",
+          "BRA",
+          "YUG"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 18,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 1,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/CEOs.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/wafa/CEOs.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "two-mode *Vertices 41 26 with a rectangular *Matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 41,
+        "edges": 98,
+        "labels": [
+          "CEO-1",
+          "CEO-2",
+          "CEO-3",
+          "club-15"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 29,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 30,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 35,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/BiCoTest1.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/short/BiCoTest1.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "UTF-8 BOM, small *Edges network",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 12,
+        "edges": 14,
+        "directed": false,
+        "labels": [
+          "v1",
+          "v2",
+          "v3",
+          "v12"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 12,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/euroroad.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/short/euroroad.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "UTF-8 without BOM, 1178 vertices, LF",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 1178,
+        "edges": 1469,
+        "directed": false,
+        "labels": [
+          "Greenock",
+          "Glasgow",
+          "Preston",
+          "Orl\u00e9ans",
+          "San Sebasti\u00e1n",
+          "Castell\u00f3n de la Plana",
+          "Brest-Litovsk"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/PadgettMw.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/short/PadgettMw.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "lowercase *arcs then *edges, weights",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 16,
+        "edges": 20,
+        "directed": false,
+        "labels": [
+          "Acciaiuoli",
+          "Albizzi",
+          "Barbadori",
+          "Tornabuoni"
+        ],
+        "edgeChecks": [
+          {
+            "source": 2,
+            "target": 6,
+            "weight": 17.0
+          },
+          {
+            "source": 2,
+            "target": 7,
+            "weight": 4.0
+          },
+          {
+            "source": 3,
+            "target": 5,
+            "weight": 5.0
+          }
+        ]
+      },
+      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/vape.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Vape/vape.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "UTF-8 BOM, 2 *Partition + *Vector objects after the network",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION",
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 160,
+        "edges": 298,
+        "directed": true,
+        "labels": [
+          "m1",
+          "f2",
+          "f3",
+          "u160"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 22,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 97,
+            "weight": 2.0
+          },
+          {
+            "source": 1,
+            "target": 98,
+            "weight": 3.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/frag16.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/frag16.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "16 small genealogy networks, empty quoted labels, parallel arcs",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 2,
+        "edges": 2,
+        "directed": true,
+        "labels": [
+          ""
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          }
+        ],
+        "graphs": 16
+      }
+    },
+    {
+      "file": "bavla/KnokBur.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/ucinet/KnokBur.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "2 networks, *Partition and *Vector",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 10,
+        "edges": 49,
+        "directed": true,
+        "labels": [
+          "COUN",
+          "COMM",
+          "EDUC",
+          "WEST"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 7,
+            "weight": 1.0
+          }
+        ],
+        "graphs": 2
+      }
+    },
+    {
+      "file": "bavla/KITE.NET",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/soc/KP3/KITE.NET",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "uppercase .NET, *Arcs + *Edges",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 36,
+        "directed": true,
+        "labels": [
+          "j",
+          "i",
+          "h",
+          "a"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 1,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/TinaMat.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/nets/TinaMat.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "square *Matrix",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 41,
+        "directed": true,
+        "labels": [
+          "minister1",
+          "pminister",
+          "minister2",
+          "advisor3"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 6,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/Ragusa16.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/gbm/Ragusa/Ragusa16.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Arcs + *Edges, coordinates",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 24,
+        "edges": 81,
+        "directed": true,
+        "labels": [
+          "Babalio",
+          "Basilio",
+          "Benessa",
+          "Zamagna"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 22,
+            "weight": 2.0
+          },
+          {
+            "source": 3,
+            "target": 5,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/ERDOS971.NET",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/bib/Erdos/ERDOS971.NET",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Edgeslist, labels with commas and periods",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 472,
+        "edges": 1314,
+        "directed": false,
+        "labels": [
+          "Abbott, Harvey L.",
+          "Aczel, Janos D.",
+          "Aharoni, Ron",
+          "Ziv, Abraham"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 174,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 287,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 296,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "bavla/Padgett-wafa.paj",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/Pajek/wafa/Padgett.paj",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "*Arcs :k relations plus three *Vector objects",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 16,
+        "edges": 70,
+        "directed": true,
+        "labels": [
+          "Acciaiuoli",
+          "Albizzi",
+          "Barbadori",
+          "Tornabuoni"
+        ],
+        "edgeChecks": [
+          {
+            "source": 3,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 6,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 9,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "bavla/AW.net",
+      "origin": "https://github.com/bavla/Nets/blob/7ec138b740b86f4455687eabfc51ba949b5346cf/data/../netsWeight/data/AW.net",
+      "license": "none in the repository; the originating dataset site states CC-BY-NC-SA-2.5 (tests only)",
+      "version": "bavla/Nets commit 7ec138b7",
+      "exercises": "two-mode *Vertices 9 4 with *Edges, LF",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 12,
+        "directed": false,
+        "labels": [
+          "a1",
+          "a2",
+          "a3",
+          "w5"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 6,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 7,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/karate-weighted.net",
+      "origin": "generated locally with networkx 3.1 write_pajek (test/conformance/tools/oracle_pajek.py documents the oracle)",
+      "license": "BSD-3-Clause (networkx); karate club data public",
+      "version": "networkx 3.1",
+      "exercises": "networkx writer: numeric labels, weights, club attribute",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "labels": [
+          "0",
+          "1",
+          "2",
+          "33"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 4.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 5.0
+          },
+          {
+            "source": 1,
+            "target": 4,
+            "weight": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/directed-labels.net",
+      "origin": "generated locally with networkx 3.1 write_pajek (test/conformance/tools/oracle_pajek.py documents the oracle)",
+      "license": "BSD-3-Clause (networkx); karate club data public",
+      "version": "networkx 3.1",
+      "exercises": "networkx writer: *arcs, a quoted label with a space, negative and fractional weights",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "labels": [
+          "alpha",
+          "beta",
+          "gamma",
+          "lonely one"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 2.5
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": -1.0
+          },
+          {
+            "source": 3,
+            "target": 1,
+            "weight": 0.125
+          }
+        ]
+      }
+    },
+    {
+      "file": "networkx/multigraph-selfloop.net",
+      "origin": "generated locally with networkx 3.1 write_pajek (test/conformance/tools/oracle_pajek.py documents the oracle)",
+      "license": "BSD-3-Clause (networkx); karate club data public",
+      "version": "networkx 3.1",
+      "exercises": "networkx writer: parallel edges and a self-loop",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 3,
+        "directed": false,
+        "labels": [
+          "1",
+          "2"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 2,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/cp1252-no-bom.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "windows-1252 bytes without a BOM (not valid UTF-8)",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "Caf\u00e9",
+          "\u0161ola",
+          "na\u00efve"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/cp1250-no-bom.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "windows-1250 (Pajek's Slovene ANSI) bytes without a BOM, no encoding option: read as windows-1252 with a warning",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "labels": [
+          "\u017dnidar\u0161i\u00e8",
+          "Ljubljana"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/cp1250-explicit-encoding.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "windows-1250 bytes with the encoding option windows-1250",
+      "oracle": "pajek-manual-counter",
+      "options": {
+        "encoding": "windows-1250"
+      },
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "labels": [
+          "\u017dnidar\u0161i\u010d",
+          "\u0110ur\u0111i\u0107"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16le-bom.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16LE with a BOM",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 3,
+        "edges": 3,
+        "directed": false,
+        "labels": [
+          "\u0410\u043d\u0434\u0440\u0435\u0458",
+          "J\u00fcrgen",
+          "plain"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16be-bom.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16BE with a BOM",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "labels": [
+          "\u03b1\u03bd\u03b4\u03c1\u03b5\u03b9",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/utf8-no-bom.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "valid UTF-8 without a BOM",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "labels": [
+          "\u017dnidar\u0161i\u010d",
+          "\u7535\u8111"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/entity-label.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "&#dddd; character references in labels (Pajek decodes them)",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "Caf\u00e9",
+          "\u20acuro",
+          "plain"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "&#dddd; character references in labels not decoded (sources.md 6.4)"
+    },
+    {
+      "file": "authored/shapes.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "shape keywords in any case plus house / man / woman, followed by ic parameters",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "ic",
+            "value": "Red"
+          },
+          {
+            "id": 5,
+            "column": "ic",
+            "value": "Black"
+          },
+          {
+            "id": 2,
+            "column": "shape",
+            "value": "house"
+          },
+          {
+            "id": 3,
+            "column": "shape",
+            "value": "man"
+          },
+          {
+            "id": 4,
+            "column": "shape",
+            "value": "woman"
+          },
+          {
+            "id": 2,
+            "column": "ic",
+            "value": "Blue"
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              0.1,
+              0.1,
+              0.5
+            ]
+          }
+        ],
+        "nodes": 5,
+        "edges": 3,
+        "directed": false,
+        "labels": [
+          "a",
+          "b",
+          "c",
+          "e"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          },
+          {
+            "source": 4,
+            "target": 5,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "shape keywords are case-sensitive and house / man / woman are unknown (sources.md 6.4)"
+    },
+    {
+      "file": "authored/coords-no-label.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "vertex lines with coordinates but no label",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              0.1,
+              0.2
+            ]
+          },
+          {
+            "id": 3,
+            "role": "position",
+            "value": [
+              0.5,
+              0.6
+            ]
+          }
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "a vertex line with coordinates but no label is misread (second token taken as the label) (sources.md 6.4)"
+    },
+    {
+      "file": "authored/arcs-with-count.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "*Arcs 3 and *Edges 5 headers with (one wrong) line counts",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 4,
+        "directed": true,
+        "labels": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 3,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/arcslist-negative-ids.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "negative vertex numbers in *Arcslist (absolute value)",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 4,
+        "directed": true,
+        "labels": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 1,
+            "target": 3,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "negative vertex numbers in *Arcslist rejected instead of read as absolute values (sources.md 6.4)"
+    },
+    {
+      "file": "authored/vertices-fewer-lines.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "*Vertices 5 with only 2 vertex lines, edges to the unlisted vertices",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_VERTEX_COUNT"
+        ],
+        "nodes": 5,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "a",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 5,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 4,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "fewer vertex lines than *Vertices n declares is recorded as an error (sources.md 6.4)"
+    },
+    {
+      "file": "authored/partition-vector.paj",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "network followed by *Partition and *Vector objects",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_PAJEK_UNSUPPORTED_SECTION"
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "labels": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+    },
+    {
+      "file": "authored/two-networks.paj",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "two networks in one project file",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ],
+        "graphs": 2
+      }
+    },
+    {
+      "file": "authored/empty-arcs-then-edges.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an empty *Arcs section before *Edges must not make the graph mixed",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      },
+      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+    },
+    {
+      "file": "authored/time-intervals.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "time intervals [1-3,5], [2-*], [1,2,3] on vertices and edges",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/comments-indented.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "% comments indented with blanks and a tab, inside sections",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "labels": [
+          "a",
+          "b",
+          "c"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.5
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": -0.25
+          },
+          {
+            "source": 3,
+            "target": 1,
+            "weight": 0.001
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/quoted-label-escapes.net",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "quoted label with blanks, unquoted label, literal \\n kept in a label",
+      "oracle": "pajek-manual-counter",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "labels": [
+          "two words",
+          "unquoted",
+          "line\\nbreak"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 1.0
+          },
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 1.0
+          }
+        ]
+      }
+    }
+  ]
+}

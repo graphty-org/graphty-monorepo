@@ -1,0 +1,6 @@
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<key id="d0" for="node" attr.name="scores" attr.type="double" attr.list="double"/>
+<graph edgedefault="directed">
+<node id="a"><data key="d0">1.5 2.5</data></node>
+</graph>
+</graphml>

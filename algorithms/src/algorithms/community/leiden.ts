@@ -25,6 +25,9 @@ export interface LeidenResult {
     iterations: number;
 }
 
+/** How many local-moving sweeps one level may take before it is declared settled. */
+const LOCAL_MOVE_PASSES = 50;
+
 /**
  * Internal implementation of Leiden algorithm for community detection
  * Improves upon Louvain by ensuring well-connected communities
@@ -44,145 +47,80 @@ function leidenImpl(inputGraph: Map<string, Map<string, number>>, options: Leide
         };
     }
 
-    // Use a mutable variable for the current graph state
-    let currentGraph = inputGraph;
-
-    // Initialize random number generator
     const random = SeededRandom.createGenerator(randomSeed);
+    const base = weighLevel(inputGraph);
 
-    // Calculate total weight
-    let totalWeight = 0;
-    const degrees = new Map<string, number>();
-
-    for (const [node, neighbors] of currentGraph) {
-        let degree = 0;
-        for (const weight of neighbors.values()) {
-            degree += weight;
-            totalWeight += weight;
-        }
-        degrees.set(node, degree);
+    // Which node of the CURRENT level holds each original node. Every partition is scored against
+    // the original graph through this map, so an aggregation can never leave the answer keyed by
+    // the super-node names a caller has never heard of -- which is what it used to do.
+    const placement = new Map<string, string>();
+    for (const node of inputGraph.keys()) {
+        placement.set(node, node);
     }
-    totalWeight /= 2; // Each edge counted twice
 
-    // Initialize communities - each node in its own community
-    const communities = new Map<string, number>();
-    const nodes = Array.from(currentGraph.keys());
-    nodes.forEach((node, i) => communities.set(node, i));
-
-    let modularity = calculateModularity(currentGraph, communities, degrees, totalWeight, resolution);
-    let bestModularity = modularity;
-    let bestCommunities = new Map(communities);
+    let bestCommunities = singletonCommunities(inputGraph);
+    let bestModularity = calculateModularity(inputGraph, bestCommunities, base.degrees, base.totalWeight, resolution);
+    let levelGraph = inputGraph;
     let iterations = 0;
 
-    // Main Leiden loop
     while (iterations < maxIterations) {
         iterations++;
-        let improved = false;
 
-        // Phase 1: Local moving of nodes (fast)
-        const nodeOrder = [...nodes];
-        shuffle(nodeOrder, random);
+        const weights = weighLevel(levelGraph);
+        const communities = singletonCommunities(levelGraph);
+        const moved = moveNodesLocally(levelGraph, weights, communities, random, resolution, LOCAL_MOVE_PASSES);
 
-        for (const node of nodeOrder) {
-            const currentCommunity = communities.get(node);
-            if (currentCommunity === undefined) {
-                continue;
-            }
+        // Leiden's guarantee over Louvain: a community whose members are not connected to each
+        // other inside this level's graph is split into the pieces that are.
+        for (const [node, piece] of refinePartition(levelGraph, communities)) {
+            communities.set(node, piece);
+        }
 
-            const neighborCommunities = getNeighborCommunities(node, currentGraph, communities);
-
-            let bestCommunity = currentCommunity;
-            let bestGain = 0;
-
-            // Try moving to each neighbor community
-            for (const [community] of neighborCommunities) {
-                if (community === currentCommunity) {
-                    continue;
-                }
-
-                const gain = calculateModularityGain(
-                    node,
-                    community,
-                    currentGraph,
-                    communities,
-                    degrees,
-                    totalWeight,
-                    resolution,
-                );
-
-                if (gain > bestGain) {
-                    bestGain = gain;
-                    bestCommunity = community;
-                }
-            }
-
-            // Move node if beneficial
-            if (bestCommunity !== currentCommunity) {
-                communities.set(node, bestCommunity);
-                modularity += bestGain;
-                improved = true;
+        const candidate = new Map<string, number>();
+        for (const [original, levelNode] of placement) {
+            const community = communities.get(levelNode);
+            if (community !== undefined) {
+                candidate.set(original, community);
             }
         }
 
-        // Phase 2: Refinement (Leiden improvement over Louvain)
-        // Create aggregate network based on current partition
-        createAggregateNetwork(currentGraph, communities);
+        const modularity = calculateModularity(inputGraph, candidate, base.degrees, base.totalWeight, resolution);
 
-        // Refine partition using aggregate network
-        const subsetPartition = refinePartition(currentGraph, communities);
-
-        // Apply refined partition
-        for (const [node, newCommunity] of subsetPartition) {
-            communities.set(node, newCommunity);
-        }
-
-        // Recalculate modularity
-        modularity = calculateModularity(currentGraph, communities, degrees, totalWeight, resolution);
-
-        // Check if we've improved
-        if (modularity > bestModularity + threshold) {
-            bestModularity = modularity;
-            bestCommunities = new Map(communities);
-            improved = true;
-        }
-
-        if (!improved) {
+        if (modularity <= bestModularity + threshold) {
             break;
         }
 
-        // Phase 3: Aggregate network (create super-nodes)
-        const aggregated = aggregateCommunities(currentGraph, communities);
-        if (aggregated.graph.size === currentGraph.size) {
-            break;
-        } // No aggregation possible
+        bestModularity = modularity;
+        bestCommunities = candidate;
 
-        // Continue with aggregated network
-        const { graph: aggregatedGraph } = aggregated;
-        currentGraph = aggregatedGraph;
-        communities.clear();
-        let communityId = 0;
-        for (const node of currentGraph.keys()) {
-            communities.set(node, communityId++);
+        const distinct = new Set(communities.values()).size;
+        if (!moved || distinct === levelGraph.size) {
+            break;
         }
+
+        const aggregated = aggregateLevel(levelGraph, communities);
+        for (const [original, levelNode] of placement) {
+            const superNode = aggregated.mapping.get(levelNode);
+            if (superNode !== undefined) {
+                placement.set(original, superNode);
+            }
+        }
+
+        levelGraph = aggregated.graph;
     }
 
-    // Map back to original nodes
+    // Renumber communities consecutively, in the order they are first met, so the ids a caller
+    // reads are 0..k-1 whatever the levels handed out along the way.
+    const renumbered = new Map<number, number>();
     const finalCommunities = new Map<string, number>();
     for (const [node, community] of bestCommunities) {
-        finalCommunities.set(node, community);
-    }
-
-    // Renumber communities consecutively
-    const communityRenumber = new Map<number, number>();
-    let newId = 0;
-    for (const community of new Set(finalCommunities.values())) {
-        communityRenumber.set(community, newId++);
-    }
-    for (const [node, community] of finalCommunities) {
-        const newCommunityId = communityRenumber.get(community);
-        if (newCommunityId !== undefined) {
-            finalCommunities.set(node, newCommunityId);
+        let id = renumbered.get(community);
+        if (id === undefined) {
+            id = renumbered.size;
+            renumbered.set(community, id);
         }
+
+        finalCommunities.set(node, id);
     }
 
     return {
@@ -276,127 +214,6 @@ function getNeighborCommunities(
     }
 
     return neighborCommunities;
-}
-
-/**
- * Calculate modularity gain from moving a node to a community
- * @param node - The node ID to move
- * @param targetCommunity - The target community ID
- * @param graph - Map representation of the graph
- * @param communities - Map of node IDs to community IDs
- * @param degrees - Map of node IDs to their weighted degrees
- * @param totalWeight - Total weight of all edges in the graph
- * @param resolution - Resolution parameter for modularity calculation
- * @returns The modularity gain from moving the node to the target community
- */
-function calculateModularityGain(
-    node: string,
-    targetCommunity: number,
-    graph: Map<string, Map<string, number>>,
-    communities: Map<string, number>,
-    degrees: Map<string, number>,
-    totalWeight: number,
-    resolution: number,
-): number {
-    const currentCommunity = communities.get(node);
-    const nodeDegree = degrees.get(node);
-    if (currentCommunity === undefined || nodeDegree === undefined) {
-        return 0;
-    }
-
-    // Weight of edges from node to target community
-    let weightToTarget = 0;
-    let weightToCurrent = 0;
-
-    const neighbors = graph.get(node);
-    if (neighbors) {
-        for (const [neighbor, weight] of neighbors) {
-            const neighborCommunity = communities.get(neighbor);
-            if (neighborCommunity === undefined) {
-                continue;
-            }
-
-            if (neighborCommunity === targetCommunity) {
-                weightToTarget += weight;
-            } else if (neighborCommunity === currentCommunity && neighbor !== node) {
-                weightToCurrent += weight;
-            }
-        }
-    }
-
-    // Calculate community degrees
-    let targetDegree = 0;
-    let currentDegree = 0;
-
-    for (const [n, c] of communities) {
-        if (c === targetCommunity && n !== node) {
-            const deg = degrees.get(n);
-            if (deg !== undefined) {
-                targetDegree += deg;
-            }
-        } else if (c === currentCommunity && n !== node) {
-            const deg = degrees.get(n);
-            if (deg !== undefined) {
-                currentDegree += deg;
-            }
-        }
-    }
-
-    // Modularity gain calculation
-    const m2 = 2 * totalWeight;
-    const gain =
-        (weightToTarget - weightToCurrent) / totalWeight -
-        (resolution * nodeDegree * (targetDegree - currentDegree)) / (m2 * m2);
-
-    return gain;
-}
-
-/**
- * Create aggregate network where each community becomes a super-node
- * @param graph - Map representation of the graph
- * @param communities - Map of node IDs to community IDs
- * @returns Object with aggregate graph and node-to-community mapping
- */
-function createAggregateNetwork(
-    graph: Map<string, Map<string, number>>,
-    communities: Map<string, number>,
-): {
-    aggregateGraph: Map<number, Map<number, number>>;
-    nodeMapping: Map<string, number>;
-} {
-    const aggregateGraph = new Map<number, Map<number, number>>();
-    const nodeMapping = new Map<string, number>();
-
-    // Create mapping from nodes to communities
-    for (const [node, community] of communities) {
-        nodeMapping.set(node, community);
-        if (!aggregateGraph.has(community)) {
-            aggregateGraph.set(community, new Map());
-        }
-    }
-
-    // Aggregate edges
-    for (const [node, neighbors] of graph) {
-        const sourceCommunity = communities.get(node);
-        if (sourceCommunity === undefined) {
-            continue;
-        }
-
-        for (const [neighbor, weight] of neighbors) {
-            const targetCommunity = communities.get(neighbor);
-            if (targetCommunity === undefined) {
-                continue;
-            }
-
-            const sourceNeighbors = aggregateGraph.get(sourceCommunity);
-            if (sourceNeighbors) {
-                const current = sourceNeighbors.get(targetCommunity) ?? 0;
-                sourceNeighbors.set(targetCommunity, current + weight);
-            }
-        }
-    }
-
-    return { aggregateGraph, nodeMapping };
 }
 
 /**
@@ -511,67 +328,204 @@ function findConnectedComponents(graph: Map<string, Set<string>>): Set<string>[]
 }
 
 /**
- * Aggregate communities into super-nodes
- * @param graph - Map representation of the graph
- * @param communities - Map of node IDs to community IDs
- * @returns Object with aggregated graph and node-to-supernode mapping
+ * What one level of the algorithm knows about its own graph.
+ *
+ * RECOMPUTED PER LEVEL, which is the half that used to be missing. After the first aggregation
+ * every node is a super-node, and scoring the new graph with the old graph's degrees made the
+ * second level's modularity a number about a graph that no longer existed. It came out at zero,
+ * the loop read that as "no improvement", and the algorithm stopped after one pass.
  */
-function aggregateCommunities(
+interface LevelWeights {
+    /** The weighted degree of each node at this level, self-loops included. */
+    degrees: Map<string, number>;
+    /** Half the summed degree: the total edge weight m, each undirected edge counted once. */
+    totalWeight: number;
+}
+
+/**
+ * Weigh one level's graph.
+ * @param graph - The level's graph, stored with both directions of every edge.
+ * @returns The degrees and the total edge weight.
+ */
+function weighLevel(graph: Map<string, Map<string, number>>): LevelWeights {
+    const degrees = new Map<string, number>();
+    let summed = 0;
+
+    for (const [node, neighbors] of graph) {
+        let degree = 0;
+        for (const weight of neighbors.values()) {
+            degree += weight;
+        }
+
+        degrees.set(node, degree);
+        summed += degree;
+    }
+
+    return { degrees, totalWeight: summed / 2 };
+}
+
+/**
+ * One node per community, numbered from zero in the order the graph lists its nodes.
+ * @param graph - The level's graph.
+ * @returns The partition every level starts from.
+ */
+function singletonCommunities(graph: Map<string, Map<string, number>>): Map<string, number> {
+    const communities = new Map<string, number>();
+    let next = 0;
+
+    for (const node of graph.keys()) {
+        communities.set(node, next++);
+    }
+
+    return communities;
+}
+
+/**
+ * The summed degree of each community's members, which local moving keeps in step with every move.
+ * @param communities - The partition.
+ * @param degrees - The weighted degree of each node at this level.
+ * @returns The summed degree per community.
+ */
+function communityDegrees(communities: Map<string, number>, degrees: Map<string, number>): Map<number, number> {
+    const totals = new Map<number, number>();
+
+    for (const [node, community] of communities) {
+        totals.set(community, (totals.get(community) ?? 0) + (degrees.get(node) ?? 0));
+    }
+
+    return totals;
+}
+
+/**
+ * Move nodes to neighbouring communities until a whole sweep changes nothing.
+ *
+ * ONE SWEEP IS NOT CONVERGENCE, and treating it as such is what left this algorithm returning
+ * partitions it could beat with six single-node moves. A move changes the communities its
+ * neighbours are weighed against, so the node visited first is judged against a partition that no
+ * longer exists by the time the sweep ends. Repeating until a sweep moves nobody is what makes
+ * the answer a local optimum of the objective rather than an artefact of the visiting order.
+ * @param graph - The level's graph.
+ * @param weights - Its degrees and total edge weight.
+ * @param communities - The partition, moved in place.
+ * @param random - The seeded generator the visiting order is shuffled with.
+ * @param resolution - Higher values favour smaller communities.
+ * @param maxPasses - A ceiling on the sweeps, so a pathological graph cannot spin for ever.
+ * @returns Whether anything moved at all.
+ */
+function moveNodesLocally(
+    graph: Map<string, Map<string, number>>,
+    weights: LevelWeights,
+    communities: Map<string, number>,
+    random: () => number,
+    resolution: number,
+    maxPasses: number,
+): boolean {
+    const { degrees, totalWeight } = weights;
+
+    if (totalWeight === 0) {
+        return false;
+    }
+
+    const totals = communityDegrees(communities, degrees);
+    const nodes = [...graph.keys()];
+    let movedEver = false;
+
+    for (let pass = 0; pass < maxPasses; pass++) {
+        const order = [...nodes];
+        shuffle(order, random);
+        let movedThisPass = false;
+
+        for (const node of order) {
+            const current = communities.get(node);
+            const degree = degrees.get(node);
+            if (current === undefined || degree === undefined) {
+                continue;
+            }
+
+            const neighborCommunities = getNeighborCommunities(node, graph, communities);
+            const selfLoop = graph.get(node)?.get(node) ?? 0;
+            const weightToCurrent = (neighborCommunities.get(current) ?? 0) - selfLoop;
+            const degreeOfCurrent = (totals.get(current) ?? 0) - degree;
+
+            let bestCommunity = current;
+            let bestGain = 0;
+
+            for (const [community, weightToTarget] of neighborCommunities) {
+                if (community === current) {
+                    continue;
+                }
+
+                // The standard modularity gain for moving one node out of its community and into
+                // another: what the move adds to the edges inside a community, less what it adds
+                // to what a random graph of the same degrees would have had there.
+                const gain =
+                    (weightToTarget - weightToCurrent) / totalWeight -
+                    (resolution * degree * ((totals.get(community) ?? 0) - degreeOfCurrent)) /
+                        (2 * totalWeight * totalWeight);
+
+                if (gain > bestGain) {
+                    bestGain = gain;
+                    bestCommunity = community;
+                }
+            }
+
+            if (bestCommunity !== current) {
+                communities.set(node, bestCommunity);
+                totals.set(current, (totals.get(current) ?? 0) - degree);
+                totals.set(bestCommunity, (totals.get(bestCommunity) ?? 0) + degree);
+                movedThisPass = true;
+                movedEver = true;
+            }
+        }
+
+        if (!movedThisPass) {
+            break;
+        }
+    }
+
+    return movedEver;
+}
+
+/**
+ * Collapse each community into one node, carrying its internal weight as a self-loop.
+ *
+ * THE SELF-LOOP IS THE POINT. Without it the aggregated graph forgets every edge inside a
+ * community, so the next level scores a graph with no internal weight anywhere and every
+ * partition of it looks equally bad. Both directions of every internal edge land in the same
+ * entry, which is exactly the doubled internal weight the modularity sum wants.
+ * @param graph - The level's graph.
+ * @param communities - The partition to collapse.
+ * @returns The next level's graph, and where each node of this one went.
+ */
+function aggregateLevel(
     graph: Map<string, Map<string, number>>,
     communities: Map<string, number>,
-): {
-    graph: Map<string, Map<string, number>>;
-    mapping: Map<string, string>;
-} {
+): { graph: Map<string, Map<string, number>>; mapping: Map<string, string> } {
     const aggregated = new Map<string, Map<string, number>>();
     const mapping = new Map<string, string>();
 
-    // Create super-nodes
-    const communityNodes = new Map<number, string>();
-    for (const community of new Set(communities.values())) {
-        const superNode = `super_${String(community)}`;
-        communityNodes.set(community, superNode);
-        aggregated.set(superNode, new Map());
-    }
-
-    // Map original nodes to super-nodes
     for (const [node, community] of communities) {
-        const superNode = communityNodes.get(community);
-        if (superNode !== undefined) {
-            mapping.set(node, superNode);
+        const superNode = `c${String(community)}`;
+        mapping.set(node, superNode);
+        if (!aggregated.has(superNode)) {
+            aggregated.set(superNode, new Map());
         }
     }
 
-    // Aggregate edges
     for (const [node, neighbors] of graph) {
-        const sourceCommunity = communities.get(node);
-        if (sourceCommunity === undefined) {
-            continue;
-        }
-
-        const sourceSuper = communityNodes.get(sourceCommunity);
-        if (sourceSuper === undefined) {
+        const source = mapping.get(node);
+        const row = source === undefined ? undefined : aggregated.get(source);
+        if (row === undefined) {
             continue;
         }
 
         for (const [neighbor, weight] of neighbors) {
-            const targetCommunity = communities.get(neighbor);
-            if (targetCommunity === undefined) {
+            const target = mapping.get(neighbor);
+            if (target === undefined) {
                 continue;
             }
 
-            const targetSuper = communityNodes.get(targetCommunity);
-            if (targetSuper === undefined) {
-                continue;
-            }
-
-            if (sourceSuper !== targetSuper) {
-                const sourceNeighbors = aggregated.get(sourceSuper);
-                if (sourceNeighbors) {
-                    const current = sourceNeighbors.get(targetSuper) ?? 0;
-                    sourceNeighbors.set(targetSuper, current + weight);
-                }
-            }
+            row.set(target, (row.get(target) ?? 0) + weight);
         }
     }
 

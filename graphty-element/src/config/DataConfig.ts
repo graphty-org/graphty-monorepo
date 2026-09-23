@@ -1,6 +1,8 @@
 import type { DuplicatePolicy, IdCoercion } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
+import { GraphtyError } from "../errors/GraphtyError";
+
 // graph-format's own vocabulary for what to do with a second edge between the same ordered pair.
 // The `satisfies` keeps this list identical to graph-format's type, so the element can never grow
 // a policy the layer below it does not have a meaning for.
@@ -90,8 +92,75 @@ const GraphKnownFields = z.strictObject({
     idCoercion: z.enum(ID_COERCION_RULES).default("canonical"),
 });
 
+/**
+ * One entry of the load-time algorithm list: an algorithm, or an algorithm with run options.
+ *
+ * A string is the algorithm alone -- a catalogue key such as "pagerank" or a 1.x address such as
+ * "graphty:pagerank". The object form carries the options `session.runs.start` takes that mean
+ * something before anyone has seen the graph: `params`, `style` (see `RunStyle`), `seed` and `as`.
+ * The rest are left out on purpose: `signal`, `onProgress`, `queue` and `dryRun` belong to a
+ * caller that is there to watch or steer the run, `scope` names a view of data that does not exist
+ * yet, and `timeBoxMs`, `exact` and `sample` are answers to a cost the caller has not seen.
+ * The object is strict, so a misspelled option fails instead of being dropped.
+ */
+const AlgorithmName = z.string().trim().min(1);
+const AlgorithmWithOptions = z.strictObject({
+    algorithm: AlgorithmName,
+    params: z.record(z.string(), z.unknown()).optional(),
+    style: z
+        .union([
+            z.boolean(),
+            z.strictObject({ size: z.union([z.boolean(), z.tuple([z.number(), z.number()]).readonly()]).optional() }),
+        ])
+        .optional(),
+    seed: z.number().optional(),
+    as: z.string().min(1).optional(),
+});
+export const AlgorithmOnLoad = z.union([AlgorithmName, AlgorithmWithOptions]);
+export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
+
+/**
+ * Check a load-time algorithm list, entry by entry.
+ * @param value - What the caller handed over.
+ * @returns The list, parsed.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` naming the first bad entry and its index.
+ */
+export function parseAlgorithmsOnLoad(value: unknown): AlgorithmOnLoad[] {
+    if (!Array.isArray(value)) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `The algorithms to run on load must be a list, not ${JSON.stringify(value)}.`,
+            source: "config",
+            details: { value },
+        });
+    }
+
+    return value.map((entry: unknown, index) => {
+        // Parsed against the one form it is trying to be, so the issue names the bad option rather
+        // than "matched neither form".
+        const parsed =
+            typeof entry === "object" && entry !== null ? AlgorithmWithOptions.safeParse(entry) : AlgorithmName.safeParse(entry);
+
+        if (!parsed.success) {
+            const issue = parsed.error.issues[0];
+            const where = issue.path.length > 0 ? ` at "${issue.path.join(".")}"` : "";
+
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message:
+                    `Algorithm on load #${index} (${JSON.stringify(entry)}) is not valid${where}: ${issue.message}. ` +
+                    `Each entry is an algorithm name, or { algorithm, params?, style?, seed?, as? }.`,
+                source: "config",
+                details: { index, entry, path: issue.path },
+            });
+        }
+
+        return parsed.data;
+    });
+}
+
 export const DataConfig = z.strictObject({
-    algorithms: z.array(z.string()).optional(),
+    algorithms: z.array(AlgorithmOnLoad).optional(),
     knownFields: GraphKnownFields.prefault({}),
     // graph-format design 14.4 rule 1: under "auto" the builder starts directed and unlocked so a
     // file header can set the direction while the builder is still empty; an explicit boolean

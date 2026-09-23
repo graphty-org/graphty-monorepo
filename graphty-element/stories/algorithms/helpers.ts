@@ -97,10 +97,8 @@ interface AlgorithmStoryExpectations {
     /**
      * Size the nodes by the run as well as colour them, over this node size range.
      *
-     * A node metric suggests a colour and no size, so a story that wants both starts the run the
-     * way a consumer asks for both: `session.runs.start(key, {}, { style: { size: [min, max] } })`.
-     * The element's load-time list (`algorithmsOnLoad`) takes bare keys and no run options, so
-     * such a story starts its run itself instead of naming it there.
+     * A node metric suggests a colour and no size, so a story that wants both asks for it the way
+     * a consumer does: `{ algorithm, style: { size: [min, max] } }` in the load-time list.
      */
     readonly size?: readonly [min: number, max: number];
 }
@@ -117,10 +115,10 @@ export const createAlgorithmStory = (
     return {
         args: {
             setup: storySetup({
-                algorithms: size === undefined ? [algorithmId] : [],
+                algorithms: [size === undefined ? algorithmId : { algorithm: algorithmId, style: { size } }],
                 preSteps: 8000, // Extra preSteps for ngraph physics layout
             }),
-            runAlgorithmsOnLoad: size === undefined,
+            runAlgorithmsOnLoad: true,
         },
         play: async ({ canvasElement }) => {
             // Wait for the graph to fully settle before applying algorithm styles
@@ -139,23 +137,19 @@ export const createAlgorithmStory = (
                 await session.styles.add(layer);
             }
 
-            if (size === undefined) {
-                // ASSERTED, NOT DISCARDED. Graph.applySuggestedStyles returns false when no finished
-                // run of this algorithm has anything per element to paint -- which is to say, when
-                // this story is a picture of the element's own defaults with no algorithm in it. All
-                // twenty-seven of these stories called it as a bare statement and passed either way.
-                const applied = graph.applySuggestedStyles(algorithmId);
+            // ASSERTED, NOT DISCARDED. Graph.applySuggestedStyles returns false when no finished
+            // run of this algorithm has anything per element to paint -- which is to say, when
+            // this story is a picture of the element's own defaults with no algorithm in it. All
+            // twenty-seven of these stories called it as a bare statement and passed either way.
+            // A run started with `style: { size }` suggests its size as well as its colour, so
+            // this puts both back on top of the reader's layers.
+            const applied = graph.applySuggestedStyles(algorithmId);
 
-                await holds(
-                    applied,
-                    `${algorithmId}: applySuggestedStyles returned false, so no finished run of this algorithm ` +
-                        "had anything to paint and this story is a picture of the element's defaults",
-                );
-            } else {
-                // Started the way a consumer asks for colour AND size: the run paints both on
-                // completion, so there is nothing to apply by hand afterwards.
-                await session.runs.start(algorithmKey(algorithmId), {}, { style: { size } });
-            }
+            await holds(
+                applied,
+                `${algorithmId}: applySuggestedStyles returned false, so no finished run of this algorithm ` +
+                    "had anything to paint and this story is a picture of the element's defaults",
+            );
 
             const scene = await drawn(canvasElement, `Algorithms ${algorithmId}`);
 

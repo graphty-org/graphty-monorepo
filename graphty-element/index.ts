@@ -82,6 +82,9 @@ export type {
     XRUIConfig,
 } from "./src/config/index";
 
+// One entry of `element.algorithmsOnLoad`: a name, or a name with its run options
+export type { AlgorithmOnLoad } from "./src/config/DataConfig";
+
 // XR partial config type (for setting XR options)
 export type { PartialXRConfig } from "./src/config/xr-config-schema";
 

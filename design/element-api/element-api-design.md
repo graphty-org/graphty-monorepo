@@ -1398,6 +1398,18 @@ interface RunsApi {
 }
 ```
 
+**The load-time list takes the same options, as data.** `<graphty-element>`'s
+`algorithmsOnLoad` property (property only -- markup gets a declarative child-element form
+later, not a JSON attribute; switched on by `run-algorithms-on-load`) and the style template's `data.algorithms` accept, per entry, either an
+algorithm name or `{ algorithm, params?, style?, seed?, as? }` -- the subset of `StartOptions`
+that means something before the data exists. `signal`, `onProgress` and `queue` steer a run
+someone is watching; `scope` names a view of data that is not there yet; `timeBoxMs`, `exact`
+and `sample` answer a cost estimate nobody has seen. Each entry becomes one `runs.start` with no
+per-algorithm branch, so `{ algorithm: "pagerank", style: { size: [1, 5] } }` colours and sizes
+exactly as the call does. The object is strict: a malformed entry or an unknown option is refused
+with `E_BAD_COMMAND` naming the entry and its index. The type is `AlgorithmOnLoad`
+(`graphty-element/src/config/DataConfig.ts`).
+
 **What an ungated `run()` does on a graph that is too big.** A stranger's first line is
 `g.run("betweenness")` with nothing in front of it, on whatever graph they happened to load, so
 this behaviour has to be defined rather than left to luck. The failure it prevents is on
@@ -4225,8 +4237,9 @@ interface DataPlan { version: 1;
                      knownFields: Partial<Record<"nodeId" | "edgeSource" | "edgeTarget"
                                                  | "nodeLabel" | "edgeWeight" | "time", string>>;
                      directed?: boolean | "auto"; idCoercion?: "canonical" | "keep";
-                     runOnLoad?: readonly { algorithm: AlgorithmKey;
-                                            params?: Record<string, unknown> }[];
+                     runOnLoad?: readonly (AlgorithmKey | { algorithm: AlgorithmKey;
+                                            params?: Record<string, unknown>;
+                                            style?: RunStyle; seed?: number; as?: RunId })[];
                      name?: string; fingerprint?: string }
 interface AnnotationSet { version: 1; notes: readonly Note[];
                           name?: string; fingerprint?: string }

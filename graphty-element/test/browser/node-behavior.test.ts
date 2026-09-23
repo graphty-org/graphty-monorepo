@@ -1,5 +1,4 @@
  
-// @ts-nocheck
 import { ActionManager, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
@@ -23,7 +22,7 @@ describe("Node Behavior Tests", () => {
     test("drag behavior with pinOnDrag enabled", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node", label: "Test Node" } as AdHocData);
+        dataManager.addNode({ id: "test-node", label: "Test Node" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node");
         assert.isDefined(node);
@@ -37,11 +36,11 @@ describe("Node Behavior Tests", () => {
         const pinSpy = vi.spyOn(node, "pin").mockImplementation(() => undefined);
 
         // Simulate drag start
-        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
         assert.equal(node.dragging, true);
 
         // Simulate drag end
-        node.dragHandler.onDragEnd();
+        node.dragHandler?.onDragEnd();
         assert.equal(node.dragging, false);
 
         // Node should call pin() method when pinOnDrag is true
@@ -51,7 +50,7 @@ describe("Node Behavior Tests", () => {
     test("drag behavior observables work correctly", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-2", label: "Test Node 2" } as AdHocData);
+        dataManager.addNode({ id: "test-node-2", label: "Test Node 2" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-2");
         assert.isDefined(node);
@@ -62,12 +61,12 @@ describe("Node Behavior Tests", () => {
         const pinSpy = vi.spyOn(node, "pin").mockImplementation(() => undefined);
 
         // Test drag start
-        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
         assert.equal(node.dragging, true);
         assert.isTrue(setRunningSpy.mock.calls.some((call) => call[0]));
 
         // Test drag end
-        node.dragHandler.onDragEnd();
+        node.dragHandler?.onDragEnd();
         assert.equal(node.dragging, false);
 
         // Node should call pin() method by default
@@ -77,7 +76,7 @@ describe("Node Behavior Tests", () => {
     test("position changed during drag updates layout engine", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-3", label: "Test Node 3" } as AdHocData);
+        dataManager.addNode({ id: "test-node-3", label: "Test Node 3" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-3");
         assert.isDefined(node);
@@ -88,14 +87,15 @@ describe("Node Behavior Tests", () => {
             setNodePosition: vi.fn(),
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
-        const mockSetNodePosition = vi.spyOn(mockLayoutEngine, "setNodePosition");
+        const spyTarget = mockLayoutEngine as unknown as { setNodePosition: (node: unknown, position: unknown) => void };
+        const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
 
         // Start dragging
-        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
 
         // Simulate position change while dragging
         const newPosition = new Vector3(10, 20, 30);
-        node.dragHandler.onDragUpdate(newPosition);
+        node.dragHandler?.onDragUpdate(newPosition);
 
         // Should update layout engine position
         assert.equal(mockSetNodePosition.mock.calls.length, 1);
@@ -107,7 +107,7 @@ describe("Node Behavior Tests", () => {
     test("position changed when not dragging does not update layout engine", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-4", label: "Test Node 4" } as AdHocData);
+        dataManager.addNode({ id: "test-node-4", label: "Test Node 4" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-4");
         assert.isDefined(node);
@@ -118,11 +118,12 @@ describe("Node Behavior Tests", () => {
             setNodePosition: vi.fn(),
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
-        const mockSetNodePosition = vi.spyOn(mockLayoutEngine, "setNodePosition");
+        const spyTarget = mockLayoutEngine as unknown as { setNodePosition: (node: unknown, position: unknown) => void };
+        const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
 
         // Simulate position change without dragging (node.dragging should be false)
         const newPosition = new Vector3(10, 20, 30);
-        node.dragHandler.onDragUpdate(newPosition);
+        node.dragHandler?.onDragUpdate(newPosition);
 
         // Should NOT update layout engine position (because dragging is false)
         assert.equal(mockSetNodePosition.mock.calls.length, 0);
@@ -146,7 +147,7 @@ describe("Node Behavior Tests", () => {
 
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-5", label: "Test Node 5" } as AdHocData);
+        dataManager.addNode({ id: "test-node-5", label: "Test Node 5" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-5");
         assert.isDefined(node);
@@ -209,7 +210,7 @@ describe("Node Behavior Tests", () => {
         graph.fetchEdges = fetchEdges;
 
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as AdHocData);
+        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);
@@ -222,9 +223,11 @@ describe("Node Behavior Tests", () => {
 
         assert.isDefined(doubleClickAction);
         if ("execute" in doubleClickAction) {
-            doubleClickAction.execute?.();
+            // IAction.execute is declared with a required ActionEvent parameter, but the registered
+            // double-click action ignores it, so the call is made through its callable shape.
+            (doubleClickAction as unknown as { execute?: () => void }).execute?.();
         } else {
-            doubleClickAction._executionCallback?.();
+            (doubleClickAction as unknown as { _executionCallback?: () => void })._executionCallback?.();
         }
 
         const nodeIds = fetchNodes.mock.calls[0][0];
@@ -244,22 +247,34 @@ describe("Node Behavior Tests", () => {
     test("double-click expansion does nothing when fetchNodes/fetchEdges don't exist", () => {
         // Add a node using DataManager (no fetch functions on graph)
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-6", label: "Test Node 6" } as AdHocData);
+        dataManager.addNode({ id: "test-node-6", label: "Test Node 6" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-6");
         assert.isDefined(node);
 
-        // No double-click action should be registered when fetch functions don't exist
+        // The handler is registered on every node and reads the fetchers when the reader
+        // double-clicks, so that expansion switched on AFTER a graph is drawn reaches the nodes
+        // already on screen. "Does nothing" is therefore about what the double-click DOES, which
+        // is what this test was always for: with no fetchers, no records reach the graph.
+        const addNodesSpy = vi.spyOn(dataManager, "addNodes");
+        const addEdgesSpy = vi.spyOn(dataManager, "addEdges");
+
         const actions = node.mesh.actionManager?.actions ?? [];
         const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
 
-        assert.isUndefined(doubleClickAction);
+        assert.isDefined(doubleClickAction);
+        assert.doesNotThrow(() => {
+            (doubleClickAction as unknown as { execute?: () => void }).execute?.();
+        });
+
+        assert.equal(addNodesSpy.mock.calls.length, 0);
+        assert.equal(addEdgesSpy.mock.calls.length, 0);
     });
 
     test("mesh is made pickable", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as AdHocData);
+        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as unknown as AdHocData);
 
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);

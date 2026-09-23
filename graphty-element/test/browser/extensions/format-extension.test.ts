@@ -675,7 +675,7 @@ async function mountElement(): Promise<Graphty> {
     container.style.height = "300px";
     document.body.appendChild(container);
 
-    const mounted = document.createElement("graphty-element") as Graphty;
+    const mounted = document.createElement("graphty-element");
 
     assert.instanceOf(mounted, Graphty, "importing the package is what defines the custom element");
 

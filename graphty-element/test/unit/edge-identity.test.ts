@@ -33,7 +33,6 @@ import { MeshCache } from "../../src/meshes/MeshCache";
 import { Styles } from "../../src/Styles";
 
 const EDGE_STYLE: EdgeStyleConfig = {
-    enabled: true,
     line: { type: "solid", color: "#AAAAAA", width: 0.5 },
 };
 

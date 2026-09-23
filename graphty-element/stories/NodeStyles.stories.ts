@@ -1,6 +1,22 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
+import {
+    assertDistinctPicture,
+    assertDrawnColour,
+    assertDrawnOpacity,
+    assertDrawnShape,
+    assertGraphLoaded,
+    assertLabelsDrawn,
+    assertNoLabelsDrawn,
+    assertShapeVariety,
+    assertWireframes,
+    type Drawn,
+    drawn,
+    holds,
+} from "./assertions";
 import {
     eventWaitingDecorator,
     nodeShapes,
@@ -57,18 +73,44 @@ const meta: Meta = {
 };
 export default meta;
 
-// Common play function for all stories
-const waitForSettle = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+/**
+ * Wait for the story to settle and read what it drew.
+ *
+ * The cat social network is twenty nodes and twenty-nine edges, and it is fetched over the
+ * network at render time, so the count is also the check that the fetch arrived.
+ */
+const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn> => {
     await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Styles/Node ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+
+    return scene;
 };
 
 type Story = StoryObj<StoryArgs>;
 
 export const Default: Story = {
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Default");
+
+        // The element's own appearance, with no layer of the story's own: one shape, one size,
+        // one colour, and no label anywhere.
+        await assertDrawnColour(scene, "#6366f1");
+        await assertDrawnShape(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, "icosphere"])));
+        await assertNoLabelsDrawn(scene);
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
 };
 
 export const Color: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Color");
+
+        await assertDrawnColour(scene, "#ff0000");
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
         setup: storySetup({
             node: { "node.color": "red" },
@@ -80,10 +122,16 @@ export const Color: Story = {
             include: ["node.color"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Shape: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Shape");
+
+        await assertDrawnShape(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, "box"])));
+        await assertShapeVariety(scene, 1);
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
         setup: storySetup({
             node: { "node.shape": "box" },
@@ -95,10 +143,25 @@ export const Shape: Story = {
             include: ["node.shape"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Size: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Size");
+
+        // Size is baked into the source mesh rather than written to mesh.scaling, so the reading
+        // that says a node got bigger is its drawn bounding box. The element's default icosphere
+        // is 0.75 across at size 1, so size 3 is 2.25.
+        const wrong = scene.nodes.filter((node) => Math.abs(node.radius - 2.25) > 0.01).map((node) => node.id);
+
+        await holds(
+            wrong.length === 0,
+            `Styles/Node Size: this story asks for size 3 and ${String(wrong.length)} nodes are drawn at a ` +
+                `different size -- first is ${String(scene.nodes[0].radius)}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
         setup: storySetup({ node: { "node.size": 3 }, preSteps: 8000 }),
     },
@@ -107,10 +170,18 @@ export const Size: Story = {
             include: ["node.size"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Wireframe: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Wireframe");
+
+        await assertWireframes(
+            scene,
+            scene.nodes.map((node) => node.id),
+        );
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
         setup: storySetup({
             node: { "node.wireframe": true },
@@ -122,7 +193,6 @@ export const Wireframe: Story = {
             include: ["node.wireframe"],
         },
     },
-    play: waitForSettle,
 };
 
 /**
@@ -133,6 +203,12 @@ export const Wireframe: Story = {
  * binding it to a column is how the words come from the data.
  */
 export const Label: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Label");
+
+        await assertLabelsDrawn(scene);
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
         setup: storySetup({
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -144,10 +220,16 @@ export const Label: Story = {
             include: ["node.label"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Opacity: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Opacity");
+
+        await assertDrawnColour(scene, "#0000ff");
+        await assertDrawnOpacity(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, 0.5])));
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
         setup: storySetup({
             node: { "node.color": "#0000FF", "node.opacity": 0.5 },
@@ -159,5 +241,4 @@ export const Opacity: Story = {
             include: ["node.color", "node.opacity"],
         },
     },
-    play: waitForSettle,
 };

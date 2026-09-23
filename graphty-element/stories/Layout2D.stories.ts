@@ -3,7 +3,45 @@ import "../index.ts";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
+import {
+    assertDistinctPicture,
+    assertGraphLoaded,
+    assertLayoutPlaced,
+    assertNodeBands,
+    assertNodesOnACircle,
+    assertViewMode,
+    type Drawn,
+    drawn,
+} from "./assertions";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
+
+/**
+ * Settle a 2D layout story and read where its nodes ended up.
+ *
+ * TWO THINGS EVERY ONE OF THESE TWELVE PROMISES AND NONE OF THEM ASSERTED. That all of its nodes
+ * are placed somewhere real and no two are stacked on one another -- a layout that never ran
+ * draws a picture and used to pass -- and that the picture is FLAT, which is the whole of what
+ * makes it a 2D layout rather than a 3D one.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @param counts - What the story's own data declares.
+ * @returns What the story drew.
+ */
+const placed = async (
+    canvasElement: HTMLElement,
+    story: string,
+    counts: { nodes: number; edges: number } = { nodes: 77, edges: 254 },
+): Promise<Drawn> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Layout/2D ${story}`);
+
+    await assertGraphLoaded(scene, counts);
+    await assertLayoutPlaced(scene, { dim: 2 });
+    await assertViewMode(scene, "2d");
+
+    return scene;
+};
 
 const meta: Meta = {
     title: "Layout/2D",
@@ -200,8 +238,9 @@ export const Spiral: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Spiral");
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -218,8 +257,10 @@ export const Circular: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Circular");
+
+        await assertNodesOnACircle(scene);
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -256,8 +297,26 @@ export const Shell: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Shell", { nodes: 120, edges: 151 });
+
+        // Five shells, named in the story's own nlist: one node at the centre, then 5, 15, 30 and
+        // 69 around it. Five shells is five distinct distances from the centre.
+        const centre = scene.nodes
+            .reduce((sum, node) => [sum[0] + node.position[0], sum[1] + node.position[1]], [0, 0])
+            .map((total) => total / scene.nodes.length);
+        const radii = scene.nodes
+            .map((node) => Math.hypot(node.position[0] - centre[0], node.position[1] - centre[1]))
+            .sort((left, right) => left - right);
+        let shells = 1;
+
+        for (let index = 1; index < radii.length; index++) {
+            if (radii[index] - radii[index - 1] > 0.5) {
+                shells++;
+            }
+        }
+
+        await assertNodeBands(scene, 2, 1);
+        await assertDistinctPicture(scene, "Layout/2D", `shells=${String(shells)}`);
     },
 };
 
@@ -274,8 +333,9 @@ export const Random: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Random");
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -295,8 +355,9 @@ export const Spring: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Spring");
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -352,8 +413,9 @@ export const Planar: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Planar", { nodes: 10, edges: 24 });
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -370,8 +432,9 @@ export const KamadaKawai: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "KamadaKawai");
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -379,6 +442,13 @@ export const ForceAtlas2: Story = {
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "forceatlas2",
+        // Named outright, the way Circular, Random, Spring and Kamada-Kawai name it. The element
+        // does derive a layout's dimensionality from `viewMode` -- `LayoutManager.setLayout`
+        // merges `{ dim: 2 }` in when the view is 2D -- but it derives it at the moment the
+        // engine is BUILT, and this story assigns `viewMode` and `layout` in the same turn. Which
+        // of the two has landed first is not something a story should be betting on, and the one
+        // story in this file that bets on it is the one that draws a graph with depth in it.
+        layoutConfig: { dim: 2 },
         fa2MaxIter: 100,
         fa2ScalingRatio: 2.0,
         fa2Gravity: 1.0,
@@ -401,8 +471,9 @@ export const ForceAtlas2: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "ForceAtlas2");
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -420,8 +491,9 @@ export const Arf: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Arf");
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -483,8 +555,18 @@ export const Bfs: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Bfs", { nodes: 20, edges: 19 });
+
+        // A breadth-first layout draws one COLUMN per level from the starting node, so the nodes
+        // stand in bands rather than anywhere flat and distinct would satisfy. The bands run
+        // along x, not y: `bfsLayout` hands its layers to `multipartiteLayout`, whose default
+        // alignment -- "vertical", meaning each layer is drawn as a vertical line -- puts the
+        // layer index on x and spreads the layer's members along y. Bipartite and Multipartite
+        // below read the same axis for the same reason. Five bands because this data is five
+        // levels deep from node 0: {0}, {1,2,3,5,19}, {14,4,6,11,17,7,8}, {9,12,16,10,13,18},
+        // {15}.
+        await assertNodeBands(scene, 0, 5);
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -577,8 +659,11 @@ export const Bipartite: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Bipartite", { nodes: 20, edges: 49 });
+
+        // Two partitions, named in the story's own layoutConfig, drawn as two columns.
+        await assertNodeBands(scene, 0, 2);
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 
@@ -663,7 +748,10 @@ export const Multipartite: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Multipartite", { nodes: 20, edges: 35 });
+
+        // Four named layers, drawn as four columns.
+        await assertNodeBands(scene, 0, 4);
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };

@@ -16,6 +16,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 
 import type { EdgeId, NodeId } from "../../src/catalog/types";
 import type { DataManager } from "../../src/managers/DataManager";
+import type { GraphContext } from "../../src/managers/GraphContext";
 import { UpdateManager, type ViewMaskSource } from "../../src/managers/UpdateManager";
 import type { NodeRenderState } from "../../src/Node";
 import { ElementMask, type MaskIdSpace } from "../../src/session/scope/index";
@@ -154,13 +155,21 @@ describe("UpdateManager view masks", () => {
     /**
      * Build an UpdateManager over the fakes.
      *
-     * Only the data manager is reached by the mask pass, so everything else is left unbuilt: a
-     * scene, a camera and a stats collector would all need a browser and none of them is asked a
-     * question here.
+     * The mask pass reaches the data manager and nothing else, so a camera and a stats collector
+     * are left unbuilt -- both would need a browser and neither is asked a question here.
+     *
+     * THE SCENE IS THE ONE EXCEPTION, and it is not the mask pass that wants it: the manager
+     * subscribes to "a frame has been drawn" when it is constructed, which is how it knows a
+     * finished state has become a finished PICTURE. So the context answers with the one thing
+     * that subscription needs -- a scene with an observable to add to -- rather than with null,
+     * which is a graph context no graph ever has and which fails every case in this file before
+     * its first assertion.
      * @returns The manager.
      */
     function buildManager(): UpdateManager {
         const dataManager = { nodes, edges } as unknown as DataManager;
+        const scene = { onAfterRenderObservable: { add: () => null, remove: () => true } };
+        const graphContext = { getScene: () => scene } as unknown as GraphContext;
 
         return new UpdateManager(
             null as never,
@@ -168,7 +177,7 @@ describe("UpdateManager view masks", () => {
             null as never,
             dataManager,
             null as never,
-            null as never,
+            graphContext,
         );
     }
 

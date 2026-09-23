@@ -6,7 +6,41 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import isChromatic from "chromatic/isChromatic";
 
 import { Graphty } from "../src/graphty-element";
+import {
+    assertDistinctPicture,
+    assertGraphLoaded,
+    assertLayoutPlaced,
+    assertNodesOnACircle,
+    type Drawn,
+    drawn,
+    holds,
+} from "./assertions";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
+
+/**
+ * Settle a layout story and read where its nodes ended up.
+ *
+ * WHAT TWENTY LAYOUT STORIES USED TO ASSERT ABOUT POSITION: nothing at all. A layout that placed
+ * three of seventy-seven nodes, or stacked every node on the origin, or never ran, rendered a
+ * picture and passed. Positions are read off the MESHES rather than out of the element's
+ * coordinate array, because a layout that wrote coordinates the renderer never applied is one of
+ * the ways this goes wrong.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @param dim - Whether the story promises a flat picture.
+ * @returns What the story drew.
+ */
+const placed = async (canvasElement: HTMLElement, story: string, dim: 2 | 3 = 3): Promise<Drawn> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, story);
+
+    // data3.json, which every story in this file loads over the network at render time.
+    await assertGraphLoaded(scene, { nodes: 77, edges: 254 });
+    await assertLayoutPlaced(scene, { dim });
+
+    return scene;
+};
 
 const meta: Meta = {
     title: "Layout/3D",
@@ -227,8 +261,9 @@ export const ngraph: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D ngraph");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -266,8 +301,9 @@ export const D3: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D D3");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -291,8 +327,10 @@ export const Circular: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Circular");
+
+        await assertNodesOnACircle(scene);
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -309,8 +347,9 @@ export const Random: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Random");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -330,8 +369,9 @@ export const Spring: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Spring");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -357,8 +397,9 @@ export const KamadaKawai: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D KamadaKawai");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -412,8 +453,9 @@ export const ForceAtlas2: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D ForceAtlas2");
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };
 
@@ -438,7 +480,17 @@ export const Fixed: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        // Wait for the graph to fully settle before taking the screenshot
-        await waitForGraphSettled(canvasElement);
+        const scene = await placed(canvasElement, "Layout/3D Fixed");
+
+        // The coordinates come out of the file rather than out of a layout, so the element must
+        // report every one of them as having arrived with the data. That is the reading that
+        // separates "the file placed these nodes" from "a layout placed them one frame later".
+        await holds(
+            scene.session.seededNodeCount === scene.nodeCount,
+            `Layout/3D Fixed: the file carries a position for every node and the element reports ` +
+                `${String(scene.session.seededNodeCount)} of ${String(scene.nodeCount)} arrived with one`,
+        );
+
+        await assertDistinctPicture(scene, "Layout/3D");
     },
 };

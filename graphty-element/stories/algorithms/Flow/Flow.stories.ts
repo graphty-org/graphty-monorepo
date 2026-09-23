@@ -1,4 +1,13 @@
 import type { Graphty } from "../../../src/graphty-element";
+import {
+    assertAlgorithmPainted,
+    assertDistinctPicture,
+    assertEdgeVariety,
+    assertGraphLoaded,
+    assertLabelsDrawn,
+    drawn,
+    holds,
+} from "../../assertions";
 import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup } from "../helpers";
 
 const meta = {
@@ -141,7 +150,20 @@ export const BipartiteMatching: Story = {
         // Apply suggested styles. The positions used to have to be saved and put back around
         // this call, because applying a style walked every node and re-applied its layout
         // position on the way; a style pass writes a colour into an instance and moves nothing.
-        graph.applySuggestedStyles("graphty:bipartite-matching");
+        const applied = graph.applySuggestedStyles("graphty:bipartite-matching");
+
+        await holds(
+            applied,
+            "Algorithms/Flow BipartiteMatching: applySuggestedStyles returned false, so no finished run of " +
+                "bipartite matching had anything to paint",
+        );
+
+        const scene = await drawn(canvasElement, "Algorithms/Flow BipartiteMatching");
+
+        await assertGraphLoaded(scene, { nodes: 14, edges: 12 });
+        await assertAlgorithmPainted(scene, "graphty:bipartite-matching", { paints: "edge" });
+        await assertEdgeVariety(scene, 2);
+        await assertDistinctPicture(scene, "Algorithms/Flow");
     },
 };
 
@@ -191,6 +213,19 @@ export const MaxFlow: Story = {
             algorithmOptions: { source: "reservoir", sink: "city" },
             applySuggestedStyles: true,
         });
+
+        const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
+
+        await assertGraphLoaded(scene, { nodes: 8, edges: 12 });
+        await assertAlgorithmPainted(scene, "graphty:max-flow", { paints: "edge", atLeast: 12 });
+
+        // The demonstration is that the mains carry different amounts, drawn as different widths
+        // and colours. One appearance for all twelve is the picture this story exists to rule out.
+        await assertEdgeVariety(scene, 2);
+
+        // The node names carry the demonstration, so the story asks for them.
+        await assertLabelsDrawn(scene);
+        await assertDistinctPicture(scene, "Algorithms/Flow");
     },
 };
 
@@ -200,7 +235,10 @@ export const MaxFlow: Story = {
  * Partition 1 nodes are blue, partition 2 nodes are red
  * Non-cut edges are dimmed
  */
-export const MinCut: Story = createAlgorithmStory("graphty:min-cut", [
+export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {
+    paints: "edge",
+    edgeVariety: 2,
+    readerLayers: [
     /*
      * The reader's own layer, beneath the algorithm's: every edge pale, so the ones the cut
      * chose stand out when the algorithm's layer repaints them on top. It greys EVERY edge
@@ -208,10 +246,11 @@ export const MinCut: Story = createAlgorithmStory("graphty:min-cut", [
      * cut's to paint, and naming "the rest" would need the id of a run that has not started when
      * this story is written.
      */
-    {
-        name: "Reader - dim every edge",
-        target: "edge",
-        selector: { match: "everything" },
-        set: { "edge.color": "#CCCCCC" },
-    },
-]);
+        {
+            name: "Reader - dim every edge",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#CCCCCC" },
+        },
+    ],
+});

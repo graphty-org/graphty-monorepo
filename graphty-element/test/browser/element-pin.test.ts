@@ -43,7 +43,7 @@ async function mountWithGraph(): Promise<Graphty> {
     container.style.height = "300px";
     document.body.appendChild(container);
 
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
     element.style.width = "100%";
     element.style.height = "100%";
     element.style.display = "block";
@@ -130,7 +130,7 @@ describe("a graph whose ids the file wrote as integers", () => {
         container.style.height = "300px";
         document.body.appendChild(container);
 
-        const element = document.createElement("graphty-element") as Graphty;
+        const element = document.createElement("graphty-element");
         element.style.width = "100%";
         element.style.height = "100%";
         element.style.display = "block";

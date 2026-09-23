@@ -122,10 +122,12 @@ const CASES: readonly Case[] = [
     },
     {
         // Asked for every pair, shortest-path stops being one route: there is no `onPath` to
-        // publish, so the run's shape is `fact` where the catalogue's key is `path`.
+        // publish. What it measures instead is every node's eccentricity, so it is a node metric
+        // under a key of its own -- the catalogue and the run agree on the shape, which is what
+        // lets the element derive a picture from it.
         name: "floyd-warshall",
-        key: "shortest-path",
-        shape: "fact",
+        key: "all-pairs-distance",
+        shape: "node-metric",
         method: "floyd-warshall",
         make: (g) => new FloydWarshallAlgorithm(g),
     },

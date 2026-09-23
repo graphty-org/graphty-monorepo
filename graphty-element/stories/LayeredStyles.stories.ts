@@ -1,6 +1,23 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
+import {
+    assertArrowCapsDrawn,
+    assertDistinctPicture,
+    assertDrawnColour,
+    assertDrawnOpacity,
+    assertDrawnShape,
+    assertEdgeVariety,
+    assertGraphLoaded,
+    assertGroupsDrawnDifferently,
+    assertLabelsDrawn,
+    assertLayerPainted,
+    assertWireframes,
+    drawn,
+    holds,
+} from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 // Simple test data: 5 nodes, 6 edges - positioned close together in 3D space
@@ -12,13 +29,24 @@ const simpleNodeData = [
     { id: "E", type: "tertiary", position: { x: 0, y: 0, z: 2 } },
 ];
 
+/**
+ * Six weighted edges, each carrying a copy of its own source id.
+ *
+ * `origin` IS A WORKAROUND AND SHOULD NOT BE NEEDED. A layer selects edges with a JMESPath
+ * expression over `data.*`, and `data.*` reaches the attribute columns the importer kept -- which
+ * are the record's own fields MINUS its two endpoints. `src` and `dst` are consumed as structure
+ * and published as nothing, so `data.src == 'A'`, `data.source == 'A'` and even
+ * `has data.source` all match zero edges, and the stack reports no problem while they do it.
+ * This column exists so the layer below has something it is allowed to read. See the handover
+ * note: a style layer cannot select an edge by either of its endpoints.
+ */
 const simpleEdgeData = [
-    { src: "A", dst: "B", weight: 1 },
-    { src: "A", dst: "C", weight: 2 },
-    { src: "B", dst: "D", weight: 1 },
-    { src: "C", dst: "D", weight: 2 },
-    { src: "D", dst: "E", weight: 1 },
-    { src: "E", dst: "A", weight: 2 },
+    { src: "A", dst: "B", weight: 1, origin: "A" },
+    { src: "A", dst: "C", weight: 2, origin: "A" },
+    { src: "B", dst: "D", weight: 1, origin: "B" },
+    { src: "C", dst: "D", weight: 2, origin: "C" },
+    { src: "D", dst: "E", weight: 1, origin: "D" },
+    { src: "E", dst: "A", weight: 2, origin: "E" },
 ];
 
 const meta: Meta = {
@@ -50,6 +78,15 @@ type Story = StoryObj<StoryArgs>;
  * Layer 2: secondary nodes -> blue
  */
 export const TwoLayerNodeColors: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered TwoLayerNodeColors");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "nodes where data.type == 'primary'", { nodes: 2 });
+        await assertLayerPainted(scene, "nodes where data.type == 'secondary'", { nodes: 2 });
+        await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#0000ff", D: "#0000ff", E: "#6366f1" });
+        await assertGroupsDrawnDifferently(scene, "hex", { primary: ["A", "C"], secondary: ["B", "D"], untouched: ["E"] });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -76,6 +113,16 @@ export const TwoLayerNodeColors: Story = {
  * Layer 2: secondary nodes -> green color
  */
 export const ShapeAndColorLayers: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ShapeAndColorLayers");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "nodes where data.type == 'primary'", { nodes: 2 });
+        await assertLayerPainted(scene, "nodes where data.type == 'secondary'", { nodes: 2 });
+        await assertDrawnShape(scene, { A: "box", C: "box", B: "icosphere", D: "icosphere", E: "icosphere" });
+        await assertDrawnColour(scene, { B: "#008000", D: "#008000", A: "#6366f1", C: "#6366f1", E: "#6366f1" });
+        await assertGroupsDrawnDifferently(scene, "geometryKey", { boxes: ["A", "C"], greenSpheres: ["B", "D"] });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -103,6 +150,20 @@ export const ShapeAndColorLayers: Story = {
  * Layer 3: node E -> small (size 0.5)
  */
 export const ThreeLayerSizes: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ThreeLayerSizes");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "nodes where data.id == 'A'", { nodes: 1 });
+        await assertLayerPainted(scene, "nodes where data.id == 'B' || data.id == 'C'", { nodes: 2 });
+        await assertLayerPainted(scene, "nodes where data.id == 'E'", { nodes: 1 });
+        await assertGroupsDrawnDifferently(scene, "radius", {
+            "size 2": ["A"],
+            "size 1.5": ["B", "C"],
+            "size 0.5": ["E"],
+            "untouched": ["D"],
+        });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -135,6 +196,14 @@ export const ThreeLayerSizes: Story = {
  * Layer 2: weight == 2 -> thick (0.5)
  */
 export const EdgeWidthLayers: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered EdgeWidthLayers");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "edges where data.weight == `1`", { edges: 3 });
+        await assertLayerPainted(scene, "edges where data.weight == `2`", { edges: 3 });
+        await assertEdgeVariety(scene, 2);
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -162,6 +231,17 @@ export const EdgeWidthLayers: Story = {
  * Layer 3: all edges -> specific arrow color
  */
 export const ArrowHeadStyles: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ArrowHeadStyles");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "edges where data.weight == `1`", { edges: 3 });
+        await assertLayerPainted(scene, "edges where data.weight == `2`", { edges: 3 });
+        // The top layer paints every edge, and a layer later in the stack wins every channel it writes,
+        // so all six edges end up with the normal cap -- not the sphere-dot and diamond beneath it.
+        await assertLayerPainted(scene, "every edge", { edges: 6 });
+        await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -196,6 +276,16 @@ export const ArrowHeadStyles: Story = {
  * Layer 4: node A -> extra large
  */
 export const MixedNodeProperties: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered MixedNodeProperties");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "nodes where data.type == 'tertiary'", { nodes: 1 });
+        await assertLayerPainted(scene, "nodes where data.id == 'A'", { nodes: 1 });
+        await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#0000ff", D: "#0000ff", E: "#ffff00" });
+        await assertDrawnShape(scene, { E: "cylinder" });
+        await assertGroupsDrawnDifferently(scene, "radius", { "the big one": ["A"], "the rest": ["B", "C", "D"] });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -234,6 +324,15 @@ export const MixedNodeProperties: Story = {
  * Layer 2: weight == 2 -> red edges
  */
 export const EdgeColorVariations: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered EdgeColorVariations");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "edges where data.weight == `1`", { edges: 3 });
+        await assertLayerPainted(scene, "edges where data.weight == `2`", { edges: 3 });
+        await assertEdgeVariety(scene, 2);
+        await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -261,6 +360,14 @@ export const EdgeColorVariations: Story = {
  * Layer 3: nodes D and E -> 90% opacity
  */
 export const OpacityLayers: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered OpacityLayers");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertDrawnColour(scene, { A: "#ff0000", B: "#00ff00", C: "#00ff00", D: "#0000ff", E: "#0000ff" });
+        await assertDrawnOpacity(scene, { A: 0.3, B: 0.6, C: 0.6, D: 0.9, E: 0.9 });
+        await assertGroupsDrawnDifferently(scene, "opacity", { faint: ["A"], middling: ["B", "C"], solid: ["D", "E"] });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -293,6 +400,13 @@ export const OpacityLayers: Story = {
  * Layer 2: secondary nodes -> solid blue
  */
 export const WireframeEffectLayers: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered WireframeEffectLayers");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertWireframes(scene, ["A", "C"]);
+        await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#0000ff", D: "#0000ff" });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -321,6 +435,15 @@ export const WireframeEffectLayers: Story = {
  * Layer 4: secondary -> sphere shape
  */
 export const ComplexMultiProperty: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ComplexMultiProperty");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "every node", { nodes: 5 });
+        await assertDrawnShape(scene, { A: "box", B: "sphere", D: "sphere", C: "icosphere", E: "icosphere" });
+        await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#008000", D: "#008000", E: "#008000" });
+        await assertGroupsDrawnDifferently(scene, "radius", { "A is size 2": ["A"], "everything else is size 1": ["C", "E"] });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -359,6 +482,14 @@ export const ComplexMultiProperty: Story = {
  * Layer 2: node E -> label enabled showing "E" in RED color
  */
 export const LabelEnabledLayers: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered LabelEnabledLayers");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "nodes where data.type == 'primary'", { nodes: 2 });
+        await assertLayerPainted(scene, "nodes where data.id == 'E'", { nodes: 1 });
+        await assertLabelsDrawn(scene, { ids: ["A", "C", "E"] });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -381,12 +512,36 @@ export const LabelEnabledLayers: Story = {
 };
 
 /**
- * Three layers with different arrow sizes and edge styling.
- * Layer 1: weight == 1 -> small arrows (0.5)
- * Layer 2: weight == 2 -> large arrows (2.0)
- * Layer 3: edges from A -> special color
+ * Three layers, the first two sizing an arrow by the weight of the edge it caps.
+ *
+ * Light edges get a small cap, heavy ones a large cap, and a third layer paints the edges leaving
+ * A purple without touching either size. The two sizes in the picture are what this story is
+ * named for: until `edge.arrowHeadSize` was published, all three layers could say was which cap
+ * to draw, so the first two were identical to one another and the story drew one size.
  */
 export const ArrowSizeVariations: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ArrowSizeVariations");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertLayerPainted(scene, "edges where data.origin == 'A'", { edges: 2 });
+        await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
+        await assertEdgeVariety(scene, 2);
+
+        // TWO SIZES ON SCREEN, measured off the caps themselves: an arrow's size is geometry and
+        // the mesh's name carries only its shape, so nothing else in the scene can see it.
+        const spans = scene.graph.scene.meshes
+            .filter((mesh) => mesh.name.includes("arrow"))
+            .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
+            .sort((first, second) => second - first);
+
+        await holds(
+            spans.length > 1 && spans[0] > spans[spans.length - 1] * 2,
+            `Styles/Layered ArrowSizeVariations: the first two layers ask for caps at 0.5 and 2 and the scene ` +
+                `draws them ${spans.map((span) => span.toFixed(3)).join(", ")} across`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -394,18 +549,18 @@ export const ArrowSizeVariations: Story = {
                     name: "edges where data.weight == `1`",
                     target: "edge",
                     selector: { match: "expression", where: "data.weight == `1`" },
-                    set: { "edge.arrowHead": "normal" },
+                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 0.5 },
                 },
                 {
                     name: "edges where data.weight == `2`",
                     target: "edge",
                     selector: { match: "expression", where: "data.weight == `2`" },
-                    set: { "edge.arrowHead": "normal" },
+                    set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 2 },
                 },
                 {
-                    name: "edges where data.src == 'A'",
+                    name: "edges where data.origin == 'A'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.src == 'A'" },
+                    selector: { match: "expression", where: "data.origin == 'A'" },
                     set: { "edge.color": "purple", "edge.arrowHead": "normal" },
                 },
             ],
@@ -419,6 +574,19 @@ export const ArrowSizeVariations: Story = {
  * Layer 2: secondary -> octahedron + blue
  */
 export const ShapeVariationsWithColor: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ShapeVariationsWithColor");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
+        await assertDrawnColour(scene, { A: "#ff0000", C: "#ff0000", B: "#0000ff", D: "#0000ff", E: "#6366f1" });
+        // Every polyhedron is built by one MeshBuilder call and named "polyhedron", so a tetrahedron and
+        // an octahedron are told apart by the source mesh they are instanced from, not by its name.
+        await assertGroupsDrawnDifferently(scene, "geometryKey", {
+            tetrahedra: ["A", "C"],
+            octahedra: ["B", "D"],
+            untouched: ["E"],
+        });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         setup: storySetup({
             layers: [
@@ -451,6 +619,21 @@ export const ShapeVariationsWithColor: Story = {
  * Colors match BabylonJS AxesViewer convention (Red=X, Green=Y, Blue=Z).
  */
 export const AxisAlignedColoredSpheres: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered AxisAlignedColoredSpheres");
+        await assertGraphLoaded(scene, { nodes: 4, edges: 3 });
+        await assertDrawnColour(scene, {
+            origin: "#000000",
+            "x-axis": "#ff0000",
+            "y-axis": "#008000",
+            "z-axis": "#0000ff",
+        });
+        await assertGroupsDrawnDifferently(scene, "radius", {
+            "the small origin": ["origin"],
+            "the three axis markers": ["x-axis", "y-axis", "z-axis"],
+        });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
     args: {
         nodeData: [
             { id: "origin", position: { x: 0, y: 0, z: 0 } },

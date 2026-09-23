@@ -1,6 +1,9 @@
+// Registers the <graphty-element> custom element; the type is no longer referenced.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { Graphty } from "../src/graphty-element";
+import { assertDrawnColour, assertDrawnShape, assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 interface EdgeData {
@@ -85,4 +88,23 @@ type Story = StoryObj<StoryArgs>;
  * 250 edges with 150 nodes - ngraph physics layout with normal arrowheads
  * Every node has at least one edge.
  */
-export const Physics250: Story = {};
+export const Physics250: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Performance/Large Graph Physics250");
+
+        await assertGraphLoaded(scene, { nodes: 150, edges: 250 });
+        await assertLayoutPlaced(scene, {});
+        await assertDrawnColour(scene, "#5a67d8");
+        await assertDrawnShape(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, "sphere"])));
+
+        // The generator's whole promise is that no node is left out of the graph, and the session
+        // measures that independently: the smallest degree in the graph is at least one.
+        const [smallest] = scene.session.data.statistics().degreeRange;
+
+        await holds(
+            smallest >= 1,
+            `Performance/Large Graph Physics250: every node is meant to carry at least one edge and the ` +
+                `smallest degree in the graph is ${String(smallest)}`,
+        );
+    },
+};

@@ -21,7 +21,7 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     container.style.height = "300px";
     document.body.appendChild(container);
 
-    const graphtyElement = document.createElement("graphty-element") as Graphty;
+    const graphtyElement = document.createElement("graphty-element");
     graphtyElement.style.width = "100%";
     graphtyElement.style.height = "100%";
     graphtyElement.style.display = "block";

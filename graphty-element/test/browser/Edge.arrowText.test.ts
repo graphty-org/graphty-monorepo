@@ -27,7 +27,6 @@ describe("Arrow Text Labels", () => {
                     opacity: 1,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Access via local variables to satisfy linter
@@ -67,7 +66,6 @@ describe("Arrow Text Labels", () => {
                     opacity: 1,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Access via local variables to satisfy linter
@@ -196,7 +194,6 @@ describe("Arrow Text Labels", () => {
                     opacity: 1,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Access via local variables to satisfy linter
@@ -247,7 +244,6 @@ describe("Arrow Text Labels", () => {
                     opacity: 1,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Access via local variables to satisfy linter

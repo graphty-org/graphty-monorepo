@@ -1,5 +1,4 @@
  
-// @ts-nocheck
 import {} from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
@@ -11,7 +10,19 @@ import { cleanupTestGraph, createTestGraph, setBehavior } from "../helpers/testS
 describe("3D Camera Controls", () => {
     let graph: Graph;
     let cameraController: OrbitCameraController;
-    let inputController: OrbitInputController;
+    /**
+     * The controller plus the two private fields this file asserts on. The rotation velocities are
+     * the controller's inertia state and there is no public reader for them, so the test declares
+     * what it reaches for instead of casting at each use.
+     */
+    type InspectableOrbitController = {
+        [K in keyof OrbitInputController]: OrbitInputController[K];
+    } & {
+        rotationVelocityX: number;
+        rotationVelocityY: number;
+    };
+
+    let inputController: InspectableOrbitController;
 
     beforeEach(async () => {
         // Create test graph
@@ -27,14 +38,12 @@ describe("3D Camera Controls", () => {
 
         // Get the camera controller
         const cameraManager = graph.camera;
-        // @ts-expect-error Accessing private property for testing
         cameraController = (cameraManager as unknown as { activeCameraController: OrbitCameraController })
             .activeCameraController;
         assert.isDefined(cameraController, "Camera controller should be defined after switching to 3D mode");
 
         // Access the input controller through camera manager
-        // @ts-expect-error Accessing private property for testing
-        inputController = (cameraManager as unknown as { activeInputHandler: OrbitInputController }).activeInputHandler;
+        inputController = (cameraManager as unknown as { activeInputHandler: InspectableOrbitController }).activeInputHandler;
         assert.isDefined(inputController, "Input controller should be defined");
 
         // Verify input controller is enabled

@@ -256,13 +256,24 @@ describe("the layer a suggestion becomes", () => {
         assert.deepStrictEqual(measured, {
             by: "results.betweenness.value",
             scale: "linear",
-            palette: "viridis",
         });
         assert.deepStrictEqual(grouped, {
             by: "results.louvain.group",
             scale: "ordinal",
-            palette: "okabe-ito",
         });
+    });
+
+    it("names no palette, so the one that gets painted can fit the groups the run found", () => {
+        // The scale is settled here because the SHAPE settles it -- a partition is categorical
+        // however many groups it turns out to hold. The palette is not, because it depends on a
+        // number nothing knows yet: how many groups there are. Writing one in anyway is what
+        // planted an eight-colour palette on a ten-community result, which the capacity check
+        // then refused, leaving a layer that was in the stack, enabled, and painting nothing.
+        const grouped = layerFor(LOUVAIN).encode?.["node.color"];
+        const measured = layerFor(BETWEENNESS).encode?.["node.color"];
+
+        assert.notProperty(grouped, "palette");
+        assert.notProperty(measured, "palette");
     });
 
     it("records the run, the algorithm and the parameters that produced it", () => {

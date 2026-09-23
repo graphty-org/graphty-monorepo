@@ -240,10 +240,14 @@ describe("optionsFromZod", () => {
 
     describe("constructs it cannot classify", () => {
         it("keeps an object-valued option, typed unknown, with a reason", () => {
-            const effects = byName(optionsFromZod(GraphStyle), "effects");
+            // `graph.selection` -- the colour, scale and opacity of the selection highlight. It
+            // replaced `graph.effects` here, which named three post-process settings no renderer
+            // ever read and which were deleted rather than left in a published schema as
+            // something a consumer could set and never see.
+            const selection = byName(optionsFromZod(GraphStyle), "selection");
 
-            assert.strictEqual(effects.type, "unknown");
-            assert.include(effects.unsupportedReason, "object or record");
+            assert.strictEqual(selection.type, "unknown");
+            assert.include(selection.unsupportedReason, "object or record");
         });
 
         it("keeps a union of objects, typed unknown, with a reason", () => {
@@ -258,7 +262,10 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["shape", "texture", "effect", "label", "tooltip", "enabled"],
+                // Every top-level field of NodeStyle, exactly. `enabled` was here until 2.0
+                // withdrew it: the session's visibility mask decides whether a node is drawn and
+                // nothing ever read the flag.
+                ["shape", "texture", "effect", "label", "tooltip"],
             );
             for (const option of options) {
                 if (option.type === "unknown") {

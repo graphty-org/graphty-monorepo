@@ -1,6 +1,9 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../../src/graphty-element";
+import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "../assertions";
 import {
     eventWaitingDecorator,
     remoteLoggingDecorator,
@@ -101,5 +104,33 @@ export const Default: Story = {
     play: async ({ canvasElement }) => {
         // Wait for the graph to fully settle before taking the screenshot
         await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "XR Default");
+
+        // The edge list is generated from a fixed seed and holds repeats and self-loops, so the
+        // number the element keeps is the number that survived them rather than the forty-five
+        // handed over. What must be true is that every record was accounted for and none was
+        // refused.
+        const report = scene.session.data.lastImport();
+
+        await holds(
+            report === null || report.counts.edgeRecords === 45,
+            `XR Default: the story generates 45 edge records and the importer was handed ` +
+                `${String(report?.counts.edgeRecords)}`,
+        );
+
+        await assertGraphLoaded(scene, { nodes: 30, edges: scene.edgeCount });
+        await assertLayoutPlaced(scene, {});
+
+        // The gestures cannot be driven headless. What can be checked is that the element put its
+        // own XR entry control on the page, which is the story's one visible affordance.
+        const button = (scene.element.shadowRoot ?? scene.element).querySelector(
+            "button, .xr-button, [class*='xr']",
+        );
+
+        await holds(
+            button !== null,
+            "XR Default: the story turns the element's XR UI on and the element drew no control for it",
+        );
     },
 };

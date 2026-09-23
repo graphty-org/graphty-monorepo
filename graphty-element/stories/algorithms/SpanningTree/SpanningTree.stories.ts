@@ -27,11 +27,23 @@ const DIM_EVERY_EDGE: LayerSpec = {
  * Kruskal's MST - highlights minimum spanning tree edges
  * MST edges are highlighted; every other edge is left grey by the reader's layer beneath
  */
-export const Kruskal: Story = createAlgorithmStory("graphty:kruskal", [DIM_EVERY_EDGE]);
+export const Kruskal: Story = createAlgorithmStory("graphty:kruskal", {
+    readerLayers: [DIM_EVERY_EDGE],
+    paints: "edge",
+    edgeVariety: 2,
+});
 
 /**
  * Prim's MST - highlights minimum spanning tree edges
  * Same visualization as Kruskal but uses Prim's algorithm
  * (grows tree from a starting node instead of sorting edges)
  */
-export const Prim: Story = createAlgorithmStory("graphty:prim", [DIM_EVERY_EDGE]);
+export const Prim: Story = createAlgorithmStory("graphty:prim", {
+    readerLayers: [DIM_EVERY_EDGE],
+    paints: "edge",
+    edgeVariety: 2,
+    // The minimum spanning tree of a graph is the minimum spanning tree of that graph: Kruskal
+    // and Prim find the same one, so this story drawing the same picture as its sibling is the
+    // right answer and not two stories that have collapsed onto each other.
+    distinct: false,
+});

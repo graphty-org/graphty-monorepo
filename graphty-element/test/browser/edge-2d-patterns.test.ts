@@ -46,7 +46,7 @@ describe("Edge 2D Patterns Integration", () => {
         // A style pass works out what each element should look like; a FRAME is what applies it.
         // This graph was never `init()`ed, so nothing is driving the render loop and the frame
         // has to be driven by hand.
-        graph.getUpdateManager().renderFixedFrames(2);
+        graph.getUpdateManager().stepFrames(2);
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -100,7 +100,7 @@ describe("Edge 2D Patterns Integration", () => {
         // A style pass works out what each element should look like; a FRAME is what applies it.
         // This graph was never `init()`ed, so nothing is driving the render loop and the frame
         // has to be driven by hand.
-        graph.getUpdateManager().renderFixedFrames(2);
+        graph.getUpdateManager().stepFrames(2);
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -178,7 +178,7 @@ describe("Edge 2D Patterns Integration", () => {
         // A style pass works out what each element should look like; a FRAME is what applies it.
         // This graph was never `init()`ed, so nothing is driving the render loop and the frame
         // has to be driven by hand.
-        graph.getUpdateManager().renderFixedFrames(2);
+        graph.getUpdateManager().stepFrames(2);
 
         // Verify all pattern types use 2D materials
         for (const [index, pattern] of patterns.entries()) {

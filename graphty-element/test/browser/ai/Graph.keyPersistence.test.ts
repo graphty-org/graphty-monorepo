@@ -103,7 +103,7 @@ describe("Graph AI key management", () => {
             // Import Graph dynamically to access static method
             const { Graph } = await import("../../../src/Graph");
 
-            const keyManager = Graph.createApiKeyManager();
+            const keyManager = await Graph.createApiKeyManager();
             assert.ok(keyManager instanceof ApiKeyManager);
             assert.strictEqual(keyManager.isPersistenceEnabled(), false);
         });
@@ -111,7 +111,7 @@ describe("Graph AI key management", () => {
         it("should allow configuring persistence on standalone manager", async () => {
             const { Graph } = await import("../../../src/Graph");
 
-            const keyManager = Graph.createApiKeyManager();
+            const keyManager = await Graph.createApiKeyManager();
             keyManager.enablePersistence({
                 encryptionKey: "test-secret-key-long",
                 storage: "localStorage",
@@ -124,7 +124,7 @@ describe("Graph AI key management", () => {
         it("should allow setting keys on standalone manager before AI enabled", async () => {
             const { Graph } = await import("../../../src/Graph");
 
-            const keyManager = Graph.createApiKeyManager();
+            const keyManager = await Graph.createApiKeyManager();
             keyManager.enablePersistence({
                 encryptionKey: "test-secret-key-long",
                 storage: "localStorage",

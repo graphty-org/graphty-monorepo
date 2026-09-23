@@ -11,6 +11,14 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
+import {
+    assertDrawnColour,
+    assertGraphLoaded,
+    assertLabelsDrawn,
+    assertSelectionDrawn,
+    drawn,
+    holds,
+} from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, type StoryArgs, waitForGraphSettled } from "./helpers";
 
 // Sample data with named nodes for clarity
@@ -131,6 +139,38 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     return container;
 };
 
+/**
+ * Settle a selection story, then select a node and check that the picture says so.
+ *
+ * WHAT THESE FOUR STORIES ARE FOR: clicking a node selects it, the element draws a highlight
+ * around it, and the status bar above the canvas names it. Every one of those three is a fact
+ * something can be asked for, and until now none of them was.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ */
+const selects = async (canvasElement: HTMLElement, story: string): Promise<void> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Selection ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 5, edges: 5 });
+    await assertDrawnColour(scene, "#4a90d9");
+    await assertLabelsDrawn(scene);
+    await assertSelectionDrawn(scene, "alpha");
+
+    // The status bar is the story's own chrome, and it is driven by the element's
+    // `selection-changed` event rather than by anything the story polls.
+    const display = canvasElement.querySelector("#selected-node-display");
+
+    await holds(display !== null, `Selection ${story}: the story's status bar is not on the page`);
+
+    await holds(
+        display?.textContent === "Alpha (alpha)",
+        `Selection ${story}: node "alpha" is selected and the status bar reads ` +
+            `"${String(display?.textContent)}" rather than "Alpha (alpha)"`,
+    );
+};
+
 const meta: Meta = {
     title: "Selection",
     component: "graphty-element",
@@ -153,7 +193,7 @@ export const Mode2D: Story = {
     name: "2D Mode",
     render: () => renderSelectionDemo("2d"),
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "2D Mode");
     },
 };
 
@@ -167,7 +207,7 @@ export const Mode3D: Story = {
     name: "3D Mode",
     render: () => renderSelectionDemo("3d"),
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "3D Mode");
     },
 };
 
@@ -196,7 +236,7 @@ export const ModeVR: Story = {
         return container;
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "VR Mode");
     },
 };
 
@@ -223,6 +263,6 @@ export const ModeAR: Story = {
         return container;
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "AR Mode");
     },
 };

@@ -27,13 +27,18 @@ There is no CPU fallback anywhere in this package: when no adapter or device exi
 ```bash
 npm install @graphty/webgpu-graph-algorithms @graphty/graph-format
 # Node only: Dawn is an OPTIONAL peer dependency (browser consumers never install it)
-npm install webgpu@0.4.0
+npm install webgpu@0.6.1
 ```
 
-`webgpu@0.4.0` is the last Linux binary linking against glibc <= 2.34 (Ubuntu 22.04 ships 2.35;
-`webgpu@0.6.x` needs glibc 2.38). The peer range `>=0.4.0 <1.0.0` admits the newer builds on a newer
-glibc; a Node consumer that forgets the package gets `E_NO_WEBGPU` with the message
-"install the optional peer dependency webgpu@0.4.0". `@graphty/algorithms` and `@graphty/layout` are
+Which build a Linux consumer can run is decided by their distribution, and the two available builds do not
+overlap. `webgpu@0.5.0` moved its Linux build base to Ubuntu 24.04, so `webgpu@0.6.x` needs `GLIBC_2.38` and
+`GLIBCXX_3.4.32` -- Ubuntu 24.04 or newer, which ship glibc 2.39 and GLIBCXX_3.4.33. `webgpu@0.4.0` is the last
+build that runs below that line: it needs no more than `GLIBC_2.34` and `GLIBCXX_3.4.30`, which Ubuntu 22.04
+satisfies. Loading 0.6.x on 22.04 fails at `require` with
+"libstdc++.so.6: version `GLIBCXX_3.4.32' not found", not at adapter acquisition. The peer range
+`>=0.4.0 <1.0.0` admits both on purpose, so a consumer pins the one their distribution can load; a Node consumer
+that forgets the package entirely gets `E_NO_WEBGPU` with the message
+"install the optional peer dependency webgpu@0.6.1". `@graphty/algorithms` and `@graphty/layout` are
 optional peer dependencies too, on different footings since W1b: the layout interfaces and option types
 are `import type`d from `@graphty/layout` and re-exported, so they ARE its declarations, while the
 `@graphty/algorithms` accelerator types are still structural mirrors until A2. Either way a consumer that

@@ -1,4 +1,5 @@
 import type { Graph } from "../../core/graph.js";
+import { ConvergenceError } from "../../errors.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -18,29 +19,8 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
     startVector?: Map<string, number>; // Initial vector (optional)
 }
 
-/** Eigenvector centrality scores together with how the power iteration ended. */
-interface EigenvectorCentralityRun {
-    /** The scores, exactly as {@link eigenvectorCentrality} returns them. */
-    centrality: CentralityResult;
-    /** Power-iteration passes used. */
-    iterations: number;
-    /** Whether the tolerance was met; false means the run stopped at `maxIterations`. */
-    converged: boolean;
-}
-
 /**
  * Calculate eigenvector centrality for all nodes in the graph.
- * Uses the power iteration method to find the dominant eigenvector.
- * @param graph - The graph to compute eigenvector centrality on
- * @param options - Configuration options for the computation
- * @returns Object mapping node IDs to their eigenvector centrality scores
- */
-export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
-    return eigenvectorCentralityRun(graph, options).centrality;
-}
-
-/**
- * Eigenvector centrality together with whether the power iteration converged.
  *
  * Iterates x <- (A + I) x, as networkx does. Shifting by the identity raises every eigenvalue by
  * one and leaves the eigenvectors alone, so the largest eigenvalue becomes the only one of largest
@@ -50,15 +30,14 @@ export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentrali
  *
  * A node is fed by `graph.neighbors`, i.e. by its out-neighbours on a directed graph. When the
  * graph has no cycle along that relation (no edges, or a directed acyclic graph) the adjacency
- * matrix is nilpotent, its only eigenvalue is 0, and every score is 0.
+ * matrix is nilpotent, its only eigenvalue is 0, and every score is exactly 0.
  * @param graph - The graph to compute eigenvector centrality on
  * @param options - Configuration options for the computation
- * @returns The scores, the passes used and whether the tolerance was met
+ * @returns Object mapping node IDs to their eigenvector centrality scores
+ * @throws {ConvergenceError} When `maxIterations` passes do not meet `tolerance`, as networkx
+ *   raises `PowerIterationFailedConvergence`. Raise `maxIterations` or `tolerance` and call again.
  */
-export function eigenvectorCentralityRun(
-    graph: Graph,
-    options: EigenvectorCentralityOptions = {},
-): EigenvectorCentralityRun {
+export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
     const { maxIterations = 100, tolerance = 1e-6, normalized = true, startVector } = options;
 
     const nodeIds = Array.from(graph.nodes(), (node) => node.id);
@@ -67,7 +46,7 @@ export function eigenvectorCentralityRun(
     const centrality: CentralityResult = {};
 
     if (n === 0) {
-        return { centrality, iterations: 0, converged: true };
+        return centrality;
     }
 
     const index = new Map(keys.map((key, i) => [key, i]));
@@ -77,7 +56,7 @@ export function eigenvectorCentralityRun(
         for (const key of keys) {
             centrality[key] = 0;
         }
-        return { centrality, iterations: 0, converged: true };
+        return centrality;
     }
 
     // A node with nothing feeding it scores exactly 0 once the largest eigenvalue is positive,
@@ -89,10 +68,8 @@ export function eigenvectorCentralityRun(
     scaleToUnitLength(x);
 
     let next = new Float64Array(n);
-    let iterations = 0;
     let converged = false;
-    while (iterations < maxIterations) {
-        iterations++;
+    for (let iteration = 0; iteration < maxIterations && !converged; iteration++) {
         for (let i = 0; i < n; i++) {
             let sum = x[i] ?? 0;
             for (const j of adjacency[i] ?? []) {
@@ -107,10 +84,10 @@ export function eigenvectorCentralityRun(
             change += Math.abs((next[i] ?? 0) - (x[i] ?? 0));
         }
         [x, next] = [next, x];
-        if (change < n * tolerance) {
-            converged = true;
-            break;
-        }
+        converged = change < n * tolerance;
+    }
+    if (!converged) {
+        throw new ConvergenceError("eigenvectorCentrality", maxIterations, tolerance);
     }
 
     for (let i = 0; i < n; i++) {
@@ -133,7 +110,7 @@ export function eigenvectorCentralityRun(
         }
     }
 
-    return { centrality, iterations, converged };
+    return centrality;
 }
 
 /**

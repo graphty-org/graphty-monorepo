@@ -459,6 +459,9 @@ const centralities = eigenvectorCentrality(graph, {
     maxIterations: number, // Default: 100
     tolerance: number, // Default: 1e-6
 });
+// Throws ConvergenceError (exported) when maxIterations passes do not meet the tolerance,
+// as networkx raises PowerIterationFailedConvergence. Long paths and large grids need more
+// than 100 passes; raise maxIterations or tolerance and call again.
 // Returns: CentralityResult (Record<string, number>)
 
 // Single node eigenvector centrality

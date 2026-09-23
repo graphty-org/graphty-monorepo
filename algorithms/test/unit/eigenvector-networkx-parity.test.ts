@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { eigenvectorCentrality, eigenvectorCentralityRun } from "../../src/algorithms/centrality/eigenvector.js";
+import { eigenvectorCentrality } from "../../src/algorithms/centrality/eigenvector.js";
 import { Graph } from "../../src/core/graph.js";
+import { ConvergenceError } from "../../src/index.js";
 
 /*
  * Expected values from networkx 3.1, python3:
@@ -290,23 +291,49 @@ function build(edges: [string, string, number?][]): Graph {
 describe("eigenvector centrality matches networkx", () => {
     for (const [name, { edges, expected }] of Object.entries(FIXTURES)) {
         it(`${name}: converges within the default cap to the networkx vector`, () => {
-            const run = eigenvectorCentralityRun(build(edges), { normalized: false });
+            // Throws ConvergenceError when the default cap of 100 passes is not enough.
+            const centrality = eigenvectorCentrality(build(edges), { normalized: false });
 
-            expect(run.converged).toBe(true);
-            expect(run.iterations).toBeLessThanOrEqual(100);
             for (const [node, value] of Object.entries(expected)) {
-                expect(Math.abs((run.centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
+                expect(Math.abs((centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
             }
-            // The public function returns the same scores.
-            expect(eigenvectorCentrality(build(edges), { normalized: false })).toEqual(run.centrality);
         });
     }
 
-    it("reports a run stopped by the iteration cap as not converged", () => {
-        const run = eigenvectorCentralityRun(build(FIXTURES.karate.edges), { maxIterations: 2 });
+    it("throws when the iteration cap is reached before the tolerance, as networkx does", () => {
+        // networkx raises PowerIterationFailedConvergence here: a 30x30 grid needs far more than 20 passes.
+        const graph = new Graph();
+        for (let row = 0; row < 30; row++) {
+            for (let col = 0; col < 30; col++) {
+                if (col < 29) {
+                    graph.addEdge(`${row},${col}`, `${row},${col + 1}`);
+                }
+                if (row < 29) {
+                    graph.addEdge(`${row},${col}`, `${row + 1},${col}`);
+                }
+            }
+        }
 
-        expect(run.converged).toBe(false);
-        expect(run.iterations).toBe(2);
+        let thrown: unknown;
+        try {
+            eigenvectorCentrality(graph, { maxIterations: 20 });
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(ConvergenceError);
+        expect(thrown).toBeInstanceOf(Error);
+        const error = thrown as ConvergenceError;
+        expect(error.name).toBe("ConvergenceError");
+        expect(error.algorithm).toBe("eigenvectorCentrality");
+        expect(error.iterations).toBe(20);
+        expect(error.tolerance).toBe(1e-6);
+        expect(error.message).toBe(
+            "eigenvectorCentrality did not converge in 20 iterations (tolerance 0.000001); raise maxIterations or tolerance",
+        );
+        // networkx 3.1 raises at the default max_iter=100 on this grid too, and converges within 1000.
+        expect(() => eigenvectorCentrality(graph)).toThrow(ConvergenceError);
+        expect(() => eigenvectorCentrality(graph, { maxIterations: 1000 })).not.toThrow();
     });
 
     it("directed: a node is fed by its out-neighbours, so it matches networkx on the reversed graph", () => {
@@ -326,24 +353,28 @@ describe("eigenvector centrality matches networkx", () => {
         }
         const expected = { "0": 0.346591, "1": 0.436678, "2": 0.55018, "3": 0.346591, "4": 0.436678, "5": 0.27509 };
 
-        const run = eigenvectorCentralityRun(graph, { normalized: false });
+        const centrality = eigenvectorCentrality(graph, { normalized: false });
 
-        expect(run.converged).toBe(true);
         for (const [node, value] of Object.entries(expected)) {
-            expect(Math.abs((run.centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
+            expect(Math.abs((centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
         }
     });
 
-    it("directed acyclic: the only eigenvalue is 0, so every score is 0", () => {
+    it("directed acyclic: the only eigenvalue is 0, so every score is 0 and nothing is iterated", () => {
         const graph = new Graph({ directed: true });
         graph.addEdge("a", "b");
         graph.addEdge("b", "c");
         graph.addEdge("a", "c");
 
-        expect(eigenvectorCentralityRun(graph)).toEqual({
-            centrality: { a: 0, b: 0, c: 0 },
-            iterations: 0,
-            converged: true,
-        });
+        // Exact, not unconverged: even a cap of one pass does not throw.
+        expect(eigenvectorCentrality(graph, { maxIterations: 1 })).toEqual({ a: 0, b: 0, c: 0 });
+    });
+
+    it("edgeless: every score is 0 without iterating", () => {
+        const graph = new Graph();
+        graph.addNode("a");
+        graph.addNode("b");
+
+        expect(eigenvectorCentrality(graph, { maxIterations: 1 })).toEqual({ a: 0, b: 0 });
     });
 });

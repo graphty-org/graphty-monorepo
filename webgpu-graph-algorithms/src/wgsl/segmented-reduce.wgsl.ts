@@ -68,6 +68,7 @@ fn tier0(wid: vec3<u32>, lane: u32) {                            // TIER 0: one 
 }
 
 var<workgroup> sh: array<f32, WG>;
+var<workgroup> handoff: array<f32, WG>;
 
 fn tiered(wid: vec3<u32>, lid: u32) {                            // TIER 1: 32 lanes per row, WG / 32 rows per workgroup; TIER 2: WG lanes per row (PD-6)
     let g = group_id(wid);
@@ -89,7 +90,13 @@ fn tiered(wid: vec3<u32>, lid: u32) {                            // TIER 1: 32 l
             sh[lid] = comb(sh[lid], t);
             workgroupBarrier();
         }
-        if (valid && lane == 0u) { finish(i, sh[lid]); }
+        // the row total rides a second array and is stored by lane 31, which reads the group's BASE slot -- one it
+        // never wrote, so no store of its own can be forwarded in the load's place (src/wgsl/scan-block.wgsl.ts
+        // names the compiler effect); the row, "valid" and the destination are uniform across the group's 32
+        // lanes, so lane 31 stores exactly what lane 0 would have
+        handoff[lid] = sh[lid];
+        workgroupBarrier();
+        if (valid && lane == 31u) { finish(i, handoff[lid - 31u]); }
     }
     if (TIER == 2u) {
         let t = wg_reduce_f32(acc, lid, OP);                     // the workgroup tree of the prelude (subgroup variant when available)

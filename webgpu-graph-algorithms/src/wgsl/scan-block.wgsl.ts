@@ -6,6 +6,7 @@
  */
 export const scanBlockWgsl = /* wgsl */ `
 var<workgroup> sh: array<u32, WG>;
+var<workgroup> handoff: array<u32, WG>;                          // the block total's ride to the lane that stores it (the note below)
 
 @compute @workgroup_size(WG)
 fn scan_block(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
@@ -22,17 +23,23 @@ fn scan_block(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
         workgroupBarrier();
     }
     let inclusive = sh[lid.x];
-    // Dawn's D3D12 backend compiles through FXC on the Windows runner (the published dawn-node carries
-    // d3dcompiler_47.dll and neither dxcompiler.dll nor dxil.dll), and over the Microsoft Basic Render Driver it
-    // loses a store index derived from workgroup_id when that index is CARRIED ACROSS a workgroupBarrier: the
-    // workgroup then stores as if its id were zero, so one block is right and every further block collapses into
-    // block zero's range. The id is therefore read here, after the loop, never before it -- the shape the reduce kernel has
-    // always had, which is bitwise right on that same backend over 1311 workgroups. A workgroup-memory broadcast was
-    // tried first and is worse there: the scalar does not reach the other lanes, and the block sums come back zero.
-    // The Windows leg of .github/workflows/hosts.yml is what says whether this is still needed (G4-F15).
+    // Store-to-load forwarding is why the block total travels through a SECOND workgroup array AND is stored by a
+    // lane that never wrote the slot it reads. Dawn's D3D12 backend compiles through FXC on the Windows runner
+    // (the published dawn-node carries d3dcompiler_47.dll and neither dxcompiler.dll nor dxil.dll), and over the
+    // Microsoft Basic Render Driver that compiler re-materialises a workgroup load inside a divergent branch and
+    // forwards the branching lane's OWN nearest earlier store to the same address. The original line read
+    // sh[lid.x] inside "if (lid.x == WG - 1u)" and got what that lane stored BEFORE the loop: a scan of 257 ones
+    // wrote the correct 255 into out outside the branch, 1 -- the lane's own input element -- into blockSums
+    // inside it, and the second block stored nothing at all. handoff is written once by every lane and read
+    // across a single barrier by lane 0 at index WG - 1, a slot lane 0 never wrote, so no store of its own can be
+    // forwarded in the load's place; that is the shape a device probe found intact there
+    // (test/primitives/workgroup-id-probe.test.ts case 6). The Windows leg of .github/workflows/hosts.yml is what
+    // says whether this is still needed (G4-F15).
+    handoff[lid.x] = inclusive;
+    workgroupBarrier();
     let g = group_id(wid);
     let i = g * WG + lid.x;
     if (i < P.count) { out[i] = inclusive - v; }                  // exclusive = inclusive - own value
-    if (lid.x == WG - 1u) { blockSums[g] = inclusive; }           // the block total (the last lane's inclusive sum)
+    if (lid.x == 0u) { blockSums[g] = handoff[WG - 1u]; }         // the block total (the LAST lane's inclusive sum)
 }
 `;

@@ -528,10 +528,13 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: SCAN_TEST,
         },
         {
-            // the block sum is lane 0's own value: every block after the first starts from the wrong offset
+            // the block sum is read from lane 0's `handoff` slot -- its inclusive prefix, the block's FIRST
+            // element -- instead of the last lane's slot, which holds the total: every block after the first starts
+            // from the wrong offset (the storing lane is no longer the knob: the value rides `handoff`, and lane 0
+            // is now the lane that stores it)
             name: "block-sum-from-lane-zero",
-            find: "if (lid.x == WG - 1u) { blockSums[g] = inclusive; }",
-            replace: "if (lid.x == 0u) { blockSums[g] = inclusive; }",
+            find: "if (lid.x == 0u) { blockSums[g] = handoff[WG - 1u]; }",
+            replace: "if (lid.x == 0u) { blockSums[g] = handoff[0]; }",
             minFactor: 10,
             test: SCAN_TEST,
         },

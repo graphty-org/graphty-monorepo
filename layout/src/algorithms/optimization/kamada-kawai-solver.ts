@@ -82,7 +82,6 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
     const m = 10; // L-BFGS memory size
 
     // Implement a simplified L-BFGS-B algorithm
-    let alpha = 1.0;
     const oldValues: number[][] = [];
     const oldGrads: number[][] = [];
 
@@ -93,15 +92,27 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
         // Compute search direction using L-BFGS approximation
         const direction = _lbfgsDirection(grad, oldValues, oldGrads, m);
 
-        // Simple line search for step size
-        alpha = _backtrackingLineSearch(
+        // Every search starts from a full step: carrying the last one over lets a step that once
+        // had to shrink stay small for the rest of the run.
+        const alpha = _backtrackingLineSearch(
             posVec,
             direction,
             cost,
             grad,
             (x: number[]) => _kamadaKawaiCostfn(x, invDistMatrix, meanWeight, dim)[0],
-            alpha,
+            1.0,
         );
+
+        if (alpha === 0) {
+            // No step along this direction lowers the cost. With history, the L-BFGS direction
+            // may be the problem, so drop it and retry along the gradient; without, we are done.
+            if (oldValues.length === 0) {
+                break;
+            }
+            oldValues.length = 0;
+            oldGrads.length = 0;
+            continue;
+        }
 
         // Save current position and gradient for next iteration
         const oldPos = [...posVec];
@@ -114,9 +125,14 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
         // Calculate new gradient
         const [, newGrad] = _kamadaKawaiCostfn(posVec, invDistMatrix, meanWeight, dim);
 
-        // Update L-BFGS memory
-        oldValues.push(posVec.map((val, i) => val - oldPos[i]));
-        oldGrads.push(newGrad.map((val, i) => val - grad[i]));
+        // Update L-BFGS memory, but only with a pair of positive curvature: one without makes the
+        // next direction point uphill.
+        const s = posVec.map((val, i) => val - oldPos[i]);
+        const y = newGrad.map((val, i) => val - grad[i]);
+        if (s.reduce((sum, val, i) => sum + val * y[i], 0) > 1e-10) {
+            oldValues.push(s);
+            oldGrads.push(y);
+        }
 
         // Keep only m most recent updates
         if (oldValues.length > m) {

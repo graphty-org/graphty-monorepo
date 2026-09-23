@@ -10,7 +10,8 @@
  * @param grad - Gradient at current position
  * @param func - Function to evaluate cost
  * @param alpha0 - Initial step size
- * @returns Optimal step size
+ * @returns A step size that satisfies the Armijo condition, or 0 when none was found -- the
+ *   caller must not move, because every step tried made the cost worse
  */
 export function _backtrackingLineSearch(
     x: number[],
@@ -21,11 +22,11 @@ export function _backtrackingLineSearch(
     alpha0: number,
 ): number {
     const c1 = 1e-4;
-    const c2 = 0.9;
+    const shrink = 0.5;
     const initialSlope = grad.reduce((sum, g, i) => sum + g * direction[i], 0);
 
     if (initialSlope >= 0) {
-        return 1e-8; // Direction is not a descent direction
+        return 0; // Not a descent direction: no step along it lowers the cost
     }
 
     let alpha = alpha0;
@@ -42,8 +43,8 @@ export function _backtrackingLineSearch(
         }
 
         // Reduce step size
-        alpha *= c2;
+        alpha *= shrink;
     }
 
-    return alpha; // Return last alpha even if not optimal
+    return 0;
 }

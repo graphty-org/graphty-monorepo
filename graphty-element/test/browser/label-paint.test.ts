@@ -158,6 +158,12 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
     async function readFrame(): Promise<Uint8Array> {
         const { engine } = graph;
 
+        // The element's own "this is on screen" signal first: a style edit resolves with its
+        // paint queued for the render loop's next update, and the frames below draw the scene
+        // without updating it, so on a loaded machine they could draw the picture from before
+        // the edit.
+        await graph.waitForStableFrame();
+
         for (let frame = 0; frame < FRAMES; frame++) {
             graph.scene.render();
             await new Promise<void>((done) => {

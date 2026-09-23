@@ -483,7 +483,10 @@ export class UpdateManager implements Manager {
      * @returns True when the last drawn frame drew the finished picture.
      */
     get frameIsStable(): boolean {
-        return this.drawnFrameIsFinished;
+        // Asked of the state NOW as well as of the last pass: a style edit resolves with its
+        // paint queued for the next pass, and until that pass runs the last frame drawn is the
+        // picture from before the edit.
+        return this.drawnFrameIsFinished && this.pictureIsFinished();
     }
 
     /**
@@ -563,6 +566,12 @@ export class UpdateManager implements Manager {
      * leaves behind is a finished picture.
      */
     update(): void {
+        // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
+        // the next frame draws, so it has to be announced again once that frame is drawn.
+        if (!this.pictureIsFinished()) {
+            this.drawnFrameIsFinished = false;
+        }
+
         this.runUpdatePass();
 
         this.stateIsFinished = this.pictureIsFinished();

@@ -647,6 +647,11 @@ export const Location: Story = {
  *
  * READ AS THE TEXT'S OWN BOX, not the panel's. The panel is opaque from corner to corner whatever
  * the margins are, so the question is how far the black letters are inset inside it.
+ *
+ * READ AT THE TOP, because only the top separates the two pictures. The left and right edges of
+ * the ink depend on each name's first and last glyph, so the unmargined and the margined readings
+ * overlap there. On the 128px-high texture every label draws, the letters start 15-19px down with
+ * no margins and 22-26px down with these ten-pixel ones.
  */
 export const Margin: Story = {
     args: {
@@ -656,10 +661,10 @@ export const Margin: Story = {
                 "node.labelStyle": {
                     background: "#DCDCDC",
                     color: "#000000",
-                    marginTop: 40,
-                    marginBottom: 40,
-                    marginLeft: 40,
-                    marginRight: 40,
+                    marginTop: 10,
+                    marginBottom: 10,
+                    marginLeft: 10,
+                    marginRight: 10,
                 },
             },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -678,19 +683,22 @@ export const Margin: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "Margin");
+        // A floor of 20.5px sits between the two readings: 1.5px under the lowest margined label
+        // and 1.5px over the highest unmargined one.
         const tight = labelGeometry(scene, "#000000").filter(
-            (label) => label.inset.top < 0.15 || label.inset.left < 0.05,
+            (label) => label.inset.top * label.texture.height < 20.5,
         );
 
         await holds(
             tight.length === 0,
-            `Styles/Label Margin: forty pixels of margin are asked for on all four sides, and on ` +
-                `${String(tight.length)} labels the words still run up against the edge of the panel -- ` +
+            `Styles/Label Margin: ten pixels of margin are asked for on all four sides, and on ` +
+                `${String(tight.length)} labels the words start no further down the panel than they do ` +
+                `with no margin at all -- ` +
                 `${tight
                     .map(
                         (label) =>
-                            `${label.id} inset ${label.inset.top.toFixed(2)} from the top and ` +
-                            `${label.inset.left.toFixed(2)} from the left`,
+                            `${label.id} starts ${(label.inset.top * label.texture.height).toFixed(1)}px ` +
+                            `down a ${String(label.texture.height)}px texture`,
                     )
                     .join("; ")}`,
         );
@@ -837,11 +845,13 @@ export const TextOutline: Story = {
 };
 
 /**
- * A shadow thrown by the letters.
+ * A soft, half-transparent black shadow thrown down and to the right of the letters.
  *
- * DRAWN IN A COLOUR OF ITS OWN so that it can be told from the letters. A grey shadow under black
- * letters is indistinguishable from the antialiasing on their edges, which is exactly how a story
- * comes to pass while drawing nothing.
+ * READ AS HOW MUCH MID-GREY THE LABEL HOLDS, not as whether it holds any. A grey shadow under
+ * black letters shares its colour with the antialiasing on their edges, so the mere presence of
+ * grey is true of every label with or without a shadow -- which is exactly how a story comes to
+ * pass while drawing nothing. The amount is what differs: pixels within 40 of #8C8C8C cover
+ * 1.0%-2.0% of each label's texture with the shadow switched off, and 4.2%-6.1% with it on.
  */
 export const TextShadow: Story = {
     args: {
@@ -849,13 +859,13 @@ export const TextShadow: Story = {
         setup: storySetup({
             node: {
                 "node.labelStyle": {
-                    background: "#FFFFFF",
+                    background: "rgba(255, 255, 255, 0.9)",
                     color: "#000000",
                     shadow: true,
-                    shadowColor: "#FF3B30",
-                    shadowBlur: 0,
-                    shadowOffsetX: 8,
-                    shadowOffsetY: 8,
+                    shadowColor: "rgba(0, 0, 0, 0.5)",
+                    shadowBlur: 4,
+                    shadowOffsetX: 3,
+                    shadowOffsetY: 3,
                 },
             },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -880,7 +890,25 @@ export const TextShadow: Story = {
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "TextShadow");
 
-        await assertLabelColour(scene, "#FF3B30", "shadow thrown by the letters");
+        // A floor of 3% is 1.4x under the lowest shadowed label and 1.5x over the greyest
+        // unshadowed one. A label with no texture is a label that is not drawn, and reads as 0.
+        const faint = labelGeometry(scene, "#8C8C8C").filter(
+            (label) => label.pixels / Math.max(1, label.texture.width * label.texture.height) < 0.03,
+        );
+
+        await holds(
+            faint.length === 0,
+            `Styles/Label TextShadow: a blurred grey shadow is asked for and on ${String(faint.length)} labels ` +
+                `there is no more grey than the antialiasing on unshadowed letters -- ` +
+                `${faint
+                    .map(
+                        (label) =>
+                            `${label.id} has ${String(label.pixels)} grey pixels on its ` +
+                            `${String(label.texture.width)}x${String(label.texture.height)} texture`,
+                    )
+                    .join(", ")}`,
+        );
+
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
     },
 };
@@ -892,7 +920,7 @@ export const Border: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
-            node: { "node.labelStyle": { background: "#FFFFFF", borderWidth: 8, borderColor: "#6366F1" } },
+            node: { "node.labelStyle": { background: "rgba(255, 255, 255, 0.9)", borderWidth: 2, borderColor: "#6366F1" } },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
         }),
     },
@@ -906,16 +934,31 @@ export const Border: Story = {
 
         await assertLabelColour(scene, "#6366F1", "border around the panel");
 
-        // A border is drawn all the way round, so it reaches into the corners of the canvas that
-        // the white panel inside it never touches.
-        const bare = labelGeometry(scene, "#6366F1").filter(
-            (label) => !label.corners.topLeft || !label.corners.bottomRight,
-        );
+        // A border is a FRAME: indigo that reaches all four edges of the label's texture while
+        // covering only a thin strip of it. Measured, the two-pixel border covers 5.4%-6.9% of each
+        // texture and touches every edge; with no border there is no indigo at all, and an indigo
+        // panel would cover nearly all of it. The floor and ceiling are 1.8x and 2.9x clear.
+        const unframed = labelGeometry(scene, "#6366F1").filter((label) => {
+            const share = label.pixels / Math.max(1, label.texture.width * label.texture.height);
+            const edges = [label.inset.top, label.inset.bottom, label.inset.left, label.inset.right];
+
+            return share < 0.03 || share > 0.2 || edges.some((inset) => inset > 0);
+        });
 
         await holds(
-            bare.length === 0,
-            `Styles/Label Border: an eight-pixel indigo border is asked for and on ${String(bare.length)} labels ` +
-                `the corners of the canvas are not indigo -- [${bare.map((label) => label.id).join(", ")}]`,
+            unframed.length === 0,
+            `Styles/Label Border: a two-pixel indigo border is asked for and on ${String(unframed.length)} labels ` +
+                `the indigo is not a thin frame round the edge -- ` +
+                `${unframed
+                    .map(
+                        (label) =>
+                            `${label.id} has ${String(label.pixels)} indigo pixels on its ` +
+                            `${String(label.texture.width)}x${String(label.texture.height)} texture, inset ` +
+                            `${[label.inset.top, label.inset.right, label.inset.bottom, label.inset.left]
+                                .map((inset) => inset.toFixed(3))
+                                .join("/")}`,
+                    )
+                    .join("; ")}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));

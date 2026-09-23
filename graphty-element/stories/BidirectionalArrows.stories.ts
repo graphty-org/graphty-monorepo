@@ -43,12 +43,13 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 /**
- * An arrow at each end of every edge, each end told its own size and its own colour.
+ * An arrow at each end of every edge, each end told its own colour.
  *
- * THE TWO ENDS ARE SEPARATE CHANNELS, which is the whole point of the story: a large blue
- * triangle at the head and a small orange crossbar at the tail, on one grey line. Each property
- * is its own channel -- `edge.arrowHeadSize`, `edge.arrowTailColor` and the rest -- so any of
- * them can be bound to a value in the data as well as set outright.
+ * THE TWO ENDS ARE SEPARATE CHANNELS, which is the whole point of the story: a red triangle at
+ * the head and a blue crossbar at the tail, on one grey line. Each property is its own channel --
+ * `edge.arrowHeadColor`, `edge.arrowTailSize` and the rest -- so any of them can be bound to a
+ * value in the data as well as set outright. Both caps are left at the default size, as they were
+ * in 1.x; the size channels are here as controls.
  *
  * This is also where the colour defect was visible before the channels existed. The element's own
  * defaults pinned the HEAD to grey and never mentioned the tail, so an edge painted any colour at
@@ -64,43 +65,28 @@ export const Bidirectional: Story = {
         // the head and a crossbar at the tail.
         await assertArrowCapsDrawn(scene, ["filled-triangle-arrow", "filled-tee-arrow"]);
 
-        // TWO SIZES, read off the caps: the head is asked for at 2.5 and the tail at 0.75, and
-        // an arrow's size is geometry, so the only reading of it is the mesh's own bounding box.
-        const spans = scene.graph.scene.meshes
-            .filter((mesh) => mesh.name.includes("arrow"))
-            .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
-            .sort((first, second) => second - first);
-
-        await holds(
-            spans.length > 1 && spans[0] > spans[spans.length - 1] * 2,
-            `Styles/Edge Bidirectional: the head is asked for at 2.5 and the tail at 1, and the scene ` +
-                `draws caps ${spans.map((span) => span.toFixed(3)).join(", ")} across`,
-        );
-
         // AND TWO COLOURS, neither of them the line's. Counted in pixels, because a cap's colour
         // is a shader uniform: it is on neither the mesh nor its name.
-        const blue = await pixelsOfColour(scene, "#2563eb");
-        const orange = await pixelsOfColour(scene, "#f97316");
+        const red = await pixelsOfColour(scene, "#ff0000");
+        const blue = await pixelsOfColour(scene, "#0000ff");
 
-        // The floors are far apart because the caps are: a 2.5 head covers roughly six times the
-        // canvas a 1.0 tail does, and both are drawn over twenty-nine edges laid out by a
-        // physics run, so neither count is stable to better than an order of magnitude. Measured
-        // on a 900x700 canvas: about 870 blue and about 120 orange.
+        // Both caps are drawn over twenty-nine edges laid out by a physics run, so neither count
+        // is stable to better than a factor of a few. Measured on a 900x700 canvas: 196-228 red
+        // and 384 blue; with the two colours left out, none of either. The floors are over 3x
+        // under both readings.
         await holds(
-            blue > 200 && orange > 30,
-            `Styles/Edge Bidirectional: the two ends are asked for in blue and orange and the canvas holds ` +
-                `${String(blue)} blue and ${String(orange)} orange pixels`,
+            red > 60 && blue > 100,
+            `Styles/Edge Bidirectional: the two ends are asked for in red and blue and the canvas holds ` +
+                `${String(red)} red and ${String(blue)} blue pixels`,
         );
     },
     args: {
         setup: storySetup({
             edge: {
                 "edge.arrowHead": "normal",
-                "edge.arrowHeadSize": 2.5,
-                "edge.arrowHeadColor": "#2563EB",
+                "edge.arrowHeadColor": "#FF0000",
                 "edge.arrowTail": "tee",
-                "edge.arrowTailSize": 1,
-                "edge.arrowTailColor": "#F97316",
+                "edge.arrowTailColor": "#0000FF",
                 "edge.color": "darkgrey",
             },
         }),

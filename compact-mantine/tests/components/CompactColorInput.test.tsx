@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import React, { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, CompactColorInput, PopoutManager } from "../../src";
+import { CompactColorInput, compactTheme, PopoutManager } from "../../src";
 import { LabelsProvider } from "../../src/i18n";
 
 /**

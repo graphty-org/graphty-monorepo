@@ -3,8 +3,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ActivationEvent, ActivationMeta } from "../../src/types/events";
-import { getActivationMeta } from "../../src/types/events";
+import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../src/types/events";
 
 /**
  * A button that reports the activation meta for both a click and a key press,

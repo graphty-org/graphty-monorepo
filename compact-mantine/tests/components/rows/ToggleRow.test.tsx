@@ -5,8 +5,8 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
-import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { ToggleRow, ToggleRowGroup } from "../../../src/components/rows/ToggleRow";
+import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_GRID, PANEL_INK } from "../../../src/constants/panel";
 
 /**

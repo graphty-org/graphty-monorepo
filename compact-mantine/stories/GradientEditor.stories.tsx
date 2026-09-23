@@ -3,11 +3,11 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 
 import {
+    type ColorStop,
     createColorStop,
     GradientEditor,
     LabelsProvider,
     PopoutManager,
-    type ColorStop,
 } from "../src";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -171,7 +171,7 @@ export const Controlled: Story = {
 export const CoalescedIntoOneUndoEntry: Story = {
     render: function CoalescedStory() {
         const [log, setLog] = useState<string[]>([]);
-        const record = (line: string) => {
+        const record = (line: string): void => {
             setLog((entries) => [...entries.slice(-6), line]);
         };
 

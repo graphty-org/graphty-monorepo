@@ -2,14 +2,7 @@ import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React, { useMemo, useState } from "react";
 
-import {
-    DataRow,
-    DataRowHeader,
-    PANEL_GRID,
-    PANEL_INK,
-    useCollator,
-} from "../src";
-import type { DataRowSortDirection } from "../src";
+import { DataRow, DataRowHeader, type DataRowSortDirection, PANEL_GRID, PANEL_INK, useCollator } from "../src";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather

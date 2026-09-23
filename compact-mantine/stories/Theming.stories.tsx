@@ -3,8 +3,10 @@ import {
     Button,
     Checkbox,
     Code,
+    createTheme,
     Group,
     MantineProvider,
+    mergeMantineTheme,
     NumberInput,
     Select,
     Slider,
@@ -13,14 +15,13 @@ import {
     Text,
     TextInput,
     Title,
-    createTheme,
-    mergeMantineTheme,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useRef } from "react";
 
 import {
     CompactColorInput,
+    compactTheme,
     ControlGroup,
     ControlSection,
     Popout,
@@ -29,7 +30,6 @@ import {
     StyleNumberInput,
     ToggleWithContent,
     UiGlyph,
-    compactTheme,
 } from "../src";
 
 /**

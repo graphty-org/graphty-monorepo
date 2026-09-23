@@ -8,8 +8,7 @@ import {
     compactSliderScale,
     compactSwitchScale,
 } from "../../src/theme/styles/controls";
-import type { CompactSizeScale } from "../../src/theme/styles/size-scale";
-import { compactVarsForSize } from "../../src/theme/styles/size-scale";
+import { type CompactSizeScale, compactVarsForSize } from "../../src/theme/styles/size-scale";
 
 describe("controlComponentExtensions", () => {
     it("exports SegmentedControl extension", () => {

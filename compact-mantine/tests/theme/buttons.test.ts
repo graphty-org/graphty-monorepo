@@ -7,8 +7,7 @@ import {
     compactButtonScale,
     compactCloseButtonScale,
 } from "../../src/theme/styles/buttons";
-import type { CompactSizeScale } from "../../src/theme/styles/size-scale";
-import { compactVarsForSize } from "../../src/theme/styles/size-scale";
+import { type CompactSizeScale, compactVarsForSize } from "../../src/theme/styles/size-scale";
 
 describe("buttonComponentExtensions", () => {
     it("exports Button extension", () => {

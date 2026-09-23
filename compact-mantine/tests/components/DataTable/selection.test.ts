@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applySelectionGesture, selectAll } from "../../../src/components/DataTable/selection";
-import type { SelectionModifiers } from "../../../src/components/DataTable/selection";
+import { applySelectionGesture, selectAll, type SelectionModifiers } from "../../../src/components/DataTable/selection";
 
 const IDS = ["a", "b", "c", "d", "e"];
 

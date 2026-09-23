@@ -428,7 +428,7 @@ export const NamedByAHeading: Story = {
  * Right to left. The track mirrors, the sliding ground follows the selection,
  * and -- the part that cannot be seen in a screenshot -- the arrow keys follow
  * the text: ArrowRight moves to the segment drawn on the right, which is the
- * *previous* option here. Set the direction once for your whole application
+ * previous* option here. Set the direction once for your whole application
  * with Mantine's `DirectionProvider`.
  */
 export const RightToLeft: Story = {

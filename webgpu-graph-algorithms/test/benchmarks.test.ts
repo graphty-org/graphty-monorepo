@@ -1,7 +1,8 @@
 /**
  * Pure tests of the benchmark code (contract 6.1-6.4, 6.8; spec 11.7, 10.4 T-13): the datasets are deterministic, the
  * harness times an async body and appends sessions under the runner class, and scripts/bench-compare.js applies the
- * quiet-GPU / new-result / 3x rules in order with the documented exit codes. No GPU is involved.
+ * quiet-GPU / new-result / regression rules in order with the documented exit codes, against the real sessions of
+ * benchmarks/results/gpu-linux-t4.json where the rule is about real numbers. No GPU is involved.
  */
 
 import { spawnSync } from "node:child_process";
@@ -377,15 +378,16 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         const files = { "gpu-report.json": quiet, [`benchmarks/results/${CLASS}.json`]: baseline };
         const red = run({
             ...files,
-            [`benchmarks/out/${CLASS}.json`]: out([result("a", 3.5), result("b", 2), result("fresh", 9)]),
+            [`benchmarks/out/${CLASS}.json`]: out([result("a", 1.4), result("b", 2), result("fresh", 9)]),
         });
         expect(red.status).toBe(1);
         expect(red.out).toContain("REGRESSION");
         expect(red.out).toContain("new (no baseline)");
-        const green = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 3), result("b", 0.5)]) });
+        // exactly the default factor still passes: the rule is "above", not "at"
+        const green = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 1.35), result("b", 0.5)]) });
         expect(green.status).toBe(0);
         expect(green.out).not.toContain("REGRESSION");
-        const looser = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 3.5)]) }, [
+        const looser = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 1.4)]) }, [
             "--threshold",
             "4",
         ]);
@@ -409,9 +411,9 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect(real.out).toContain("REGRESSION");
 
         // A minimum just under the threshold still confirms; just over it does not.
-        const edge = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 3)]) });
+        const edge = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.35)]) });
         expect(edge.status).toBe(0);
-        const over = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 3.1)]) });
+        const over = run({ ...files, [`benchmarks/out/${CLASS}.json`]: out([result("a", 8, "roundtrip", 1.36)]) });
         expect(over.status).toBe(1);
 
         // A baseline written before minMs existed: the median alone decides, as it did before this rule.
@@ -425,13 +427,16 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect(fallback.out).toContain("REGRESSION");
     });
 
-    it("compares the LAST session of each file and matches rows by group and name", () => {
+    it("the run under test is the LAST out session; the baseline is the BEST of every session of the results file", () => {
+        // The second blindness of 2026-09-22: the slow session had been appended to the baseline file, so a
+        // last-session baseline made the regression its own baseline. A minimum over every session cannot be raised
+        // by appending a slower one.
         const baseline = JSON.stringify([
-            session([result("a", 100)]),
             session([result("a", 1), result("a", 1, "upload")]),
+            session([result("a", 100), result("a", 100, "upload")]),
         ]);
         const current = JSON.stringify([
-            session([result("a", 1)]),
+            session([result("a", 1), result("a", 1, "upload")]),
             session([result("a", 5, "upload"), result("a", 1)]),
         ]);
         const r = run({
@@ -440,7 +445,77 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
             [`benchmarks/out/${CLASS}.json`]: current,
         });
         expect(r.status).toBe(1);
-        expect(r.out).toContain("upload");
+        expect(r.out).toContain("baseline: the best of 2 session(s)");
+        // rows are matched by group AND name: the two rows share the name "a" and only the upload one moved
+        expect(r.out).toMatch(/REGRESSION\s+upload\/a\s/);
+        expect(r.out).toMatch(/ok\s+roundtrip\/a\s/);
+    });
+
+    it("the default threshold catches the 2026-09-22 PageRank regression and passes the rows that moved under 10%", () => {
+        // The real file. The slow run is the Tesla T4 session of 2026-09-22, named by its date rather than by its
+        // place in the file: appending the next session (the append procedure of docs/decisions/G3.md appendix A,
+        // and the next one will be fast -- the kernel change is fixed in docs/decisions/G4.md) or deleting a
+        // superseded session while re-pinning must not silently turn some other run into "the slow session".
+        const T4 = "gpu-linux-t4";
+        const REGRESSED_DATE = "2026-09-22T20:21:53.814Z";
+        const sessions = JSON.parse(
+            readFileSync(resolve("benchmarks/results", `${T4}.json`), "utf8"),
+        ) as BenchSession[];
+        const at = sessions.findIndex((s) => s.date === REGRESSED_DATE);
+        expect(
+            at,
+            `benchmarks/results/${T4}.json must still hold the ${REGRESSED_DATE} session and at least one session before it: they are this test's fixture, not incidental content`,
+        ).toBeGreaterThan(0);
+        const regressed = sessions[at];
+        const before = sessions.slice(0, at);
+        // the fixture only means what it says while the earlier sessions carry the fast PageRank rows
+        const pagerankBefore = before.flatMap((s) => s.results.filter((r) => r.group === "pagerank"));
+        expect(pagerankBefore.length).toBeGreaterThan(0);
+        const quietT4 = report(
+            [
+                { utilizationGpu: 0, memoryUsedMiB: 512 },
+                { utilizationGpu: 3, memoryUsedMiB: 512 },
+            ],
+            T4,
+        );
+        const files = (baseline: readonly BenchSession[]): Record<string, string> => ({
+            "gpu-report.json": quietT4,
+            [`benchmarks/out/${T4}.json`]: JSON.stringify([regressed]),
+            [`benchmarks/results/${T4}.json`]: JSON.stringify(baseline),
+        });
+
+        // (1) the file as it stood before the slow session was appended
+        const fresh = run(files(before));
+        expect(fresh.status).toBe(1);
+        expect(fresh.out).toMatch(/REGRESSION\s+pagerank\/pagerank 100 iterations at 100k\/1M\s/);
+        expect(fresh.out).toMatch(/REGRESSION\s+pagerank\/pagerank 100 iterations at 1M\/10M\s/);
+        expect(fresh.out.match(/^REGRESSION/gm)).toHaveLength(2);
+
+        // the rows that legitimately moved between those two sessions -- the largest of them is x1.075 median /
+        // x1.079 minimum against the session before, x1.095 / x1.112 against the pinned baseline the gate actually
+        // compares against -- must still read ok at this threshold
+        for (const name of [
+            "layout-exact/step\\(1\\) wall n=4096",
+            "layout-exact/step\\(1\\) wall n=8192",
+            "layout-fr/fr step\\(1\\) wall n=10000",
+            "layout-fr/se step\\(1\\) wall n=10000",
+            "pagerank/pagerank 100 iterations at 10k/100k",
+            "wcc/wcc at 1M/10M",
+        ]) {
+            expect(fresh.out).toMatch(new RegExp(`^ok\\s+${name}`, "m"));
+        }
+
+        // (2) the same run against the file WITH the slow session already appended: still red, because the
+        // baseline is the best of every session rather than the last one
+        const appended = run(files(sessions.slice(0, at + 1)));
+        expect(appended.status).toBe(1);
+        expect(appended.out).toContain(`baseline: the best of ${String(at + 1)} session(s)`);
+        expect(appended.out.match(/^REGRESSION/gm)).toHaveLength(2);
+
+        // (3) what the gate used to do with the same numbers
+        const old = run(files(before), ["--threshold", "3"]);
+        expect(old.status).toBe(0);
+        expect(old.out).not.toContain("REGRESSION");
     });
 
     it("--class overrides the report's runner class", () => {

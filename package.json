@@ -45,7 +45,7 @@
         "coverage:preview:graph-format": "npx serve graph-format/coverage -p 9056",
         "coverage:preview:graph-io": "npx serve graph-io/coverage -p 9057",
         "coverage:preview:webgpu-graph-algorithms": "npx serve webgpu-graph-algorithms/coverage -p 9058",
-        "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p 9055"
+        "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p ${PORT:?start it through servherd, which sets PORT}"
     },
     "engines": {
         "node": ">=22.0.0"

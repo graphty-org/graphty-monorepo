@@ -50,7 +50,7 @@
         "test:ui": "vitest --ui",
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
-        "coverage:preview": "npx serve coverage -p 9055",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "datasets:convert": "node scripts/convert-datasets.mjs",
         "ready:commit": "npm run build:all && npm run lint && npm run test:run"
     },

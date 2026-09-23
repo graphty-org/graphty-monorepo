@@ -219,7 +219,7 @@ pnpm run coverage:preview:graphty          # Port 9054
 pnpm run coverage:preview:graph-format     # Port 9056
 pnpm run coverage:preview:graph-io         # Port 9057
 pnpm run coverage:preview:webgpu-graph-algorithms  # Port 9058
-pnpm run coverage:preview:graph-samples    # Port 9055
+pnpm run coverage:preview:graph-samples    # Port from $PORT: start through servherd with PORT={{port}}
 ```
 
 ## Shared Configuration
@@ -258,7 +258,7 @@ All dev servers use ports 9000-9999:
 - graphty Storybook: 9035
 - compact-mantine Storybook: 9060
 - webgpu-graph-algorithms demo (vite): 9030
-- Coverage previews: 9051-9054, graph-format 9056, graph-io 9057, webgpu-graph-algorithms 9058, graph-samples 9055
+- Coverage previews: 9051-9054, graph-format 9056, graph-io 9057, webgpu-graph-algorithms 9058; graph-samples has no fixed port -- start its preview through servherd
 
 ## Testing Infrastructure
 

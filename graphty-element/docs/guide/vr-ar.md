@@ -232,13 +232,16 @@ For AR experiences:
 3. **Lighting**: AR lighting affects node visibility
 4. **Occlusion**: Real objects can occlude the graph
 
-```typescript
-// Scale graph for AR
-graph.setScale(0.1); // 10% of original size
+::: warning Not yet published
+Placing and scaling the graph in the room is not something the element publishes an API for. The
+`graph.setScale()` and `graph.setPosition()` calls this page used to teach have never existed in
+any version, and a reader who copied them got a `TypeError`. Recorded in
+`design/element-api/capability-losses.md`.
 
-// Position in front of user
-graph.setPosition({ x: 0, y: 1, z: -2 }); // 2 meters ahead
-```
+What IS published for AR and VR today is the mode switch and the XR configuration: set
+`element.viewMode` to `"ar"` or `"vr"`, and use `element.xrConfig` for the session options. The
+reader's own headset places the scene.
+:::
 
 ## Event Handling in XR
 

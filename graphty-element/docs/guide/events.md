@@ -11,6 +11,8 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | Event                  | Trigger                  | Event Data                 |
 | ---------------------- | ------------------------ | -------------------------- |
 | `graph-settled`        | Layout finished          | `{ settled: boolean }`     |
+| `graph-frame-stable`   | The picture is final: layout converged, camera framed, frame drawn | `{ frames }` |
+| `zoom-to-fit-complete` | Auto-framing moved the camera around the whole graph | `{ boundingBoxMin, boundingBoxMax }` |
 | `data-loaded`          | Initial data loaded      | `{ nodeCount, edgeCount }` |
 | `data-added`           | Incremental data added   | `{ nodes, edges }`         |
 | `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
@@ -156,6 +158,52 @@ element.addEventListener("selection-changed", (e) => {
 });
 ```
 
+### Three more the element mirrors on its own account
+
+Beside the node events, `<graphty-element>` publishes three facts about itself. All three carry
+ids, counts and words -- never a node, an edge or a layer -- for the same reason the node events
+do: a `CustomEvent` detail crosses to listeners that may structure-clone it or post it to a
+worker, and a live render object either throws on the way out or hands a listener something the
+renderer is about to dispose.
+
+```javascript
+// A run started, made progress, or finished. This is what a progress bar hangs off.
+element.addEventListener("graphty-run-change", (e) => {
+    const { run, phase } = e.detail; // phase: "start" | "progress" | "end" | "error"
+    console.log(run.label, phase, run.progress);
+});
+
+// Elements joined or left the selection. Only a real movement arrives -- selecting what is
+// already selected publishes nothing.
+element.addEventListener("graphty-selection-change", (e) => {
+    const { added, removed, nodes, edges } = e.detail;
+    // `added` and `removed` are the ids that moved; `nodes` and `edges` are how many the
+    // selection holds NOW.
+    console.log(`${nodes} nodes and ${edges} edges selected`, added, removed);
+});
+
+// A filter, the time window or the context flag changed what is showing. Every producer arrives
+// here, because a status bar has to update for all three.
+element.addEventListener("graphty-visibility-change", (e) => {
+    const { visible, total, filterKind } = e.detail;
+    console.log(`showing ${visible.nodes} of ${total.nodes} nodes`, `(${filterKind})`);
+});
+```
+
+### style-changed
+
+A layer was added, changed, removed or moved. One event per EDIT rather than one per layer,
+because an edit is what a consumer undoes, records and mirrors. The detail says which verb
+produced it, how many layers it touched, how much of the picture was repainted, and any paths the
+changed layers read that nothing in the session answers yet:
+
+```typescript
+graph.on("style-changed", (e) => {
+    console.log(e.reason, `${e.layers} layer(s)`, e.painted);
+    // The stack itself is read back with graph.getSession().styles.list()
+});
+```
+
 ## Event Timing
 
 Some events fire asynchronously. Understand the order:
@@ -163,13 +211,22 @@ Some events fire asynchronously. Understand the order:
 ```typescript
 // Data loading sequence
 graph.on("data-loaded", () => console.log("1. Data loaded"));
-graph.on("graph-settled", () => console.log("2. Layout settled"));
+graph.on("graph-settled", () => console.log("2. Layout stopped moving"));
+graph.on("graph-frame-stable", () => console.log("3. The picture is final"));
 
 // When you add data
 await graph.addNodes(nodes); // 'data-loaded' or 'data-added' fires
 await graph.addEdges(edges);
-await graph.waitForSettled(); // 'graph-settled' fires
+await graph.waitForSettled(); // the operation queue is empty
+await graph.waitForStableFrame(); // 'graph-frame-stable' has fired
 ```
+
+`graph-settled` is NOT the finished picture. It fires the instant the layout engine converges, in
+the same update pass that only ASKS for the final framing: the camera moves a pass later and is
+drawn a pass after that. Anything that photographs, records or measures the view -- a screenshot,
+a thumbnail, a visual regression snapshot -- should wait for `waitForStableFrame()`, which
+resolves after all four of those have happened, and rejects, naming what was still moving, rather
+than handing back a picture that is still changing.
 
 ## Removing Listeners
 
@@ -177,11 +234,10 @@ Clean up event listeners when done:
 
 ```typescript
 // JavaScript API
-const handler = () => console.log("Settled");
-graph.on("graph-settled", handler);
+const stop = graph.on("graph-settled", () => console.log("Settled"));
 
 // Later, remove it
-graph.off("graph-settled", handler);
+stop();
 ```
 
 ```javascript
@@ -313,11 +369,9 @@ function GraphComponent({ onNodeClick }) {
             onNodeClick(node);
         };
 
-        graph.on("node-click", handleClick);
+        const stop = graph.on("node-click", handleClick);
 
-        return () => {
-            graph.off("node-click", handleClick);
-        };
+        return stop;
     }, [onNodeClick]);
 
     return <graphty-element ref={graphRef} />;
@@ -339,10 +393,7 @@ let cleanup = null;
 onMounted(() => {
     const graph = graphRef.value.graph;
 
-    const handler = ({ node }) => emit("nodeClick", node);
-    graph.on("node-click", handler);
-
-    cleanup = () => graph.off("node-click", handler);
+    cleanup = graph.on("node-click", ({ node }) => emit("nodeClick", node));
 });
 
 onUnmounted(() => {

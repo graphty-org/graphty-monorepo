@@ -30,13 +30,16 @@ const element = document.querySelector("graphty-element");
 const graph = element.graph;
 ```
 
-For TypeScript with proper typing:
+In TypeScript, no cast is needed. Importing the package declares the tag, so
+`document.querySelector("graphty-element")` and `document.createElement("graphty-element")` both
+answer the element's own type:
 
 ```typescript
-import type { Graph, Graphty } from "@graphty/graphty-element";
+import "@graphty/graphty-element";
+import type { Graph } from "@graphty/graphty-element";
 
-const element = document.querySelector("graphty-element") as Graphty;
-const graph: Graph = element.graph;
+const element = document.querySelector("graphty-element");
+const graph: Graph | undefined = element?.graph;
 ```
 
 ::: tip
@@ -183,8 +186,9 @@ graph.setLayout("ngraph", {
     dimensions: 3,
 });
 
-// Wait for layout to finish
-await graph.waitForSettled();
+// Wait for the picture to stop changing: the layout converged, the camera framed it,
+// and a frame was drawn showing that
+await graph.waitForStableFrame();
 ```
 
 ### Algorithms
@@ -246,17 +250,17 @@ const statsManager = graph.getStatsManager();
 
 ```typescript
 // Take a screenshot
-const result = await graph.takeScreenshot({
+const result = await graph.captureScreenshot({
     width: 1920,
     height: 1080,
-    quality: "high",
+    format: "png",
 });
 
 // Copy to clipboard
-await graph.takeScreenshot({ copyToClipboard: true });
+await graph.captureScreenshot({ destination: { clipboard: true } });
 
 // Capture video animation
-const video = await graph.captureVideo({
+const video = await graph.captureAnimation({
     duration: 5000,
     fps: 30,
 });
@@ -367,21 +371,24 @@ graph.on("data-loaded", ({ nodeCount, edgeCount }) => {
 **Removing Listeners:**
 
 ```typescript
-const handler = () => console.log("Settled");
-graph.on("graph-settled", handler);
+const stop = graph.on("graph-settled", () => console.log("Settled"));
 
 // Later, remove the listener
-graph.off("graph-settled", handler);
+stop();
 ```
 
 ## Complete Example
 
 ```typescript
 import "@graphty/graphty-element";
-import type { Graph, Graphty } from "@graphty/graphty-element";
+import type { Graph } from "@graphty/graphty-element";
 
 async function initGraph() {
-    const element = document.querySelector("graphty-element") as Graphty;
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        return;
+    }
+
     const graph: Graph = element.graph;
 
     // Load data
@@ -397,7 +404,7 @@ async function initGraph() {
         { source: "c", target: "a" },
     ]);
 
-    // Wait for layout to stabilize
+    // Wait for the queued operations to finish
     await graph.waitForSettled();
 
     // Run algorithm

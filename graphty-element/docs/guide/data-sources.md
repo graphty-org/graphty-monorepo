@@ -195,7 +195,7 @@ await graph.addEdges([
 Remove all nodes and edges:
 
 ```typescript
-await graph.clear();
+graph.clearData();
 ```
 
 ## Data Validation

@@ -19,8 +19,14 @@
 # requested, so a toggle whose effect is decided at adapter time -- use_dxc, which is also what Dawn gates the
 # `subgroups` and `shader-f16` features on -- is in place early enough, and no new mechanism is needed.
 #
-# Everything the run wrote goes to tmp/narrow/<label>.log, which the lane uploads as an artifact; what this
-# prints is the summary. It exits with the run's own exit code.
+# After the tests, the same question is put to the SHIPPED GUARD: scripts/device-check-question.mjs runs the device
+# self-check and a public algorithm on this machine and prints whether the package refuses this renderer or believes
+# it. Two of these runs are the whole proof -- the guard must FIRE on the renderer in the box and stay SILENT on the
+# redistributable one that question (f) copies in -- and hosts.yml's last question reads exactly those two lines.
+#
+# Everything the run wrote goes to tmp/narrow/<label>.log and the guard's own output to tmp/narrow/<label>-guard.log,
+# both of which the lane uploads as artifacts; what this prints is the summary. It exits with the test run's own
+# exit code (the guard's is reported in a line of its own, so a fired guard never turns a question red by itself).
 
 set -u
 
@@ -68,6 +74,17 @@ else
 fi
 # Every probe case, one line each, exactly as the probe printed it.
 grep -E '\[wgid-probe\]|\[scan-uniform-probe\]' "$log" | sed "s/^[[:space:]]*/$marker $label /"
+
+# What the SHIPPED GUARD did on this machine, under the same toggles. The tests above say whether this renderer
+# computes a prefix sum correctly; this says whether the package notices. scripts/device-check-question.mjs builds
+# a context the way a consumer does, runs the device self-check and then calls the public `degree`, and prints one
+# VERDICT line: THE GUARD FIRED, THE GUARD IS SILENT, or UNKNOWN. Its exit code says the same (3, 0, 1). It writes
+# a log of its own so the shader-dump reader below still sees only what vitest wrote.
+guard="tmp/narrow/$label-guard.log"
+GRAPHTY_DAWN_FEATURES="$toggles" node scripts/device-check-question.mjs >"$guard" 2>&1
+guard_code=$?
+say "guard: exit=$guard_code (3 fired, 0 silent, 1 unknown), log $guard"
+grep -F '[device-check]' "$guard" | sed "s/^[[:space:]]*/$marker $label /"
 
 # The generated code, when one was asked for. Dawn dumps each module twice -- the WGSL it received, then what it
 # generated for the backend -- and dumps it again for every set of pipeline overrides and every fresh context, so

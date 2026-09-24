@@ -233,10 +233,15 @@ evidence.
      node scripts/run-node-shard.js --project=node-device-errors
    ```
    Note the ICD file name changes on 24.04: `lvp_icd.json`, not `lvp_icd.x86_64.json`.
-5. **Profile PageRank BEFORE re-recording any baseline** (finding ENV-F8): it is the only thing on the lane
-   that moved, roughly doubling at 100k/1M and 1M/10M while every other row, `wcc` at the same sizes included,
-   stayed flat. Re-recording first would freeze the regression in as the new normal. Then re-record, on a quiet
-   card and a quiet box:
+5. **Settle PageRank BEFORE re-recording any baseline** (finding ENV-F8, investigated in section 4.1). Do not
+   start from a blank profile: this is the second time this regression has happened, commit `57873440` fixed it
+   two days earlier with stride-one twins of the row fold, and this run reproduces the pre-fix numbers to within
+   one percent although that fix is still in the tree. The evidence says the newer Dawn's shader compiler has
+   undone the specialisation. The one step that turns that from inference into fact is to dump Dawn's generated
+   backend shader for `spmv-pull` on 0.4.0 and on 0.6.1 and diff the TIER 0 loop -- `GRAPHTY_DAWN_FEATURES`
+   forwards the toggles, and it needs a machine that can load both, so the rebuilt container of item 1. Any
+   kernel change that follows belongs on its own branch. Re-recording first would freeze the regression in as
+   the new normal. Then re-record, on a quiet card and a quiet box:
    ```bash
    cd webgpu-graph-algorithms
    GRAPHTY_GPU_REQUIRE=hardware XDG_RUNTIME_DIR=/tmp pnpm run bench
@@ -371,6 +376,51 @@ consecutive runs, so "we ran it a few times and it was fine" is not evidence of 
 missing-file and hang reporting (`scripts/run-node-shard.js`) is what keeps each recurrence visible as a lost
 worker rather than mistaken for a test failure; that reporting should stay whatever the outcome.
 
+### 4.1 The PageRank regression has a named precedent, and the numbers match it digit for digit
+
+This did not need discovering from scratch. Commit `57873440`, "walk a dense row with a constant stride again"
+(2026-09-22), fixed exactly this, and its message records the same two numbers: a hundred iterations at 100k
+nodes and a million arcs going 45.5 ms -> 90.1, and at a million nodes 1092.8 -> 1768.4. This run measured
+89.854 and 1785.337. It also records the same discriminating signature: of 31 shared rows, 29 within ten
+percent and only PageRank moved.
+
+**What that commit fixed.** The grid-tier phase lifted each kernel's per-row arc loop into a function taking a
+lane and a stride, so the three degree tiers could share one body. PageRank asks for no tiers, so only the
+first tier compiles and its call site passes the constants zero and one -- but the shader compiler emitted
+that as a real call, the driver never pushed the constants into the loop bound, and the hottest loop walked
+each row with a runtime stride held in a parameter. That lost the strength-reduced addressing into the column
+and weight arrays and the unrolling that kept several loads in flight per thread. The fix was a stride-one
+twin of the fold for the first tier: `row_sum_dense` in `src/wgsl/spmv-pull.wgsl.ts`, `row_fold_dense` in
+`segmented-reduce.wgsl.ts`, `row_force_dense` in `fa2-attraction.wgsl.ts`.
+
+**The chain of evidence that this is the compiler, not the fix having rotted or never worked.**
+
+| # | Question | Answer |
+| --- | --- | --- |
+| 1 | Is the fix in this branch? | Yes. `git merge-base --is-ancestor 57873440 HEAD` passes, and all three twins are present in the source with their headers intact. |
+| 2 | Did the fix ever actually work on the Tesla T4, or only on the development card? | It worked on the T4. GPU-lane run 35922927676 (master `c6120032`, 2026-09-23, `webgpu` 0.4.0 on the 22.04 host) measured `pagerank 100 iterations at 100k/1M` at **41.972 ms** (min 41.830) and `1M/10M` at **1064.173 ms**. This matters because the checked-in T4 baseline file contains NO post-fix session -- its last is the 2026-09-22 20:21 session, which is the regressed 90.08 / 1768.38 one the fix commit cites -- so the fix's benefit on this card exists only in that run's log. |
+| 3 | What changed between that fast run and this slow one? | The `webgpu` package (0.4.0 -> 0.6.1, rolling Dawn forward about five months) and the userspace (22.04 host -> `ubuntu:24.04` container). The package source is otherwise the same tree. |
+| 4 | Could the container or the newer userspace explain it? | No. Every other row is flat: `upload` x0.95 / x1.01, the 14-row exact ladder x0.99 .. x1.34, all of `layout-fr`, all of `layout-grid`, and `wcc` at the SAME two sizes over the same residency, upload and atomic paths at x1.00 / x1.04. A general slowdown would not land on one algorithm, and would have no reason to reproduce the earlier regression's magnitude to within one percent. |
+| 5 | Do the other two twinned kernels also show it? | They cannot answer. The only benchmark row that exercises a twin besides SpMV is `layout-grid/attraction ms/iteration n=1000000`, which is flat (18.219 ms against 18.165, x1.00) -- but the fix commit already measured that kernel's gain at 1.2 percent, "because that loop waits on arithmetic rather than on addresses". A 1.2 percent effect is inside this lane's noise, so attraction can neither confirm nor deny. `segmented-reduce`'s dense tier has no address-bound benchmark row at all. So "only PageRank moved" is what this hypothesis PREDICTS, not evidence against it. |
+| 6 | Has the tier split moved, so that 10k and 100k now take different paths? | No. `pagerank.ts` and `power-iteration.ts` pass `tiers: null`, which is ONE grid-stride dispatch at TIER 0 -- the dense path, the one with the twin -- at every size. The 10k row is flat (x1.10) because at 10k the hundred iterations are dominated by fixed cost: the baseline is 10.38 ms at 10k against 45.46 at 100k, so ten times the work costs only 4.4 times as much and a doubled row loop is diluted. |
+
+**Conclusion: the newer Dawn's shader compiler has stopped giving the twins what the older one did** -- it has
+gone back to emitting the shape they were written to avoid, or is undoing the specialisation another way. That
+explains the confinement to the one twinned kernel whose loop is address-bound, the absence at 10k, and the
+return to within one percent of the pre-fix numbers.
+
+**This is an inference, not yet a fact.** What would turn it into one: dump Dawn's generated backend shader for
+`spmv-pull` on both versions and diff the TIER 0 loop. The package already has the seam -- `GRAPHTY_DAWN_FEATURES`
+is forwarded to Dawn's toggles -- but it cannot be done on the development box, which cannot load 0.6.1 at all,
+so it needs either the rebuilt container of section 3 item 1 or a throwaway step on the lane. That work, and any
+kernel change that follows it, belongs on its own branch.
+
+**The lesson worth keeping.** A performance fix written against one shader compiler was undone by the next
+version of that compiler, and nothing in the source could have told anyone: the twins' headers explain why they
+exist, but no test or assertion ever checked that they still deliver. The only thing that caught it, both times,
+was a benchmark row that fails. That is the argument for keeping performance rows in the gate rather than
+trusting a comment -- and for not re-recording a baseline to make a red row go away.
+
 ## 5. What this branch changed
 
 | File | Change |
@@ -392,7 +442,7 @@ worker rather than mistaken for a test failure; that reporting should stay whate
 | ENV-F2 | The GPU lane's T4 host is Ubuntu 22.04.5 and machine.dev provides no image selector at any price or plan, so no label fixes it. Nothing recorded this, and it made the bump look like a two-machine move with one machine unreachable. | Resolved in `gpu.yml` rather than by a decision: the job now runs in an `ubuntu:24.04` container on the same runner, using the Docker and NVIDIA Container Toolkit their GPU image preinstalls. Same label, same price, glibc 2.39. VERIFIED in run 35938092059; section 3.1 records the three alternatives and why each was rejected. |
 | ENV-F3 | `ubuntu-latest` moved the default lane to 24.04 with no commit, and will move it to Ubuntu 26 on 2026-10-19. | Fixed here by naming the image. Re-pinning to 26 is then a reviewed change with a gate record, which is what this phase exists to make true. |
 | ENV-F4 | The lavapipe ICD file is named `lvp_icd.x86_64.json` on 22.04 and `lvp_icd.json` on 24.04. `ci.yml` already discovers it with `find`; the invocations documented in `CLAUDE.md` hard-code the 22.04 spelling. | Update `CLAUDE.md` at section 3 step 3, together with the `LD_LIBRARY_PATH` deletion, so both container-shaped facts change in one commit. |
-| ENV-F8 | The benchmarks run clean on the new lane and the comparison against the 0.4.0 / 22.04 baseline fails on exactly two rows, both PageRank: `pagerank 100 iterations at 100k/1M` 89.854 ms against 45.461 ms (median x1.98, minimum x1.96) and `pagerank 100 iterations at 1M/10M` 1785.337 ms against 1092.799 ms (x1.63 / x1.62). The minimum moved with the median, and by this package's own rule (interference can only make a sample slower) a risen floor is a real shift, not noise. | **Do not close item 11 by re-recording the baseline.** This is almost certainly not the environment: every other row is flat, including `upload` (x0.95, x1.01), the whole 14-row exact ladder (x0.99 .. x1.34), all of `layout-fr` and `layout-grid`, and -- the telling one -- `wcc` at the same two sizes (x1.00, x1.04), which shares the residency, upload and atomic paths. Even `pagerank` at 10k/100k is flat (x1.10). So a general container or CPU slowdown is ruled out by the data, and what is left is something specific to the PageRank driver or its SpMV kernel between Dawn 0.4.0 and 0.6.1, appearing only above 10k. Someone should profile it before any new baseline is committed; a re-recorded baseline would make the regression permanent and invisible. |
+| ENV-F8 | PageRank roughly doubles on the new lane, and it is the SECOND time this exact regression has happened: `pagerank 100 iterations at 100k/1M` 89.854 ms against a 45.461 ms baseline (median x1.98, minimum x1.96) and `1M/10M` 1785.337 ms against 1092.799 ms (x1.63 / x1.62), the minimum moving with the median. Section 4.1 is the investigation. | **Do not close item 11 by re-recording the baseline.** The evidence points at the shader compiler in `webgpu` 0.6.x undoing a specialisation the package added two days earlier, which is a real defect and not a new normal. A re-recorded baseline would make it permanent and invisible. Any kernel change belongs on its own branch; this one records the finding and leaves the gate item open. |
 | ENV-F7 | The first containerised dispatch failed on two assertions that pin the OLD `webgpu` version -- `test/build-output.test.ts` expecting the devDependency to be `0.4.0`, and a second copy of the install-hint string in `test/node/entry.test.ts`. Both live in the `node` project, which the dev box could not run at all after the bump, so nothing local could have caught them. | Fixed by following the pin, not by relaxing the assertions: both are deliberate contract tests and both now name 0.6.1. `test/build-output.test.ts`'s assertion on the PEER range is untouched, because that range is unchanged by design. The wider point is the one worth keeping: the lane found in twenty minutes what the developer machine is now structurally incapable of finding, which is the argument for fixing the dev container rather than working around it. |
 | ENV-F6 | The branch cannot pass `tools/prepush.sh` on a 22.04 box: the gate requires an adapter and 0.6.1 gives none. Build, bundle, lint and knip pass; the package's node projects fail up front. | Expected and correct -- the gate is behaving as designed, and it is the cheapest independent confirmation that the bump needs the container move first. No change to the gate is proposed: weakening it to let this branch through would remove the check that caught it. Push after section 3 item 1, or with `--no-verify` if the red state is understood. |
 | ENV-F5 | The node shard loses a vitest worker in about 15% of its CI runs (five of the last 33, two branches). One of the five printed a glibc futex abort; four printed nothing. The cause is unexplained and the bump's effect on it is unknown. | Section 4 states the experiment, which counts lost workers rather than abort messages -- grepping for the abort would have scored four of the five as clean. Do not close G-ENV green because a handful of runs happened not to fail: at 15% a quiet stretch of four runs is a 1-in-16 coincidence. |

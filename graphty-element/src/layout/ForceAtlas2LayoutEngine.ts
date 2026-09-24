@@ -1,19 +1,18 @@
-import { Edge as LayoutEdge, forceatlas2Layout, Graph as LayoutGraph, Node as LayoutNode } from "@graphty/layout";
+/**
+ * @file The ForceAtlas2 layout: the Gephi arrangement, computed on the CPU or on an accelerator.
+ *
+ * It used to be a one-shot pass -- run `forceatlas2Layout` over a node and edge list, publish the
+ * answer, stop -- which is why the catalogue called it a batch layout. It is now a steppable
+ * simulation from `@graphty/layout`, so it keeps running until the arrangement settles and reheats
+ * on a drag or a pin, and the element decides at every load whether the simulation is the CPU's or
+ * the accelerator's.
+ */
+
+import type { SimulationType } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { pairWeightKey, SimpleLayoutConfig, SimpleLayoutEngine, WEIGHT_EPSILON } from "./LayoutEngine";
-
-/**
- * The attribute name handed to `forceatlas2Layout`.
- *
- * That function gates its whole weight branch on this parameter being truthy -- it defaults to
- * null -- so a name has to be passed for weights to be read at all. It then reaches the element's
- * own `getEdgeData` callback and is ignored there: which record key carries the weight was
- * settled one layer up, at ingest, by `config.data.knownFields.edgeWeightPath`, for every engine
- * at once.
- */
-const WEIGHT_ATTRIBUTE = "weight";
+import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
  * Zod-based options schema for ForceAtlas2 Layout
@@ -51,7 +50,10 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
         },
     },
     gravity: {
-        schema: z.number().positive().default(1.0),
+        // NONNEGATIVE, not positive: zero gravity is a legal ForceAtlas2 setting -- nothing pulls
+        // the graph towards the centre and the components drift apart -- and it is what the
+        // Storybook slider has always offered as its lowest value.
+        schema: z.number().nonnegative().default(1.0),
         meta: {
             label: "Gravity",
             description: "Strength of center gravity",
@@ -112,102 +114,47 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
             description: "Pull strongly connected nodes closer together",
         },
     },
+    nodeMass: {
+        schema: z.record(z.string(), z.number()).or(z.string()).or(z.null()).default(null),
+        meta: {
+            label: "Node Mass",
+            description:
+                "How hard each node is to move, in one of three forms: a mass per node id, the " +
+                "name of a numeric node attribute to read it from, or nothing at all -- which " +
+                "gives every node a mass of one more than its degree, so a hub holds its ground.",
+            advanced: true,
+        },
+    },
 });
-
-const ForceAtlas2LayoutConfig = z.strictObject({
-    ...SimpleLayoutConfig.shape,
-    pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
-    maxIter: z.number().positive().default(100),
-    jitterTolerance: z.number().positive().default(1.0),
-    scalingRatio: z.number().positive().default(2.0),
-    gravity: z.number().positive().default(1.0),
-    distributedAction: z.boolean().default(false),
-    strongGravity: z.boolean().default(false),
-    nodeMass: z.record(z.number(), z.number()).or(z.null()).default(null),
-    nodeSize: z.record(z.number(), z.number()).or(z.null()).default(null),
-    weighted: z.boolean().default(true),
-    dissuadeHubs: z.boolean().default(false),
-    linlog: z.boolean().default(false),
-    seed: z.number().or(z.null()).default(null),
-    dim: z.number().default(2),
-});
-type ForceAtlas2LayoutConfigType = z.infer<typeof ForceAtlas2LayoutConfig>;
-type ForceAtlas2LayoutOpts = Partial<ForceAtlas2LayoutConfigType>;
 
 /**
- * ForceAtlas2 layout engine for graph visualization with scaling and gravity options
+ * The ForceAtlas2 engine, as the element declares it.
+ *
+ * Every member is a static the element reads: `LayoutManager` builds the bridge itself, with the
+ * graph's acceleration controller, so this class never runs a layout of its own. It declares no
+ * `static descriptor` because its arrangement is authored in the layout catalogue, where it sits
+ * under `force`.
  */
-export class ForceAtlas2Layout extends SimpleLayoutEngine {
+export class ForceAtlas2Layout extends SimulationLayoutEngine {
     static type = "forceatlas2";
+    static simulationType: SimulationType = "forceatlas2";
     static maxDimensions = 3;
+
+    /**
+     * A WEIGHT IS AN ATTRACTION STRENGTH HERE, and is passed through as it is stored: a heavier
+     * edge pulls its two nodes closer, which is what a weight means everywhere else in the
+     * element. Kamada-Kawai reads the very same number as a distance and therefore inverts it; the
+     * two engines disagree about the arithmetic so that they agree about the meaning.
+     */
     static override honoursWeights = true;
     static zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
-    scalingFactor = 100;
-    config: ForceAtlas2LayoutConfigType;
 
     /**
-     * Create a ForceAtlas2 layout engine
-     * @param opts - Configuration options for the ForceAtlas2 algorithm
-     */
-    constructor(opts: ForceAtlas2LayoutOpts) {
-        super(opts);
-        this.config = ForceAtlas2LayoutConfig.parse(opts);
-    }
-
-    /**
-     * Get dimension-specific options for ForceAtlas2 layout
-     * @param dimension - The desired dimension (2 or 3)
-     * @returns Options object with dim parameter
+     * Get dimension-specific options for ForceAtlas2 layout.
+     * @param dimension - The desired dimension (2 or 3).
+     * @returns Options object with dim parameter.
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
         return { dim: dimension };
-    }
-
-    /**
-     * Compute node positions using the ForceAtlas2 algorithm
-     *
-     * A WEIGHT IS PASSED THROUGH AS IT IS STORED. ForceAtlas2 reads a weight as an attraction
-     * STRENGTH -- it becomes the adjacency matrix entry the attraction force is scaled by -- which
-     * is already what a weight means everywhere else in the element, so a heavier edge pulls its
-     * two nodes closer and nothing has to be inverted. Kamada-Kawai reads the very same number as
-     * a distance and therefore does invert it; the two engines disagree about the arithmetic so
-     * that they agree about the meaning.
-     */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-        const graph: LayoutGraph = { nodes, edges };
-
-        const weights = this.config.weighted ? this.pairWeights(this._edges) : null;
-        if (weights !== null) {
-            this.reportClampedWeights("forceatlas2", weights);
-            graph.getEdgeData = (source: LayoutNode, target: LayoutNode): number | undefined => {
-                const weight = weights.get(pairWeightKey(source, target));
-                if (weight === undefined) {
-                    return undefined;
-                }
-
-                return Math.max(weight, WEIGHT_EPSILON);
-            };
-        }
-
-        this.positions = forceatlas2Layout(
-            graph,
-            this.config.pos,
-            this.config.maxIter,
-            this.config.jitterTolerance,
-            this.config.scalingRatio,
-            this.config.gravity,
-            this.config.distributedAction,
-            this.config.strongGravity,
-            this.config.nodeMass,
-            this.config.nodeSize,
-            weights === null ? null : WEIGHT_ATTRIBUTE,
-            this.config.dissuadeHubs,
-            this.config.linlog,
-            this.config.seed,
-            this.config.dim,
-        );
     }
 }

@@ -1,9 +1,11 @@
 import { Vector3 } from "@babylonjs/core";
+import { maskTest } from "@graphty/graph-format";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
 import type { AdHocData } from "../../src/config/common";
 import { Graph } from "../../src/Graph";
+import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import type { Node } from "../../src/Node";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -187,6 +189,53 @@ describe("Unified Drag Handler", () => {
         node.dragHandler.onDragEnd();
 
         assert.isFalse(pinCalled, "node.pin() should NOT be called when pinOnDrag is false");
+    });
+
+    /**
+     * Puts one of the force layouts behind the graph and hands back the bridge driving it.
+     *
+     * A simulation writes the position array itself, so the fixed bit is the only thing that can
+     * hold a dragged node where the pointer put it; the one-shot engines the other cases run on
+     * have no such bit, which is why these two cases set a layout of their own.
+     * @returns The bridge.
+     */
+    async function simulationLayout(): Promise<SimulationLayoutEngine> {
+        await graph.setLayout("forceatlas2");
+        const { layoutEngine } = graph.getLayoutManager();
+        assert.instanceOf(layoutEngine, SimulationLayoutEngine, "forceatlas2 resolves to the simulation bridge");
+        return layoutEngine;
+    }
+
+    test("a drag on a simulation layout sets a temporary fixed bit and clears it on release without pinOnDrag", async () => {
+        const engine = await simulationLayout();
+        assert.exists(node.dragHandler, "dragHandler should exist");
+        node.pinOnDrag = false;
+
+        assert.isFalse(maskTest(engine.pinnedMask, node.index), "the simulation is free to move the node");
+
+        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        assert.isTrue(maskTest(engine.pinnedMask, node.index), "the pointer holds it while the drag lasts");
+
+        node.dragHandler.onDragUpdate(new Vector3(3, 1, 0));
+        node.dragHandler.onDragEnd();
+
+        assert.isFalse(maskTest(engine.pinnedMask, node.index), "and the simulation has it back on release");
+        assert.isFalse(node.isPinned(), "a drag is not a pin");
+    });
+
+    test("with pinOnDrag the bit stays and the node is pinned", async () => {
+        const engine = await simulationLayout();
+        assert.exists(node.dragHandler, "dragHandler should exist");
+        node.pinOnDrag = true;
+
+        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        assert.isTrue(maskTest(engine.pinnedMask, node.index), "the drag set the bit, before any pin did");
+
+        node.dragHandler.onDragUpdate(new Vector3(3, 1, 0));
+        node.dragHandler.onDragEnd();
+
+        assert.isTrue(maskTest(engine.pinnedMask, node.index), "the drop left the node where the reader put it");
+        assert.isTrue(node.isPinned(), "and the store calls it pinned");
     });
 
     test("should maintain consistent depth during horizontal drag", () => {

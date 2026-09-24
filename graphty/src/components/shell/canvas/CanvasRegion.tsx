@@ -55,6 +55,7 @@
  */
 
 import { type DataTableColumn, PopoutRegion } from "@graphty/compact-mantine";
+import type { AccelerationPolicy } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
 import { Graphty,type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
@@ -83,6 +84,8 @@ import { WelcomeState } from "./WelcomeState";
 export interface CanvasGraphConfig {
     /** The style layers graphty-element owns. */
     readonly layers?: LayerItem[];
+    /** The element's acceleration policy. */
+    readonly acceleration?: AccelerationPolicy;
     /** The view mode the canvas toolbar's 2D / 3D control sets. */
     readonly viewMode?: "2d" | "3d" | "ar" | "vr";
     /** The data source format. */
@@ -435,6 +438,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                 <Graphty
                     ref={graphRef}
                     layers={graph?.layers ?? NO_LAYERS}
+                    acceleration={graph?.acceleration}
                     viewMode={graph?.viewMode}
                     dataSource={graph?.dataSource}
                     dataSourceConfig={graph?.dataSourceConfig}

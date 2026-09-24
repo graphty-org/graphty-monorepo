@@ -8,15 +8,26 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 ## Available Layouts
 
-| Layout         | Type           | Best For               | Dimensions |
-| -------------- | -------------- | ---------------------- | ---------- |
-| `ngraph`       | Force-directed | General graphs         | 2D/3D      |
-| `d3-force`     | Force-directed | Web-standard           | 2D         |
-| `circular`     | Geometric      | Cycles, small graphs   | 2D/3D      |
-| `grid`         | Geometric      | Regular structures     | 2D/3D      |
-| `hierarchical` | Layered        | Trees, DAGs            | 2D/3D      |
-| `random`       | Random         | Testing, initial state | 2D/3D      |
-| `fixed`        | Manual         | Pre-computed positions | 2D/3D      |
+| Layout              | Type           | Best For                                  | Dimensions |
+| ------------------- | -------------- | ----------------------------------------- | ---------- |
+| `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
+| `d3-force`          | Force-directed | Web-standard                              | 2D         |
+| `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
+| `grid`              | Geometric      | Regular structures                        | 2D/3D      |
+| `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
+| `random`            | Random         | Testing, initial state                    | 2D/3D      |
+| `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
+| `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
+| `spring`            | Force-directed | General graphs                            | 2D/3D      |
+| `spring-electrical` | Force-directed | Large graphs, with a hardware accelerator | 2D/3D      |
+
+The last three are live simulations: they keep stepping until the arrangement comes to rest
+rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
+`element.setRunning(true)` sets it going again. They are also the three that run on a hardware
+accelerator when there is one -- and `spring-electrical` only runs on one. It has no CPU
+implementation at all, so `setLayout("spring-electrical")` without an accelerator that implements
+it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the
+[acceleration guide](./acceleration).
 
 ## Setting a Layout
 
@@ -143,6 +154,56 @@ const nodes = [
 await graph.addNodes(nodes);
 graph.setLayout("fixed");
 ```
+
+### forceatlas2 (Force-Directed, live)
+
+Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling communities apart:
+
+```typescript
+graph.setLayout("forceatlas2", {
+    seed: 42, // Same seed, same settled shape
+    scalingRatio: 2.0, // Node repulsion
+    gravity: 1.0, // Pull towards the centre
+    linlog: false, // Log attraction: tighter clusters
+    dissuadeHubs: false, // Push high-degree nodes outwards
+});
+```
+
+Runs on a hardware accelerator when one is attached. See the [acceleration guide](./acceleration).
+
+### spring (Force-Directed, live)
+
+Fruchterman-Reingold, also a live simulation. Pick it when the arrangement has to be reproducible
+from a seed:
+
+```typescript
+graph.setLayout("spring", {
+    seed: 42, // Same seed, same settled shape
+    k: null, // Ideal node distance; null auto-calculates it
+    iterations: 50, // Simulation steps per settle
+    scale: 1, // Multiplies the radius the arrangement is drawn at
+});
+```
+
+Runs on a hardware accelerator when one is attached.
+
+### spring-electrical (Force-Directed, live, accelerator only)
+
+ngraph's spring-electrical model at a size ngraph itself cannot reach. It has no CPU
+implementation: without an accelerator that implements it, `setLayout("spring-electrical")`
+throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way.
+
+```typescript
+graph.setLayout("spring-electrical", {
+    seed: 42,
+    springLength: 10, // The distance an edge pulls its nodes towards
+    springCoefficient: 0.8, // How hard an edge pulls
+    gravity: -12, // Node repulsion; negative repels
+    dragCoefficient: 0.9, // How quickly motion bleeds away
+});
+```
+
+See the [acceleration guide](./acceleration) for how to attach one.
 
 ## Layout Transitions
 

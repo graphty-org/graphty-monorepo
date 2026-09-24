@@ -24,6 +24,7 @@ export type GraphEvent =
     | GraphDataLoadedEvent
     | GraphDataAddedEvent
     | GraphSnapshotReplacedEvent
+    | GraphSnapshotDroppedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
     | GraphGenericEvent
@@ -50,7 +51,10 @@ export type GraphEvent =
  * To keep a new internal event off the DOM, add its type to this set. Nothing else changes: the
  * forwarder asks {@link isDomForwardableEvent}, which is the only place the decision is made.
  */
-export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>(["snapshot-replaced"]);
+export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
+    "snapshot-replaced",
+    "snapshot-dropped",
+]);
 
 /**
  * Whether a graph event may leave the element as a DOM CustomEvent.
@@ -97,9 +101,11 @@ export interface GraphDataAddedEvent {
  * Emitted by DataManager after every freeze, once the element's position column is attached to the
  * new snapshot (graph-format design 14.4 rule 11).
  *
- * Listeners release per-snapshot resources: at E1 `Graph` releases the accelerator's GPU buffers for
- * `previous` and its derived views, and caches drop their entries. Nothing a WeakMap can do for
- * them -- GPU memory is not garbage collected.
+ * Listeners release per-snapshot resources: `Graph` releases the accelerator's buffers for
+ * `previous` and for its undirected copy when that is a distinct snapshot (the release list of the
+ * WebGPU design 9.4 item 2), and caches drop their entries. Nothing a WeakMap can do for them --
+ * GPU memory is not garbage collected. A dataset that is cleared rather than replaced has no
+ * `next` to freeze and is announced by {@link GraphSnapshotDroppedEvent} instead.
  */
 export interface GraphSnapshotReplacedEvent {
     type: "snapshot-replaced";
@@ -111,6 +117,18 @@ export interface GraphSnapshotReplacedEvent {
     next: GraphSnapshot;
     /** freezeWithReport's report, relative to the PREVIOUS freeze of the same builder. */
     report: FreezeReport;
+}
+
+/**
+ * Emitted by DataManager when the dataset is cleared: the store and every snapshot it froze are
+ * discarded without a replacement, so no `snapshot-replaced` ever carries that boundary.
+ *
+ * Listeners drop their per-snapshot resources exactly as they do on a replacement -- `Graph`
+ * releases the accelerator's buffers for the snapshot it was showing. Emitted while the outgoing
+ * store is still usable, so a listener can still ask it for a derived view of what it is freeing.
+ */
+export interface GraphSnapshotDroppedEvent {
+    type: "snapshot-dropped";
 }
 
 export interface GraphLayoutInitializedEvent {

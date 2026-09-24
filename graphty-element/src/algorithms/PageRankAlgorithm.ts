@@ -1,4 +1,5 @@
 import { type NodeId as AlgorithmNodeId, pageRank } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
@@ -97,6 +98,41 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 const DELTA_METHOD_NODE_THRESHOLD = 100;
 
 /**
+ * Why this run cannot take the index-based route, or null when it can.
+ *
+ * Three things the reference implementation does have no index-based counterpart, and each one is
+ * a question of the RESULT rather than of speed: a personalization vector and a set of initial
+ * ranks change what the numbers mean, and an undirected graph has no out-edges for rank to flow
+ * along -- the indexed port refuses one outright, while the reference implementation reads the
+ * same pair of records as a link each way. So the run stays where the answer is defined, and says
+ * so in its caveats.
+ * @param run - What this run was asked for.
+ * @param run.directed - Whether the graph the element froze is directed.
+ * @param run.hasInitialRanks - Whether the caller supplied starting values.
+ * @param run.hasPersonalization - Whether the caller supplied a personalization vector.
+ * @returns The reason, in a sentence a reader can read, or null.
+ */
+function legacyPageRankReason(run: {
+    directed: boolean;
+    hasInitialRanks: boolean;
+    hasPersonalization: boolean;
+}): string | null {
+    if (run.hasPersonalization) {
+        return "a personalization vector was given, and only the reference implementation takes one";
+    }
+
+    if (run.hasInitialRanks) {
+        return "initial ranks were given, and only the reference implementation takes them";
+    }
+
+    if (!run.directed) {
+        return "the graph is undirected, and rank flows along out-edges";
+    }
+
+    return null;
+}
+
+/**
  * PageRank: the influence that flows into a node from the nodes that point at it.
  *
  * The published `value` is the raw rank, which sums to 1 across the graph. It is not scaled: the
@@ -171,6 +207,15 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     private zodOptions: PageRankSchemaOptions;
 
     /**
+     * The two Map-valued options, kept from what the caller passed.
+     *
+     * NEITHER SCHEMA CARRIES THEM -- a Map is not a value a form or a saved document can hold --
+     * and `resolveOptions` returns only the keys its schema declares, so reading them back off the
+     * resolved options found nothing and a personalized run quietly ran an unpersonalized one.
+     */
+    private readonly programmaticOptions: Pick<PageRankOptions, "initialRanks" | "personalization">;
+
+    /**
      * Creates a new PageRank algorithm instance
      * @param g - The graph to run the algorithm on
      * @param options - Optional configuration options
@@ -179,6 +224,10 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         super(g, options);
         // Use new Zod-based validation for schema options
         this.zodOptions = parseOptions(pageRankOptionsSchema, options ?? {});
+        this.programmaticOptions = {
+            initialRanks: options?.initialRanks ?? null,
+            personalization: options?.personalization ?? null,
+        };
     }
 
     /**
@@ -198,11 +247,84 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
         const { dampingFactor, maxIterations, tolerance, weight, useDelta } = this.zodOptions;
-        // Map types are programmatic-only (not in schema) - accessed from legacy options
-        const initialRanks = this._schemaOptions.initialRanks ?? undefined;
-        const personalization = this._schemaOptions.personalization ?? undefined;
+        // Map types are programmatic-only (not in schema) - kept from the constructor's arguments
+        const initialRanks = this.programmaticOptions.initialRanks ?? undefined;
+        const personalization = this.programmaticOptions.personalization ?? undefined;
 
-        // Directed: rank flows along out-edges, so the declared direction is the whole model.
+        /* Directed: rank flows along out-edges, so the declared direction is the whole model --
+           and whether the snapshot IS directed is one of the three things that decide whether any
+           index-based port answers this run at all. So it is read here, from the declared
+           snapshot, BEFORE the route is taken: a run that ends on the reference implementation
+           must not first pay for the parallel-edge merge it will never look at. */
+        const legacyReason = legacyPageRankReason({
+            directed: this.graph.getDataManager().getSnapshot().directed,
+            hasInitialRanks: initialRanks !== undefined,
+            hasPersonalization: personalization !== undefined,
+        });
+
+        if (legacyReason === null) {
+            const { snapshot, run } = this.accelerated("pageRank", "directed");
+
+            context.report({
+                phase: "iterating",
+                completed: 0,
+                total: nodeIds.length,
+                message: `Power iteration, up to ${String(maxIterations)} passes.`,
+            });
+
+            const { value, precision } = await run((dispatch, s) =>
+                dispatch.pageRank(s, {
+                    dampingFactor,
+                    maxIterations,
+                    tolerance,
+                    // ONE weight column, so naming an attribute is the same request as asking for
+                    // a weighted run: the snapshot carries the weight the element resolved.
+                    weighted: weight !== null,
+                }),
+            );
+
+            context.signal.throwIfAborted();
+
+            const { ids } = snapshot;
+            const measured: ResultElementValues[] = [];
+            await walkInChunks(nodeIds, context, "reading ranks", (nodeId) => {
+                const index = ids.indexOf(nodeId);
+                const rank = index === INVALID_INDEX ? undefined : value.scores[index];
+                measured.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });
+            });
+
+            const routedNotes = [
+                `A reader follows a link with probability ${String(dampingFactor)} and jumps to a random node otherwise.`,
+                "The ranks sum to 1 across the graph.",
+            ];
+
+            if (weight === null) {
+                routedNotes.push("Edge weights are not read.");
+            }
+
+            if (useDelta) {
+                routedNotes.push(
+                    "Power iteration ran: the delta optimisation is the CPU reference implementation's own and has no index-based counterpart, so it was not taken.",
+                );
+            }
+
+            return {
+                nodes: measured,
+                normalization: "none",
+                caveats: {
+                    exact: true,
+                    direction: "directed",
+                    weight: weight === null ? null : { attribute: weight, meaning: "strength" },
+                    precision,
+                    method: "power-iteration",
+                    converged: value.converged,
+                    iterations: value.iterations,
+                    notes: routedNotes,
+                },
+            };
+        }
+
+        // No index-based port answers this run, so the reference implementation does.
         const graphData = this.algorithmGraph("directed");
         // The delta method does not report how many passes it took or whether it converged: it
         // returns `iterations: maxIterations` with the comment "For now, assume we used all
@@ -238,6 +360,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         const notes = [
             `A reader follows a link with probability ${String(dampingFactor)} and jumps to a random node otherwise.`,
             "The ranks sum to 1 across the graph.",
+            `Computed on the CPU reference implementation: ${legacyReason}.`,
         ];
 
         if (delta) {

@@ -1,0 +1,27 @@
+{
+    // What a third party compiles against: the PUBLISHED declarations in dist/, not the sources.
+    //
+    // The package name is mapped onto dist/ and "types" is emptied, so nothing ambient leaks into
+    // the program. @webgpu/types is what that keeps out: if a GPUDevice, a GPUBuffer or any other
+    // GPU type reached dist/webgpu.d.ts or dist/session.d.ts, the name would resolve to nothing
+    // here and this compile would fail -- which is the point, because a consumer who has not
+    // installed @webgpu/types would get exactly that error from their own build.
+    //
+    // skipLibCheck is off for the same reason: it is the declarations themselves that are under
+    // test, and skipping their check is skipping the whole check.
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "composite": false,
+        "noEmit": true,
+        "skipLibCheck": false,
+        "exactOptionalPropertyTypes": true,
+        "noUncheckedIndexedAccess": true,
+        "types": [],
+        "paths": {
+            "@graphty/graphty-element": ["./dist/index.d.ts"],
+            "@graphty/graphty-element/*": ["./dist/*.d.ts"]
+        }
+    },
+    "include": ["test/types/consumer/**/*.ts"],
+    "exclude": ["node_modules", "coverage", "tmp"]
+}

@@ -73,10 +73,10 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
 export type VoiceStartCallback = (started: boolean, error?: string) => void;
 
 /** Why a voice session ended: stopped by the caller, ended by the recogniser, or failed. */
-export type VoiceEndReason = "user" | "timeout" | "error";
+type VoiceEndReason = "user" | "timeout" | "error";
 
 /** Callback for a voice session starting (`active` true) or ending (`active` false, with a reason). */
-export type VoiceActiveCallback = (active: boolean, reason?: VoiceEndReason) => void;
+type VoiceActiveCallback = (active: boolean, reason?: VoiceEndReason) => void;
 
 /**
  * Voice input adapter using the Web Speech API.

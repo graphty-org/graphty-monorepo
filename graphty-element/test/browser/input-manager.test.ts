@@ -153,6 +153,38 @@ describe("InputManager", () => {
         assert.isTrue(shortcuts.includes("input:select-all"), "Should emit select-all shortcut");
     });
 
+    test("shortcuts accept Ctrl or Cmd, and Shift+Z is redo", async () => {
+        await inputManager.init();
+
+        let last: string | undefined;
+        eventManager.onGraphEvent.add((event) => {
+            if (event.type.startsWith("input:") && !event.type.includes("key")) {
+                last = event.type;
+            }
+        });
+
+        const mockSystem = inputManager.getMockInputSystem();
+        const cases: [string, { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }, string | undefined][] = [
+            ["z", { ctrlKey: true }, "input:undo"],
+            ["z", { metaKey: true }, "input:undo"],
+            ["Z", { ctrlKey: true, shiftKey: true }, "input:redo"],
+            ["Z", { metaKey: true, shiftKey: true }, "input:redo"],
+            ["y", { ctrlKey: true }, "input:redo"],
+            ["y", { metaKey: true }, "input:redo"],
+            ["a", { ctrlKey: true }, "input:select-all"],
+            ["a", { metaKey: true }, "input:select-all"],
+            ["z", {}, undefined],
+            ["a", { shiftKey: true }, undefined],
+        ];
+
+        for (const [key, modifiers, expected] of cases) {
+            last = undefined;
+            mockSystem.simulateKeyDown(key, modifiers);
+            mockSystem.simulateKeyUp(key);
+            assert.strictEqual(last, expected, `${key} with ${JSON.stringify(modifiers)}`);
+        }
+    });
+
     test("state queries work correctly", async () => {
         await inputManager.init();
 

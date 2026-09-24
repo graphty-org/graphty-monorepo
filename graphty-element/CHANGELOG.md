@@ -1,3 +1,21 @@
+## 2.0.1 (2026-09-24)
+
+### 🩹 Fixes
+
+- **graphty-element:** install only the dependencies the published build imports ([ddebbcfb](https://github.com/graphty-org/graphty-monorepo/commit/ddebbcfb))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.2
+- Updated @graphty/remote-logger to 1.3.5
+- Updated graph-format to 1.0.3
+- Updated algorithms to 2.0.1
+- Updated layout to 1.8.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 # 2.0.0 (2026-09-24)
 
 ### 🚀 Features

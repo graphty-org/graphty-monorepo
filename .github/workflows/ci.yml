@@ -123,6 +123,19 @@ jobs:
               if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run-many -t lint --parallel=3
 
+            # Every package is built by now on both paths (PR builds the rest above). knip reads
+            # source; the production pass counts only published entry points. The published-deps
+            # check packs each package and compares what it ships with what it declares, so it
+            # must run after the build. The same three steps run in tools/prepush.sh.
+            - name: Knip (dead code detection)
+              run: pnpm run lint:knip
+
+            - name: Knip (production dependencies)
+              run: pnpm run lint:knip:prod
+
+            - name: Published dependencies
+              run: pnpm run check:published-deps
+
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook
 

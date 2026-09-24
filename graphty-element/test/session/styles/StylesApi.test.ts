@@ -1,8 +1,8 @@
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredPalettesForTesting, registerPalette } from "../../../src/catalog/paletteRegistry";
-import { paletteDescriptor } from "../../../src/catalog/palettes";
 import type { Channel, FieldDescriptor, LayerSpec, PaletteDescriptor, Path, RunId, StyleDocument } from "../../../src/catalog/types";
+import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import { isGraphtyError } from "../../../src/errors";
 import type { RunRef } from "../../../src/session/results/types";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
@@ -43,6 +43,7 @@ import {
 } from "../../../src/session/styles/index";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
+import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
 
 /** One element's columns, keyed by the path a selector names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -1028,11 +1029,20 @@ describe("highlight(), which is exclusive", () => {
 
     it("paints the element's own highlight colour when the caller names none", async () => {
         const { styles } = makeStyles();
-        const [highlighted] = paletteDescriptor("blue-highlight")?.colors ?? [];
 
         const [nodes] = await styles.highlight({ run: "influencers" });
 
-        assert.strictEqual(nodes?.set?.["node.color"], highlighted);
+        assert.deepStrictEqual(nodes?.set, { "node.color": DEFAULT_HIGHLIGHT.color });
+    });
+
+    it("draws a highlighted edge wider than a default edge, so a route reads as a route", async () => {
+        const { styles } = makeStyles();
+
+        const layers = await styles.highlight({ run: "route" });
+        const edges = layers.find((layer) => layer.target === "edge");
+
+        assert.strictEqual(edges?.set?.["edge.color"], DEFAULT_HIGHLIGHT.color);
+        assert.isAbove(Number(edges?.set?.["edge.width"]), EDGE_CONSTANTS.DEFAULT_LINE_WIDTH);
     });
 
     it("paints only the half the caller's style names a channel for", async () => {

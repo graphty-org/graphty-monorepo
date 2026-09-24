@@ -176,6 +176,11 @@ Files: `webgpu-graph-algorithms/package.json`, `graph-format/package.json`,
 `node-device-errors` projects green on lavapipe and on the card at the pre-bump pin, recorded in `G-ENV.md`
 section 1 as the BEFORE half.
 
+Expect `tools/prepush.sh` to REFUSE the push after this task on a 22.04 box, and do not weaken it to get
+through: it runs the node projects with `GRAPHTY_GPU_REQUIRE=any` on purpose, so a machine with no adapter
+fails rather than skipping, and after the bump that machine is this one. Build, bundle, lint and knip still
+pass. The push waits for ENV-T5 (finding ENV-F6).
+
 ### ENV-T4: the redundancy note and the consumer-facing install rule
 
 **Status: DONE.** Repository: `graphty-monorepo`. Files: `webgpu-graph-algorithms/src/memory/readback.ts`,

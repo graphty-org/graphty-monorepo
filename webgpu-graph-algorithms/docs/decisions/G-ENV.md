@@ -17,6 +17,14 @@ pre-bump state; the phase's *environment* changes cannot be made from inside the
 Ubuntu 24.04. Section 3 states exactly what the owner must do. No item of section 2 is marked met on the
 strength of an argument.
 
+The repository's own pre-push gate says the same thing independently, and it is worth stating because it
+decides what can be done with this branch: `tools/prepush.sh` runs the package's node projects with
+`GRAPHTY_GPU_REQUIRE=any`, deliberately, so that a machine with no adapter fails the push rather than
+skipping quietly. On a 22.04 box with `webgpu` at 0.6.1 there is no adapter, because Dawn does not load, so
+**the branch cannot pass its own pre-push gate here and was not pushed.** Build, bundle, lint and knip all
+pass; only the GPU suites fail, and they fail for the one reason this record is about. Pushing it needs
+either the container move of section 3 item 1, or a deliberate `--no-verify` accepting the known-red state.
+
 ## 0. What this phase is, and why it is being recorded three phases late
 
 Design section 13 places a row called P-ENV between P3 (ForceAtlas2, exact tier) and P4 (the grid pyramid). It
@@ -310,4 +318,5 @@ worker rather than mistaken for a test failure; that reporting should stay whate
 | ENV-F2 | The GPU lane's T4 image is Ubuntu 22.04.5. Nothing recorded this, and it makes the bump a two-machine move rather than the one the design describes. | Owner decision needed: which provider image or runner class serves the T4 lane on 24.04 (section 3 item 2). This is the gating item for merging the branch. |
 | ENV-F3 | `ubuntu-latest` moved the default lane to 24.04 with no commit, and will move it to Ubuntu 26 on 2026-10-19. | Fixed here by naming the image. Re-pinning to 26 is then a reviewed change with a gate record, which is what this phase exists to make true. |
 | ENV-F4 | The lavapipe ICD file is named `lvp_icd.x86_64.json` on 22.04 and `lvp_icd.json` on 24.04. `ci.yml` already discovers it with `find`; the invocations documented in `CLAUDE.md` hard-code the 22.04 spelling. | Update `CLAUDE.md` at section 3 step 3, together with the `LD_LIBRARY_PATH` deletion, so both container-shaped facts change in one commit. |
+| ENV-F6 | The branch cannot pass `tools/prepush.sh` on a 22.04 box: the gate requires an adapter and 0.6.1 gives none. Build, bundle, lint and knip pass; the package's node projects fail up front. | Expected and correct -- the gate is behaving as designed, and it is the cheapest independent confirmation that the bump needs the container move first. No change to the gate is proposed: weakening it to let this branch through would remove the check that caught it. Push after section 3 item 1, or with `--no-verify` if the red state is understood. |
 | ENV-F5 | The node shard loses a vitest worker in about 15% of its CI runs (five of the last 33, two branches). One of the five printed a glibc futex abort; four printed nothing. The cause is unexplained and the bump's effect on it is unknown. | Section 4 states the experiment, which counts lost workers rather than abort messages -- grepping for the abort would have scored four of the five as clean. Do not close G-ENV green because a handful of runs happened not to fail: at 15% a quiet stretch of four runs is a 1-in-16 coincidence. |

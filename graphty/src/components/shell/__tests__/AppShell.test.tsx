@@ -1425,6 +1425,59 @@ describe("AppShell", () => {
             expect(await screen.findByTestId("command-palette")).toBeInTheDocument();
         });
 
+        /* Only a mouse click outside a pop-out closes pop-outs on its own. A palette row is
+           inside a portal the pop-out layer counts as its own, so choosing Go to Settings
+           closed nothing, and the History pop-out stayed drawn over the Settings overlay. */
+        it("closes an open pop-out when Go to Settings opens Settings", async () => {
+            renderShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: /Search commands, nodes and edges/ }));
+            await screen.findByTestId("command-palette");
+            fireEvent.click(screen.getByRole("option", { name: /^Go to\s*Settings/ }));
+
+            expect(await screen.findByTestId("settings-overlay")).toBeInTheDocument();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
+        /* Pop-outs sit above the palette modal, so one left open by a key press would be
+           drawn over the palette. */
+        it("closes an open pop-out when Cmd+K opens the palette", async () => {
+            renderShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+
+            act(() => {
+                window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+            });
+            await screen.findByTestId("command-palette");
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
+        it("closes the shortcuts sheet when Go to Settings opens Settings over it", async () => {
+            renderShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            act(() => {
+                window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+            });
+            await screen.findByTestId("command-palette");
+            fireEvent.click(screen.getByRole("option", { name: /^Go to\s*Settings/ }));
+
+            expect(await screen.findByTestId("settings-overlay")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+        });
+
         it("carries the only row that brings a hidden canvas toolbar back", async () => {
             renderShell();
 
@@ -1878,6 +1931,72 @@ describe("AppShell", () => {
             await settleSession();
 
             expect(fake.layers()).toEqual(before);
+        });
+
+        /**
+         * Drags one layer row by its handle and drops it on another row, with the pointer events
+         * the list's drag sensor listens for.
+         * @param list - the layer list.
+         * @param from - the name of the row to drag.
+         * @param to - the name of the row to drop it on.
+         */
+        async function dragRow(list: HTMLElement, from: string, to: string): Promise<void> {
+            // A row is the nearest box around the name that also holds a drag handle.
+            const rowOf = (name: string): HTMLElement => {
+                let row: HTMLElement | null = within(list).getByText(name);
+
+                while (row !== null && row.querySelector('[data-testid="layer-drag-handle"]') === null) {
+                    row = row.parentElement;
+                }
+
+                expect(row).not.toBeNull();
+
+                return row as HTMLElement;
+            };
+            const handle = within(rowOf(from)).getByTestId("layer-drag-handle");
+            const start = handle.getBoundingClientRect();
+            const source = rowOf(from).getBoundingClientRect();
+            const target = rowOf(to).getBoundingClientRect();
+            const x = start.left + start.width / 2;
+            const y = start.top + start.height / 2;
+            const dy = target.top + target.height / 2 - (source.top + source.height / 2);
+            const pointer = { button: 0, buttons: 1, isPrimary: true, pointerId: 1, clientX: x };
+
+            await act(async () => {
+                fireEvent.pointerDown(handle, { ...pointer, clientY: y });
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            });
+            await act(async () => {
+                fireEvent.pointerMove(document, { ...pointer, clientY: y + dy / 2 });
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+                fireEvent.pointerMove(document, { ...pointer, clientY: y + dy });
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            });
+            await act(async () => {
+                fireEvent.pointerUp(document, { ...pointer, buttons: 0, clientY: y + dy });
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            });
+            await settleSession();
+        }
+
+        /* A drag reports the whole reordered list, and the shell used to move the FIRST layer
+           that differed. Dragged up two or more places, that is a layer the drag only pushed
+           aside, which already sat below its new neighbour -- so the move changed nothing and
+           the list snapped back. The stack is bottom first; the list draws it top first. */
+        it.each([
+            { moved: "up by one", from: "A", to: "B", expected: ["B", "A", "C", "D"] },
+            { moved: "up by two", from: "A", to: "C", expected: ["B", "C", "A", "D"] },
+            { moved: "up by three", from: "A", to: "D", expected: ["B", "C", "D", "A"] },
+            { moved: "down by one", from: "D", to: "C", expected: ["A", "B", "D", "C"] },
+            { moved: "down by two", from: "D", to: "B", expected: ["A", "D", "B", "C"] },
+        ])("moves exactly the dragged layer when it is dragged $moved", async ({ from, to, expected }) => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, ["A", "B", "C", "D"]);
+
+            await settleSession();
+            await dragRow(screen.getByTestId("style-layers"), from, to);
+
+            expect(fake.layers().map((layer) => layer.name)).toEqual(["default", "selection", ...expected]);
         });
 
         it("draws the reader's own layers and never the element's", async () => {
@@ -2360,6 +2479,19 @@ describe("AppShell", () => {
             expect(within(strip).getByText("Search for something you know")).toBeInTheDocument();
         });
 
+        /* The minimap had nothing to project -- no positions, no viewport -- and drew as an empty
+           dark box. It stays off the canvas until graphty-element can feed it (#293). */
+        it("draws no minimap placeholder after a sample loads", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            expect(container.querySelector('[data-canvas-overlay="insights"]')).not.toBeNull();
+            expect(container.querySelector('[data-canvas-overlay="minimap"]')).toBeNull();
+        });
+
         it("draws the same size string in the Data panel's sample rows as on the canvas", async () => {
             await renderMeasuredShell();
 
@@ -2677,7 +2809,7 @@ describe("AppShell", () => {
         /* One node-metric encoding drives colour at a time, retired BY TAG. An index walk
            over this stack takes the element's `default` layer with it, and with it every
            node's shape type -- the "shape with type required to create mesh" failure. */
-        it("replaces the first metric's encoding when a second metric runs", async () => {
+        it("stacks a second metric's encoding over the first rather than deleting it", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
@@ -2693,8 +2825,12 @@ describe("AppShell", () => {
 
             const painted = metricLayers(graph.styles.layers());
 
-            expect(painted).toHaveLength(1);
-            expect(painted[0].source).toMatchObject({ by: "run", algorithm: "pagerank" });
+            /* Layers stack: the later run is on top and wins the channel, and the earlier one
+               stays underneath for the reader to reorder, hide or remove. */
+            expect(painted.map((layer) => layer.source)).toMatchObject([
+                { by: "run", algorithm: "degree" },
+                { by: "run", algorithm: "pagerank" },
+            ]);
             expect(graph.styles.layers().map((layer) => layer.name)).toContain("default");
         });
 
@@ -2984,21 +3120,21 @@ describe("AppShell", () => {
             expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
         });
 
-        /* ------------------------------------------------------------------ */
-        /* Node colour has one owner, whichever shape holds it                  */
-        /* ------------------------------------------------------------------ */
-
-        /* Both families paint node colour, and a metric layer wins over any community
-           layer whatever the stack order: its calculatedStyle has an empty selector and
-           graphty-element merges calculated values OVER the static style (Node.ts:151).
-           So a run that leaves the other family's layers standing leaves the canvas
-           painted by a run the screen is no longer describing. */
-        it("hands node colour to the run that took it last, in both orders", async () => {
+        /* A finished run used to delete every other run's layers, so group colours and a
+           metric ramp could never both be in the stack. Now each run's layers stay, and the
+           shell never reorders the stack: a run the element RE-SERVED keeps its place, under
+           whatever the reader or a later run stacked over it. */
+        it("keeps every run's layers and never reorders the stack when a run is re-served", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
 
             const graph = installNovicePathGraph(container);
+            const topRun = (): unknown => {
+                const runLayers = graph.styles.layers().filter((layer) => layer.source.by === "run");
+
+                return runLayers[runLayers.length - 1]?.source;
+            };
 
             await loadCatSample(container);
             await runSuggested("Most connected");
@@ -3007,17 +3143,21 @@ describe("AppShell", () => {
 
             await runSuggested("Groups");
 
-            // Forward: the ramp came off, so what is painted is what the legend names.
-            expect(metricLayers(graph.styles.layers())).toHaveLength(0);
+            // Forward: the ramp stays, under the groups.
+            expect(metricLayers(graph.styles.layers())).toHaveLength(1);
             expect(communityLayers(graph.styles.layers())).toHaveLength(1);
+            expect(topRun()).toMatchObject({ algorithm: "louvain" });
             expect(screen.getByLabelText("Legend")).toBeInTheDocument();
+
+            const orderBefore = graph.styles.layers().map((layer) => layer.id);
 
             await runSuggested("Most connected");
 
-            // And the mirror, which is the same rule read the other way round.
-            expect(communityLayers(graph.styles.layers())).toHaveLength(0);
+            // The re-served degree run stays where it was, under the groups.
+            expect(communityLayers(graph.styles.layers())).toHaveLength(1);
             expect(metricLayers(graph.styles.layers())).toHaveLength(1);
-            expect(screen.getByLabelText("Legend")).toHaveTextContent("Connections");
+            expect(topRun()).toMatchObject({ algorithm: "louvain" });
+            expect(graph.styles.layers().map((layer) => layer.id)).toEqual(orderBefore);
 
             // And the element's own layers are still underneath all of it, by tag.
             expect(graph.styles.layers().map((layer) => layer.name)).toContain("default");
@@ -3712,6 +3852,44 @@ describe("AppShell", () => {
     /* -------------------------------------------------------------------------- */
     /* The Results tab's body (2026-09-14)                                         */
     /* -------------------------------------------------------------------------- */
+
+    /* The shell rendered `<PresentPanel />` with no props, so the format select took a pick and
+       snapped back to PNG and both image verbs did nothing. */
+    describe("the Present panel", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        it("keeps the image format picked, and hands it to the element's capture", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const element = container.querySelector("graphty-element") as HTMLElement;
+            const captureScreenshot = vi.fn(() => Promise.resolve({ clipboardStatus: "success" }));
+
+            Object.defineProperty(element, "captureScreenshot", { configurable: true, value: captureScreenshot });
+
+            fireEvent.click(screen.getByRole("button", { name: "Present" }));
+
+            const format = await screen.findByRole("textbox", { name: "Image format" });
+
+            fireEvent.click(format);
+            fireEvent.click(await screen.findByRole("option", { name: "JPEG" }));
+
+            await waitFor(() => {
+                expect(screen.getByRole("textbox", { name: "Image format" })).toHaveValue("JPEG");
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Export image" }));
+            fireEvent.click(screen.getByRole("button", { name: "Copy to clipboard" }));
+
+            expect(captureScreenshot).toHaveBeenCalledWith({ format: "jpeg", destination: { download: true } });
+            expect(captureScreenshot).toHaveBeenCalledWith({ destination: { clipboard: true } });
+        });
+    });
 
     describe("the Analyze panel's Results tab", () => {
         afterEach(() => {

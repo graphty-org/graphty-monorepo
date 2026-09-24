@@ -78,6 +78,23 @@ export function useOptionalPopoutManagerContext(): PopoutManagerContextValue | n
 }
 
 /**
+ * The page's pop-out layer, for a consumer that has to act on every open pop-out at once.
+ *
+ * The case it exists for is a surface that covers the page -- a settings overlay, a
+ * shortcuts sheet -- opened by a route that is not a mouse click. A click anywhere
+ * outside a pop-out already closes them all; a key press, a command palette row or a
+ * programmatic open does not, and without this the pop-outs stay drawn on top of the
+ * surface that was meant to replace them.
+ * @returns `closeAll`, which closes every open pop-out, and `hasOpenPopouts`, which says
+ *   whether any is open. Both are stable across renders.
+ */
+export function usePopoutManager(): Pick<PopoutManagerContextValue, "closeAll" | "hasOpenPopouts"> {
+    const { closeAll, hasOpenPopouts } = usePopoutManagerContext();
+
+    return useMemo(() => ({ closeAll, hasOpenPopouts }), [closeAll, hasOpenPopouts]);
+}
+
+/**
  * Props for PopoutProvider.
  */
 interface PopoutProviderProps {

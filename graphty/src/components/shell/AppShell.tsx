@@ -67,9 +67,11 @@
  *   recorded on the `escapeLadder` call below.
  * - **The filter status strip.** Nothing holds an active filter yet, so there is nothing
  *   to draw and no control claims otherwise. The Insights strip is no longer in this
- *   group -- the 7.3 rule table computes its cards and the strip is drawn from them --
- *   and neither is the minimap: its M binding and its Views checkmark do claim it is
- *   shown, which is why it is passed a config.
+ *   group -- the 7.3 rule table computes its cards and the strip is drawn from them.
+ * - **The minimap.** It has nothing to project until graphty-element publishes node
+ *   positions and camera changes (#293), and drawn before then it was an empty dark box.
+ *   Its Views row carries the Coming tag and its M binding is unshipped, so no control
+ *   claims it is shown.
  * - **The legend's channels.** With nothing encoded the legend renders nothing by
  *   design (spec 01 section 9), so an empty channel list is the correct state, not a
  *   missing one.
@@ -89,8 +91,9 @@ import {
     PANEL_INK,
     PopoutManager,
     PopoutRegion,
+    usePopoutManager,
 } from "@graphty/compact-mantine";
-import type { DataLoadingErrorEvent } from "@graphty/graphty-element";
+import type { DataLoadingErrorEvent, ScreenshotOptions } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import { type Channel, type GraphStatistics, type LayerSpec, recommendLayout, type RunId } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
@@ -149,7 +152,6 @@ import {
 } from "./constants";
 import {
     colourHeldBy,
-    removeOtherRunLayers,
     removeRunLayers,
     runColourBlock,
     topSwatchColour,
@@ -225,14 +227,24 @@ const SUGGESTED_CARD_METRICS: Readonly<Record<string, NodeMetricId>> = {
     influence: "pagerank",
 };
 
+/** An image format graphty-element's `captureScreenshot` takes. */
+type ImageFormat = NonNullable<ScreenshotOptions["format"]>;
+
+/**
+ * Whether the Present panel's format select handed back a format the element can capture.
+ * @param value - the select's value.
+ * @returns true for png, jpeg and webp.
+ */
+function isImageFormat(value: string): value is ImageFormat {
+    return value === "png" || value === "jpeg" || value === "webp";
+}
+
 /**
  * The community run's identity on the Results list.
  *
- * Only one result can be painted at a time -- `runFindGroups` removes every node-metric
- * layer before adding its own and `runNodeMetricCard` does the reverse, because node
- * colour has one owner -- so a per-run-KIND id is stable for exactly as long as the
- * result is on the list, which is what the Analyze panel asks of it. The node metrics
- * take `result-${metric}` on the same rule.
+ * One result is on the list at a time -- the one the last run wrote -- so a per-run-KIND
+ * id is stable for exactly as long as the result is on the list, which is what the
+ * Analyze panel asks of it. The node metrics take `result-${metric}` on the same rule.
  */
 const COMMUNITY_RESULT_ID = "groups";
 
@@ -1188,6 +1200,62 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
+    /* The Present panel's image format. The capture itself is graphty-element's
+       `captureScreenshot`; the shell only remembers which format the reader picked. */
+    const [imageFormat, setImageFormat] = useState<ImageFormat>("png");
+
+    /**
+     * Captures the canvas through graphty-element, to a download or to the clipboard.
+     * @param options - what the element should capture and where it should send it.
+     */
+    const captureImage = useCallback((options: ScreenshotOptions) => {
+        const handle = graphtyRef.current;
+
+        if (handle === null) {
+            console.error(`[shell] ${GRAPH_NOT_INITIALISED}`);
+
+            return;
+        }
+
+        handle.captureScreenshot(options).then(
+            (result) => {
+                /* A clipboard write that fails still resolves: the reason is in the result. */
+                if (options.destination?.clipboard === true && result.clipboardStatus !== "success") {
+                    console.error(`[shell] the image was not copied to the clipboard: ${result.clipboardStatus}`);
+                }
+            },
+            (error: unknown) => {
+                console.error("[shell] the element could not capture the image:", error);
+            },
+        );
+    }, []);
+    const { closeAll: closeAllPopouts } = usePopoutManager();
+
+    /**
+     * Opens one of the two full-panel overlays, Settings or the shortcuts sheet, and closes
+     * everything that would otherwise be left on screen with it: every open pop-out, the Help
+     * menu and the other overlay.
+     *
+     * Every route goes through here -- the rail, the palette, the Help menu, the ? key and the
+     * assistant's setup prompt -- because only a mouse click outside a pop-out closes pop-outs by
+     * itself. A key press or a palette row closes nothing, and a pop-out left open is drawn over
+     * the overlay that was meant to replace it.
+     * @param overlay - which overlay to open.
+     * @param section - the Settings pane to open on, or undefined for the one it was left on.
+     */
+    const openFullPanelOverlay = useCallback(
+        (overlay: "settings" | "shortcuts", section?: string) => {
+            closeAllPopouts();
+            setHelpOpen(false);
+            setSettingsOpen(overlay === "settings");
+            setShortcutsOpen(overlay === "shortcuts");
+
+            if (overlay === "settings") {
+                setSettingsSection(section);
+            }
+        },
+        [closeAllPopouts],
+    );
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
     const [compareActive, setCompareActive] = useState(false);
@@ -2461,14 +2529,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }
             }
 
-            /* A move is said as "put this one below that one", which is what the list's own
-               drop already means, so nothing here computes a destination index. `null` is the
-               top of the stack, where the dropped layer has nothing above it. */
-            for (let at = 0; at < next.length; at += 1) {
-                if (layers[at]?.id === next[at].id) {
-                    continue;
+            /* A drag moves ONE layer, so the lists differ over one span and the dragged layer
+               sits at one end of it: at the start when it moved down the stack (the old span's
+               last entry is now its first), at the end when it moved up. Taking the first
+               mismatch instead named a layer that was only pushed aside when the drag went up
+               two or more places, and moving that one was a no-op.
+
+               The move is said as "put this one below that one", which is the element's own
+               verb. `null` is the top of the stack, where the dropped layer has nothing above it. */
+            const first = next.findIndex((item, at) => layers[at]?.id !== item.id);
+
+            if (first !== -1) {
+                let last = next.length - 1;
+
+                while (last > first && layers[last]?.id === next[last].id) {
+                    last -= 1;
                 }
 
+                const at = next[first].id === layers[last]?.id ? first : last;
                 const above = next[at + 1];
 
                 void session.styles.move(next[at].id, above?.id ?? null).then(
@@ -2477,8 +2555,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         console.error("[shell] the element refused the reorder:", error);
                     },
                 );
-
-                break;
             }
         },
         [layers, updateLayer],
@@ -2558,12 +2634,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const handleActivityClick = useCallback(
         (activity: ActivityId) => {
             if (activity === "settings") {
-                setHelpOpen(false);
                 /* The rail names no section, so Settings opens where it was left --
                    6.5's memory. Only a caller that came looking for one pane asks
                    for one, which today is the assistant's setup prompt. */
-                setSettingsSection(undefined);
-                setSettingsOpen((open) => !open);
+                if (settingsOpen) {
+                    setSettingsOpen(false);
+                } else {
+                    openFullPanelOverlay("settings");
+                }
 
                 return;
             }
@@ -2586,7 +2664,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setSettingsOpen(false);
             selectActivity(activity);
         },
-        [selectActivity],
+        [openFullPanelOverlay, selectActivity, settingsOpen],
     );
 
     const openPanelAt = useCallback(
@@ -2648,14 +2726,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                build one layer per group by hand, capped at eight because the element's palette
                helper cycles past that and group 9 would have been painted like group 1.
 
-               What is left for the shell is the rule that NODE COLOUR HAS ONE OWNER. A metric
-               ramp left standing from an earlier run paints over every group colour, so the
-               canvas would not change by one pixel while this result's legend named group
-               swatches and its card named a layer nobody could see. This run is taking the
-               channel, so every other run's layers go. */
+               Every other run's layers stay: layers stack, and the reader decides which one is
+               on top. A re-served run keeps its place; when a layer above hides its colours,
+               the legend says so ("painted over by"). */
             const { runId } = stats;
-
-            await removeOtherRunLayers(session, runId);
 
             const block = runColourBlock(session, runId);
             const colouredGroupCount = block === undefined ? 0 : block.swatches.length;
@@ -2679,11 +2753,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setSelectedNode(null);
             graphDeselectNode(graphtyRef.current?.graph ?? null);
             setActiveResult({
-                /* Stable per run KIND, because only one result can be painted at a time
-                   (this run removes every node-metric layer before adding its own, and
-                   the node-metric run does the reverse -- node colour has one owner). A
-                   re-run of Groups is the same result identity, which is what the reader
-                   means by it. */
+                /* Stable per run KIND: a re-run of Groups is the same result identity,
+                   which is what the reader means by it. */
                 id: COMMUNITY_RESULT_ID,
                 title: COMMUNITY_RESULT_TITLE,
                 headline: communityHeadline(statistics),
@@ -2888,9 +2959,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    allowed to paint, and mark the reader's own edits so a later run would not
                    overwrite them; all three are the element's now.
 
-                   What is left for the shell is the rule that NODE COLOUR HAS ONE OWNER: a
-                   second ramp or a group colouring left standing beats this one whatever the
-                   stack order, so every other run's layers go. */
+                   Every other run's layers stay, under this one: the stack order decides which
+                   colour wins, and the reader can reorder, hide or remove any of them. */
                 const session = graph.getSession();
                 const { runId } = ranking;
 
@@ -2899,8 +2969,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    the picture has to be asked for here -- unless a layer somebody wrote by hand
                    already drives node colour, which is the one case a run stands aside for. */
                 if (runId !== undefined) {
-                    await removeOtherRunLayers(session, runId);
-
                     if (runColourBlock(session, runId) === undefined && colourHeldBy(layers) === undefined) {
                         await session.styles.encode({ run: runId, channel: "node.color" }).then(
                             () => undefined,
@@ -3232,7 +3300,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         setDrawerMaximised(false);
     }, []);
 
-    const toggleOverlay = useCallback((key: "insightsDismissed" | "legend" | "minimap" | "timeSlider" | "toolbar") => {
+    const toggleOverlay = useCallback((key: "insightsDismissed" | "legend" | "timeSlider" | "toolbar") => {
         setCanvasLayout((current) => ({ ...current, [key]: !current[key] }));
     }, []);
 
@@ -3367,7 +3435,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
             switch (row) {
                 case "keyboardShortcuts":
-                    setShortcutsOpen(true);
+                    openFullPanelOverlay("shortcuts");
                     break;
                 case "showSuggestions":
                     setCanvasLayout((current) => ({ ...current, insightsDismissed: false }));
@@ -3379,7 +3447,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     window.open("https://graphty.app/docs/", "_blank", "noopener");
                     break;
                 case "whatTheMarksMean":
-                    setShortcutsOpen(true);
+                    openFullPanelOverlay("shortcuts");
                     break;
                 case "moreSuggestions":
                 case "alreadyRun":
@@ -3391,7 +3459,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     break;
             }
         },
-        [openPanelAt],
+        [openFullPanelOverlay, openPanelAt],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -3451,6 +3519,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         escapeLadder: { clearSelection, closeTopmostTransient },
         handlers: {
             commandPalette: () => {
+                /* A key press closes no pop-out, and pop-outs are drawn over the palette. */
+                closeAllPopouts();
                 setPaletteOpen(true);
             },
             cycleRegions: () => {
@@ -3468,15 +3538,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 focusWhenMounted('[data-testid="explore-search-input"]');
             },
             keyboardShortcuts: () => {
-                setShortcutsOpen(true);
+                openFullPanelOverlay("shortcuts");
             },
             redo: undoStore.redo,
             resetView,
             toggleDataDrawer: toggleDrawer,
             toggleLegend,
-            toggleMinimap: () => {
-                toggleOverlay("minimap");
-            },
             toggleSidebars,
             toggleViewMode,
             undo: undoStore.undo,
@@ -3515,9 +3582,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /*
      * The Results tab's body: a LIST holding one card, or none.
      *
-     * A list rather than a single optional card, even though only one result can be
-     * painted at a time (the two run functions each remove the other family's layers,
-     * because node colour has one owner). A second result is then a DATA change rather
+     * A list rather than a single optional card, even though only the last run's result
+     * is shown today. A second result is then a DATA change rather
      * than a rewrite of the panel. What it replaced is the defect: the panel took a bare
      * `resultCount: number` and drew NOTHING for it, so the tab read "Results (1)" over a
      * body that still showed the Suggested cards -- a badge and a body that were two
@@ -3734,7 +3800,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     />
                 );
             case "present":
-                return <PresentPanel />;
+                return (
+                    <PresentPanel
+                        imageFormat={imageFormat}
+                        onImageFormatChange={(format) => {
+                            if (isImageFormat(format)) {
+                                setImageFormat(format);
+                            }
+                        }}
+                        onExportImage={() => {
+                            captureImage({ format: imageFormat, destination: { download: true } });
+                        }}
+                        onCopyImage={() => {
+                            captureImage({ destination: { clipboard: true } });
+                        }}
+                    />
+                );
             case "ai":
                 return (
                     <AiPanel
@@ -3767,8 +3848,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         }}
                         onCancel={aiManager.cancel}
                         onOpenSettings={() => {
-                            setSettingsSection("ai");
-                            setSettingsOpen(true);
+                            openFullPanelOverlay("settings", "ai");
                         }}
                     />
                 );
@@ -3778,6 +3858,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         activeActivity,
         activeResult,
+        captureImage,
+        imageFormat,
+        openFullPanelOverlay,
         aiKeyStorage.hasAnyProvider,
         aiManager,
         aiMessages,
@@ -4396,8 +4479,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             group: "Go to",
             label: PINNED_TITLES.settings,
             onSelect: () => {
-                setSettingsSection(undefined);
-                setSettingsOpen(true);
+                openFullPanelOverlay("settings");
             },
         });
         items.push({
@@ -4431,15 +4513,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 label: viewMode === "3d" ? "2D" : "3D",
                 chipFor: "toggleViewMode",
                 onSelect: toggleViewMode,
-            },
-            {
-                id: "view-minimap",
-                group: "View",
-                label: "Minimap",
-                chipFor: "toggleMinimap",
-                onSelect: () => {
-                    toggleOverlay("minimap");
-                },
             },
             {
                 id: "view-legend",
@@ -4507,7 +4580,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 label: "Keyboard shortcuts",
                 chipFor: "keyboardShortcuts",
                 onSelect: () => {
-                    setShortcutsOpen(true);
+                    openFullPanelOverlay("shortcuts");
                 },
             },
             {
@@ -4523,7 +4596,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 group: "Help",
                 label: "What the marks mean",
                 onSelect: () => {
-                    setShortcutsOpen(true);
+                    openFullPanelOverlay("shortcuts");
                 },
             },
             {
@@ -4546,12 +4619,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         return items;
     }, [
+        openFullPanelOverlay,
         openPanelAt,
         resetView,
         runNodeMetricCard,
         toggleDrawer,
         toggleLegend,
-        toggleOverlay,
         toggleSidebars,
         toggleViewMode,
         viewFront,
@@ -4722,16 +4795,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         },
         ...(legendChannels.length === 0 ? {} : { legend: { channels: legendChannels } }),
         graphRef: graphtyRef,
-        /*
-         * Spec 01 section 5: the minimap "is never hidden, because ... a hidden minimap
-         * would leave its M toggle and its Views menu checkmark describing an invisible
-         * state". Withholding this config is what hid it: the region draws no overlay it
-         * has no config for. The node count is the real one; the projection is the
-         * Minimap's own documented placeholder ("it renders the points, the density grid
-         * and the viewport rectangle it is handed") and waits on graphty-element
-         * publishing node positions and a settle event -- it is not invented here.
-         */
-        minimap: { nodeCount },
         graph: {
             layers: [...layers],
             viewMode,
@@ -5005,7 +5068,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                 viewsMenuOpen={viewsMenuOpen}
                                 onViewsMenuOpenChange={setViewsMenuOpen}
                                 views={{
-                                    minimapShown: canvasLayout.minimap,
                                     legendShown: canvasLayout.legend,
                                     /* Same fact, same source as the Style panel's switch
                                        and the L binding: one derivation, so the three
@@ -5019,9 +5081,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     onResetView: resetView,
                                     onViewPreset: (preset) => {
                                         graphViewPreset(graphtyRef.current?.graph ?? null, preset);
-                                    },
-                                    onToggleMinimap: () => {
-                                        toggleOverlay("minimap");
                                     },
                                     onToggleToolbar: () => {
                                         toggleOverlay("toolbar");

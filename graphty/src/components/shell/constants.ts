@@ -356,11 +356,22 @@ export const CANVAS_MENU_Z_INDEX = 15;
  * which let the canvas toolbar and the minimap -- 9 rungs below it -- paint straight
  * through an overlay that is supposed to replace the panel.
  *
- * The two cannot currently be on screen together: Settings sets `modalOpen`, which
- * suppresses every binding but Escape, so ? cannot be pressed over it. They share the
- * rung anyway, because the rung describes what a surface IS rather than which
- * surfaces happen to be reachable at once, and a shortcuts reference that later
- * becomes reachable from inside Settings should not have to rediscover this.
+ * The two share the rung, and only one of them is ever open: every route that opens
+ * either one goes through the shell's one opener, which closes the other.
+ *
+ * THE WHOLE LADDER, bottom to top, because three owners write it:
+ *
+ * - the shell's rungs above, 5 to 20, all inside the shell's own frame;
+ * - Mantine's modals and overlays at their default of 200 -- the command palette, the
+ *   feedback dialog, the load dialog -- which therefore draw over either shell overlay;
+ * - the screen-too-small state at {@link SCREEN_TOO_SMALL_Z_INDEX}, over all of those;
+ * - compact-mantine's pop-outs from `POPOUT_Z_INDEX_BASE` (1000) up, and its dropdowns
+ *   above them.
+ *
+ * Pop-outs sit ABOVE this rung on purpose: a pop-out opened from the top bar, which no
+ * overlay covers, has to draw over Settings, and so does one opened from inside it. What
+ * must never happen is a pop-out left open UNDER an overlay's scrim, and that is not
+ * decided by z-index: opening either overlay closes every pop-out first.
  */
 export const SHELL_OVERLAY_Z_INDEX = 20;
 

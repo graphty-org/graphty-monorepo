@@ -92,7 +92,14 @@ import {
 } from "@graphty/compact-mantine";
 import type { DataLoadingErrorEvent } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
-import { type Channel, type GraphStatistics, type LayerSpec, recommendLayout, type RunId } from "@graphty/graphty-element/session";
+import {
+    type Channel,
+    type GraphStatistics,
+    type LayerSpec,
+    recommendLayout,
+    type RunId,
+    type SelectionDelta,
+} from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -328,6 +335,25 @@ const DEFAULT_LAYOUT = "ngraph";
 
 /** How often the shell retries turning graphty-element's XR buttons off, in ms. */
 const GRAPH_READY_POLL_MS = 250;
+
+/**
+ * The status bar's selection slot. Once the element has reported a selection change its count
+ * is the only answer; before that, a clicked node reads as one.
+ * @param selectedCount - Nodes plus edges in the element's selection, or null before the
+ * element has reported any change.
+ * @param hasSelectedNode - Whether a node is selected by a click.
+ * @returns The slot, or undefined when nothing is selected.
+ */
+function selectionSlotOf(selectedCount: number | null, hasSelectedNode: boolean): { label: string } | undefined {
+    if (selectedCount === null) {
+        return hasSelectedNode ? { label: "1 selected" } : undefined;
+    }
+
+    return selectedCount > 0 ? { label: `${selectedCount.toLocaleString()} selected` } : undefined;
+}
+
+/** How long the Explore search waits after the last keystroke before it asks the element. */
+const EXPLORE_SEARCH_DEBOUNCE_MS = 200;
 
 /** How many times it retries before giving up. The graph initialises asynchronously. */
 const GRAPH_READY_POLL_LIMIT = 40;
@@ -1114,7 +1140,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        supplied, so its value was pinned to the empty string and every keystroke was
        discarded. */
     const [exploreQuery, setExploreQuery] = useState("");
-    const [exploreScope, setExploreScope] = useState<ExploreSearchScope>("all");
+    const [exploreScope, setExploreScope] = useState<ExploreSearchScope>("graph");
+    /* Why the element refused the Explore query, in its own words, or undefined. */
+    const [exploreError, setExploreError] = useState<string | undefined>(undefined);
+    /* Whether the Explore field has selected anything, so emptying it clears what it chose
+       and an empty field on mount leaves a clicked selection alone. */
+    const exploreSelectedRef = useRef(false);
+    /* How many elements the element's selection holds, from its own change event; null
+       until the element has reported one. */
+    const [selectedCount, setSelectedCount] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<CanvasViewMode>("3d");
     const [layoutType, setLayoutType] = useState<string>(DEFAULT_LAYOUT);
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
@@ -1547,6 +1581,68 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         return () => {
             window.clearInterval(timer);
+        };
+    }, []);
+
+    /* The Explore search. graphty-element runs it: the query goes to the element's selection
+       as a text target, and the element reads the id:, type:, exact: and regex: prefixes and
+       a leading `=` itself. A refusal -- an expression that does not parse -- is the element's
+       sentence, shown under the field. `loadCompletions` is a dependency so a query still in
+       the field runs again over a newly loaded dataset. */
+    useEffect(() => {
+        const session = elementSession(graphtyRef.current?.graph);
+        const text = exploreQuery.trim();
+
+        if (session === null || (text === "" && !exploreSelectedRef.current)) {
+            return undefined;
+        }
+
+        const search = async (): Promise<void> => {
+            try {
+                if (text === "") {
+                    session.selection.clear();
+                    exploreSelectedRef.current = false;
+                } else {
+                    await session.selection.apply({ text, scope: exploreScope });
+                    exploreSelectedRef.current = true;
+                }
+
+                setExploreError(undefined);
+            } catch (error) {
+                setExploreError(error instanceof Error ? error.message : String(error));
+            }
+        };
+        const timer = window.setTimeout(() => {
+            void search();
+        }, EXPLORE_SEARCH_DEBOUNCE_MS);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [exploreQuery, exploreScope, graphReady, loadCompletions]);
+
+    /* The status bar's selection slot reads the element's own selection change, so every
+       route into the selection -- a click, a search, a command -- counts the same way. */
+    useEffect(() => {
+        const frame = frameRef.current;
+
+        const onSelectionChange = (event: Event): void => {
+            if (event instanceof CustomEvent) {
+                const { nodes, edges, cause } = event.detail as SelectionDelta;
+                setSelectedCount(nodes + edges);
+
+                /* The search is the app's only "api" selection; a click ("user") or a command
+                   replaced what it chose, so emptying the field must not clear that. */
+                if (cause !== "api") {
+                    exploreSelectedRef.current = false;
+                }
+            }
+        };
+
+        frame?.addEventListener("graphty-selection-change", onSelectionChange);
+
+        return () => {
+            frame?.removeEventListener("graphty-selection-change", onSelectionChange);
         };
     }, []);
 
@@ -3658,6 +3754,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         onQueryChange={setExploreQuery}
                         scope={exploreScope}
                         onScopeChange={setExploreScope}
+                        searchError={exploreError}
                         visibleScopeLabel={`${nodeCount.toLocaleString()} nodes`}
                         timeSliderOn={canvasLayout.timeSlider}
                         onTimeSliderChange={(on) => {
@@ -3787,6 +3884,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         canvasLayout.timeSlider,
         legendIsAvailable,
         openResult,
+        exploreError,
         exploreQuery,
         exploreScope,
         handleAddLayer,
@@ -4326,7 +4424,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     openPanelAt("style");
                 },
             },
-            selection: selectedNode === null ? undefined : { label: "1 selected" },
+            selection: selectionSlotOf(selectedCount, selectedNode !== null),
         };
     }, [
         dataLoaded,
@@ -4340,6 +4438,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         nodeCount,
         openDrawerOn,
         openPanelAt,
+        selectedCount,
         selectedNode,
     ]);
 

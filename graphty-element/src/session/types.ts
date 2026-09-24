@@ -368,7 +368,7 @@ export interface SessionDataApi {
  *
  * The rest of the graph-dependent half of {@link CatalogApi} -- what an option's bounds resolve to
  * over a scope, whether an expression references anything real -- is still absent rather than
- * stubbed, because the query engine it reads does not exist yet. A consumer discovers that gap by
+ * stubbed: the session's query engine exists, and the catalogue is not wired to it yet. A consumer discovers that gap by
  * autocomplete finding nothing, not by a call that throws.
  */
 export type SessionCatalogApi = Pick<

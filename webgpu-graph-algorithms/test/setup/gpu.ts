@@ -227,6 +227,13 @@ beforeAll(async () => {
         handle = await createNodeGpu({
             adapter: envOrUndefined("GRAPHTY_GPU_ADAPTER"),
             dawnFeatures: dawnFeatures === undefined ? undefined : dawnFeatures.split(","),
+            // Dawn 0.6.x rounds every timestamp-query result to a 65,536 ns grid by default -- a Spectre-style
+            // mitigation, and 64x coarser than the 1,024 ns of 0.4.x. Our kernels are microseconds, so a pass
+            // shorter than one tick reads a duration of exactly zero: `test/kernel/profiler.test.ts` fails 10
+            // runs in 10 on the RTX 4070 SUPER with it on, and cannot see it on lavapipe, whose passes are
+            // milliseconds. Turned off here rather than per lane, so a new lane does not have to remember it;
+            // nothing this process profiles is anyone else's secret. G-ENV finding ENV-F9.
+            dawnDisableFeatures: ["timestamp_quantization"],
         });
     } catch (err) {
         reason = `E_NO_ADAPTER: ${messageOf(err)}`;

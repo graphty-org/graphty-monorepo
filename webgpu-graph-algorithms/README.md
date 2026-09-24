@@ -348,7 +348,9 @@ handle.dispose();
 ```
 
 Options of `createNodeGpu` / `createNodeGpuContext`: `adapter` (Dawn `adapter=<substring>`, e.g. `"llvmpipe"`
-or `"4070"`), `backend` (`"vulkan"` | `"null"` | ...), `dawnFeatures` (Dawn toggles), `software` (shorthand
+or `"4070"`), `backend` (`"vulkan"` | `"null"` | ...), `dawnFeatures` (Dawn toggles to turn on), `dawnDisableFeatures`
+(Dawn toggles to turn off -- `"timestamp_quantization"` is the one to reach for, since Dawn 0.6.x rounds every
+timestamp-query result to a 65,536 ns grid by default), `software` (shorthand
 for `adapter=llvmpipe`, Linux / Mesa specific), `installGlobals` (default `true`: `GPUBufferUsage` and friends
 on `globalThis`), plus the `GpuContext.create` options (`powerPreference`, `rejectSoftware`, `limits`
 (`"raise"` by default), `optionalFeatures` (`["subgroups", "timestamp-query"]` by default), `label`,

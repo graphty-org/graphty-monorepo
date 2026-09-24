@@ -5,7 +5,7 @@ import type { CameraManager } from "../cameras/CameraManager";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
-import type { NodeRenderState } from "../Node";
+import type { Node, NodeRenderState } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -13,6 +13,54 @@ import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
+
+/**
+ * How far past the nodes a framing reaches, in world units, on every side.
+ *
+ * Room for a typical label, FIXED rather than measured: a label plane's size depends on its text,
+ * font and the machine's font metrics, so framing the labels themselves made editing one label
+ * move the whole camera and made the same layout frame differently on two machines.
+ */
+export const FRAMING_MARGIN = 1;
+
+/**
+ * The box the camera is framed on: every visible node, where it is in world space, plus
+ * {@link FRAMING_MARGIN}. A function of node positions and sizes only, never of label text.
+ * @param nodes - The nodes to frame; hidden ones are skipped.
+ * @returns The corners, or undefined when no node is visible.
+ */
+export function nodeFramingBox(nodes: Iterable<Node>): { min: Vector3; max: Vector3 } | undefined {
+    let min: Vector3 | undefined;
+    let max: Vector3 | undefined;
+
+    for (const node of nodes) {
+        // A node the visibility mask has taken off screen keeps its position, but must not
+        // stretch the box, or zooming to fit a filtered graph would frame what is hidden.
+        if (node.getRenderState() !== "visible") {
+            continue;
+        }
+
+        // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a world
+        // position while it renders, and this runs BEFORE that render, so `getAbsolutePosition()`
+        // alone would hand back the previous frame's value. Computed rather than read off
+        // `mesh.position`, because a node mesh is parented to the "graph-root" transform an XR
+        // gesture moves, rotates and scales.
+        node.mesh.computeWorldMatrix(true);
+
+        const pos = node.mesh.getAbsolutePosition();
+        const half = node.size / 2 + FRAMING_MARGIN;
+
+        min ??= pos.clone().setAll(Infinity);
+        max ??= pos.clone().setAll(-Infinity);
+
+        for (const axis of ["x", "y", "z"] as const) {
+            min[axis] = Math.min(min[axis], pos[axis] - half);
+            max[axis] = Math.max(max[axis], pos[axis] + half);
+        }
+    }
+
+    return min && max ? { min, max } : undefined;
+}
 
 /**
  * One set of elements the renderer honours, as the session holds it.
@@ -702,8 +750,7 @@ export class UpdateManager implements Manager {
                 // Calculate bounding box and update nodes
                 const { boundingBoxMin, boundingBoxMax } = this.updateNodes(true);
 
-                // Update edges (also expands bounding box for edge labels)
-                this.updateEdges(boundingBoxMin, boundingBoxMax);
+                this.updateEdges();
 
                 // Handle zoom to fit
                 this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
@@ -727,8 +774,7 @@ export class UpdateManager implements Manager {
         // Update nodes and edges
         const { boundingBoxMin, boundingBoxMax } = this.updateNodes(framing);
 
-        // Update edges (also expands bounding box for edge labels)
-        this.updateEdges(boundingBoxMin, boundingBoxMax);
+        this.updateEdges();
 
         // Handle zoom to fit if needed
         if (framing) {
@@ -834,110 +880,24 @@ export class UpdateManager implements Manager {
      * @returns Object containing minimum and maximum bounding box vectors
      */
     private updateNodes(measure: boolean): { boundingBoxMin?: Vector3; boundingBoxMax?: Vector3 } {
-        let boundingBoxMin: Vector3 | undefined;
-        let boundingBoxMax: Vector3 | undefined;
-
         this.statsManager.nodeUpdate.beginMonitoring();
 
         for (const node of this.layoutManager.nodes) {
+            // The mesh position is updated by node.update()
             node.update();
-
-            // The mesh position is already updated by node.update()
-
-            if (!measure) {
-                continue;
-            }
-
-            // A node the visibility mask has taken off screen is still updated -- it keeps its
-            // position so showing it again needs no layout -- but it must not stretch the
-            // bounding box, or zooming to fit a filtered graph would frame what is hidden.
-            if (node.getRenderState() !== "visible") {
-                continue;
-            }
-
-            // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a
-            // world position while it renders, and stamps the render it did it under; this runs
-            // BEFORE that render, so the stamp still matches and `getAbsolutePosition()` would
-            // hand back the previous frame's value -- one whole layout step stale, including on
-            // the frame the layout settles, which is the last frame that frames anything.
-            //
-            // Computed rather than read off `mesh.position`, because a node mesh is parented to
-            // the "graph-root" transform an XR gesture moves, rotates and scales: the local
-            // position is only the world position while that root is the identity.
-            node.mesh.computeWorldMatrix(true);
-
-            // Update bounding box
-            const pos = node.mesh.getAbsolutePosition();
-            const sz = node.size;
-
-            if (!boundingBoxMin || !boundingBoxMax) {
-                boundingBoxMin = pos.clone();
-                boundingBoxMax = pos.clone();
-            }
-
-            this.updateBoundingBoxAxis(pos, boundingBoxMin, boundingBoxMax, sz, "x");
-            this.updateBoundingBoxAxis(pos, boundingBoxMin, boundingBoxMax, sz, "y");
-            this.updateBoundingBoxAxis(pos, boundingBoxMin, boundingBoxMax, sz, "z");
-
-            // Include node label in bounding box
-            if (node.label?.labelMesh) {
-                this.expandBoundingBoxForLabel(node.label.labelMesh, boundingBoxMin, boundingBoxMax);
-            }
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
 
-        return { boundingBoxMin, boundingBoxMax };
+        const box = measure ? nodeFramingBox(this.layoutManager.nodes) : undefined;
+
+        return { boundingBoxMin: box?.min, boundingBoxMax: box?.max };
     }
 
     /**
-     * Update bounding box for a single axis
-     * @param pos - Position vector
-     * @param min - Minimum bounds vector
-     * @param max - Maximum bounds vector
-     * @param size - Node size
-     * @param axis - Axis to update (x, y, or z)
+     * Update all edges.
      */
-    private updateBoundingBoxAxis(pos: Vector3, min: Vector3, max: Vector3, size: number, axis: "x" | "y" | "z"): void {
-        const value = pos[axis];
-        const halfSize = size / 2;
-
-        min[axis] = Math.min(min[axis], value - halfSize);
-        max[axis] = Math.max(max[axis], value + halfSize);
-    }
-
-    /**
-     * Expand bounding box to include a label mesh
-     * @param labelMesh - The label mesh to include
-     * @param min - Minimum bounds vector
-     * @param max - Maximum bounds vector
-     */
-    private expandBoundingBoxForLabel(labelMesh: Mesh, min: Vector3, max: Vector3): void {
-        // Stale in exactly the way a node's position was, and worth saying separately because the
-        // reason is different: a label plane is parented to the thing it annotates, and the
-        // `minimumWorld`/`maximumWorld` corners read below are only refreshed when its world
-        // matrix is computed. Without this the label stretches the box to where it was drawn last
-        // frame rather than to where the node it hangs off has just moved.
-        labelMesh.computeWorldMatrix(true);
-
-        const labelBoundingInfo = labelMesh.getBoundingInfo();
-        const labelMin = labelBoundingInfo.boundingBox.minimumWorld;
-        const labelMax = labelBoundingInfo.boundingBox.maximumWorld;
-
-        min.x = Math.min(min.x, labelMin.x);
-        min.y = Math.min(min.y, labelMin.y);
-        min.z = Math.min(min.z, labelMin.z);
-        max.x = Math.max(max.x, labelMax.x);
-        max.y = Math.max(max.y, labelMax.y);
-        max.z = Math.max(max.z, labelMax.z);
-    }
-
-    /**
-     * Update all edges and expand bounding box for edge labels
-     * @param boundingBoxMin - Minimum bounds (optional)
-     * @param boundingBoxMax - Maximum bounds (optional)
-     */
-    private updateEdges(boundingBoxMin?: Vector3, boundingBoxMax?: Vector3): void {
+    private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
         // Update rays for all edges (static method on Edge class)
@@ -946,24 +906,6 @@ export class UpdateManager implements Manager {
         // Update individual edges
         for (const edge of this.layoutManager.edges) {
             edge.update();
-
-            // Include edge labels in bounding box if we have one
-            if (boundingBoxMin && boundingBoxMax && edge.isRenderVisible()) {
-                // Edge label (at midpoint)
-                if (edge.label?.labelMesh) {
-                    this.expandBoundingBoxForLabel(edge.label.labelMesh, boundingBoxMin, boundingBoxMax);
-                }
-
-                // Arrow head text label
-                if (edge.arrowHeadText?.labelMesh) {
-                    this.expandBoundingBoxForLabel(edge.arrowHeadText.labelMesh, boundingBoxMin, boundingBoxMax);
-                }
-
-                // Arrow tail text label
-                if (edge.arrowTailText?.labelMesh) {
-                    this.expandBoundingBoxForLabel(edge.arrowTailText.labelMesh, boundingBoxMin, boundingBoxMax);
-                }
-            }
         }
 
         this.statsManager.edgeUpdate.endMonitoring();

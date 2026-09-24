@@ -72,6 +72,12 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
 /** Callback for voice input start/error events */
 export type VoiceStartCallback = (started: boolean, error?: string) => void;
 
+/** Why a voice session ended: stopped by the caller, ended by the recogniser, or failed. */
+export type VoiceEndReason = "user" | "timeout" | "error";
+
+/** Callback for a voice session starting (`active` true) or ending (`active` false, with a reason). */
+export type VoiceActiveCallback = (active: boolean, reason?: VoiceEndReason) => void;
+
 /**
  * Voice input adapter using the Web Speech API.
  * Provides voice-to-text functionality with support for interim and final results.
@@ -83,6 +89,8 @@ export class VoiceInputAdapter implements InputAdapter {
     private _isActive = false;
     private callbacks: InputCallback[] = [];
     private startCallbacks: VoiceStartCallback[] = [];
+    private activeCallbacks: VoiceActiveCallback[] = [];
+    private failed = false;
     private SpeechRecognitionCtor: SpeechRecognitionConstructor | null = null;
 
     /**
@@ -130,8 +138,11 @@ export class VoiceInputAdapter implements InputAdapter {
         this.recognition.lang = options?.language ?? "en-US";
 
         // Set up event handlers
+        this.failed = false;
+
         this.recognition.onstart = () => {
             this._isActive = true;
+            this.notifyActive(true);
             // Notify that recognition started successfully
             this.notifyStart(true);
         };
@@ -145,6 +156,7 @@ export class VoiceInputAdapter implements InputAdapter {
             // Some errors (like "no-speech") don't stop recognition
             if (event.error === "aborted" || event.error === "not-allowed") {
                 this._isActive = false;
+                this.failed = true;
                 // Notify that recognition failed to start
                 this.notifyStart(false, event.error);
             }
@@ -152,6 +164,8 @@ export class VoiceInputAdapter implements InputAdapter {
 
         this.recognition.onend = () => {
             this._isActive = false;
+            this.recognition = null;
+            this.notifyActive(false, this.failed ? "error" : "timeout");
         };
 
         // Start recognition
@@ -168,6 +182,9 @@ export class VoiceInputAdapter implements InputAdapter {
      */
     stop(): void {
         if (this.recognition) {
+            // Ended here, so the recogniser's own end is not reported a second time.
+            this.recognition.onend = null;
+
             try {
                 this.recognition.stop();
             } catch {
@@ -175,6 +192,7 @@ export class VoiceInputAdapter implements InputAdapter {
             }
 
             this.recognition = null;
+            this.notifyActive(false, "user");
         }
 
         this._isActive = false;
@@ -198,12 +216,33 @@ export class VoiceInputAdapter implements InputAdapter {
     }
 
     /**
+     * Register a callback for every voice session starting and ending.
+     * Unlike {@link VoiceInputAdapter.onStart} it stays registered across sessions.
+     * @param callback - Called with (true) on start and (false, reason) on end
+     */
+    onActiveChange(callback: VoiceActiveCallback): void {
+        this.activeCallbacks.push(callback);
+    }
+
+    /**
      * Clean up resources and remove all callbacks.
      */
     dispose(): void {
         this.stop();
         this.callbacks = [];
         this.startCallbacks = [];
+        this.activeCallbacks = [];
+    }
+
+    /**
+     * Notify active-change callbacks.
+     * @param active - Whether a session is now running
+     * @param reason - Why it ended, when it did
+     */
+    private notifyActive(active: boolean, reason?: VoiceEndReason): void {
+        for (const callback of this.activeCallbacks) {
+            callback(active, reason);
+        }
     }
 
     /**

@@ -139,6 +139,11 @@ export class AiManager {
             commandRegistry: this.commandRegistry,
             graph: this.graph,
             schemaManager: this.schemaManager,
+            // Onto the graph's own event channel, so `addListener` and the element's DOM
+            // forwarder both deliver every AI event.
+            emitEvent: (event) => {
+                graph.eventManager.emitGraphEvent(event.type, { ...event });
+            },
         });
 
         this.initialized = true;

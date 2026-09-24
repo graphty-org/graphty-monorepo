@@ -54,14 +54,15 @@ const config: KnipConfig = {
 
         // graph-samples package: the root, generators and every dataset subpath are entries
         "graph-samples": {
+            // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)
             entry: [
-                "src/index.ts",
-                "src/generators/index.ts",
-                "src/datasets/*/index.ts",
+                "src/index.ts!",
+                "src/generators/index.ts!",
+                "src/datasets/*/index.ts!",
                 "test/**/*.test.ts",
                 "scripts/**/*.{ts,js,mjs}",
             ],
-            project: ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 

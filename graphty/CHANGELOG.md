@@ -1,3 +1,19 @@
+## 0.8.2 (2026-09-24)
+
+### 🩹 Fixes
+
+- **graphty-element:** publish only the device facts a backend actually named ([9d63d5dd](https://github.com/graphty-org/graphty-monorepo/commit/9d63d5dd))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.3
+- Updated compact-mantine to 0.8.5
+- Updated graphty-element to 2.1.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.1 (2026-09-24)
 
 ### 🩹 Fixes

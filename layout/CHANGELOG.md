@@ -1,3 +1,22 @@
+## 1.9.0 (2026-09-24)
+
+### 🚀 Features
+
+- **layout:** generators become aliases of @graphty/graph-samples ([080fa1f9](https://github.com/graphty-org/graphty-monorepo/commit/080fa1f9))
+
+### 🩹 Fixes
+
+- **graph-samples:** pass the published-dependency check ([81aeadcd](https://github.com/graphty-org/graphty-monorepo/commit/81aeadcd))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.1
+- Updated graph-format to 1.0.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.8.2 (2026-09-24)
 
 ### 🩹 Fixes

@@ -15,6 +15,9 @@
     "types": "dist/algorithms.d.ts",
     "files": [
         "dist/",
+        "!dist/.storybook/",
+        "!dist/vitest.config.*",
+        "!dist/*.tsbuildinfo",
         "src/",
         "README.md",
         "LICENSE"

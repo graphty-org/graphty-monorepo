@@ -1,0 +1,43 @@
+name: PR Title
+
+# Its own workflow, not a job of CI, so that editing a pull request's title re-checks it: a
+# re-run of a job reuses the event it started from, so a CI re-run after a rename still read the
+# old title and failed. `edited` also fires for body edits; the check takes seconds.
+on:
+    pull_request:
+        types: [opened, edited, synchronize, reopened]
+
+concurrency:
+    group: pr-title-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    lint-pr:
+        name: Lint PR Title
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # The title goes through an environment variable, never into the script text: a title is
+            # attacker-controlled on a fork's pull request, and `${{ }}` inside `run:` is pasted into the
+            # shell before it runs.
+            - name: Lint PR title
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+              run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint

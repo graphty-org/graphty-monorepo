@@ -51,6 +51,34 @@ const TAIL_MS = 400;
 /** Room for the settle, the tail and a cold start. */
 const CASE_TIMEOUT_MS = 30000;
 
+/** How long a shader's source is held back when a test stands in for a slow module server. */
+const SHADER_DELAY_MS = 3000;
+
+/**
+ * How many pixels may change colour bucket before two frames count as different pictures.
+ * The same margin `channel-paints.test.ts` uses: two renderings of one scene agree exactly.
+ */
+const PIXEL_CHANGE = 32;
+
+/** Four bits per channel, three channels. */
+const BUCKETS = 16 * 16 * 16;
+
+/**
+ * How many pixels moved bucket between two frames.
+ * @param one - One frame's histogram.
+ * @param other - The other's.
+ * @returns The pixels that changed bucket, each counted once.
+ */
+function pixelsMoved(one: Uint32Array, other: Uint32Array): number {
+    let moved = 0;
+
+    for (let bucket = 0; bucket < BUCKETS; bucket++) {
+        moved += Math.abs(one[bucket] - other[bucket]);
+    }
+
+    return moved / 2;
+}
+
 /** Where the camera is and where every node is, as one comparable value. */
 interface Picture {
     camera: string;
@@ -77,6 +105,63 @@ describe("knowing the picture is final", () => {
         });
 
         return { camera: JSON.stringify(graph.getCameraState()), nodes: nodes.join("|") };
+    }
+
+    /**
+     * A coarse colour histogram of what is on the canvas now, without drawing anything.
+     * @returns One count per four-bit-per-channel colour bucket.
+     */
+    async function histogram(): Promise<Uint32Array> {
+        const { engine } = graph;
+        const pixels = (await engine.readPixels(
+            0,
+            0,
+            engine.getRenderWidth(),
+            engine.getRenderHeight(),
+        )) as unknown as Uint8Array;
+        const counts = new Uint32Array(BUCKETS);
+
+        for (let at = 0; at < pixels.length; at += 4) {
+            counts[((pixels[at] >> 4) << 8) | ((pixels[at + 1] >> 4) << 4) | (pixels[at + 2] >> 4)]++;
+        }
+
+        return counts;
+    }
+
+    /**
+     * Hold back every shader source this graph's engine fetches from now on.
+     *
+     * Babylon fetches a shader's source with a dynamic `import()` the first time an effect needs
+     * a variant, through the `extraInitializationsAsync` step of `createEffect`. Delaying that
+     * step stands in for a slow module server -- the pre-push gate, where the dev server shares a
+     * process with thousands of unit tests. Effects already compiled are cached and unaffected.
+     */
+    function holdShadersBack(): void {
+        const engine = graph.engine as unknown as {
+            createEffect: (base: unknown, options: unknown, ...rest: unknown[]) => unknown;
+        };
+        const createEffect = engine.createEffect.bind(engine);
+
+        engine.createEffect = (base, options, ...rest) => {
+            const initialise = (options as { extraInitializationsAsync?: () => Promise<void> } | null)
+                ?.extraInitializationsAsync;
+
+            if (initialise === undefined) {
+                return createEffect(base, options, ...rest);
+            }
+
+            return createEffect(
+                base,
+                {
+                    ...(options as object),
+                    extraInitializationsAsync: async () => {
+                        await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS));
+                        await initialise();
+                    },
+                },
+                ...rest,
+            );
+        };
     }
 
     beforeEach(async () => {
@@ -208,6 +293,77 @@ describe("knowing the picture is final", () => {
 
             assert.isFalse(graph.getStylePainter().hasPending, "the wait resolved with the edit still undrawn");
             assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
+        },
+        CASE_TIMEOUT_MS,
+    );
+
+    it(
+        "does not call the picture final while a mesh's shader is still arriving",
+        async () => {
+            // THE MECHANISM, NOT A TIMING GUESS. Babylon 8 fetches a StandardMaterial's shader
+            // source with a dynamic `import()` the first time a material needs a new variant, and
+            // a mesh whose shader is not ready is SKIPPED by the frame -- silently, with no error
+            // and nothing in the scene graph to say so. Every node and every label is drawn
+            // through a StandardMaterial. In the pre-push gate the dev server that answers that
+            // import shares a process with thousands of unit tests, so the import took long
+            // enough for the layout, the framing and the style pass to finish first, and the
+            // element called a frame with no nodes and no labels in it final.
+            //
+            // Holding the import back by a fixed delay stands in for that server; the delay is
+            // the size of the window, not the thing under test.
+            holdShadersBack();
+
+            await graph.addNodes(NODES);
+            await graph.addEdges(EDGES);
+            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+
+            const final = await histogram();
+
+            await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS + TAIL_MS));
+
+            const later = await histogram();
+
+            assert.isAtMost(
+                pixelsMoved(final, later),
+                PIXEL_CHANGE,
+                "the picture called final was missing meshes whose shaders had not arrived yet",
+            );
+        },
+        CASE_TIMEOUT_MS,
+    );
+
+    it(
+        "does not call the picture final while a glow's shaders are still arriving",
+        async () => {
+            // The same hole one level up. A glow is drawn by an effect LAYER -- a render target,
+            // two blur passes and a merge -- and each of those fetches its shader source the same
+            // way. Until they arrive the layer composes nothing, again silently, so the frame
+            // shows the node without its glow.
+            await graph.addNodes(NODES);
+            await graph.addEdges(EDGES);
+            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+
+            holdShadersBack();
+
+            await graph.getSession().styles.add({
+                name: "glow",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.glow": "#ff00ff" },
+            });
+            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+
+            const final = await histogram();
+
+            await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS + TAIL_MS));
+
+            const later = await histogram();
+
+            assert.isAtMost(
+                pixelsMoved(final, later),
+                PIXEL_CHANGE,
+                "the picture called final was missing a glow whose shaders had not arrived yet",
+            );
         },
         CASE_TIMEOUT_MS,
     );

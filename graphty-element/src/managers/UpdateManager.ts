@@ -5,6 +5,7 @@ import type { CameraManager } from "../cameras/CameraManager";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import type { NodeRenderState } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import type { DataManager } from "./DataManager";
@@ -759,9 +760,17 @@ export class UpdateManager implements Manager {
         const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
         const before = minDelta > 0 ? this.enginePositions() : null;
 
-        for (let i = 0; i < stepMultiplier; i++) {
-            this.layoutManager.step();
+        if (this.layoutManager.layoutEngine instanceof SimulationLayoutEngine) {
+            // ONE batch per frame. The simulation computes `iterationsPerStep` iterations inside
+            // it, so this is the same amount of work the loop below does on the CPU -- and on an
+            // accelerator it is the one shape that lets the device coalesce rather than queue.
+            this.layoutManager.stepBatch();
             this.layoutStepCount++;
+        } else {
+            for (let i = 0; i < stepMultiplier; i++) {
+                this.layoutManager.step();
+                this.layoutStepCount++;
+            }
         }
 
         if (before !== null && this.largestMove(before) < minDelta) {

@@ -1,7 +1,13 @@
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
-import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, NumberInput, Overlay, Switch } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import {
+    ACCELERATION_POLICIES,
+    ACCELERATION_POLICY_DEFAULT,
+    type AccelerationPolicy,
+    DEFAULT_LIMITS,
+    isAccelerationPolicy,
+} from "@graphty/graphty-element/session";
+import { ActionIcon, Box, Input, NumberInput, Overlay, SegmentedControl, Switch } from "@mantine/core";
+import React, { useEffect, useId, useState } from "react";
 
 import { AiProviderSettings, type AiProviderSettingsProps } from "../../ai/AiProviderSettings";
 import { ColorSchemeToggle } from "../../ColorSchemeToggle";
@@ -105,6 +111,10 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
  * a control here would be the shell overriding what the element knows about its own renderer.
  * That is why this is the smallest honest pane rather than a page of switches over settings
  * nothing reads.
+ *
+ * The acceleration policy joined it with this phase: it is the element's `acceleration`
+ * attribute, the one setting 7.2's Performance branch names that the element leaves to the host
+ * to remember.
  */
 const SHIPPED_SECTION_IDS: readonly string[] = ["appearance", "shortcuts", "performance", "ai"];
 
@@ -137,6 +147,35 @@ const LABEL_COUNT_PLACEHOLDER = "Automatic";
  */
 const NEXT_LOAD_LINE = "Applies the next time a graph loads.";
 
+/**
+ * When the acceleration change takes effect, said plainly.
+ *
+ * Unlike the label controls, this one is LIVE: the policy is a prop on the
+ * `<graphty-element>` tag, so a click re-renders the tag, the element's `acceleration`
+ * setter runs, and the element applies it there and then.
+ */
+const APPLIES_AT_ONCE_LINE = "Applies at once.";
+
+/** The acceleration control's label, in the reader's words rather than the attribute's. */
+const ACCELERATION_LABEL = "GPU acceleration";
+
+/** What each of the three choices will do, so a reader is not choosing between three nouns. */
+const ACCELERATION_DESCRIPTION =
+    "Automatic uses the GPU when this browser has one and the CPU otherwise. Required refuses to run without one.";
+
+/**
+ * The reader's word for each policy the element accepts.
+ *
+ * Keyed by the element's own union, so a policy the element adds or retires is a type
+ * error here rather than a choice the control silently stops offering; the VALUES are
+ * never spelled out in the app, they come from {@link ACCELERATION_POLICIES}.
+ */
+const ACCELERATION_POLICY_LABELS: Record<AccelerationPolicy, string> = {
+    auto: "Automatic",
+    off: "Off",
+    required: "Required",
+};
+
 /** How wide a settings field is allowed to get: a field wider than its label reads as a table. */
 const FIELD_WIDTH = 360;
 
@@ -158,6 +197,76 @@ function readerLabelCount(value: string | number): number | null {
     }
 
     return Math.min(LABEL_COUNT_MAX, Math.round(parsed));
+}
+
+/**
+ * Settings > Performance: whether graphty-element may use the GPU.
+ *
+ * It holds nothing of its own. The policy is the shell's state, because the change has to
+ * reach the live canvas -- the shell writes it on the element's tag and into storage in the
+ * one callback -- and a pane that kept its own copy would be a second answer to the same
+ * question.
+ * @param props - the policy to draw and where to report a click.
+ * @param props.policy - the policy the reader last chose.
+ * @param props.onChange - reports a click; the shell remembers it and hands it to the element.
+ * @returns the control and the sentence that says when it takes effect.
+ */
+function AccelerationSettingsPane({
+    policy,
+    onChange,
+}: {
+    /** The policy the reader last chose. */
+    readonly policy: AccelerationPolicy;
+    /** Reports a click. */
+    readonly onChange: (policy: AccelerationPolicy) => void;
+}): React.JSX.Element {
+    /* Input.Wrapper names its child by putting its own id on a <label for>, and only a control
+       that reads the wrapper's context takes that id -- SegmentedControl does not, so the label
+       would point at nothing and the radiogroup would be announced with no name at all. The
+       label is drawn as a div (no dangling "for") and the group takes its name from the label
+       and its description from the sentence, both by id. */
+    const fieldId = useId();
+
+    return (
+        <Box
+            data-testid="settings-acceleration"
+            style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: PANEL_GRID.PAD_LEFT,
+                maxWidth: FIELD_WIDTH,
+            }}
+        >
+            <Input.Wrapper
+                id={fieldId}
+                labelElement="div"
+                label={ACCELERATION_LABEL}
+                description={ACCELERATION_DESCRIPTION}
+            >
+                <SegmentedControl
+                    fullWidth
+                    aria-labelledby={`${fieldId}-label`}
+                    aria-describedby={`${fieldId}-description`}
+                    value={policy}
+                    data={ACCELERATION_POLICIES.map((entry) => ({
+                        value: entry,
+                        label: ACCELERATION_POLICY_LABELS[entry],
+                    }))}
+                    data-testid="settings-acceleration-policy"
+                    onChange={(value) => {
+                        /* The control hands back a plain string. Anything the element would
+                           not accept is the element's default rather than a word written
+                           through to the attribute for it to reject. */
+                        onChange(isAccelerationPolicy(value) ? value : ACCELERATION_POLICY_DEFAULT);
+                    }}
+                />
+            </Input.Wrapper>
+
+            <Box component="span" style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}>
+                {APPLIES_AT_ONCE_LINE}
+            </Box>
+        </Box>
+    );
 }
 
 /**
@@ -250,6 +359,13 @@ export interface SettingsOverlayProps {
      * that quietly dropped what was typed into it.
      */
     readonly aiProviders: AiProviderSettingsProps;
+    /**
+     * The reader's acceleration policy, owned by the shell so a change reaches the canvas
+     * at once; the shell writes storage.
+     */
+    readonly accelerationPolicy: AccelerationPolicy;
+    /** Reports a click on the acceleration control. Required, for the reason `aiProviders` is. */
+    readonly onAccelerationPolicyChange: (policy: AccelerationPolicy) => void;
 }
 
 /**
@@ -272,7 +388,14 @@ export interface SettingsOverlayProps {
  * @returns the overlay, or null when it is closed.
  */
 export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element | null {
-    const { opened, onClose, section: requestedSection, aiProviders } = props;
+    const {
+        opened,
+        onClose,
+        section: requestedSection,
+        aiProviders,
+        accelerationPolicy,
+        onAccelerationPolicyChange,
+    } = props;
 
     const [sectionId, setSectionId] = useState<string>(SETTINGS_SECTIONS[0].id);
 
@@ -484,8 +607,17 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                         {section.id === "appearance" && <ColorSchemeToggle />}
 
                         {/* Settings > Performance, spec 7.2's home for the label budget, with
-                            the switch the product owner asked for beside it (2026-09-13). */}
-                        {section.id === "performance" && <LabelSettingsPane />}
+                            the switch the product owner asked for beside it (2026-09-13). The
+                            machine-level setting is drawn first and the per-load one under it. */}
+                        {section.id === "performance" && (
+                            <>
+                                <AccelerationSettingsPane
+                                    policy={accelerationPolicy}
+                                    onChange={onAccelerationPolicyChange}
+                                />
+                                <LabelSettingsPane />
+                            </>
+                        )}
 
                         {/* Settings > AI providers, the destination spec 5.1 already promised
                             and 5.3 AI tier 3 opens from the assistant's setup prompt. The pane

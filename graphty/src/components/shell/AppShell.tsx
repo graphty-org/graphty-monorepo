@@ -92,7 +92,7 @@ import {
 } from "@graphty/compact-mantine";
 import type { DataLoadingErrorEvent } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
-import { type Channel, type GraphStatistics, type LayerSpec, recommendLayout, type RunId } from "@graphty/graphty-element/session";
+import { type AccelerationPolicy, type AccelerationStatus, type Channel, type GraphStatistics, type LayerSpec, recommendLayout, type RunId } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -148,6 +148,11 @@ import {
     TOP_BAR_HEIGHT,
 } from "./constants";
 import {
+    readPersistedAccelerationSettings,
+    resolveAccelerationSettings,
+    writePersistedAccelerationSettings,
+} from "./defaults/accelerationSettings";
+import {
     colourHeldBy,
     removeOtherRunLayers,
     removeRunLayers,
@@ -202,9 +207,10 @@ import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./r
 import { formatCount } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
 import { ShellProvider, useShell } from "./ShellContext";
+import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
-import type { LayoutQuickPick, StatusBarCompletion, StatusBarSlotsModel } from "./statusbar/statusBarModel";
+import type { LayoutQuickPick, StatusBarCompletion, StatusBarIssuesModel, StatusBarSlotsModel } from "./statusbar/statusBarModel";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
 import { TopBar } from "./topbar/TopBar";
 import { historyRows, useUndoStore } from "./topbar/undoStore";
@@ -292,6 +298,12 @@ const CLOSE_DATASET_ROW = "Close dataset. Starts a new session";
  * it goes -- the Data panel, which is the surface the reader loads from.
  */
 const OPEN_DATA_ACTION = "Open Data";
+
+/** The DOM event graphty-element mirrors every acceleration transition onto. */
+const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
+
+/** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
+const OPEN_SETTINGS_ACTION = "Open Settings";
 
 /** The Style panel's own overflow row (spec 03 section 2.4). */
 const RESET_STYLES_ROW = "Reset styles to defaults";
@@ -1061,6 +1073,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        attempt began. Read by exactly two surfaces -- the Welcome drop zone and the status
        bar toast -- and written by two producers; see the load-failure block below. */
     const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
+    /* Where acceleration stands, as graphty-element last published it, or null while it has
+       said nothing. The shell never asks the machine anything: it holds the element's own
+       document and draws it. `null` and `"probing"` both draw nothing. */
+    const [acceleration, setAcceleration] = useState<AccelerationStatus | null>(null);
     const [loadedSummary, setLoadedSummary] = useState<LoadedDataSummary | undefined>(undefined);
     const [graphData, setGraphData] = useState<ShellGraphData>(NO_GRAPH_DATA);
     /*
@@ -1186,6 +1202,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        who cannot find the pane by hunting, because the pane is the thing they have
        never seen. */
     const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
+
+    /* What the reader last chose about GPU acceleration. Seeded from storage in the
+       initialiser rather than in an effect, because the policy rides on the
+       <graphty-element> tag and has to be there on its FIRST render: the element starts
+       probing for an accelerator in connectedCallback, and a policy that arrives after
+       that has already let a reader who asked for none be probed. */
+    const [accelerationPolicy, setAccelerationPolicy] = useState<AccelerationPolicy>(
+        () => resolveAccelerationSettings(readPersistedAccelerationSettings()).policy,
+    );
+
+    /* The shell writes storage because the shell owns the state: storage is the reader's
+       memory and the element is the reader's canvas, and both are written from the one
+       place. The Settings pane reports the click and keeps nothing. */
+    const changeAccelerationPolicy = useCallback((policy: AccelerationPolicy): void => {
+        setAccelerationPolicy(policy);
+        writePersistedAccelerationSettings({ policy });
+    }, []);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -1920,6 +1953,36 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         return () => {
             frame?.removeEventListener(DATA_LOADING_ERROR_EVENT, onLoadingError);
+        };
+    }, []);
+
+    /* The element's acceleration status, as it publishes it: a bubbling, composed DOM event on
+       every controller transition, read here on the frame the way the load events are. The one
+       read after subscribing is not a fallback: on a host with no WebGPU the probe's rejection is
+       a short microtask chain that can settle before this passive effect runs, and the document
+       the element keeps is correct at any time. Nothing here probes, constructs or recovers. */
+    useEffect(() => {
+        const frame = frameRef.current;
+
+        const onCapabilitiesChange = (event: Event): void => {
+            const { detail } = event as CustomEvent<{ capabilities?: { acceleration?: AccelerationStatus } }>;
+            const status = detail.capabilities?.acceleration;
+
+            if (status !== undefined) {
+                setAcceleration(status);
+            }
+        };
+
+        frame?.addEventListener(CAPABILITIES_CHANGE_EVENT, onCapabilitiesChange);
+
+        const current = graphtyRef.current?.session?.capabilities.acceleration;
+
+        if (current !== undefined) {
+            setAcceleration(current);
+        }
+
+        return () => {
+            frame?.removeEventListener(CAPABILITIES_CHANGE_EVENT, onCapabilitiesChange);
         };
     }, []);
 
@@ -4297,9 +4360,31 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         [handleApplyLayout, layoutType],
     );
 
+    /* The issues slot's FIRST producer in this app, and the only slot that draws with no
+       dataset: whether this machine has a GPU is not a property of the data, and the Welcome
+       state is where a reader goes to change the policy. Nothing while the element is still
+       probing (or has not spoken): a chip that says off for 30 ms and then on reads as a fault. */
+    const accelerationIssues = useMemo<StatusBarIssuesModel | undefined>(() => {
+        const text = acceleration === null ? null : formatAcceleration(acceleration);
+
+        if (text === null) {
+            return undefined;
+        }
+
+        return {
+            acceleration: {
+                ...text,
+                onClick: () => {
+                    setSettingsSection("performance");
+                    setSettingsOpen(true);
+                },
+            },
+        };
+    }, [acceleration]);
+
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
-            return {};
+            return accelerationIssues === undefined ? {} : { issues: accelerationIssues };
         }
 
         const nodes = { shown: nodeCount, loaded: nodeCount, total: nodeCount };
@@ -4327,8 +4412,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 },
             },
             selection: selectedNode === null ? undefined : { label: "1 selected" },
+            issues: accelerationIssues,
         };
     }, [
+        accelerationIssues,
         dataLoaded,
         drawerTab,
         edgeCount,
@@ -4344,6 +4431,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     ]);
 
     /*
+     * The one toast: what the bar says when something ended, whether or not it was a load.
+     *
+     * Two producers feed it and the failed load wins when both are present -- the reader just
+     * acted, and the GPU fact is still on the chip beside it. The lost device leaves by itself:
+     * the element attempts a fresh accelerator and the next transition it publishes clears the
+     * status, so this is derived from the element's document rather than a queue of its own.
+     *
      * The failed load's second surface, and its only one once a dataset is drawn.
      *
      * Spec 4105 puts the sentence inline in the Welcome drop zone, and Welcome is not on
@@ -4358,20 +4452,32 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * stops passing a completion. An error that erases itself six seconds later is the
      * silent failure again in a nicer font, so it stays until the next load clears it.
      */
-    const loadCompletion = useMemo<StatusBarCompletion | undefined>(() => {
-        if (loadFailure === null) {
+    const statusCompletion = useMemo<StatusBarCompletion | undefined>(() => {
+        if (loadFailure !== null) {
+            return {
+                message: loadFailureSentence(loadFailure),
+                severity: "error",
+                actionLabel: OPEN_DATA_ACTION,
+                onDetails: () => {
+                    openPanelAt("data");
+                },
+            };
+        }
+
+        if (acceleration === null || acceleration.state !== "error") {
             return undefined;
         }
 
         return {
-            message: loadFailureSentence(loadFailure),
+            message: acceleration.reason ?? "The GPU device was lost.",
             severity: "error",
-            actionLabel: OPEN_DATA_ACTION,
+            actionLabel: OPEN_SETTINGS_ACTION,
             onDetails: () => {
-                openPanelAt("data");
+                setSettingsSection("performance");
+                setSettingsOpen(true);
             },
         };
-    }, [loadFailure, openPanelAt]);
+    }, [acceleration, loadFailure, openPanelAt]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */
@@ -4734,6 +4840,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         minimap: { nodeCount },
         graph: {
             layers: [...layers],
+            acceleration: accelerationPolicy,
             viewMode,
             layout: layoutType,
             layoutConfig,
@@ -5065,6 +5172,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             opened={settingsOpen}
                             section={settingsSection}
                             aiProviders={aiProviderSettings}
+                            accelerationPolicy={accelerationPolicy}
+                            onAccelerationPolicyChange={changeAccelerationPolicy}
                             onClose={() => {
                                 setSettingsOpen(false);
                             }}
@@ -5098,7 +5207,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             <Box data-shell-region="statusbar" style={{ display: "contents" }}>
                 <StatusBar
                     slots={slots}
-                    completion={loadCompletion}
+                    completion={statusCompletion}
                     exploreNotesExpanded={activeActivity === "explore" && isSectionOpen("explore.notes")}
                 />
             </Box>

@@ -4,26 +4,26 @@ This directory contains design documents, implementation plans, research, and co
 
 ## Directory Structure
 
-| Directory | Description | Files |
-|-----------|-------------|-------|
-| [`ai/`](ai/) | AI and LLM integration - natural language control, tool calling, schema discovery | 11 |
-| [`algorithms-pkg/`](algorithms-pkg/) | @graphty/algorithms package - graph algorithms, optimizations, benchmarks | 14 |
-| [`architecture/`](architecture/) | Core architecture - state management, async patterns, RxJS, dependency batching | 10 |
-| [`code-reviews/`](code-reviews/) | Code review findings and implementation plans (prefixed by package name) | 14 |
-| [`compact-mantine/`](compact-mantine/) | @graphty/compact-mantine - the shared compact Mantine theme: design, refactor, code reviews | 6 |
-| [`data/`](data/) | Data handling - formats, loading, sources, validation | 4 |
-| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 23 |
-| [`designloom/`](designloom/) | The UI requirements base - personas, workflows, views, components, capabilities, interactions, tokens (7 subdirectories) | 181 |
-| [`element-api/`](element-api/) | graphty-element's public API - the design, the 2.0 migration, the documentation plan | 3 |
-| [`graph-format/`](graph-format/) | The shared frozen CSR graph format: design, landing status, conformance record | 3 |
-| [`layout-pkg/`](layout-pkg/) | @graphty/layout package - layout algorithm research and implementation | 1 |
-| [`monorepo/`](monorepo/) | Monorepo infrastructure - Nx, releases, CI/CD, ESLint configuration | 13 |
-| [`remote-logger/`](remote-logger/) | @graphty/remote-logger - the package, its MCP server, code reviews | 6 |
-| [`rendering/`](rendering/) | Visual rendering - edges, lines, cameras, styles, screen capture | 21 |
-| [`testing/`](testing/) | Testing strategies - Playwright, profiling, logging, documentation | 12 |
-| [`ui/`](ui/) | React application UI - sidebars, modals, theming, Mantine components, mockups | 107 |
-| [`webgpu/`](webgpu/) | WebGPU-accelerated graph algorithms and layouts: the accepted design, what later decisions superseded in it, the P0-P3 contract and the phase plans, the monorepo integration plan | 21 |
-| [`xr/`](xr/) | Extended reality - VR, AR, WebXR cameras and controllers | 7 |
+| Directory | Description |
+|-----------|-------------|
+| [`ai/`](ai/) | AI and LLM integration - natural language control, tool calling, schema discovery |
+| [`algorithms-pkg/`](algorithms-pkg/) | @graphty/algorithms package - graph algorithms, optimizations, benchmarks |
+| [`architecture/`](architecture/) | Core architecture - state management, async patterns, RxJS, dependency batching |
+| [`code-reviews/`](code-reviews/) | Code review findings and implementation plans (prefixed by package name) |
+| [`compact-mantine/`](compact-mantine/) | @graphty/compact-mantine - the shared compact Mantine theme: design, refactor, code reviews |
+| [`data/`](data/) | Data handling - formats, loading, sources, validation |
+| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands |
+| [`designloom/`](designloom/) | The UI requirements base - personas, workflows, views, components, capabilities, interactions, tokens (7 subdirectories) |
+| [`element-api/`](element-api/) | graphty-element's public API - the design, the 2.0 migration, the documentation plan |
+| [`graph-format/`](graph-format/) | The shared frozen CSR graph format: design, landing status, conformance record |
+| [`layout-pkg/`](layout-pkg/) | @graphty/layout package - layout algorithm research and implementation |
+| [`monorepo/`](monorepo/) | Monorepo infrastructure - Nx, releases, CI/CD, ESLint configuration |
+| [`remote-logger/`](remote-logger/) | @graphty/remote-logger - the package, its MCP server, code reviews |
+| [`rendering/`](rendering/) | Visual rendering - edges, lines, cameras, styles, screen capture |
+| [`testing/`](testing/) | Testing strategies - Playwright, profiling, logging, documentation |
+| [`ui/`](ui/) | React application UI - sidebars, modals, theming, Mantine components, mockups |
+| [`webgpu/`](webgpu/) | WebGPU-accelerated graph algorithms and layouts: the accepted design, what later decisions superseded in it, the P0-P3 contract and the phase plans, the monorepo integration plan |
+| [`xr/`](xr/) | Extended reality - VR, AR, WebXR cameras and controllers |
 
 File counts are every file in the directory and its subdirectories: `find <dir> -type f | wc -l`.
 

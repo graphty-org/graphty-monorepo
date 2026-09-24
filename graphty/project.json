@@ -40,7 +40,8 @@
             "options": {
                 "command": "eslint && tsc --noEmit",
                 "cwd": "graphty"
-            }
+            },
+            "dependsOn": ["^build"]
         },
         "dev": {
             "executor": "nx:run-commands",

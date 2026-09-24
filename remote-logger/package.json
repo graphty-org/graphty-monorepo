@@ -1,6 +1,6 @@
 {
     "name": "@graphty/remote-logger",
-    "version": "1.3.3",
+    "version": "1.3.4",
     "description": "Remote logging client and server for browser debugging",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/index.js",
@@ -46,7 +46,7 @@
         "test": "vitest",
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
-        "coverage:preview": "npx serve coverage -p 9055",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && tsc --noEmit -p tsconfig.eslint.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace remote-logger",

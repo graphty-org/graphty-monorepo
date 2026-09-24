@@ -7,7 +7,8 @@
  * acquire() wraps a GpuContext with an onError sink; afterEach fails the test when the sink collected anything
  * ("a wrong result is never a skip"; an uncaptured error is never a pass). afterAll disposes every context and
  * raw device, appends every context's pipeline keys to GRAPHTY_PIPELINE_KEY_LOG (one JSON-encoded key per line
- * in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2) and drops both Dawn handles so the fork exits.
+ * in keys-<pid>.jsonl; test/setup/global.ts reads them at P2-T2) and KEEPS both Dawn handles: the pool kills the
+ * fork a moment later, and dropping them lets a GC free the Dawn instance under Dawn's own event polling (the hook).
  *
  * Environment (spec 12.2; process.env is read ONLY here, in vitest.config.ts and under scripts/):
  * GRAPHTY_GPU_REQUIRE (the policy, parsed by scripts/gpu-policy.js -- the one copy of the rule, D19),
@@ -198,7 +199,7 @@ export function acquire(options: AcquireOptions = {}): Promise<GpuContext> {
 /**
  * P1: a GpuContext over Dawn's `backend=null` adapter (spec 5.1: compiles pipelines, runs nothing) from a SECOND
  * GPU handle created lazily once per worker through createNodeGpu({ backend: "null", installGlobals: false });
- * a fresh adapter per call; disposed in afterAll with the handle.
+ * a fresh adapter per call; kept, like the handle, until the pool kills the fork (see afterAll).
  */
 export async function acquireNullBackend(options: AcquireOptions = {}): Promise<GpuContext> {
     dawn();
@@ -294,12 +295,13 @@ afterAll(async () => {
         setTimeout(resolve, 0);
     });
     writeKeyLog();
-    if (nullHandle !== null) {
-        nullHandle.dispose();
-        nullHandle = null;
-    }
-    if (handle !== null) {
-        handle.dispose();
-        handle = null;
-    }
+    // The Dawn handles are NOT disposed: this fork never uses them again and the pool kills it a moment later.
+    // webgpu@0.4.0's AsyncRunner keeps a RAW pointer to the dawn::native::Instance that the GPU object owns, and
+    // polls it from a setImmediate while any callback is outstanding. Drop the GPU object and the next GC frees
+    // the instance under that poll: SIGSEGV in dawn::native::InstanceBase::ProcessEvents (pthread_mutex_lock on
+    // freed memory), which is the macOS crash report of hosts.yml run 35951869297 (the worker running
+    // test/memory/readback.test.ts vanished, tinypool's next send threw ERR_IPC_CHANNEL_CLOSED, the run exited 1
+    // with every test green). On Metal a destroyed device's callbacks can still arrive after `lost` and the
+    // macrotask above (CONTRACT DECISION RB-1), so no wait here makes the drop safe. Reproduced on lavapipe with
+    // tmp/metal-ipc/uaf.mjs: drop + gc with a live device dies (SIGSEGV / SIGABRT / hang), keep survives.
 });

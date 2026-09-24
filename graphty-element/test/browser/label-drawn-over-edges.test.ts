@@ -177,7 +177,10 @@ describe("text is drawn over the edges of the graph", () => {
         return { inside, outside };
     }
 
-    it("draws a node's label over an edge that passes in front of it", async () => {
+    // A label is part of the scene and sorts by depth like a node or an edge: an edge nearer the
+    // camera passes in front of it. Only a tooltip -- which the reader asked for by pointing --
+    // is lifted over everything.
+    it("draws an edge that passes in front of a node's label over the label", async () => {
         await graph.getSession().styles.add({
             name: "a label",
             selector: { match: "ids", nodes: ["alpha"] },
@@ -186,7 +189,7 @@ describe("text is drawn over the edges of the graph", () => {
 
         const { inside, outside } = await redAcrossLabel(() => graph.getNode("alpha")?.label);
         assert.isAbove(outside, 20, "the edge is drawn on this row beside the label");
-        assert.strictEqual(inside, 0, `${String(inside)} pixels of the edge were drawn over the label's words`);
+        assert.isAbove(inside, 20, `only ${String(inside)} pixels of the nearer edge cross the label`);
     });
 
     it("draws a node's tooltip over an edge that passes in front of it", async () => {

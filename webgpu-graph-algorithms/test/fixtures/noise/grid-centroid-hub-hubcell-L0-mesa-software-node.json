@@ -1,0 +1,7 @@
+{
+    "kernel": "grid-centroid-hub",
+    "fixture": "hubcell-L0",
+    "adapterClass": "mesa-software-node",
+    "dtype": "f32",
+    "values": [2000.001953125, 1999.9776611328125, 1999.9649658203125, 20000]
+}

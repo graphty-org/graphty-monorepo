@@ -1,4 +1,4 @@
-import type { Mesh, Nullable, Observer, Scene, Vector3 } from "@babylonjs/core";
+import type { AbstractMesh, EffectLayer, Mesh, Nullable, Observer, Scene, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";
@@ -122,9 +122,10 @@ export class UpdateManager implements Manager {
 
     /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
-     * has stopped, no framing is outstanding that could still move the camera, and no style work
-     * is queued. It says nothing about what is on screen -- a pass computes the state, a render
-     * draws it -- which is why {@link UpdateManager.frameIsStable} is a different flag.
+     * has stopped, no framing is outstanding that could still move the camera, no style work is
+     * queued, and every drawn mesh has its shader. It says nothing about what is on screen -- a
+     * pass computes the state, a render draws it -- which is why
+     * {@link UpdateManager.frameIsStable} is a different flag.
      */
     private stateIsFinished = false;
 
@@ -473,8 +474,8 @@ export class UpdateManager implements Manager {
      * Whether the picture on screen is the finished one.
      *
      * True only when the layout has converged, no framing is outstanding that could still move
-     * the camera, no style work is queued, AND a frame has been drawn since all of that became
-     * true. It is the difference between `graph-settled`, which fires the instant the LAYOUT
+     * the camera, no style work is queued, every drawn mesh has its shader, AND a frame has been
+     * drawn since all of that became true. It is the difference between `graph-settled`, which fires the instant the LAYOUT
      * stops and one pass before the final framing is even requested, and a picture that will not
      * change again.
      *
@@ -483,7 +484,10 @@ export class UpdateManager implements Manager {
      * @returns True when the last drawn frame drew the finished picture.
      */
     get frameIsStable(): boolean {
-        return this.drawnFrameIsFinished;
+        // Asked of the state NOW as well as of the last pass: a style edit resolves with its
+        // paint queued for the next pass, and until that pass runs the last frame drawn is the
+        // picture from before the edit.
+        return this.drawnFrameIsFinished && this.pictureIsFinished();
     }
 
     /**
@@ -506,6 +510,10 @@ export class UpdateManager implements Manager {
 
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
             return "the camera has not finished framing the graph";
+        }
+
+        if (!this.everyDrawnMeshIsReady()) {
+            return "a mesh is still waiting for its shader";
         }
 
         if (!this.drawnFrameIsFinished) {
@@ -532,7 +540,89 @@ export class UpdateManager implements Manager {
 
         // An outstanding framing request only means the camera is about to move if there is
         // something for it to frame; see `framingHasNothingToFrame`.
-        return !this.willZoomToFit() || this.framingHasNothingToFrame;
+        if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
+            return false;
+        }
+
+        // Walked only until a finished frame has been drawn, not on every idle frame: the walk is
+        // one readiness question per mesh, and what brings a new shader variant -- a repaint, a
+        // load, a layout -- clears that flag on its way in.
+        return this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
+    }
+
+    /**
+     * Whether every mesh the scene draws has the shader it is drawn with.
+     *
+     * A frame SKIPS a mesh whose shader is not ready, silently: no error, and nothing in the
+     * scene graph says so. Babylon fetches a StandardMaterial's shader source with a dynamic
+     * `import()` the first time a material needs a variant, and every node and every label is
+     * drawn through one -- so until that import lands, a frame can hold the edges and nothing
+     * else. When the module server was slow (the pre-push gate, where it shares a process with
+     * the unit tests) the layout, the framing and the style pass all finished first, and a frame
+     * with no nodes and no labels in it was called final. Asking the mesh also starts its compile.
+     *
+     * The same holds one level up for an effect layer -- the glow and the outline. A layer has a
+     * render target, blur passes and a merge, each fetching its shader the same way, and until
+     * they arrive the layer composes nothing: the node is drawn without its glow.
+     *
+     * Asked last and only once everything cheaper is finished. An instance is drawn with its
+     * source's shader, so it is answered by the source rather than one by one.
+     * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
+     */
+    private everyDrawnMeshIsReady(): boolean {
+        const scene = this.graphContext.getScene();
+        const layers = scene.effectLayers.filter((layer) => layer.shouldRender());
+
+        if (layers.some((layer) => !layer.isLayerReady())) {
+            return false;
+        }
+
+        for (const mesh of scene.meshes) {
+            if (mesh.getClassName() === "InstancedMesh" || !mesh.isEnabled()) {
+                continue;
+            }
+
+            const instanced = (mesh as Mesh).instances.length > 0;
+
+            if (!mesh.isVisible && !instanced) {
+                continue;
+            }
+
+            if (!(mesh as Mesh).isReady(true, instanced)) {
+                return false;
+            }
+
+            for (const layer of layers) {
+                if (layer.hasMesh(mesh) && !UpdateManager.layerIsReadyFor(layer, mesh, instanced)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether an effect layer has the shader it draws one mesh into its own target with.
+     *
+     * Asked under the layer's render pass, because that is where the layer keeps the mesh's
+     * shader -- which is what Babylon's own readiness check does before asking the same thing.
+     * @param layer - The layer drawing the mesh.
+     * @param mesh - The mesh.
+     * @param instanced - Whether the mesh is drawn through instances.
+     * @returns True when every part of the mesh is ready to be drawn into the layer.
+     */
+    private static layerIsReadyFor(layer: EffectLayer, mesh: AbstractMesh, instanced: boolean): boolean {
+        const engine = mesh.getEngine();
+        const pass = engine.currentRenderPassId;
+
+        engine.currentRenderPassId = layer.mainTexture.renderPassId;
+
+        try {
+            return mesh.subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
+        } finally {
+            engine.currentRenderPassId = pass;
+        }
     }
 
     /**
@@ -563,6 +653,12 @@ export class UpdateManager implements Manager {
      * leaves behind is a finished picture.
      */
     update(): void {
+        // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
+        // the next frame draws, so it has to be announced again once that frame is drawn.
+        if (!this.pictureIsFinished()) {
+            this.drawnFrameIsFinished = false;
+        }
+
         this.runUpdatePass();
 
         this.stateIsFinished = this.pictureIsFinished();

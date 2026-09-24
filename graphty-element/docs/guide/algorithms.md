@@ -219,6 +219,33 @@ element.run("pagerank", {}, { style: { size: [1, 5] } });
 ignored for a result that is not a node measurement -- a community has no amount to size by. The
 size layer paints only the nodes the run measured and is removed with the run.
 
+### Running algorithms when the data loads
+
+`algorithmsOnLoad` lists algorithms to run once the data has loaded, and `runAlgorithmsOnLoad`
+switches the list on. An entry is an algorithm name -- a catalogue key such as `"degree"` or a
+1.x address such as `"graphty:degree"` -- or an object carrying the same run options
+`element.run()` takes. The list is a property, set from script; the switch is also the
+`run-algorithms-on-load` attribute:
+
+```typescript
+element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1, 5] } }];
+element.runAlgorithmsOnLoad = true;
+```
+
+| Option      | Meaning                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| `algorithm` | Required. The algorithm, as a name above                              |
+| `params`    | Its parameters, as `run()` takes them                                 |
+| `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }`    |
+| `seed`      | The seed for a randomised method, so the load is reproducible         |
+| `as`        | The run's id, for a saved document or a later `session.runs.get()`    |
+
+The other `run()` options are not accepted here, because each one answers a question nobody can
+ask before the data arrives: `signal`, `onProgress` and `queue` steer a run someone is watching,
+`scope` names a view of data that does not exist yet, and `timeBoxMs`, `exact` and `sample`
+respond to a cost estimate. Start the run yourself when you need them. A misspelled or malformed
+entry is refused with a `GraphtyError` coded `E_BAD_COMMAND` that names the entry and its position.
+
 ### More groups than colours
 
 The default palette for groups, Okabe-Ito, has eight colours that stay apart for every kind of

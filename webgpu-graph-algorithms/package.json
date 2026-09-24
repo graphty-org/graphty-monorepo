@@ -1,6 +1,6 @@
 {
     "name": "@graphty/webgpu-graph-algorithms",
-    "version": "0.5.1",
+    "version": "0.6.1",
     "description": "WebGPU-accelerated graph algorithms and layouts over the @graphty/graph-format snapshot, for Node (Dawn) and browsers",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -47,13 +47,14 @@
         "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
         "test": "vitest",
         "test:ui": "vitest --ui",
-        "test:run": "vitest run --project=node",
-        "test:node": "vitest run --project=node",
+        "test:run": "vitest run --project=node --project=node-device-errors",
+        "test:node": "vitest run --project=node --project=node-device-errors",
+        "test:node:ci": "node scripts/run-node-shard.js",
         "test:browser": "vitest run --project=browser",
         "test:browser:ci": "node scripts/run-browser-project.js",
         "test:limits": "vitest run --project=node-limits",
-        "coverage": "vitest run --project=node --coverage",
-        "coverage:preview": "npx serve coverage -p 9058",
+        "coverage": "vitest run --project=node --project=node-device-errors --coverage",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "bench": "tsx benchmarks/run.ts",
         "bench:compare": "node scripts/bench-compare.js",
         "benchmark": "tsx benchmarks/run.ts",
@@ -86,7 +87,7 @@
         "@webgpu/types": "^0.1.72"
     },
     "peerDependencies": {
-        "@graphty/algorithms": "^1.0.0",
+        "@graphty/algorithms": "^1.0.0 || ^2.0.0",
         "@graphty/graph-format": "^1.0.0",
         "@graphty/layout": "^1.7.0",
         "webgpu": ">=0.4.0 <1.0.0"

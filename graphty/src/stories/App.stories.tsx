@@ -1,3 +1,7 @@
+// Storybook does not run src/main.tsx, which is where the app defines <graphty-element>.
+// Without this import the tag is an unknown element and the canvas region is empty.
+import "@graphty/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { App } from "../App";

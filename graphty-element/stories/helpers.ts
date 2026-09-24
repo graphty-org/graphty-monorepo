@@ -12,6 +12,7 @@ const deepSet = lodash.set.bind(lodash);
 import { LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
 import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
 import { type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
+import type { AlgorithmOnLoad } from "../src/config/DataConfig";
 import type { Graphty } from "../src/graphty-element";
 
 // Global storage for event promises set up by decorators
@@ -286,8 +287,8 @@ interface StorySetup {
     background?: GraphBackgroundConfig;
     /** How far the camera starts from the graph. */
     startingCameraDistance?: number;
-    /** Algorithms to run once the data has loaded, as "namespace:type". */
-    algorithms?: readonly string[];
+    /** Algorithms to run once the data has loaded: names, or `{ algorithm, style, ... }` entries. */
+    algorithms?: readonly AlgorithmOnLoad[];
     /** How many layout steps to run before the first frame is drawn. */
     preSteps?: number;
 }

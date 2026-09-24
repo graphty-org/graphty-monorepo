@@ -17,6 +17,12 @@ import {
     FR_DEFAULTS,
     FR_REHEAT_FRACTION,
     FR_START_TEMPERATURE,
+    GRID_BBOX_MARGIN,
+    GRID_COARSEST_SIDE,
+    GRID_EXTENT_FLOOR,
+    GRID_HUB_CELL,
+    GRID_MIN_SIDE,
+    GRID_SORT_BITS,
     LAYOUT_TUNING_DEFAULTS,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
@@ -28,6 +34,7 @@ import {
     POOL_MAX_POW2_CLASS_BYTES,
     POOL_MIN_CLASS_BYTES,
     PROFILER_QUERY_SLOTS,
+    RADIX_BINS,
     SE_DEFAULTS,
     STATE_HEADER_BYTES,
     STORAGE_ALIGN,
@@ -117,6 +124,7 @@ describe("constants.ts (contract 3.2)", () => {
         expect(MAX_1D_ITEMS).toBe(MAX_WORKGROUPS_PER_DIM * WORKGROUP_SIZE);
         expect(MAX_1D_ITEMS).toBeLessThan(2 ** 24);
         expect(U32_MAX).toBe(4294967295);
+        expect(RADIX_BINS).toBe(256); // 2^8: 8 bits per radix pass (P4 PD-5)
         expect(ARC_WINDOW_ALIGN).toBe(64);
         expect(STORAGE_ALIGN).toBe(256);
         expect(UNIFORM_SLOT_BYTES).toBe(256);
@@ -125,7 +133,9 @@ describe("constants.ts (contract 3.2)", () => {
     });
 
     it("pins the memory and kernel-infrastructure constants", () => {
-        // re-fixed at G3 by the spec 7.8 rule (docs/decisions/G3.md section 3): a ladder rung, so a power of two in [1024, 65536]
+        // the G3 value, kept by owner decision G4-D1 (docs/decisions/G4.md section 7) while the accuracy work G4-F1 leaves is open; the
+        // spec 7.8 rule with its grid clause computes 1024 on the dev box, which the record keeps and the constant does
+        // not carry. A ladder rung, so a power of two in [1024, 65536]
         expect(EXACT_MAX_NODES).toBe(32768);
         expect(EXACT_MAX_NODES).toBeGreaterThanOrEqual(1024);
         expect(EXACT_MAX_NODES).toBeLessThanOrEqual(65536);
@@ -181,6 +191,18 @@ describe("constants.ts (contract 3.2)", () => {
         expect(FA2_DISTANCE_FLOOR_SQ).toBe(FA2_DISTANCE_FLOOR * FA2_DISTANCE_FLOOR);
         expect(FA2_COINCIDENT_SQ).toBe(1e-8);
         expect(FA2_FLAG_FIRST).toBe(1);
+    });
+
+    it("pins the grid constants (spec 7.7 geometry table; P4-T8 PD-5, PD-9)", () => {
+        expect(GRID_MIN_SIDE).toBe(8);
+        expect(GRID_COARSEST_SIDE).toBe(4);
+        expect(GRID_HUB_CELL).toBe(1024);
+        expect(GRID_EXTENT_FLOOR).toBe(1e-6);
+        expect(GRID_BBOX_MARGIN).toBe(1.01);
+        expect(GRID_SORT_BITS).toBe(24);
+        // three 8-bit passes cover the 19-bit 2D keys (512^2 + 1) and the 22-bit 3D keys (128^3 + 1)
+        expect(2 ** GRID_SORT_BITS).toBeGreaterThan(LAYOUT_TUNING_DEFAULTS.gridMax2D ** 2 + 1);
+        expect(2 ** GRID_SORT_BITS).toBeGreaterThan(LAYOUT_TUNING_DEFAULTS.gridMax3D ** 3 + 1);
     });
 
     it("pins the Fruchterman-Reingold and spring-electrical defaults (spec 7.20)", () => {

@@ -1,3 +1,6 @@
+// Installs scene.beginAnimation; see test/packaging/babylon-side-effects.test.ts.
+import "@babylonjs/core/Animations/animatable";
+
 import {
     Animation,
     Camera,

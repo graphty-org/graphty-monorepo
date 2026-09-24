@@ -18,10 +18,6 @@ export default defineConfig(({ mode }) => {
         },
     };
 
-    if (env.PORT) {
-        server.port = parseInt(env.PORT);
-    }
-
     if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH) {
         server.https = {
             key: readFileSync(env.HTTPS_KEY_PATH),

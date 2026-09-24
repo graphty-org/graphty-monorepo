@@ -16,7 +16,7 @@ import {
     holds,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
-import { labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
+import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
 
 /**
  * WHAT A STYLE LAYER CAN SAY ABOUT A LABEL.
@@ -45,6 +45,13 @@ const CAT_NETWORK = {
 } as const;
 
 /** The cats that live indoors, which is the half of the network the two-layer stories single out. */
+/**
+ * The font a label with the element's default style is drawn in: its default weight, 48px and
+ * Verdana (src/config/RichTextStyle.ts). Stories measure text in it, so if that default changes
+ * these checks fail loudly rather than measuring the wrong face.
+ */
+const DEFAULT_LABEL_FONT = "normal normal 48px Verdana";
+
 const INDOOR = [
     "Princess_Fluffington",
     "Sir_Naps_A_Lot",
@@ -648,10 +655,10 @@ export const Location: Story = {
  * READ AS THE TEXT'S OWN BOX, not the panel's. The panel is opaque from corner to corner whatever
  * the margins are, so the question is how far the black letters are inset inside it.
  *
- * READ AT THE TOP, because only the top separates the two pictures. The left and right edges of
- * the ink depend on each name's first and last glyph, so the unmargined and the margined readings
- * overlap there. On the 128px-high texture every label draws, the letters start 15-19px down with
- * no margins and 22-26px down with these ten-pixel ones.
+ * READ IN THE CANVAS'S OWN PIXELS, not the texture's. How far down the texture the letters start
+ * depends on the typeface, and the typeface depends on the machine: with these margins the ink
+ * starts 22-26px down locally and 19px down on Chromatic. Normalised by the font's own glyph
+ * height, the margin reads back as roughly the pixels asked for on every font tried.
  */
 export const Margin: Story = {
     args: {
@@ -661,10 +668,10 @@ export const Margin: Story = {
                 "node.labelStyle": {
                     background: "#DCDCDC",
                     color: "#000000",
-                    marginTop: 10,
-                    marginBottom: 10,
-                    marginLeft: 10,
-                    marginRight: 10,
+                    marginTop: 40,
+                    marginBottom: 40,
+                    marginLeft: 40,
+                    marginRight: 40,
                 },
             },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -683,22 +690,32 @@ export const Margin: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "Margin");
-        // A floor of 20.5px sits between the two readings: 1.5px under the lowest margined label
-        // and 1.5px over the highest unmargined one.
-        const tight = labelGeometry(scene, "#000000").filter(
-            (label) => label.inset.top * label.texture.height < 20.5,
-        );
+        // The story leaves the typeface to the element, which draws 48px Verdana on a 1.2 line
+        // height. Verdana is rarely installed, so what is actually drawn is whatever the browser
+        // falls back to -- which `drawnMargins` asks the same browser about.
+        //
+        // The mean of the top and bottom margin read back per label, in canvas pixels, across six
+        // fonts (Liberation Serif, Liberation Sans, Liberation Mono, DejaVu Serif, DejaVu Sans
+        // Mono, Z003): 9.2-12.2 with ten-pixel margins, 4.6-6.7 with the element's default of
+        // five, and -0.6-1.7 with none. These forty-pixel margins read 40-45 here. A floor of 20
+        // sits far from both the default and the value asked for.
+        const tight = labelGeometry(scene, "#000000")
+            .map((label) => {
+                const margin = drawnMargins(label, label.id, DEFAULT_LABEL_FONT, 48 * 1.2);
+
+                return { id: label.id, ...margin, mean: (margin.top + margin.bottom) / 2 };
+            })
+            .filter((label) => label.mean < 20);
 
         await holds(
             tight.length === 0,
-            `Styles/Label Margin: ten pixels of margin are asked for on all four sides, and on ` +
-                `${String(tight.length)} labels the words start no further down the panel than they do ` +
-                `with no margin at all -- ` +
+            `Styles/Label Margin: forty pixels of margin are asked for on all four sides, and on ` +
+                `${String(tight.length)} labels the space above and below the words is no wider than ` +
+                `the element's default of five -- ` +
                 `${tight
                     .map(
                         (label) =>
-                            `${label.id} starts ${(label.inset.top * label.texture.height).toFixed(1)}px ` +
-                            `down a ${String(label.texture.height)}px texture`,
+                            `${label.id} has ${label.top.toFixed(1)}px above and ${label.bottom.toFixed(1)}px below`,
                     )
                     .join("; ")}`,
         );
@@ -845,13 +862,18 @@ export const TextOutline: Story = {
 };
 
 /**
- * A soft, half-transparent black shadow thrown down and to the right of the letters.
+ * A hard red shadow thrown down and to the right of black letters, on a white panel.
  *
- * READ AS HOW MUCH MID-GREY THE LABEL HOLDS, not as whether it holds any. A grey shadow under
- * black letters shares its colour with the antialiasing on their edges, so the mere presence of
- * grey is true of every label with or without a shadow -- which is exactly how a story comes to
- * pass while drawing nothing. The amount is what differs: pixels within 40 of #8C8C8C cover
- * 1.0%-2.0% of each label's texture with the shadow switched off, and 4.2%-6.1% with it on.
+ * RED SO THAT IT CAN BE SEEN. The 1.x story threw a soft, half-transparent black shadow three
+ * pixels down, which on black letters reads as a slightly heavier weight: in a side-by-side of two
+ * renderings nobody can say whether a shadow is there at all. An unblurred red copy of every
+ * letter eight pixels down and to the right is unmistakable, and its colour belongs to nothing
+ * else on the label, so it can be counted.
+ *
+ * COUNTED AS A SHARE OF THE LETTERS' OWN INK, so the reading does not depend on the font. The
+ * story leaves the typeface to the element (Verdana, which few machines have), and a heavier
+ * fallback font draws both more black and more red, so red over black stays put: the part of each
+ * letter's copy that the letter itself does not cover, roughly half to most of it at eight pixels.
  */
 export const TextShadow: Story = {
     args: {
@@ -859,13 +881,13 @@ export const TextShadow: Story = {
         setup: storySetup({
             node: {
                 "node.labelStyle": {
-                    background: "rgba(255, 255, 255, 0.9)",
+                    background: "#FFFFFF",
                     color: "#000000",
                     shadow: true,
-                    shadowColor: "rgba(0, 0, 0, 0.5)",
-                    shadowBlur: 4,
-                    shadowOffsetX: 3,
-                    shadowOffsetY: 3,
+                    shadowColor: "#FF3B30",
+                    shadowBlur: 0,
+                    shadowOffsetX: 8,
+                    shadowOffsetY: 8,
                 },
             },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
@@ -889,22 +911,27 @@ export const TextShadow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "TextShadow");
+        const black = new Map(labelGeometry(scene, "#000000").map((label) => [label.id, label.pixels]));
 
-        // A floor of 3% is 1.4x under the lowest shadowed label and 1.5x over the greyest
-        // unshadowed one. A label with no texture is a label that is not drawn, and reads as 0.
-        const faint = labelGeometry(scene, "#8C8C8C").filter(
-            (label) => label.pixels / Math.max(1, label.texture.width * label.texture.height) < 0.03,
-        );
+        // Red pixels per black one, measured per label across eight faces standing in for Verdana
+        // (Liberation Serif, Sans and Mono, DejaVu Serif, Sans Mono and Sans Bold, Z003 and the
+        // browser's own fallback): 0.47-0.86 as drawn, the low end from the bold face, whose thick
+        // strokes hide more of their own shadow. With the shadow switched off, or thrown at no
+        // offset so the letters cover it, there is no red at all. A floor of 0.25 is 1.9x under
+        // the lowest reading. It does not try to catch a shadow thrown too short: at a quarter of
+        // the offset the readings run 0.10-0.46 depending on the face, which overlaps.
+        const shadowed = (label: LabelGeometry): number => label.pixels / Math.max(1, black.get(label.id) ?? 0);
+        const bare = labelGeometry(scene, "#FF3B30").filter((label) => shadowed(label) < 0.25);
 
         await holds(
-            faint.length === 0,
-            `Styles/Label TextShadow: a blurred grey shadow is asked for and on ${String(faint.length)} labels ` +
-                `there is no more grey than the antialiasing on unshadowed letters -- ` +
-                `${faint
+            bare.length === 0,
+            `Styles/Label TextShadow: a red shadow is asked for under every label, and on ` +
+                `${String(bare.length)} labels there is little or no red beside the black letters -- ` +
+                `${bare
                     .map(
                         (label) =>
-                            `${label.id} has ${String(label.pixels)} grey pixels on its ` +
-                            `${String(label.texture.width)}x${String(label.texture.height)} texture`,
+                            `${label.id} has ${String(label.pixels)} red pixels to ` +
+                            `${String(black.get(label.id) ?? 0)} black`,
                     )
                     .join(", ")}`,
         );
@@ -1197,23 +1224,13 @@ export const Badge: Story = {
  * Shortening a number too big to show.
  *
  * Every cat is given a count of 1500 in an ordinary label, drawn with the element's default label
- * style. The cats that live indoors have smart overflow switched off and draw all four digits; the
- * rest have it on and draw `1k`. Put side by side, the rule is the only difference between the two
- * halves of the graph.
+ * style, and smart overflow draws each one as `1k`.
  */
 export const SmartOverflow: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
             node: { "node.label": "1500", "node.labelStyle": { smartOverflow: true } },
-            layers: [
-                {
-                    name: "Indoor cats show the whole number",
-                    target: "node",
-                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
-                    set: { "node.labelStyle": { smartOverflow: false } },
-                },
-            ],
         }),
     },
     parameters: {
@@ -1223,19 +1240,20 @@ export const SmartOverflow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "SmartOverflow");
-        // MEASURED AS INK. A default label has no panel behind its words, so the width of what it
-        // paints is the width of the words: `1k` is two glyphs and `1500` is four.
-        const labels = labelGeometry(scene);
-        const whole = labels.filter((label) => INDOOR.includes(label.id));
-        const short = labels.filter((label) => !INDOOR.includes(label.id));
-        const widest = Math.max(...short.map((label) => label.ink.width));
-        const narrowest = Math.min(...whole.map((label) => label.ink.width));
+        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `1k` and
+        // `1500` measured with this browser's own fallback for the element's default font, so the
+        // check does not depend on which font a machine happens to have (see drawnText).
+        const wrong = labelGeometry(scene)
+            .map((label) => ({ label, read: drawnText(label, ["1k", "1500"], DEFAULT_LABEL_FONT, 10) }))
+            .filter(({ read }) => read.best !== "1k");
 
         await holds(
-            widest < narrowest,
-            `Styles/Label SmartOverflow: the thirteen shortened labels should all be narrower than the seven ` +
-                `showing 1500 in full; the widest shortened one is ${String(widest)}px and the narrowest whole ` +
-                `one is ${String(narrowest)}px`,
+            wrong.length === 0,
+            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 1k; ` +
+                `${String(wrong.length)} read otherwise -- ${ 
+                wrong
+                    .map(({ label, read }) => `${label.id} reads ${read.best || "nothing"} ${JSON.stringify(read.errors)}`)
+                    .join("; ")}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));

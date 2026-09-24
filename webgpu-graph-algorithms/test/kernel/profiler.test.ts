@@ -3,7 +3,8 @@
  * CommandBatch.pass(label) takes a slot pair, resolveInto(batch) records the resolve + copy into the batch's staging
  * slot, and timings(bytes, request) decodes one { label, ns } per pass with ns > 0; quantised is false under Dawn-node.
  * Without the feature ctx.profiler is null and a Profiler constructed by hand is a no-op (enabled false, beginPass
- * undefined, resolveInto null, timings [], destroy harmless). A full query set drops timings instead of throwing.
+ * undefined, resolveInto null, timings [], destroy harmless). A full query set drops the timings past the budget
+ * instead of throwing and marks the batch's request partial(request), so a duration is never the sum of a prefix.
  * The passes fill 4M and 2M u32 words (16 MiB and 8 MiB) so each pass lasts many 1,024 ns Dawn ticks.
  */
 
@@ -72,6 +73,7 @@ describe("Profiler (spec 5.5)", () => {
                 expect(bytes.byteLength).toBe(48);
                 expect(Array.from(new Uint32Array(bytes, tail.offset, 4))).toEqual([2, 3, 4, 5]);
                 const timings = profiler.timings(bytes, request);
+                expect(profiler.partial(request)).toBe(false);
                 expect(timings.map((timing) => timing.label)).toEqual(["fill-a", "fill-b"]);
                 for (const timing of timings) {
                     expect(timing.ns).toBeGreaterThan(0);
@@ -132,8 +134,18 @@ describe("Profiler (spec 5.5)", () => {
             const bytes = await batch.submit().readback;
             // the two passes were never recorded into the batch: their slots hold whatever the query set held (0 on a fresh set)
             expect(small.timings(bytes, request).map((timing) => timing.label)).toEqual(["one", "two"]);
-            // after a resolve the ring restarts at 0
+            // the refused third pass marks the batch partial: its two rows are not its duration
+            expect(small.partial(request)).toBe(true);
+            // after a resolve the ring restarts at 0 and the refusal is forgotten: a batch that fits is complete
             expect(small.beginPass("four")).toMatchObject({ beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 });
+            const fits = new CommandBatch(ctx, "fits");
+            const fitsRequest = small.resolveInto(fits);
+            if (fitsRequest === null) {
+                throw new Error("unreachable");
+            }
+            await fits.submit().readback;
+            expect(small.partial(fitsRequest)).toBe(false);
+            expect(small.beginPass("five")).toMatchObject({ beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 });
             small.destroy();
             small.destroy();
             expect(small.beginPass("late")).toBeUndefined();

@@ -62,7 +62,8 @@ See the [styling guide](/guide/styling).
 | Property                  | Attribute                   | Type      | Description                        |
 | ------------------------- | --------------------------- | --------- | ---------------------------------- |
 | `enableDetailedProfiling` | `enable-detailed-profiling` | `boolean` | Enable performance profiling       |
-| `runAlgorithmsOnLoad`     | `run-algorithms-on-load`    | `boolean` | Auto-run style template algorithms |
+| `runAlgorithmsOnLoad`     | `run-algorithms-on-load`    | `boolean` | Run the `algorithmsOnLoad` list once data loads; on by presence |
+| `algorithmsOnLoad`        | (property only)             | `Array<string \| AlgorithmOnLoad>` | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` |
 
 ## Methods
 

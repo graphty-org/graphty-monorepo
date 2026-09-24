@@ -1,0 +1,7 @@
+{
+    "kernel": "grid-expansion",
+    "fixture": "random20k-spread200",
+    "adapterClass": "mesa-software-node",
+    "dtype": "f32",
+    "values": [3200.156494140625, 3352.2745361328125]
+}

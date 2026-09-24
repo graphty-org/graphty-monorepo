@@ -2,7 +2,8 @@
  * Kernel (spec 5.1; contract 3.9): a compiled pipeline bound to the binding list of its spec. `bind()` creates the
  * bind groups from a `Record<name, Binding>` keyed by the declared names and caches them by the identity of the
  * buffers, offsets and sizes (a layout's bind groups are created once per load(), not per iteration); `dispatch()`
- * records setPipeline / setBindGroup / dispatchWorkgroups and skips an empty plan (spec 5.6).
+ * records setPipeline / setBindGroup / dispatchWorkgroups and skips an empty plan (spec 5.6); `dispatchIndirect()`
+ * (P4, spec 5.4) records the same prefix and a dispatchWorkgroupsIndirect over one 16-byte slot of an args buffer.
  */
 
 import { STORAGE_ALIGN } from "../constants.js";
@@ -20,6 +21,9 @@ export interface BoundKernel {
     /** Group indices whose bind group takes a dynamic offset (the uniform groups), in group order. */
     readonly dynamicGroups: readonly number[];
 }
+
+/** Bytes of one indirect args slot: (x, y, 1, count) as four u32 (spec 5.4; P4 PD-2). */
+export const INDIRECT_ARGS_STRIDE = 16;
 
 /** Buffer identities for the bind-group cache key: every GPUBuffer seen by any Kernel gets one number, once. */
 const bufferIds = new WeakMap<GPUBuffer, number>();
@@ -259,6 +263,50 @@ export class Kernel {
         plan: DispatchPlan,
         dynamicOffsets?: readonly number[],
     ): void {
+        this.check(bound, dynamicOffsets);
+        if (plan.x === 0) {
+            return;
+        }
+        this.setUp(pass, bound, dynamicOffsets);
+        pass.dispatchWorkgroups(plan.x, plan.y, 1);
+    }
+
+    /**
+     * setPipeline + the bind groups exactly as dispatch(), then dispatchWorkgroupsIndirect(args.buffer, args.offset +
+     * INDIRECT_ARGS_STRIDE * slot) (spec 5.4): the (x, y, 1) of the slot were written by the indirect-finalize kernel
+     * earlier in the same pass. A slot beyond the binding is E_INVALID_ARGUMENT.
+     * @param pass - the open compute pass
+     * @param bound - a BoundKernel of THIS kernel
+     * @param args - the args buffer range (usage INDIRECT | STORAGE)
+     * @param slot - the 16-byte slot index inside the range
+     * @param dynamicOffsets - one byte offset per entry of bound.dynamicGroups
+     */
+    dispatchIndirect(
+        pass: GPUComputePassEncoder,
+        bound: BoundKernel,
+        args: Binding,
+        slot: number,
+        dynamicOffsets?: readonly number[],
+    ): void {
+        this.check(bound, dynamicOffsets);
+        if (!Number.isInteger(slot) || slot < 0 || (slot + 1) * INDIRECT_ARGS_STRIDE > args.size) {
+            throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${this.spec.id}: args slot ${slot} is outside the binding`, {
+                argument: "slot",
+                value: slot,
+                expected: `0 <= slot < ${Math.floor(args.size / INDIRECT_ARGS_STRIDE)}`,
+            });
+        }
+        this.setUp(pass, bound, dynamicOffsets);
+        pass.dispatchWorkgroupsIndirect(args.buffer, args.offset + INDIRECT_ARGS_STRIDE * slot);
+    }
+
+    /**
+     * The argument checks dispatch() and dispatchIndirect() share: a BoundKernel of another kernel or an offset list
+     * of the wrong length is E_INVALID_ARGUMENT.
+     * @param bound - the bound kernel
+     * @param dynamicOffsets - the offsets, if any
+     */
+    private check(bound: BoundKernel, dynamicOffsets: readonly number[] | undefined): void {
         const { id } = this.spec;
         if (bound.kernel !== this) {
             throw new WebGpuGraphError(
@@ -282,9 +330,16 @@ export class Kernel {
                 },
             );
         }
-        if (plan.x === 0) {
-            return;
-        }
+    }
+
+    /**
+     * setPipeline + setBindGroup for every group (the dynamic offsets replicated over the uniform bindings of each
+     * dynamic group), the prefix dispatch() and dispatchIndirect() share.
+     * @param pass - the open compute pass
+     * @param bound - a BoundKernel of this kernel
+     * @param dynamicOffsets - one byte offset per entry of bound.dynamicGroups (absent = 0)
+     */
+    private setUp(pass: GPUComputePassEncoder, bound: BoundKernel, dynamicOffsets: readonly number[] | undefined): void {
         pass.setPipeline(this.pipeline);
         let next = 0;
         bound.bindGroups.forEach((bindGroup, group) => {
@@ -301,7 +356,6 @@ export class Kernel {
                 pass.setBindGroup(group, bindGroup);
             }
         });
-        pass.dispatchWorkgroups(plan.x, plan.y, 1);
     }
 
     /** Drops cached bind groups (a layout's buffers changed). */

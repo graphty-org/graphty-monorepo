@@ -1150,7 +1150,10 @@ export class Node {
         }
 
         const text = this.extractLabelText(this.wantedTooltip);
-        this.tooltip = new RichTextLabel(this.mesh.getScene(), this.createLabelOptions(text, this.wantedTooltip));
+        this.tooltip = new RichTextLabel(this.mesh.getScene(), {
+            ...this.createLabelOptions(text, this.wantedTooltip),
+            onTop: true,
+        });
     }
 
     /**

@@ -6,37 +6,16 @@ import { resolve } from "path";
 import { defineConfig } from "vite";
 import type { UserConfig } from "vite";
 
-// Fixed port assignments to avoid conflicts
-const PORT_ASSIGNMENTS: Record<string, number> = {
-    algorithms: 9000,
-    "@graphty/algorithms": 9000,
-    layout: 9010,
-    "@graphty/layout": 9010,
-    "graphty-element": 9020,
-    "@graphty/graphty-element": 9020,
-    graphty: 9050,
-    "@graphty/graphty": 9050,
-    "gpu-3d-force-layout": 9060,
-};
-
 export interface ViteConfigOptions {
     packageName: string;
     packagePath: string;
     entry?: string;
     external?: string[];
     globals?: Record<string, string>;
-    port?: number;
 }
 
 export function createViteConfig(options: ViteConfigOptions): UserConfig {
-    const {
-        packageName,
-        packagePath,
-        entry = "src/index.ts",
-        external = [],
-        globals = {},
-        port = PORT_ASSIGNMENTS[packageName] ?? 9090,
-    } = options;
+    const { packageName, packagePath, entry = "src/index.ts", external = [], globals = {} } = options;
 
     return defineConfig({
         build: {
@@ -73,8 +52,8 @@ export function createViteConfig(options: ViteConfigOptions): UserConfig {
             target: "es2020",
             outDir: resolve(packagePath, "dist"),
         },
+        // The dev-server port comes from the command line (`--port $PORT`), which servherd sets.
         server: {
-            port,
             open: true,
         },
     });

@@ -190,6 +190,10 @@ describe("DirectionOptimizedBFS", () => {
             }
 
             const csrGraph = new CSRGraph(adjacencyList);
+            // One untimed search first: the first call is almost all JIT compilation (36-67 ms
+            // measured, against about 5 ms for every later one), which varies with machine load
+            // and core type and says nothing about the algorithm.
+            new DirectionOptimizedBFS(csrGraph).search(0);
             const bfs = new DirectionOptimizedBFS(csrGraph);
 
             const startTime = performance.now();

@@ -1,13 +1,60 @@
 /**
  * The shape helpers every core-walking primitive shares (spec 4.1): the row count and the arc count a CoreBinding
- * implies, the windowed rejection of P4, and the ViewBinding -> CoreBinding adapter the P7 pull kernels need.
+ * implies, the per-window binding of a windowed core (P4-T7, PD-8), the windowed rejections the pull and the
+ * whole-core drivers keep (DEP-P4-B), and the ViewBinding -> CoreBinding adapter the P7 pull kernels need.
  * Moved out of segmented-reduce.ts by M8b-T4 so spmv.ts can use them without duplicating them; the `primitive`
  * argument keeps each caller's error details byte-identical to what they were when the helpers were private.
  */
 
 import { WebGpuGraphError } from "../errors.js";
 import { type CoreBinding, type ViewBinding } from "../memory/residency.js";
-import { type Binding } from "../types/memory.js";
+import { type ArcWindow, type Binding } from "../types/memory.js";
+
+/** The lanes one TIER 1 (mid-degree) row is folded by, in segmentedReduce and spmvPull alike (PD-6: bitwise the same on every subgroup size). */
+export const MID_TIER_LANES = 32;
+
+/** The degree tiers of degreeOrder(): the permutation binding and the CPU-side segmentOffsets [0, hiEnd, midEnd, lowEnd, n]. */
+export interface DegreeTiers {
+    readonly perm: Binding;
+    readonly segmentOffsets: readonly [number, number, number, number, number];
+}
+
+/**
+ * The DegreeTiers of a degreeOrder / reverseDegreeOrder view (the perm binding and the five segment offsets
+ * [0, hiEnd, midEnd, lowEnd, n] of graph-format's cuGraph thresholds 1024 / 32 / 1).
+ * @param view - residency.view(s, "degreeOrder") or view(s, "reverseDegreeOrder")
+ * @returns the tiers; E_INVALID_ARGUMENT when the view has no perm binding or its segmentOffsets are not five
+ * ascending numbers ending at the row count (4 bytes per row of the perm binding)
+ */
+export function degreeTiersOf(view: ViewBinding): DegreeTiers {
+    const { perm }: { readonly perm?: Binding | undefined } = view.bindings;
+    if (perm === undefined) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `the ${view.view} view has no perm binding`, {
+            argument: "view",
+            value: view.view,
+            expected: "a view with a perm binding (degreeOrder, reverseDegreeOrder)",
+        });
+    }
+    const so: readonly number[] | undefined = view.scalars.segmentOffsets;
+    const ascending =
+        so !== undefined &&
+        so.length === 5 &&
+        so[0] === 0 &&
+        so.every((value, k) => Number.isInteger(value) && (k === 0 || value >= so[k - 1]));
+    if (!ascending || so[4] !== perm.size / 4) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `the ${view.view} view's segmentOffsets are not five ascending numbers ending at the row count`,
+            {
+                argument: "view",
+                value: so === undefined ? null : Array.from(so),
+                expected: `[0, hiEnd, midEnd, lowEnd, ${perm.size / 4}] ascending`,
+            },
+        );
+    }
+    const segmentOffsets: readonly [number, number, number, number, number] = [so[0], so[1], so[2], so[3], so[4]];
+    return Object.freeze({ perm, segmentOffsets });
+}
 
 /**
  * The row count of a core from its rowPtr binding (4(n + 1) bytes).
@@ -41,15 +88,54 @@ export function arcCountOf(core: CoreBinding): number {
 }
 
 /**
- * Rejects a windowed core (executed at P4).
+ * The binding of one arc window of a windowed core's arc-indexed array (spec 4.2): the buffer the window was placed
+ * in, at the window's offset, over its arcs; the kernel reads `array[arc - P.arcBase]` with `arcBase = w.start`.
+ * @param core - a windowed core (arcBuffers non-null)
+ * @param name - the arc-indexed array
+ * @param w - one of core.windows
+ * @returns the binding; E_INVALID_ARGUMENT when the core is not windowed or the array is absent
+ */
+export function windowBinding(core: CoreBinding, name: "colIdx" | "weights" | "arcToEdge", w: ArcWindow): Binding {
+    const buffer = core.arcBuffers?.[name][w.bufferIndex];
+    if (buffer === undefined) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `windowBinding: the core has no window buffers of ${name}`, {
+            argument: "core",
+            value: name,
+            expected: "a windowed core whose plan uploaded the array",
+        });
+    }
+    return { buffer, offset: w.offset, size: 4 * (w.end - w.start), window: w };
+}
+
+/**
+ * Rejects a windowed core: the pull cannot accumulate its affine epilogue across windows (DEP-P4-B).
  * @param core - the core
  * @param primitive - the caller's name, used in the message and the feature detail
  */
 export function assertNotWindowed(core: CoreBinding, primitive: string): void {
     if (core.plan === "windowed" || core.windows !== null) {
-        throw new WebGpuGraphError("E_UNSUPPORTED", `${primitive}: windowed cores are executed at P4`, {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${primitive}: windowed cores are not executed by the pull`, {
             feature: `${primitive}.windowed`,
         });
+    }
+}
+
+/**
+ * Rejects a windowed core for a driver that walks the whole core (DEP-P4-B: pageRank, the power iterations and
+ * connectedComponents): `E_TOO_LARGE { needed, limit, path: "windowed", algorithm }` (spec 3.8 / 3.12), the refusal
+ * GraphResidency.core() itself issued before P4-T7 executed windows for degree and segmentedReduce.
+ * @param core - the core
+ * @param arcCount - the snapshot's arc count (4 bytes per arc of each arc-indexed array)
+ * @param limit - the device's maxStorageBufferBindingSize
+ * @param algorithm - the driver's name
+ */
+export function assertWholeCore(core: CoreBinding, arcCount: number, limit: number, algorithm: string): void {
+    if (core.plan === "windowed") {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${algorithm}: the arc arrays need a windowed upload (${core.windows?.length ?? 0} windows), which ${algorithm} does not execute (DEP-P4-B)`,
+            { needed: 4 * arcCount, limit, path: "windowed", algorithm },
+        );
     }
 }
 
@@ -98,6 +184,7 @@ export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
         arcToEdge: null,
         edgeToArc: null,
         windows: null,
+        arcBuffers: null,
         hasWeights: weights !== null,
     });
 }

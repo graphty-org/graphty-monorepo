@@ -342,7 +342,7 @@ describe("spmvPull thread-per-row (GPU)", () => {
     it("algorithmScope: params records land in consecutive ring slots; USE_PERM is false in every pipeline key", async (t) => {
         const ctx = await context(t);
         const scope = algorithmScope(ctx, "spmv/scope", 3);
-        const values = { n: 1, arcBase: 0, arcEnd: 0, stride: 1, alpha: 1, beta: 0, uniformP: 0, pad0: 0 };
+        const values = { n: 1, arcBase: 0, arcEnd: 0, stride: 1, alpha: 1, beta: 0, uniformP: 0, start: 0 };
         const a = scope.params(SPMV_PARAMS, values);
         const b = scope.params(SPMV_PARAMS, values);
         const c = scope.params(SPMV_PARAMS, values);
@@ -361,7 +361,7 @@ describe("spmvPull thread-per-row (GPU)", () => {
         }
     });
 
-    it("tiers !== null -> E_UNSUPPORTED { feature: spmvPull.tiers }; a windowed core -> E_UNSUPPORTED; a malformed rowPtr -> E_INVALID_ARGUMENT at record", async (t) => {
+    it("prepareSpmvPull accepts tiers (the tier results are tiers.test.ts's); a windowed core -> E_UNSUPPORTED; a malformed rowPtr -> E_INVALID_ARGUMENT at record", async (t) => {
         const ctx = await context(t);
         const s = weightedRandom(50, 100, 2);
         const rev = reverseCore(ctx, s);
@@ -370,8 +370,8 @@ describe("spmvPull thread-per-row (GPU)", () => {
         const tiers: DegreeTiers = { perm: order.bindings.perm, segmentOffsets: [so[0], so[1], so[2], so[3], so[4]] };
         const scope = algorithmScope(ctx, "spmv/reject", 2);
         const base: SpmvPullOptions = { personalization: false, dangling: false, weights: undefined, tiers: null };
-        const tiered = await expectRejection(prepareSpmvPull(scope, rev, { ...base, tiers }), "E_UNSUPPORTED");
-        expect(tiered.details.feature).toBe("spmvPull.tiers");
+        const tiered = await prepareSpmvPull(scope, rev, { ...base, tiers });
+        expect(tiered.lastDispatches).toBe(0);
         const windowed: CoreBinding = { ...rev, plan: "windowed", windows: [] };
         const unsupported = await expectRejection(prepareSpmvPull(scope, windowed, base), "E_UNSUPPORTED");
         expect(unsupported.details.feature).toBe("spmvPull.windowed");

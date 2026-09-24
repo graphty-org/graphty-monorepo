@@ -9,7 +9,8 @@
  * `details` keys per code (contract 3.1, so tests can assert them): E_NO_WEBGPU { reason, hint };
  * E_NO_ADAPTER { reason }; E_NO_DEVICE { reason, adapter, limit?, requested?, available? } (reason "consumed" |
  * "requestDevice" | "limit" | "feature" | "maxComputeWorkgroupsPerDimension"); E_SOFTWARE_ONLY { adapter };
- * E_DEVICE_LOST { reason, message }; E_DISPOSED { label }; E_VALIDATION { label, message, batchId? };
+ * E_DEVICE_LOST { reason, message }; E_DEVICE_INCORRECT { check, where, expected, actual, poison, count, blocks,
+ * workgroupSize, adapter, hint? }; E_DISPOSED { label }; E_VALIDATION { label, message, batchId? };
  * E_SHADER_COMPILE { id, stage: "compose" | "compile", slot?, messages? }; E_OUT_OF_MEMORY { requested, resident,
  * label }; E_TOO_LARGE { needed, limit, path, algorithm }; E_UNSUPPORTED { feature? | option?, hint? } (exactly
  * one of feature / option); E_INVALID_ARGUMENT { argument, value, expected? }; E_SNAPSHOT { reason, serial };
@@ -23,6 +24,7 @@ export type WebGpuGraphErrorCode =
     | "E_NO_DEVICE"
     | "E_SOFTWARE_ONLY"
     | "E_DEVICE_LOST"
+    | "E_DEVICE_INCORRECT"
     | "E_DISPOSED"
     | "E_VALIDATION"
     | "E_SHADER_COMPILE"

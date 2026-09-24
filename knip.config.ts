@@ -34,15 +34,21 @@ const config: KnipConfig = {
 
         // graph-format package (design/graph-format/graph-format-design.md section 13.3)
         "graph-format": {
-            entry: ["src/index.ts", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "graph-format.ts!",
+                "src/index.ts!",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                "scripts/**/*.{ts,js}",
+            ],
+            project: ["graph-format.ts!", "src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
         // graph-io package (src/index.ts re-exports every per-format subpath barrel)
         "graph-io": {
-            entry: ["src/index.ts", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
@@ -53,16 +59,16 @@ const config: KnipConfig = {
         // reports referenced optional peers, so it is ignored by name.
         "webgpu-graph-algorithms": {
             entry: [
-                "src/index.ts",
-                "src/browser/index.ts",
-                "src/node/index.ts",
+                "src/index.ts!",
+                "src/browser/index.ts!",
+                "src/node/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
                 "test/setup/*.ts",
                 "benchmarks/layout-run.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: ["@graphty/algorithms", "@graphty/layout", "webgpu"],
         },
@@ -70,13 +76,14 @@ const config: KnipConfig = {
         // Algorithms package
         algorithms: {
             entry: [
-                "src/index.ts",
+                "algorithms.ts!",
+                "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
                 "examples/**/*.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["algorithms.ts!", "src/**/*.ts!", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Storybook implicit dependencies
@@ -103,8 +110,8 @@ const config: KnipConfig = {
 
         // Layout package
         layout: {
-            entry: ["src/index.ts", "test/**/*.test.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: ["src/index.ts!", "test/**/*.test.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 "@storybook/html",
@@ -124,25 +131,25 @@ const config: KnipConfig = {
                 // so each is a door a consumer comes through and nothing reachable from one is
                 // dead. Listing only src/graphty-element.ts here made all ten invisible to
                 // dead-code analysis -- neither entry nor project -- while they were public API.
-                "index.ts",
-                "ai.ts",
-                "catalog.ts",
-                "commands.ts",
-                "extend.ts",
-                "format.ts",
-                "logging.ts",
-                "react.ts",
-                "schema.ts",
-                "session.ts",
-                "webgpu.ts",
-                "src/graphty-element.ts",
+                "index.ts!",
+                "ai.ts!",
+                "catalog.ts!",
+                "commands.ts!",
+                "extend.ts!",
+                "format.ts!",
+                "logging.ts!",
+                "react.ts!",
+                "schema.ts!",
+                "session.ts!",
+                "webgpu.ts!",
+                "src/graphty-element.ts!",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
             ],
-            project: ["*.ts", "src/**/*.ts", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["*.ts!", "src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
@@ -159,11 +166,15 @@ const config: KnipConfig = {
                 "@ai-sdk/openai",
                 "ai",
                 "encrypt-storage",
+                // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
+                // nothing externalises it), so each is a devDependency that production source imports.
+                // Only `lint:knip:prod` would report them, as unlisted.
+                "lodash",
+                "ngraph.random",
+                "@graphty/remote-logger",
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
-                // ngraph transitive dependency
-                "ngraph.random",
                 // Testing utilities
                 "chai", // Provided by vitest
                 "iwer", // WebXR emulator for testing
@@ -181,13 +192,13 @@ const config: KnipConfig = {
         // graphty React app
         graphty: {
             entry: [
-                "src/main.tsx",
-                "src/App.tsx",
+                "src/main.tsx!",
+                "src/App.tsx!",
                 "src/stubs/web-llm-stub.ts",
                 "src/**/*.test.{ts,tsx}",
                 "src/stories/**/*.stories.tsx",
             ],
-            project: ["src/**/*.{ts,tsx}"],
+            project: ["src/**/*.{ts,tsx}!"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Installed on graphty-element's behalf: its optional peer, activated by
@@ -200,20 +211,34 @@ const config: KnipConfig = {
                 "@graphty/webgpu-graph-algorithms",
                 // Testing
                 "jsdom",
+                // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
+                // package.json; `lint:knip:prod` runs --strict, which reads only this workspace's own
+                // dependencies, and would otherwise report it as unlisted.
+                "eruda",
             ],
         },
 
         // remote-logger package
         "remote-logger": {
-            entry: ["src/bundle/browser-entry.ts", "test/**/*.test.ts"],
-            project: ["src/**/*.ts", "test/**/*.ts", "bin/**/*.js"],
+            entry: [
+                "src/index.ts!",
+                "src/server/index.ts!",
+                "src/client/index.ts!",
+                "src/ui/index.ts!",
+                "src/mcp/index.ts!",
+                "src/vite/index.ts!",
+                "src/bundle/browser-entry.ts!",
+                "bin/**/*.js!",
+                "test/**/*.test.ts",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "bin/**/*.js!"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
         // compact-mantine package
         "compact-mantine": {
-            entry: ["tests/**/*.test.{ts,tsx}", "stories/**/*.stories.tsx"],
-            project: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
+            entry: ["src/index.ts!", "tests/**/*.test.{ts,tsx}", "stories/**/*.stories.tsx"],
+            project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Used in storybook demos

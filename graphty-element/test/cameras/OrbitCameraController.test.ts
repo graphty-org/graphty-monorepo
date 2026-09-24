@@ -1,4 +1,4 @@
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
@@ -255,14 +255,36 @@ describe("OrbitCameraController", () => {
             assert.isAbove(controller.cameraDistance, initialDistance);
         });
 
-        test("should clamp camera distance to configured limits", () => {
-            // Very large bounding box
-            const min = new Vector3(-1000, -1000, -1000);
-            const max = new Vector3(1000, 1000, 1000);
+        test("should frame a box far larger than the configured zoom ceiling", () => {
+            // A ForceAtlas2 simulation settles tens of thousands of units across. The fit
+            // must not be cut down to config.maxZoomDistance, which would leave the camera
+            // inside the graph with everything else beyond the far plane.
+            const min = new Vector3(-12000, -12000, -12000);
+            const max = new Vector3(12000, 12000, 12000);
 
             controller.zoomToBoundingBox(min, max);
 
-            assert.isAtMost(controller.cameraDistance, config.maxZoomDistance);
+            assert.isAbove(
+                controller.cameraDistance,
+                config.maxZoomDistance,
+                "The fit must be allowed past the configured zoom-out ceiling",
+            );
+
+            const box = MeshBuilder.CreateBox(
+                "bounds",
+                { width: max.x - min.x, height: max.y - min.y, depth: max.z - min.z },
+                scene,
+            );
+            box.position.copyFrom(min.add(max).scale(0.5));
+            box.computeWorldMatrix(true);
+
+            controller.camera.getViewMatrix(true);
+            controller.camera.getProjectionMatrix(true);
+
+            assert.isTrue(
+                controller.camera.isCompletelyInFrustum(box),
+                "The whole bounding box must be inside the frustum after the fit",
+            );
         });
     });
 

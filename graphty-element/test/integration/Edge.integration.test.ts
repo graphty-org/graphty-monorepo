@@ -99,6 +99,7 @@ function createMinimalStyles(): Styles {
                 stepMultiplier: 1,
                 minDelta: 0.001,
                 zoomStepInterval: 100,
+                maxInFlight: 2,
             },
             node: {
                 pinOnDrag: false,

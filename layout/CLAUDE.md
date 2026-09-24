@@ -88,8 +88,9 @@ Common options:
 `src/simulation/` is the layout seam of the WebGPU design (`design/webgpu/webgpu-acceleration-plan.md` section 9.3;
 graph-format design 14.3 `LayoutSimulation`): steppable force layouts that run over a `@graphty/graph-format`
 snapshot and a position array the CALLER owns. The barrel (`src/index.ts`) re-exports it. Nothing in it imports the
-GPU package: the dependency direction is graph-format <- layout <- graphty-element <- the app, and the app is the only
-importer of `@graphty/webgpu-graph-algorithms` (design 9.1).
+GPU package: the dependency direction is graph-format <- layout <- graphty-element <- the app, and
+graphty-element's `./webgpu` entry point is the only importer of `@graphty/webgpu-graph-algorithms`
+(`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`).
 
 ### The seam
 

@@ -16,7 +16,12 @@
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
 import type { z } from "zod/v4";
 
-import type { AccelerationCapabilities, AccelerationPolicy } from "../acceleration";
+import type {
+    AccelerationCapabilities,
+    AccelerationPolicy,
+    AccelerationStatus,
+    GraphAccelerator,
+} from "../acceleration";
 // EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
 // that makes `const id: EdgeId = record.id` type-check. This entry point used to publish two
 // different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
@@ -433,6 +438,8 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
+    /** Every acceleration transition; the document is the one `capabilities` returns. */
+    "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
 }
 
 /**
@@ -526,6 +533,22 @@ export interface GraphSession {
     readonly config: SessionConfig;
     /** What this machine can do, measured rather than guessed at by the consumer. */
     readonly capabilities: AccelerationCapabilities;
+    /**
+     * What the consumer asks of the hardware: use an accelerator when there is one, never look,
+     * or refuse to run without one.
+     *
+     * Settable, and the set applies at once: the next piece of accelerated work is planned under
+     * the new policy, and `capabilities:changed` reports where that left the hardware.
+     */
+    acceleration: AccelerationPolicy;
+    /**
+     * Attach an accelerator the caller built, or detach the current one with `null`.
+     *
+     * For tests and third parties. An injected accelerator is never replaced by a probed one and
+     * is not disposed by the session -- whoever built it owns its lifetime.
+     * @param accelerator - The accelerator to attach, or null to detach.
+     */
+    setAccelerator(accelerator: GraphAccelerator | null): void;
     /**
      * The current snapshot, by reference: nothing is copied.
      * @returns the immutable graph-format snapshot
@@ -695,6 +718,22 @@ export interface AccelerationControllerLike {
     readonly policy: AccelerationPolicy;
     /** The node count at or above which accelerated work uses the accelerator. */
     readonly minNodes: number;
+    /**
+     * Changes what the consumer asks of the hardware.
+     * @param policy - The new policy.
+     */
+    setPolicy(policy: AccelerationPolicy): void;
+    /**
+     * Attaches an accelerator the caller built, or detaches the current one with `null`.
+     * @param accelerator - The accelerator, or null to detach.
+     */
+    setAccelerator(accelerator: GraphAccelerator | null): void;
+    /**
+     * Watches every transition.
+     * @param listener - Called with the new status.
+     * @returns A function that stops the subscription.
+     */
+    onChange(listener: (status: AccelerationStatus) => void): () => void;
     /** Releases the hardware. */
     dispose(): void;
 }

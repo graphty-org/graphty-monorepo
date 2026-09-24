@@ -2,7 +2,7 @@
  * @file A third party's layout engine, and whether the element treats it as one of its own.
  *
  * WHAT A LAYOUT ENGINE IS. A layout engine decides where every node sits. graphty-element ships
- * sixteen of them -- force simulations, circles, shells, spirals, trees -- and it lets anyone
+ * seventeen of them -- force simulations, circles, shells, spirals, trees -- and it lets anyone
  * else register one more: a class extending `LayoutEngine` (a simulation that is stepped every
  * frame) or `SimpleLayoutEngine` (an arrangement computed once), handed to `LayoutEngine.register`
  * and then chosen by name, exactly the way `"ngraph"` or `"circular"` is chosen. Both base classes
@@ -43,7 +43,7 @@
  * set; the element rebuilds from the options it was given instead, and `RingLayout` never assigns
  * `config` so that the test for it means something. And `dispose`, `removeNode`, `removeEdge` and
  * `updatePositions` were duck-typed by the element's managers, declared nowhere, and implemented by
- * none of the sixteen engines that ship here; they are declared on the base class with working
+ * none of the seventeen engines that ship here; they are declared on the base class with working
  * defaults, and `RingLayout` overrides each one.
  *
  * WHAT THE CATALOGUE HALF IS FOR. Being registered is not the same as being offerable. A layout
@@ -1213,7 +1213,7 @@ describe("a third party's layout engine", () => {
 
         it("answers which arrangement it is, the question the element answers for its own engines", () => {
             // A plugin declares ONE key, so the engine name and the arrangement name are the same
-            // string. The element's own sixteen engines sit behind twelve arrangement names, which
+            // string. The element's own seventeen engines sit behind twelve arrangement names, which
             // is why this question exists at all.
             assert.strictEqual(layoutIdForEngine("test-ring"), "test-ring");
             assert.strictEqual(layoutIdForEngine("arf"), "force-2d", "the element's own answer is unchanged");
@@ -1391,7 +1391,7 @@ describe("what a layout registration refuses", () => {
         // The catalogue half is global, so a later file asking what the element can offer must
         // not be shown this file's plugins. The ENGINE half cannot be cleared: `LayoutEngine`
         // publishes no way to forget a class, and forgetting them all would take the element's
-        // own sixteen with them, since those register once when their module is first evaluated.
+        // own seventeen with them, since those register once when their module is first evaluated.
         // So `LayoutEngine.getRegisteredTypes()` still names these engines afterwards.
         clearRegisteredLayoutsForTesting();
     });
@@ -1424,7 +1424,7 @@ describe("what a layout registration refuses", () => {
 
     it("a name one of the element's own engines already answers to", () => {
         // Every engine the element ships, not a sample: the exemption that lets the element's own
-        // sixteen register without a descriptor is a list, and a list can drift away from the
+        // seventeen register without a descriptor is a list, and a list can drift away from the
         // catalogue it was copied from without anything saying so.
         const shipped = LAYOUT_CATALOG.flatMap((arrangement) =>
             arrangement.implementations.map((implementation) => implementation.engine),

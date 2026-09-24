@@ -10,22 +10,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
 const docsDir = join(rootDir, "docs");
 
-// Mapping of source package docs to destination folders
+// Mapping of source package docs to destination folders.
+//
+// `decisions` is excluded for the same reason graphty-element's own site excludes it
+// (`graphty-element/docs/.vitepress/config.ts`, srcExclude): a gate record is an internal
+// engineering record, not documentation for a consumer, and graphty.app should not publish one.
+// Until the element grew a decisions directory the omission here cost nothing; the first record
+// that used the `{{OPEN: ...}}` marker this repository writes open gate items with then broke the
+// unified build outright, because Vue reads `{{ ... }}` in any copied markdown as an expression.
 const contentMap = [
     {
         src: "graphty-element/docs",
         dest: "graphty-element",
-        exclude: [".vitepress"],
+        exclude: [".vitepress", "decisions"],
     },
     {
         src: "algorithms/docs",
         dest: "algorithms",
-        exclude: [".vitepress"],
+        exclude: [".vitepress", "decisions"],
     },
     {
         src: "layout/docs",
         dest: "layout",
-        exclude: [".vitepress"],
+        exclude: [".vitepress", "decisions"],
     },
 ];
 

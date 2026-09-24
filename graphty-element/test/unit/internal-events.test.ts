@@ -62,7 +62,7 @@ describe("element-internal events", () => {
     it("lists exactly the events that must not reach the DOM", () => {
         // Asserting the whole set, not just membership: adding an event here means deciding that
         // consumers must never see it, and that decision should have to be written down twice.
-        assert.deepStrictEqual([...INTERNAL_EVENT_TYPES], ["snapshot-replaced"]);
+        assert.deepStrictEqual([...INTERNAL_EVENT_TYPES], ["snapshot-replaced", "snapshot-dropped"]);
     });
 
     it("refuses to forward snapshot-replaced and forwards the public events", () => {

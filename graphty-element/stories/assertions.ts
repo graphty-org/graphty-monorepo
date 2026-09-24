@@ -1156,6 +1156,97 @@ export async function assertDistinctPicture(scene: Drawn, family: string, extra 
     drawnHere.set(scene.story, digest);
 }
 
+/** Where each family of sibling stories put its nodes, by the story that put them there. */
+const arrangements = new Map<string, Map<string, ReadonlyMap<string, readonly [number, number, number]>>>();
+
+/**
+ * How far apart two arrangements of one graph are, as a number that ignores where the camera is.
+ *
+ * Both clouds are moved to the origin and divided by their own root-mean-square radius, so a
+ * layout that drew the same shape twice as large, or half a screen to the left, reads as the same
+ * shape -- which is what makes this a measure of the ARRANGEMENT rather than of the framing. The
+ * answer is the root-mean-square distance between corresponding nodes afterwards: 0 is the same
+ * shape, and two clouds with nothing to do with each other sit near 1.414.
+ * @param a - One story's nodes, by id.
+ * @param b - The other story's nodes, by id.
+ * @returns The distance, over the ids both stories drew.
+ */
+function arrangementDistance(
+    a: ReadonlyMap<string, readonly [number, number, number]>,
+    b: ReadonlyMap<string, readonly [number, number, number]>,
+): number {
+    const shared = [...a.keys()].filter((id) => b.has(id));
+    if (shared.length === 0) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const normalise = (
+        cloud: ReadonlyMap<string, readonly [number, number, number]>,
+    ): [number, number, number][] => {
+        const points = shared.map((id) => cloud.get(id) as readonly [number, number, number]);
+        const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
+        const radius =
+            Math.sqrt(
+                points.reduce((sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0), 0) /
+                    points.length,
+            ) || 1;
+
+        return points.map((p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number]);
+    };
+
+    const left = normalise(a);
+    const right = normalise(b);
+    const sum = left.reduce(
+        (total, p, i) => total + [0, 1, 2].reduce((d, axis) => d + (p[axis] - right[i][axis]) ** 2, 0),
+        0,
+    );
+
+    return Math.sqrt(sum / shared.length);
+}
+
+/**
+ * No two stories in this family arrange the graph the same way.
+ *
+ * THE COMPANION TO {@link assertDistinctPicture} FOR A FAMILY THAT DIFFERS IN NOTHING ELSE. That
+ * one builds its digest from shape, size, colour and label and deliberately leaves position out,
+ * because a physics layout gives a different picture every run. The accelerated layout stories
+ * are the case it cannot serve: they draw one graph with one styling and two layouts, so the
+ * arrangement is the only thing that differs, and they pin a seed so the arrangement is the same
+ * on every machine and every run. Without this, two stories that promise two layouts and compute
+ * one are invisible -- which is exactly what happened when the fake accelerator translated the
+ * graph instead of laying it out, and both stories drew the seed scatter reframed to fill the
+ * canvas.
+ *
+ * Measured on the 150-node, 250-edge story graph from seed 42: ForceAtlas2 and
+ * Fruchterman-Reingold sit 0.61 apart, the same model from two different seeds sits 1.5 to 1.6
+ * apart, and the translating fake sat at 0. A floor of about a quarter is therefore clear of
+ * anything a real pair of layouts produces and nowhere near the zero that a collapse produces.
+ * @param scene - What the story drew.
+ * @param family - What the sibling set is called.
+ * @param minimum - How far apart the stories promise to be. See the figures above.
+ */
+export async function assertDistinctArrangement(scene: Drawn, family: string, minimum: number): Promise<void> {
+    const cloud = new Map(scene.nodes.map((node) => [node.id, node.position]));
+    const arrangedHere = arrangements.get(family) ?? new Map<string, typeof cloud>();
+
+    arrangements.set(family, arrangedHere);
+
+    const offenders = [...arrangedHere.entries()]
+        .map(([story, other]) => [story, arrangementDistance(cloud, other)] as const)
+        .filter(([, distance]) => distance < minimum);
+
+    await holds(
+        offenders.length === 0,
+        `${scene.story}: arranges the graph the same way as ${listed(
+            offenders.map(([story, distance]) => `"${story}" (${distance.toFixed(3)} apart)`),
+        )} -- the two stories promise different layouts and at least ${String(minimum)} between their ` +
+            "arrangements, and a per-story visual baseline cannot see two siblings that have collapsed onto " +
+            "each other.",
+    );
+
+    arrangedHere.set(scene.story, cloud);
+}
+
 /**
  * The edges in the picture are drawn with this many different appearances.
  *

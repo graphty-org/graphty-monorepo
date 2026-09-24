@@ -356,7 +356,16 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        setup: storySetup({ viewMode: "3d" }),
+        /*
+         * `preSteps` MATCHES `springIterations` BELOW, because Spring is a live simulation and
+         * this story asks it for 50 iterations. A simulation computes one iteration per RENDERED
+         * frame by default, so without this the iterations below are frames, and how long the
+         * arrangement takes to arrive is a question about the browser's frame rate rather than
+         * about the graph. `preSteps` runs them before the first frame is drawn, off the frame
+         * clock entirely, and the picture is the same either way: Fruchterman-Reingold is
+         * deterministic under `seed` and stops at `iterations` whichever clock ran it.
+         */
+        setup: storySetup({ viewMode: "3d", preSteps: 50 }),
         layout: "spring",
         layoutConfig: { dim: 3 },
         springK: 1,
@@ -418,7 +427,20 @@ export const ForceAtlas2: Story = {
         dataSourceConfig: {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
         },
-        setup: storySetup({ viewMode: "3d" }),
+        /*
+         * `preSteps` MATCHES `maxIter` BELOW, because ForceAtlas2 is a live simulation and this
+         * story asks it for 500 iterations. A simulation computes `behavior.layout.stepMultiplier`
+         * iterations per RENDERED frame -- one, by default -- so without this the 500 iterations
+         * below are 500 frames, and how long that takes is a question about the display rather
+         * than about the graph: measured at 33 frames a second in the Storybook test browser, the
+         * arrangement needs 15.1 seconds, and the wait for a final frame gives up at 15. `preSteps`
+         * is the element's own answer, and it runs those iterations before the first frame is
+         * drawn, off the frame clock entirely. The picture is the same either way -- ForceAtlas2 is
+         * deterministic under `seed` and the simulation stops at `maxIter` whichever clock ran it --
+         * so this is the arrangement the story always asserted, reached the way Chromatic already
+         * reached it. ForceAtlas2Weighted spreads these args and inherits it.
+         */
+        setup: storySetup({ viewMode: "3d", preSteps: 500 }),
         layout: "forceatlas2",
         layoutConfig: {
             dim: 3,

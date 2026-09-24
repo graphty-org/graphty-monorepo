@@ -420,7 +420,7 @@ describe("the acceleration attribute: the capabilities event", () => {
 });
 
 describe("the acceleration attribute: connection lifecycle", () => {
-    test("disconnecting releases the accelerator, and reconnecting probes again", async () => {
+    test("disconnecting releases the accelerator, and reconnecting rebuilds nothing", async () => {
         registerFake();
 
         const { element, container, events } = await mount();
@@ -435,11 +435,15 @@ describe("the acceleration attribute: connection lifecycle", () => {
 
         await until(() => fake.disposed === 1, "the accelerator to be released on disconnect");
 
-        container.appendChild(element);
+        // A Graph is built once, in the element's constructor, and never rebuilt: disconnecting
+        // shuts it down, and with it the one controller the element, the Graph and the session
+        // share. So re-attaching must throw nothing and must probe nothing.
+        assert.doesNotThrow(() => container.appendChild(element));
 
-        await until(() => fake.built === 2, "a fresh probe after reconnecting");
-        await until(() => events.length > seenBeforeRemoval, "a capabilities event from the fresh controller");
-        assert.equal(latest(events).state, "idle");
+        await wait(NEVER_HAPPENS_MS);
+
+        assert.equal(fake.built, 1, "no second accelerator was built");
+        assert.equal(events.length, seenBeforeRemoval, "and nothing was published from a dead controller");
     });
 
     test("a disconnected element publishes nothing more", async () => {
@@ -459,5 +463,71 @@ describe("the acceleration attribute: connection lifecycle", () => {
         await wait(NEVER_HAPPENS_MS);
 
         assert.equal(events.length, seenAfterRemoval, "a disposed controller must not keep publishing");
+    });
+});
+
+describe("the acceleration attribute: one controller", () => {
+    test("element.session.capabilities is the same document the DOM event carried", async () => {
+        registerFake();
+
+        const { element, events } = await mount();
+
+        await until(() => events.length >= 1 && latest(events).state === "idle", "the attached capabilities event");
+
+        const event = events.at(-1);
+
+        assert.isDefined(event);
+        assert.strictEqual(
+            event?.detail.capabilities,
+            element.session.capabilities,
+            "the DOM mirror and the session read one controller, not two",
+        );
+    });
+
+    test("acceleration=off on the tag reaches session.capabilities", async () => {
+        registerFake();
+
+        const { element } = await mount({ acceleration: "off" });
+
+        assert.equal(element.session.capabilities.acceleration.state, "off");
+        assert.equal(element.session.acceleration, "off");
+        assert.equal(fake.built, 0, "nothing was probed");
+    });
+
+    test("acceleration-min-nodes reflects and reaches session.config.acceleration.minNodes", async () => {
+        const { element } = await mount({ "acceleration-min-nodes": "5000" });
+
+        assert.equal(element.accelerationMinNodes, 5_000);
+        assert.equal(element.session.config.acceleration.minNodes, 5_000);
+
+        element.accelerationMinNodes = 2_500;
+        await element.updateComplete;
+
+        assert.equal(element.getAttribute("acceleration-min-nodes"), "2500", "the property reflects back");
+        assert.equal(element.session.config.acceleration.minNodes, 2_500);
+    });
+
+    test("an unparsable acceleration-min-nodes keeps the old value and reports", async () => {
+        const reported = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const { element } = await mount({ "acceleration-min-nodes": "many" });
+
+        assert.equal(element.accelerationMinNodes, 0, "the default is kept");
+        assert.equal(element.session.config.acceleration.minNodes, 0);
+        assert.isAtLeast(reported.mock.calls.length, 1, "and the typo is not silent");
+        assert.include(
+            String(reported.mock.calls[0]?.[0]),
+            '"many"',
+            "the report names what was written in the markup, not the NaN the converter made of it",
+        );
+
+        // The whole point of not throwing: the element still renders.
+        assert.isDefined(element.shadowRoot);
+
+        // A bad PROPERTY write names the value that was written, not the last good attribute.
+        reported.mockClear();
+        element.accelerationMinNodes = -5;
+
+        assert.equal(element.accelerationMinNodes, 0, "the old threshold is kept");
+        assert.include(String(reported.mock.calls[0]?.[0]), '"-5"', "the report names what was written");
     });
 });

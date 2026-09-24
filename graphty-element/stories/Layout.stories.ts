@@ -356,7 +356,16 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        setup: storySetup({ viewMode: "3d" }),
+        /*
+         * `preSteps` MATCHES `springIterations` BELOW, because Spring is a live simulation and
+         * this story asks it for 50 iterations. A simulation computes one iteration per RENDERED
+         * frame by default, so without this the iterations below are frames, and how long the
+         * arrangement takes to arrive is a question about the browser's frame rate rather than
+         * about the graph. `preSteps` runs them before the first frame is drawn, off the frame
+         * clock entirely, and the picture is the same either way: Fruchterman-Reingold is
+         * deterministic under `seed` and stops at `iterations` whichever clock ran it.
+         */
+        setup: storySetup({ viewMode: "3d", preSteps: 50 }),
         layout: "spring",
         layoutConfig: { dim: 3 },
         springK: 1,

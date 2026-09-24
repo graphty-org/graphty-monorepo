@@ -236,7 +236,15 @@ type Story = StoryObj<StoryArgs>;
  */
 export const ForceAtlas2Fake: Story = {
     name: "ForceAtlas2 (fake accelerator)",
-    args: { layout: "forceatlas2", layoutConfig: { seed: 42 }, setup: storySetup(STORY_STYLES) },
+    /*
+     * `preSteps` IS FORCEATLAS2'S OWN `maxIter`, which this story leaves at its default of 100.
+     * The layout is a live simulation and the element advances one by a fixed number of
+     * iterations per RENDERED frame, so a story that names no pre-step count waits out its
+     * iterations at whatever rate the browser happens to draw -- and `storySetup()` names one
+     * only under the visual-regression tool. Run before the first frame instead, the arrangement
+     * is the same one: the simulation stops at `maxIter` whichever clock ran it.
+     */
+    args: { layout: "forceatlas2", layoutConfig: { seed: 42 }, setup: storySetup({ ...STORY_STYLES, preSteps: 100 }) },
     decorators: [acceleratedStory(attachFake)],
     play: async ({ canvasElement }): Promise<void> => {
         await waitForGraphSettled(canvasElement);
@@ -257,7 +265,10 @@ export const ForceAtlas2Fake: Story = {
  */
 export const SpringFake: Story = {
     name: "Spring (fake accelerator)",
-    args: { layout: "spring", layoutConfig: { seed: 42 }, setup: storySetup(STORY_STYLES) },
+    // `preSteps` is Spring's own `iterations`, which this story leaves at its default of 50: a
+    // simulation is advanced by rendered frames, so the iterations are spent before the first one
+    // is drawn rather than at the browser's frame rate. See ForceAtlas2Fake above.
+    args: { layout: "spring", layoutConfig: { seed: 42 }, setup: storySetup({ ...STORY_STYLES, preSteps: 50 }) },
     decorators: [acceleratedStory(attachFake)],
     play: async ({ canvasElement }): Promise<void> => {
         await waitForGraphSettled(canvasElement);
@@ -282,7 +293,9 @@ export const SpringFake: Story = {
  */
 export const ForceAtlas2WebGpu: Story = {
     name: "ForceAtlas2 (WebGPU)",
-    args: { layout: "forceatlas2", layoutConfig: { seed: 42 }, setup: storySetup(STORY_STYLES) },
+    // `preSteps` is ForceAtlas2's own `maxIter`, left at its default of 100: the iterations are
+    // spent before the first frame is drawn rather than one per frame. See ForceAtlas2Fake above.
+    args: { layout: "forceatlas2", layoutConfig: { seed: 42 }, setup: storySetup({ ...STORY_STYLES, preSteps: 100 }) },
     decorators: [acceleratedStory(askForWebGpu)],
     parameters: {
         chromatic: {

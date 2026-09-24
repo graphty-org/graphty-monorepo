@@ -403,6 +403,36 @@ describe("StatusBar", () => {
         });
     });
 
+    describe("the acceleration chip", () => {
+        const acceleration = {
+            label: "GPU acceleration: on (nvidia ampere)",
+            title: "NVIDIA ampere. Layouts and algorithms with a GPU path run on it.",
+            active: true,
+            onClick: vi.fn(),
+        };
+
+        it("draws in the issues slot on its own, with its label and its tooltip", () => {
+            const { container } = renderBar({ slots: { counts, issues: { acceleration } } });
+
+            expect(screen.getByText(acceleration.label)).toBeInTheDocument();
+            expect(screen.getByTitle(acceleration.title)).toBeInTheDocument();
+            expect(slotOrder(getBar(container))).toContain("issues");
+        });
+
+        it("opens Settings when clicked", () => {
+            renderBar({ slots: { counts, issues: { acceleration } } });
+            fireEvent.click(screen.getByText(acceleration.label));
+
+            expect(acceleration.onClick).toHaveBeenCalledTimes(1);
+        });
+
+        it("draws nothing when the issues slot is empty", () => {
+            const { container } = renderBar({ slots: { counts, issues: {} } });
+
+            expect(slotOrder(getBar(container))).not.toContain("issues");
+        });
+    });
+
     describe("slots 8 and 9, AI status and the selection count", () => {
         it("draws the AI status only when the model carries one", () => {
             renderBar({ slots: { ai: { label: "AI: Anthropic ready", state: "ready" }, counts } });
@@ -534,6 +564,46 @@ describe("StatusBar", () => {
             renderBar();
 
             expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+        });
+
+        it("hangs where a reader can see it, clear of the bar's own clipping", () => {
+            /* The bar clips its overflow so a slot table wider than the shell is cut off
+               rather than spilled over the canvas. The toast sits ENTIRELY above the bar,
+               so a toast drawn INSIDE that clip is cut away in full -- present in the DOM,
+               announced to a screen reader, and invisible to everyone else. The host here
+               is the shell: the bar at the bottom, 200 px of room above it. */
+            const { container } = render(
+                <div
+                    style={{
+                        width: WIDE_SHELL,
+                        height: 200,
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-end",
+                    }}
+                >
+                    <StatusBar
+                        completion={{ message: "Loaded 20 nodes and 29 edges in 1 s.", onDetails: vi.fn() }}
+                        slots={{ counts }}
+                    />
+                </div>,
+            );
+            const toast = container.querySelector<HTMLElement>("[data-status-float]");
+
+            if (toast === null) {
+                throw new Error("the toast did not render");
+            }
+
+            const box = toast.getBoundingClientRect();
+
+            expect(box.height).toBeGreaterThan(0);
+            expect(box.top).toBeGreaterThan(0);
+
+            /* Laid out is not drawn: a clipped element keeps its box. Only a hit test at
+               the middle of that box says the pixels are really there. */
+            const middle = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+
+            expect(toast.contains(middle)).toBe(true);
         });
 
         /*

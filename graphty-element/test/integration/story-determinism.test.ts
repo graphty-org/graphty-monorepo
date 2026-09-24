@@ -16,7 +16,20 @@ import path from "node:path";
 import { assert, describe, test } from "vitest";
 
 // Physics-based layouts that require seeds for deterministic results
-const PHYSICS_LAYOUTS = ["ngraph", "d3", "forceatlas2", "spring", "random"];
+const PHYSICS_LAYOUTS = ["ngraph", "d3", "forceatlas2", "spring", "spring-electrical", "random"];
+
+/**
+ * The physics layouts the element runs as a SIMULATION, which is what makes a pre-step count a
+ * story's own business rather than the visual-regression lane's.
+ *
+ * A simulation is advanced by RENDERED FRAMES -- one iteration per frame, by default -- so a
+ * story that asks one for five hundred iterations and names no pre-step count is asking for five
+ * hundred frames of animation, and how long that takes is a question about the browser rather
+ * than about the graph. The other physics layouts arrive inside `setLayout`, finished, so nothing
+ * about them depends on the frame clock. `preSteps` runs the iterations before the first frame is
+ * drawn, off that clock entirely, and the arrangement is the same one either way.
+ */
+const SIMULATION_LAYOUTS = ["forceatlas2", "spring", "spring-electrical"];
 
 // Layouts that don't support seeds but handle determinism through other means (e.g., diffThreshold)
 // D3 force layout doesn't have seed support - it uses high diffThreshold instead
@@ -129,6 +142,90 @@ function settlingHelperNames(content: string): Set<string> {
     return settling;
 }
 
+/**
+ * Every `export const Name: Story = {...}` block in a file, by story name.
+ *
+ * Collected in one pass because a story may take its arguments from another one in the same file
+ * -- `args: { ...ForceAtlas2.args, ... }` -- and what it inherits counts as much as what it
+ * writes. Each block runs from the export keyword to the brace that closes the object literal.
+ * @param content - The story file's full source.
+ * @returns The block and the line it starts on, per story, in the order they are written.
+ */
+function storyBlocks(content: string): Map<string, { block: string; line: number }> {
+    const blocks = new Map<string, { block: string; line: number }>();
+    const storyPattern = /export\s+const\s+(\w+):\s*Story\s*=\s*\{/g;
+    let match;
+
+    while ((match = storyPattern.exec(content)) !== null) {
+        const storyStartIndex = match.index;
+        let braceCount = 0;
+        let storyEndIndex = storyStartIndex;
+        let foundFirstBrace = false;
+
+        for (let i = storyStartIndex; i < content.length; i++) {
+            if (content[i] === "{") {
+                braceCount++;
+                foundFirstBrace = true;
+            } else if (content[i] === "}") {
+                braceCount--;
+            }
+
+            if (foundFirstBrace && braceCount === 0) {
+                storyEndIndex = i;
+                break;
+            }
+        }
+
+        blocks.set(match[1], {
+            block: content.slice(storyStartIndex, storyEndIndex + 1),
+            line: content.slice(0, storyStartIndex).split("\n").length,
+        });
+    }
+
+    return blocks;
+}
+
+/**
+ * Whether a story names a pre-step count that applies in every lane, its own or an inherited one.
+ *
+ * A count of zero does not qualify: it is what `storySetup()` leaves behind outside the
+ * visual-regression tool, and it is the state this check exists to find. A story that spreads
+ * another story's arguments inherits whatever that one named, which is how the weighted variants
+ * are covered without repeating the count.
+ * @param storyName - The story to answer for.
+ * @param blocks - Every story block in the file, from {@link storyBlocks}.
+ * @param seen - Story names already visited, so a pair that spread each other cannot loop.
+ * @returns True when a count of one or more reaches this story.
+ */
+function namesPreSteps(
+    storyName: string,
+    blocks: Map<string, { block: string; line: number }>,
+    seen = new Set<string>(),
+): boolean {
+    if (seen.has(storyName)) {
+        return false;
+    }
+
+    seen.add(storyName);
+
+    const block = blocks.get(storyName)?.block;
+    if (block === undefined) {
+        return false;
+    }
+
+    if (/preSteps:\s*[1-9]\d*/.test(block)) {
+        return true;
+    }
+
+    for (const spread of block.matchAll(/\.\.\.(\w+)\.args/g)) {
+        if (namesPreSteps(spread[1], blocks, seen)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Check a file for determinism issues
 function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
     const issues: DeterminismIssue[] = [];
@@ -164,38 +261,13 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
         }
     }
 
-    // Parse story exports and check physics-based layouts
-    // Look for patterns like: export const StoryName: Story = { args: { layout: "ngraph" } }
-    const storyPattern = /export\s+const\s+(\w+):\s*Story\s*=\s*\{/g;
-    let match;
+    // Check the physics-based layouts, story block by story block. The blocks are collected
+    // first because a story may inherit its arguments from another one in the same file.
+    const blocks = storyBlocks(content);
 
-    while ((match = storyPattern.exec(content)) !== null) {
-        const storyName = match[1];
-        const storyStartIndex = match.index;
-
-        // Find the story block by matching braces
-        let braceCount = 0;
-        let storyEndIndex = storyStartIndex;
-        let foundFirstBrace = false;
-
-        for (let i = storyStartIndex; i < content.length; i++) {
-            if (content[i] === "{") {
-                braceCount++;
-                foundFirstBrace = true;
-            } else if (content[i] === "}") {
-                braceCount--;
-            }
-
-            if (foundFirstBrace && braceCount === 0) {
-                storyEndIndex = i;
-                break;
-            }
-        }
-
-        const storyBlock = content.slice(storyStartIndex, storyEndIndex + 1);
-
+    for (const [storyName, { block: storyBlock, line: storyLineNum }] of blocks) {
         // Check if this story uses a physics-based layout
-        const layoutMatch = /layout:\s*["'](\w+)["']/.exec(storyBlock);
+        const layoutMatch = /layout:\s*["']([\w-]+)["']/.exec(storyBlock);
         if (!layoutMatch) {
             continue;
         }
@@ -204,9 +276,6 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
         if (!PHYSICS_LAYOUTS.includes(layout)) {
             continue;
         }
-
-        // Calculate line number of story definition
-        const storyLineNum = content.slice(0, storyStartIndex).split("\n").length;
 
         // Check for seed in layoutConfig or aliased args
         // Storybook argTypes can map args like "randomSeed" or "ngraphSeed" to "graph.layoutOptions.seed"
@@ -230,18 +299,30 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
             });
         }
 
-        // Check for preSteps in the story's setup. `storySetup()` fills in a Chromatic default,
-        // so a story that calls it is covered whether or not it names a count of its own.
-        const hasPreSteps =
-            /preSteps:\s*\d+/.test(storyBlock) ||
-            /preSteps:\s*isChromatic/.test(storyBlock) ||
-            /storySetup\s*\(/.test(storyBlock);
+        // Check for preSteps in the story's setup.
+        //
+        // A SIMULATION IS HELD TO THE COUNT IT NAMES ITSELF. `storySetup()` fills in 2000 under
+        // the visual-regression tool and ZERO everywhere else, so a call to it says nothing about
+        // the lane that runs the story's play function -- and for a layout the element advances
+        // one iteration per rendered frame, zero pre-steps is the whole of the wait. That is what
+        // this check used to accept: it took the presence of a `storySetup(` call as proof, which
+        // was true while only the visual-regression lane needed a settled picture and stopped
+        // being true the day these layouts became simulations. Every other physics layout is
+        // finished when `setLayout` returns, so the Chromatic default is all it needs.
+        const simulation = SIMULATION_LAYOUTS.includes(layout);
+        const hasPreSteps = simulation
+            ? namesPreSteps(storyName, blocks)
+            : /preSteps:\s*\d+/.test(storyBlock) ||
+              /preSteps:\s*isChromatic/.test(storyBlock) ||
+              /storySetup\s*\(/.test(storyBlock);
 
         if (!hasPreSteps) {
             issues.push({
                 file: relativePath,
                 line: storyLineNum,
-                issue: `Story "${storyName}" uses physics layout "${layout}" without preSteps - will not settle before Chromatic capture`,
+                issue: simulation
+                    ? `Story "${storyName}" uses simulation layout "${layout}" without a preSteps count of its own - storySetup() leaves preSteps at 0 outside Chromatic, so the layout's iterations are spent one per rendered frame`
+                    : `Story "${storyName}" uses physics layout "${layout}" without preSteps - will not settle before Chromatic capture`,
                 severity: "error",
             });
         }

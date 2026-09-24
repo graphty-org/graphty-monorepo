@@ -101,6 +101,15 @@ mean writing code with a known replacement already specified.
 Holding the branch until those three are resolved means holding it through the churn described
 above, which is the expensive merge this decision exists to avoid.
 
+**Amended 2026-09-21: the first bullet was wrong about the tree.** The layout extension point did
+not stop being a class. Version 2 landed with `LayoutEngine.register(cls)` still the registration
+idiom, the extension note still telling a third party to write a class, and no `LayoutFactory`
+registry anywhere, so phase M6's accelerated layout IS a class extending `LayoutEngine` --
+`graphty-element/src/layout/SimulationLayoutEngine.ts`, registered beside the other sixteen
+built-ins. The other two bullets stand: the per-frame channel is still `positions.buffer`'s to
+take, and `snapshot-replaced` is still an internal event with no place in the DOM catalogue. See
+`design/decisions/2026-09-21-m6-bridge-is-a-layout-engine.md`.
+
 ## Three things that must be fixed before or during the landing
 
 **1. The `snapshot-replaced` event leaks to the DOM.** The element forwards every internal event to

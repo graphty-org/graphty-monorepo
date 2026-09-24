@@ -1,8 +1,18 @@
-import { Edge as LayoutEdge, Node as LayoutNode, springLayout } from "@graphty/layout";
+/**
+ * @file The Spring layout: Fruchterman-Reingold, computed on the CPU or on an accelerator.
+ *
+ * It used to be a one-shot pass -- run `springLayout` over a node and edge list, publish the
+ * answer, stop -- which is why the catalogue called it a batch layout. It is now a steppable
+ * simulation from `@graphty/layout`, so it keeps running until the arrangement settles and reheats
+ * on a drag or a pin, and the element decides at every load whether the simulation is the CPU's or
+ * the accelerator's.
+ */
+
+import type { SimulationType } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
  * Zod-based options schema for Spring Layout
@@ -55,66 +65,26 @@ const springLayoutOptionsSchema = defineOptions({
     },
 });
 
-const SpringLayoutConfig = z.strictObject({
-    ...SimpleLayoutConfig.shape,
-    k: z.number().or(z.null()).default(null),
-    pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
-    fixed: z.array(z.number()).or(z.null()).default(null),
-    iterations: z.number().positive().default(50),
-    scale: z.number().positive().default(1),
-    center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
-    dim: z.number().default(3),
-    seed: z.number().positive().or(z.null()).default(null),
-});
-type SpringLayoutConfigType = z.infer<typeof SpringLayoutConfig>;
-type SpringLayoutOpts = Partial<SpringLayoutConfigType>;
-
 /**
- * Spring layout engine using Fruchterman-Reingold force-directed algorithm
+ * The Spring engine, as the element declares it.
+ *
+ * Every member is a static the element reads: `LayoutManager` builds the bridge itself, with the
+ * graph's acceleration controller, so this class never runs a layout of its own. It declares no
+ * `static descriptor` because its arrangement is authored in the layout catalogue, where it sits
+ * under `force`.
  */
-export class SpringLayout extends SimpleLayoutEngine {
+export class SpringLayout extends SimulationLayoutEngine {
     static type = "spring";
+    static simulationType: SimulationType = "spring";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = springLayoutOptionsSchema;
-    scalingFactor = 100;
-    config: SpringLayoutConfigType;
 
     /**
-     * Create a spring layout engine
-     * @param opts - Configuration options including spring constant and iterations
-     */
-    constructor(opts: SpringLayoutOpts) {
-        super(opts);
-        this.config = SpringLayoutConfig.parse(opts);
-    }
-
-    /**
-     * Get dimension-specific options for spring layout
-     * @param dimension - The desired dimension (2 or 3)
-     * @returns Options object with dim parameter
+     * Get dimension-specific options for spring layout.
+     * @param dimension - The desired dimension (2 or 3).
+     * @returns Options object with dim parameter.
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
         return { dim: dimension };
-    }
-
-    /**
-     * Compute node positions using spring-based force simulation
-     */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = springLayout(
-            { nodes, edges },
-            this.config.k,
-            this.config.pos,
-            this.config.fixed,
-            this.config.iterations,
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-            this.config.seed,
-        );
     }
 }

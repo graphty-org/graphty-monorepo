@@ -14,9 +14,10 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
  * too-small message rather than a dialog floating over it.
  */
 const MANTINE_MODAL_Z_INDEX = 200;
-import type { GraphStatistics, Histogram, Layer, LayerSpec, RunId, RunResult } from "@graphty/graphty-element/session";
+import type { AccelerationStatus, GraphStatistics, Histogram, Layer, LayerSpec, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
+import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
 import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
@@ -231,6 +232,29 @@ async function reportLoadingError(container: HTMLElement, message?: string): Pro
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
         }
+    });
+}
+
+/**
+ * Reports an acceleration transition, as graphty-element does on every change of its
+ * controller: a bubbling, composed CustomEvent carrying the published document.
+ * @param container - the render result's container.
+ * @param status - the status the element would publish.
+ */
+async function reportAcceleration(container: HTMLElement, status: AccelerationStatus): Promise<void> {
+    const element = container.querySelector("graphty-element");
+
+    expect(element).not.toBeNull();
+
+    await act(async () => {
+        element?.dispatchEvent(
+            new CustomEvent("graphty-capabilities-change", {
+                bubbles: true,
+                composed: true,
+                detail: { capabilities: { acceleration: status } },
+            }),
+        );
+        await Promise.resolve();
     });
 }
 
@@ -4258,6 +4282,131 @@ describe("AppShell", () => {
             });
 
             expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
+        });
+    });
+
+    /* The one setting the element applies the moment it is written, and the one the element
+       refuses to remember: the shell holds it, writes it on the tag and writes it to storage,
+       so a reader who switched the GPU off finds it off on their next visit. */
+    describe("the acceleration policy", () => {
+        afterEach(() => {
+            window.localStorage.removeItem(ACCELERATION_SETTINGS_STORAGE_KEY);
+        });
+
+        it("mounts the element with the policy the reader stored", async () => {
+            window.localStorage.setItem(ACCELERATION_SETTINGS_STORAGE_KEY, '{"policy":"off"}');
+
+            const { container } = await renderMeasuredShell();
+
+            expect(container.querySelector("graphty-element")?.getAttribute("acceleration")).toBe("off");
+        });
+
+        it("writes a change to the element at once and remembers it", async () => {
+            const { container } = await renderMeasuredShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+            /* Settings opens on its first section, Appearance, and draws only the active
+               section's pane, so the Performance tab is a click of its own. */
+            fireEvent.click(screen.getByRole("tab", { name: "Performance" }));
+            fireEvent.click(screen.getByRole("radio", { name: "Required" }));
+
+            expect(container.querySelector("graphty-element")?.getAttribute("acceleration")).toBe("required");
+            expect(window.localStorage.getItem(ACCELERATION_SETTINGS_STORAGE_KEY)).toBe('{"policy":"required"}');
+        });
+    });
+
+    /* What the reader is told about the GPU, and where. The element decides everything --
+       whether there is an accelerator, which one, and whether it has just been lost -- and
+       publishes one document on every transition; the shell listens on its frame, as it does
+       for the load events, and draws the document. It asks the machine nothing. */
+    describe("the acceleration chip and the device-lost report", () => {
+        afterEach(() => {
+            window.localStorage.removeItem(ACCELERATION_SETTINGS_STORAGE_KEY);
+        });
+
+        it("draws no chip before the element has spoken, with no dataset loaded", async () => {
+            const { container } = await renderMeasuredShell();
+
+            expect(container.querySelector("[data-status-spacer]")).not.toBeNull();
+            expect(screen.queryByText(/^GPU acceleration/)).toBeNull();
+        });
+
+        it("draws the chip as soon as the element reports, with or without a dataset", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, { state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
+
+            expect(screen.getByText("GPU acceleration: on (nvidia ampere)")).toBeInTheDocument();
+        });
+
+        it("opens Settings > Performance from the chip", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, { state: "idle", backend: "webgpu" });
+            fireEvent.click(screen.getByText("GPU acceleration: on"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+        });
+
+        it("reports a lost device through the toast and flips the chip, without dismissing itself", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, {
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+
+            const toast = statusToast(container);
+
+            expect(toast).not.toBeNull();
+            expect(toast).toHaveTextContent("the accelerator's device was lost: reset");
+            expect(within(toast as HTMLElement).getByText("Open Settings")).toBeInTheDocument();
+            expect(screen.getByText("GPU acceleration: off")).toBeInTheDocument();
+
+            /* The element attempts a fresh accelerator by itself, so the toast leaves when the
+               next transition says the machine is working again. Nothing dismisses it here. */
+            await reportAcceleration(container, { state: "idle", backend: "webgpu" });
+
+            expect(statusToast(container)).toBeNull();
+        });
+
+        it("lets a failed load win the toast", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportLoadingError(container, "bad file");
+            await reportAcceleration(container, {
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+
+            /* Two producers, one toast. The failed load is the one the reader just caused, so
+               it is the one the toast says; the GPU fact is on the chip beside it either way.
+               `statusToast` rather than the alert role: the Welcome drop zone reports the same
+               failed load inline, and that is a second live region. */
+            const toast = statusToast(container);
+
+            expect(toast).not.toBeNull();
+            expect(toast).toHaveTextContent("bad file");
+            expect(toast).not.toHaveTextContent("the accelerator's device was lost: reset");
+        });
+
+        it("shows a reader who required acceleration why there is none", async () => {
+            window.localStorage.setItem(ACCELERATION_SETTINGS_STORAGE_KEY, '{"policy":"required"}');
+
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, {
+                state: "unavailable",
+                code: "E_NO_WEBGPU",
+                reason: "this browser has no WebGPU",
+            });
+
+            expect(container.querySelector("graphty-element")?.getAttribute("acceleration")).toBe("required");
+            expect(screen.getByText("GPU acceleration: off")).toBeInTheDocument();
+            expect(screen.getByTitle("this browser has no WebGPU")).toBeInTheDocument();
+            expect(statusToast(container)).toBeNull();
         });
     });
 });

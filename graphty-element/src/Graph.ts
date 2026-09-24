@@ -23,7 +23,9 @@ import {
     WebGPUEngine,
     WebXRDefaultExperience,
 } from "@babylonjs/core";
+import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
@@ -197,6 +199,27 @@ export class Graph implements GraphContext {
         // }
     };
 
+    /**
+     * The one acceleration controller this graph, its session and its element share.
+     *
+     * Built here because it is the earliest owner both the element's `acceleration` attribute and
+     * the session can reach: the element builds its Graph in its own constructor, before Lit has
+     * parsed an attribute, and the Graph builds the session in its. It is disposed by
+     * {@link shutdown}, so it lives and dies with the graph.
+     * @since 2.0.0
+     */
+    readonly acceleration: AccelerationController;
+
+    /**
+     * The snapshot the graph is showing, which an accelerator may hold device buffers for.
+     *
+     * Null until the first freeze and again once the dataset is cleared, so a graph that never
+     * loaded anything releases nothing when it shuts down and a cleared one never hands an
+     * accelerator a snapshot it was already told about. There is no "has frozen" flag to ask
+     * instead: the store's `stale` is true both before the first freeze and after a later edit.
+     */
+    #resident: GraphSnapshot | null = null;
+
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
@@ -309,6 +332,13 @@ export class Graph implements GraphContext {
         // Initialize DataManager
         this.dataManager = new DataManager(this.eventManager, this.styles);
 
+        // ONE controller for the element, this graph and its session. Nothing is probed until
+        // `start()` is called, which the element does from `connectedCallback`.
+        this.acceleration = new AccelerationController({
+            policy: ACCELERATION_POLICY_DEFAULT,
+            minNodes: ACCELERATION_MIN_NODES_DEFAULT,
+        });
+
         // The headless model, over the store the data manager already owns for the life of the
         // graph. It is handed that store rather than building one, because a second store would be
         // a second, disagreeing copy of the same graph -- and because the store's lifetime belongs
@@ -318,6 +348,7 @@ export class Graph implements GraphContext {
         // weights; the arbitrary keys a record was imported with still live on the render objects,
         // so until an attribute column lands in the store the session reads them from here.
         this.session = createElementSession({
+            acceleration: this.acceleration,
             store: this.dataManager,
             records: {
                 nodeAttributes: (_index, id) => this.dataManager.getNode(id)?.data,
@@ -373,6 +404,31 @@ export class Graph implements GraphContext {
 
         // Initialize LayoutManager
         this.layoutManager = new LayoutManager(this.eventManager, this.dataManager, this.styles);
+
+        // The release list (WebGPU design 9.4 item 2). GPU memory is not garbage collected, so an
+        // accelerator holding device buffers for a snapshot has to be TOLD when that snapshot stops
+        // being the graph -- which is what a freeze does to the one before it.
+        //
+        // AFTER the layout manager's own subscription, deliberately: observers run in subscription
+        // order, so the running simulation has already been handed the new snapshot by the time the
+        // previous one's buffers are freed, and nothing ever steps a snapshot whose memory has gone.
+        this.eventManager.onGraphEvent.add((event) => {
+            if (event.type === "snapshot-replaced") {
+                this.#resident = event.next;
+                this.releaseSnapshot(event.previous);
+                return;
+            }
+
+            // The other way a snapshot stops being the graph: clearing the data discards the store
+            // and everything it froze WITHOUT freezing a replacement, so no `snapshot-replaced`
+            // ever names it. Without this branch the snapshot that was on screen would keep its
+            // device buffers for the accelerator's life -- the leak the release list exists to
+            // close -- and the field would go on pointing into a store that no longer exists.
+            if (event.type === "snapshot-dropped") {
+                this.releaseSnapshot(this.#resident);
+                this.#resident = null;
+            }
+        });
 
         // Bring the session's paint up to date once the rows a load added exist. A style pass is
         // over a dense index space, so it cannot paint a node the store has not taken yet; this is
@@ -616,13 +672,88 @@ export class Graph implements GraphContext {
         // Use cleanup for common operations
         this.cleanup();
 
-        // The session goes first: it releases the accelerator it attached and stops answering data
-        // questions, and it deliberately does NOT touch the store, which belongs to the data
-        // manager the lifecycle manager is about to dispose.
+        // The session goes first: it stops answering data questions, and it deliberately does NOT
+        // touch the store, which belongs to the data manager the lifecycle manager is about to
+        // dispose -- nor the controller, which is handed to it and released below.
         this.session.dispose();
+
+        // The undirected copy of the resident snapshot is looked up HERE, while the data manager
+        // still holds the store that cached it: disposing the managers below replaces that store,
+        // and a lookup afterwards would build a fresh copy no accelerator had ever seen -- so the
+        // release would free nothing and the real buffers would leak. It is looked up only when
+        // there is an accelerator with a `release` to hand it to: deriving it is a full CSR
+        // symmetrization of the whole edge list, and a graph that ran on the CPU must not pay for
+        // one at teardown to feed a release that does nothing.
+        const resident = this.#resident;
+        let residentUndirected: GraphSnapshot | undefined;
+        try {
+            if (resident !== null && typeof this.acceleration.accelerator?.release === "function") {
+                residentUndirected = this.dataManager.undirected(resident).snapshot;
+            }
+        } catch (error) {
+            // Symmetrizing a whole edge list is the one step here that can throw, and a throw would
+            // skip the manager teardown and the controller dispose below -- a leaked scene and a
+            // device that is never destroyed, to avoid leaking one buffer. The release that follows
+            // still frees the snapshot itself.
+            console.warn("graphty: an undirected copy could not be derived for release", error);
+        }
 
         // Dispose all managers through lifecycle manager
         this.lifecycleManager.dispose();
+
+        // The buffers go after the managers, for the reason the controller goes after them too:
+        // disposing the managers is what stops the running layout, so by now no simulation can be
+        // reading the snapshot whose device memory this frees.
+        this.releaseSnapshot(resident, residentUndirected);
+        this.#resident = null;
+
+        // The controller goes LAST. Disposing the managers is what stops the running layout
+        // engine, and a simulation stepped after its accelerator's device had been destroyed
+        // would run against a dead context.
+        this.acceleration.dispose();
+    }
+
+    /**
+     * Frees the accelerator's device buffers for a snapshot the graph has stopped showing.
+     *
+     * `release` is feature-tested, never required: `GraphAccelerator` declares it through the index
+     * signature, so a third party may implement one layout and no residency at all. The undirected
+     * copy is released beside the snapshot because that is the copy the device usually holds -- a
+     * layout simulation loads the undirected view of every snapshot -- and is skipped when the
+     * graph is undirected already, where the two are one object.
+     * @param snapshot - The snapshot to release; null before the first freeze, and nothing is done.
+     * @param undirected - Its undirected copy, when the caller already holds it. Left out, it is
+     * looked up here -- and only once there is something to release it to, so a graph running on
+     * the CPU never derives a copy nobody asked for.
+     */
+    private releaseSnapshot(snapshot: GraphSnapshot | null, undirected?: GraphSnapshot): void {
+        const { accelerator } = this.acceleration;
+        if (snapshot === null || accelerator === null) {
+            return;
+        }
+
+        const { release } = accelerator;
+        if (typeof release !== "function") {
+            return;
+        }
+
+        // A third party's `release` is untrusted code on a teardown path: a throw here would skip
+        // the controller dispose that destroys the device, so it is caught and reported, the way
+        // the controller already treats `dispose()`.
+        const free = (released: GraphSnapshot): void => {
+            try {
+                (release as (target: GraphSnapshot) => void).call(accelerator, released);
+            } catch (error) {
+                console.warn("graphty: an accelerator threw while releasing a snapshot", error);
+            }
+        };
+
+        free(snapshot);
+
+        const copy = undirected ?? this.dataManager.undirected(snapshot).snapshot;
+        if (copy !== snapshot) {
+            free(copy);
+        }
     }
 
     /**
@@ -2175,6 +2306,15 @@ export class Graph implements GraphContext {
         return this.eventManager;
     }
 
+    /**
+     * Get the acceleration controller this graph owns, for a manager reached through GraphContext.
+     * @returns The acceleration controller
+     * @since 2.0.0
+     */
+    getAcceleration(): AccelerationController {
+        return this.acceleration;
+    }
+
     // ============================================================================
     // SELECTION API
     // ============================================================================
@@ -2689,6 +2829,9 @@ export class Graph implements GraphContext {
 
     /**
      * Set whether the layout engine should run.
+     *
+     * Resuming a simulation layout that had settled restarts it, so "play" moves nodes again;
+     * pausing stops the per-frame stepping and nothing else.
      * @param running - True to start the layout, false to stop it
      */
     setRunning(running: boolean): void {

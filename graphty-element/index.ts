@@ -277,4 +277,11 @@ export type {
     WorkerCapability,
     XrCapability,
 } from "./src/acceleration";
-export { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_MIN_NODES_KEY, CPU_PRECISION } from "./src/acceleration";
+export {
+    ACCELERATION_MIN_NODES_DEFAULT,
+    ACCELERATION_MIN_NODES_KEY,
+    ACCELERATION_POLICIES,
+    ACCELERATION_POLICY_DEFAULT,
+    CPU_PRECISION,
+    isAccelerationPolicy,
+} from "./src/acceleration";

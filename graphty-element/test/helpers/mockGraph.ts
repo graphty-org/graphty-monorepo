@@ -14,6 +14,7 @@
  */
 import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
 
+import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { GraphStore } from "../../src/data/GraphStore";
 import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/data/ingest";
 import type { Graph } from "../../src/Graph";
@@ -48,6 +49,13 @@ export interface MockGraphOpts {
     edges?: EdgeData[];
     /** Path to a JSON data file to import nodes/edges from */
     dataPath?: string;
+    /**
+     * What the store is told about direction; `"auto"` (the default) leaves the builder directed.
+     *
+     * A mock that declares `false` freezes an UNDIRECTED snapshot, which is what an algorithm that
+     * refuses one has to be tested against.
+     */
+    directed?: boolean;
 }
 
 /**
@@ -96,14 +104,16 @@ export interface MockSnapshotSource {
  * falls back to the legacy "value" key, which is what every fixture in this repository carries.
  * @param nodes - the mock's node records, keyed by id
  * @param edges - the mock's edge records, keyed by "srcId:dstId"
+ * @param directed - what to tell the store about direction; "auto" leaves the builder directed
  * @returns the two members to put on the mock's data manager
  */
 export function createMockSnapshotSource(
     nodes: ReadonlyMap<string | number, Record<string | number, unknown>>,
     edges: ReadonlyMap<string | number, Record<string | number, unknown>>,
+    directed: boolean | "auto" = "auto",
 ): MockSnapshotSource {
     const store = new GraphStore({
-        directed: "auto",
+        directed,
         positionScale: () => 1,
         onNodeRemap: () => undefined,
         onEdgeRemap: () => undefined,
@@ -115,7 +125,11 @@ export function createMockSnapshotSource(
     }
 
     for (const record of edges.values()) {
-        ingestEdge(store, record.srcId, record.dstId, resolveEdgeWeight(record, "weight").weight);
+        const { index } = ingestEdge(store, record.srcId, record.dstId, resolveEdgeWeight(record, "weight").weight);
+        // `Edge.index` is the dense row an edge result is keyed by, and `DataManager` writes it
+        // onto every edge it builds. A mock whose edges lack it is a mock an edge-result adapter
+        // cannot read.
+        record.index = index;
     }
 
     return {
@@ -202,7 +216,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
     // DataManager pushes them in. Order matters: it is the order the snapshot assigns dense
     // indices in, and an algorithm that breaks a tie by node order would otherwise see a different
     // graph here than in the running element.
-    const snapshots = createMockSnapshotSource(nodes, edges);
+    const snapshots = createMockSnapshotSource(nodes, edges, opts.directed ?? "auto");
 
     // Create mock graph with data manager
     // Using a type assertion because we're creating a minimal mock that only
@@ -210,6 +224,11 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
     const mockGraph = {
         nodes,
         edges,
+        /* The one controller a real `Graph` builds in its constructor, which is where an algorithm
+           with an accelerated implementation asks whether to use one. Its own registry, so a fake
+           registered by one test is invisible to the next; a test attaches one with
+           `graph.acceleration.setAccelerator(fake)`. */
+        acceleration: new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() }),
         getDataManager() {
             return {
                 nodes,

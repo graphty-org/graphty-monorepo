@@ -280,6 +280,48 @@ do not ship. And it collides with section 4 head-on: every worker death on recor
 binary running against a newer C library than it was built for. Pinning the old binary on the one lane that
 could answer whether that matters keeps the question open permanently, on purpose.
 
+### 3.2 Running the node projects on the 22.04 dev box anyway, and what that does not settle
+
+Section 3.1 rules out upgrading the C library **in place**, and that verdict stands: `GLIBC_2.38` is the loader
+and libc itself, and no 22.04 archive has it. What is possible, and was done on 2026-09-24 to get the frame-loop
+work measured on real hardware, is not replacing anything -- it is running ONE process under a SECOND loader
+that lives in a scratch directory:
+
+```bash
+# unpack 24.04's C library next to nothing in particular; no root, no package manager, no container
+mkdir -p /tmp/noble && cd /tmp/noble
+for u in main/g/glibc/libc6_2.39-0ubuntu8.9_amd64.deb \
+         main/g/gcc-14/libstdc++6_14.2.0-4ubuntu2~24.04.1_amd64.deb \
+         main/g/gcc-14/libgcc-s1_14.2.0-4ubuntu2~24.04.1_amd64.deb; do
+    curl -sSLO "http://archive.ubuntu.com/ubuntu/pool/$u"
+done
+mkdir -p root && for f in *.deb; do dpkg-deb -x "$f" root; done
+NL=/tmp/noble/root/usr/lib/x86_64-linux-gnu
+
+# start node through THAT loader, and run vitest's .mjs entry (the .bin/vitest shim is a shell script)
+$NL/ld-linux-x86-64.so.2 --library-path "$NL:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu" \
+  "$(command -v node)" node_modules/vitest/vitest.mjs run --pool=threads --project=node <files>
+```
+
+`webgpu@0.6.1` loads, the adapter is the real RTX 4070 SUPER on the real 580.173.02 driver, and the node project
+runs 2,261 tests. The default lane runs the same way with `GRAPHTY_GPU_ADAPTER=llvmpipe` and the 22.04 ICD path.
+
+**Its two limits, both of which otherwise look like unrelated bugs.** A child process does not inherit the
+loader: it is exec'd through the binary's own interpreter, which is the 22.04 one. So any test that spawns node
+fails at exec -- `test/benchmarks.test.ts`, nine cases, exit 127 -- and those failures are the harness, not the
+code. And the run needs `--pool=threads`: the forks pool spawns `process.execPath`, which is the plain node the
+loader exists to work around, so a forked worker cannot load Dawn at all. Threads inherit the process, so they
+can. `patchelf --set-interpreter` on a copy of the node binary would fix both at once and let the configured
+forks pool work; it segfaulted on this node build and was not pursued.
+
+**What this does NOT settle, and the reason it is filed here rather than in section 3.** It is one developer's
+box, not a lane -- CI cannot download debs into a scratch directory as a substitute for an image, and the forks
+pool that the `node` project deliberately configures is exactly what it cannot run. It changes nothing about
+ENV-F6: the pre-push gate still refuses this branch on 22.04, correctly. It does not touch the container move,
+which remains the fix. What it buys is that the dev box stops being structurally incapable of finding the class
+of defect ENV-F7 describes -- which is how ENV-F9 below was found, and how the frame-loop reproduction in
+ENV-F10 was measured on the adapter that shows it.
+
 ## 4. The intermittent abort: what is known, what is not
 
 **Observed frequency, and it is not once.** The abort is one visible face of a failure that is recurring. Across
@@ -433,6 +475,9 @@ trusting a comment -- and for not re-recording a baseline to make a red row go a
 | `webgpu-graph-algorithms/test/device/acquire.test.ts` | The asserted hint string follows. |
 | `webgpu-graph-algorithms/src/memory/readback.ts` | The redundancy note of item 8. No behaviour change. |
 | `webgpu-graph-algorithms/README.md` | The install section gives the measured rule for which build a Linux consumer can load, in symbol versions rather than a distribution name, and stops telling every consumer to install 0.4.0. |
+| `webgpu-graph-algorithms/test/helpers/frame-loop.ts` and the three pause cases that use it | The pause is entered by FILLING the flight with synchronous `step()` calls and closed on the observed `flush()`, instead of waiting for a tick that happens to start saturated and ending on a tick count. The report names `pauseStartTick` and `pauseEndTick` so the cases stop hunting for the saturated tick themselves, and they no longer calibrate a batch length against a measured tick rate at all. ENV-F10. |
+| `.github/workflows/ci.yml` (second change) | A `workflow_dispatch` against a non-master ref now reaches the build-everything step. It previously matched neither the pull-request gate nor the master gate, so nothing was built and all twenty shards failed at their first artifact download (run 35943267536). Master is unchanged; the docs, gh-pages and performance steps stay master-only. Verified by dispatch run 35964822458: 27 jobs green, 2 correctly skipped. |
+| `pnpm-lock.yaml` | Merging master left the lockfile naming a `webgpu@0.4.0` snapshot the bump had removed, so `pnpm install --frozen-lockfile` refused the tree and every CI job on the branch died before building. The published `@graphty/webgpu-graph-algorithms@0.2.1` that the graphty app depends on now resolves its optional peer to 0.6.1. |
 
 ## 6. Findings and owner decisions
 
@@ -445,4 +490,6 @@ trusting a comment -- and for not re-recording a baseline to make a red row go a
 | ENV-F8 | PageRank roughly doubles on the new lane, and it is the SECOND time this exact regression has happened: `pagerank 100 iterations at 100k/1M` 89.854 ms against a 45.461 ms baseline (median x1.98, minimum x1.96) and `1M/10M` 1785.337 ms against 1092.799 ms (x1.63 / x1.62), the minimum moving with the median. Section 4.1 is the investigation. | **Do not close item 11 by re-recording the baseline.** The evidence points at the shader compiler in `webgpu` 0.6.x undoing a specialisation the package added two days earlier, which is a real defect and not a new normal. A re-recorded baseline would make it permanent and invisible. Any kernel change belongs on its own branch; this one records the finding and leaves the gate item open. |
 | ENV-F7 | The first containerised dispatch failed on two assertions that pin the OLD `webgpu` version -- `test/build-output.test.ts` expecting the devDependency to be `0.4.0`, and a second copy of the install-hint string in `test/node/entry.test.ts`. Both live in the `node` project, which the dev box could not run at all after the bump, so nothing local could have caught them. | Fixed by following the pin, not by relaxing the assertions: both are deliberate contract tests and both now name 0.6.1. `test/build-output.test.ts`'s assertion on the PEER range is untouched, because that range is unchanged by design. The wider point is the one worth keeping: the lane found in twenty minutes what the developer machine is now structurally incapable of finding, which is the argument for fixing the dev container rather than working around it. |
 | ENV-F6 | The branch cannot pass `tools/prepush.sh` on a 22.04 box: the gate requires an adapter and 0.6.1 gives none. Build, bundle, lint and knip pass; the package's node projects fail up front. | Expected and correct -- the gate is behaving as designed, and it is the cheapest independent confirmation that the bump needs the container move first. No change to the gate is proposed: weakening it to let this branch through would remove the check that caught it. Push after section 3 item 1, or with `--no-verify` if the red state is understood. |
+| ENV-F9 | **The bump coarsens Dawn's timestamp resolution 64-fold, and one test reads it as zero.** Under `webgpu@0.4.0` every raw timestamp is a multiple of 1,024 ns; under 0.6.1 every one is a multiple of 65,536 ns. Measured on the SAME card, same driver, same test, by pointing `node_modules/webgpu` at each store copy in turn: 0.4.0 without the 24.04 loader and 0.4.0 with it both read 1,024 ns ticks and pass 3 of 3; 0.6.1 reads 65,536 ns and fails 10 of 10. lavapipe under 0.6.1 is on the same 65,536 ns grid and passes only because its fills take 2.6-5.5 ms rather than 19-31 us. So it is the runtime, not the adapter, and not the loader of section 3.2. `test/kernel/profiler.test.ts` asserts `ns > 0` on two passes that fill 16 MiB and 8 MiB; on the RTX 4070 SUPER those are under half a tick, so `end - begin` is exactly 0. | **Open, and it will turn the T4 lane red** -- the default lane cannot see it, so `gpu.yml` is where it lands, and `release.yml` requires that lane green. Not fixed here because the remedy is a judgement the owner owns, and the two candidates differ in what they claim: enlarge the passes so a timing outlasts 65,536 ns (the card's `maxStorageBufferBindingSize` is 128 MiB, so there is 8x of headroom, but the same fills then cost lavapipe ~40 ms), or accept that "unquantised, 1,024 ns" is a `webgpu@0.4.0` fact and let the profiler report the resolution it is actually on. Do NOT relax the assertion to `ns >= 0`: a pass that never ran and a pass that ran inside one tick would then read the same. |
+| ENV-F10 | **A test that measures the machine's speed once and then asserts on a moment derived from that measurement is wrong the instant the speed changes between the measuring and the using, and it fails naming neither.** `test/layouts/frame-loop.test.ts`'s pause case sized `iterationsPerStep` against a sampled tick rate so that some tick would start with the flight saturated; on the Windows host lane it was the only failure in 2,259 tests, reported as `expected [ ...(1) ] to deeply equal []` -- an assertion about an array, with nothing pointing at a clock. The general form matters more than the case: this package times things in many places, and two more cases routed through the same helper with the same defect (`test/layouts/fr-frame-loop.test.ts`, `test/browser/forceatlas2.test.ts`). **The negative result is half the finding.** Steady load does NOT reproduce it, because the calibration inflates along with everything else and the race stays winnable: the shipped case passed 20 of 20 on the dev box under steady saturation and 20 of 20 under bursty saturation while carrying the defect. Anyone who loads their local box, sees green and concludes the flake is gone has learned nothing. What demonstrated it was the OLD code at a batch size its calibration would not have chosen -- four iterations per step, about a tenth of a tick on the card -- which failed 18 of 20 runs, 16 printing the Windows lane's exact line and 2 failing the other way (the pause started at tick 556 and its 100-tick window ran off the end of a 600-tick run). | Fixed at the root rather than tuned: the pause now reaches the saturated state BY CONSTRUCTION, filling the flight with synchronous `step()` calls because `inFlight` rises with the call, and closes its window on the `flush()` it watched resolve rather than on a tick count, so a stalled box gets a longer pause instead of a failed assertion. Nothing was widened, retried or skipped, and the case asserts exactly what it did. After: 20 of 20 on lavapipe quiet, 20 of 20 loaded, 20 of 20 on the card quiet, 20 of 20 loaded, 10 of 10 in Chromium on SwiftShader loaded. The rule and the negative result are in `CLAUDE.md` under Testing, because the next instance of this will not be in the frame loop. |
 | ENV-F5 | The node shard loses a vitest worker in about 15% of its CI runs (five of the last 33, two branches). One of the five printed a glibc futex abort; four printed nothing. The cause is unexplained and the bump's effect on it is unknown. | Section 4 states the experiment, which counts lost workers rather than abort messages -- grepping for the abort would have scored four of the five as clean. Do not close G-ENV green because a handful of runs happened not to fail: at 15% a quiet stretch of four runs is a 1-in-16 coincidence. |

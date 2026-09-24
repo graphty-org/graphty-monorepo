@@ -183,6 +183,32 @@ describe("metric results", () => {
         it("pagerank says nothing about convergence when the delta method ran", async () => {
             // The delta method reports `iterations: maxIterations` and `converged: true` whatever
             // happened, so a run that took it cannot answer either question.
+            //
+            // A personalization vector is what keeps this run on the reference implementation,
+            // which is the only place the delta method lives: no index-based port takes one, so a
+            // run that asks for one is answered by the implementation that does.
+            const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
+            const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
+            const graph = await createMockGraph({ nodes, edges });
+            const personalization = new Map(nodes.map((node) => [node.id, 1 / nodes.length]));
+            const algorithm = new PageRankAlgorithm(graph, { personalization });
+            await algorithm.run();
+
+            const { result } = algorithm;
+            assert.isDefined(result);
+
+            const { caveats } = result.summary();
+            assert.strictEqual(caveats.method, "delta-pagerank");
+            assert.isUndefined(caveats.converged);
+            assert.isUndefined(caveats.iterations);
+        });
+
+        it("pagerank over a large graph still measures its convergence, and says the delta method was not taken", async () => {
+            /* `useDelta` is on by default and the reference implementation switches to the delta
+               method above a hundred nodes, where it can answer neither question. The index-based
+               route has no delta method at all, so a default run of this size is a real power
+               iteration -- both figures are measurements again, and the run says which method it
+               was, because a reader comparing two runs of the same size needs to know. */
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
             const graph = await createMockGraph({ nodes, edges });
@@ -193,9 +219,13 @@ describe("metric results", () => {
             assert.isDefined(result);
 
             const { caveats } = result.summary();
-            assert.strictEqual(caveats.method, "delta-pagerank");
-            assert.isUndefined(caveats.converged);
-            assert.isUndefined(caveats.iterations);
+            assert.strictEqual(caveats.method, "power-iteration");
+            assert.isBoolean(caveats.converged);
+            assert.isNumber(caveats.iterations);
+            assert.isTrue(
+                caveats.notes.some((note) => note.includes("the delta optimisation")),
+                caveats.notes.join(" | "),
+            );
         });
 
         it("eigenvector says it converged, because an unconverged run fails instead", async () => {

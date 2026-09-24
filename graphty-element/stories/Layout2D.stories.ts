@@ -342,7 +342,16 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        setup: storySetup({ viewMode: "2d" }),
+        /*
+         * `preSteps` MATCHES `springIterations` BELOW, because Spring is a live simulation and
+         * this story asks it for 50 iterations. A simulation computes one iteration per RENDERED
+         * frame by default, so without this the iterations below are frames, and how long the
+         * arrangement takes to arrive is a question about the browser's frame rate rather than
+         * about the graph. `preSteps` runs them before the first frame is drawn, off the frame
+         * clock entirely, and the picture is the same either way: Fruchterman-Reingold is
+         * deterministic under `seed` and stops at `iterations` whichever clock ran it.
+         */
+        setup: storySetup({ viewMode: "2d", preSteps: 50 }),
         layout: "spring",
         layoutConfig: { dim: 2 },
         springK: null,
@@ -449,7 +458,16 @@ export const KamadaKawai: Story = {
  */
 export const ForceAtlas2: Story = {
     args: {
-        setup: storySetup({ viewMode: "2d" }),
+        /*
+         * `preSteps` MATCHES `fa2MaxIter` BELOW, because ForceAtlas2 is a live simulation and this
+         * story asks it for 100 iterations. A simulation computes one iteration per RENDERED frame
+         * by default, so without this those iterations are frames, and how long the arrangement
+         * takes to arrive is a question about the browser's frame rate rather than about the
+         * graph. `preSteps` runs them before the first frame is drawn, off the frame clock
+         * entirely; the picture is the same either way, because ForceAtlas2 is deterministic under
+         * `seed` and stops at `maxIter` whichever clock ran it.
+         */
+        setup: storySetup({ viewMode: "2d", preSteps: 100 }),
         layout: "forceatlas2",
         // Named outright, the way Circular, Random, Spring and Kamada-Kawai name it. The element
         // does derive a layout's dimensionality from `viewMode` -- `LayoutManager.setLayout`

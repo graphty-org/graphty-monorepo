@@ -60,11 +60,11 @@ const SCHEMA_TYPES = [...DRAWN_TYPES, "none"];
 
 let ctx: MeshTestScene;
 
-function arrow(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): Mesh {
+function arrow(type: string, extra: { size?: number; color?: string; opacity?: number; width?: number } = {}): Mesh {
     const mesh = EdgeMesh.createArrowHead(
         ctx.cache,
         `arrow-${type}`,
-        { type, width: 1, color: extra.color ?? "#FF0000", size: extra.size, opacity: extra.opacity },
+        { type, width: extra.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, color: extra.color ?? "#FF0000", size: extra.size, opacity: extra.opacity },
         ctx.scene,
     );
     assert.isNotNull(mesh, `createArrowHead returned null for "${type}"`);
@@ -386,6 +386,15 @@ describe("Arrowhead Golden Masters", () => {
             });
         });
 
+        test("the sphere-dot's diameter follows the line width", () => {
+            // A cap is sized relative to the line it caps: twice the line width, twice the cap.
+            const thin = arrow("sphere-dot", { width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH });
+            const thick = arrow("sphere-dot", { width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 2 });
+            const diameter = (mesh: Mesh): number => mesh.getBoundingInfo().boundingBox.extendSize.x * 2;
+
+            assert.closeTo(diameter(thick) / diameter(thin), 2, 1e-3);
+        });
+
         ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"].forEach((color) => {
             test(`colour ${color} reaches the material`, () => {
                 const material = arrow("sphere-dot", { color }).material as StandardMaterial;
@@ -435,6 +444,10 @@ describe("Arrowhead Golden Masters", () => {
             assert.equal(EdgeMesh.calculateArrowLength(), 0.5);
             assert.equal(EdgeMesh.calculateArrowWidth(), EDGE_CONSTANTS.DEFAULT_ARROW_WIDTH);
             assert.equal(EdgeMesh.calculateArrowLength(), EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH);
+            // ...at the default line width. The cap scales in proportion to the line it caps.
+            const doubled = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 2;
+            assert.equal(EdgeMesh.calculateArrowWidth(doubled), EDGE_CONSTANTS.DEFAULT_ARROW_WIDTH * 2);
+            assert.equal(EdgeMesh.calculateArrowLength(doubled), EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 2);
         });
 
         test("dot and open-dot are positioned by their centre", () => {

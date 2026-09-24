@@ -358,8 +358,8 @@ void main() {
 
         const size = options.size ?? 1.0;
         const opacity = options.opacity ?? 1.0;
-        const width = this.calculateArrowWidth() * size;
-        const length = this.calculateArrowLength() * size;
+        const width = this.calculateArrowWidth(options.width) * size;
+        const length = this.calculateArrowLength(options.width) * size;
 
         // Detect 2D mode
         const is2D = this.is2DMode(scene);
@@ -678,19 +678,25 @@ void main() {
     }
 
     /**
-     * Gets the default arrow width based on constants.
-     * @returns The default arrow width value from EDGE_CONSTANTS
+     * The arrow width for a line of the given width, before `arrowHead.size` multiplies it.
+     * Proportional to the line width, and exactly DEFAULT_ARROW_WIDTH at DEFAULT_LINE_WIDTH.
+     * @param lineWidth - The width of the line the arrow caps
+     * @returns The arrow width in world units
      */
-    static calculateArrowWidth(): number {
-        return EDGE_CONSTANTS.DEFAULT_ARROW_WIDTH;
+    static calculateArrowWidth(lineWidth: number = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH): number {
+        return (EDGE_CONSTANTS.DEFAULT_ARROW_WIDTH * lineWidth) / EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
     }
 
     /**
-     * Gets the default arrow length based on constants.
-     * @returns The default arrow length value from EDGE_CONSTANTS
+     * The arrow length for a line of the given width, before `arrowHead.size` multiplies it.
+     * Proportional to the line width, and exactly DEFAULT_ARROW_LENGTH at DEFAULT_LINE_WIDTH.
+     * Placement (`Edge.transformArrowCap`) must pass the same line width, or the line stops
+     * short of the arrow's base or runs past it.
+     * @param lineWidth - The width of the line the arrow caps
+     * @returns The arrow length in world units
      */
-    static calculateArrowLength(): number {
-        return EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH;
+    static calculateArrowLength(lineWidth: number = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH): number {
+        return (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * lineWidth) / EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
     }
 
     /**

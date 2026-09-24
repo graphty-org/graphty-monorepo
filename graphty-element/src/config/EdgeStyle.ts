@@ -37,7 +37,11 @@ const ArrowStyle = z.strictObject({
      * with caps at both ends was drawn with a magenta tail and a grey head.
      */
     color: ColorStyle.optional(),
-    opacity: z.number().min(0).max(1).default(1).optional(),
+    /**
+     * The cap's opacity, or unset to follow the line's opacity. No default, for the same reason
+     * as `color`: `Edge` draws a cap with `arrowHead.opacity ?? line.opacity`.
+     */
+    opacity: z.number().min(0).max(1).optional(),
     text: RichTextStyle.optional(),
 });
 
@@ -67,6 +71,10 @@ const LineStyle = z.strictObject({
      * own draw call, so on a large graph at a small line width that count can reach tens of
      * thousands and the frame rate collapses. Set this to cap it: the elements are then
      * spread evenly over the edge whatever its length or width.
+     *
+     * It applies to the discrete patterns only (dot, star, box, dash, diamond, dash-dot).
+     * Zigzag and sinewave are drawn as fixed-length connected segments that always tile the
+     * whole edge, so they ignore it.
      *
      * This is a USER choice, deliberately. The renderer does not silently impose a ceiling,
      * because that would change how a graph looks to buy performance the caller never asked

@@ -112,7 +112,7 @@ describe("layout catalogue", () => {
         assert.deepEqual(named.filter((engine) => !registeredEngines.includes(engine)), []);
     });
 
-    it("covers all sixteen registered engines", () => {
+    it("covers all seventeen registered engines", () => {
         const named = new Set(
             LAYOUT_CATALOG.flatMap((entry) => entry.implementations.map((implementation) => implementation.engine)),
         );
@@ -203,7 +203,7 @@ describe("layout catalogue", () => {
         assert.isUndefined(layoutIdForEngine("nothing-like-this"));
     });
 
-    it("runs force on ngraph, and offers four other engines for it", () => {
+    it("runs force on ngraph, and offers five other engines for it", () => {
         const force = layoutEntry("force");
 
         assert.strictEqual(force?.descriptor.engine, "ngraph");
@@ -213,6 +213,7 @@ describe("layout catalogue", () => {
             "forceatlas2",
             "spring",
             "kamada-kawai",
+            "spring-electrical",
         ]);
     });
 

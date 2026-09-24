@@ -245,6 +245,19 @@ export type GraphtyErrorCode =
      */
     | "E_SOFTWARE_ONLY"
     /**
+     * An adapter was found, it answered, and its answers are wrong. Before any of the element's
+     * work goes to an accelerator, the accelerator is asked to compute something whose answer is
+     * already known; a device that gets that wrong is refused, and the CPU path runs. The
+     * software renderer that ships with Windows is the device this exists for: it miscomputes
+     * shaders that pass a value across a workgroup barrier, so every prefix sum, sort and grid
+     * layout above one comes back wrong -- with plausible numbers and no error anywhere.
+     *
+     * `details` carry what the accelerator reported about the disagreement. Reported through
+     * `capabilities.acceleration` rather than thrown during ordinary use. Nothing the caller
+     * changes helps; a driver update might.
+     */
+    | "E_DEVICE_INCORRECT"
+    /**
      * The GPU device was lost mid-session -- a driver reset, a tab suspension, or the browser
      * reclaiming the device. `details.reason` carries what the runtime said. The element reports
      * the loss and continues on the CPU path; it never finishes an in-flight accelerated run on
@@ -325,6 +338,7 @@ const CODE_TABLE = {
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
+    E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_UNSUPPORTED: "E_UNSUPPORTED",
@@ -351,6 +365,7 @@ export type AccelerationErrorCode =
     | "E_NO_WEBGPU"
     | "E_NO_ADAPTER"
     | "E_SOFTWARE_ONLY"
+    | "E_DEVICE_INCORRECT"
     | "E_DEVICE_LOST"
     | "E_TOO_LARGE";
 
@@ -361,6 +376,7 @@ export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[] = Object
     CODE_TABLE.E_NO_WEBGPU,
     CODE_TABLE.E_NO_ADAPTER,
     CODE_TABLE.E_SOFTWARE_ONLY,
+    CODE_TABLE.E_DEVICE_INCORRECT,
     CODE_TABLE.E_DEVICE_LOST,
     CODE_TABLE.E_TOO_LARGE,
 ]);

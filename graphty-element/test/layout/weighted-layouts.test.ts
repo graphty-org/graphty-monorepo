@@ -8,6 +8,12 @@
  * engines still accepted and forwarded a weight OPTION, so a reader who set it saw nothing happen
  * and had nothing to tell them why.
  *
+ * The two now reach their weights by different routes, because ForceAtlas2 is a steppable
+ * simulation over the frozen snapshot and Kamada-Kawai is still a single pass over a node and edge
+ * list. The simulation reads the snapshot's own weight column -- `weighted: true` is what names it
+ * -- so the element passes a boolean and nothing gathers a per-pair map. What the two say about a
+ * weight has not changed, and that is what every case below asserts.
+ *
  * The convention this file exists to pin, because nothing on screen states it and getting it
  * backwards produces a plausible-looking wrong picture: A LARGER WEIGHT IS A STRONGER CONNECTION,
  * and a stronger connection is drawn SHORTER. That is one reading for the whole element -- it is
@@ -30,7 +36,7 @@
  * constructor, and none of this has anything to do with a mesh.
  */
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
-import { kamadaKawaiLayout } from "@graphty/layout";
+import { createSimulation, kamadaKawaiLayout, seedPositions } from "@graphty/layout";
 import { assert, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
@@ -161,9 +167,44 @@ function kamadaKawai(weighted = true): KamadaKawaiLayout {
     return new KamadaKawaiLayout({ dim: 2, scale: 1, weighted });
 }
 
-/** ForceAtlas2, in two dimensions, from one fixed seed so two runs can be compared. */
-function forceAtlas2(weighted = true): ForceAtlas2Layout {
-    return new ForceAtlas2Layout({ dim: 2, seed: 42, maxIter: 300, weighted });
+/**
+ * Settle ForceAtlas2 over one graph and hand back where every node ended up.
+ *
+ * The CPU simulation, driven the way the element's bridge drives it: the undirected snapshot, the
+ * element's own position array seeded from one fixed seed so two runs can be compared, and the
+ * weights read from the snapshot's weight column when `weighted` says to read them.
+ * @param graph - the graph to arrange
+ * @param weighted - whether the arrangement reads the graph's weights
+ * @returns node id to its published coordinates, in scene units
+ */
+function forceAtlas2(graph: TestGraph, weighted = true): Arrangement {
+    const undirected = graph.snapshot.toUndirected().snapshot;
+    const view = graph.positions.view(undirected.nodeCount);
+    seedPositions(undirected, view, 42, 2, 1, null, "fa2");
+
+    const simulation = createSimulation("forceatlas2", {
+        dim: 2,
+        seed: 42,
+        maxIter: 300,
+        weight: weighted,
+        nodeSize: null,
+    });
+    simulation.load(undirected, view);
+
+    // The CPU simulation steps synchronously; only an accelerated one answers with a batch to
+    // wait for, and nothing is injected here.
+    const batch = simulation.step(300);
+    assert.isUndefined(batch, "the processor simulation computed the iterations in place");
+    simulation.dispose();
+
+    const out: Record<string, readonly [number, number, number]> = {};
+    const read = { x: 0, y: 0, z: 0 };
+    for (const node of graph.nodes) {
+        graph.positions.read(node.index, read);
+        out[String(node.id)] = [read.x, read.y, read.z];
+    }
+
+    return out;
 }
 
 /**
@@ -190,14 +231,14 @@ describe("edge weights and the two layouts that read them", () => {
             // stands. Both halves are asserted: the heavy end is short, and moving the weight to
             // the other end moves the short edge with it -- so this cannot pass because of some
             // fixed asymmetry in the fixture.
-            const heavyOnTheLeft = arrange(forceAtlas2(), mirrorPath(4, 1));
+            const heavyOnTheLeft = forceAtlas2(mirrorPath(4, 1));
             assert.isBelow(
                 distance(heavyOnTheLeft, "a", "b"),
                 distance(heavyOnTheLeft, "c", "e"),
                 "a-b carries four times the weight of its mirror image, so it is drawn shorter",
             );
 
-            const heavyOnTheRight = arrange(forceAtlas2(), mirrorPath(1, 4));
+            const heavyOnTheRight = forceAtlas2(mirrorPath(1, 4));
             assert.isBelow(
                 distance(heavyOnTheRight, "c", "e"),
                 distance(heavyOnTheRight, "a", "b"),
@@ -206,14 +247,14 @@ describe("edge weights and the two layouts that read them", () => {
         });
 
         it("does not turn an edge the author weighted zero into a full-strength edge", () => {
-            // `@graphty/layout` reads a weight as `getEdgeData(...) || 1`, so a deliberate zero
-            // would arrive as ONE -- "no connection at all" silently becoming "an ordinary
-            // connection", with the graph drawn as though the author had never written the zero.
-            // The element clamps to an epsilon first, so a zero reads as the weakest connection
-            // the solver can express. The comparison against the all-ones graph is what makes this
-            // fail rather than pass by accident: under `|| 1` the two are the same picture.
-            const zeroed = arrange(forceAtlas2(), mirrorPath(0, 1));
-            const ones = arrange(forceAtlas2(), mirrorPath(1, 1));
+            // The one-shot engine read a weight as `getEdgeData(...) || 1`, so a deliberate zero
+            // arrived as ONE -- "no connection at all" silently becoming "an ordinary connection",
+            // with the graph drawn as though the author had never written the zero. The simulation
+            // takes the snapshot's weight column as stored, so a zero stays a zero: the weakest
+            // pull there is. The comparison against the all-ones graph is what makes this fail
+            // rather than pass by accident: under `|| 1` the two are the same picture.
+            const zeroed = forceAtlas2(mirrorPath(0, 1));
+            const ones = forceAtlas2(mirrorPath(1, 1));
 
             assert.isFalse(
                 samePlaces(zeroed, ones),
@@ -227,18 +268,19 @@ describe("edge weights and the two layouts that read them", () => {
         });
 
         it("arranges a graph whose every weight is 1 exactly as it arranges one with weights turned off", () => {
-            // The callback is attached only when the weights carry information, and an all-ones
-            // graph carries none. This is what makes the release's visual re-baseline reviewable:
+            // Every weight is 1, which is the number the simulation uses for every edge when it
+            // is told to read no weights at all, so the two runs have to draw the same picture.
+            // This is what makes the release's visual re-baseline reviewable:
             // an unweighted story that MOVED is a bug, not a new arrangement.
-            const asked = arrange(forceAtlas2(true), mirrorPath(1, 1));
-            const refused = arrange(forceAtlas2(false), mirrorPath(1, 1));
+            const asked = forceAtlas2(mirrorPath(1, 1), true);
+            const refused = forceAtlas2(mirrorPath(1, 1), false);
 
             assert.isTrue(samePlaces(asked, refused), "nothing moved");
         });
 
         it("lets a reader who has weights decline to be arranged by them", () => {
-            const on = arrange(forceAtlas2(true), mirrorPath(8, 1));
-            const off = arrange(forceAtlas2(false), mirrorPath(8, 1));
+            const on = forceAtlas2(mirrorPath(8, 1), true);
+            const off = forceAtlas2(mirrorPath(8, 1), false);
 
             assert.isFalse(samePlaces(on, off), "`weighted: false` is a real opt-out, not a control that does nothing");
         });

@@ -1,373 +1,277 @@
-# Custom Algorithms
+# Custom algorithms
 
-Guide to creating custom graph algorithms.
+An algorithm computes something over the graph and publishes a result. The element runs it beside
+its own, derives a ranking, a distribution, a summary and a plain-language reading from what it
+returns, and paints a picture from the SHAPE of the result rather than from styling the algorithm
+supplies.
 
-## Overview
+Extend `DeclaredAlgorithm` and register the class. That is what makes a third party's algorithm a
+first-class one: a class the catalogue does not carry cannot be started as a run, and progress,
+cancellation, a cost estimate before the click, a ranking, a summary, a reading and the derived
+picture all hang off a run.
 
-Graphty's algorithm system is extensible. Create custom algorithms to compute metrics, detect patterns, or analyze graph structure.
+## The whole of it
 
-## Algorithm Interface
+```ts
+import {
+    type AlgorithmDescriptor,
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    metricFieldSpecs,
+    nodeMetricFields,
+    type OptionDescriptor,
+    type ResultElementValues,
+} from "@graphty/graphty-element/extend";
+import type { NodeId } from "@graphty/graphty-element/session";
 
-All algorithms extend the abstract `Algorithm` class:
+/** The one thing a reader can configure, declared ONCE. */
+const HOPS_OPTION: OptionDescriptor = {
+    name: "hops",
+    plainName: "Steps",
+    technicalName: "hops",
+    type: "integer",
+    default: 1,
+    min: 1,
+    max: 4,
+    description: "How many steps away a node still counts as reachable.",
+};
 
-```typescript
-abstract class Algorithm {
-    static namespace: string;
-    static type: string;
-
-    abstract run(graph: Graph, options?: object): AlgorithmResult;
+/** What a caller may configure about a run. One interface, matching the one option list. */
+interface HopReachOptions extends Record<string, unknown> {
+    hops: number;
 }
 
-interface AlgorithmResult {
-    nodeResults: Map<string, any>;
-    edgeResults?: Map<string, any>;
-    suggestedStyles?: StyleSchema;
-}
-```
+const HOP_REACH_DESCRIPTOR: AlgorithmDescriptor = {
+    // `key` must equal `static type` below: an algorithm has one name.
+    key: "hop-reach",
+    plainName: "Nearby nodes",
+    technicalName: "bounded reach",
+    description: "Counts how many other nodes each linked node can get to within a few steps.",
+    category: "centrality",
+    // The shape fixes the FIELD NAMES, which is how any consumer reads `results.<runId>.value`
+    // without opening the catalogue first.
+    shape: "node-metric",
+    // Ten descriptors for one measured number, built for you -- each carries a published path
+    // string a plugin should never have to learn or retype.
+    fields: nodeMetricFields({
+        plainName: "Nodes within reach",
+        technicalName: "bounded reach",
+        type: "integer",
+        unit: "nodes",
+    }),
+    options: [HOPS_OPTION],
+    costClass: "instant",
+    complexity: "O(n * (n + m))",
+};
 
-## Creating a Custom Algorithm
+class HopReach extends DeclaredAlgorithm<HopReachOptions> {
+    static override namespace = "acme";
+    static override type = "hop-reach";
+    static override descriptor = HOP_REACH_DESCRIPTOR;
 
-### Basic Example
+    /** Optional: recorded on every run, so a saved result says what produced its numbers. */
+    static version = "1.0.0";
 
-```typescript
-import { Algorithm, Graph, AlgorithmResult } from "@graphty/graphty-element";
+    /** Optional: seconds over a graph of n nodes and m edges, for the pre-click estimate. */
+    static cost = (n: number, m: number): number => (n * (n + m)) / 2_000_000;
 
-class MyAlgorithm extends Algorithm {
-    static namespace = "custom";
-    static type = "my-algo";
+    override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        // Options arrive already checked and with the declared default filled in, so the running
+        // code never tests for a missing parameter.
+        const { hops } = this.schemaOptions;
 
-    run(graph: Graph, options?: object): AlgorithmResult {
-        const nodeResults = new Map<string, any>();
+        // The documented way to read the input: built from the graph the reader loaded rather
+        // than from the render objects, so an edge whose endpoints have no mesh is already in it.
+        const graph = this.algorithmGraph("undirected");
+        const ids = [...graph.nodes()].map((node) => node.id as NodeId);
 
-        // Compute something for each node
-        for (const node of graph.getNodes()) {
-            const value = this.computeValue(node, graph);
-            nodeResults.set(node.id, value);
+        if (ids.length === 0) {
+            return null;
         }
 
-        return { nodeResults };
-    }
+        const measured: ResultElementValues[] = [];
 
-    private computeValue(node: Node, graph: Graph): number {
-        // Your algorithm logic here
-        return 42;
-    }
-}
+        context.report({ phase: "Counting nearby nodes", completed: 0, total: ids.length });
 
-// Register the algorithm
-Algorithm.register(MyAlgorithm);
-```
+        for (const [index, id] of ids.entries()) {
+            // Checked at the top of every step, and the throw is never caught: a stopped run
+            // stops rather than finishing quietly and publishing half an answer.
+            context.signal.throwIfAborted();
 
-### Using Your Algorithm
+            const reached = [...graph.neighbors(id)].length * hops;
 
-```typescript
-await graph.runAlgorithm("custom", "my-algo");
-
-// Access results
-const node = graph.getNode("node1");
-const result = node.algorithmResults["custom:my-algo"];
-```
-
-## Complete Example: In-Degree/Out-Degree
-
-```typescript
-import { Algorithm, Graph, AlgorithmResult, Node } from "@graphty/graphty-element";
-
-class InOutDegreeAlgorithm extends Algorithm {
-    static namespace = "custom";
-    static type = "in-out-degree";
-
-    run(graph: Graph, options?: object): AlgorithmResult {
-        const nodeResults = new Map<string, { in: number; out: number }>();
-
-        // Initialize counts
-        for (const node of graph.getNodes()) {
-            nodeResults.set(node.id, { in: 0, out: 0 });
-        }
-
-        // Count edges
-        for (const edge of graph.getEdges()) {
-            const sourceId = edge.source as string;
-            const targetId = edge.target as string;
-
-            // Increment out-degree for source
-            const sourceResult = nodeResults.get(sourceId);
-            if (sourceResult) {
-                sourceResult.out++;
+            // A node this algorithm has nothing to say about gets NO ROW. Publishing zero for it
+            // would be a measurement that was never made, and the ranking, the distribution and
+            // the colour ramp would all then carry an invented value.
+            if (reached > 0) {
+                measured.push({ id, values: { value: reached } });
             }
 
-            // Increment in-degree for target
-            const targetResult = nodeResults.get(targetId);
-            if (targetResult) {
-                targetResult.in++;
-            }
+            context.report({ phase: "Counting nearby nodes", completed: index + 1, total: ids.length });
+
+            // Hands the frame back, so the page stays responsive through a long computation.
+            await context.yieldNow();
         }
 
         return {
-            nodeResults,
-            suggestedStyles: this.getSuggestedStyles(nodeResults),
-        };
-    }
-
-    private getSuggestedStyles(results: Map<string, { in: number; out: number }>): StyleSchema {
-        // Find max for normalization
-        let maxTotal = 0;
-        for (const { in: inDeg, out: outDeg } of results.values()) {
-            maxTotal = Math.max(maxTotal, inDeg + outDeg);
-        }
-
-        return {
-            layers: [
-                {
-                    selector: "*",
-                    styles: {
-                        node: {
-                            size: (node: Node) => {
-                                const result = node.algorithmResults["custom:in-out-degree"];
-                                if (!result) return 1;
-                                const total = result.in + result.out;
-                                return 0.5 + (total / maxTotal) * 2;
-                            },
-                        },
-                    },
-                },
-            ],
+            shape: "node-metric",
+            fields: metricFieldSpecs("node", "integer"),
+            nodes: measured,
+            graph: { normalization: "none" },
+            // What this run does that its numbers do not admit to, printed unedited to a reader.
+            caveats: declaredCaveats({
+                direction: "undirected",
+                weight: null,
+                method: `breadth-first walk, ${hops} step(s)`,
+                notes: ["Nodes with no links are left unmeasured rather than counted as zero."],
+            }),
         };
     }
 }
 
-Algorithm.register(InOutDegreeAlgorithm);
+DeclaredAlgorithm.register(HopReach);
 ```
 
-## Algorithm with Options
+`compute` RETURNS what it measured. It never writes a result anywhere, and it computes no ranking,
+no percentile and no statistics -- those are the element's to derive, and deriving them per
+algorithm is how two algorithms come to disagree about what a percentile is.
 
-Accept configuration options:
+## Running it
 
-```typescript
-interface ClusteringOptions {
-    threshold: number;
-    maxIterations: number;
-}
+```ts
+// From the element
+const run = graph.run("hop-reach", { hops: 2 });
+await run;
 
-class ClusteringAlgorithm extends Algorithm {
-    static namespace = "custom";
-    static type = "clustering";
+// Or from the session, with a progress handler and a signal
+const started = session.runs.start(
+    "hop-reach",
+    { hops: 2 },
+    { as: "reach", onProgress: (progress) => console.log(progress.phase, progress.completed) },
+);
+await started;
 
-    run(graph: Graph, options: Partial<ClusteringOptions> = {}): AlgorithmResult {
-        const config: ClusteringOptions = {
-            threshold: 0.5,
-            maxIterations: 100,
-            ...options,
-        };
-
-        const nodeResults = new Map<string, number>();
-
-        // Use config in algorithm
-        let iterations = 0;
-        while (iterations < config.maxIterations) {
-            // Clustering logic...
-            iterations++;
-        }
-
-        return { nodeResults };
-    }
-}
-
-Algorithm.register(ClusteringAlgorithm);
+// What it measured
+session.results.get("reach")?.node("d")?.value;
 ```
 
-Usage:
+Everything that hangs off a run comes with it: `session.results` gives the ranking, the histogram,
+the summary and a plain-language reading; `session.estimate()` answers what it would cost before
+anybody clicks; `session.catalog.metrics()` lists it beside the element's own with that cost; and
+the element derives a style layer from the result's shape, scoped to the elements your result
+actually carries a row for.
 
-```typescript
-await graph.runAlgorithm("custom", "clustering", {
-    threshold: 0.7,
-    maxIterations: 50,
+## Chunking, for free
+
+`forEachChunked` walks a collection in chunks of 1024, reporting at the start of each and yielding
+between them, so a long pass is one call rather than a hand-written loop:
+
+```ts
+import { forEachChunked } from "@graphty/graphty-element/extend";
+
+await forEachChunked(context, "Counting nearby nodes", ids, (id) => {
+    measured.push({ id, values: { value: [...graph.neighbors(id)].length } });
 });
 ```
 
-## Suggested Styles
+## Publishing per-edge values
 
-Provide visualization suggestions with your algorithm:
+A shape with an edge half -- `path`, `edge-set`, `flow` -- carries an `edges` array beside its
+`nodes` array. **Every row is keyed by the id the element minted for that edge**, never by a key
+built from its two endpoints: a pair of endpoints cannot name one of two parallel edges, and a
+style layer has to be able to.
 
-```typescript
-class ImportanceAlgorithm extends Algorithm {
-    static namespace = "custom";
-    static type = "importance";
+Your input, though, speaks in endpoint pairs, because that is all the algorithms package can
+represent. The session is what joins the two: `scope.resolve` answers with the element's edge ids
+and `data.edge` answers what each one joins.
 
-    run(graph: Graph): AlgorithmResult {
-        const nodeResults = new Map<string, number>();
+```ts
+import { PATH_FIELD_SPECS } from "@graphty/graphty-element/extend";
+import type { EdgeId, GraphSession, NodeId, ResultElementValues } from "@graphty/graphty-element/session";
 
-        // Calculate importance scores (0-1)
-        for (const node of graph.getNodes()) {
-            const score = this.calculateImportance(node, graph);
-            nodeResults.set(node.id, score);
+/** Every edge in the graph, by the ordered pair of endpoints it joins. */
+async function edgeIdsByPair(session: GraphSession): Promise<Map<string, EdgeId>> {
+    const resolved = await session.scope.resolve("graph");
+    const byPair = new Map<string, EdgeId>();
+
+    for (const id of resolved.edges) {
+        const record = session.data.edge(id);
+
+        if (record !== undefined) {
+            byPair.set(`${String(record.source)}:${String(record.target)}`, id);
         }
+    }
 
-        return {
-            nodeResults,
-            suggestedStyles: {
-                layers: [
-                    {
-                        selector: "*",
-                        styles: {
-                            node: {
-                                color: (node: Node) => {
-                                    const score = node.algorithmResults["custom:importance"] || 0;
-                                    // Green to red gradient
-                                    const r = Math.floor(255 * score);
-                                    const g = Math.floor(255 * (1 - score));
-                                    return `rgb(${r}, ${g}, 0)`;
-                                },
-                                size: (node: Node) => {
-                                    const score = node.algorithmResults["custom:importance"] || 0;
-                                    return 0.5 + score * 2;
-                                },
-                            },
-                        },
-                    },
-                ],
-            },
-        };
+    return byPair;
+}
+```
+
+Then, inside `compute`:
+
+```ts
+const byPair = await edgeIdsByPair(this.graph.getSession());
+const edges: ResultElementValues<EdgeId>[] = [];
+
+for (const { source, target } of crossed) {
+    const id = byPair.get(`${String(source)}:${String(target)}`) ?? byPair.get(`${String(target)}:${String(source)}`);
+
+    if (id !== undefined) {
+        edges.push({ id, values: { onPath: true } });
     }
 }
 ```
 
-Apply suggested styles:
+Field-spec builders exist for every shape: `metricFieldSpecs`, `communityFieldSpecs`,
+`PATH_FIELD_SPECS`, `LAYERED_GROUPING_FIELD_SPECS` and `setFieldSpecs`. `checkShapeContract` tells
+you whether your fields match the shape you declared.
 
-```typescript
-await graph.runAlgorithm("custom", "importance");
-graph.applySuggestedStyles("custom:importance");
+## How it is refused
+
+| What is wrong | Code |
+| --- | --- |
+| A `descriptor.key` that disagrees with `static type`, or no key at all | `E_BAD_COMMAND`, `details.field` naming it |
+| A key the element itself ships | `E_DUPLICATE_PLUGIN` |
+| A key nothing registered | `E_UNKNOWN_ALGORITHM`, with `details.available` |
+| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
+| An option value outside the declared range | `E_OPTION_RANGE` |
+
+A coded failure you raise yourself reaches the caller under the code you chose:
+
+```ts
+import { GraphtyError } from "@graphty/graphty-element/extend";
+
+throw new GraphtyError({
+    code: "E_UNSUPPORTED",
+    message: "this algorithm needs a weighted graph",
+    source: "run",
+    details: { algorithm: "hop-reach" },
+});
 ```
 
-## Using @graphty/algorithms
+A plain `Error` -- a bug in your code -- is given `E_INTERNAL` with the original kept as `cause`,
+rather than escaping raw into a consumer's handler.
 
-Leverage the algorithms package for complex computations:
+## The styling rule
 
-```typescript
-import { Algorithm, Graph, AlgorithmResult } from "@graphty/graphty-element";
-import { shortestPath } from "@graphty/algorithms";
+Your result must carry a row **only** for an element the algorithm has something to say about. The
+element derives a style layer whose selector matches exactly the elements that carry a value, so a
+row saying `false` or `0` for an element you did not measure turns "not in my result" into a paint
+instruction -- and, because layers stack, it erases whatever the layers beneath it painted.
 
-class CentralityFromShortestPaths extends Algorithm {
-    static namespace = "custom";
-    static type = "custom-centrality";
+Do not ship styling with your algorithm. There is no `suggestedStyles` field, and dimming or
+greying what your algorithm did not select is a reader's choice, not yours.
 
-    run(graph: Graph): AlgorithmResult {
-        const nodeResults = new Map<string, number>();
+## Deliberate limits
 
-        // Convert to format expected by @graphty/algorithms
-        const algorithmGraph = this.convertGraph(graph);
+**An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
+renderer-backed `Graph`, as it does for every one of the element's own. `@graphty/graphty-element/extend`
+resolving in Node buys you type-checking rather than a headless test.
 
-        // Use library functions
-        for (const node of graph.getNodes()) {
-            let totalDistance = 0;
-            for (const other of graph.getNodes()) {
-                if (node.id !== other.id) {
-                    const path = shortestPath(algorithmGraph, node.id, other.id);
-                    totalDistance += path?.length || Infinity;
-                }
-            }
-            // Closeness centrality (inverse of average distance)
-            const centrality = (graph.getNodes().length - 1) / totalDistance;
-            nodeResults.set(node.id, centrality);
-        }
+**`scope`, `seed`, `exact`, `sample` and `timeBox` do not reach `compute`.** The run resolves all
+five and the manager forwards only the signal, the progress channel and the yield -- to the
+element's own algorithms as much as to yours.
 
-        return { nodeResults };
-    }
-
-    private convertGraph(graph: Graph) {
-        // Convert to @graphty/algorithms format
-        // ...
-    }
-}
-
-Algorithm.register(CentralityFromShortestPaths);
-```
-
-## Edge Results
-
-Return results for edges as well as nodes:
-
-```typescript
-class EdgeWeightAnalysis extends Algorithm {
-    static namespace = "custom";
-    static type = "edge-analysis";
-
-    run(graph: Graph): AlgorithmResult {
-        const nodeResults = new Map<string, number>();
-        const edgeResults = new Map<string, { normalized: number }>();
-
-        // Find weight range
-        let minWeight = Infinity;
-        let maxWeight = -Infinity;
-
-        for (const edge of graph.getEdges()) {
-            const weight = edge.weight || 1;
-            minWeight = Math.min(minWeight, weight);
-            maxWeight = Math.max(maxWeight, weight);
-        }
-
-        // Normalize weights
-        const range = maxWeight - minWeight || 1;
-
-        for (const edge of graph.getEdges()) {
-            const weight = edge.weight || 1;
-            const normalized = (weight - minWeight) / range;
-            edgeResults.set(edge.id, { normalized });
-        }
-
-        return { nodeResults, edgeResults };
-    }
-}
-```
-
-## Async Algorithms
-
-For long-running algorithms, use async/await:
-
-```typescript
-class AsyncAlgorithm extends Algorithm {
-    static namespace = "custom";
-    static type = "async-algo";
-
-    async run(graph: Graph): Promise<AlgorithmResult> {
-        const nodeResults = new Map<string, number>();
-
-        // Simulate long computation
-        for (const node of graph.getNodes()) {
-            await this.heavyComputation(node);
-            nodeResults.set(node.id, 1);
-        }
-
-        return { nodeResults };
-    }
-
-    private async heavyComputation(node: Node): Promise<void> {
-        // Expensive operation
-        await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-}
-```
-
-## Performance Tips
-
-1. **Cache intermediate results**: Store computed values for reuse
-2. **Use efficient data structures**: Maps over arrays for lookups
-3. **Parallelize when possible**: Web Workers for heavy computation
-4. **Early termination**: Stop when result is "good enough"
-
-```typescript
-// Use adjacency list for faster neighbor lookups
-private buildAdjacencyList(graph: Graph): Map<string, string[]> {
-  const adj = new Map<string, string[]>();
-
-  for (const node of graph.getNodes()) {
-    adj.set(node.id, []);
-  }
-
-  for (const edge of graph.getEdges()) {
-    adj.get(edge.source as string)?.push(edge.target as string);
-  }
-
-  return adj;
-}
-```
+**The 1.10 `namespace:type` address still works** and still calls `run()` directly, with no run
+record, no progress, no cancel and no published result. Start a run by the catalogue key instead.

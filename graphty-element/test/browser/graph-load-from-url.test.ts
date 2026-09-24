@@ -1,5 +1,7 @@
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import { type GraphtyError, isGraphtyError } from "../../extend";
+
 describe("Graph.loadFromUrl", () => {
     beforeEach(() => {
         // Create a fresh canvas for each test
@@ -95,7 +97,16 @@ describe("Graph.loadFromUrl", () => {
             await graph.loadFromUrl("https://example.com/data.xyz");
         } catch (error) {
             errorThrown = true;
-            assert.match((error as Error).message, /Could not detect file format/);
+
+            // See the same test in graph-load-from-file.test.ts: the refusal carries a code and a
+            // list read from the catalogue rather than a sentence naming seven hard-coded names.
+            assert.isTrue(isGraphtyError(error), "a failure the element reports carries a code");
+            assert.strictEqual((error as GraphtyError).code, "E_UNKNOWN_FORMAT");
+            assert.include(
+                (error as GraphtyError).details.available as string[],
+                "graphml",
+                "and says what it could have read instead",
+            );
         }
 
         assert.isTrue(errorThrown, "Should throw error for unknown format");

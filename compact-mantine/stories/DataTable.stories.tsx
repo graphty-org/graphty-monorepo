@@ -4,11 +4,13 @@ import React, { useMemo, useRef, useState } from "react";
 
 import {
     DataTable,
+    type DataTableColumn,
+    type DataTableHandle,
+    type DataTableSort,
     LabelsProvider,
     PANEL_GRID,
     PANEL_INK,
 } from "../src";
-import type { DataTableColumn, DataTableHandle, DataTableSort } from "../src";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.

@@ -1,3 +1,5 @@
+import type { AlgorithmKey, MetricAvailability } from "@graphty/graphty-element/catalog";
+import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,7 +15,38 @@ import {
     SLICE_AVAILABLE_CAPABILITIES,
 } from "../insightsRules";
 
-const LARGE_GRAPH_THRESHOLD = 100000;
+/**
+ * The threshold the rule table branches on when a board names none: graphty-element's own.
+ * Written here so the boards below can say "one node above it" without restating a number the
+ * shell no longer declares.
+ */
+const LARGE_GRAPH_THRESHOLD = DEFAULT_LIMITS.largeGraphThreshold;
+
+/**
+ * One entry of the element's metric listing, as `session.catalog.metrics()` publishes it.
+ *
+ * The key is the ELEMENT's catalogue key -- "pagerank", "louvain", "components" -- not a card's
+ * capability name, which is the seam the rule table has to get right: a board that spelled a
+ * capability here would pass while the shell offered a card for an algorithm the element had
+ * refused.
+ * @param key - the element's algorithm key.
+ * @param estimateSeconds - what the element says a run would cost on this graph.
+ * @param available - whether the element will run it here at all.
+ * @returns the listing entry.
+ */
+function listed(key: AlgorithmKey, estimateSeconds: number, available = true): MetricAvailability {
+    return {
+        key,
+        plainName: key,
+        technicalName: key,
+        available,
+        ...(available ? {} : { reason: `Cannot run ${key} on this graph.` }),
+        costClass: "heavy",
+        estimateSeconds,
+        hasRun: false,
+        runIds: [],
+    };
+}
 
 /**
  * The cat social network as the shell measures it: 20 nodes, 29 edges, direction never
@@ -29,7 +62,6 @@ function catShape(overrides: Partial<InsightsGraphShape> = {}): InsightsGraphSha
         hasTimeRole: false,
         validationIssueTypeCount: 0,
         searchExample: "Mr_Whiskers",
-        largeGraphThreshold: LARGE_GRAPH_THRESHOLD,
         ...overrides,
     };
 }
@@ -49,7 +81,6 @@ function fraudShape(overrides: Partial<InsightsGraphShape> = {}): InsightsGraphS
         hasTimeRole: true,
         validationIssueTypeCount: 4,
         searchExample: "merch-88",
-        largeGraphThreshold: LARGE_GRAPH_THRESHOLD,
         ...overrides,
     };
 }
@@ -68,7 +99,6 @@ function largeShape(overrides: Partial<InsightsGraphShape> = {}): InsightsGraphS
         hasTimeRole: false,
         validationIssueTypeCount: 0,
         searchExample: "dc01.corp.local",
-        largeGraphThreshold: LARGE_GRAPH_THRESHOLD,
         ...overrides,
     };
 }
@@ -107,7 +137,6 @@ function centralityShape(overrides: Partial<InsightsGraphShape> = {}): InsightsG
         hasTimeRole: false,
         validationIssueTypeCount: 0,
         searchExample: "node-17",
-        largeGraphThreshold: LARGE_GRAPH_THRESHOLD,
         ...overrides,
     };
 }
@@ -222,7 +251,7 @@ describe("insightCandidates", () => {
                 insightCandidates(
                     catShape({
                         directedness: "directed",
-                        estimateSeconds: { "centrality-pagerank": INSIGHTS_ESTIMATE_CEILING_SECONDS + 1 },
+                        metrics: [listed("pagerank", INSIGHTS_ESTIMATE_CEILING_SECONDS + 1)],
                     }),
                 ),
             );
@@ -236,7 +265,7 @@ describe("insightCandidates", () => {
                 insightCandidates(
                     catShape({
                         directedness: "directed",
-                        estimateSeconds: { "centrality-pagerank": INSIGHTS_ESTIMATE_CEILING_SECONDS - 1 },
+                        metrics: [listed("pagerank", INSIGHTS_ESTIMATE_CEILING_SECONDS - 1)],
                     }),
                 ),
             );
@@ -340,24 +369,20 @@ describe("insightCandidates", () => {
         });
 
         it("offers Find groups above the threshold under an estimate of 25 s", () => {
-            const shape = largeShape({ estimateSeconds: { "community-detection": 25 } });
+            const shape = largeShape({ metrics: [listed("louvain", 25)] });
 
             expect(capabilitiesOf(insightCandidates(shape))).toContain("community-detection");
         });
 
         it("refuses Find groups above the threshold at an estimate of 90 s", () => {
-            const shape = largeShape({ estimateSeconds: { "community-detection": 90 } });
+            const shape = largeShape({ metrics: [listed("louvain", 90)] });
 
             expect(capabilitiesOf(insightCandidates(shape))).not.toContain("community-detection");
         });
 
         it("refuses a card at exactly the ceiling and keeps it one second below, below the threshold too", () => {
-            const atCeiling = catShape({
-                estimateSeconds: { "community-detection": INSIGHTS_ESTIMATE_CEILING_SECONDS },
-            });
-            const underCeiling = catShape({
-                estimateSeconds: { "community-detection": INSIGHTS_ESTIMATE_CEILING_SECONDS - 1 },
-            });
+            const atCeiling = catShape({ metrics: [listed("louvain", INSIGHTS_ESTIMATE_CEILING_SECONDS)] });
+            const underCeiling = catShape({ metrics: [listed("louvain", INSIGHTS_ESTIMATE_CEILING_SECONDS - 1)] });
 
             expect(capabilitiesOf(insightCandidates(atCeiling))).not.toContain("community-detection");
             expect(capabilitiesOf(insightCandidates(underCeiling))).toContain("community-detection");
@@ -366,6 +391,52 @@ describe("insightCandidates", () => {
         it("keeps the deterministic set above the threshold even though nothing estimated it", () => {
             expect(capabilitiesOf(insightCandidates(largeShape()))).toEqual([
                 "narrow-the-view",
+                "component-analysis",
+                "centrality-degree",
+                "search",
+            ]);
+        });
+    });
+
+    describe("what graphty-element says it will not run", () => {
+        it("never offers a card whose algorithm the element reports unavailable", () => {
+            const shape = catShape({ metrics: [listed("louvain", 0.1, false)] });
+
+            expect(capabilitiesOf(insightCandidates(shape))).not.toContain("community-detection");
+        });
+
+        it("refuses it above the threshold too, deterministic set or not", () => {
+            const shape = largeShape({ metrics: [listed("components", 0.1, false)] });
+
+            expect(capabilitiesOf(insightCandidates(shape))).not.toContain("component-analysis");
+        });
+
+        it("offers degree when the element refuses PageRank on a directed graph", () => {
+            const shape = catShape({ directedness: "directed", metrics: [listed("pagerank", 0.1, false)] });
+            const capabilities = capabilitiesOf(insightCandidates(shape));
+
+            expect(capabilities).not.toContain("centrality-pagerank");
+            expect(capabilities).toContain("centrality-degree");
+        });
+
+        it("leaves the cards that run no algorithm alone, since the element has nothing to say about them", () => {
+            const shape = largeShape({ metrics: [listed("components", 0.1, false)] });
+
+            expect(capabilitiesOf(insightCandidates(shape))).toEqual([
+                "narrow-the-view",
+                "centrality-degree",
+                "search",
+            ]);
+        });
+    });
+
+    describe("the threshold when no board names one", () => {
+        it("is graphty-element's own, so the table turns over at the size the element does", () => {
+            const atThreshold = catShape({ nodeCount: LARGE_GRAPH_THRESHOLD, searchExample: "n" });
+            const pastThreshold = catShape({ nodeCount: LARGE_GRAPH_THRESHOLD + 1, searchExample: "n" });
+
+            expect(capabilitiesOf(insightCandidates(atThreshold))).toContain("community-detection");
+            expect(capabilitiesOf(insightCandidates(pastThreshold))).toEqual([
                 "component-analysis",
                 "centrality-degree",
                 "search",
@@ -480,7 +551,7 @@ describe("insightsStripModel", () => {
                 largeShape({
                     nodeCount: 2000,
                     largeGraphThreshold: 1000,
-                    estimateSeconds: { "community-detection": 25 },
+                    metrics: [listed("louvain", 25)],
                 }),
                 [],
             );
@@ -574,9 +645,7 @@ describe("the three centrality cards at 500 nodes", () => {
     });
 
     it("refuses the bridges card at a 120 s estimate while still offering degree at 0.1 s", () => {
-        const shape = centralityShape({
-            estimateSeconds: { "centrality-betweenness": 120, "centrality-degree": 0.1 },
-        });
+        const shape = centralityShape({ metrics: [listed("betweenness", 120), listed("degree", 0.1)] });
         const titles = titlesOf(insightsStripModel(shape, []).cards);
 
         expect(titles).not.toContain("Find the bridges");

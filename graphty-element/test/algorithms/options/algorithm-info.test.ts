@@ -20,7 +20,6 @@ describe("Algorithm Info Utilities", () => {
                 assert.strictEqual(algo.key, `${algo.namespace}:${algo.type}`, "key should match namespace:type");
                 assert.isObject(algo.zodOptionsSchema, "zodOptionsSchema should be an object");
                 assert.isBoolean(algo.hasOptions, "hasOptions should be a boolean");
-                assert.isBoolean(algo.hasSuggestedStyles, "hasSuggestedStyles should be a boolean");
             }
         });
 

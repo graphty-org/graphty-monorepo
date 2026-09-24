@@ -1,76 +1,68 @@
 import { connectedComponents } from "@graphty/algorithms";
 
-import type { SuggestedStylesConfig } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { toAlgorithmGraph } from "./utils/graphConverter";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    communityFieldSpecs,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 
 /**
  *
  */
-export class ConnectedComponentsAlgorithm extends Algorithm {
+export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "connected-components";
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: 'algorithmResults.graphty."connected-components".componentId != `null`',
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.connected-components.componentId"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.categorical.carbon(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "Components - Carbon Colors",
-                    description: "5 IBM design system colors for components",
-                },
-            },
-        ],
-        description: "Visualizes connected components with distinct colors",
-        category: "grouping",
-    });
-
     /**
-     * Executes the connected components algorithm on the graph
+     * Find the separate pieces of the graph.
      *
-     * Identifies connected components and assigns each node to a component.
+     * A piece is a group in the community shape's sense -- two nodes are in the same one when a
+     * path joins them -- so this publishes the same `group` per node that every grouping method
+     * does, and no modularity, which is not defined for a partition nothing optimised.
+     * @param context - What the element gave the run.
+     * @returns The community result, or null when there are no nodes to group.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Convert to @graphty/algorithms format (truly undirected for connected components)
-        // addReverseEdges: false creates an undirected graph required by connectedComponents
-        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
+        // Undirected: a component is reached across an edge whichever way the record declared it.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Connected Components algorithm - returns NodeId[][] directly
+        context.report({ phase: "Finding pieces", total: null });
         const components = connectedComponents(graphData);
 
-        // Store component assignments for each node
-        const componentMap = new Map<number | string, number>();
-        for (let i = 0; i < components.length; i++) {
-            for (const nodeId of components[i]) {
-                componentMap.set(nodeId, i);
+        const groupOf = new Map<number | string, number>();
+        for (let index = 0; index < components.length; index++) {
+            for (const nodeId of components[index]) {
+                groupOf.set(nodeId, index);
             }
         }
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const componentId = componentMap.get(nodeId) ?? 0;
-            this.addNodeResult(nodeId, "componentId", componentId);
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+        });
 
-        // Store graph-level results
-        this.addGraphResult("componentCount", components.length);
+        return {
+            shape: "community",
+            fields: communityFieldSpecs(false),
+            nodes,
+            caveats: declaredCaveats({
+                method: "connected-components",
+                direction: "undirected",
+                weight: null,
+                notes: ["Strength: weak. An edge joins its two nodes whichever way it was declared."],
+            }),
+        };
     }
 }
 

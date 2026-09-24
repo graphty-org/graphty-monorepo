@@ -83,7 +83,7 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                                 label="Font size"
                                                 defaultValue={12}
                                                 value={fontSize}
-                                                onChange={(val) => setFontSize(val ?? 12)}
+                                                onChange={(val) => { setFontSize(val ?? 12); }}
                                                 min={8}
                                                 max={24}
                                                 step={1}
@@ -92,19 +92,19 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                             <Select
                                                 label="Font family"
                                                 value={fontFamily}
-                                                onChange={(val) => setFontFamily(val ?? "Inter")}
+                                                onChange={(val) => { setFontFamily(val ?? "Inter"); }}
                                                 data={["Inter", "Arial", "Roboto", "Helvetica", "System UI"]}
                                             />
                                             <Box>
                                                 <Checkbox
                                                     label="Bold"
                                                     checked={bold}
-                                                    onChange={(e) => setBold(e.currentTarget.checked)}
+                                                    onChange={(e) => { setBold(e.currentTarget.checked); }}
                                                 />
                                                 <Checkbox
                                                     label="Italic"
                                                     checked={italic}
-                                                    onChange={(e) => setItalic(e.currentTarget.checked)}
+                                                    onChange={(e) => { setItalic(e.currentTarget.checked); }}
                                                     mt={4}
                                                 />
                                             </Box>
@@ -198,7 +198,7 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                             label="Max labels"
                                             defaultValue={100}
                                             value={maxLabels}
-                                            onChange={(val) => setMaxLabels(val ?? 100)}
+                                            onChange={(val) => { setMaxLabels(val ?? 100); }}
                                             min={0}
                                             max={1000}
                                             step={10}

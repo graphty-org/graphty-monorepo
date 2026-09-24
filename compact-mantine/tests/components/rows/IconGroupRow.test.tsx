@@ -5,7 +5,7 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
-import { IconGroupRow, type IconGroupOption } from "../../../src/components/rows/IconGroupRow";
+import { type IconGroupOption,IconGroupRow } from "../../../src/components/rows/IconGroupRow";
 import { PANEL_GRID, PANEL_INK } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { FieldGlyph } from "../../../src/icons";

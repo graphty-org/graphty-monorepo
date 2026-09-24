@@ -13,11 +13,19 @@ import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
  * The mock node has the minimum required properties for selection testing.
  */
 function createMockNode(id: string): Node {
+    let selected = false;
+
     return {
         id,
         data: {} as AdHocData,
         algorithmResults: {} as AdHocData,
         updateStyle: vi.fn(),
+        isSelected: () => selected,
+        setSelected: (next: boolean) => {
+            const changed = selected !== next;
+            selected = next;
+            return changed;
+        },
     } as unknown as Node;
 }
 
@@ -104,9 +112,9 @@ describe("SelectionManager", () => {
             assert.equal(event.currentNodeId, "test-node");
         });
 
-        it("select() sets graphty.selected to true in algorithmResults", () => {
+        it("select() turns the node's own selection highlight on, not a style layer", () => {
             selectionManager.select(mockNode);
-            assert.isTrue(mockNode.algorithmResults.graphty?.selected);
+            assert.isTrue(mockNode.isSelected());
         });
     });
 
@@ -156,12 +164,12 @@ describe("SelectionManager", () => {
             assert.equal(callback.mock.calls.length, 0);
         });
 
-        it("deselect() sets graphty.selected to false in previously selected node algorithmResults", () => {
+        it("deselect() turns the previously selected node's highlight off", () => {
             selectionManager.select(mockNode);
-            assert.isTrue(mockNode.algorithmResults.graphty?.selected);
+            assert.isTrue(mockNode.isSelected());
 
             selectionManager.deselect();
-            assert.isFalse(mockNode.algorithmResults.graphty?.selected);
+            assert.isFalse(mockNode.isSelected());
         });
     });
 
@@ -183,13 +191,13 @@ describe("SelectionManager", () => {
             assert.isTrue(selectionManager.isSelected(node2));
         });
 
-        it("selecting a different node sets graphty.selected correctly on both nodes", () => {
+        it("selecting a different node moves the highlight between the two nodes", () => {
             selectionManager.select(node1);
-            assert.isTrue(node1.algorithmResults.graphty?.selected);
+            assert.isTrue(node1.isSelected());
 
             selectionManager.select(node2);
-            assert.isFalse(node1.algorithmResults.graphty?.selected);
-            assert.isTrue(node2.algorithmResults.graphty?.selected);
+            assert.isFalse(node1.isSelected());
+            assert.isTrue(node2.isSelected());
         });
 
         it("selecting the same node is a no-op (no event)", () => {
@@ -222,25 +230,35 @@ describe("SelectionManager", () => {
         });
     });
 
-    describe("style layer", () => {
-        it("getSelectionStyleLayer() returns the selection style layer", () => {
-            const layer = selectionManager.getSelectionStyleLayer();
-            assert.isNotNull(layer);
-            assert.isDefined(layer.metadata);
-            assert.equal((layer.metadata as { name: string }).name, "selection");
+    describe("selection is not a style layer", () => {
+        it("selecting a node adds no layer to the reader's stack", async () => {
+            const graph = await createTestGraph();
+
+            try {
+                const before = graph.getSession().styles.list().length;
+                await graph.addNode({ id: "layer-free" } as unknown as AdHocData);
+                graph.selectNode("layer-free");
+
+                assert.equal(graph.getSession().styles.list().length, before);
+            } finally {
+                cleanupTestGraph(graph);
+            }
         });
 
-        it("selection layer has correct node selector", () => {
-            const layer = selectionManager.getSelectionStyleLayer();
-            assert.isDefined(layer.node);
-            assert.equal(layer.node?.selector, "algorithmResults.graphty.selected == `true`");
-        });
+        it("selecting a node writes nothing onto the node's data", async () => {
+            const graph = await createTestGraph();
 
-        it("selection layer has style for color by default", () => {
-            const layer = selectionManager.getSelectionStyleLayer();
-            assert.isDefined(layer.node?.style);
-            // The selection style sets a gold color
-            assert.equal(layer.node?.style?.texture?.color, "#FFD700");
+            try {
+                await graph.addNode({ id: "bag-free" } as unknown as AdHocData);
+                graph.selectNode("bag-free");
+
+                const node = graph.getSelectedNode();
+                assert.isNotNull(node);
+                assert.isUndefined((node?.data as Record<string, unknown> | undefined)?.selected);
+                assert.isTrue(node?.isSelected());
+            } finally {
+                cleanupTestGraph(graph);
+            }
         });
     });
 
@@ -304,7 +322,7 @@ describe("SelectionManager integration with Graph", () => {
         assert.isNull(graph.getSelectedNode());
     });
 
-    it("selection persists across style template changes", async () => {
+    it("selection persists across style changes", async () => {
         // Add nodes
         await graph.addNode({ id: "persistent-node" } as unknown as AdHocData);
 
@@ -312,41 +330,13 @@ describe("SelectionManager integration with Graph", () => {
         graph.selectNode("persistent-node");
         assert.isNotNull(graph.getSelectedNode());
 
-        // Change style template
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                addDefaultStyle: true,
-                background: { backgroundType: "color", color: "#000000" },
-                startingCameraDistance: 200,
-                viewMode: "3d",
-                twoD: false,
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                },
-            },
-            behavior: {
-                layout: {
-                    type: "ngraph",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.01,
-                    zoomStepInterval: 10,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
+        // Change the graph's appearance out from under the selection.
+        graph.setBackground({ backgroundType: "color", color: "#000000" });
+        await graph.getSession().styles.add({
+            name: "every node orange",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#FF6600" },
         });
 
         // Selection should still be present

@@ -41,7 +41,7 @@ npm run build:all        # Build both TypeScript and bundle
 npm test                 # Run tests in watch mode
 npm run test:run         # Run tests once
 npm run coverage         # Run with coverage
-npm run coverage:preview # Serve coverage report on port 9052
+npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Linting
 npm run lint             # TypeScript type checking

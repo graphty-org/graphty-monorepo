@@ -54,7 +54,7 @@ npm run test:all         # Run all test projects
 # Coverage
 npm run coverage         # Full coverage with shards
 npm run coverage:fast    # Quick coverage (default project only)
-npm run coverage:preview # Serve coverage report on port 9051
+npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Performance
 npm run benchmark        # Run full benchmarks

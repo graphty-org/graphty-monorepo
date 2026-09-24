@@ -1,279 +1,193 @@
 /**
- * Algorithm categories for grouping in the UI.
+ * The algorithms this application offers, read from graphty-element's catalogue.
+ *
+ * Nothing here describes an algorithm. Every name, description, category, cost and option comes
+ * out of `BUILT_IN_ALGORITHMS`, so an algorithm the element gains, loses or renames shows up
+ * here on the next build.
+ *
+ * The catalogue publishes twenty entries for the twenty-three algorithms the element's registry
+ * answers to: the three shortest-path engines fold into one entry with a `method` parameter, and
+ * the two component algorithms fold into one with a `strength` parameter. The registry has not
+ * folded yet -- it still answers to "dijkstra" and "scc" -- so this list is built by expanding
+ * each descriptor back over the `legacyKeys` it replaced. That keeps every capability the picker
+ * used to offer, keeps saved state that names the old keys working, and carries the 2.0 key and
+ * parameters on each entry so the fold is a one-line change when the registry catches up.
  */
-export type AlgorithmCategory =
-    | "centrality"
-    | "community"
-    | "shortest-path"
-    | "traversal"
-    | "components"
-    | "mst"
-    | "flow";
+import {
+    BUILT_IN_ALGORITHMS,
+    type BuiltInAlgorithmDescriptor,
+    type CostClass,
+    type LegacyAlgorithmKey,
+    type OptionDescriptor,
+} from "@graphty/graphty-element/catalog";
 
 /**
- * Display names for algorithm categories.
+ * An algorithm category, as the catalogue spells it: "centrality", "community", "path", "flow",
+ * "structure" or whatever a later catalogue adds.
  */
-export const CATEGORY_DISPLAY_NAMES: Record<AlgorithmCategory, string> = {
-    centrality: "Centrality",
-    community: "Community Detection",
-    "shortest-path": "Shortest Path",
-    traversal: "Traversal",
-    components: "Components",
-    mst: "Minimum Spanning Tree",
-    flow: "Flow",
-};
+export type AlgorithmCategory = string;
 
-/**
- * Metadata for a single algorithm.
- */
+/** The namespace the element's algorithm registry files its built-ins under. */
+const BUILT_IN_NAMESPACE = "graphty";
+
+/** One algorithm the picker can offer and the element can run. */
 export interface AlgorithmInfo {
     namespace: string;
+    /** The key the element's algorithm registry answers to today. */
     type: string;
+    /** The catalogue key this entry belongs to, once the registry folds. */
+    key: string;
+    /** The catalogue parameters that reproduce this entry, once the registry folds. */
+    params: Readonly<Record<string, unknown>>;
     displayName: string;
+    /** The name a reader who knows the literature would look for. */
+    technicalName: string;
     category: AlgorithmCategory;
     description: string;
-    requiresSourceNode: boolean;
-    requiresTargetNode?: boolean;
-    /** For Prim algorithm, which uses "startNode" instead of "source" */
-    sourceOptionKey?: "source" | "startNode";
-    /** For Max Flow/Min Cut, which use "sink" instead of "target" */
-    targetOptionKey?: "target" | "sink";
+    costClass: CostClass;
+    /** The complexity, in the catalogue's own words. */
+    complexity: string;
+    /** The options a form should draw: everything but the node pickers and the fold parameter. */
+    options: readonly OptionDescriptor[];
+    /** The node a run starts from, when it needs one named. */
+    sourceOption?: OptionDescriptor;
+    /** The node a run ends at, when it needs one named. */
+    targetOption?: OptionDescriptor;
 }
 
 /**
- * Complete catalog of all 23 algorithms available in graphty-element.
- * Ordered by category and then by typical usage/importance within category.
+ * Find the option that tells one folded entry apart from its siblings.
+ *
+ * A descriptor that replaced more than one registry key carries a parameter that says which of
+ * them a run means -- `method` for the shortest-path engines, `strength` for the component
+ * algorithms. The parameter is found by looking at what the siblings set rather than by naming
+ * it here, so a later fold needs no edit.
+ * @param descriptor - The descriptor to inspect.
+ * @returns The distinguishing option, or undefined when the descriptor replaced one key.
  */
-export const ALGORITHM_CATALOG: AlgorithmInfo[] = [
-    // Centrality (7 algorithms)
-    {
-        namespace: "graphty",
-        type: "degree",
-        displayName: "Degree",
-        category: "centrality",
-        description: "Counts the number of connections for each node (in-degree, out-degree, and total)",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "pagerank",
-        displayName: "PageRank",
-        category: "centrality",
-        description: "Measures node importance based on incoming connections from other important nodes",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "betweenness",
-        displayName: "Betweenness Centrality",
-        category: "centrality",
-        description: "Measures how often a node lies on the shortest path between other nodes",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "closeness",
-        displayName: "Closeness Centrality",
-        category: "centrality",
-        description: "Measures how close a node is to all other nodes in the graph",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "eigenvector",
-        displayName: "Eigenvector Centrality",
-        category: "centrality",
-        description: "Measures influence based on the importance of connected neighbors",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "katz",
-        displayName: "Katz Centrality",
-        category: "centrality",
-        description: "Measures centrality with attenuation for distant connections",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "hits",
-        displayName: "HITS",
-        category: "centrality",
-        description: "Computes hub and authority scores for each node",
-        requiresSourceNode: false,
-    },
-
-    // Community Detection (4 algorithms)
-    {
-        namespace: "graphty",
-        type: "louvain",
-        displayName: "Louvain",
-        category: "community",
-        description: "Detects communities by optimizing modularity using a hierarchical approach",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "girvan-newman",
-        displayName: "Girvan-Newman",
-        category: "community",
-        description: "Detects communities by progressively removing high-betweenness edges",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "leiden",
-        displayName: "Leiden",
-        category: "community",
-        description: "Improved community detection with guaranteed connected communities",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "label-propagation",
-        displayName: "Label Propagation",
-        category: "community",
-        description: "Fast community detection by spreading labels through the network",
-        requiresSourceNode: false,
-    },
-
-    // Shortest Path (3 algorithms)
-    {
-        namespace: "graphty",
-        type: "dijkstra",
-        displayName: "Dijkstra",
-        category: "shortest-path",
-        description: "Finds the shortest path between two nodes using positive edge weights",
-        requiresSourceNode: true,
-        requiresTargetNode: true,
-    },
-    {
-        namespace: "graphty",
-        type: "bellman-ford",
-        displayName: "Bellman-Ford",
-        category: "shortest-path",
-        description: "Finds shortest paths even with negative edge weights",
-        requiresSourceNode: true,
-        requiresTargetNode: true,
-    },
-    {
-        namespace: "graphty",
-        type: "floyd-warshall",
-        displayName: "Floyd-Warshall",
-        category: "shortest-path",
-        description: "Computes shortest paths between all pairs of nodes",
-        requiresSourceNode: false,
-    },
-
-    // Traversal (2 algorithms)
-    {
-        namespace: "graphty",
-        type: "bfs",
-        displayName: "Breadth-First Search",
-        category: "traversal",
-        description: "Explores the graph level by level from a starting node",
-        requiresSourceNode: true,
-    },
-    {
-        namespace: "graphty",
-        type: "dfs",
-        displayName: "Depth-First Search",
-        category: "traversal",
-        description: "Explores the graph by going as deep as possible before backtracking",
-        requiresSourceNode: true,
-    },
-
-    // Components (2 algorithms)
-    {
-        namespace: "graphty",
-        type: "connected-components",
-        displayName: "Connected Components",
-        category: "components",
-        description: "Identifies groups of nodes that are connected to each other",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "scc",
-        displayName: "Strongly Connected Components",
-        category: "components",
-        description: "Finds groups where every node is reachable from every other node",
-        requiresSourceNode: false,
-    },
-
-    // Minimum Spanning Tree (2 algorithms)
-    {
-        namespace: "graphty",
-        type: "kruskal",
-        displayName: "Kruskal",
-        category: "mst",
-        description: "Finds a minimum spanning tree by adding edges in weight order",
-        requiresSourceNode: false,
-    },
-    {
-        namespace: "graphty",
-        type: "prim",
-        displayName: "Prim",
-        category: "mst",
-        description: "Builds a minimum spanning tree by growing from a starting node",
-        requiresSourceNode: true,
-        sourceOptionKey: "startNode",
-    },
-
-    // Flow (3 algorithms)
-    {
-        namespace: "graphty",
-        type: "max-flow",
-        displayName: "Max Flow",
-        category: "flow",
-        description: "Computes the maximum flow from source to sink in a network",
-        requiresSourceNode: true,
-        requiresTargetNode: true,
-        targetOptionKey: "sink",
-    },
-    {
-        namespace: "graphty",
-        type: "min-cut",
-        displayName: "Min Cut",
-        category: "flow",
-        description: "Finds the minimum set of edges to remove to disconnect source from sink",
-        requiresSourceNode: true,
-        requiresTargetNode: true,
-        targetOptionKey: "sink",
-    },
-    {
-        namespace: "graphty",
-        type: "bipartite-matching",
-        displayName: "Bipartite Matching",
-        category: "flow",
-        description: "Finds maximum matching in a bipartite graph",
-        requiresSourceNode: false,
-    },
-];
-
-/**
- * Get all unique categories in their display order.
- * @returns Array of algorithm categories in display order
- */
-export function getCategories(): AlgorithmCategory[] {
-    const seen = new Set<AlgorithmCategory>();
-    const result: AlgorithmCategory[] = [];
-
-    for (const algo of ALGORITHM_CATALOG) {
-        if (!seen.has(algo.category)) {
-            seen.add(algo.category);
-            result.push(algo.category);
-        }
+function foldOption(descriptor: BuiltInAlgorithmDescriptor): OptionDescriptor | undefined {
+    if (descriptor.legacyKeys.length < 2) {
+        return undefined;
     }
 
-    return result;
+    const named = new Set(descriptor.legacyKeys.flatMap((legacy) => Object.keys(legacy.params ?? {})));
+
+    return descriptor.options.find((option) => named.has(option.name) && option.values !== undefined);
 }
 
 /**
- * Get all algorithms for a given category.
- * @param category - The algorithm category to filter by
- * @returns Array of algorithms in the specified category
+ * Name one entry of a folded descriptor, in words the picker can show beside its siblings.
+ * @param descriptor - The descriptor the entry belongs to.
+ * @param legacy - The registry key this entry runs.
+ * @param fold - The option that tells the siblings apart, when there is one.
+ * @returns The display name.
+ */
+function displayNameFor(
+    descriptor: BuiltInAlgorithmDescriptor,
+    legacy: LegacyAlgorithmKey,
+    fold: OptionDescriptor | undefined,
+): string {
+    if (fold === undefined) {
+        return descriptor.plainName;
+    }
+
+    const chosen = legacy.params?.[fold.name] ?? fold.default;
+    const label = fold.values?.find((choice) => choice.value === chosen)?.label;
+
+    return label === undefined ? descriptor.plainName : `${descriptor.plainName} (${label})`;
+}
+
+/**
+ * Expand one descriptor into one entry per registry key it replaced.
+ * @param descriptor - The catalogue descriptor.
+ * @returns One entry per key the element's registry answers to.
+ */
+function entriesFor(descriptor: BuiltInAlgorithmDescriptor): AlgorithmInfo[] {
+    const fold = foldOption(descriptor);
+    const foldNames = new Set(descriptor.legacyKeys.flatMap((legacy) => Object.keys(legacy.params ?? {})));
+
+    // A node picker is an option that names a node and that the reader is expected to fill in.
+    // An advanced one -- the optional early-exit target on a traversal -- is not a picker.
+    const pickers = descriptor.options.filter((option) => option.type === "node-id" && option.advanced !== true);
+    const drawn = descriptor.options.filter(
+        (option) => !pickers.includes(option) && !(fold !== undefined && foldNames.has(option.name)),
+    );
+
+    return descriptor.legacyKeys.map((legacy) => {
+        const entry: AlgorithmInfo = {
+            namespace: BUILT_IN_NAMESPACE,
+            type: legacy.key,
+            key: descriptor.key,
+            params: legacy.params ?? {},
+            displayName: displayNameFor(descriptor, legacy, fold),
+            technicalName: descriptor.technicalName,
+            category: descriptor.category,
+            description: descriptor.description,
+            costClass: descriptor.costClass,
+            complexity: descriptor.complexity,
+            options: drawn,
+        };
+
+        if (pickers[0] !== undefined) {
+            entry.sourceOption = pickers[0];
+        }
+
+        if (pickers[1] !== undefined) {
+            entry.targetOption = pickers[1];
+        }
+
+        return entry;
+    });
+}
+
+/** Every algorithm the element's registry answers to, in the catalogue's own order. */
+const ALGORITHM_CATALOG: readonly AlgorithmInfo[] = BUILT_IN_ALGORITHMS.flatMap(entriesFor);
+
+/**
+ * Every category the catalogue uses, in the order its algorithms are declared.
+ * @returns The category names, first-seen first.
+ */
+export function getCategories(): AlgorithmCategory[] {
+    return [...new Set(ALGORITHM_CATALOG.map((algorithm) => algorithm.category))];
+}
+
+/**
+ * Every algorithm in one category.
+ * @param category - The category to filter by.
+ * @returns The algorithms in that category, in catalogue order.
  */
 export function getAlgorithmsByCategory(category: AlgorithmCategory): AlgorithmInfo[] {
-    return ALGORITHM_CATALOG.filter((algo) => algo.category === category);
+    return ALGORITHM_CATALOG.filter((algorithm) => algorithm.category === category);
 }
+
+/**
+ * Find one algorithm by the key the element's registry answers to.
+ * @param type - The registry key, such as "dijkstra".
+ * @returns The entry, or undefined when the element registers no such algorithm.
+ */
+export function getAlgorithm(type: string): AlgorithmInfo | undefined {
+    return ALGORITHM_CATALOG.find((algorithm) => algorithm.type === type);
+}
+
+/**
+ * Turn a slug into a heading, so a category the catalogue gains gets a readable label without
+ * anyone adding a row to a table.
+ * @param slug - A lower-case, hyphen-separated name.
+ * @returns The name with each word capitalised.
+ */
+function titleCase(slug: string): string {
+    return slug
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+}
+
+/**
+ * Display labels for each algorithm category the catalogue offers.
+ *
+ * The catalogue publishes a category as a slug and has no heading for it, so the heading is
+ * derived rather than listed.
+ */
+export const CATEGORY_DISPLAY_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
+    getCategories().map((category) => [category, titleCase(category)]),
+);

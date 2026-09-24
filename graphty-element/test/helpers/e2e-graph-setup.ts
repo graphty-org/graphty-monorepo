@@ -4,6 +4,7 @@
  */
 
 import { Graph } from "../../src/Graph";
+import { configureGraph } from "./testSetup";
 
 /**
  * Node data for setting up test graphs.
@@ -96,43 +97,8 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
     // Initialize the graph
     await graph.init();
 
-    // Set up a basic style template
-    await graph.setStyleTemplate({
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            viewMode: "3d",
-            twoD: false,
-            background: { backgroundType: "color", color: "#F5F5F5" },
-            addDefaultStyle: true,
-            startingCameraDistance: 100,
-            layout: "ngraph",
-        },
-        layers: [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-            },
-        },
-        behavior: {
-            layout: {
-                type: "ngraph",
-                preSteps: 0,
-                stepMultiplier: 1,
-                minDelta: 0.001,
-                zoomStepInterval: 5,
-            },
-            node: {
-                pinOnDrag: true,
-            },
-        },
-    });
+    // Set up a basic graph configuration
+    await configureGraph(graph, { viewMode: "3d", layout: "ngraph" });
 
     // Add nodes if provided
     if (nodes.length > 0) {

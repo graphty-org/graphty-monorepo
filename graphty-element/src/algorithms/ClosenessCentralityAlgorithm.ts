@@ -1,81 +1,81 @@
 import { closenessCentrality } from "@graphty/algorithms";
 
-import type { SuggestedStylesConfig } from "../config";
+import type { FieldDescriptor, NodeId } from "../catalog/types";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { toAlgorithmGraph } from "./utils/graphConverter";
+import { walkInChunks } from "./metrics/context";
+import { nodeMetricFields } from "./metrics/fields";
+import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
+
+/** What a closeness result publishes: the uniform node-metric fields and nothing else. */
+const CLOSENESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
+    plainName: "Reach",
+    technicalName: "closeness",
+});
 
 /**
- * Closeness Centrality Algorithm
+ * Closeness centrality: how short a node's paths to the rest of the graph are.
  *
- * Measures how close a node is to all other nodes in the graph.
- * Nodes with high closeness centrality can reach other nodes quickly
- * and are well-positioned for information flow.
- *
- * Results stored per node:
- * - score: Raw closeness centrality value
- * - scorePct: Normalized value in [0, 1] range (for visualization)
+ * The published `value` is the algorithm's own figure, unscaled. A graph-level `min` and `max`
+ * sit on the result, so a consumer that wants a 0-to-1 value has the range to make one with.
  */
-export class ClosenessCentralityAlgorithm extends Algorithm {
+export class ClosenessCentralityAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "closeness";
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.closeness.scorePct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.greens(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Closeness - Greens Gradient",
-                    description: "Light green (low) → Dark green (high) - shows accessibility",
-                },
-            },
-        ],
-        description: "Visualizes node accessibility through color based on closeness centrality",
-        category: "node-metric",
-    });
+    /**
+     * The fields a closeness result publishes.
+     * @returns The uniform node-metric fields.
+     */
+    protected resultFields(): readonly FieldDescriptor[] {
+        return CLOSENESS_FIELDS;
+    }
 
     /**
-     * Executes the closeness centrality algorithm on the graph
-     *
-     * Computes closeness centrality scores for all nodes and stores normalized values.
+     * Score every node by how short its paths to the rest of the graph are.
+     * @param context - Where progress goes and where cancellation arrives.
+     * @param nodeIds - The nodes to measure.
+     * @returns One score per node, unscaled.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
+        // Undirected: closeness here measures distance, which ignores the declared direction.
+        const graphData = this.algorithmGraph("undirected");
 
-        if (nodes.length === 0) {
-            return;
-        }
+        context.report({
+            phase: "measuring distances",
+            completed: 0,
+            total: nodeIds.length,
+            message: "A breadth-first search runs from every node.",
+        });
+        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
+        // The element's own half -- reading the scores back out -- is chunked below.
+        const scores = closenessCentrality(graphData);
+        context.signal.throwIfAborted();
 
-        // Convert to @graphty/algorithms format and run
-        const graphData = toAlgorithmGraph(g);
-        const results = closenessCentrality(graphData);
+        const nodes: ResultElementValues[] = [];
+        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+            const score = scores[String(nodeId)];
+            nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
+        });
 
-        // Find min/max for min-max normalization
-        // This ensures values spread across full 0-1 range for better visual differentiation
-        let minScore = Infinity;
-        let maxScore = -Infinity;
-        for (const score of Object.values(results)) {
-            minScore = Math.min(minScore, score);
-            maxScore = Math.max(maxScore, score);
-        }
-
-        // Store results with min-max normalization
-        const range = maxScore - minScore;
-        for (const nodeId of nodes) {
-            const score = results[String(nodeId)] ?? 0;
-            this.addNodeResult(nodeId, "score", score);
-            this.addNodeResult(nodeId, "scorePct", range > 0 ? (score - minScore) / range : 0);
-        }
+        return {
+            nodes,
+            // The algorithm's own figure, published as it was computed.
+            normalization: "none",
+            caveats: {
+                exact: true,
+                direction: "undirected",
+                weight: null,
+                precision: "f64",
+                method: "closeness-bfs",
+                notes: [
+                    "Distances are exact, measured over the graph read as undirected.",
+                    "Distance counts edges; edge weights are not read.",
+                    "A score is the reciprocal of the total distance to the nodes this one can reach, with no correction for how many that is, so a node in a small component scores as though it reached the whole graph.",
+                ],
+            },
+        };
     }
 }
 

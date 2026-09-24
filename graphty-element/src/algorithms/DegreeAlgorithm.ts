@@ -1,95 +1,83 @@
-import type { SuggestedStylesConfig } from "../config";
+import type { FieldDescriptor, NodeId } from "../catalog/types";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { toAlgorithmGraph } from "./utils/graphConverter";
+import { walkInChunks } from "./metrics/context";
+import { metricField, nodeMetricFields } from "./metrics/fields";
+import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 
 /**
- *
+ * What a degree result publishes: the uniform node-metric fields, plus the two halves of the
+ * count that only a directed graph can tell apart.
  */
-export class DegreeAlgorithm extends Algorithm {
+const DEGREE_FIELDS: readonly FieldDescriptor[] = [
+    ...nodeMetricFields({ plainName: "Connections", technicalName: "degree", type: "integer", unit: "links" }),
+    metricField({
+        name: "inDegree",
+        plainName: "Incoming connections",
+        technicalName: "inDegree",
+        kind: "node",
+        type: "integer",
+    }),
+    metricField({
+        name: "outDegree",
+        plainName: "Outgoing connections",
+        technicalName: "outDegree",
+        kind: "node",
+        type: "integer",
+    }),
+];
+
+/**
+ * Degree centrality: how many edges each node has.
+ *
+ * The published `value` is the total count, incoming plus outgoing. `inDegree` and `outDegree`
+ * are published beside it because the direction the records declared is a real distinction the
+ * total throws away.
+ */
+export class DegreeAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "degree";
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.degree.degreePct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.viridis(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Degree - Viridis Gradient",
-                    description: "Purple (low) → Yellow (high) - colorblind-safe",
-                },
-            },
-        ],
-        description: "Visualizes node importance through color based on connection count",
-        category: "node-metric",
-    });
+    /**
+     * The fields a degree result publishes.
+     * @returns The uniform node-metric fields, plus `inDegree` and `outDegree`.
+     */
+    protected resultFields(): readonly FieldDescriptor[] {
+        return DEGREE_FIELDS;
+    }
 
     /**
-     * Executes the degree algorithm on the graph
-     *
-     * Computes in-degree, out-degree, and total degree for all nodes.
+     * Count every node's edges.
+     * @param context - Where progress goes and where cancellation arrives.
+     * @param nodeIds - The nodes to measure.
+     * @returns One count per node, unscaled.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
+        // Directed, so in-degree and out-degree are the directions the records declared.
+        const graphData = this.algorithmGraph("directed");
+        const nodes: ResultElementValues[] = [];
 
-        if (nodes.length === 0) {
-            return;
-        }
-
-        // Convert to @graphty/algorithms format - use directed mode to get accurate in/out degrees
-        const graphData = toAlgorithmGraph(g, { directed: true, addReverseEdges: false });
-
-        // Calculate degrees using the @graphty/algorithms Graph methods
-        let maxInDegree = 0;
-        let maxOutDegree = 0;
-        let maxDegree = 0;
-
-        const degreeResults = new Map<number | string, { inDegree: number; outDegree: number; degree: number }>();
-
-        for (const nodeId of nodes) {
+        await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
             const inDegree = graphData.inDegree(nodeId);
             const outDegree = graphData.outDegree(nodeId);
-            const degree = inDegree + outDegree;
 
-            degreeResults.set(nodeId, { inDegree, outDegree, degree });
+            nodes.push({ id: nodeId, values: { value: inDegree + outDegree, inDegree, outDegree } });
+        });
 
-            maxInDegree = Math.max(maxInDegree, inDegree);
-            maxOutDegree = Math.max(maxOutDegree, outDegree);
-            maxDegree = Math.max(maxDegree, degree);
-        }
-
-        // Store graph-level results
-        this.addGraphResult("maxInDegree", maxInDegree);
-        this.addGraphResult("maxOutDegree", maxOutDegree);
-        this.addGraphResult("maxDegree", maxDegree);
-
-        // Store node-level results
-        for (const nodeId of nodes) {
-            const result = degreeResults.get(nodeId);
-            if (!result) {
-                continue;
-            }
-
-            const { inDegree, outDegree, degree } = result;
-
-            this.addNodeResult(nodeId, "inDegree", inDegree);
-            this.addNodeResult(nodeId, "outDegree", outDegree);
-            this.addNodeResult(nodeId, "degree", degree);
-            // Safe division: return 0 when max is 0 to avoid NaN
-            this.addNodeResult(nodeId, "inDegreePct", maxInDegree > 0 ? inDegree / maxInDegree : 0);
-            this.addNodeResult(nodeId, "outDegreePct", maxOutDegree > 0 ? outDegree / maxOutDegree : 0);
-            this.addNodeResult(nodeId, "degreePct", maxDegree > 0 ? degree / maxDegree : 0);
-        }
+        return {
+            nodes,
+            // A count of edges, published as it was counted.
+            normalization: "none",
+            caveats: {
+                exact: true,
+                direction: "directed",
+                weight: null,
+                precision: "f64",
+                method: "degree",
+                notes: ["Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones."],
+            },
+        };
     }
 }
 

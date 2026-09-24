@@ -3,15 +3,15 @@
  *
  * 1. A node SHAPE change did not invalidate its incident edges, so the edges kept the endpoints
  *    they had computed against the previous geometry -- the product owner's report "when I change
- *    shapes the edges are no longer touching the surface of the node". `Node.updateStyle` tested
+ *    shapes the edges are no longer touching the surface of the node". The restyle path tested
  *    `this.size !== oldSize` alone, and a shape change at constant size leaves `size` equal. This
  *    is a regression, not a never-worked: `Edge.update` recomputed endpoints every frame until
- *    973f1d96 (2025-11-11) added the position dirty check. See Node.updateStyle for the dates.
+ *    973f1d96 (2025-11-11) added the position dirty check. See Node.paintFrom for the dates.
  * 2. `effect.glow` was declared in the schema, interned into the style id, and rendered by
  *    nothing at all -- "glow doesn't work". `NodeEffects.applyGlowEffect` is the missing renderer.
  *
  * The harness builds real `Node` and `Edge` objects against a `NullEngine` scene rather than a
- * full `Graph`, because both defects live in `Node.updateStyle` and both need REAL geometry: the
+ * full `Graph`, because both defects live on Node's repaint path and both need REAL geometry: the
  * whole point of (1) is that a ray hits an icosphere and a box at different distances, and the
  * whole point of (2) is which Babylon mesh ends up in the effect layer's inclusion list.
  */
@@ -26,7 +26,7 @@ import { EventManager } from "../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphContext";
 import { LayoutManager } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
-import { StyleManager } from "../src/managers/StyleManager";
+import type { EdgePaint, NodePaint } from "../src/managers/StylePainter";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { Node } from "../src/Node";
 import { Styles } from "../src/Styles";
@@ -81,14 +81,13 @@ function createHarness(): Harness {
     const styles = Styles.default();
     const eventManager = new EventManager();
     const statsManager = new StatsManager(eventManager);
-    const styleManager = new StyleManager(eventManager, styles);
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     const layoutEngine = new FixedTestLayout();
     layoutManager.layoutEngine = layoutEngine;
 
     const context = new DefaultGraphContext(
-        styleManager,
+        () => styles,
         dataManager,
         layoutManager,
         meshCache,
@@ -110,14 +109,65 @@ function createHarness(): Harness {
 }
 
 /**
+ * A stand-in for the session's mesh-key interner: one key per distinct style, minted in
+ * first-seen order.
+ *
+ * A Node and an Edge are handed the paint they are drawn from rather than an id to look one up
+ * by, and the key in that paint is what decides whether a restyle rebuilds geometry or leaves it
+ * alone. This harness has no session behind it, so it mints its own keys -- distinct from the
+ * `s0`, `s1` the real interner mints, for the same reason the bootstrap's key is.
+ */
+const meshKeys = new Map<string, string>();
+
+/**
+ * The key one style is drawn under.
+ * @param style - The node or edge style.
+ * @returns A key that is stable for that style and different for every other.
+ */
+function meshKeyOf(style: object): string {
+    const spelled = JSON.stringify(style);
+    const known = meshKeys.get(spelled);
+
+    if (known !== undefined) {
+        return known;
+    }
+
+    const minted = `test-s${String(meshKeys.size)}`;
+    meshKeys.set(spelled, minted);
+
+    return minted;
+}
+
+/**
+ * The paint a node is drawn from.
+ *
+ * The colour is null because this harness paints no instance colours: what these tests are about
+ * is geometry, and a colour lives beside the style precisely so that changing it is not geometry.
+ * @param style - The style to draw from.
+ * @returns The paint.
+ */
+function nodePaintOf(style: NodeStyleConfig): NodePaint {
+    return { meshKey: meshKeyOf(style), style, color: null };
+}
+
+/**
+ * The paint an edge is drawn from.
+ * @param style - The style to draw from.
+ * @returns The paint.
+ */
+function edgePaintOf(style: EdgeStyleConfig): EdgePaint {
+    return { meshKey: meshKeyOf(style), style };
+}
+
+/**
  * Create a node, register it everywhere a real load would, and place its mesh.
  * @param harness - The test harness
  * @param id - Node id, which must match a key in FixedTestLayout.positions
- * @param style - The node style to intern and apply
+ * @param style - The node style to draw it from
  * @returns The created node
  */
 function addNode(harness: Harness, id: string, style: NodeStyleConfig): Node {
-    const node = new Node(harness.context, id, Styles.getNodeIdForStyle(style), { id } as unknown as AdHocData);
+    const node = new Node(harness.context, id, nodePaintOf(style), { id } as unknown as AdHocData);
     harness.dataManager.nodes.set(id, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
@@ -129,17 +179,11 @@ function addNode(harness: Harness, id: string, style: NodeStyleConfig): Node {
  * Create the src -> dst edge and give it one update, so its endpoints are computed against the
  * geometry that exists right now.
  * @param harness - The test harness
- * @param style - The edge style to intern and apply
+ * @param style - The edge style to draw it from
  * @returns The created edge
  */
 function addEdge(harness: Harness, style: EdgeStyleConfig): Edge {
-    const edge = new Edge(
-        harness.context,
-        "src",
-        "dst",
-        Styles.getEdgeIdForStyle(style),
-        {} as unknown as AdHocData,
-    );
+    const edge = new Edge(harness.context, "src", "dst", 0, edgePaintOf(style), {} as unknown as AdHocData);
     harness.dataManager.edges.set(edge.id, edge);
     harness.layoutEngine.addEdge(edge);
     edge.update();
@@ -150,13 +194,11 @@ function nodeStyle(overrides: NodeStyleConfig): NodeStyleConfig {
     return {
         shape: { type: "icosphere", size: 1 },
         texture: { color: "#6366F1" },
-        enabled: true,
         ...overrides,
     };
 }
 
 const ARROW_EDGE_STYLE: EdgeStyleConfig = {
-    enabled: true,
     line: { type: "solid", color: "#AAAAAA", width: 0.5 },
     arrowHead: { type: "normal", size: 1, color: "#AAAAAA", opacity: 1 },
 };
@@ -180,8 +222,8 @@ describe("Node shape changes and connected edges", () => {
         assert.isDefined(sphereEndpoint);
 
         // Same declared size, different geometry. Before the fix this changed nothing about the
-        // edge, because Node.updateStyle only invalidated on a SIZE change.
-        dstNode.updateStyle(Styles.getNodeIdForStyle(nodeStyle({ shape: { type: "box", size: 1 } })));
+        // edge, because the restyle path only invalidated on a SIZE change.
+        dstNode.applySessionPaint(nodePaintOf(nodeStyle({ shape: { type: "box", size: 1 } })));
         edge.update();
 
         const boxEndpoint = edge.arrowMesh?.position.clone();
@@ -193,7 +235,7 @@ describe("Node shape changes and connected edges", () => {
         );
 
         // ... and switching back must reattach, not strand the edge on the box surface.
-        dstNode.updateStyle(Styles.getNodeIdForStyle(nodeStyle({ shape: { type: "icosphere", size: 1 } })));
+        dstNode.applySessionPaint(nodePaintOf(nodeStyle({ shape: { type: "icosphere", size: 1 } })));
         edge.update();
 
         const backAgain = edge.arrowMesh?.position.clone();
@@ -217,7 +259,7 @@ describe("Node shape changes and connected edges", () => {
             edge.arrowMesh.position = sentinel.clone();
         }
 
-        dstNode.updateStyle(Styles.getNodeIdForStyle(nodeStyle({ texture: { color: "#FF0000" } })));
+        dstNode.applySessionPaint(nodePaintOf(nodeStyle({ texture: { color: "#FF0000" } })));
         edge.update();
 
         assert.isTrue(
@@ -293,7 +335,7 @@ describe("Node glow effect", () => {
         assert.isDefined(glowLayer);
         assert.isTrue(glowLayer.hasMesh(renderedMeshOf(node)));
 
-        node.updateStyle(Styles.getNodeIdForStyle(nodeStyle({})));
+        node.applySessionPaint(nodePaintOf(nodeStyle({})));
 
         assert.isFalse(
             glowLayer.hasMesh(renderedMeshOf(node)),
@@ -338,7 +380,7 @@ describe("Node and Edge disposal", () => {
         // boundary and both call these. Without the disposed guard, update()'s
         // recreate-if-the-mesh-is-disposed branch would silently resurrect the mesh.
         node.update();
-        node.updateStyle(Styles.getNodeIdForStyle(nodeStyle({ texture: { color: "#FF0000" } })));
+        node.updateStyle();
 
         assert.isTrue(node.isDisposed());
         assert.strictEqual(node.mesh, disposedMesh, "a disposed node must not be given a new mesh");

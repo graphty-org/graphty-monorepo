@@ -1,5 +1,14 @@
 import type { Graphty } from "../../../src/graphty-element";
-import { algorithmMetaBase, createAlgorithmStory, type Story, templateCreator } from "../helpers";
+import {
+    assertAlgorithmPainted,
+    assertDistinctPicture,
+    assertEdgeVariety,
+    assertGraphLoaded,
+    assertLabelsDrawn,
+    drawn,
+    holds,
+} from "../../assertions";
+import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -92,36 +101,35 @@ const waterSupplyNetworkData = {
 /**
  * Bipartite Matching - maximum matching in bipartite graphs
  * Demonstrates job candidate ↔ job position matching
- * Matched edges are highlighted in purple (thick)
- * Left partition (candidates) are blue, right partition (jobs) are red
- * Non-matched edges are dimmed gray
+ * Matched edges are highlighted in blue over a reader layer that greys every edge
+ * Nodes are coloured by the side of the pairing they are on
  */
 export const BipartiteMatching: Story = {
     args: {
         dataSource: undefined,
         nodeData: bipartiteJobMatchingData.nodes,
         edgeData: bipartiteJobMatchingData.edges,
-        styleTemplate: templateCreator({
-            graph: {
-                viewMode: "2d",
-                layout: "bipartite",
-                layoutOptions: {
-                    nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"],
-                    align: "horizontal",
-                    aspectRatio: 1.5,
-                },
-            },
+        setup: storySetup({
+            viewMode: "2d",
             algorithms: ["graphty:bipartite-matching"],
+            // The reader's own layer, beneath the algorithm's: every edge pale, so the pairing
+            // stands out when the algorithm's highlight repaints it on top. Colour only -- an
+            // opacity here would dim the pairing too, because the highlight does not set one.
             layers: [
                 {
-                    edge: {
-                        selector: 'algorithmResults.graphty."bipartite-matching".inMatching == `false`',
-                        style: { enabled: true, line: { color: "#CCCCCC", opacity: 0.3 } },
-                    },
-                    metadata: { name: "Reader - dim non-matched edges" },
+                    name: "Reader - dim every edge",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.color": "#CCCCCC" },
                 },
             ],
         }),
+        layout: "bipartite",
+        layoutConfig: {
+            nodes: ["alice", "bob", "carol", "dave", "eve", "frank", "grace"],
+            align: "horizontal",
+            aspectRatio: 1.5,
+        },
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
@@ -134,51 +142,35 @@ export const BipartiteMatching: Story = {
 
         const graphtyElement = element as Graphty;
         const { graph } = graphtyElement;
-        const dm = graph.getDataManager();
-        const layoutManager = graph.getLayoutManager();
 
         // Run the algorithm explicitly (runAlgorithmsOnLoad may not trigger for all data sources)
         await graph.runAlgorithmsFromTemplate();
 
-        // Store current positions before style application (applyStylesToExistingNodes resets them)
-        const savedPositions = new Map<string, { x: number; y: number; z: number }>();
-        for (const [id, node] of dm.nodes) {
-            savedPositions.set(String(id), {
-                x: node.mesh.position.x,
-                y: node.mesh.position.y,
-                z: node.mesh.position.z,
-            });
-        }
+        // Apply suggested styles. The positions used to have to be saved and put back around
+        // this call, because applying a style walked every node and re-applied its layout
+        // position on the way; a style pass writes a colour into an instance and moves nothing.
+        const applied = graph.applySuggestedStyles("graphty:bipartite-matching");
 
-        // Apply suggested styles
-        graph.applySuggestedStyles("graphty:bipartite-matching");
+        await holds(
+            applied,
+            "Algorithms/Flow BipartiteMatching: applySuggestedStyles returned false, so no finished run of " +
+                "bipartite matching had anything to paint",
+        );
 
-        // Apply styles to existing elements (this will reset positions - bug)
-        dm.applyStylesToExistingNodes();
-        dm.applyStylesToExistingEdges();
+        const scene = await drawn(canvasElement, "Algorithms/Flow BipartiteMatching");
 
-        // Restore positions after style application
-        for (const [id, node] of dm.nodes) {
-            const savedPos = savedPositions.get(String(id));
-            if (savedPos) {
-                node.mesh.position.x = savedPos.x;
-                node.mesh.position.y = savedPos.y;
-                node.mesh.position.z = savedPos.z;
-            }
-        }
-
-        // Update edge geometry to reflect new node positions
-        for (const edge of layoutManager.edges) {
-            edge.update();
-        }
+        await assertGraphLoaded(scene, { nodes: 14, edges: 12 });
+        await assertAlgorithmPainted(scene, "graphty:bipartite-matching", { paints: "edge" });
+        await assertEdgeVariety(scene, 2);
+        await assertDistinctPicture(scene, "Algorithms/Flow");
     },
 };
 
 /**
  * Max Flow - network flow visualization on a water supply network
- * Edge width is proportional to the flow carried, and colour intensity with it
- * (light -> dark blue), so the saturated plant -> city mains read darkest and widest
- * Source node (Reservoir) is orange, sink node (City) is sky blue
+ * Edge colour follows the flow carried along the element's sequential ramp, so the
+ * mains carrying the most read at the bright end
+ * The source (Reservoir) and the sink (City) are coloured by their role
  * Max flow is 26 megalitres/day; the three plant -> city mains are the bottleneck
  */
 export const MaxFlow: Story = {
@@ -186,25 +178,24 @@ export const MaxFlow: Story = {
         dataSource: undefined,
         nodeData: waterSupplyNetworkData.nodes,
         edgeData: waterSupplyNetworkData.edges,
-        styleTemplate: templateCreator({
+        setup: storySetup({
             // the node names carry the demonstration, so show them
-            nodeStyle: { label: { enabled: true, textPath: "label" } },
-            graph: {
-                viewMode: "2d",
-                layout: "multipartite",
-                layoutOptions: {
-                    subsetKey: {
-                        "0": ["reservoir"],
-                        "1": ["pump_north", "pump_central", "pump_south"],
-                        "2": ["plant_east", "plant_west", "plant_hill"],
-                        "3": ["city"],
-                    },
-                    align: "vertical",
-                },
-            },
-            algorithms: ["graphty:max-flow"],
+            nodeEncode: { "node.label": { by: "data.label", scale: "passthrough" } },
+            viewMode: "2d",
+            // No on-load run: the on-load list carries no options, so it would run max flow
+            // between no source and no sink and stack a second, wrong set of layers under the
+            // run the play function starts with the real endpoints.
         }),
-        runAlgorithmsOnLoad: true,
+        layout: "multipartite",
+        layoutConfig: {
+            subsetKey: {
+                "0": ["reservoir"],
+                "1": ["pump_north", "pump_central", "pump_south"],
+                "2": ["plant_east", "plant_west", "plant_hill"],
+                "3": ["city"],
+            },
+            align: "vertical",
+        },
     },
     play: async ({ canvasElement }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -223,24 +214,42 @@ export const MaxFlow: Story = {
             applySuggestedStyles: true,
         });
 
-        const dm = graph.getDataManager();
-        dm.applyStylesToExistingNodes();
-        dm.applyStylesToExistingEdges();
+        const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
+
+        await assertGraphLoaded(scene, { nodes: 8, edges: 12 });
+        await assertAlgorithmPainted(scene, "graphty:max-flow", { paints: "edge", atLeast: 12 });
+
+        // The demonstration is that the mains carry different amounts, drawn as different widths
+        // and colours. One appearance for all twelve is the picture this story exists to rule out.
+        await assertEdgeVariety(scene, 2);
+
+        // The node names carry the demonstration, so the story asks for them.
+        await assertLabelsDrawn(scene);
+        await assertDistinctPicture(scene, "Algorithms/Flow");
     },
 };
 
 /**
  * Min Cut - minimum cut visualization
- * Cut edges are highlighted in orange
- * Partition 1 nodes are blue, partition 2 nodes are red
- * Non-cut edges are dimmed
+ * Cut edges are highlighted in blue over a reader layer that greys every edge
+ * Nodes are coloured by the side of the cut they are on
  */
-export const MinCut: Story = createAlgorithmStory("graphty:min-cut", [
-    {
-        edge: {
-            selector: 'algorithmResults.graphty."min-cut".inCut == `false`',
-            style: { enabled: true, line: { color: "#CCCCCC", opacity: 0.4 } },
+export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {
+    paints: "edge",
+    edgeVariety: 2,
+    readerLayers: [
+    /*
+     * The reader's own layer, beneath the algorithm's: every edge pale, so the ones the cut
+     * chose stand out when the algorithm's layer repaints them on top. It greys EVERY edge
+     * rather than naming the ones outside the cut, because an edge the cut left out is not the
+     * cut's to paint, and naming "the rest" would need the id of a run that has not started when
+     * this story is written.
+     */
+        {
+            name: "Reader - dim every edge",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#CCCCCC" },
         },
-        metadata: { name: "Reader - dim non-cut edges" },
-    },
-]);
+    ],
+});

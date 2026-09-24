@@ -12,7 +12,6 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { compactFontSizes, compactRadius, compactSpacing } from "../../src/theme/tokens";
 import { compactTheme } from "../../src";
 import { buttonComponentExtensions } from "../../src/theme/components/buttons";
 import { controlComponentExtensions } from "../../src/theme/components/controls";
@@ -21,6 +20,7 @@ import { feedbackComponentExtensions } from "../../src/theme/components/feedback
 import { inputComponentExtensions } from "../../src/theme/components/inputs";
 import { navigationComponentExtensions } from "../../src/theme/components/navigation";
 import { compactMultiValueStyles } from "../../src/theme/styles/inputs";
+import { compactFontSizes, compactRadius, compactSpacing } from "../../src/theme/tokens";
 
 // ============================================================================
 // GLOBAL TOKENS REGRESSION

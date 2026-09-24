@@ -2,81 +2,35 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
-import type { AdHocData } from "../../../src/config";
+import { createMockGraph, getEdgeResult, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
 
-interface MockGraphOpts {
-    dataPath?: string;
-}
-
+/**
+ * The shared mock, kept behind the name and the loose return type this file already used.
+ *
+ * It carries a real graph store, which is where an algorithm now reads its input from; the node
+ * and edge maps it also exposes are where the results land.
+ * @param opts - which fixture to load
+ * @returns the mock graph
+ */
  
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    const nodes = new Map<string | number, AdHocData>();
-    const edges = new Map<string | number, AdHocData>();
-    let graphResults: AdHocData | undefined;
-
-    if (typeof opts.dataPath === "string") {
-        const imp = await import(opts.dataPath);
-        for (const n of imp.nodes) {
-            nodes.set(n.id, n);
-        }
-        for (const e of imp.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, e);
-        }
-    }
-
-    const fakeGraph = {
-        nodes,
-        edges,
-        getDataManager() {
-            return {
-                nodes,
-                edges,
-                get graphResults() {
-                    return graphResults;
-                },
-                set graphResults(val: AdHocData | undefined) {
-                    graphResults = val;
-                },
-            };
-        },
-    };
-
-    return fakeGraph;
+    return createMockGraph(opts);
 }
 
+/**
+ * A graph with a negative cycle: A --1--> B --2--> C ---(-4)--> A, total weight -1.
+ * @returns the mock graph
+ */
  
-function mockGraphWithNegativeCycle(): any {
-    // Create a graph with a negative cycle:
-    // A --1--> B --2--> C ---(-4)--> A
-    // This creates a negative cycle with total weight: 1 + 2 - 4 = -1
-    const nodes = new Map<string | number, AdHocData>();
-    const edges = new Map<string | number, AdHocData>();
-    let graphResults: AdHocData | undefined;
-
-    nodes.set("A", { id: "A" } as unknown as AdHocData);
-    nodes.set("B", { id: "B" } as unknown as AdHocData);
-    nodes.set("C", { id: "C" } as unknown as AdHocData);
-
-    edges.set("A:B", { srcId: "A", dstId: "B", value: 1 } as unknown as AdHocData);
-    edges.set("B:C", { srcId: "B", dstId: "C", value: 2 } as unknown as AdHocData);
-    edges.set("C:A", { srcId: "C", dstId: "A", value: -4 } as unknown as AdHocData);
-
-    return {
-        nodes,
-        edges,
-        getDataManager() {
-            return {
-                nodes,
-                edges,
-                get graphResults() {
-                    return graphResults;
-                },
-                set graphResults(val: AdHocData | undefined) {
-                    graphResults = val;
-                },
-            };
-        },
-    };
+async function mockGraphWithNegativeCycle(): Promise<any> {
+    return createMockGraph({
+        nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
+        edges: [
+            { srcId: "A", dstId: "B", value: 1 },
+            { srcId: "B", dstId: "C", value: 2 },
+            { srcId: "C", dstId: "A", value: -4 },
+        ],
+    });
 }
 
 describe("BellmanFordAlgorithm", () => {
@@ -95,32 +49,30 @@ describe("BellmanFordAlgorithm", () => {
         });
 
         it("calculates distances from source to all nodes", async () => {
-            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
+            const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
             algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
-                assert.property(node.algorithmResults, "graphty");
-                assert.property(node.algorithmResults.graphty, "bellman-ford");
-                assert.property(node.algorithmResults.graphty["bellman-ford"], "distance");
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "bellman-ford", "distance"));
             }
 
             // Source should have distance 0
             const sourceNode = fakeGraph.nodes.get("Valjean");
             assert.ok(sourceNode);
-            assert.strictEqual(sourceNode.algorithmResults.graphty["bellman-ford"].distance, 0);
+            assert.strictEqual(getNodeResult(algo, sourceNode.id, "graphty", "bellman-ford", "distance"), 0);
         });
 
         it("marks nodes in shortest path when target is specified", async () => {
-            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
+            const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
             algo.configure({ source: "Valjean", target: "Cosette" });
             await algo.run();
 
             let pathNodeCount = 0;
             for (const node of fakeGraph.nodes.values()) {
-                if (node.algorithmResults?.graphty?.["bellman-ford"]?.isInPath) {
+                if (getNodeResult(algo, node.id, "graphty", "bellman-ford", "isInPath") === true) {
                     pathNodeCount++;
                 }
             }
@@ -128,14 +80,14 @@ describe("BellmanFordAlgorithm", () => {
         });
 
         it("marks edges in shortest path when target is specified", async () => {
-            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
+            const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
             algo.configure({ source: "Valjean", target: "Cosette" });
             await algo.run();
 
             let pathEdgeCount = 0;
             for (const edge of fakeGraph.edges.values()) {
-                if (edge.algorithmResults?.graphty?.["bellman-ford"]?.isInPath) {
+                if (getEdgeResult(algo, edge.id, "graphty", "bellman-ford", "isInPath") === true) {
                     pathEdgeCount++;
                 }
             }
@@ -152,13 +104,15 @@ describe("BellmanFordAlgorithm", () => {
         });
 
         it("normalizes distances to percentages", async () => {
-            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
+            const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
             algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
-                const distPct = node.algorithmResults?.graphty?.["bellman-ford"]?.distancePct;
+                const distPct = getNodeResult(algo, node.id, "graphty", "bellman-ford", "distancePct") as
+                    | number
+                    | undefined;
                 if (distPct !== undefined && isFinite(distPct)) {
                     assert.isAtLeast(distPct, 0);
                     assert.isAtMost(distPct, 1);
@@ -167,74 +121,14 @@ describe("BellmanFordAlgorithm", () => {
         });
 
         it("detects negative cycles", async () => {
-            const graphWithNegCycle = mockGraphWithNegativeCycle();
+            const graphWithNegCycle = await mockGraphWithNegativeCycle();
             const algo = new BellmanFordAlgorithm(graphWithNegCycle);
             algo.configure({ source: "A" });
             await algo.run();
 
-            const { results } = algo;
-            assert.ok(results.graph?.graphty?.["bellman-ford"]?.hasNegativeCycle);
-        });
-    });
-
-    describe("Suggested Styles", () => {
-        it("has suggested styles defined", () => {
-            assert.isTrue(BellmanFordAlgorithm.hasSuggestedStyles());
-        });
-
-        it("returns correct category", () => {
-            const styles = BellmanFordAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.strictEqual(styles.category, "path");
-        });
-
-        it("has both edge and node layers", () => {
-            const styles = BellmanFordAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const hasEdgeLayer = styles.layers.some((l) => l.edge);
-            const hasNodeLayer = styles.layers.some((l) => l.node);
-            assert.isTrue(hasEdgeLayer);
-            assert.isTrue(hasNodeLayer);
-        });
-
-        it("has layers with metadata", () => {
-            const styles = BellmanFordAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            for (const layer of styles.layers) {
-                assert.ok(layer.metadata);
-                assert.ok(layer.metadata.name);
-            }
-        });
-
-        it("edge layer highlights path edges using calculatedStyle", () => {
-            const styles = BellmanFordAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const edgeLayer = styles.layers.find((l) => l.edge?.calculatedStyle?.inputs[0]?.includes("isInPath"));
-            assert.ok(edgeLayer);
-            assert.ok(edgeLayer.edge);
-            assert.ok(edgeLayer.edge.calculatedStyle);
-            assert.ok(edgeLayer.edge.calculatedStyle.output.includes("color"));
-        });
-
-        it("node layer highlights path nodes using calculatedStyle", () => {
-            const styles = BellmanFordAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const nodeLayer = styles.layers.find((l) => l.node?.calculatedStyle?.inputs[0]?.includes("isInPath"));
-            assert.ok(nodeLayer);
-            assert.ok(nodeLayer.node);
-            assert.ok(nodeLayer.node.calculatedStyle);
-            assert.ok(nodeLayer.node.calculatedStyle.output.includes("color"));
-        });
-
-        it("description mentions path visualization", () => {
-            const styles = BellmanFordAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.ok(styles.description);
-            assert.ok(styles.description.toLowerCase().includes("path"));
+            const { result } = algo;
+            assert.ok(result);
+            assert.isTrue(result.graph.hasNegativeCycle);
         });
     });
 });

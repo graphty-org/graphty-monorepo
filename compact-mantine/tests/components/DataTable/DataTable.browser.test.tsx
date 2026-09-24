@@ -14,8 +14,7 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 
 import { compactTheme, PANEL_GRID } from "../../../src";
-import { DataTable } from "../../../src/components/DataTable";
-import type { DataTableColumn } from "../../../src/components/DataTable";
+import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
 
 interface Node {
     id: string;

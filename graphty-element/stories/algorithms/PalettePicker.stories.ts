@@ -1,13 +1,36 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
 
-import { StyleHelpers } from "../../src/config/StyleHelpers";
+import { blueHighlight, greenSuccess, orangeWarning } from "../../src/utils/styleHelpers/color/binary";
+import { carbon, okabeIto, pastel, tolMuted, tolVibrant } from "../../src/utils/styleHelpers/color/categorical";
+import { blueOrange, purpleGreen, redBlue } from "../../src/utils/styleHelpers/color/diverging";
+import { blues, greens, inferno, oranges, plasma, viridis } from "../../src/utils/styleHelpers/color/sequential";
+import { holds } from "../assertions";
+
+/**
+ * The colour ramps this story draws.
+ *
+ * Gathered here rather than imported as one namespace: `StyleHelpers` existed to be in scope
+ * inside a `calculatedStyle` expression string, and it went with the evaluator. The ramps
+ * themselves did not move.
+ */
+const StyleHelpers = {
+    color: {
+        sequential: { viridis, plasma, inferno, blues, greens, oranges },
+        categorical: { okabeIto, tolVibrant, tolMuted, carbon, pastel },
+        diverging: { purpleGreen, blueOrange, redBlue },
+        binary: { blueHighlight, greenSuccess, orangeWarning },
+    },
+};
 
 const meta: Meta = {
     title: "Algorithms/Palette Picker",
     parameters: {
         chromatic: {
             delay: 300, // Ensure DOM updates complete before snapshot
+        },
+        paintCheck: {
+            exempt: "draws the colour ramps as DOM swatches and puts no graph on screen at all",
         },
     },
 };
@@ -229,7 +252,7 @@ export const PalettePicker: Story = {
             </div>
         </div>
     `,
-    play: ({ canvasElement }) => {
+    play: async ({ canvasElement }) => {
         // Helper to render sequential gradient swatches
         const renderSequential = (containerId: string, fn: (value: number) => string, steps = 20): void => {
             const container = canvasElement.querySelector(`#${containerId}`);
@@ -333,5 +356,37 @@ export const PalettePicker: Story = {
         renderBinary("bin-blue", StyleHelpers.color.binary.blueHighlight);
         renderBinary("bin-green", StyleHelpers.color.binary.greenSuccess);
         renderBinary("bin-orange", StyleHelpers.color.binary.orangeWarning);
+
+        // WHAT THIS STORY HAS TO SHOW, and the one way it can silently show nothing: every
+        // renderer above returns quietly when its container is missing, so a renamed id or a
+        // dropped row leaves an empty panel and a passing test. Seventeen ramps are drawn here --
+        // six sequential at twenty steps, five categorical at 8 + 7 + 9 + 5 + 8, three diverging
+        // at twenty and three binary pairs -- which is 120 + 37 + 60 + 6 swatches.
+        const swatches = canvasElement.querySelectorAll("[data-color]");
+        const empty = [...canvasElement.querySelectorAll(".color-swatches")]
+            .filter((row) => row.childElementCount === 0)
+            .map((row) => row.id);
+
+        await holds(
+            empty.length === 0,
+            `Algorithms/Palette Picker: ${String(empty.length)} palette rows drew no swatch at all ` +
+                `-- ${empty.join(", ")}`,
+        );
+
+        await holds(
+            swatches.length === 223,
+            `Algorithms/Palette Picker: draws 17 ramps totalling 223 swatches and rendered ` +
+                `${String(swatches.length)}`,
+        );
+
+        const uncoloured = [...swatches].filter(
+            (swatch) => (swatch as HTMLElement).style.backgroundColor === "",
+        ).length;
+
+        await holds(
+            uncoloured === 0,
+            `Algorithms/Palette Picker: ${String(uncoloured)} swatches carry a data-color and are drawn with no ` +
+                "background colour at all",
+        );
     },
 };

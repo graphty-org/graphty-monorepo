@@ -10,5 +10,5 @@ export * from "./OperationQueueManager";
 export * from "./RenderManager";
 export * from "./SelectionManager";
 export * from "./StatsManager";
-export * from "./StyleManager";
+export * from "./StylePainter";
 export * from "./UpdateManager";

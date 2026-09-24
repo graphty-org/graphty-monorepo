@@ -10,6 +10,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+import {
+    ATTRACTION_LADDER,
+    ATTRACTION_SCALE_GROUP,
+    POSITION_BYTES_PER_NODE,
+} from "../benchmarks/attraction-scale.bench.js";
 import { gridEdges, KARATE_EDGES, randomEdges, rmatEdges, snapshotOf, TIERS } from "../benchmarks/datasets.js";
 import {
     appendSession,
@@ -939,5 +944,33 @@ describe("benchmarks/layout-run.ts (contract 6.3)", () => {
             "positions has 6 components, expected 9 (3 x 3 nodes)",
             "the run ended after 1 of 100 iterations without settling",
         ]);
+    });
+});
+
+describe("benchmarks/attraction-scale.bench.ts (the G4-F16 diagnostic)", () => {
+    it("the group is attraction-scale and its ladder doubles the gather's working set from 0.25 to 64 MiB", () => {
+        expect(ATTRACTION_SCALE_GROUP).toBe("attraction-scale");
+        expect(POSITION_BYTES_PER_NODE).toBe(16);
+        expect(ATTRACTION_LADDER.map((r) => r.nodes)).toEqual([
+            16_384, 65_536, 262_144, 524_288, 1_048_576, 2_097_152, 4_194_304,
+        ]);
+        expect(ATTRACTION_LADDER.map((r) => (r.nodes * POSITION_BYTES_PER_NODE) / (1024 * 1024))).toEqual([
+            0.25, 1, 4, 8, 16, 32, 64,
+        ]);
+        // the ladder brackets the Tesla T4's 4 MiB of L2 on both sides, which is what the ratio curve is read against
+        expect(ATTRACTION_LADDER.filter((r) => (r.nodes * POSITION_BYTES_PER_NODE) / (1024 * 1024) < 4)).toHaveLength(
+            2,
+        );
+    });
+
+    it("the row names are the group's own, so none collides with a layout-grid row of the same rung", () => {
+        const rung = ATTRACTION_LADDER[4];
+        const m = rung.nodes * LADDER_EDGE_FACTOR;
+        expect(`scale step(1) wall n=${rung.nodes} m=${m} 2D [${rung.label}]`).not.toMatch(/^grid step\(1\) wall /);
+        expect(`scale attraction ms/iteration (profiler) n=${rung.nodes} 2D [${rung.label}]`).not.toMatch(
+            /^attraction ms\/iteration /,
+        );
+        // the 1M rungs differ too: layout-grid's is 1,000,000 nodes, this ladder's is 2^20
+        expect(rung.nodes).not.toBe(GRID_LADDER[4].nodes);
     });
 });

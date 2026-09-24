@@ -1,578 +1,201 @@
 /**
- * Shared options form component that renders form controls for any OptionsSchema.
- * Used by both RunLayoutsModal and RunAlgorithmModal.
+ * The options form: one control per option, drawn from graphty-element's option descriptors.
  *
- * Uses graphty-element's unified schema system with rich metadata.
+ * A descriptor is plain JSON -- a name, a label, a control type, a default, a range, a list of
+ * choices -- so this file needs no knowledge of how the element validates an option and no
+ * dependency on the library it validates with. The element walks its own Zod schemas once and
+ * publishes the result; the two used to be walked again here, against Zod's private internals,
+ * with a branch for each Zod major because the element's Zod and this application's Zod were
+ * different versions of the same library.
  */
+import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { Checkbox, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useCallback, useMemo } from "react";
-import type { z } from "zod/v4";
+
+import { optionDefaults } from "./optionDefaults";
 
 /**
- * UI metadata for an option (from graphty-element OptionsSchema)
+ * The option types this form has no control for.
+ *
+ * Each of these names part of a graph -- a node, a set of nodes, a grouping, an ordering, an
+ * attribute -- or is an option the element could not classify at all. Drawing a text box for
+ * one would invite a reader to type an identifier that nothing checks, so the caller that has
+ * the graph draws these itself. They are skipped here rather than dropped from the descriptor
+ * list, so a caller that does have the graph can still find them.
  */
-interface OptionMeta {
-    /** Human-readable label for UI display */
-    label: string;
-    /** Detailed description/help text */
-    description: string;
-    /** Hide in basic UI mode (show only in advanced settings) */
-    advanced?: boolean;
-    /** Group related options together in UI */
-    group?: string;
-    /** Suggested step increment for numeric sliders */
-    step?: number;
-}
+const UNDRAWABLE_TYPES: readonly OptionDescriptor["type"][] = [
+    "node-id",
+    "node-set",
+    "attribute",
+    "partition",
+    "ordering",
+    "unknown",
+];
 
 /**
- * A single option definition: Zod schema + UI metadata
+ * A bound the element resolved to a number. A bound that is still a reference to something
+ * measured on the graph ("up to the largest core in this graph") is not a number and cannot
+ * limit an input until `catalog.optionsFor` has resolved it against a loaded graph.
+ * @param bound - The descriptor's min or max.
+ * @returns The bound as a number, or undefined when it is not one.
  */
-interface OptionDefinition<T extends z.ZodType = z.ZodType> {
-    /** Zod schema for validation and type inference */
-    schema: T;
-    /** UI metadata for display and organization */
-    meta: OptionMeta;
-}
-
-/**
- * Complete options schema: map of option names to definitions
- */
-export type OptionsSchema = Record<string, OptionDefinition>;
-
-// ============================================================================
-// Local implementations of graphty-element utilities
-// ============================================================================
-
-/**
- * Get default values from an options schema.
- * Extracts the default value from each Zod schema definition.
- * @param optionsSchema - The options schema to extract defaults from
- * @returns Record of option names to their default values
- */
-function getDefaults(optionsSchema: OptionsSchema): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-
-    for (const [key, optionDef] of Object.entries(optionsSchema)) {
-        const defaultValue = extractDefaultValue(optionDef.schema);
-        if (defaultValue !== undefined) {
-            result[key] = defaultValue;
-        }
-    }
-
-    return result;
-}
-
-/**
- * Get def object from a zod schema (handles both v3 and v4)
- * @param schema - The Zod schema to get def from
- * @returns The def object or null if not found
- */
-function getZodDef(schema: unknown): Record<string, unknown> | null {
-    if (!schema || typeof schema !== "object") {
-        return null;
-    }
-
-    // zod v4 uses `def`
-    if ("def" in schema) {
-        return (schema as { def: Record<string, unknown> }).def;
-    }
-
-    // zod v3 uses `_def`
-    if ("_def" in schema) {
-        return (schema as { _def: Record<string, unknown> })._def;
-    }
-
-    return null;
-}
-
-/**
- * Get type name from a zod schema (handles both v3 and v4)
- * Normalizes to v3 format (e.g., "ZodNumber") for switch compatibility
- * @param schema - The Zod schema to get type name from
- * @returns The normalized type name (e.g., "ZodNumber")
- */
-function getZodTypeName(schema: unknown): string {
-    const def = getZodDef(schema);
-    if (!def) {
-        return "";
-    }
-
-    // zod v4: type is in def.type (lowercase)
-    if (typeof def.type === "string") {
-        // Normalize to v3 format for consistency
-        const v4Type = def.type;
-        const normalized = v4Type.charAt(0).toUpperCase() + v4Type.slice(1);
-
-        return `Zod${normalized}`;
-    }
-
-    // zod v3: typeName is in _def.typeName
-    if (typeof def.typeName === "string") {
-        return def.typeName;
-    }
-
-    return "";
-}
-
-/**
- * Extract default value from a Zod schema by unwrapping wrappers
- * @param zodSchema - The Zod schema to extract default from
- * @returns The default value or undefined if none
- */
-function extractDefaultValue(zodSchema: unknown): unknown {
-    if (!zodSchema || typeof zodSchema !== "object") {
-        return undefined;
-    }
-
-    // Use unknown to avoid TypeScript narrowing issues in the loop
-    let current: unknown = zodSchema;
-    let maxIterations = 10;
-
-    while (maxIterations-- > 0) {
-        if (!current || typeof current !== "object") {
-            break;
-        }
-
-        const def = getZodDef(current);
-        if (!def) {
-            break;
-        }
-
-        const typeName = getZodTypeName(current);
-
-        if (typeName === "ZodDefault") {
-            const { defaultValue } = def;
-
-            // v4: defaultValue is stored directly
-            // v3: defaultValue is a function that returns the value
-            if (typeof defaultValue === "function") {
-                return defaultValue();
-            }
-
-            return defaultValue;
-        } else if (typeName === "ZodOptional" || typeName === "ZodNullable") {
-            current = def.innerType;
-        } else {
-            break;
-        }
-    }
-
-    return undefined;
-}
-
-/**
- * Get all option metadata from a schema (for UI generation)
- * @param optionsSchema - The options schema to extract metadata from
- * @returns Map of option names to their metadata
- */
-function getOptionsMeta(optionsSchema: OptionsSchema): Map<string, OptionMeta> {
-    const result = new Map<string, OptionMeta>();
-
-    for (const [key, optionDef] of Object.entries(optionsSchema)) {
-        result.set(key, optionDef.meta);
-    }
-
-    return result;
-}
-
-/**
- * Get options filtered by advanced flag.
- * @param optionsSchema - The options schema to filter
- * @param advanced - If true, return only advanced options. If false, return only basic options.
- * @returns Filtered options schema
- */
-function getOptionsFiltered(optionsSchema: OptionsSchema, advanced: boolean): OptionsSchema {
-    const result: OptionsSchema = {};
-
-    for (const [key, optionDef] of Object.entries(optionsSchema)) {
-        const isAdvanced = optionDef.meta.advanced === true;
-
-        // If we want advanced options, include only advanced ones
-        // If we want basic options, include only non-advanced ones
-        if (advanced === isAdvanced) {
-            result[key] = optionDef;
-        }
-    }
-
-    return result;
-}
-
-// ============================================================================
-// Component Props
-// ============================================================================
-
-interface OptionsFormProps {
-    /** The options schema from graphty-element */
-    schema: OptionsSchema;
-    /** Current option values */
-    values: Record<string, unknown>;
-    /** Callback when values change */
-    onChange: (values: Record<string, unknown>) => void;
-    /** Whether to show advanced options (default: false) */
-    showAdvanced?: boolean;
-    /** Optional filter for which options to show */
-    filter?: (key: string, meta: OptionMeta) => boolean;
-}
-
-/**
- * Detected field type from Zod schema introspection
- */
-type FieldType = "number" | "boolean" | "enum" | "string" | "complex";
-
-interface ParsedField {
-    type: FieldType;
-    min?: number;
-    max?: number;
-    enumValues?: string[];
-}
-
-/**
- * Unwrap Zod wrappers (optional, nullable, default) to get the inner type
- * Works with zod v4 structure
- * @param schema - The Zod schema to unwrap
- * @returns The unwrapped inner schema
- */
-function unwrapZodType(schema: unknown): unknown {
-    if (!schema || typeof schema !== "object") {
-        return schema;
-    }
-
-    const typeName = getZodTypeName(schema);
-    const def = getZodDef(schema);
-
-    if (!def) {
-        return schema;
-    }
-
-    // Unwrap wrapper types recursively (normalized to ZodXxx format)
-    if (["ZodOptional", "ZodNullable", "ZodDefault"].includes(typeName)) {
-        const { innerType } = def;
-        if (innerType) {
-            return unwrapZodType(innerType);
-        }
-    }
-
-    // Handle union with null (z.number().or(z.null()))
-    if (typeName === "ZodUnion") {
-        const { options } = def;
-        if (Array.isArray(options)) {
-            const nonNullOption = options.find((opt) => {
-                const optType = getZodTypeName(opt);
-
-                return optType !== "ZodNull";
-            });
-            if (nonNullOption) {
-                return unwrapZodType(nonNullOption);
-            }
-        }
-    }
-
-    return schema;
-}
-
-/**
- * Extract number constraints from a Zod number schema
- * Works with both v3 (checks array) and v4 (minValue/maxValue)
- * @param schema - The Zod number schema
- * @returns Object with min and max constraints
- */
-function extractNumberConstraints(schema: unknown): { min?: number; max?: number } {
-    const def = getZodDef(schema);
-    if (!def) {
-        return {};
-    }
-
-    const result: { min?: number; max?: number } = {};
-
-    // zod v4: constraints are directly on def (minValue, maxValue)
-    if (typeof def.minValue === "number") {
-        result.min = def.minValue;
-    }
-
-    if (typeof def.maxValue === "number") {
-        result.max = def.maxValue;
-    }
-
-    // zod v3: constraints are in checks array
-    const checks = def.checks as { kind: string; value?: number }[] | undefined;
-    if (Array.isArray(checks)) {
-        for (const check of checks) {
-            if (check.kind === "min") {
-                result.min = check.value;
-            } else if (check.kind === "max") {
-                result.max = check.value;
-            } else if (check.kind === "positive" || check.kind === "nonnegative") {
-                result.min = 0;
-            }
-        }
-    }
-
-    return result;
-}
-
-/**
- * Parse a Zod schema to determine its field type and constraints
- * @param zodSchema - The Zod schema to parse
- * @returns Parsed field information including type and constraints
- */
-function parseZodSchema(zodSchema: unknown): ParsedField {
-    const innerSchema = unwrapZodType(zodSchema);
-    const def = getZodDef(innerSchema);
-
-    if (!def) {
-        return { type: "complex" };
-    }
-
-    const typeName = getZodTypeName(innerSchema);
-
-    switch (typeName) {
-        case "ZodNumber": {
-            const constraints = extractNumberConstraints(innerSchema);
-
-            return {
-                type: "number",
-                min: constraints.min,
-                max: constraints.max,
-            };
-        }
-        case "ZodBoolean":
-            return { type: "boolean" };
-        case "ZodString":
-            return { type: "string" };
-        case "ZodEnum": {
-            // v4 stores values in def.entries (object), v3 in def.values (array)
-            let values: string[] = [];
-            if (def.entries && typeof def.entries === "object") {
-                // v4: entries is an object like {fast: "fast", accurate: "accurate"}
-                values = Object.keys(def.entries);
-            } else if (Array.isArray(def.values)) {
-                // v3: values is an array
-                values = def.values as string[];
-            }
-
-            return {
-                type: "enum",
-                enumValues: values,
-            };
-        }
-        default:
-            return { type: "complex" };
-    }
+function numericBound(bound: OptionDescriptor["min"]): number | undefined {
+    return typeof bound === "number" ? bound : undefined;
 }
 
 interface FieldRendererProps {
-    fieldKey: string;
-    meta: OptionMeta;
-    parsedField: ParsedField;
+    option: OptionDescriptor;
     value: unknown;
-    defaultValue: unknown;
     onChange: (value: unknown) => void;
 }
 
 /**
- * Renders a single form field based on its type and metadata
+ * Draw one option's control.
  * @param root0 - Component props
- * @param root0.fieldKey - The field key/name
- * @param root0.meta - Field metadata for UI display
- * @param root0.parsedField - Parsed field type and constraints
- * @param root0.value - Current field value
- * @param root0.defaultValue - Default value from schema
- * @param root0.onChange - Callback when value changes
- * @returns The rendered form field or null for complex types
+ * @param root0.option - The option to draw.
+ * @param root0.value - The value in force, which is the descriptor's default until the reader
+ * changes it.
+ * @param root0.onChange - Called with the new value.
+ * @returns The control, or null when the option has no control here.
  */
-function FieldRenderer({
-    fieldKey,
-    meta,
-    parsedField,
-    value,
-    defaultValue,
-    onChange,
-}: FieldRendererProps): React.JSX.Element | null {
-    // Use explicit label from metadata
-    const { label } = meta;
-    const { description } = meta;
+function FieldRenderer({ option, value, onChange }: FieldRendererProps): React.JSX.Element | null {
+    const label = option.plainName;
+    const { description } = option;
+    const labelStyles = {
+        label: { color: "var(--mantine-color-gray-3)" },
+        description: { color: "var(--mantine-color-gray-5)", fontSize: "0.75rem" },
+    };
 
-    // Determine effective value (use provided, fall back to default)
-    const effectiveValue = value !== undefined ? value : defaultValue;
+    switch (option.type) {
+        case "number":
+        case "integer":
+        case "seed": {
+            const min = numericBound(option.min);
+            const max = numericBound(option.max);
+            const numeric = value !== null && value !== undefined ? Number(value) : undefined;
 
-    switch (parsedField.type) {
-        case "number": {
-            const numValue = effectiveValue !== null && effectiveValue !== undefined ? Number(effectiveValue) : undefined;
-
-            // Use step from metadata, or derive from constraints
-            const step =
-                meta.step ??
-                (parsedField.min !== undefined && parsedField.min >= 0 && parsedField.max !== undefined && parsedField.max <= 1
-                    ? 0.01
-                    : undefined);
+            // A fractional option with no declared step steps by a hundredth, which is the
+            // smallest move that reads as deliberate on a zero-to-one weight.
+            const fractional = min !== undefined && min >= 0 && max !== undefined && max <= 1;
+            const step = option.step ?? (option.type === "number" && fractional ? 0.01 : undefined);
 
             return (
                 <NumberInput
-                    key={fieldKey}
                     label={label}
                     description={description}
-                    value={numValue ?? ""}
-                    onChange={(val) => {
-                        onChange(val === "" ? null : val);
+                    value={numeric ?? ""}
+                    onChange={(next) => {
+                        onChange(next === "" ? null : next);
                     }}
-                    min={parsedField.min}
-                    max={parsedField.max}
+                    min={min}
+                    max={max}
                     step={step}
+                    allowDecimal={option.type === "number"}
                     decimalScale={4}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-3)" },
-                        description: { color: "var(--mantine-color-gray-5)", fontSize: "0.75rem" },
-                    }}
+                    styles={labelStyles}
                 />
             );
         }
 
-        case "boolean": {
-            const boolValue = effectiveValue === true;
-
+        case "boolean":
             return (
                 <Checkbox
-                    key={fieldKey}
                     label={label}
                     description={description}
-                    checked={boolValue}
+                    checked={value === true}
                     onChange={(event) => {
                         onChange(event.currentTarget.checked);
                     }}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-3)" },
-                        description: { color: "var(--mantine-color-gray-5)", fontSize: "0.75rem" },
-                    }}
+                    styles={labelStyles}
                 />
             );
-        }
 
-        case "enum": {
-            const enumOptions =
-                parsedField.enumValues?.map((val) => ({
-                    value: val,
-                    label: val,
-                })) ?? [];
-
+        case "enum":
             return (
                 <Select
-                    key={fieldKey}
                     label={label}
                     description={description}
-                    value={effectiveValue as string | null}
-                    onChange={(val) => {
-                        onChange(val);
-                    }}
-                    data={enumOptions}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-3)" },
-                        description: { color: "var(--mantine-color-gray-5)", fontSize: "0.75rem" },
-                    }}
+                    value={typeof value === "string" ? value : null}
+                    onChange={onChange}
+                    data={(option.values ?? []).map((choice) => ({ value: choice.value, label: choice.label }))}
+                    styles={labelStyles}
                 />
             );
-        }
 
-        case "string": {
+        case "string":
             return (
                 <TextInput
-                    key={fieldKey}
                     label={label}
                     description={description}
-                    value={typeof effectiveValue === "string" ? effectiveValue : ""}
+                    value={typeof value === "string" ? value : ""}
                     onChange={(event) => {
                         onChange(event.currentTarget.value);
                     }}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-3)" },
-                        description: { color: "var(--mantine-color-gray-5)", fontSize: "0.75rem" },
-                    }}
+                    styles={labelStyles}
                 />
             );
-        }
 
-        case "complex":
         default:
-            // Skip complex types
             return null;
     }
 }
 
+interface OptionsFormProps {
+    /** The options to draw, as the element's catalogue publishes them. */
+    options: readonly OptionDescriptor[];
+    /** The values the reader has changed. Anything absent shows its default. */
+    values: Record<string, unknown>;
+    /** Called with every value, defaults included, whenever one changes. */
+    onChange: (values: Record<string, unknown>) => void;
+    /** Whether to draw the options the element marked advanced. */
+    showAdvanced?: boolean;
+    /** Options the caller draws itself, or drives from a control of its own. */
+    hiddenFields?: readonly string[];
+}
+
 /**
- * Renders a dynamic form based on a Zod options schema.
- * Automatically generates form controls for each option based on its type.
+ * Draw a form for a list of option descriptors.
  * @param root0 - Component props
- * @param root0.schema - The options schema defining available options
- * @param root0.values - Current option values
- * @param root0.onChange - Callback when option values change
- * @param root0.showAdvanced - Whether to show advanced options
- * @param root0.filter - Optional filter function for options
- * @returns The rendered options form
+ * @param root0.options - The options to draw.
+ * @param root0.values - The values the reader has changed.
+ * @param root0.onChange - Called with every value whenever one changes.
+ * @param root0.showAdvanced - Whether to draw the advanced options.
+ * @param root0.hiddenFields - Options the caller draws itself.
+ * @returns The form, or a line saying there is nothing to configure.
  */
-export function OptionsForm({ schema, values, onChange, showAdvanced = false, filter }: OptionsFormProps): React.JSX.Element {
-    // Get default values from schema
-    const defaults = useMemo(() => getDefaults(schema), [schema]);
+export function OptionsForm({
+    options,
+    values,
+    onChange,
+    showAdvanced = false,
+    hiddenFields = [],
+}: OptionsFormProps): React.JSX.Element {
+    const defaults = useMemo(() => optionDefaults(options), [options]);
 
-    // Get metadata for all options
-    const allMeta = useMemo(() => getOptionsMeta(schema), [schema]);
+    const visible = useMemo(
+        () =>
+            options.filter((option) => {
+                if (UNDRAWABLE_TYPES.includes(option.type) || option.internal === true) {
+                    return false;
+                }
 
-    // Filter options based on advanced flag
-    const filteredSchema = useMemo(() => {
-        // First filter by advanced flag
-        let result = schema;
+                if (hiddenFields.includes(option.name)) {
+                    return false;
+                }
 
-        // If not showing advanced, filter to only non-advanced options
-        if (!showAdvanced) {
-            result = getOptionsFiltered(schema, false);
-        }
+                return showAdvanced || option.advanced !== true;
+            }),
+        [options, showAdvanced, hiddenFields],
+    );
 
-        return result;
-    }, [schema, showAdvanced]);
-
-    // Parse each field's Zod schema for type detection
-    const parsedFields = useMemo(() => {
-        const result: Record<string, ParsedField> = {};
-
-        for (const [key, optionDef] of Object.entries(filteredSchema)) {
-            result[key] = parseZodSchema(optionDef.schema);
-        }
-
-        return result;
-    }, [filteredSchema]);
-
-    // Get visible fields (apply custom filter and exclude complex types)
-    const visibleFields = useMemo(() => {
-        return Object.entries(filteredSchema).filter(([key]) => {
-            const parsedField = parsedFields[key];
-            const meta = allMeta.get(key);
-
-            // Skip complex types (parsedField exists since we populated parsedFields from filteredSchema)
-            if (parsedField.type === "complex") {
-                return false;
-            }
-
-            // Apply custom filter if provided
-            if (filter && meta) {
-                return filter(key, meta);
-            }
-
-            return true;
-        });
-    }, [filteredSchema, parsedFields, allMeta, filter]);
-
-    // Handle field value changes
     const handleFieldChange = useCallback(
-        (fieldKey: string, newValue: unknown) => {
-            const updatedValues = {
-                ...defaults,
-                ...values,
-                [fieldKey]: newValue,
-            };
-            onChange(updatedValues);
+        (name: string, next: unknown) => {
+            onChange({ ...defaults, ...values, [name]: next });
         },
         [values, defaults, onChange],
     );
 
-    if (visibleFields.length === 0) {
+    if (visible.length === 0) {
         return (
             <Text size="sm" c="gray.5" fs="italic">
                 No configurable options for this selection.
@@ -582,28 +205,16 @@ export function OptionsForm({ schema, values, onChange, showAdvanced = false, fi
 
     return (
         <Stack gap="sm">
-            {visibleFields.map(([fieldKey]) => {
-                const meta = allMeta.get(fieldKey);
-                const parsedField = parsedFields[fieldKey];
-
-                if (!meta) {
-                    return null;
-                }
-
-                return (
-                    <FieldRenderer
-                        key={fieldKey}
-                        fieldKey={fieldKey}
-                        meta={meta}
-                        parsedField={parsedField}
-                        value={values[fieldKey]}
-                        defaultValue={defaults[fieldKey]}
-                        onChange={(newValue) => {
-                            handleFieldChange(fieldKey, newValue);
-                        }}
-                    />
-                );
-            })}
+            {visible.map((option) => (
+                <FieldRenderer
+                    key={option.name}
+                    option={option}
+                    value={values[option.name] !== undefined ? values[option.name] : defaults[option.name]}
+                    onChange={(next) => {
+                        handleFieldChange(option.name, next);
+                    }}
+                />
+            ))}
         </Stack>
     );
 }

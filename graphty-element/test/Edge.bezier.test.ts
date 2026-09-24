@@ -23,7 +23,6 @@ describe("Bezier Curve Edge Integration", () => {
                 color: "#FF0000",
                 bezier: true,
             },
-            enabled: true,
         };
 
         const srcPoint = new Vector3(0, 0, 0);
@@ -53,7 +52,6 @@ describe("Bezier Curve Edge Integration", () => {
                 color: "#FF0000",
                 bezier: false,
             },
-            enabled: true,
         };
 
         const mesh = EdgeMesh.create(
@@ -78,7 +76,6 @@ describe("Bezier Curve Edge Integration", () => {
                 color: "#00FF00",
                 bezier: true,
             },
-            enabled: true,
         };
 
         const srcPoint = new Vector3(5, 5, 5);
@@ -108,7 +105,6 @@ describe("Bezier Curve Edge Integration", () => {
                 color: "#0000FF",
                 bezier: true,
             },
-            enabled: true,
         };
 
         const point = new Vector3(5, 5, 5);
@@ -138,7 +134,6 @@ describe("Bezier Curve Edge Integration", () => {
                 bezier: true,
                 opacity: 0.5,
             },
-            enabled: true,
         };
 
         const srcPoint = new Vector3(0, 0, 0);
@@ -168,7 +163,6 @@ describe("Bezier Curve Edge Integration", () => {
                 color: "#FFFF00",
                 bezier: true,
             },
-            enabled: true,
         };
 
         const srcPoint1 = new Vector3(0, 0, 0);
@@ -215,7 +209,6 @@ describe("Bezier Curve Edge Integration", () => {
                 color: "#00FFFF",
                 bezier: true,
             },
-            enabled: true,
         };
 
         const srcPoint = new Vector3(0, 0, 0);

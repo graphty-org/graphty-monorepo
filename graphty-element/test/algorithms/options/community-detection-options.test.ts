@@ -54,8 +54,9 @@ describe("Community Detection Algorithm Options", () => {
                 const algo = new PageRankAlgorithm(graph);
                 await algo.run();
 
-                const dm = graph.getDataManager();
-                assert.strictEqual(dm.graphResults?.graphty?.pagerank?.dampingFactor, 0.85);
+                // The damping factor a run used is in the caveats' notes, which is where a
+                // reader is told what the numbers mean.
+                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
             });
         });
 
@@ -111,8 +112,7 @@ describe("Community Detection Algorithm Options", () => {
                 const algo = new PageRankAlgorithm(graph, { dampingFactor: 0.5 });
                 await algo.run();
 
-                const dm = graph.getDataManager();
-                assert.strictEqual(dm.graphResults?.graphty?.pagerank?.dampingFactor, 0.5);
+                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
             });
         });
 
@@ -197,7 +197,7 @@ describe("Community Detection Algorithm Options", () => {
                 await algo.run();
 
                 // Verify community assignments were made
-                const communityId = getNodeResult(graph, "A", "graphty", "louvain", "communityId");
+                const communityId = getNodeResult(algo, "A", "graphty", "louvain", "communityId");
                 assert.isDefined(communityId);
             });
         });
@@ -269,7 +269,7 @@ describe("Community Detection Algorithm Options", () => {
                 await algo.run();
 
                 // Verify community assignments were made
-                const communityId = getNodeResult(graph, "A", "graphty", "leiden", "communityId");
+                const communityId = getNodeResult(algo, "A", "graphty", "leiden", "communityId");
                 assert.isDefined(communityId);
             });
         });
@@ -337,7 +337,7 @@ describe("Community Detection Algorithm Options", () => {
                 await algo.run();
 
                 // Verify community assignments were made
-                const communityId = getNodeResult(graph, "A", "graphty", "label-propagation", "communityId");
+                const communityId = getNodeResult(algo, "A", "graphty", "label-propagation", "communityId");
                 assert.isDefined(communityId);
             });
         });
@@ -411,7 +411,7 @@ describe("Community Detection Algorithm Options", () => {
                 await algo.run();
 
                 // Verify community assignments were made
-                const communityId = getNodeResult(graph, "A", "graphty", "girvan-newman", "communityId");
+                const communityId = getNodeResult(algo, "A", "graphty", "girvan-newman", "communityId");
                 assert.isDefined(communityId);
             });
         });

@@ -92,3 +92,40 @@ The app keeps what is genuinely presentation: a Settings control that writes the
 policy into its config, and a status chip that reads the status the element publishes. Reading a
 property and rendering it is consuming the element. Deciding, probing, constructing or recovering
 is not, and none of that stays in the app.
+
+## Amendment 2026-09-23: three more places in the design that this decision reaches
+
+The Changes line at the top of this record names design 9.1, 9.4 item 1, 9.5 and the W2 row of
+9.8. Indexing the design's superseded passages on 2026-09-23
+(`design/webgpu/superseded-parts-of-the-design.md`) turned up three more places in the same
+document that hand the graphty app work this decision moved into graphty-element. Nothing below
+is a new decision; it completes the list this record should have carried. Those passages are not
+edited either, for the same reason as the rest.
+
+The line numbers below are the design as it stands on 2026-09-23. A note added at the top of that
+file the same day pushed its body down by eight lines, so these numbers are eight higher than the
+ones in the Changes line above.
+
+- **13, the phase table, row P6 (line 4221).** The deliverables cell ends "app: 9.5
+  `attachAccelerator`" and the row's outcome column reads "the GPU layout 'detected' in the app".
+  Both are the element's work now. The rest of the row -- the algorithms, layout and
+  graphty-element deliverables and the G6 gate -- stands.
+- **13, the phase table, row P12 (line 4227).** The deliverables cell gives the app
+  "`calibrateLayout()` + `createAccelerator` defaults wiring" and "device-loss UX (toast + the CPU
+  simulation taking over the running layout)". Construction and device-loss recovery belong to the
+  element; what is left for the app is the toast if it wants one, the stories, and rendering the
+  status. That row's gate is separately unsatisfiable for an unrelated reason -- see
+  `2026-09-19-no-nightly-gpu-lane.md` and its own amendment of this date.
+- **2.4, the first row of the who-answers table (line 443) and its last row (line 448).** The
+  first row answers "Is WebGPU present, is the adapter hardware, is it worth using?" with "The APP
+  (graphty) at start-up, or a Node script", which then calls `element.setAccelerator(gpu)`. The
+  last row gives the app the decision whether to inject a software adapter. graphty-element
+  answers both questions now.
+
+Section 2.4 needs a warning the other two do not. Everything else in that table is still exactly
+right, and it is the no-silent-degradation rule that the "What still exists" section above says
+this record does NOT relax: the dispatcher choosing the CPU only when no accelerator was injected,
+the missing-method branch, an error propagating instead of falling back, `E_TOO_LARGE` thrown
+before allocation. The root `CLAUDE.md` cites 2.4 approvingly for exactly that. So the section is
+half-live rather than dead, which is the worse state of the two: a reader who is right to trust it
+for the rule gets no signal that its first and last rows are gone.

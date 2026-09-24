@@ -1,181 +1,151 @@
-import { describe, expect, it, vi } from "vitest";
+/**
+ * What the load-time passes turn graphty-element's results into.
+ *
+ * The ordering, the extremes and the group sizes are the element's arithmetic and are tested
+ * there, against its own columns. The fixtures below are LITERAL results -- a ranking, a
+ * summary, a graph-level bag -- so what is asserted here is the mapping and the two decisions
+ * these passes make of their own: that the degree pass does not paint, and that a modularity
+ * that is not a finite number is reported as absent rather than as a fabricated score.
+ */
 
-import { type ElementGraph, type ElementNodeLike, repaintStyles } from "../elementBridge";
+import type { RankingEntry, ResultSummary, RunResult, SummaryGroup } from "@graphty/graphty-element/session";
+import { describe, expect, it } from "vitest";
+
+import type { ElementGraph } from "../elementBridge";
 import { readDegreeResults, runCommunityDetection, runDegreePass } from "../runs";
 
-/** A node the stub can write results onto. */
-interface StubNode {
-    /** The node's id. */
-    id: number | string;
-    /** Nested `algorithmResults.<namespace>.<type>.<name>`, written by the stub's runs. */
-    algorithmResults?: Record<string, unknown>;
+/** What a fixture says one run published. */
+interface Published {
+    /** The ranking, best first. */
+    readonly ranking?: readonly RankingEntry[];
+    /** The groups, for a run that partitions. */
+    readonly groups?: readonly SummaryGroup[];
+    /** How many elements the run measured. Defaults to the ranking or group total. */
+    readonly measured?: number;
+    /** The graph-level fields, e.g. louvain's modularity. */
+    readonly graph?: Readonly<Record<string, unknown>>;
 }
 
-/** What a stub run writes, standing in for the real algorithms. */
-interface StubPlan {
-    /** Degree per node id, as `DegreeAlgorithm` would compute it. */
-    readonly degrees?: Readonly<Record<string, number>>;
-    /** Whether the stub writes degreePct, as the real pass does. */
-    readonly writeDegreePct?: boolean;
-    /** Community id per node id, as `LouvainAlgorithm` would assign it. */
-    readonly communities?: Readonly<Record<string, number>>;
-    /** Modularity, as the edited `LouvainAlgorithm` publishes it. Omitted writes none. */
-    readonly modularity?: unknown;
-    /** A groupCount graph result that deliberately disagrees with the node assignments. */
-    readonly storedGroupCount?: number;
-}
-
-/** The stub and the calls a test wants to see. */
+/** The graph stub, plus the calls a test wants to see. */
 interface Stub {
     /** The graph under test. */
     readonly graph: ElementGraph;
-    /** Every (namespace, type) pair the caller ran, in order. */
-    readonly runs: [string, string][];
-    /** How many times the node repaint ran. */
-    readonly nodeRepaints: () => number;
-    /** How many times the edge repaint ran. */
-    readonly edgeRepaints: () => number;
+    /** Every algorithm key the caller started, in order. */
+    readonly started: string[];
+    /** The third argument of every start, so a test can see whether the run was told to paint. */
+    readonly startOptions: unknown[];
 }
 
 /**
- * Writes a nested value, the way the element's `deepSet` does.
- * @param root - the object to write into.
- * @param path - the keys to walk, creating objects as needed.
- * @param value - the value to set at the end of the path.
+ * Builds the result object a run hands back, from literal fixtures.
+ * @param published - what this run should say it published.
+ * @returns the result, with only the members these passes read.
  */
-function writePath(root: Record<string, unknown>, path: readonly string[], value: unknown): void {
-    let current = root;
-    for (let index = 0; index < path.length - 1; index++) {
-        const key = path[index];
-        const next = current[key];
-        if (typeof next !== "object" || next === null) {
-            current[key] = {};
-        }
-
-        current = current[key] as Record<string, unknown>;
-    }
-
-    current[path[path.length - 1]] = value;
-}
-
-/**
- * An element graph whose `runAlgorithm` writes exactly the results the real degree and
- * Louvain algorithms write -- per-node values under `algorithmResults`, graph-level
- * values under the data manager's `graphResults`.
- * @param ids - the node ids the graph holds.
- * @param plan - what a run should write.
- * @returns the stub.
- */
-function makeStub(ids: (number | string)[], plan: StubPlan): Stub {
-    const nodes: StubNode[] = ids.map((id) => ({ id }));
-    const graphResults: Record<string, unknown> = {};
-    const runs: [string, string][] = [];
-    const applyStylesToExistingNodes = vi.fn();
-    const applyStylesToExistingEdges = vi.fn();
-
-    /**
-     * Writes the degree pass's results.
-     */
-    function runDegree(): void {
-        const degrees = plan.degrees ?? {};
-        const maxDegree = Math.max(0, ...Object.values(degrees));
-        writePath(graphResults, ["graphty", "degree", "maxDegree"], maxDegree);
-
-        for (const node of nodes) {
-            const degree = degrees[String(node.id)];
-            if (degree === undefined) {
-                continue;
-            }
-
-            node.algorithmResults ??= {};
-            writePath(node.algorithmResults, ["graphty", "degree", "degree"], degree);
-            if (plan.writeDegreePct !== false) {
-                writePath(
-                    node.algorithmResults,
-                    ["graphty", "degree", "degreePct"],
-                    maxDegree > 0 ? degree / maxDegree : 0,
-                );
-            }
-        }
-    }
-
-    /**
-     * Writes the community run's results, node ids then the two graph results the
-     * edited LouvainAlgorithm publishes.
-     */
-    function runLouvain(): void {
-        const communities = plan.communities ?? {};
-        for (const node of nodes) {
-            const communityId = communities[String(node.id)];
-            if (communityId === undefined) {
-                continue;
-            }
-
-            node.algorithmResults ??= {};
-            writePath(node.algorithmResults, ["graphty", "louvain", "communityId"], communityId);
-        }
-
-        const groupCount = plan.storedGroupCount ?? new Set(Object.values(communities)).size;
-        writePath(graphResults, ["graphty", "louvain", "groupCount"], groupCount);
-        if ("modularity" in plan) {
-            writePath(graphResults, ["graphty", "louvain", "modularity"], plan.modularity);
-        }
-    }
-
-    const graph: ElementGraph = {
-        runAlgorithm: (namespace, type) => {
-            runs.push([namespace, type]);
-            if (type === "degree") {
-                runDegree();
-            } else if (type === "louvain") {
-                runLouvain();
-            }
-
-            return Promise.resolve();
+function fakeResult(published: Published): RunResult {
+    const ranking = published.ranking ?? [];
+    const {groups} = published;
+    const summary: ResultSummary = {
+        count: ranking.length,
+        measured: published.measured ?? (groups?.reduce((total, group) => total + group.size, 0) ?? ranking.length),
+        min: ranking.length > 0 ? ranking[ranking.length - 1].value : null,
+        max: ranking.length > 0 ? ranking[0].value : null,
+        median: null,
+        mean: null,
+        tiedAtMin: 0,
+        normalization: "none",
+        top: [],
+        ...(groups === undefined ? {} : { groups }),
+        caveats: {
+            exact: true,
+            seed: null,
+            direction: "as-loaded",
+            weight: null,
+            precision: "f64",
+            method: "exact",
+            notes: [],
         },
-        getNodes: () => nodes as readonly ElementNodeLike[],
-        getDataManager: () => ({
-            graphResults,
-            applyStylesToExistingNodes,
-            applyStylesToExistingEdges,
-        }),
-        getStyleManager: () => ({
-            addLayer: () => undefined,
-            getLayers: () => [],
-            removeLayerByIndex: () => false,
-        }),
+        durationMs: 0,
     };
 
     return {
-        graph,
-        runs,
-        nodeRepaints: () => applyStylesToExistingNodes.mock.calls.length,
-        edgeRepaints: () => applyStylesToExistingEdges.mock.calls.length,
+        ranking: () => ranking,
+        summary: () => summary,
+        graph: published.graph ?? {},
+    } as unknown as RunResult;
+}
+
+/**
+ * A graph whose session holds one finished run per algorithm named.
+ * @param finished - what each algorithm's run published.
+ * @returns the stub.
+ */
+function makeStub(finished: Record<string, Published>): Stub {
+    const started: string[] = [];
+    const startOptions: unknown[] = [];
+    const runs = Object.entries(finished).map(([algorithm, published]) => ({
+        id: `${algorithm}_1`,
+        algorithm,
+        status: "succeeded",
+        result: fakeResult(published),
+    }));
+
+    const session = {
+        runs: {
+            list: () => runs,
+            start: (algorithm: string, _params?: unknown, options?: unknown) => {
+                started.push(algorithm);
+                startOptions.push(options);
+
+                const existing = runs.find((run) => run.algorithm === algorithm);
+                const run = existing ?? { id: `${algorithm}_1`, algorithm, status: "succeeded", result: fakeResult({}) };
+
+                return Object.assign(Promise.resolve(run.result), { id: run.id });
+            },
+        },
     };
+
+    return { graph: { getSession: () => session } as unknown as ElementGraph, started, startOptions };
+}
+
+/**
+ * One ranking entry, spelled out.
+ * @param id - the node id.
+ * @param value - the measured value.
+ * @param rank - its position, best first.
+ * @returns the entry.
+ */
+function entry(id: number | string, value: number, rank: number): RankingEntry {
+    return { id, value, rank, percentile: 1 };
 }
 
 describe("runDegreePass", () => {
-    it("runs graphty:degree and reads the readings back highest degree first", async () => {
-        const stub = makeStub(["a", "b", "c"], { degrees: { a: 2, b: 9, c: 5 } });
+    it("runs degree and reads the readings back highest degree first", async () => {
+        const stub = makeStub({ degree: { ranking: [entry("b", 9, 1), entry("c", 5, 2), entry("a", 2, 3)] } });
 
         const results = await runDegreePass(stub.graph);
 
-        expect(stub.runs).toEqual([["graphty", "degree"]]);
+        expect(stub.started).toEqual(["degree"]);
         expect(results.byDegreeDescending.map((reading) => reading.id)).toEqual(["b", "c", "a"]);
         expect(results.degreesDescending).toEqual([9, 5, 2]);
         expect(results.maxDegree).toBe(9);
     });
 
-    it("breaks ties by node id, so the ranking is the same on every run", async () => {
-        const stub = makeStub(["zeta", "alpha", "mid"], { degrees: { zeta: 4, alpha: 4, mid: 4 } });
+    /**
+     * The whole reason this pass goes through the session rather than the 1.10 address. A run
+     * paints itself on its first completion, and this one is measurement for the label cut and
+     * the size ramp; a load that recoloured every node from a background pass would override the
+     * element's own hand-tuned defaults.
+     */
+    it("tells the run not to paint", async () => {
+        const stub = makeStub({ degree: { ranking: [entry("a", 1, 1)] } });
 
-        const results = await runDegreePass(stub.graph);
+        await runDegreePass(stub.graph);
 
-        expect(results.byDegreeDescending.map((reading) => reading.id)).toEqual(["alpha", "mid", "zeta"]);
+        expect(stub.startOptions).toEqual([{ style: false }]);
     });
 
-    it("reads numeric node ids as strings", async () => {
-        const stub = makeStub([1, 2], { degrees: { 1: 3, 2: 8 } });
+    it("prints a numeric node id rather than carrying it as a number", async () => {
+        const stub = makeStub({ degree: { ranking: [entry(2, 8, 1), entry(1, 3, 2)] } });
 
         const results = await runDegreePass(stub.graph);
 
@@ -184,39 +154,9 @@ describe("runDegreePass", () => {
             { id: "1", degree: 3, degreePct: 3 / 8 },
         ]);
     });
-});
 
-describe("readDegreeResults", () => {
-    it("reads a pass that already ran without running another one", async () => {
-        const stub = makeStub(["a", "b"], { degrees: { a: 1, b: 4 } });
-        await runDegreePass(stub.graph);
-
-        const again = readDegreeResults(stub.graph);
-
-        expect(stub.runs).toHaveLength(1);
-        expect(again.degreesDescending).toEqual([4, 1]);
-    });
-
-    it("returns nothing at all before a pass has run", () => {
-        const stub = makeStub(["a", "b"], { degrees: { a: 1, b: 4 } });
-
-        const results = readDegreeResults(stub.graph);
-
-        expect(results.byDegreeDescending).toEqual([]);
-        expect(results.maxDegree).toBe(0);
-        expect(results.degreesDescending).toEqual([]);
-    });
-
-    it("skips a node the pass did not reach rather than reading it as degree zero", async () => {
-        const stub = makeStub(["a", "b", "unmeasured"], { degrees: { a: 2, b: 1 } });
-
-        const results = await runDegreePass(stub.graph);
-
-        expect(results.byDegreeDescending.map((reading) => reading.id)).toEqual(["a", "b"]);
-    });
-
-    it("derives degreePct from the readings when the element did not publish one", async () => {
-        const stub = makeStub(["a", "b"], { degrees: { a: 10, b: 5 }, writeDegreePct: false });
+    it("draws each degree as a share of the top one, which the element publishes unnormalised", async () => {
+        const stub = makeStub({ degree: { ranking: [entry("a", 10, 1), entry("b", 5, 2)] } });
 
         const results = await runDegreePass(stub.graph);
 
@@ -224,27 +164,46 @@ describe("readDegreeResults", () => {
     });
 });
 
+describe("readDegreeResults", () => {
+    it("reads a pass that already ran without running another one", () => {
+        const stub = makeStub({ degree: { ranking: [entry("b", 4, 1), entry("a", 1, 2)] } });
+
+        const again = readDegreeResults(stub.graph);
+
+        expect(stub.started).toEqual([]);
+        expect(again.degreesDescending).toEqual([4, 1]);
+        expect(again.runId).toBe("degree_1");
+    });
+
+    it("returns nothing at all before a pass has run", () => {
+        const stub = makeStub({});
+
+        const results = readDegreeResults(stub.graph);
+
+        expect(results.byDegreeDescending).toEqual([]);
+        expect(results.maxDegree).toBe(0);
+        expect(results.degreesDescending).toEqual([]);
+        expect(results.runId).toBeUndefined();
+    });
+});
+
 describe("runCommunityDetection", () => {
-    it("runs graphty:louvain and reads the cat fixture's four groups back, largest first", async () => {
-        const stub = makeStub(["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9", "n10"], {
-            communities: {
-                n1: 0,
-                n2: 0,
-                n3: 0,
-                n4: 0,
-                n5: 1,
-                n6: 1,
-                n7: 1,
-                n8: 2,
-                n9: 2,
-                n10: 3,
+    it("runs louvain and reads the groups back, largest first", async () => {
+        const stub = makeStub({
+            louvain: {
+                groups: [
+                    { group: 0, size: 4 },
+                    { group: 1, size: 3 },
+                    { group: 2, size: 2 },
+                    { group: 3, size: 1 },
+                ],
+                graph: { modularity: 0.4471 },
             },
-            modularity: 0.4471,
         });
 
         const result = await runCommunityDetection(stub.graph);
 
-        expect(stub.runs).toEqual([["graphty", "louvain"]]);
+        expect(stub.started).toEqual(["louvain"]);
         expect(result.groupCount).toBe(4);
         expect(result.largestGroupSize).toBe(4);
         expect(result.nodeCount).toBe(10);
@@ -258,9 +217,15 @@ describe("runCommunityDetection", () => {
     });
 
     it("orders equal-sized groups by community id, so the encoding is deterministic", async () => {
-        const stub = makeStub(["a", "b", "c", "d", "e", "f"], {
-            communities: { a: 5, b: 5, c: 1, d: 1, e: 3, f: 3 },
-            modularity: 0.2,
+        const stub = makeStub({
+            louvain: {
+                groups: [
+                    { group: 5, size: 2 },
+                    { group: 1, size: 2 },
+                    { group: 3, size: 2 },
+                ],
+                graph: { modularity: 0.2 },
+            },
         });
 
         const result = await runCommunityDetection(stub.graph);
@@ -268,8 +233,8 @@ describe("runCommunityDetection", () => {
         expect(result.groups.map((group) => group.communityId)).toEqual([1, 3, 5]);
     });
 
-    it("reports no modularity at all when the element did not publish one", async () => {
-        const stub = makeStub(["a", "b"], { communities: { a: 0, b: 1 } });
+    it("reports no modularity at all when the run published none", async () => {
+        const stub = makeStub({ louvain: { groups: [{ group: 0, size: 1 }, { group: 1, size: 1 }] } });
 
         const result = await runCommunityDetection(stub.graph);
 
@@ -279,27 +244,16 @@ describe("runCommunityDetection", () => {
     });
 
     it("reports no modularity when the published value is not a finite number", async () => {
-        const nan = makeStub(["a", "b"], { communities: { a: 0, b: 1 }, modularity: Number.NaN });
-        const text = makeStub(["a", "b"], { communities: { a: 0, b: 1 }, modularity: "0.5" });
+        const groups = [{ group: 0, size: 1 }, { group: 1, size: 1 }];
+        const nan = makeStub({ louvain: { groups, graph: { modularity: Number.NaN } } });
+        const text = makeStub({ louvain: { groups, graph: { modularity: "0.5" } } });
 
         expect((await runCommunityDetection(nan.graph)).modularity).toBeUndefined();
         expect((await runCommunityDetection(text.graph)).modularity).toBeUndefined();
     });
 
-    it("takes the group count from the grouped nodes, not from the stored count", async () => {
-        const stub = makeStub(["a", "b", "c"], {
-            communities: { a: 0, b: 0, c: 1 },
-            storedGroupCount: 99,
-            modularity: 0.31,
-        });
-
-        const result = await runCommunityDetection(stub.graph);
-
-        expect(result.groupCount).toBe(2);
-    });
-
-    it("covers only the nodes the run assigned a group", async () => {
-        const stub = makeStub(["a", "b", "skipped"], { communities: { a: 0, b: 0 }, modularity: 0.1 });
+    it("covers only the elements the run grouped", async () => {
+        const stub = makeStub({ louvain: { groups: [{ group: 0, size: 2 }], measured: 2, graph: { modularity: 0.1 } } });
 
         const result = await runCommunityDetection(stub.graph);
 
@@ -308,21 +262,16 @@ describe("runCommunityDetection", () => {
     });
 
     it("reports an empty result for a graph with no assignments", async () => {
-        const stub = makeStub([], {});
+        const stub = makeStub({});
 
         const result = await runCommunityDetection(stub.graph);
 
-        expect(result).toEqual({ groupCount: 0, largestGroupSize: 0, nodeCount: 0, groups: [] });
-    });
-});
-
-describe("repaintStyles against the same stub", () => {
-    it("calls both applyStylesToExisting doors exactly once", () => {
-        const stub = makeStub(["a"], {});
-
-        repaintStyles(stub.graph);
-
-        expect(stub.nodeRepaints()).toBe(1);
-        expect(stub.edgeRepaints()).toBe(1);
+        expect(result).toEqual({
+            runId: expect.any(String) as unknown as string,
+            groupCount: 0,
+            largestGroupSize: 0,
+            nodeCount: 0,
+            groups: [],
+        });
     });
 });

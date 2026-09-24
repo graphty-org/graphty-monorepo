@@ -16,8 +16,7 @@ import type { LegendChannel } from "../Legend";
 
 class MockGraphtyElement extends HTMLElement {
     graph = {
-        getLayers: (): unknown[] => [],
-        getStyleManager: () => ({ getLayers: () => [] }),
+        getSession: () => ({ styles: { list: (): unknown[] => [] }, on: () => () => undefined }),
     };
 }
 
@@ -47,7 +46,7 @@ const SIZE: LegendChannel = {
     technicalName: "Degree centrality",
     scaleLine: "sqrt scale",
     scaleShort: "sqrt",
-    stops: [{ label: "2" }, { label: "median 3" }, { label: "4" }],
+    stops: [{ label: "2" }, { label: "midpoint 3" }, { label: "4" }],
 };
 
 const TIME_SLIDER = {

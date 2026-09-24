@@ -8,13 +8,11 @@
  * These tests correspond to the stories in stories/NestedOperations.stories.ts
  */
 
-import { Color3, InstancedMesh, type StandardMaterial } from "@babylonjs/core";
+import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type { StyleSchema } from "../../src/config";
 import { Graph } from "../../src/Graph";
-import { Styles } from "../../src/Styles";
-import { isDisposed, type TestGraph } from "../helpers/testSetup";
+import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
 const TEST_NODES = [
@@ -28,40 +26,11 @@ const TEST_EDGES = [
     { src: "2", dst: "3" },
 ];
 
-// Base style properties
-const BASE_STYLE = {
-    nodeStyle: {
-        texture: { color: "#4CAF50" },
-        shape: { type: "sphere" as const, size: 10 },
-    },
-};
+/** The appearance every story in this file draws: a green sphere of size 10. */
+const NODE_STYLE = { "node.color": "#4CAF50", "node.shape": "sphere", "node.size": 10 } as const;
 
-// Helper to create style templates (returns StyleSchema cast for partial config)
-function createStyleTemplate(overrides: Record<string, unknown> = {}): StyleSchema {
-    const graphOverrides = overrides.graph as Record<string, unknown> | undefined;
-    const nodeStyleOverrides = overrides.nodeStyle as Record<string, unknown> | undefined;
-    const base = {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            ...(graphOverrides ?? {}),
-        },
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        texture: nodeStyleOverrides?.texture ?? BASE_STYLE.nodeStyle.texture,
-                        shape: nodeStyleOverrides?.shape ?? BASE_STYLE.nodeStyle.shape,
-                    },
-                },
-            },
-        ],
-    };
-
-    return base as unknown as StyleSchema;
-}
+/** That colour as the renderer writes it into a node's own instance. */
+const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 
 // Helper to wait for a delay
 function delay(ms: number): Promise<void> {
@@ -121,23 +90,35 @@ describe("Nested Operations", () => {
 
     /**
      * Verify that all nodes have the expected style properties applied.
-     * This ensures eventual consistency - regardless of operation order,
-     * the final visual style should match the expected STYLE_TEMPLATE.
+     *
+     * Read from the style stack's own answer for each node, which is the one reading that says
+     * what a node is drawn as. The colour is beside the style rather than in it, because it is
+     * written into the node's instance while the style builds the source mesh the instances
+     * share -- so it is asserted separately.
+     * @param expectedColor - The colour, as the renderer writes it into the instance.
+     * @param expectedShape - The shape the source mesh is built from.
+     * @param expectedSize - Its size.
      */
-    function verifyNodeStyles(expectedColor: string, expectedShape: string, expectedSize: number): void {
+    function verifyNodeStyles(
+        expectedColor: { r: number; g: number; b: number; a: number },
+        expectedShape: string,
+        expectedSize: number,
+    ): void {
         for (const node of graph.getNodes()) {
-            const style = Styles.getStyleForNodeStyleId(node.styleId);
-            assert.equal(style.texture?.color, expectedColor, `Node ${node.id} should have color ${expectedColor}`);
-            assert.equal(style.shape?.type, expectedShape, `Node ${node.id} should have shape ${expectedShape}`);
-            assert.equal(style.shape?.size, expectedSize, `Node ${node.id} should have size ${expectedSize}`);
+            const paint = graph.getStylePainter().nodePaint(node.index);
+
+            assert.isNotNull(paint, `Node ${node.id} should have been painted`);
+            assert.deepEqual(paint?.color, expectedColor, `Node ${node.id} should have the expected colour`);
+            assert.equal(paint?.style.shape?.type, expectedShape, `Node ${node.id} should have shape ${expectedShape}`);
+            assert.equal(paint?.style.shape?.size, expectedSize, `Node ${node.id} should have size ${expectedSize}`);
         }
     }
 
     /**
-     * Combined verification helper for the standard BASE_STYLE (#4CAF50 green sphere size 10)
+     * Combined verification helper for the style every story in this file applies
      */
     function verifyFinalStyles(): void {
-        verifyNodeStyles("#4CAF50", "sphere", 10);
+        verifyNodeStyles(NODE_COLOR, "sphere", 10);
     }
 
     // =========================================================================
@@ -239,31 +220,25 @@ describe("Nested Operations", () => {
     }
 
     /**
-     * Verify node mesh materials have the expected color applied.
+     * Verify the colour the renderer wrote into each node's own instance.
+     *
+     * NOT THE MATERIAL. Every node of one shape and size shares a source mesh whose material is
+     * deliberately neutral, so that a graph of fifty thousand colours is fifty thousand
+     * instances of one mesh rather than fifty thousand meshes. The colour lives in the
+     * instance's own buffer, and that is what is read here.
+     * @param expectedColor - The colour to expect, as hex.
      */
     function verifyNodeMeshMaterials(expectedColor: string): void {
         const expectedColorObj = Color3.FromHexString(expectedColor);
         for (const node of graph.getNodes()) {
-            const material = node.mesh.material as StandardMaterial | null;
-            if (material?.diffuseColor) {
-                assert.closeTo(
-                    material.diffuseColor.r,
-                    expectedColorObj.r,
-                    0.01,
-                    `Node ${node.id} material red should match`,
-                );
-                assert.closeTo(
-                    material.diffuseColor.g,
-                    expectedColorObj.g,
-                    0.01,
-                    `Node ${node.id} material green should match`,
-                );
-                assert.closeTo(
-                    material.diffuseColor.b,
-                    expectedColorObj.b,
-                    0.01,
-                    `Node ${node.id} material blue should match`,
-                );
+            const painted = (node.mesh as InstancedMesh).instancedBuffers?.color as
+                | { r: number; g: number; b: number }
+                | undefined;
+
+            if (painted) {
+                assert.closeTo(painted.r, expectedColorObj.r, 0.01, `Node ${node.id} instance red should match`);
+                assert.closeTo(painted.g, expectedColorObj.g, 0.01, `Node ${node.id} instance green should match`);
+                assert.closeTo(painted.b, expectedColorObj.b, 0.01, `Node ${node.id} instance blue should match`);
             }
         }
     }
@@ -344,14 +319,10 @@ describe("Nested Operations", () => {
     // =========================================================================
 
     describe("Story 1: Style Changes twoD Property", () => {
-        it("should handle style template changing twoD property", async () => {
+        it("should handle a view mode switch under a style layer", async () => {
             // Start with 3D
-            const style3D = createStyleTemplate({
-                ...BASE_STYLE,
-                graph: { twoD: false },
-            });
-
-            await graph.setStyleTemplate(style3D);
+            await graph.setViewMode("3d");
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -363,11 +334,7 @@ describe("Nested Operations", () => {
 
             // Switch to 2D - internally calls updateLayoutDimension()
             await delay(10);
-            const style2D = createStyleTemplate({
-                ...BASE_STYLE,
-                graph: { twoD: true },
-            });
-            await graph.setStyleTemplate(style2D);
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -386,7 +353,7 @@ describe("Nested Operations", () => {
 
         it("should update layout dimension when twoD changes", async () => {
             // Start with 3D
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
+            await graph.setViewMode("3d");
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -398,7 +365,7 @@ describe("Nested Operations", () => {
 
             // Switch to 2D
             await delay(10);
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -408,7 +375,7 @@ describe("Nested Operations", () => {
 
         it("should preserve node data when switching 2D/3D", async () => {
             // Start with 3D
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
+            await graph.setViewMode("3d");
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -419,7 +386,7 @@ describe("Nested Operations", () => {
             const initialEdgeCount = graph.getEdgeCount();
 
             // Switch to 2D
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -434,16 +401,9 @@ describe("Nested Operations", () => {
     // =========================================================================
 
     describe("Story 2: Style with Layout Property", () => {
-        it("should handle style template including layout property", async () => {
-            // Style template includes layout configuration
-            const styleWithLayout = createStyleTemplate({
-                ...BASE_STYLE,
-                graph: {
-                    layout: "circular",
-                },
-            });
-
-            await graph.setStyleTemplate(styleWithLayout);
+        it("should handle a layout set beside a style layer", async () => {
+            await graph.setLayout("circular");
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
@@ -454,25 +414,16 @@ describe("Nested Operations", () => {
             assert.equal(graph.getEdgeCount(), 2, "Should have 2 edges");
 
             const positions = getNodePositions();
-            assert.isTrue(layoutWasApplied(positions), "Layout should have been applied from style template");
+            assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();
         });
 
-        it("should respect layout from style template over explicit layout", async () => {
-            // Style template with random layout
-            const styleWithRandom = createStyleTemplate({
-                ...BASE_STYLE,
-                graph: {
-                    layout: "random",
-                },
-            });
-
-            // Set explicit circular layout first
+        it("should take the last layout that was asked for", async () => {
+            // Set circular first, then change our mind
             await graph.setLayout("circular");
-
-            // Then set style template with random layout
-            await graph.setStyleTemplate(styleWithRandom);
+            await styleEveryNode(graph, NODE_STYLE);
+            await graph.setLayout("random");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
@@ -483,16 +434,9 @@ describe("Nested Operations", () => {
             assert.equal(graph.getEdgeCount(), 2, "Should have 2 edges");
         });
 
-        it("should handle style template with layout configuration", async () => {
-            // Style template with layout (no options needed for this test)
-            const styleWithLayout = createStyleTemplate({
-                ...BASE_STYLE,
-                graph: {
-                    layout: "circular",
-                },
-            });
-
-            await graph.setStyleTemplate(styleWithLayout);
+        it("should handle a layout set before any data", async () => {
+            await graph.setLayout("circular");
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
@@ -511,20 +455,20 @@ describe("Nested Operations", () => {
     describe("Story 3: Rapid Style Changes (2D/3D)", () => {
         it("should handle rapid 2D/3D toggling", async () => {
             // Rapidly toggle 2D/3D
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
+            await graph.setViewMode("3d");
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
             await delay(5);
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
 
             await delay(5);
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
+            await graph.setViewMode("3d");
 
             // Final: default (3D)
             await delay(5);
-            await graph.setStyleTemplate(createStyleTemplate(BASE_STYLE));
+            await styleEveryNode(graph, NODE_STYLE);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -544,11 +488,11 @@ describe("Nested Operations", () => {
 
             // Rapid changes
             for (let i = 0; i < 5; i++) {
-                await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: i % 2 === 0 } }));
+                await graph.setViewMode(i % 2 === 0 ? "2d" : "3d");
             }
 
             // Final: 2D
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -576,10 +520,10 @@ describe("Nested Operations", () => {
             const interval = setInterval(checkMode, 1);
 
             // Rapid toggling
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("3d");
+            await graph.setViewMode("2d");
+            await graph.setViewMode("3d");
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -595,36 +539,15 @@ describe("Nested Operations", () => {
     // =========================================================================
 
     describe("Additional Nested Operation Tests", () => {
-        it("should handle style-init triggering algorithm-run", async () => {
-            // Style with algorithm configuration
-            const styleWithAlgorithm = {
-                graphtyTemplate: true,
-                majorVersion: "1",
-                graph: {
-                    addDefaultStyle: true,
-                },
-                data: {
-                    algorithms: ["pagerank"],
-                },
-                layers: [
-                    {
-                        node: {
-                            selector: "",
-                            style: {
-                                texture: BASE_STYLE.nodeStyle.texture,
-                                shape: BASE_STYLE.nodeStyle.shape,
-                            },
-                        },
-                    },
-                ],
-            } as unknown as StyleSchema;
-
+        it("should handle an algorithm run spawning a repaint", async () => {
             await graph.setLayout("circular");
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            // Style-init should trigger algorithm-run as a nested operation
-            await graph.setStyleTemplate(styleWithAlgorithm);
+            // A finished run spawns a style pass as a nested operation, which is how a layer
+            // reading that run's column gets painted.
+            await graph.runAlgorithm("graphty", "pagerank");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -645,7 +568,7 @@ describe("Nested Operations", () => {
                 }
             });
 
-            await graph.setStyleTemplate(createStyleTemplate(BASE_STYLE));
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
 
             // Data-add should trigger layout-update
@@ -660,7 +583,8 @@ describe("Nested Operations", () => {
 
         it("should handle 2D mode switch correctly", async () => {
             // Start with 3D
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: false } }));
+            await graph.setViewMode("3d");
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -671,7 +595,7 @@ describe("Nested Operations", () => {
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D - should update camera and layout appropriately
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -686,36 +610,15 @@ describe("Nested Operations", () => {
         });
 
         it("should handle deeply nested operations", async () => {
-            // Style with multiple configurations that trigger nested operations
-            const complexStyle = {
-                graphtyTemplate: true,
-                majorVersion: "1",
-                graph: {
-                    addDefaultStyle: true,
-                    twoD: true, // Triggers camera-update
-                    layout: "circular", // Could trigger layout-set
-                },
-                data: {
-                    algorithms: ["pagerank"], // Triggers algorithm-run
-                },
-                layers: [
-                    {
-                        node: {
-                            selector: "",
-                            style: {
-                                texture: BASE_STYLE.nodeStyle.texture,
-                                shape: BASE_STYLE.nodeStyle.shape,
-                            },
-                        },
-                    },
-                ],
-            } as unknown as StyleSchema;
-
+            // Four settings that each spawn work of their own: the mode switch spawns a camera
+            // update, the layout a layout-set, the run an algorithm-run and a repaint after it,
+            // and the layer a style pass.
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-
-            // This style-init should trigger multiple nested operations
-            await graph.setStyleTemplate(complexStyle);
+            await graph.setViewMode("2d");
+            await graph.setLayout("circular");
+            await styleEveryNode(graph, NODE_STYLE);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -733,28 +636,14 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            // Rapidly switch styles that trigger nested operations
+            // Rapidly switch modes and colours, both of which trigger nested operations
             for (let i = 0; i < 10; i++) {
-                const style = {
-                    graphtyTemplate: true,
-                    majorVersion: "1",
-                    graph: {
-                        addDefaultStyle: true,
-                        twoD: i % 2 === 0,
-                    },
-                    layers: [
-                        {
-                            node: {
-                                selector: "",
-                                style: {
-                                    texture: { color: `hsl(${i * 36}, 50%, 50%)` },
-                                    shape: BASE_STYLE.nodeStyle.shape,
-                                },
-                            },
-                        },
-                    ],
-                } as unknown as StyleSchema;
-                await graph.setStyleTemplate(style);
+                await graph.setViewMode(i % 2 === 0 ? "2d" : "3d");
+                await styleEveryNode(
+                    graph,
+                    { "node.color": `hsl(${String(i * 36)}, 50%, 50%)`, "node.shape": "sphere", "node.size": 10 },
+                    `colour ${String(i)}`,
+                );
             }
 
             // Should complete in reasonable time without stack overflow
@@ -781,7 +670,7 @@ describe("Nested Operations", () => {
     describe("Error Handling in Nested Operations", () => {
         it("should handle errors in nested operations gracefully", async () => {
             // Setup with valid style
-            await graph.setStyleTemplate(createStyleTemplate(BASE_STYLE));
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -793,7 +682,7 @@ describe("Nested Operations", () => {
         });
 
         it("should continue processing after nested operation failure", async () => {
-            await graph.setStyleTemplate(createStyleTemplate(BASE_STYLE));
+            await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
 
             // Add data
@@ -823,36 +712,19 @@ describe("Nested Operations", () => {
                 operationOrder.push(category);
             });
 
-            // style-init is the parent, may spawn camera-update, algorithm-run, etc.
-            const styleWithNested = {
-                graphtyTemplate: true,
-                majorVersion: "1",
-                graph: {
-                    addDefaultStyle: true,
-                    twoD: true,
-                },
-                layers: [
-                    {
-                        node: {
-                            selector: "",
-                            style: {
-                                texture: BASE_STYLE.nodeStyle.texture,
-                                shape: BASE_STYLE.nodeStyle.shape,
-                            },
-                        },
-                    },
-                ],
-            } as unknown as StyleSchema;
-
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(styleWithNested);
+            await graph.setViewMode("2d");
+            await styleEveryNode(graph, NODE_STYLE);
 
             await graph.operationQueue.waitForCompletion();
 
-            // style-init should complete
-            assert.isTrue(operationOrder.includes("style-init"), "style-init should be in operation order");
+            // The load spawns a style pass of its own, which is the child operation this is
+            // about: nothing queued it directly, and it has to have finished by the time the
+            // queue is idle.
+            assert.isTrue(operationOrder.includes("data-add"), "data-add should be in operation order");
+            assert.isTrue(operationOrder.includes("style-apply"), "and the repaint it spawned should be too");
         });
 
         it("should not block parent on child completion", async () => {
@@ -864,8 +736,8 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            // Style with 2D switch (triggers nested camera-update)
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            // A 2D switch triggers a nested camera-update
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 

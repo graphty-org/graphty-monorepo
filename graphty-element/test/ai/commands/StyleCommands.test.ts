@@ -1,5 +1,12 @@
 /**
  * StyleCommands Tests - Tests for style-related commands.
+ *
+ * WHAT A STYLE COMMAND PRODUCES is one layer on `session.styles`, and these tests read it back
+ * off the stack. They used to read `result.affectedNodes` instead, a count the command got by
+ * running `jmespath.search()` once per element to guess at how many it had matched. Nothing
+ * counts elements now: a layer is added, the stack repaints whatever it matches, and a selector
+ * the element refuses comes back as a refusal rather than as a match count of zero -- which is
+ * the number a correct answer of "none of them" also has.
  * @module test/ai/commands/StyleCommands.test
  */
 
@@ -8,6 +15,8 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/ai/commands/StyleCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
+import type { Layer } from "../../../src/session/styles";
+import { CHANNEL_DESCRIPTORS, NODE_OUTLINE_CAVEAT } from "../../../src/session/styles/channels";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("StyleCommands", () => {
@@ -18,6 +27,15 @@ describe("StyleCommands", () => {
         graph = createTestGraph();
         context = createMockContext(graph);
     });
+
+    /**
+     * The layer a command named, read back off the session's stack.
+     * @param name - The layer name the command was given.
+     * @returns The layer, or undefined when nothing by that name was added.
+     */
+    function layerNamed(name: string): Layer | undefined {
+        return graph.getSession().styles.list().find((layer) => layer.name === name);
+    }
 
     describe("findAndStyleNodes", () => {
         it("styles all nodes with empty selector", async () => {
@@ -37,7 +55,6 @@ describe("StyleCommands", () => {
 
         it("styles nodes matching selector", async () => {
             // The mock graph has nodes with type 'server', 'client', 'router'
-            // Node indices 0, 3, 6, 9, etc. have type 'server'
             const result = await findAndStyleNodes.execute(
                 graph,
                 {
@@ -49,8 +66,12 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
-            // In a 25 node graph, indices 0,3,6,9,12,15,18,21,24 are servers (9 nodes)
-            assert.ok(result.affectedNodes && result.affectedNodes.length > 0);
+
+            const layer = layerNamed("servers");
+            assert.isDefined(layer, "the command's whole output is one layer on the session's stack");
+            assert.deepStrictEqual(layer.selector, { match: "expression", where: "data.type == 'server'" });
+            assert.strictEqual(layer.target, "node");
+            assert.deepStrictEqual(layer.set, { "node.color": "#0000ff", "node.size": 2 });
         });
 
         it("applies size styling", async () => {
@@ -81,8 +102,7 @@ describe("StyleCommands", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles invalid selector gracefully", async () => {
-            // Invalid JMESPath selectors should not crash
+        it("refuses a selector the element cannot parse, and says so", async () => {
             const result = await findAndStyleNodes.execute(
                 graph,
                 {
@@ -93,11 +113,29 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            // Should return success=false or handle gracefully
-            assert.ok(result);
+            // The refusal is the point. The previous implementation turned an unparseable
+            // selector into an empty match array, which reached the reader as "no nodes matched"
+            // -- the same words a correct answer of zero uses.
+            assert.strictEqual(result.success, false);
+            assert.isUndefined(layerNamed("invalid"), "and nothing was committed to the stack");
         });
 
-        it("returns empty affectedNodes when no nodes match", async () => {
+        it("refuses a bare number, because a selector literal goes between backticks", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "data.size > 5",
+                    style: { color: "#ff0000" },
+                    layerName: "bare-number",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, false);
+            assert.include(result.message, "backticks", "the message says how to write it instead");
+        });
+
+        it("adds the layer when the selector is valid but nothing in the graph answers it", async () => {
             const result = await findAndStyleNodes.execute(
                 graph,
                 {
@@ -108,9 +146,12 @@ describe("StyleCommands", () => {
                 context,
             );
 
+            // A correct selector over a path this graph does not carry is a layer that will
+            // paint when the data arrives, not an error -- so it goes in, and the caller is told
+            // that nothing answers it yet.
             assert.strictEqual(result.success, true);
-            // Should still succeed but with 0 affected nodes
-            assert.ok(result.affectedNodes !== undefined);
+            assert.isDefined(layerNamed("no-match"));
+            assert.include(result.message, "data.nonexistent");
         });
     });
 
@@ -134,7 +175,7 @@ describe("StyleCommands", () => {
             const result = await findAndStyleEdges.execute(
                 graph,
                 {
-                    selector: "data.weight > 0.5",
+                    selector: "data.weight > `0.5`",
                     style: { color: "#ffff00" },
                     layerName: "heavy-edges",
                 },
@@ -142,6 +183,11 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
+
+            const layer = layerNamed("heavy-edges");
+            assert.isDefined(layer);
+            assert.strictEqual(layer.target, "edge");
+            assert.deepStrictEqual(layer.selector, { match: "expression", where: "data.weight > `0.5`" });
         });
 
         it("applies line width styling", async () => {
@@ -171,6 +217,68 @@ describe("StyleCommands", () => {
 
             assert.strictEqual(result.success, true);
         });
+
+        it("applies an arrow's own colour, size and opacity instead of refusing them", async () => {
+            // THIS COMMAND ADVERTISED ALL THREE TO THE MODEL AND THEN ANSWERED "unsupported".
+            // A model asked for a red arrow, was told the element has no channel for it, and the
+            // reader saw a grey one -- while `EdgeStyle` declared the field and the renderer drew
+            // it. The refusal was correct at the time and the gap was in the channel table.
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { arrowColor: "#FF0000", arrowSize: 2, arrowOpacity: 0.5 },
+                    layerName: "red-arrows",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            // Nothing is refused, so the answer carries no "was not applied" clause at all.
+            assert.notInclude(result.message, "was not applied");
+        });
+
+        it("applies a glow's strength on nodes instead of refusing it", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { glowColor: "#00FF00", glowStrength: 2 },
+                    layerName: "bright-glow",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            // Nothing is refused, so the answer carries no "was not applied" clause at all.
+            assert.notInclude(result.message, "was not applied");
+        });
+
+        it("answers an outline width with the reason the element publishes for it", async () => {
+            // THE OUTLINE ITSELF IS DRAWN NOW -- `NodeEffects.applyOutlineEffect` resolves the
+            // instance's source mesh and hands it to a Babylon highlight layer -- so this is no
+            // longer "outlines do not work". It is narrower and permanent: the stroke's blur size
+            // belongs to that LAYER and not to a mesh, so one width is drawn for the whole scene.
+            // A channel for a per-node width would be a channel that claims to paint and does
+            // not, which is the defect the other direction.
+            //
+            // What is asserted is that the refusal carries a REASON, and that the reason is the
+            // element's own published words rather than a second wording living in the AI layer.
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { outlineColor: "#0000FF", outlineWidth: 4 },
+                    layerName: "thick-outline",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            assert.include(result.message, "outlineWidth was not applied");
+            assert.include(result.message, NODE_OUTLINE_CAVEAT);
+            assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].caveat, NODE_OUTLINE_CAVEAT);
+        });
     });
 
     describe("clearStyles", () => {
@@ -197,6 +305,7 @@ describe("StyleCommands", () => {
 
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("clear"));
+            assert.isUndefined(layerNamed("to-clear"), "and the layer really left the stack");
         });
 
         it("clears all dynamic styles when no layerName provided", async () => {
@@ -224,6 +333,10 @@ describe("StyleCommands", () => {
             const result = await clearStyles.execute(graph, {}, context);
 
             assert.strictEqual(result.success, true);
+            // Swept by SOURCE rather than by a list the module keeps, so both go whatever order
+            // they were added in and whatever else is on the stack.
+            assert.isUndefined(layerNamed("layer1"));
+            assert.isUndefined(layerNamed("layer2"));
         });
 
         it("handles clearing non-existent layer gracefully", async () => {
@@ -312,7 +425,11 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedNodes && result.affectedNodes.length > 0, "Selector '*' should match all nodes");
+            assert.deepStrictEqual(
+                layerNamed("star-selector")?.selector,
+                { match: "everything" },
+                "'*' is the element's own spelling for the whole graph, which is `everything`",
+            );
         });
 
         it("selector 'all' matches all nodes", async () => {
@@ -327,7 +444,7 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedNodes && result.affectedNodes.length > 0, "Selector 'all' should match all nodes");
+            assert.deepStrictEqual(layerNamed("all-selector")?.selector, { match: "everything" });
         });
 
         it("selector '*' matches all edges", async () => {
@@ -342,7 +459,7 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedEdges && result.affectedEdges.length > 0, "Selector '*' should match all edges");
+            assert.deepStrictEqual(layerNamed("star-edge-selector")?.selector, { match: "everything" });
         });
 
         it("selector with whitespace ' * ' matches all nodes", async () => {
@@ -357,25 +474,33 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
-            assert.ok(
-                result.affectedNodes && result.affectedNodes.length > 0,
-                "Selector ' * ' (with whitespace) should match all nodes",
-            );
+            assert.deepStrictEqual(layerNamed("whitespace-star")?.selector, { match: "everything" });
         });
     });
 
     /**
-     * Regression test for Issue #4: CSS color names should be converted to hex
-     * Bug: When the AI passed CSS color names like "red", the style command
-     * stored the raw string without converting it to hex. The NodeMesh.extractColor()
-     * method uses Color3.FromHexString() which only handles hex values, causing
-     * CSS color names to fail silently (defaulting to black or no color).
+     * Regression test for Issue #4: CSS color names must reach the renderer as colours.
      *
-     * Fix: Parse styles through NodeStyle/EdgeStyle schemas which use ColorStyle
-     * transform from colorjs.io to convert CSS names to hex.
+     * The bug: the command stored the raw string, and the mesh built its material with
+     * `Color3.FromHexString()`, which only reads hex -- so a name like "red" failed silently and
+     * the node came out black.
+     *
+     * WHERE THE CONVERSION LIVES NOW. The command writes what it was given straight into the
+     * channel, and the channel converts: every colour channel takes any CSS colour and publishes
+     * it as a parsed value. So these read the PAINT rather than the layer, which is the only
+     * reading that says what a node is actually drawn in.
      */
     describe("regression: CSS color names are converted to hex (Issue #4)", () => {
-        it("findAndStyleNodes converts CSS color name 'red' to hex", async () => {
+        /**
+         * What the style stack resolved for one node, once every layer has been applied.
+         * @param index - The node's dense index.
+         * @returns Its colour as the renderer will write it into the instance.
+         */
+        function nodeColor(index: number): { r: number; g: number; b: number; a: number } | null {
+            return graph.getStylePainter().nodePaint(index)?.color ?? null;
+        }
+
+        it("findAndStyleNodes converts CSS color name 'red' to a painted colour", async () => {
             await findAndStyleNodes.execute(
                 graph,
                 {
@@ -386,27 +511,15 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            // Find the layer that was added
-            const layer = graph.styles.layers.find((l) => l.metadata?.name === "css-color-test");
-            assert.ok(layer, "Style layer should be created");
-            assert.ok(layer.node, "Node style should exist");
-
-            // The color should be converted to hex, not remain as "red"
-            const nodeStyle = layer.node.style as { texture?: { color?: string } };
-            assert.ok(nodeStyle.texture?.color, "Texture color should be set");
-            assert.ok(
-                nodeStyle.texture.color.startsWith("#"),
-                `Color should be hex format, got: ${nodeStyle.texture.color}`,
-            );
-            // "red" should convert to #FF0000 (case-insensitive check)
             assert.strictEqual(
-                nodeStyle.texture.color.toUpperCase(),
-                "#FF0000",
-                `Color 'red' should convert to '#FF0000', got: ${nodeStyle.texture.color}`,
+                layerNamed("css-color-test")?.set?.["node.color"],
+                "red",
+                "the command hands the channel what it was given, unmangled",
             );
+            assert.deepStrictEqual(nodeColor(0), { r: 255, g: 0, b: 0, a: 1 }, "and the channel makes red of it");
         });
 
-        it("findAndStyleNodes converts CSS color name 'blue' to hex", async () => {
+        it("findAndStyleNodes converts CSS color name 'blue' to a painted colour", async () => {
             await findAndStyleNodes.execute(
                 graph,
                 {
@@ -417,20 +530,7 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            const layer = graph.styles.layers.find((l) => l.metadata?.name === "css-color-test-blue");
-            assert.ok(layer?.node, "Node style should exist");
-
-            const nodeStyle = layer.node.style as { texture?: { color?: string } };
-            assert.ok(
-                nodeStyle.texture?.color?.startsWith("#"),
-                `Color should be hex format, got: ${nodeStyle.texture?.color}`,
-            );
-            // "blue" should convert to #0000FF
-            assert.strictEqual(
-                nodeStyle.texture?.color?.toUpperCase(),
-                "#0000FF",
-                `Color 'blue' should convert to '#0000FF', got: ${nodeStyle.texture?.color}`,
-            );
+            assert.deepStrictEqual(nodeColor(0), { r: 0, g: 0, b: 255, a: 1 });
         });
 
         it("findAndStyleEdges converts CSS color name 'green' to hex", async () => {
@@ -444,20 +544,10 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            const layer = graph.styles.layers.find((l) => l.metadata?.name === "css-edge-color-test");
-            assert.ok(layer?.edge, "Edge style should exist");
-
-            const edgeStyle = layer.edge.style as { line?: { color?: string } };
-            assert.ok(
-                edgeStyle.line?.color?.startsWith("#"),
-                `Color should be hex format, got: ${edgeStyle.line?.color}`,
-            );
-            // "green" converts to #008000 (not #00FF00 which is "lime")
-            assert.strictEqual(
-                edgeStyle.line?.color?.toUpperCase(),
-                "#008000",
-                `Color 'green' should convert to '#008000', got: ${edgeStyle.line?.color}`,
-            );
+            // An edge carries its colour in its style rather than beside it, because the edge
+            // renderer has no per-instance state. "green" is #008000, not the #00FF00 that
+            // "lime" is.
+            assert.strictEqual(graph.getStylePainter().edgePaint(0)?.style.line?.color, "#008000");
         });
 
         it("findAndStyleNodes still accepts hex colors", async () => {
@@ -471,39 +561,21 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            const layer = graph.styles.layers.find((l) => l.metadata?.name === "hex-color-test");
-            assert.ok(layer?.node, "Node style should exist");
-
-            const nodeStyle = layer.node.style as { texture?: { color?: string } };
-            assert.strictEqual(
-                nodeStyle.texture?.color?.toUpperCase(),
-                "#FF5733",
-                `Hex color should be preserved, got: ${nodeStyle.texture?.color}`,
-            );
+            assert.deepStrictEqual(nodeColor(0), { r: 255, g: 87, b: 51, a: 1 });
         });
     });
 
     /**
-     * Regression test for Issue #1: Style commands should use StyleManager
-     * Bug: Style changes were not triggering node/edge visual updates because
-     * the commands were calling styles.addLayer() directly instead of going
-     * through StyleManager.addLayer() which handles cache invalidation and
-     * event emission.
+     * Regression test for Issue #1: a style command must repaint what it styles.
+     *
+     * The bug: the commands pushed onto the layer array directly, which mutates the stack and
+     * tells nobody, so the nodes and edges already on screen were never redrawn. The session's
+     * stack has no such door -- `add()` IS the repaint, and it resolves only once the pass it
+     * drove has finished, which is what these two assert.
      */
-    describe("regression: style commands use StyleManager (Issue #1)", () => {
-        it("findAndStyleNodes uses StyleManager.addLayer not styles.addLayer directly", async () => {
-            // Track whether styleManager.addLayer was called
-            let styleManagerAddLayerCalled = false;
-            const originalStyleManager = graph.getStyleManager();
-
-            // Spy on styleManager.addLayer
-            const originalAddLayer = originalStyleManager.addLayer.bind(originalStyleManager);
-            originalStyleManager.addLayer = (layer) => {
-                styleManagerAddLayerCalled = true;
-                originalAddLayer(layer);
-            };
-
-            await findAndStyleNodes.execute(
+    describe("regression: style commands repaint what they style (Issue #1)", () => {
+        it("findAndStyleNodes has painted the nodes by the time it answers", async () => {
+            const result = await findAndStyleNodes.execute(
                 graph,
                 {
                     selector: "",
@@ -513,26 +585,16 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            assert.strictEqual(
-                styleManagerAddLayerCalled,
-                true,
-                "findAndStyleNodes should use StyleManager.addLayer() to ensure style updates are propagated",
+            assert.strictEqual(result.success, true);
+            assert.deepStrictEqual(
+                graph.getStylePainter().nodePaint(0)?.color,
+                { r: 255, g: 0, b: 0, a: 1 },
+                "a command that answered before the pass ran would leave the old picture up",
             );
         });
 
-        it("findAndStyleEdges uses StyleManager.addLayer not styles.addLayer directly", async () => {
-            // Track whether styleManager.addLayer was called
-            let styleManagerAddLayerCalled = false;
-            const originalStyleManager = graph.getStyleManager();
-
-            // Spy on styleManager.addLayer
-            const originalAddLayer = originalStyleManager.addLayer.bind(originalStyleManager);
-            originalStyleManager.addLayer = (layer) => {
-                styleManagerAddLayerCalled = true;
-                originalAddLayer(layer);
-            };
-
-            await findAndStyleEdges.execute(
+        it("findAndStyleEdges has painted the edges by the time it answers", async () => {
+            const result = await findAndStyleEdges.execute(
                 graph,
                 {
                     selector: "",
@@ -542,11 +604,8 @@ describe("StyleCommands", () => {
                 context,
             );
 
-            assert.strictEqual(
-                styleManagerAddLayerCalled,
-                true,
-                "findAndStyleEdges should use StyleManager.addLayer() to ensure style updates are propagated",
-            );
+            assert.strictEqual(result.success, true);
+            assert.strictEqual(graph.getStylePainter().edgePaint(0)?.style.line?.color, "#00ff00");
         });
     });
 });

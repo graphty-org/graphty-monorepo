@@ -4,9 +4,8 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import { UiGlyph } from "../../src/icons";
-
 import { Popout, PopoutButton, PopoutManager, usePopoutAnchorContext } from "../../src/components/popout";
+import { UiGlyph } from "../../src/icons";
 import { compactTheme } from "../../src/theme";
 
 /**

@@ -9,21 +9,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in; most run in `/home/apowers/Projects/graphty-monorepo`. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees; appendix 7.1 is that command sheet.
 
-**Goal:** Give `graphty-element` the graph-format 14.4 data model and the WebGPU design's 9.4 accelerator seam in one phase, in two halves: E0 makes `DataManager` own ONE `GraphBuilder` for the graph's life, an element-owned `positions` Float32Array attached by reference as the `position` column after every freeze, `getSnapshot()` on a sound invalidation key, `dm.undirected(s)`, a typed `snapshot-replaced` event, `Node.index` and `Node.pinned`, and retires `toAlgorithmGraph` (43 occurrences) and `EdgeMap`; E1 then adds `Graph.accelerator` / `setAccelerator()` / `accelerator-changed`, the `snapshot-replaced` release list, the adapters routed through `accelerated()` with ONE result-writing loop, the `SimulationLayoutEngine` bridge with `forceatlas2` and `spring` re-registered on it, the three `behavior.layout` knobs, `setRunning`/`reheat`, the D28 `graphty.mass` role column and the fake-accelerator stories (gate G6, element part).
+**Goal:** Give `graphty-element` the graph-format 14.4 data model and the WebGPU design's 9.4 accelerator seam in one phase, in two halves: E0 makes `DataManager` own ONE `GraphBuilder` for the graph's life, an element-owned `positions` Float32Array attached by reference as the `position` column after every freeze, `getSnapshot()` on a sound invalidation key, `dm.undirected(s)`, a typed `snapshot-replaced` event, `Node.index` and `Node.pinned`, and retires `toAlgorithmGraph` (43 occurrences) and `EdgeMap`; E1 then adds the consumer-facing acceleration surface -- the `acceleration="auto" | "off" | "required"` attribute, the measured `capabilities.acceleration` object, the `graphty-capabilities-change` DOM mirror, the accelerator registry and the `@graphty/graphty-element/webgpu` activation subpath -- over an INTERNAL seam (`setAccelerator()` and an internal `accelerator-changed` notification), plus the `snapshot-replaced` release list, the adapters routed through `accelerated()` with ONE result-writing loop, the `SimulationLayoutEngine` bridge with `forceatlas2` and `spring` re-registered on it, the two `behavior.layout` knobs and the `acceleration.minNodes` config key, `setRunning`/`reheat`, the D28 `graphty.mass` role column and the fake-accelerator stories (gate G6, element part).
 
-**Architecture:** The seam is an injected interface. `graphty-element` types `Graph.accelerator` against `AlgorithmAccelerator` (from `@graphty/algorithms`, Phase M8a) and `LayoutAccelerator` (from `@graphty/layout`, Phase M5), so the CORE entry imports nothing from `@graphty/webgpu-graph-algorithms`. Per section 0.0, the GPU package is an OPTIONAL PEER and the element itself activates it through the `@graphty/graphty-element/webgpu` subpath, which is the only file allowed to import it; design 9.1's "the app injects the object" is superseded. Underneath that seam, the element stops deriving a graph structure per consumer and starts owning one: a long-lived `GraphBuilder` whose `freezeWithReport()` output is the single `GraphSnapshot` every adapter, every layout engine and (in E1) every accelerator call reads. Positions are the one thing the snapshot does NOT own -- the element owns the `Float32Array` and lends it to each snapshot as a `role: "position"` column by reference, so a freeze never loses a coordinate. graph-format design 14.4 (`design/graph-format/graph-format-design.md:4048-4211`) fixes the data half; WebGPU design 9.4 (`design/webgpu/webgpu-acceleration-plan.md:3068-3230`) fixes the accelerator half.
+**Architecture:** What a consumer touches is an HTML attribute and a read-only capabilities object: `acceleration="auto" | "off" | "required"` on `<graphty-element>`, `capabilities.acceleration` reporting one of `"probing" | "active" | "idle" | "unavailable" | "error" | "off"`, and one side-effect import, `@graphty/graphty-element/webgpu`, that activates the optional peer. Underneath that, the seam is an internal injected interface: the element types the accelerator it holds against `AlgorithmAccelerator` (from `@graphty/algorithms`, Phase M8a) and `LayoutAccelerator` (from `@graphty/layout`, Phase M5), so the CORE entry imports nothing from `@graphty/webgpu-graph-algorithms`. `setAccelerator()` is that internal seam and the plugin door a third party brings its own backend through; it is not the road a consumer takes. Per section 0.0, the GPU package is an OPTIONAL PEER and the element itself probes, constructs, attaches, applies the threshold and recovers from device loss; design 9.1's "the app injects the object" is superseded. Underneath that seam, the element stops deriving a graph structure per consumer and starts owning one: a long-lived `GraphBuilder` whose `freezeWithReport()` output is the single `GraphSnapshot` every adapter, every layout engine and (in E1) every accelerator call reads. Positions are the one thing the snapshot does NOT own -- the element owns the `Float32Array` and lends it to each snapshot as a `role: "position"` column by reference, so a freeze never loses a coordinate. graph-format design 14.4 (`design/graph-format/graph-format-design.md:4048-4211`) fixes the data half; WebGPU design 9.4 (`design/webgpu/webgpu-acceleration-plan.md:3068-3230`) fixes the accelerator half.
 
 **Tech Stack:** TypeScript 5.9 (strict), `@graphty/graph-format` 1.0.0, `@graphty/algorithms` 1.7.2+, `@graphty/layout` 1.6.2+, Lit 3 and Babylon.js 8 (peer), zod 3 (`zod/v4` import path), vitest 3.2.7 (`default` / `browser` / `interactions` / `storybook` / `llm-regression` projects; Playwright Chromium 1.57.0), Storybook 9 with Chromatic (`exitZeroOnChanges: false`), pnpm 10 workspace, Nx 22, ESLint 9 flat config, knip, GitHub Actions (`ci.yml` 20-shard matrix; `graphty-element-default`, `graphty-element-browser-1..5`, `graphty-element-storybook-1..4`).
 
-**Spec:** `design/graph-format/graph-format-design.md` (section 14.4 lines 4048-4211 for E0; 13.5 rule 3 lines 3658-3665 for the dependency shape; 17.7 lines 4934-4962 for what F2 actually deviated from) and `design/webgpu/webgpu-acceleration-plan.md` (section 9.1 lines 2870-2899, section 9.4 lines 3068-3230 items 1-10, section 7.19 lines 2289-2431 for the frame loop, section 11.4 lines 3502-3600 for the distributional metrics, section 13 line 4213 for G6, decisions D27 / D28 at lines 224-225). 14.4 is normative for the data model; 9.4 is normative for the accelerator surface. Where they disagree with the code that exists, this plan takes a PLAN DECISION and says so.
+**Spec:** `design/graph-format/graph-format-design.md` (section 14.4 lines 4048-4211 for E0; 13.5 rule 3 lines 3658-3665 for the dependency shape; 17.7 lines 4934-4962 for what F2 actually deviated from) and `design/webgpu/webgpu-acceleration-plan.md` (section 9.1 lines 2870-2899, section 9.4 lines 3068-3230 items 1-10, section 7.19 lines 2289-2431 for the frame loop, section 11.4 lines 3502-3600 for the distributional metrics, section 13 line 4213 for G6, decisions D27 / D28 at lines 224-225). 14.4 is normative for the data model; 9.4 is normative for the accelerator MECHANISM. `design/element-api/element-api-design.md` is normative for the accelerator SURFACE a consumer sees -- section 4.1.1 for the `acceleration` attribute, 4.12 for `Capabilities` and `acceleration.minNodes`, 4.14 for the plugin contract and the `AcceleratorFactory` signature, 4.10.1 for `graphty-capabilities-change`, 6.1 for the `./webgpu` entry -- and it wins wherever the two disagree. Where either disagrees with the code that exists, this plan takes a PLAN DECISION and says so.
 
 **Plan of record for the earlier phases:** `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md` (Phases M0-M5b, and the Phase M6 block at lines 3243-3253, which this plan decomposes).
 
 **Gate:** G6, element part (design 13 row P6, `design/webgpu/webgpu-acceleration-plan.md:4213`; restated for the element at `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3250`). The record is written by Task M6-T18.
 
-**Tasks in this document:** M6-T1 .. M6-T18. M6-T1..M6-T10 are E0 and run strictly in order except that M6-T4 is independent of M6-T2/T3 and M6-T5 is independent of everything before it; M6-T11..M6-T18 are E1 and require all of E0.
+**Tasks in this document:** M6-T1 .. M6-T20. M6-T1..M6-T10 are E0 and run strictly in order except that M6-T4 is independent of M6-T2/T3 and M6-T5 is independent of everything before it; E1 is the rest and requires all of E0, in the order M6-T11, M6-T19, M6-T12, M6-T13, M6-T14, M6-T15, M6-T16, M6-T17, M6-T20, M6-T18.
 
-**Tasks within a phase run STRICTLY IN ORDER, one at a time, and MUST NOT be dispatched as parallel agents.** File ownership is NOT disjoint: in E0, `src/Node.ts` is edited by M6-T5 (the fields, `pin` / `unpin`, `isPinned`) and again by M6-T10 (`Node.update()`), and `src/Graph.ts` is edited by M6-T6 (the two count getters) and again by M6-T7 (the freeze point) and M6-T11 (the accelerator field). In E1, `src/managers/LayoutManager.ts` is edited by M6-T12 (the bridge construction and the `accelerator-changed` reaction), M6-T13 (`simulationOptions` and the pre-step loop) and M6-T15 (`writeNodeVector`); `src/data/GraphStore.ts` is created by M6-T3 and edited by M6-T15; `src/events.ts` and `src/managers/EventManager.ts` are edited by M6-T4 and again by M6-T11. Three agents editing `LayoutManager.ts` at once is a merge conflict, not a speed-up, so the `superpowers:dispatching-parallel-agents` skill does NOT apply to this plan.
+**Tasks within a phase run STRICTLY IN ORDER, one at a time, and MUST NOT be dispatched as parallel agents.** File ownership is NOT disjoint: in E0, `src/Node.ts` is edited by M6-T5 (the fields, `pin` / `unpin`, `isPinned`) and again by M6-T10 (`Node.update()`), and `src/Graph.ts` is edited by M6-T6 (the two count getters) and again by M6-T7 (the freeze point) and M6-T11 (the accelerator field). In E1, `src/managers/LayoutManager.ts` is edited by M6-T12 (the bridge construction and the `accelerator-changed` reaction), M6-T13 (`simulationOptions` and the pre-step loop) and M6-T15 (`writeNodeVector`); `src/data/GraphStore.ts` is created by M6-T3 and edited by M6-T15; `src/events.ts` and `src/managers/EventManager.ts` are edited by M6-T4, again by M6-T11 (`accelerator-changed`) and again by M6-T19 (`capabilities-changed`), and `src/Graph.ts` is edited a fourth time by M6-T19 (the capabilities object and the activation call). Three agents editing `LayoutManager.ts` at once is a merge conflict, not a speed-up, so the `superpowers:dispatching-parallel-agents` skill does NOT apply to this plan.
 
 ## 0.0 AMENDMENT (2026-09-19): the element owns WebGPU, and the GPU package is an optional peer
 
@@ -40,6 +40,19 @@ discussion in Task M6-T17 Step 5 and Task M6-T18.
 
 ### What changes
 
+The consumer-facing surface this produces is the one `design/element-api/element-api-design.md`
+specifies, and that document wins every conflict with what follows. Three things make it up. The
+switch is an HTML attribute, `acceleration="auto" | "off" | "required"` on `<graphty-element>`,
+reflected to a property, where `"required"` turns a missing accelerator into an `E_NO_ACCELERATOR`
+error instead of a silent CPU run (design 4.1.1). The answer is a measured, read-only
+`capabilities.acceleration` object whose `state` is one of `"probing" | "active" | "idle" |
+"unavailable" | "error" | "off"`, carrying `backend`, `vendor`, `architecture`, `device`, a
+human-readable `reason` and a switchable `code` (design 4.12); every transition emits
+`capabilities:changed` on the session side and `graphty-capabilities-change` on the element, so an
+HTML-only page can draw a status chip with six lines of script (design 4.10.1). Activation is the
+one import below. Nothing else is a consumer's business: the element probes, constructs, attaches,
+applies the `acceleration.minNodes` threshold and recovers from device loss.
+
 `@graphty/webgpu-graph-algorithms` becomes an OPTIONAL peer dependency of graphty-element, and the
 element gains a second published entry point that activates it:
 
@@ -51,103 +64,37 @@ import "@graphty/graphty-element/webgpu";   // the consumer's entire GPU integra
 The second import is a SIDE-EFFECT module. It statically imports the GPU package and registers an
 accelerator factory with a registry inside the element. Everything after it is the element's job:
 probing for an adapter, requesting a context, constructing the accelerator, attaching it, handling
-`ctx.lost`, applying `gpuMinNodes`, and running the CPU path when there is no adapter. A consumer
-who does not install the optional peer omits the line; their build succeeds with no bundler
-configuration.
+`ctx.lost`, applying `acceleration.minNodes`, and running the CPU path when there is no adapter. A
+consumer who does not install the optional peer omits the line; their build succeeds with no
+bundler configuration.
 
 Why a subpath and not a dynamic `import()` from the element's core: module resolution in a bundled
 browser app happens at BUILD time, so a core-level import of the optional package fails the build
 of every consumer who did not install it, and the fix is bundler configuration in a file the
 consumer may not control. The rejected alternative is recorded in full in the decision file.
 
-`Graph.setAccelerator()` STAYS public and unchanged. It is how Task M6-T11's fake accelerator is
-injected, it is what gate G6 is defined in terms of, and it is how a third party supplies a
-different implementation. The registry is a second, higher-level path to the same property.
+`setAccelerator()` SURVIVES, as the INTERNAL seam and the plugin door. It is how Task M6-T11's fake
+accelerator is injected, it is what gate G6's five cases are written in terms of, and it is how a
+third party supplies a different backend through the `{ kind: "accelerator", factory }` plugin of
+design 4.14. It is not the road an ordinary consumer takes, and nothing in the documentation points
+a consumer at it: that road is the `acceleration` attribute plus the one import above. The registry
+and the attribute are the layer over the seam, not a second public switch beside it.
 
 ### Task deltas
 
 | Task | Delta |
 | --- | --- |
-| M6-T1 | ALSO add `"@graphty/webgpu-graph-algorithms"` to `peerDependencies` with `"peerDependenciesMeta": { "@graphty/webgpu-graph-algorithms": { "optional": true } }`, and a `"./webgpu"` condition to the `exports` map. Do NOT add it to `dependencies` or `devDependencies`. |
-| M6-T11 | Unchanged in substance. `Graph.accelerator`, `setAccelerator()` and `accelerator-changed` are still exactly as written, and the fake accelerator is still the test vehicle. |
-| M6-T19 | NEW, after M6-T11 and before M6-T12. The accelerator REGISTRY and auto-activation, entirely inside the element core with no GPU import. See below. |
-| M6-T20 | NEW, last task of E1. The `@graphty/graphty-element/webgpu` subpath entry, the second vite lib entry, and the external/peer wiring. See below. |
+| M6-T1 | ALSO add `"@graphty/webgpu-graph-algorithms"` to `peerDependencies` with `"peerDependenciesMeta": { "@graphty/webgpu-graph-algorithms": { "optional": true } }`. Do NOT add it to `dependencies` or `devDependencies`. The matching `"./webgpu"` condition in the `exports` map waits for Task M6-T20, which is where the file it points at is written. |
+| M6-T11 | The seam it builds is INTERNAL. `setAccelerator()` survives as written and the fake accelerator is still the test vehicle, but the accelerator field is not public API and `accelerator-changed` is an internal notification, never a DOM event. |
+| M6-T19 | NEW, after M6-T11 and before M6-T12. The accelerator registry, the `acceleration` attribute, the `capabilities.acceleration` object with its two events, the `acceleration.minNodes` config key and auto-activation -- entirely inside the element core with no GPU import. |
+| M6-T20 | NEW, after M6-T17 and before the gate record M6-T18, so the record can carry its evidence. The `@graphty/graphty-element/webgpu` subpath entry, the second vite lib entry, and the external/peer wiring. |
+| M6-T13 | The threshold it used to carry is not a `behavior.layout` field. M6-T19 owns `acceleration.minNodes`; M6-T13 keeps the two layout knobs, `iterationsPerStep` and `maxInFlight`. |
+| M6-T16 | A run's numeric precision is labelled on the result's `Caveats`, not in a graph-level results bag. |
 | M6-T17 Step 5 | The knip/dependency check INVERTS. It no longer asserts the GPU package is absent from `package.json`; it asserts the package appears ONLY under `peerDependencies` + `peerDependenciesMeta.optional`, and that no file reachable from the CORE entry (`graphty-element/index.ts`) imports it -- only the `webgpu` entry may. |
 | M6-T18 | The G6 record no longer hands "the story on the real GPU locally settles, drags and pins" and the 11.4 distributional comparison to M7. Both are now the ELEMENT's, because the element can now reach a real GPU. They move to M6-T20's gate. |
 
-### M6-T19: the accelerator registry and auto-activation
-
-**Files:** Create `graphty-element/src/accelerator/registry.ts`; Modify `src/Graph.ts`,
-`src/config/GraphBehavior.ts`; Test `test/accelerator/registry.test.ts`. NOT touched: anything
-importing `@graphty/webgpu-graph-algorithms`.
-
-The registry holds at most one factory and imports nothing from the GPU package:
-
-```ts
-/** Builds an accelerator for one Graph, or returns null when this machine cannot. */
-export type AcceleratorFactory = (opts: { exactMaxNodes?: number }) => Promise<{
-    accelerator: GraphAccelerator;
-    /** Resolves when the device is lost; the element then drops to the CPU. */
-    lost: Promise<unknown>;
-    /** For the status surface: vendor and architecture, as the GPU package reports them. */
-    describe(): { vendor: string; architecture: string; description: string };
-} | null>;
-
-export function registerAccelerator(factory: AcceleratorFactory): void;
-export function registeredAccelerator(): AcceleratorFactory | null;
-```
-
-`behavior.gpu` is a new `z.enum(["auto", "off", "required"]).default("auto")` on the element's
-behavior config -- this is ELEMENT config, not app config, and the app's Settings control writes
-it. `"auto"` uses the GPU when a factory is registered and an adapter exists; `"off"` never does;
-`"required"` surfaces an error rather than silently running the CPU.
-
-Activation runs once per Graph, on the first load that crosses `gpuMinNodes`: if a factory is
-registered and `behavior.gpu !== "off"`, await it, `setAccelerator(result.accelerator)`, and
-attach `result.lost.then(() => { setAccelerator(null); emit a status change; })`. The status the
-element publishes is `graph.gpuStatus: { state: "on" | "off" | "unavailable" | "error"; vendor?;
-architecture?; reason? }` plus a `gpu-status-changed` event through `EventManager` -- the same four
-coordinated edits Task M6-T4 lists, for the same reason.
-
-Tested with a FAKE factory, so this task still needs no GPU dependency: a factory returning an
-accelerator, one returning null, one whose `lost` resolves mid-run, and `behavior.gpu: "off"`
-suppressing all of it.
-
-### M6-T20: the `webgpu` subpath entry
-
-**Files:** Create `graphty-element/src/webgpu.ts`; Modify `graphty-element/package.json` (the
-`exports` map from M6-T1), `graphty-element/vite.config.ts` (a second lib entry, and the GPU
-package added to `rollupOptions.external` exactly as `@graphty/graph-format` was in Task M6-T1
-Step 4b). Test `test/webgpu/subpath.test.ts`.
-
-`src/webgpu.ts` is the ONLY file in the package that may import the GPU package:
-
-```ts
-import { probeBrowserWebGpu, requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser";
-import { createAccelerator } from "@graphty/webgpu-graph-algorithms";
-import { registerAccelerator } from "./accelerator/registry.js";
-
-registerAccelerator(async ({ exactMaxNodes }) => {
-    const probe = await probeBrowserWebGpu();
-    if (!probe.supported) { return null; }          // no adapter, or not a secure context
-    const ctx = await requestGpuContext(exactMaxNodes === undefined ? {} : { exactMaxNodes });
-    return {
-        accelerator: createAccelerator(ctx),
-        lost: ctx.lost,
-        describe: () => ({ vendor: ctx.caps.vendor, architecture: ctx.caps.architecture,
-                           description: ctx.caps.description }),
-    };
-});
-```
-
-Note `probe.supported === false` covers the case a consumer will hit first and report as "it does
-not work": WebGPU requires a SECURE CONTEXT, so a page served over plain http reports no adapter
-with no other diagnostic. The status `reason` must say so in words.
-
-**Gate for M6-T20**, absorbing the two clauses this amendment takes back from M7: a Storybook
-story on the real GPU on the dev box settles, drags and pins (the Playwright + nanobanana routine
-of the owner's visual rule), and the CPU and GPU stories are statistically the same under the 11.4
-distributional metrics. Both are now reachable from this package.
+Both new tasks are written out in the task list of Phase M6b below rather than here, so this plan
+has ONE list of tasks: Task M6-T19 runs after M6-T11, Task M6-T20 after M6-T17.
 
 ## Global Constraints
 
@@ -160,7 +107,7 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 - No `eslint-disable`, `@ts-expect-error` (outside negative type tests) or `@ts-ignore`; never lower a coverage threshold. `graphty-element` has no thresholds configured today, so none may be added below the repository standard of 80 lines / 80 functions / 75 branches / 80 statements if one is added at all.
 - Project rule (root `CLAUDE.md`, "Graph Styling"): node and edge appearance is applied ONLY through a style layer handed to the StyleManager, never by mutating a mesh, a material, or a node or edge object. This plan moves POSITIONS, which are not style; nothing here writes a colour, a size or a texture.
 - Project rule (root `CLAUDE.md`, "Algorithm Styles"): an algorithm's `suggestedStyles` write ONLY to the elements carrying that algorithm's own result. No task in this plan changes a `suggestedStyles` block; M6-T16's rule is that the accelerated branch must write the SAME result keys to the SAME element set as the CPU branch, because a `!= \`null\`` selector's match set is the paint.
-- Project rule (root `CLAUDE.md`, WebGPU): never create a fallback if WebGPU is not supported. The element never probes for a GPU and never constructs an accelerator; it uses the one it is handed and runs the CPU path when handed `null`.
+- Project rule (root `CLAUDE.md`, WebGPU): never create a SILENT fallback. Detecting that no accelerator is available and running the CPU implementation is correct and required; catching a GPU error mid-run and quietly finishing on the CPU is not. The element DOES probe and DOES construct -- that work belongs inside the element, not in a consumer's hands -- and it says what it found through `capabilities.acceleration`: `"unavailable"` with a `reason` and a `code` when there is no adapter, `"error"` with a `code` after a device loss, and an `E_NO_ACCELERATOR` rejection instead of a CPU run when `acceleration="required"`.
 - Temporary files under `./tmp/`; write a script there rather than repeating an inline one-liner.
 - The design is the specification. Where this plan departs from it, the departure is listed in section 0.5 with its reason, and any departure that changes a decision the design fixed also gets a record under `design/decisions/` (section 0.5 names which).
 
@@ -222,13 +169,13 @@ Two things about that path are load-bearing for this document and are NOT re-ope
 | M5b Layout types in the GPU package | `webgpu-graph-algorithms/` | M5 on master | the D27 mirrors for `LayoutSimulation` / `LayoutAccelerator` replaced by `import type` | both software shards green | branch, no PR |
 | M8a A1 + six ports + the accelerator seam | `algorithms/` | F2 (MET); A1 is NOT met and is ABSORBED into the phase (M8a DEP-8A-B); M5b on master for its Task M8a-T13 only | `toSnapshot`, the differential harness, six `indexed.*`, `indexed/accelerator.ts`, `accelerated()`, then the GPU package's W1b algorithms half | the G6 algorithms clause + the G10 algorithms clause + the 14.6 A1 gate string | own plan |
 | **M6a E0 -- the DataManager refactor** | `graphty-element/` | M5 on master; M8a NOT required | graph-format 14.4: one builder, element-owned positions, `getSnapshot()`, `dm.undirected(s)`, `snapshot-replaced`, `Node.index`, `toAlgorithmGraph` and `EdgeMap` retired | element tests green with NO behaviour change visible in a story; Chromatic unchanged | 15-21 ed |
-| **M6b E1 -- the accelerator seam** | `graphty-element/` | M6a; M5 and M8a on master | design 9.4 items 1-10 | design G6, element part | 12-18 ed |
-| M7 App (W2) | `graphty/` | M6 on master | design 9.5 `attachAccelerator`, the indicator, the `gpu`-tagged stories | design G12 (W2 subset), as restated by `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` | own plan |
+| **M6b E1 -- the accelerator seam and the acceleration surface** | `graphty-element/` | M6a; M5 and M8a on master | design 9.4 items 1-10, surfaced as the element API design's `acceleration` attribute, `capabilities.acceleration` and `./webgpu` entry | design G6, element part | 14-21 ed |
+| M7 App (W2) | `graphty/` | M6 on master | the app writes the `acceleration` attribute from its own stored preference, draws a status chip on `graphty-capabilities-change`, and ships the `gpu`-tagged stories | design G12 (W2 subset), as restated by `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` | own plan |
 | M8b GPU SpMV family (P7) | `webgpu-graph-algorithms/` | M3 (MET) and the design's P2 gate (MET) | design P7 (the 8.2 / 8.3 kernels) | design G7 | own plan |
 
 Critical path: M5 (PR #12) -> M5b -> M8a -> M6a -> M6b -> M7 ; M8b in parallel with all of it, and M8b is the ONLY phase whose entry criteria are met today. E0 (M6a) is the ONLY part of M6 that can start as soon as M5 merges: it needs `@graphty/graph-format` and nothing from `@graphty/algorithms` beyond what the element already depends on. This plan therefore splits the phase's commits so that E0 lands as its own PR and E1 waits for M8a.
 
-Sizes are engineer-days for one engineer familiar with the code base, the unit the design uses (`design/webgpu/webgpu-acceleration-plan.md:4198`). The design sizes the WHOLE of design 9.4 at "8-10 ed (across three packages)" and does not size E0 at all, calling it "the larger half of the phase" (`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3248`). This plan sizes E0 at 15-21 ed and the element's share of E1 at 12-18 ed, total 27-39 ed plus owner time for the Chromatic re-baseline. The per-task sizes are in the task headers and in appendix 7.4.
+Sizes are engineer-days for one engineer familiar with the code base, the unit the design uses (`design/webgpu/webgpu-acceleration-plan.md:4198`). The design sizes the WHOLE of design 9.4 at "8-10 ed (across three packages)" and does not size E0 at all, calling it "the larger half of the phase" (`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3248`). This plan sizes E0 at 15-21 ed and the element's share of E1 at 14-21 ed, total 29-42 ed plus owner time for the Chromatic re-baseline. The per-task sizes are in the task headers and in appendix 7.4.
 
 ### 0.4 Decisions (defaults stand unless the owner says otherwise before Task M6-T1 starts)
 
@@ -245,7 +192,7 @@ Sizes are engineer-days for one engineer familiar with the code base, the unit t
 | D-M6-9 | `data.knownFields.edgeWeightPath` defaults to `"weight"` and probes `"value"` second, once per load with a debug log | design 14.4 rule 10 makes the default `"weight"` and calls the change documented (open question 5). But `toAlgorithmGraph` has hard-coded `weightAttribute = "value"` since it was written (`graphConverter.ts:35`) and `edgeWeightPath` has never been read by anything, so EVERY weighted dataset and story in the repository today carries `value`. Changing the path and dropping the old probe in one commit re-weights every weighted algorithm in every story invisibly. The second probe is E0-only and is removed by a later phase. Departure DEP-M6-C. | Hard cutover to `"weight"`. Choose it only after grepping the story fixtures for `value`. |
 | D-M6-10 | `getSnapshot()` is the ONLY freeze site and it is LAZY | design 14.4 rule 6 asks for freezes "COALESCED per operation-queue drain". The element has three paths that bypass the queue: `addDataFromSource` entirely (`Graph.ts:332-334` documents it), `skipQueue` on `Graph.addNodes` / `addEdges` (`Graph.ts:1004-1007`, `:1079-1082`), and the queue's own `data-add` trigger (`Graph.ts:215-226`). A lazy cached `getSnapshot()` coalesces ALL of them by construction: however many mutations a burst contains, the first reader after the burst pays for one freeze and every later reader in the same revision gets the cached object. No queue change is needed and no bypass has to be closed. | An eager freeze on drain. Rejected: it freezes when nobody is reading, and it still misses the two bypasses. |
 | D-M6-11 | The element NEVER hands a snapshot's `transferables()` to `postMessage` | `snapshot.transferables()` lists the element's LIVE positions buffer as exclusively transferable (verified: after attaching a caller-owned `Float32Array`, `t.includes(pos.buffer)` is `true`), because `AttributeTable.set` claims one holder of the buffer (`graph-format/src/util/shared-buffers.ts:29`). graph-format exports no `noteShared`, so the element cannot tell the format otherwise. A `postMessage(msg, snapshot.transferables())` would DETACH the element's own position array mid-frame, and every subsequent read would throw. There is no worker path in the element today; Task M6-T3 adds a guard test that pins the absence. Departure DEP-M6-D. | Copy the position buffer before transferring. Choose it when a worker path is actually built (M7 or later). |
-| D-M6-12 | `SimulationLayoutEngine` is constructed by `LayoutManager`, not by the registry | `LayoutEngine.get(type, opts)` is `new SourceClass(opts)` with no third argument (`LayoutEngine.ts:111-118`) and the registry stores classes (`:18-19`). A factory form would touch all 16 registrations in `src/layout/index.ts:19-34` and every engine constructor. Design 9.4 item 4 asks for exactly the special case: `new SimulationLayoutEngine(type, opts, createSimulation(type, opts, graph.accelerator))` inside `_setLayoutInternal`. | A factory registry. Choose it only if a second engine family also needs construction-time context. |
+| D-M6-12 | `SimulationLayoutEngine` is constructed by `LayoutManager`, not by the registry | `LayoutEngine.get(type, opts)` is `new SourceClass(opts)` with no third argument (`LayoutEngine.ts:111-118`) and the registry stores classes (`:18-19`). A factory form would touch all 16 registrations in `src/layout/index.ts:19-34` and every engine constructor. Design 9.4 item 4 asks for exactly the special case: `new SimulationLayoutEngine(type, opts, createSimulation(type, opts, graph.getAccelerator()))` inside `_setLayoutInternal`. | A factory registry. Choose it only if a second engine family also needs construction-time context. |
 | D-M6-13 | The fake accelerator lives in `graphty-element/src/testing/fakeAccelerator.ts` and is imported by BOTH the tests and the two GPU stories | design 9.4 item 8 asks for stories with "a FAKE accelerator for Chromatic (a `LayoutSimulation` that moves nodes deterministically)" and G6 asks for "element tests + stories green with a fake accelerator". One implementation keeps the story and the test honest about the same object. A story importing from `test/helpers/` would pull the vitest helper graph into the Storybook build, so the file sits under `src/testing/`, exported from no barrel. It is reachable from NEITHER of the element's two entry points -- the library bundle's entry is `graphty-element/index.ts` (`graphty-element/vite.config.ts:27`, `build.lib.entry: "./index.ts"`; there is no `src/index.ts`) and knip's entry for the workspace is `src/graphty-element.ts` (root `knip.config.ts:115-123`) -- so the bundle does not carry it. knip does not report it unused either, because that same workspace block lists `test/**/*.ts` and `stories/**/*.stories.ts` as entries and both import it; Task M6-T17 Step 5 checks. **It is created by Task M6-T11, the FIRST task of E1**, because four later tasks test against it. | Two copies. Rejected: the story would drift from the gate. |
 | D-M6-14 | `graph-settled` does NOT gate on an in-flight GPU batch | `Graph.ts:547-549` fires `graph-settled` and sets `running = false` on the first frame where `isSettled && running`. Under design 7.19 `settled` describes the LAST COMPLETED batch, so it lags by at most one batch (at most `maxInFlight` batches are in flight, default 2). Gating the event on `inFlight === 0` would require the bridge to expose in-flight state that `LayoutSimulation` does not have (`layout/src/simulation/types.ts:57-70` has `settled`, not `inFlight`), and it would delay every Chromatic screenshot by one readback for no pixel difference: a settled simulation's last batch moves nodes by less than the settle threshold by definition. Departure DEP-M6-E; the residual risk is R-M6-7. | Add `flush()` to the bridge and await it. Choose it if a screenshot ever shows a visibly unsettled frame. |
 
@@ -289,10 +236,14 @@ Every item the dossiers flagged as unanswered by the designs is resolved by a nu
 | which adapters are snapshot-native on day one | M6-T8 PLAN DECISION 1 |
 | the triplicated algorithm registration | M6-T8 PLAN DECISION 4 |
 | `mockGraph.ts`, imported by 27 files, implements only `getDataManager()` | M6-T9, the whole task |
-| `LayoutEngine.get` cannot pass `graph.accelerator` | D-M6-12, M6-T12 PLAN DECISION 1 |
+| `LayoutEngine.get` cannot pass the current accelerator | D-M6-12, M6-T12 PLAN DECISION 1 |
 | the bridge must implement `addNode` / `addEdge` / `nodes` / `edges` / `type`, which are abstract | M6-T12 PLAN DECISION 7 |
 | the pre-step loop needs an AWAITABLE step, which `abstract step(): void` cannot be | M6-T12 PLAN DECISION 3 (`stepAsync`) |
 | `GraphAccelerator.release` must stay optional | M6-T11 PLAN DECISION 3 |
+| the consumer's acceleration switch: an attribute, not a config key, and not persisted by the element | M6-T19 PLAN DECISIONS 1 and 2 |
+| the six acceleration states, and what a status chip reads them from | M6-T19 PLAN DECISION 3 |
+| which node count decides acceleration, and why it is not the render threshold | M6-T19 PLAN DECISION 4 |
+| where a run's numeric precision is labelled | M6-T16 PLAN DECISION 5 |
 | a snapshot node with no render object makes `addNodeResult` throw | M6-T8 PLAN DECISION 6 |
 | the D28 mass column must be TOTAL, because `resolveNodeVector` short-circuits on it | M6-T15 PLAN DECISION 2 |
 | where the fake accelerator lives, and which task creates it | D-M6-13, M6-T11 Step 1 |
@@ -322,7 +273,7 @@ Every item the dossiers flagged as unanswered by the designs is resolved by a nu
 **Spec:** graph-format design 13.5 rule 3 (`design/graph-format/graph-format-design.md:3658-3665`, the dependency shape); 14.4's per-mutation-path table lines 4174-4188, whose `addNodes` row names `data.knownFields.positionScale` at `:4175`; 14.4's retirement paragraph at `:4204` for `data.knownFields.idCoercion` (which the table does NOT name); 14.4 rule 1 lines 4052-4066 (`data.directed: boolean | "auto"`, default `"auto"`); 14.4 rule 10 lines 4116-4120 (`edgeWeightPath`).
 
 **Files:**
-- Modify: `graphty-element/package.json` (dependencies, peerDependencies)
+- Modify: `graphty-element/package.json` (dependencies, peerDependencies, peerDependenciesMeta)
 - Modify: `graphty-element/src/config/DataConfig.ts` (four fields)
 - Modify: `graphty-element/vite.config.ts` (`rollupOptions.external` and `output.globals`; see Step 4b)
 - Modify: `pnpm-lock.yaml` (the 3-line `graphty-element` importer hunk)
@@ -377,11 +328,20 @@ In `EG/graphty-element/package.json` add to `dependencies`, keeping the block al
         "@graphty/graph-format": "workspace:^",
 ```
 
-and add a `peerDependencies` entry beside the three that are there (`@babylonjs/core`, `@mlc-ai/web-llm`, `lit`):
+and add two `peerDependencies` entries beside the three that are there (`@babylonjs/core`, `@mlc-ai/web-llm`, `lit`), the second of them optional:
 
 ```json
         "@graphty/graph-format": "^1.0.0",
+        "@graphty/webgpu-graph-algorithms": "^0.2.0",
 ```
+
+```json
+    "peerDependenciesMeta": {
+        "@graphty/webgpu-graph-algorithms": { "optional": true }
+    },
+```
+
+The GPU package is declared here and nowhere else: not in `dependencies`, not in `devDependencies`, and nothing in the package imports it until Task M6-T20 writes `src/webgpu.ts`. Declaring it optional now is what lets a consumer who never installs it run `pnpm install` without a warning, and what lets the one who does install it get a version the element can talk to. The `"./webgpu"` condition in the `exports` map is Task M6-T20's, because an exports condition pointing at a file the build does not emit breaks resolution for everyone.
 
 Reason: graph-format design 13.5 rule 3 requires BOTH, and requires `workspace:^` rather than `workspace:*`, because pnpm publishes `workspace:*` as an EXACT pin and the rule's own one-copy promise fails with an exact pin. The element's existing `@graphty/algorithms: workspace:^` is the shape to copy. `isGraphSnapshot()` is a `Symbol.for` brand check plus `formatVersion` (graph-format 13.5 rule 3), so even a duplicated copy within one major interoperates -- but the peer range is what stops two majors meeting.
 
@@ -2439,15 +2399,25 @@ The agent's job for Steps 7-13 is to leave the working tree in the state the Che
 
 ---
 
-## Phase M6b: E1 -- design 9.4 items 1-10, the accelerator seam
+## Phase M6b: E1 -- the acceleration surface over the design 9.4 seam (items 1-10)
 
 **Entry criteria:** Phase M6a (E0) on master; Phase M5 on master (`@graphty/layout` exports `createSimulation`, `LayoutSimulation`, `LayoutAccelerator`, `SimulationType` and the option types from `layout/src/simulation/`); the first A2 commit (Phase M8a) on master (`@graphty/algorithms` exports `accelerated`, `AlgorithmAccelerator`, `AcceleratedAlgorithms` and the twelve `*ResultLike` shapes FLAT from the root barrel, out of `algorithms/src/indexed/accelerator.ts`, with `AcceleratedAlgorithms` carrying its first six methods -- `pageRank`, `sssp`, `breadthFirstSearch`, `connectedComponents`, `weaklyConnectedComponents`, `minimumSpanningTree`; the `indexed.*` ports themselves are reached through the `indexed` NAMESPACE, `export * as indexed`, not flat, M8a PD-9). Work on branch `feat/element-accelerator` in a worktree (`git worktree add .worktrees/element-accelerator -b feat/element-accelerator master`, owner; `EA` below); every commit through `tools/commit-changes.sh` with scope `graphty-element`; the half lands as ONE PR whose LAST commit is the Chromatic re-baseline.
 
 **Step 0 of the phase:** `cd EA && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run-many -t build --projects=graph-format,algorithms,layout --parallel=3`.
 
-### Task M6-T11: The fake accelerator; `Graph.accelerator`, `setAccelerator()`, `accelerator-changed`, the release list
+### Task M6-T11: The fake accelerator; the internal seam, `setAccelerator()`, the release list
 
 **Repository:** `EA`. Size: 1.5-2 ed. Design 9.4 items 1, 2 and 8 (the fake half).
+
+**What this task builds is INTERNAL, and Task M6-T19 is the public surface over it.** The element
+API design gives a consumer an `acceleration` attribute and a `capabilities.acceleration` object
+(sections 4.1.1 and 4.12); it gives a plugin author a `{ kind: "accelerator", factory }` plugin
+(4.14). Neither of those is an accelerator property on `Graph`, and neither is an
+`accelerator-changed` event a page can listen for. `setAccelerator()` is the seam both of those
+doors open onto, and it is also how a test injects a fake -- which is why the design keeps it
+(4.12, last line) and why this task builds it first. The accelerator the element is holding is not
+part of the published API: it is reached internally through `getAccelerator()`, and a consumer who
+wants to know whether acceleration is in use reads `capabilities.acceleration.state`.
 
 **This task is FIRST in E1 because four later tasks test against the fake accelerator it creates.** M6-T12, M6-T14, M6-T16 and M6-T17 all write tests whose only accelerator is `createFakeAccelerator()`; if the file landed last, each of those tasks would state an unreachable "Expected: PASS" for a test that cannot even import. See D-M6-13.
 
@@ -2462,15 +2432,15 @@ The agent's job for Steps 7-13 is to leave the working tree in the state the Che
 
 **Interfaces:**
 - Consumes: `@graphty/algorithms`: `type AlgorithmAccelerator`; `@graphty/layout`: `type LayoutAccelerator`, `type LayoutSimulation`, `type ForceAtlas2Options`, `type FruchtermanReingoldOptions`; `@graphty/graph-format`: `type GraphSnapshot`, `type NodeMask`, `type F32`, `maskGet`.
-- Produces: `export type GraphAccelerator = AlgorithmAccelerator & LayoutAccelerator & { release?(s: GraphSnapshot): void; dispose?(): void };`, `Graph.accelerator: GraphAccelerator | null` (default `null`), `Graph.setAccelerator(acc: GraphAccelerator | null): void`, `Graph.getAccelerator(): GraphAccelerator | null`, the `accelerator-changed` graph event carrying `{ graph, previous, next }`, and `createFakeAccelerator(options?: FakeAcceleratorOptions): FakeAccelerator`.
+- Produces: `export type GraphAccelerator = AlgorithmAccelerator & LayoutAccelerator & { release?(s: GraphSnapshot): void; dispose?(): void };`, an internal `accelerator: GraphAccelerator | null` field (default `null`, not published API), `Graph.setAccelerator(acc: GraphAccelerator | null): void` (the seam), `Graph.getAccelerator(): GraphAccelerator | null` (internal reads), the internal `accelerator-changed` graph event carrying `{ graph, previous, next }`, and `createFakeAccelerator(options?: FakeAcceleratorOptions): FakeAccelerator`.
 
 PLAN DECISIONS made by this part:
 
-1. PLAN DECISION: `accelerator` is a plain public FIELD with `setAccelerator()` as a method, matching the file. `Graph` has exactly ONE getter in 4147 lines (`get input(): InputManager`, `Graph.ts:2128`); everything else is a `getX()` method, and public state is a field with an initialiser (`runAlgorithmsOnLoad = false`, `needRays = true`). A setter pair would be the only one in the class. The element never constructs an accelerator and never probes for one (root `CLAUDE.md`: no fallbacks); the app injects it (design 9.5).
-2. PLAN DECISION: `accelerator-changed` gets the same FOUR edits as `snapshot-replaced` (M6-T4 PLAN DECISION 1). E1's own `LayoutManager` is a subscriber, so the `addListener` case is mandatory or the subscription throws at `EventManager.ts:449-450`.
-3. PLAN DECISION: `release` is OPTIONAL on `GraphAccelerator` and is reached through a feature test. `LayoutAccelerator.release?(s: GraphSnapshot): void` is optional in `@graphty/layout` (`layout/src/simulation/types.ts:77`, under the interface's own header "every method optional (only implemented ones exist)"), so an intersection that made it REQUIRED would reject a real `createAccelerator(...)` result from `webgpu-graph-algorithms` that does not declare it -- breaking M7's `attachAccelerator` at the type level -- and, because the app injects a plain object at run time, would throw `TypeError: accelerator.release is not a function` on the SECOND freeze, inside the release path, killing the frame loop. The call site is `if (typeof acc.release === "function") { acc.release(previous); ... }`, the same idiom `LayoutManager` already uses for optional engine members (`hasDispose` / `hasGetEdgePath`, `LayoutManager.ts:12-22`).
-4. PLAN DECISION: the release list runs in `Graph`, not in `DataManager`. `DataManager` has no accelerator reference and design 9.1 keeps it that way. `Graph` subscribes to `snapshot-replaced` and, when `previous !== null`, calls `accelerator.release(previous)` (behind PLAN DECISION 3's guard), then `release(dm.undirected(previous).snapshot)` when that is a DISTINCT object, then `previous.dropCaches()`. Per graph-format design 17.8 D-RESIDENCY the accelerator's `release` is keyed on `snapshot.serial` and `withColumns()` siblings share the serial, so releasing the same serial twice must be harmless -- the element does not deduplicate, and M8a's dispatcher contract says it need not.
-5. PLAN DECISION: `Graph.dispose()` releases the CURRENT snapshot's list and does NOT call `accelerator.dispose()`. Design 9.4 item 2: the app owns the accelerator's lifetime and two elements may share one.
+1. PLAN DECISION: `accelerator` is a plain FIELD with `setAccelerator()` as a method, matching the file, and both are marked internal in their JSDoc with `@internal`. `Graph` has exactly ONE getter in 4147 lines (`get input(): InputManager`, `Graph.ts:2128`); everything else is a `getX()` method, and state is a field with an initialiser (`runAlgorithmsOnLoad = false`, `needRays = true`). A setter pair would be the only one in the class. The field is not the consumer's window onto acceleration -- that is `capabilities.acceleration` (M6-T19) -- so nothing outside the element reads it, and the docs point nowhere near it. The element DOES construct an accelerator, through the registry of M6-T19 and the factory the `./webgpu` entry registers (M6-T20); design 9.5's "the app constructs the object and injects it" is superseded by `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`.
+2. PLAN DECISION: `accelerator-changed` gets the same FOUR edits as `snapshot-replaced` (M6-T4 PLAN DECISION 1), and it stays INTERNAL: it is a `GraphEvent` on `EventManager`, which is a Babylon `Observable` mechanism, and no code in this plan mirrors it onto the DOM. E1's own `LayoutManager` is a subscriber, so the `addListener` case is mandatory or the subscription throws at `EventManager.ts:449-450`. The event a page listens to is `graphty-capabilities-change` (M6-T19), which fires on a state change a reader can act on rather than on every internal swap.
+3. PLAN DECISION: `release` is OPTIONAL on `GraphAccelerator` and is reached through a feature test. `LayoutAccelerator.release?(s: GraphSnapshot): void` is optional in `@graphty/layout` (`layout/src/simulation/types.ts:77`, under the interface's own header "every method optional (only implemented ones exist)"), so an intersection that made it REQUIRED would reject a real `createAccelerator(...)` result from `webgpu-graph-algorithms` that does not declare it -- breaking the factory result of Task M6-T20 at the type level -- and, because a plugin may register a plain object at run time, would throw `TypeError: accelerator.release is not a function` on the SECOND freeze, inside the release path, killing the frame loop. The call site is `if (typeof acc.release === "function") { acc.release(previous); ... }`, the same idiom `LayoutManager` already uses for optional engine members (`hasDispose` / `hasGetEdgePath`, `LayoutManager.ts:12-22`).
+4. PLAN DECISION: the release list runs in `Graph`, not in `DataManager`. `DataManager` has no accelerator reference and nothing in this plan gives it one. `Graph` subscribes to `snapshot-replaced` and, when `previous !== null`, calls `accelerator.release(previous)` (behind PLAN DECISION 3's guard), then `release(dm.undirected(previous).snapshot)` when that is a DISTINCT object, then `previous.dropCaches()`. Per graph-format design 17.8 D-RESIDENCY the accelerator's `release` is keyed on `snapshot.serial` and `withColumns()` siblings share the serial, so releasing the same serial twice must be harmless -- the element does not deduplicate, and M8a's dispatcher contract says it need not.
+5. PLAN DECISION: `Graph.dispose()` releases the CURRENT snapshot's list, and it calls `accelerator.dispose()` only for an accelerator the element itself built through the registry (M6-T19), never for one handed in through `setAccelerator()`. An injected accelerator's lifetime belongs to whoever injected it and two elements may share one (design 9.4 item 2); an accelerator the element constructed is the element's to close, or a page that mounts and unmounts elements leaks a device per mount. The flag is set where the accelerator is attached, not inferred at dispose time.
 6. PLAN DECISION: the fake's simulation is deterministic and frame-count-independent: `load()` records the node count and the array, `step(k)` advances a counter by `k` and writes `positions[3i] += moveBy * k` for every index whose mask bit is CLEAR, and `settled` is `iterations >= settleAfter`. It returns `undefined` (synchronous) by default and a resolved promise when constructed with `{ async: true }`, so ONE fake exercises both the sync-CPU and the async-GPU branch of `SimulationLayoutEngine.step()`. It also exposes `reheat()`, because M6-T12 PLAN DECISION 6 feature-tests for it and M6-T14's test asserts it fired.
 
 - [ ] **Step 1: Write the fake accelerator**
@@ -2655,7 +2625,11 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import type { LayoutAccelerator } from "@graphty/layout";
 
 /**
- * What the element accepts through `Graph.setAccelerator` (WebGPU design 9.4 item 1).
+ * What the element accepts through the internal `setAccelerator` seam (WebGPU design 9.4 item 1).
+ *
+ * This type is the seam's, not a consumer's: the published switch is the `acceleration` attribute
+ * and the published answer is `capabilities.acceleration`. A third party reaches this type through
+ * the `{ kind: "accelerator", factory }` plugin.
  *
  * NEITHER constituent comes from `@graphty/webgpu-graph-algorithms`. No file reachable from the
  * CORE entry may import that package; per section 0.0 it is an OPTIONAL PEER and only
@@ -2690,15 +2664,14 @@ import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { createTestGraph } from "../helpers/testSetup";
 
-describe("Graph.accelerator (design 9.4 items 1 and 2)", () => {
+describe("the internal accelerator seam (design 9.4 items 1 and 2)", () => {
     let graph: Graph;
 
     beforeEach(async () => {
         graph = await createTestGraph();
     });
 
-    it("defaults to null and is never constructed by the element", () => {
-        assert.strictEqual(graph.accelerator, null);
+    it("holds nothing until something attaches one", () => {
         assert.strictEqual(graph.getAccelerator(), null);
     });
 
@@ -2747,7 +2720,7 @@ describe("Graph.accelerator (design 9.4 items 1 and 2)", () => {
         assert.doesNotThrow(() => graph.getDataManager().getSnapshot());
     });
 
-    it("dispose() releases but never disposes the accelerator (the app owns its lifetime)", async () => {
+    it("dispose() releases but never disposes an INJECTED accelerator", async () => {
         const fake = createFakeAccelerator();
         graph.setAccelerator(fake);
         await graph.addNodes([{ id: "a" }]);
@@ -2763,9 +2736,9 @@ The fourth case's cast is awkward on purpose; if it reads badly, replace it with
 What matters is that `setAccelerator` accepts a value with no `release` AND that a second freeze does not throw.
 
 Run: `cd EA/graphty-element && pnpm exec vitest run --project=browser test/browser/accelerator-surface.test.ts`
-Expected: FAIL, 5 cases -- `accelerator` is not a property of `Graph` and `addListener("accelerator-changed", ...)` throws `TypeError: Unknown event type` at `EventManager.ts:449-450`. Vitest reports `1 file`, not "No test files found": if it reports the latter, the file is in the wrong directory (see the "Why `test/browser/`" note above).
+Expected: FAIL, 5 cases -- `getAccelerator` is not a method of `Graph` and `addListener("accelerator-changed", ...)` throws `TypeError: Unknown event type` at `EventManager.ts:449-450`. Vitest reports `1 file`, not "No test files found": if it reports the latter, the file is in the wrong directory (see the "Why `test/browser/`" note above).
 
-- [ ] **Step 4: The field, the setter, the event, the release list.** `setAccelerator` stores the value, emits, and does nothing else -- `LayoutManager` reacts to the event (M6-T12), and algorithm runs read `graph.accelerator` per call, so no re-run is triggered. The `snapshot-replaced` subscription is registered in the same place `Graph` registers its other listeners, and its body is:
+- [ ] **Step 4: The field, the setter, the event, the release list.** `setAccelerator` stores the value, emits, and does nothing else -- `LayoutManager` reacts to the event (M6-T12), and algorithm runs read the current accelerator per call, so no re-run is triggered. The `snapshot-replaced` subscription is registered in the same place `Graph` registers its other listeners, and its body is:
 
 ```ts
         const acc = this.accelerator;
@@ -2787,6 +2760,146 @@ Expected: PASS, 5 cases.
 
 - [ ] **Step 5: Checkpoint** -- no commit; ASCII clean. `src/testing/fakeAccelerator.ts` and `src/types/accelerator.ts` are untracked, `src/Graph.ts`, `src/events.ts` and `src/managers/EventManager.ts` are modified, and one new test file is untracked.
 
+### Task M6-T19: The accelerator registry, the `acceleration` attribute, and the capabilities surface
+
+**Repository:** `EA`. Size: 1-1.5 ed. Element API design 4.1.1 (the attribute), 4.12 (`Capabilities` and `acceleration.minNodes`), 4.10.1 (the DOM mirror), 4.14 (the `AcceleratorFactory` signature); WebGPU design 9.4 items 1 and 2 for what sits underneath.
+
+**This is the task that makes acceleration a CONSUMER feature rather than an integration exercise.** M6-T11 built a seam somebody has to call. This task builds the thing that calls it, and the thing a page reads to find out what happened, so that installing the optional peer and writing one import is the whole of a third party's work. Nothing here imports `@graphty/webgpu-graph-algorithms`: the registry holds a factory, and Task M6-T20 is the only file that supplies one.
+
+**Files:**
+- Create: `graphty-element/src/accelerator/registry.ts` (the registry and the factory type), `graphty-element/src/accelerator/activate.ts` (the activation routine and the capabilities bookkeeping), `graphty-element/src/config/AccelerationConfig.ts` (the `acceleration` schema, one file per group as the rest of `src/config/` is)
+- Modify: `graphty-element/src/Graph.ts` (the capabilities object, the activation call on load, the device-loss handler), `graphty-element/src/graphty-element.ts` (the `acceleration` attribute and its reflected property, and the `graphty-capabilities-change` dispatch), `graphty-element/src/config/StyleTemplate.ts:57-65` (the `acceleration` group beside `graph`, `data` and `behavior` in `StyleTemplateV1`), `graphty-element/src/events.ts` and `graphty-element/src/managers/EventManager.ts` (the `capabilities-changed` graph event -- the same four coordinated edits M6-T4 lists, for the same reason)
+- Test: `graphty-element/test/accelerator/registry.test.ts` (node project), `graphty-element/test/browser/acceleration-attribute.test.ts` (browser project, because it constructs the custom element)
+
+**Interfaces:**
+- Consumes: `GraphAccelerator` and `Graph.setAccelerator` (M6-T11); `createFakeAccelerator` (M6-T11) for the tests.
+- Produces:
+
+```ts
+/** Builds an accelerator for one Graph, or returns null when this machine cannot. */
+export type AcceleratorFactory = (options?: { exactMaxNodes?: number }) => Promise<{
+    accelerator: GraphAccelerator;
+    /** Resolves when the device is lost; the element then drops to the CPU. */
+    lost: Promise<unknown>;
+    /** For the status surface: vendor and architecture, as the backend reports them. */
+    describe(): { vendor: string; architecture: string; description: string };
+} | null>;
+
+export function registerAccelerator(factory: AcceleratorFactory): void;
+export function registeredAccelerator(): AcceleratorFactory | null;
+
+export interface AccelerationCapabilities {
+    readonly state: "probing" | "active" | "idle" | "unavailable" | "error" | "off";
+    readonly backend?: "webgpu";
+    readonly vendor?: string;
+    readonly architecture?: string;
+    readonly device?: string;
+    readonly reason?: string;
+    readonly code?: "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST" | "E_TOO_LARGE";
+}
+```
+
+plus `element.acceleration: "auto" | "off" | "required"` (attribute `acceleration`, reflected, default `"auto"`), `graph.capabilities.acceleration: AccelerationCapabilities` (read-only), the internal `capabilities-changed` graph event, the `graphty-capabilities-change` DOM event carrying `{ capabilities }`, and the `acceleration.minNodes` config key (default `0`).
+
+PLAN DECISIONS made by this part:
+
+1. PLAN DECISION: the consumer's switch is the HTML attribute `acceleration="auto" | "off" | "required"`, reflected to a property, defaulting to `"auto"`. `"auto"` uses an accelerator when a factory is registered and the machine can build one; `"off"` never looks, and the state reads `"off"`; `"required"` rejects with `E_NO_ACCELERATOR` rather than running the CPU path in silence. An attribute is the switch because a page with no build step has to be able to set it, and because every other element-level mode (`layout`, `view-mode`, `theme`) is already one. There is no `behavior.gpu` config field: a template that could set this would let a saved document demand a GPU the machine loading it does not have.
+2. PLAN DECISION: the element does NOT persist the reader's choice. `acceleration` is an attribute and a property for the life of the session; it is not a config key, so `toDocument()` does not carry it and `applyDocument()` cannot set it. Remembering that this reader turned acceleration off, and restoring it on the next visit, is the host application's storage and the host application's job -- the app keeps its own key and writes the attribute when it mounts the element. A component that writes to a host page's storage unasked is a surprise the host cannot anticipate, and a restored preference would fight the attribute the page's own markup set.
+3. PLAN DECISION: the answer a consumer reads is `capabilities.acceleration`, whose `state` is one of SIX values, and every transition emits `capabilities-changed` on the graph and `graphty-capabilities-change` on the element. The six: `"probing"` while the element is looking and the answer is not known -- a consumer renders nothing definitive here, which is the whole reason the state exists, because without it an unfinished probe has to be read as a failure and every page that ends up with a GPU flickers a false "no GPU" first; `"active"` when work is on the accelerator right now; `"idle"` when one is attached and usable and nothing is using it, which is the resting state of a working accelerator and not a degraded one; `"unavailable"` when none could be attached, with `reason` in a sentence and `code` in a string a `switch` can take; `"error"` after an attached accelerator failed, device loss being the usual cause, the element continuing on the CPU path having said so; and `"off"` when the consumer switched it off, so the element never looked. The DOM mirror exists so a page with a `<graphty-element>` tag and six lines of script can draw a status chip, update it through a device loss, and never import the session or name a GPU type.
+4. PLAN DECISION: the threshold is the config key `acceleration.minNodes`, default `0`, and it is the ONLY threshold that governs acceleration. At or above it a run or a layout with an accelerated implementation uses the accelerator; below it the element takes the CPU path even though one is attached, and the state reads `"idle"`. It is NOT `largeGraphThreshold`, which decides how much visual detail to draw and says nothing about where a computation runs; conflating the two makes "draw fewer labels" and "compute on the GPU" one number, and they are tuned against different machines for different reasons. The key is spelled `acceleration.minNodes` exactly as the element API design spells it, so an `acceleration` group sits beside `behavior` in the element's config and its one field today is `minNodes`; the read sites are `LayoutManager` (M6-T12 Step 3) and the activation routine below.
+5. PLAN DECISION: the factory takes an OPTIONAL options bag, `(options?: { exactMaxNodes?: number })`, and the element passes the ceiling at factory time. A backend that must size buffers, choose an index width, or decide it cannot serve a graph this large needs that number before it builds anything, so asking at construction means a factory answers `null` once instead of failing on the first run. The parameter is optional so a factory that does not care is written `() => create()` and ignores it.
+6. PLAN DECISION: activation runs at most once per `Graph`, on the first load that reaches `acceleration.minNodes`, and it is the element that runs it. If `acceleration` is `"off"`, nothing happens and the state is `"off"`. Otherwise the state goes to `"probing"`, the registered factory is awaited with `{ exactMaxNodes }` from the config, and: a result attaches through `setAccelerator(result.accelerator)`, fills `vendor` / `architecture` / `device` from `describe()` and sets the state to `"idle"` (`"active"` once a run or a layout is on it); a `null` result sets `"unavailable"` with a `reason` and a `code`; no registered factory sets `"unavailable"` with a reason naming the missing `@graphty/graphty-element/webgpu` import; and under `acceleration="required"` every one of those failures is instead an `E_NO_ACCELERATOR` `GraphtyError`. `result.lost.then(...)` calls `setAccelerator(null)`, sets the state to `"error"` with `code: "E_DEVICE_LOST"` and a readable `reason`, and emits -- the element continues on the CPU path, having said so, which is the difference the root `CLAUDE.md` draws between capability detection and silent degradation.
+7. PLAN DECISION: no GPU type crosses the element's boundary. `describe()` returns three plain strings and `lost` is a bare `Promise`, so `GpuContext`, `GpuCaps` and every `GPU*`-referencing type stay inside the optional peer and `@webgpu/types` never becomes a type dependency of a consumer. A failure arrives as a code on a `GraphtyError`, never as a class a consumer would have to import the peer to name.
+
+- [ ] **Step 1: Write the failing registry tests**
+
+Create `EA/graphty-element/test/accelerator/registry.test.ts`, driven by a FAKE factory, so this task needs no GPU dependency:
+
+```ts
+import { assert, beforeEach, describe, it } from "vitest";
+
+import { registerAccelerator, registeredAccelerator } from "../../src/accelerator/registry";
+import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
+
+function factoryReturning(accelerator: ReturnType<typeof createFakeAccelerator> | null) {
+    let resolveLost: (v: unknown) => void = () => undefined;
+    const lost = new Promise((resolve) => {
+        resolveLost = resolve;
+    });
+    const seen: ({ exactMaxNodes?: number } | undefined)[] = [];
+    return {
+        seen,
+        loseDevice: () => resolveLost(new Error("device lost")),
+        factory: async (options?: { exactMaxNodes?: number }) => {
+            seen.push(options);
+            return accelerator === null
+                ? null
+                : {
+                      accelerator,
+                      lost,
+                      describe: () => ({ vendor: "fake", architecture: "test", description: "fake adapter" }),
+                  };
+        },
+    };
+}
+
+describe("the accelerator registry", () => {
+    beforeEach(() => {
+        registerAccelerator(null as never); // the reset the registry exposes for tests
+    });
+
+    it("holds at most one factory and hands it back", () => {
+        assert.strictEqual(registeredAccelerator(), null);
+        const { factory } = factoryReturning(createFakeAccelerator());
+        registerAccelerator(factory);
+        assert.strictEqual(registeredAccelerator(), factory);
+    });
+
+    it("is called with the exact-computation ceiling, and tolerates a factory that ignores it", async () => {
+        const { factory, seen } = factoryReturning(createFakeAccelerator());
+        registerAccelerator(factory);
+        await registeredAccelerator()?.({ exactMaxNodes: 250_000 });
+        assert.deepStrictEqual(seen, [{ exactMaxNodes: 250_000 }]);
+        await registeredAccelerator()?.();
+        assert.strictEqual(seen[1], undefined, "the options bag is optional");
+    });
+});
+```
+
+Run: `cd EA/graphty-element && pnpm exec vitest run --project=default test/accelerator/registry.test.ts`
+Expected: FAIL, 2 cases -- `src/accelerator/registry.ts` does not exist.
+
+- [ ] **Step 2: Write the failing attribute and capabilities tests**
+
+Create `EA/graphty-element/test/browser/acceleration-attribute.test.ts`. The cases, each one sentence of the surface:
+
+| Case | Asserts |
+| --- | --- |
+| the default | an element with no `acceleration` attribute reads `"auto"`, and `capabilities.acceleration.state` is `"probing"` or a settled state, never `undefined` |
+| `off` never looks | with `acceleration="off"` and a registered factory, the factory is never called and the state is `"off"` |
+| a factory that answers | the state settles at `"idle"`, `vendor` and `architecture` come from `describe()`, and one `graphty-capabilities-change` fired carrying the same object |
+| a factory that answers `null` | the state is `"unavailable"`, `reason` is a sentence and `code` is set; the graph still loads and still lays out |
+| no factory at all | the state is `"unavailable"` and the `reason` names the missing `@graphty/graphty-element/webgpu` import |
+| `required` | with no factory and `acceleration="required"`, the load rejects with a `GraphtyError` whose `code` is `E_NO_ACCELERATOR`, and nothing silently runs on the CPU |
+| device loss | resolving the factory's `lost` promise moves the state to `"error"` with `code: "E_DEVICE_LOST"`, emits `graphty-capabilities-change`, detaches the accelerator, and the layout keeps stepping on the CPU |
+| below the threshold | with `acceleration.minNodes` above the node count, an accelerator attaches and the state reads `"idle"`, not `"active"` |
+
+Run: `cd EA/graphty-element && pnpm exec vitest run --project=browser test/browser/acceleration-attribute.test.ts`
+Expected: FAIL, 8 cases -- the attribute is not declared and `capabilities` is not a property of `Graph`.
+
+- [ ] **Step 3: The registry, the config key, the attribute, the capabilities object**
+
+The registry is twenty lines and imports nothing but the `GraphAccelerator` type. `AccelerationConfig` is `z.strictObject({ minNodes: z.number().int().nonnegative().default(0) })`, added to `StyleTemplateV1` as `acceleration: AccelerationConfig.prefault({})`, so the config key reads `acceleration.minNodes` exactly as the element API design spells it and `graph.styles.config.acceleration.minNodes` is the read site. Its JSDoc is PLAN DECISION 4, naming `largeGraphThreshold` as the number it is NOT. The reader's `acceleration` choice is deliberately NOT here: a template that could set it would let a saved document demand a GPU the loading machine may not have. The attribute is declared on `graphty-element.ts` with `reflect: true` alongside `layout` and `view-mode`, and writing it after the element has settled re-runs activation (to `"off"` and back). `capabilities-changed` gets the four coordinated edits of M6-T4 PLAN DECISION 1, and the element dispatches `graphty-capabilities-change` from its handler with `bubbles: true, composed: true` and a serialisable `detail`, exactly as the element's one existing `dispatchEvent` does (`graphty-element.ts:97`).
+
+- [ ] **Step 4: Activation and device loss**
+
+`activate.ts` holds PLAN DECISION 6's routine, and `Graph` calls it at the load-complete point M6-T7 established. It is idempotent per `Graph` and it never throws into the load path except for the `"required"` rejection, which is the one failure a consumer asked to be told about.
+
+Run: `cd EA/graphty-element && pnpm exec vitest run --project=default test/accelerator/registry.test.ts && pnpm exec vitest run --project=browser test/browser/acceleration-attribute.test.ts`
+Expected: PASS, 2 cases and 8 cases.
+
+- [ ] **Step 5: Checkpoint** -- no commit; ASCII clean. Nothing under `graphty-element/` imports `@graphty/webgpu-graph-algorithms` yet; `grep -rn "webgpu-graph-algorithms" graphty-element/src` still prints nothing at the end of this task.
+
 ### Task M6-T12: The `SimulationLayoutEngine` bridge
 
 **Repository:** `EA`. Size: 2-3 ed. Design 9.4 item 4; design 7.19 for the frame-loop contract.
@@ -2805,7 +2918,7 @@ Expected: PASS, 5 cases.
 
 PLAN DECISIONS made by this part:
 
-1. PLAN DECISION: `LayoutManager._setLayoutInternal` SPECIAL-CASES simulation types and constructs the bridge itself; the registry is not changed. `LayoutEngine.get(type, opts)` is `new SourceClass(opts)` with no third argument and the registry stores classes (`LayoutEngine.ts:18-19`, `:111-118`), so a bridge that needs `graph.accelerator` at construction cannot come through it. A factory form would touch all 16 registrations (`src/layout/index.ts:19-34`) and every engine constructor for one caller's benefit. Design 9.4 item 4 asks for the special case by name. See D-M6-12. `ForceAtlas2Layout` and `SpringLayout` REMAIN registered (M6-T13 keeps their zod schemas as the validation surface); the branch is `if (SimulationLayoutEngine.isSimulationType(type) && this.useSimulation(type))`.
+1. PLAN DECISION: `LayoutManager._setLayoutInternal` SPECIAL-CASES simulation types and constructs the bridge itself; the registry is not changed. `LayoutEngine.get(type, opts)` is `new SourceClass(opts)` with no third argument and the registry stores classes (`LayoutEngine.ts:18-19`, `:111-118`), so a bridge that needs the current accelerator at construction cannot come through it. A factory form would touch all 16 registrations (`src/layout/index.ts:19-34`) and every engine constructor for one caller's benefit. Design 9.4 item 4 asks for the special case by name. See D-M6-12. `ForceAtlas2Layout` and `SpringLayout` REMAIN registered (M6-T13 keeps their zod schemas as the validation surface); the branch is `if (SimulationLayoutEngine.isSimulationType(type) && this.useSimulation(type))`.
 2. PLAN DECISION: `step()` is fire-and-forget with the `.catch` attached ONCE per DISTINCT promise, exactly as design 9.4 item 4's sketch has it. A GPU `step()` returns the OLDEST pending promise when saturated (design 7.19 item 3), so a per-frame `.catch` would fire `onError` once per frame for one failure. The bridge remembers the last promise it saw and compares by identity.
 3. PLAN DECISION: the bridge ALSO exposes `stepAsync(iterations): Promise<void>`, which is the AWAITABLE form the pre-step loop needs (M6-T13 PLAN DECISION 4). It exists because the abstract base declares `abstract step(): void` (`LayoutEngine.ts:56`) -- no iteration count, no return value -- so the pre-step loop cannot get a promise or a batch size out of `step()` no matter how the bridge implements it. `stepAsync` is NOT on the abstract class; `LayoutManager` reaches it through the feature test `"stepAsync" in engine`, which keeps the 15 non-simulation engines on the existing synchronous loop. Its body is `await this.sim.step(iterations)`, wrapped so a synchronous `void` return becomes a resolved promise:
 
@@ -2896,11 +3009,11 @@ describe("SimulationLayoutEngine (design 9.4 item 4)", () => {
         assert.strictEqual(dm.nodes.get("c")?.isPinned(), true);
     });
 
-    it("G6 case 4: gpuMinNodes above the node count keeps the CPU engine until a reload crosses it", async () => {
-        graph.styles.config.behavior.layout.gpuMinNodes = 10;
+    it("G6 case 4: acceleration.minNodes above the node count keeps the CPU engine until a reload crosses it", async () => {
+        graph.styles.config.acceleration.minNodes = 10;
         graph.setAccelerator(fake);
         await graph.setLayout("forceatlas2");
-        assert.strictEqual(fake.simulations.length, 0, "3 nodes is under gpuMinNodes");
+        assert.strictEqual(fake.simulations.length, 0, "3 nodes is under acceleration.minNodes");
         await graph.addNodes(Array.from({ length: 12 }, (_, i) => ({ id: `extra-${i}` })));
         graph.getDataManager().getSnapshot();
         assert.strictEqual(fake.simulations.length, 1, "the reload crossed the threshold");
@@ -3096,51 +3209,50 @@ with `pin` / `unpin` setting the mask bit and calling `setFixed`, `setNodePositi
 
 `SimulationHost` is the small interface `LayoutManager` implements for the bridge: `{ nodes(): Iterable<Node>; edges(): Iterable<Edge>; pinnedNodes(): Iterable<Node>; iterationsPerStep(): number; onError(err: unknown): void }`. It exists so the bridge never imports `LayoutManager` or `Graph` and stays unit-testable.
 
-- [ ] **Step 3: `LayoutManager` constructs it and reacts to `accelerator-changed`.** In `_setLayoutInternal`, when `SimulationLayoutEngine.isSimulationType(type)` and `gpuMinNodes` allows it, build
+- [ ] **Step 3: `LayoutManager` constructs it and reacts to `accelerator-changed`.** In `_setLayoutInternal`, when `SimulationLayoutEngine.isSimulationType(type)` and `acceleration.minNodes` allows it, build
 
 ```ts
-const sim = createSimulation(type, simulationOptions(layoutOpts, this.styles.config.behavior.layout), this.graph.accelerator);
+const sim = createSimulation(type, simulationOptions(layoutOpts, this.styles.config.behavior.layout), this.graph.getAccelerator());
 const engine = new SimulationLayoutEngine(type, layoutOpts, sim, this.simulationHost());
 ```
 
 and wrap it. NOTE ON ORDER: `simulationOptions(layoutOpts, behaviorLayout)` is written by Task M6-T13 Step 2 and takes TWO arguments -- the element's layout option bag and `behavior.layout`, because `iterationsPerStep` and `maxInFlight` live in the latter. Until M6-T13 lands, write this call against that two-argument signature and stub the helper in `LayoutManager` as `const simulationOptions = (o: Record<string, unknown>, b: { iterationsPerStep?: number; stepMultiplier?: number; maxInFlight?: number }) => ({ ...o, iterationsPerStep: b.iterationsPerStep ?? b.stepMultiplier, maxInFlight: b.maxInFlight }) as ForceAtlas2Options;` -- M6-T13 Step 2 replaces the stub with the real mapping table and deletes this note.
 
-On `accelerator-changed`, when the ACTIVE engine is a `SimulationLayoutEngine` (or when the node count now crosses `gpuMinNodes`): dispose it, re-create through `createSimulation(type, simulationOptions(...), next)`, `load(dm.undirected(dm.getSnapshot()).snapshot, dm.positions)`, re-apply pins, and keep `running` as it was. Coordinates survive because the array is element-owned.
+On `accelerator-changed`, when the ACTIVE engine is a `SimulationLayoutEngine` (or when the node count now crosses `acceleration.minNodes`): dispose it, re-create through `createSimulation(type, simulationOptions(...), next)`, `load(dm.undirected(dm.getSnapshot()).snapshot, dm.positions)`, re-apply pins, and keep `running` as it was. Coordinates survive because the array is element-owned.
 
 - [ ] **Step 4: `UpdateManager.updateLayout()` branches.** Today it loops `stepMultiplier` times (`UpdateManager.ts:207-211`). Add: when the active engine is a `SimulationLayoutEngine`, call `this.layoutManager.step()` ONCE. Reason (design 9.4 item 4): a GPU `step()` coalesces above `maxInFlight`, so `stepMultiplier` calls would return the same promise `stepMultiplier - 1` times; a CPU simulation runs `iterationsPerStep` iterations synchronously inside one call. The `stepMultiplier` value is not lost -- it becomes `iterationsPerStep` (M6-T13).
 
 Run: `cd EA/graphty-element && pnpm exec vitest run --project=browser test/browser/simulation-layout-engine.test.ts`
-Expected: 6 of the 8 cases PASS -- G6 cases 1, 2 and 3 and all three bridge unit cases (`getEdgePosition`, the one-`.catch`-per-promise case, `reload` re-applies pins). Two stay RED and are expected to:
+Expected: 7 of the 8 cases PASS -- G6 cases 1, 2, 3 and 4 and all three bridge unit cases (`getEdgePosition`, the one-`.catch`-per-promise case, `reload` re-applies pins). Case 4 passes here rather than later because `acceleration.minNodes` already exists: Task M6-T19 created it. One stays RED and is expected to:
 
 | Case | Red until | Why |
 | --- | --- | --- |
-| G6 case 4, `gpuMinNodes` | M6-T13 Step 2 | `behavior.layout.gpuMinNodes` does not exist on `GraphLayoutOpts` yet, so the assignment throws under `z.strictObject` |
 | G6 case 5, `setRunning` / `reheat` | M6-T14 Step 2 | `Graph.setRunning(true)` does not call `engine.reheat()` yet |
 
-M6-T17 Step 2 is where all 8 are green together.
+M6-T17 Step 1 is where all 8 are green together.
 
 - [ ] **Step 5: Checkpoint** -- no commit; ASCII clean.
 
-### Task M6-T13: `forceatlas2` and `spring` on the bridge; the three `behavior.layout` knobs
+### Task M6-T13: `forceatlas2` and `spring` on the bridge; the two `behavior.layout` knobs
 
 **Repository:** `EA`. Size: 2-3 ed. Design 9.4 items 6 and 7.
 
 **Files:**
 - Modify: `graphty-element/src/layout/ForceAtlas2LayoutEngine.ts:99-115` (the validation schema), `graphty-element/src/layout/SpringLayoutEngine.ts:58-68`
-- Modify: `graphty-element/src/config/GraphBehavior.ts:12-18` (three fields)
+- Modify: `graphty-element/src/config/GraphBehavior.ts:12-18` (two fields; the acceleration threshold is not one of them -- it is the `acceleration.minNodes` config key of Task M6-T19)
 - Modify: `graphty-element/src/managers/LayoutManager.ts:157-165` (`preSteps` under an async step) and the `simulationOptions` stub M6-T12 Step 3 left there. NOTE: `LayoutManager.ts` is edited again by M6-T15 and was edited by M6-T10 and M6-T12; none of these may run concurrently.
 - Modify: `graphty-element/stories/Layout.stories.ts:103-107` (the `fa2Gravity` control's `min` stays 0; a comment records that the schema now accepts it)
 - Test: `graphty-element/test/layout/simulation-options.test.ts` (new, node project -- `test/layout/` is not excluded from `default`, and nothing in this file needs a DOM)
 
 **Interfaces:**
 - Consumes: `@graphty/layout`: `type ForceAtlas2Options`, `type FruchtermanReingoldOptions`, `type SimulationOptions`, `type CommonLayoutOptions`; `@graphty/graph-format`: `makeMask`, `maskSet`, `type NodeMask`; `SimulationLayoutEngine.stepAsync` (M6-T12 PLAN DECISION 3).
-- Produces: `behavior.layout.iterationsPerStep?: number`, `behavior.layout.maxInFlight: number` (default 2), `behavior.layout.gpuMinNodes: number` (default 0); `ForceAtlas2LayoutConfig.gravity: z.number().nonnegative()`; and `simulationOptions(layoutOpts, behaviorLayout): ForceAtlas2Options | FruchtermanReingoldOptions`, the one place the element's option names are mapped onto the layout package's.
+- Produces: `behavior.layout.iterationsPerStep?: number`, `behavior.layout.maxInFlight: number` (default 2); `ForceAtlas2LayoutConfig.gravity: z.number().nonnegative()`; and `simulationOptions(layoutOpts, behaviorLayout): ForceAtlas2Options | FruchtermanReingoldOptions`, the one place the element's option names are mapped onto the layout package's.
 
 PLAN DECISIONS made by this part:
 
 1. PLAN DECISION: `scalingFactor` becomes the simulation's `scale`, and where a layout already has BOTH -- Spring has `scalingFactor` from `SimpleLayoutConfig.shape` (default 100) AND its own `scale: z.number().positive().default(1)` (`SpringLayoutEngine.ts:64`) -- `scale` WINS and `scalingFactor` is passed through as a post-multiplier of 1. Reason: `scale` is already a layout PARAMETER handed to `springLayout` (`SpringLayoutEngine.ts:103-119`), which is exactly what `CommonLayoutOptions.scale` is; `scalingFactor` is a render-time multiplier applied after the layout ran (`LayoutEngine.ts:266`, `:352-365`). Collapsing them the other way would silently multiply every Spring story by 100. For ForceAtlas2, which has only `scalingFactor` (there is no `scale` in `ForceAtlas2LayoutConfig`), `scalingFactor` IS the `scale`. This is a semantic change, not a rename: identical option values do not reproduce identical pictures, so the FA2 and Spring stories in BOTH `Layout.stories.ts` and `Layout2D.stories.ts` move and are re-baselined by Task M6-T18.
 2. PLAN DECISION: `gravity` loosens from `z.number().positive()` to `z.number().nonnegative()` in `ForceAtlas2LayoutConfig` (`ForceAtlas2LayoutEngine.ts:105`). This fixes a LIVE bug, not just a GPU constraint: the Storybook control is `{ type: "range", min: 0, max: 10, step: 0.1 }` (`stories/Layout.stories.ts:103-107`), so a user who drags the slider to its own minimum gets a zod throw TODAY, which `_setLayoutInternal` catches and rewraps as `Failed to initialize layout 'forceatlas2': ...` (`LayoutManager.ts:188-213`). Design 9.4 item 6 asks for the loosening and cites those exact story lines. `NGraphEngine`'s UI schema already defaults `gravity` to `-1.2` (`NGraphLayoutEngine.ts:39`), so negative gravity is a real concept elsewhere; `nonnegative` rather than unconstrained is the minimum change that unbreaks the slider without inventing FA2 repulsion-gravity semantics.
-3. PLAN DECISION: `iterationsPerStep` is `z.number().int().positive().optional()` on `GraphLayoutOpts` and is resolved as `opts.iterationsPerStep ?? opts.stepMultiplier` AT THE READ SITE. Design 9.4 item 7 says "default = `stepMultiplier`", which zod cannot express as a field default on a flat `z.strictObject` -- `GraphLayoutOpts` (`GraphBehavior.ts:12-18`) has no access to a sibling's parsed value inside a `.default()`. The alternatives are a `.transform()` on the whole object (which changes `GraphBehaviorOpts`'s inferred type for every existing reader) or a `.superRefine()` (which cannot write). The read site is `LayoutManager`'s `SimulationHost.iterationsPerStep()`, one place. `maxInFlight: z.number().int().positive().default(2)` and `gpuMinNodes: z.number().int().nonnegative().default(0)` are plain defaults. `z.strictObject` means no other file changes for validation, and it also means a template that misspells one of the three throws rather than silently ignoring it.
+3. PLAN DECISION: `iterationsPerStep` is `z.number().int().positive().optional()` on `GraphLayoutOpts` and is resolved as `opts.iterationsPerStep ?? opts.stepMultiplier` AT THE READ SITE. Design 9.4 item 7 says "default = `stepMultiplier`", which zod cannot express as a field default on a flat `z.strictObject` -- `GraphLayoutOpts` (`GraphBehavior.ts:12-18`) has no access to a sibling's parsed value inside a `.default()`. The alternatives are a `.transform()` on the whole object (which changes `GraphBehaviorOpts`'s inferred type for every existing reader) or a `.superRefine()` (which cannot write). The read site is `LayoutManager`'s `SimulationHost.iterationsPerStep()`, one place. `maxInFlight: z.number().int().positive().default(2)` is a plain default. The third knob design 9.4 item 7 asks for is the acceleration threshold, and it is NOT a `behavior.layout` field: it is the config key `acceleration.minNodes`, created by Task M6-T19, because it governs where a computation runs rather than how a layout steps. `z.strictObject` means no other file changes for validation, and it also means a template that misspells one of the two throws rather than silently ignoring it.
 4. PLAN DECISION: `preSteps` becomes ONE awaited `engine.stepAsync(k)` per chunk of at most 256 iterations, for a SIMULATION engine only. The reason is the bound, not the stories: a GPU simulation rejects `k` outside `[1, MAX_ITERATIONS_PER_STEP]` with `E_INVALID_ARGUMENT`, and `MAX_ITERATIONS_PER_STEP` is 256 (`webgpu-graph-algorithms/src/constants.ts:50`, enforced at `src/layouts/force-simulation.ts:1026-1032`), so `sim.step(preSteps)` is simply invalid for any `preSteps > 256`; and one awaited round trip per ITERATION would be `preSteps` round trips where 256 iterations cost one. The loop:
 
 ```ts
@@ -3179,7 +3291,7 @@ import { SpringLayoutConfig } from "../../src/layout/SpringLayoutEngine";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 
-describe("the three behavior.layout knobs (design 9.4 item 7)", () => {
+describe("the two behavior.layout knobs (design 9.4 item 7)", () => {
     it("iterationsPerStep is undefined by default and resolves to stepMultiplier at the read site", () => {
         const parsed = GraphBehavior.parse({});
         assert.strictEqual(parsed.layout.iterationsPerStep, undefined);
@@ -3187,10 +3299,14 @@ describe("the three behavior.layout knobs (design 9.4 item 7)", () => {
         assert.strictEqual(resolved, parsed.layout.stepMultiplier);
     });
 
-    it("maxInFlight defaults to 2 and gpuMinNodes to 0", () => {
+    it("maxInFlight defaults to 2", () => {
         const parsed = GraphBehavior.parse({});
         assert.strictEqual(parsed.layout.maxInFlight, 2);
-        assert.strictEqual(parsed.layout.gpuMinNodes, 0);
+    });
+
+    it("the acceleration threshold is not a layout knob", () => {
+        const parsed = GraphBehavior.parse({});
+        assert.strictEqual("gpuMinNodes" in parsed.layout, false, "it is the acceleration.minNodes config key");
     });
 
     it("an unknown behavior.layout key throws, because it is a strictObject", () => {
@@ -3275,7 +3391,7 @@ describe("the pre-step loop under an async step (PLAN DECISION 4, risk R-M6-8)",
 If `ForceAtlas2LayoutConfig` / `SpringLayoutConfig` are not exported by name today, export them -- they are zod schemas and the element already exports `SimpleLayoutConfig` from the same layer.
 
 Run: `cd EA/graphty-element && pnpm exec vitest run --project=default test/layout/simulation-options.test.ts`
-Expected: FAIL on the first eight -- the three `behavior.layout` fields do not exist, `gravity: 0` throws, and `simulationOptions` is not exported. The last two (the chunking cases) PASS already, because `stepAsync` and the fake both landed in M6-T12 and M6-T11; they are here as the regression guard for the loop Step 3 writes.
+Expected: FAIL on the seven cases that name something that does not exist yet -- the two `behavior.layout` fields, `gravity: 0`, and the four that import `simulationOptions`. Three PASS already and are guards rather than goals: the threshold case, so a later hand cannot quietly add the acceleration threshold back beside `maxInFlight`, and the two chunking cases, because `stepAsync` and the fake landed in M6-T12 and M6-T11 -- those two guard the loop Step 3 writes.
 
 - [ ] **Step 2: The schema edits and the option mapping.** `gravity` -> `nonnegative()`; the three `GraphLayoutOpts` fields with the JSDoc naming design 9.4 item 7; then replace the `simulationOptions` stub M6-T12 Step 3 left in `LayoutManager` with the real, exported helper. Its mapping is exactly this table, one row per element option -- an option with no row is DROPPED, and dropping is a decision, not an oversight:
 
@@ -3296,9 +3412,9 @@ Expected: FAIL on the first eight -- the three `behavior.layout` fields do not e
 - [ ] **Step 3: The pre-step loop.** Replace `LayoutManager.ts:157-165` with the branch of PLAN DECISION 4, keeping the `isSettled` break in both halves.
 
 Run: `cd EA/graphty-element && pnpm exec vitest run --project=default test/layout && pnpm exec vitest run --project=browser test/managers/LayoutManager.test.ts`
-Expected: PASS both -- 10 cases in `test/layout/simulation-options.test.ts`, and `test/managers/LayoutManager.test.ts` unchanged in count. The three pre-step cases in that file drive `ngraph`, which is not a `SimulationType` and takes the untouched synchronous `else` branch, so all three must still pass: "should run pre-steps when setting layout" (`:51`), "should run configured number of pre-steps when setting layout" (`:66`, which asserts `stepCount === 10`) and "should handle zero pre-steps configuration" (`:124`, which asserts `stepCount === 0`). A change in any of those three means the `else` branch is not byte-identical to today's loop.
+Expected: PASS both -- 11 cases in `test/layout/simulation-options.test.ts`, and `test/managers/LayoutManager.test.ts` unchanged in count. The three pre-step cases in that file drive `ngraph`, which is not a `SimulationType` and takes the untouched synchronous `else` branch, so all three must still pass: "should run pre-steps when setting layout" (`:51`), "should run configured number of pre-steps when setting layout" (`:66`, which asserts `stepCount === 10`) and "should handle zero pre-steps configuration" (`:124`, which asserts `stepCount === 0`). A change in any of those three means the `else` branch is not byte-identical to today's loop.
 
-Then re-run M6-T12's file: `pnpm exec vitest run --project=browser test/browser/simulation-layout-engine.test.ts`. G6 case 4 (`gpuMinNodes`) now PASSES, taking that file to 7 of 8; case 5 stays red until M6-T14.
+Then re-run M6-T12's file: `pnpm exec vitest run --project=browser test/browser/simulation-layout-engine.test.ts`. It stays at 7 of 8: case 5 is red until M6-T14.
 
 - [ ] **Step 4: Checkpoint** -- no commit; ASCII clean. Note in the checkpoint that `stories/Layout.stories.ts` and `stories/Layout2D.stories.ts` snapshots WILL move (PLAN DECISION 1) and that M6-T18 owns the re-baseline.
 
@@ -3599,19 +3715,20 @@ Expected: PASS, 5 cases.
 **Files:**
 - Modify: `graphty-element/src/algorithms/PageRankAlgorithm.ts:190-236`, `BFSAlgorithm.ts`, `DijkstraAlgorithm.ts:148-193`, `ConnectedComponentsAlgorithm.ts`, `KruskalAlgorithm.ts`
 - Modify: `graphty-element/src/algorithms/DegreeAlgorithm.ts` -- NO change; it is already snapshot-native from M6-T8 and design 9.2's interface has no degree method
+- Modify: `graphty-element/src/algorithms/Algorithm.ts` (the `caveats` object and `setCaveat`, PLAN DECISION 5)
 - Test: `graphty-element/test/algorithms/accelerated-dispatch.test.ts` (new, node project)
 
 **Interfaces:**
-- Consumes: `@graphty/algorithms`: `accelerated(acc: AlgorithmAccelerator | null | undefined): AcceleratedAlgorithms` and the `*ResultLike` shapes (`algorithms/src/indexed/accelerator.ts`, M8a); `graph-format`: `NodeIdMap.idOf(i)` / `.requireIndex(id)`; `DataManager.getSnapshot()` / `.undirected(s)`; `Graph.accelerator` (M6-T11); `createFakeAccelerator` (M6-T11) for the test.
-- Produces: no new exported symbol. Each of the five adapters keeps its class name, its `static namespace` / `static type`, its zod options schema and its `suggestedStyles` block unchanged, so the registry, the hard-coded `knownAlgorithms` array (`src/algorithms/index.ts:112-136`) and every existing test that asserts on them are untouched.
+- Consumes: `@graphty/algorithms`: `accelerated(acc: AlgorithmAccelerator | null | undefined): AcceleratedAlgorithms` and the `*ResultLike` shapes (`algorithms/src/indexed/accelerator.ts`, M8a); `graph-format`: `NodeIdMap.idOf(i)` / `.requireIndex(id)`; `DataManager.getSnapshot()` / `.undirected(s)`; `Graph.getAccelerator()` (M6-T11); `createFakeAccelerator` (M6-T11) for the test.
+- Produces: `Algorithm.caveats: { precision?: "f32" | "f64"; [k: string]: unknown }` and `Algorithm.setCaveat(key, value)`, the run-level facts the element API design's `Caveats` collects (4.4.3). Nothing else is new. Each of the five adapters keeps its class name, its `static namespace` / `static type`, its zod options schema and its `suggestedStyles` block unchanged, so the registry, the hard-coded `knownAlgorithms` array (`src/algorithms/index.ts:112-136`) and every existing test that asserts on them are untouched.
 
 PLAN DECISIONS made by this part:
 
 1. PLAN DECISION: FIVE adapters move to `accelerated()` at M6, not 17 and not 23. The scope is fixed from three directions and stating it plainly is the point: (a) six adapters are PERMANENT CPU per design 1.2's non-goals -- DFS, Prim, Girvan-Newman, MaxFlow, MinCut, BipartiteMatching -- and call `indexed.x(s)` directly, never `accelerated()`; (b) `StronglyConnectedComponents` and `Leiden` have NO method in design 9.2's `AlgorithmAccelerator` (it has `connectedComponents` and `weaklyConnectedComponents` but no SCC, and `louvain` but no Leiden), so they are accelerable in principle and not in v1; (c) `Degree` needs no method because a snapshot answers degrees; and (d) the dispatcher's method list GROWS with the A2 ports, and M8a's `AcceleratedAlgorithms` ships six methods -- `pageRank`, `sssp`, `breadthFirstSearch`, `connectedComponents`, `weaklyConnectedComponents`, `minimumSpanningTree` (M8a DEP-8A-E). Five of those six have an element adapter; `weaklyConnectedComponents` has none of its own, because `ConnectedComponentsAlgorithm` is the element's one components adapter. Do not confuse that six with the OTHER six of section 0.2, which is the `indexed.*` PORT set -- those two sets overlap but are not equal: `indexed.commonNeighborsScore` is a port with no dispatcher method (design 9.2 declares no link-prediction method at all) and `weaklyConnectedComponents` is a dispatcher method served by the `connectedComponents` port. Every later port PR moves one more adapter off `fromSnapshot`, one line each.
-2. PLAN DECISION: the result-writing loop is written ONCE per adapter and is identical on both paths, per design 9.4 item 3. `const s = dm.getSnapshot(); const r = await accelerated(this.graph.accelerator).pageRank(s, opts); for (let i = 0; i < s.nodeCount; i++) { this.addNodeResult(s.ids.idOf(i), "rank", r.scores[i]); }`. The `*Pct` normalisation stays a CPU pass over the readback and keeps its per-algorithm convention: value/maximum for PageRank (`PageRankAlgorithm.ts:228`) and Degree (`DegreeAlgorithm.ts:91`), (score-min)/(max-min) for Betweenness (`BetweennessCentralityAlgorithm.ts:77`). The app depends on the difference and documents it (`graphty/src/components/shell/analysis/nodeMetrics.ts:31-39`).
+2. PLAN DECISION: the result-writing loop is written ONCE per adapter and is identical on both paths, per design 9.4 item 3. `const s = dm.getSnapshot(); const r = await accelerated(this.graph.getAccelerator()).pageRank(s, opts); for (let i = 0; i < s.nodeCount; i++) { this.addNodeResult(s.ids.idOf(i), "rank", r.scores[i]); }`. The `*Pct` normalisation stays a CPU pass over the readback and keeps its per-algorithm convention: value/maximum for PageRank (`PageRankAlgorithm.ts:228`) and Degree (`DegreeAlgorithm.ts:91`), (score-min)/(max-min) for Betweenness (`BetweennessCentralityAlgorithm.ts:77`). The app depends on the difference and documents it (`graphty/src/components/shell/analysis/nodeMetrics.ts:31-39`).
 3. PLAN DECISION: the accelerated branch must write the SAME result keys to the SAME element set as the CPU branch. This is the root `CLAUDE.md` algorithm-style rule reaching into the adapter: `DijkstraAlgorithm` writes `isInPath` to EVERY node (`DijkstraAlgorithm.ts:175-183`) and relies on its `== \`true\`` selector (`:97`, `:112`) to scope the paint; an accelerated branch that wrote `isInPath` only to path members would change the MATCH SET of every `!= \`null\`` selector and therefore the picture, with no test failing. The dispatch test asserts key-set and element-set equality between the two branches, not just value equality.
 4. PLAN DECISION: node-id options become indices through `s.ids.indexOf(id)`, and an id not in the snapshot is an `Error` naming the id, not a silent `INVALID_INDEX` passed to the accelerator. `DijkstraAlgorithm` defaults source and target to `nodes[0]` and `nodes[n-1]` (`DijkstraAlgorithm.ts:159-160`) and `AlgorithmAccelerator.sssp(s, source: number, ...)` takes an INDEX. `NodeIdMap.indexOf` returns `INVALID_INDEX` for a miss (`graph-format/src/ids/node-id-map.ts:479`); `requireIndex` throws (`:526`) and is what these adapters call.
-5. PLAN DECISION: a GPU result is labelled with `this.addGraphResult("precision", "f32")` and the CPU path with `"f64"`. Design 9.4 item 3 says "A GPU result carries `precision: 'f32'` (3.3); the adapter labels it" and names no key and no consumer. `addGraphResult` writes to `dataManager.graphResults.<namespace>.<type>.precision` (`Algorithm.ts:264-270`), which is where every other graph-level result goes and which the app can already read. The branch is `this.graph.accelerator === null ? "f64" : "f32"`.
+5. PLAN DECISION: the arithmetic that produced a result is labelled on the RUN, as `caveats.precision` with the value `"f32"` or `"f64"`, beside `exact`, `converged` and `method`. The `Algorithm` base gains a `caveats` object and a `setCaveat(key, value)` that writes into it; every adapter sets `precision` once, on the branch `this.graph.getAccelerator() === null ? "f64" : "f32"`, and the object travels with the result -- when `runs.start()` lands it becomes `run.caveats` unchanged. It does NOT go to `dataManager.graphResults.<namespace>.<type>` through `addGraphResult` (`Algorithm.ts:264-270`), which was the shorter road and is the wrong one: two runs of the same algorithm on the same graph can differ in precision, so a graph-level bag of facts cannot answer "why does this number disagree with the one I had a minute ago" about the run in front of you, and it silently overwrites the label of the previous run. A consumer comparing a value against a saved one, or ranking two nodes whose scores are within a rounding error, reads the label off the same object that carries the value. Design 9.4 item 3 says "A GPU result carries `precision: 'f32'` (3.3); the adapter labels it" and names no key; the element API design names it, and it wins.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3638,7 +3755,7 @@ const DATA = {
     ],
 };
 
-/** The results tree an adapter wrote, with `precision` stripped so both branches are comparable. */
+/** The results tree an adapter wrote. `precision` is not in it: it lives on the run's caveats. */
 function resultsOf(graph: Graph): { nodes: Record<string, unknown>; graph: unknown } {
     const dm = graph.getDataManager();
     const nodes: Record<string, unknown> = {};
@@ -3652,11 +3769,6 @@ function resultsOf(graph: Graph): { nodes: Record<string, unknown>; graph: unkno
         string,
         Record<string, Record<string, unknown>>
     >;
-    for (const ns of Object.values(graphResults ?? {})) {
-        for (const alg of Object.values(ns)) {
-            delete alg.precision;
-        }
-    }
 
     return { nodes, graph: graphResults };
 }
@@ -3686,44 +3798,51 @@ describe("accelerated() dispatch writes the same results as the CPU branch", () 
             const gpuGraph = await createMockGraph(DATA);
             const s = gpuGraph.getDataManager().getSnapshot();
             const fixture = captureFixture(c.method, s, cpu);
-            gpuGraph.accelerator = { ...createFakeAccelerator(), [c.method]: () => fixture };
+            gpuGraph.setAccelerator({ ...createFakeAccelerator(), [c.method]: () => fixture });
             await new c.Adapter(gpuGraph).run();
             const gpu = resultsOf(gpuGraph);
 
             assert.deepStrictEqual(Object.keys(gpu.nodes).sort(), Object.keys(cpu.nodes).sort(), "same element set");
-            assert.deepStrictEqual(gpu, cpu, "same keys, same values, once precision is stripped");
+            assert.deepStrictEqual(gpu, cpu, "same keys, same values on both branches");
         });
 
-        it(`${c.name}: labels precision f32 on the accelerated branch and f64 on the CPU one`, async () => {
+        it(`${c.name}: the run's caveats carry f32 on the accelerated branch and f64 on the CPU one`, async () => {
             const cpuGraph = await createMockGraph(DATA);
-            await new c.Adapter(cpuGraph).run();
-            assert.strictEqual(precisionOf(cpuGraph, c.name), "f64");
+            const cpuRun = new c.Adapter(cpuGraph);
+            await cpuRun.run();
+            assert.strictEqual(cpuRun.caveats.precision, "f64");
 
             const gpuGraph = await createMockGraph(DATA);
             const s = gpuGraph.getDataManager().getSnapshot();
-            gpuGraph.accelerator = {
+            gpuGraph.setAccelerator({
                 ...createFakeAccelerator(),
                 [c.method]: () => captureFixture(c.method, s, resultsOf(cpuGraph)),
-            };
-            await new c.Adapter(gpuGraph).run();
-            assert.strictEqual(precisionOf(gpuGraph, c.name), "f32");
+            });
+            const gpuRun = new c.Adapter(gpuGraph);
+            await gpuRun.run();
+            assert.strictEqual(gpuRun.caveats.precision, "f32");
+            assert.strictEqual(
+                "precision" in ((gpuGraph.getDataManager().graphResults?.graphty?.[c.name] ?? {}) as object),
+                false,
+                "the label is on the run, not in the graph-level bag",
+            );
         });
 
         it(`${c.name}: a throwing dispatcher method propagates, with NO CPU fallback`, async () => {
             const graph = await createMockGraph(DATA);
-            graph.accelerator = {
+            graph.setAccelerator({
                 ...createFakeAccelerator(),
                 [c.method]: () => {
                     throw new Error("E_DEVICE_LOST");
                 },
-            };
+            });
             await assert.rejects(() => new c.Adapter(graph).run(), /E_DEVICE_LOST/);
         });
     }
 });
 ```
 
-`captureFixture(method, snapshot, cpuResults)` and `precisionOf(graph, algorithmType)` are two small local helpers written in this same file: the first turns the CPU results tree into the `*ResultLike` shape M8a's `AlgorithmAccelerator` declares for that method, indexed by `snapshot` order; the second reads `graph.getDataManager().graphResults?.graphty?.[type]?.precision`.
+`captureFixture(method, snapshot, cpuResults)` is a small local helper written in this same file: it turns the CPU results tree into the `*ResultLike` shape M8a's `AlgorithmAccelerator` declares for that method, indexed by `snapshot` order.
 
 **The five shapes, spelled exactly as `algorithms/src/indexed/accelerator.ts` declares them (M8a Task M8a-T8; the shapes are M8a's and this table is the copy, so if the two ever differ M8a wins).** Every score vector is `NumericVector`, so an `F32` fixture is what an accelerator would really return; every index vector is `U32` (`Uint32Array`).
 
@@ -3738,9 +3857,9 @@ describe("accelerated() dispatch writes the same results as the CPU branch", () 
 Write them against `algorithms/src/indexed/accelerator.ts` as it exists when this task runs; R-M6-11 already says an adapter whose port is missing simply stays on `fromSnapshot`. If a fixture is missing a member the interface requires, the failure is a `tsc` error in this test file, which is the intended place to find it.
 
 Run: `cd EA/graphty-element && pnpm exec vitest run --project=default test/algorithms/accelerated-dispatch.test.ts`
-Expected: FAIL, 15 cases -- the adapters still call `fromSnapshot` and never look at `graph.accelerator`, so the `precision` and throw cases fail outright and the equality cases pass for the wrong reason.
+Expected: FAIL, 15 cases -- the adapters still call `fromSnapshot` and never look at the accelerator, and `Algorithm` has no `caveats`, so the precision and throw cases fail outright and the equality cases pass for the wrong reason.
 
-- [ ] **Step 2: The five edits**, each replacing the `fromSnapshot(...)` line and the CPU call with the `await accelerated(this.graph.accelerator).x(s, opts)` form, and each keeping its existing result loop and `suggestedStyles` block untouched.
+- [ ] **Step 2: The five edits**, each replacing the `fromSnapshot(...)` line and the CPU call with the `await accelerated(this.graph.getAccelerator()).x(s, opts)` form, and each keeping its existing result loop and `suggestedStyles` block untouched.
 
 | Adapter | Snapshot it passes | Dispatcher method |
 | --- | --- | --- |
@@ -3767,7 +3886,7 @@ Expected: PASS, including all 15 cases of `accelerated-dispatch.test.ts` (five a
 - NOT modified: the root `knip.config.ts`. There is no `graphty-element/knip.config.ts` -- the repository has ONE knip config, at the root, and its `"graphty-element"` workspace block (`knip.config.ts:114-125`) already lists `test/**/*.ts` and `stories/**/*.stories.ts` among its `entry` globs, so `src/testing/fakeAccelerator.ts` is reachable from an entry and is not reported unused. Step 4 runs knip to confirm; if it DOES report the file, the cause is that nothing imports it yet, which means a test or a story is missing, not that the config needs a line.
 
 **Interfaces:**
-- Consumes: `createFakeAccelerator(options?: FakeAcceleratorOptions): FakeAccelerator` (M6-T11 Step 1); `Graph.setAccelerator` (M6-T11); `SimulationLayoutEngine` (M6-T12).
+- Consumes: `createFakeAccelerator(options?: FakeAcceleratorOptions): FakeAccelerator` (M6-T11 Step 1); the internal `Graph.setAccelerator` seam (M6-T11); `SimulationLayoutEngine` (M6-T12).
 - Produces: `stories/LayoutGpu.stories.ts` with `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)`. No source symbol.
 
 PLAN DECISIONS made by this part:
@@ -3781,7 +3900,7 @@ PLAN DECISIONS made by this part:
 Nothing to write: `test/browser/simulation-layout-engine.test.ts` was authored in M6-T12 Step 1 against `createFakeAccelerator`, which existed from M6-T11. Six cases went green in M6-T12 Step 4, G6 case 4 in M6-T13 Step 3 and G6 case 5 in M6-T14 Step 2. This step is the confirmation that they are green TOGETHER, which no earlier task could claim.
 
 Run: `cd EA/graphty-element && pnpm exec vitest run --project=browser test/browser/simulation-layout-engine.test.ts`
-Expected: PASS, 8 cases, 1 file -- the five G6 cases (late injection; mid-run removal preserving positions and pins; `pin A, remove B < A, freeze, reload -> A still fixed`; `gpuMinNodes` above the node count keeping the CPU engine until a reload crosses it; `setRunning(false)` landing only the in-flight batches and `setRunning(true)` reheating) plus the bridge's three own cases.
+Expected: PASS, 8 cases, 1 file -- the five G6 cases (late injection; mid-run removal preserving positions and pins; `pin A, remove B < A, freeze, reload -> A still fixed`; `acceleration.minNodes` above the node count keeping the CPU engine until a reload crosses it; `setRunning(false)` landing only the in-flight batches and `setRunning(true)` reheating) plus the bridge's three own cases.
 
 - [ ] **Step 2: Write the two stories**
 
@@ -3796,6 +3915,11 @@ import { eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled }
 /**
  * Injects the deterministic fake accelerator on the element as soon as it exists, BEFORE setLayout
  * runs, so the simulation branch is the one under test (design 9.4 item 8).
+ *
+ * This reaches the INTERNAL seam on purpose: a fake is a test vehicle, and the two things a real
+ * consumer would use -- the `acceleration` attribute and the `@graphty/graphty-element/webgpu`
+ * import -- cannot produce a byte-stable Chromatic picture, which is the whole reason the design
+ * asks for a fake here. The real-GPU story is Task M6-T20's.
  */
 const fakeAcceleratorDecorator = (story: () => unknown): unknown => {
     const result = story();
@@ -3847,22 +3971,112 @@ Copy `renderFn`, `templateCreator`, `waitForGraphSettled` and the args shape fro
 Run: `cd EA && PORT=9025 pnpm run storybook:graphty-element`, then open `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)`.
 Expected: both settle and render. `PORT=9025` is explicit because the script is `storybook dev -p ${PORT:-6006}` after sourcing `.env` (`graphty-element/package.json:105`) and `graphty-element/.env.example` sets `PORT=5173` -- nothing in the repository serves this Storybook on 9025 by default; 9025 is the root `CLAUDE.md`'s convention and is inside the allowed 9000-9099 band. This is the owner-facing half of G6's "a Storybook story the owner can open on the dev box"; the REAL-GPU version of it is Task M6-T20's, per section 0.0 (design 9.1's no-GPU-dependency rule is superseded).
 
-- [ ] **Step 4: The distributional check.** G6 asks that "the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics)". At M6 the comparison is CPU-simulation versus FAKE, which is not a physics comparison and would be meaningless. State that plainly in the gate record (M6-T18): the four metrics -- stress, edge-length distribution quantiles, per-node nearest-neighbour distance histogram, inter-component separation, within 10% -- are measured in the GPU package's own parity suite and re-measured against a REAL accelerator in M7. M6's element-side obligation is the fake-accelerator list, which it meets.
+- [ ] **Step 4: The distributional check is NOT made here.** G6 asks that "the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics)". At this task the only accelerator in the element is the deterministic fake, so the comparison would be CPU-simulation versus fake, which is not a physics comparison and would measure nothing. The four metrics -- stress, edge-length distribution quantiles, per-node nearest-neighbour distance histogram, inter-component separation, within 10% -- are measured against a REAL accelerator by Task M6-T20, which is the task that can reach one, and the gate record (M6-T18) carries that result rather than a claim made here.
 
-- [ ] **Step 5: Prove the element still has no GPU dependency**
+- [ ] **Step 5: Prove the GPU package is reachable ONLY through the activation entry**
+
+At this point in E1 no file in the package imports `@graphty/webgpu-graph-algorithms` at all -- Task M6-T20 creates the one file that may -- so this step establishes the boundary the later task has to stay inside.
 
 Run:
 
 ```bash
 cd EA
-grep -rn "webgpu-graph-algorithms" graphty-element/package.json graphty-element/src graphty-element/stories graphty-element/test   # expect nothing
-node -e "const p=require('./graphty-element/package.json');console.log(Object.keys({...p.dependencies,...p.devDependencies,...p.peerDependencies}).filter(k=>k.includes('webgpu')))"   # expect []
+grep -rln "webgpu-graph-algorithms" graphty-element/src graphty-element/stories graphty-element/test   # expect nothing today; after M6-T20, only src/webgpu.ts
+node -e "const p=require('./graphty-element/package.json');const g='@graphty/webgpu-graph-algorithms';console.log({dep:p.dependencies?.[g],dev:p.devDependencies?.[g],peer:p.peerDependencies?.[g],optional:p.peerDependenciesMeta?.[g]?.optional})"
 pnpm exec knip
 ```
 
-Expected: the grep prints nothing and exits 1; the node line prints `[]`; knip reports no finding, in particular none for `src/testing/fakeAccelerator.ts`, which is reachable from the `test/**/*.ts` and `stories/**/*.stories.ts` entries of the root `knip.config.ts:114-125`. Per section 0.0 this check INVERTS: the GPU package must appear ONLY under `peerDependencies` plus `peerDependenciesMeta.optional`, never under `dependencies` or `devDependencies`, and no file reachable from the core entry `graphty-element/index.ts` may import it -- only `src/webgpu.ts` may.
+Expected: the grep prints nothing (and after M6-T20, exactly `graphty-element/src/webgpu.ts`); the node line prints `dep` and `dev` as `undefined`, `peer` as the version range Task M6-T1 added and `optional` as `true`; knip reports no finding, in particular none for `src/testing/fakeAccelerator.ts`, which is reachable from the `test/**/*.ts` and `stories/**/*.stories.ts` entries of the root `knip.config.ts:114-125`. The rule the three commands enforce together: the GPU package appears ONLY under `peerDependencies` plus `peerDependenciesMeta.optional`, never under `dependencies` or `devDependencies`, and no file reachable from the core entry `graphty-element/index.ts` imports it.
 
 - [ ] **Step 6: Checkpoint** -- no commit; ASCII clean.
+
+### Task M6-T20: The `@graphty/graphty-element/webgpu` activation entry
+
+**Repository:** `EA`. Size: 1-1.5 ed plus owner time for the real-GPU check. Element API design 6.1 (the exports map) and 4.12 (what the one import is allowed to be).
+
+**This task is the difference between a capability the graphty app knows how to switch on and a capability a stranger gets.** After it, the whole of a third party's GPU integration is two lines -- `import "@graphty/graphty-element"` and `import "@graphty/graphty-element/webgpu"` -- with no probe code, no context request, no device-loss handler and no bundler configuration. A consumer who does not install the optional peer omits the second line and their build still succeeds.
+
+**Files:**
+- Create: `graphty-element/src/webgpu.ts` (the ONLY file in the package that may import the GPU package)
+- Modify: `graphty-element/package.json` (the `"./webgpu"` entry of the `exports` map, beside the optional peer Task M6-T1 declared, and `"./dist/webgpu.js"` in `sideEffects`), `graphty-element/vite.config.ts` (a second lib entry, and the GPU package added to `rollupOptions.external` exactly as `@graphty/graph-format` was in Task M6-T1 Step 4b)
+- Create: `graphty-element/stories/LayoutWebGpu.stories.ts` (the real-GPU story of the gate below)
+- Test: `graphty-element/test/webgpu/subpath.test.ts`
+
+**Interfaces:**
+- Consumes: `@graphty/webgpu-graph-algorithms/browser`: `probeBrowserWebGpu`, `requestGpuContext`; `@graphty/webgpu-graph-algorithms`: `createAccelerator`; `registerAccelerator` (M6-T19).
+- Produces: the `@graphty/graphty-element/webgpu` published entry. No new type: the factory's return shape is M6-T19's, and no `GPU*`-referencing type crosses the module boundary.
+
+PLAN DECISIONS made by this part:
+
+1. PLAN DECISION: activation is a SUBPATH with a side effect, not a dynamic `import()` from the element's core. Module resolution in a bundled browser app happens at BUILD time, so a core-level import of an optional package fails the build of every consumer who did not install it, and the fix is bundler configuration in a file the consumer may not control. The rejected alternative is recorded in full in `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`.
+2. PLAN DECISION: no GPU type leaves this file. `describe()` narrows `ctx.caps` to three strings and `lost` is handed on as a bare `Promise<unknown>`, so `GpuContext`, `GpuCaps`, `ProbeResult` and everything referencing `GPU*` stay inside the optional peer and `@webgpu/types` never becomes a type dependency of a consumer who installed neither. The element publishes its own capabilities vocabulary (M6-T19) and nothing else.
+3. PLAN DECISION: a failed probe reports its reason in WORDS, and the secure-context case is spelled out. WebGPU requires a secure context, so a page served over plain http reports no adapter with no other diagnostic -- and that is the first thing a consumer will hit and report as "it does not work". The `reason` the element publishes for that case says "requires a secure context (https or localhost)" rather than "no adapter".
+
+- [ ] **Step 1: Write the failing test**
+
+Create `EA/graphty-element/test/webgpu/subpath.test.ts`. It runs in the `default` (node) project and asserts the WIRING, not the GPU: that the module registers a factory when imported, that importing it twice registers once, and that the factory resolves to `null` rather than throwing where there is no adapter. The GPU package's own probe is stubbed, so this file needs no device.
+
+Run: `cd EA/graphty-element && pnpm exec vitest run --project=default test/webgpu/subpath.test.ts`
+Expected: FAIL -- `src/webgpu.ts` does not exist.
+
+- [ ] **Step 2: Write the entry**
+
+Create `EA/graphty-element/src/webgpu.ts`:
+
+```ts
+import { createAccelerator } from "@graphty/webgpu-graph-algorithms";
+import { probeBrowserWebGpu, requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser";
+
+import { registerAccelerator } from "./accelerator/registry.js";
+
+registerAccelerator(async (options) => {
+    const probe = await probeBrowserWebGpu();
+    if (!probe.supported) {
+        return null;                                  // no adapter, or not a secure context
+    }
+
+    const exactMaxNodes = options?.exactMaxNodes;
+    const ctx = await requestGpuContext(exactMaxNodes === undefined ? {} : { exactMaxNodes });
+    return {
+        accelerator: createAccelerator(ctx),
+        lost: ctx.lost,
+        describe: () => ({
+            vendor: ctx.caps.vendor,
+            architecture: ctx.caps.architecture,
+            description: ctx.caps.description,
+        }),
+    };
+});
+```
+
+The options bag is optional (M6-T19 PLAN DECISION 5), which is why the parameter is read through `options?.exactMaxNodes` rather than destructured.
+
+- [ ] **Step 3: The exports map, `sideEffects` and the second lib entry**
+
+`"./webgpu": { "types": "./dist/webgpu.d.ts", "import": "./dist/webgpu.js" }` in `exports`; `"./dist/webgpu.js"` in `sideEffects`, because the module's entire purpose is its side effect and a bundler that tree-shakes it away silently turns acceleration off. `vite.config.ts` gains the second `build.lib.entry` and lists `@graphty/webgpu-graph-algorithms` and its `/browser` subpath in `rollupOptions.external`, so the peer is never inlined.
+
+Run: `cd EA && pnpm exec nx run graphty-element:build && node -e "const p=require('./graphty-element/package.json');console.log(p.exports['./webgpu'])"` and confirm `graphty-element/dist/webgpu.js` exists.
+Expected: the build emits both entries and the printed condition matches the paths above.
+
+- [ ] **Step 4: The two consumer checks**
+
+Both are about what a stranger experiences, and neither passes by inspection:
+
+- a page that imports ONLY `@graphty/graphty-element` builds and runs, and its `capabilities.acceleration.state` settles at `"unavailable"` with a reason naming the missing import;
+- a page that adds the second import gets `"idle"` and then `"active"`, with `vendor` and `architecture` filled in, and never names a GPU type.
+
+- [ ] **Step 5: The real-GPU story (owner-facing)**
+
+Create `EA/graphty-element/stories/LayoutWebGpu.stories.ts` -- the same two layouts as M6-T17's fake stories, with the `acceleration` attribute left at its default and the activation import at the top of the file, so the story runs on whatever the dev box has. It is excluded from Chromatic (`parameters: { chromatic: { disableSnapshot: true } }`): a real GPU does not produce a byte-stable picture, and the fake stories are the ones that hold the baseline.
+
+Run: `cd EA && PORT=9025 pnpm run storybook:graphty-element`, then open the two WebGPU stories.
+Expected: each settles, a node can be dragged and pinned, and the status reads `active`. Capture the screenshots with Playwright and check them with the owner's visual routine, asking objective yes/no questions.
+
+- [ ] **Step 6: The distributional comparison**
+
+Measure the four 11.4 metrics -- stress, edge-length distribution quantiles, per-node nearest-neighbour distance histogram, inter-component separation -- on the CPU simulation story and the real-GPU story of the same layout on the same dataset, and require every one within 10%. This is the clause Task M6-T17 Step 4 declines to claim and the one the G6 record carries; it is measurable here because this is the first task in the element that can reach a real accelerator.
+
+- [ ] **Step 7: Checkpoint** -- no commit; ASCII clean. `grep -rln "webgpu-graph-algorithms" graphty-element/src` now prints exactly `graphty-element/src/webgpu.ts` and nothing else, and M6-T17 Step 5's dependency line still shows the package under `peerDependencies` alone.
 
 ### Task M6-T18: The Chromatic re-baseline, the G6 record, and the E1 commits
 
@@ -3945,23 +4159,27 @@ Environment: Node <version>, pnpm 10, vitest 3.2.7, Playwright chromium <version
 | 2 | late injection engages a running layout | the same file, case 1 | <n> | pass / fail |
 | 3 | mid-run removal keeps positions and pins | case 2 | <n> | pass / fail |
 | 4 | pin survival across a remap (pin A, remove B < A, freeze, reload) | case 3 | <n> | pass / fail |
-| 5 | gpuMinNodes above the node count keeps the CPU engine until a reload crosses it | case 4 | <n> | pass / fail |
+| 5 | acceleration.minNodes above the node count keeps the CPU engine until a reload crosses it | case 4 | <n> | pass / fail |
 | 6 | setRunning(false) lands only in-flight batches; setRunning(true) reheats | case 5 | <n> | pass / fail |
 | 7 | stories green | the four storybook shards | <n> tests | pass / fail |
 | 8 | Chromatic re-baselined | build <id>; six stories accepted, listed in M6-T18 Step 2 | <n> changed | pass / fail |
-| 9 | the element gained no GPU dependency | M6-T17 Step 5's three commands | `[]` | pass / fail |
+| 9 | the GPU package is an optional peer, reachable only through the activation entry | M6-T17 Step 5's three commands | `peer` set, `optional` true, one importing file | pass / fail |
+| 10 | a consumer's whole GPU integration is one import | M6-T20 Step 4's two checks | <n> | pass / fail |
+| 11 | the real-GPU story settles, drags and pins | M6-T20 Step 5 | <screenshots> | pass / fail |
+| 12 | CPU and real GPU are statistically the same (11.4, within 10%) | M6-T20 Step 6 | <four metrics> | pass / fail |
 
 ## 2. What this record does NOT claim
 
-The 11.4 distributional metrics (stress, edge-length quantiles, nearest-neighbour histogram,
-inter-component separation, within 10%) are NOT measured here. At M6 the only accelerator the element
-has is the deterministic fake of `src/testing/fakeAccelerator.ts`, which is not a physics model, so a
-CPU-versus-fake comparison would measure nothing. The metrics are measured in the GPU package's own
-parity suite and are re-measured against a REAL accelerator in phase M7, whose gate G12 carries them.
+The Chromatic stories do NOT run on a GPU. Their accelerator is the deterministic fake of
+`src/testing/fakeAccelerator.ts`, which is not a physics model; a byte-stable screenshot is exactly
+what a fake is for, and a CPU-versus-fake comparison would measure nothing. The 11.4 distributional
+metrics in row 12 come from the real-GPU story instead, on one machine -- the dev box named in the
+environment line above -- and say nothing about any other adapter. The GPU package's own parity
+suite is what measures the kernels across machines.
 
-The real-GPU half of G6 -- "the story on the real GPU locally settles, drags and pins (screenshot
-checked with the Playwright + nanobanana routine)" -- is now Task M6-T20's, per section 0.0; design 9.1 forbade the element a
-dependency on the GPU package, so the real-GPU story lives in the app.
+Rows 11 and 12 are measured on whatever adapter that one machine has. A different vendor, a
+different driver, or a software adapter can move them, which is what the cross-platform lanes are
+for.
 
 ## 3. Findings, owner decisions, re-fixed numbers
 
@@ -3979,7 +4197,7 @@ Expected: every hit is inside DEP-M6-I or this step, and each points at `2026-09
 
 - [ ] **Step 5: Index this plan**
 
-Add a row to `design/webgpu/README.md`'s table: `` `plans/2026-09-19-webgpu-m6-graphty-element.md` `` | "Phase M6: the graph-format 14.4 `DataManager` refactor (E0) and the design 9.4 accelerator seam (E1) in graphty-element" | `live plan`. Then update `design/README.md`'s Directory Structure file counts for `webgpu/` and `decisions/`.
+Add a row to `design/webgpu/README.md`'s table: `` `plans/2026-09-19-webgpu-m6-graphty-element.md` `` | "Phase M6: the graph-format 14.4 `DataManager` refactor (E0) and the acceleration surface -- the `acceleration` attribute, the capabilities object and the `webgpu` activation entry -- over the design 9.4 seam (E1) in graphty-element" | `live plan`. Then update `design/README.md`'s Directory Structure file counts for `webgpu/` and `decisions/`.
 
 **Both cells are shared lines that four plans of 2026-09-19 bump, so neither number may be guessed.** The resolution rule, the same one Task M7-T1 Step 3 states, is NOT "take one side": re-run the two commands below in the tree being committed and copy THEIR output. They are not `ls | wc -l` -- the `webgpu/` cell counts `.md` files RECURSIVELY (so `plans/` is included and the directory itself is not counted), and the `decisions/` cell counts RECORDS, excluding its own `README.md`.
 
@@ -3991,16 +4209,18 @@ ls design/decisions/*.md | grep -cv README    # the number its decisions/ cell m
 
 The `decisions/` count moves only if a sibling plan's record has already landed -- M6 adds two records of its own (DEP-M6-B and DEP-M6-C, written by M6-T6 Step 5) and none for G12. The corpus-table rows never collide, because each plan adds its own line.
 
-- [ ] **Step 6: Commit (owner)** -- `feat(graphty-element): the fake accelerator, Graph.accelerator and the release list`.
-- [ ] **Step 7: Commit (owner)** -- `feat(graphty-element): the SimulationLayoutEngine bridge over a LayoutSimulation`.
-- [ ] **Step 8: Commit (owner)** -- `feat(graphty-element): forceatlas2 and spring run on the simulation bridge`.
-- [ ] **Step 9: Commit (owner)** -- `feat(graphty-element): setRunning reheats and drag reaches the simulation`.
-- [ ] **Step 10: Commit (owner)** -- `feat(graphty-element): resolve nodeMass into a graph-format role column`.
-- [ ] **Step 11: Commit (owner)** -- `feat(graphty-element): five adapters dispatch through accelerated()`.
-- [ ] **Step 12: Commit (owner)** -- `test(graphty-element): the two fake-accelerator GPU stories`.
-- [ ] **Step 13: Commit (owner)** -- `docs(graphty-element): record G6 and re-baseline the layout stories`.
+- [ ] **Step 6: Commit (owner)** -- `feat(graphty-element): the fake accelerator, the internal seam and the release list`.
+- [ ] **Step 7: Commit (owner)** -- `feat(graphty-element): the acceleration attribute, the capabilities surface and the accelerator registry`.
+- [ ] **Step 8: Commit (owner)** -- `feat(graphty-element): the SimulationLayoutEngine bridge over a LayoutSimulation`.
+- [ ] **Step 9: Commit (owner)** -- `feat(graphty-element): forceatlas2 and spring run on the simulation bridge`.
+- [ ] **Step 10: Commit (owner)** -- `feat(graphty-element): setRunning reheats and drag reaches the simulation`.
+- [ ] **Step 11: Commit (owner)** -- `feat(graphty-element): resolve nodeMass into a graph-format role column`.
+- [ ] **Step 12: Commit (owner)** -- `feat(graphty-element): five adapters dispatch through accelerated()`.
+- [ ] **Step 13: Commit (owner)** -- `test(graphty-element): the two fake-accelerator GPU stories`.
+- [ ] **Step 14: Commit (owner)** -- `feat(graphty-element): activate WebGPU through the webgpu subpath`.
+- [ ] **Step 15: Commit (owner)** -- `docs(graphty-element): record G6 and re-baseline the layout stories`.
 
-The agent's job for Steps 6-13 is to leave the working tree in the state the Checkpoints describe and to tell the owner these eight subjects, in this order. The agent runs NO git command; appendix 7.1 carries the owner-only commands, including re-pointing `tools/commit-changes.sh`'s STEPS / SUBJECTS / PATHS block. The mapping is: Step 6 = M6-T11 (the fake accelerator ships with the surface it was built for); Step 7 = M6-T12; Step 8 = M6-T13; Step 9 = M6-T14; Step 10 = M6-T15; Step 11 = M6-T16; Step 12 = M6-T17; Step 13 = M6-T18's G6 record, the `srcExclude` line, the two design README edits and the story re-baseline. There is no G12 commit: Task M7-T1 Step 2 carries that record. No `!` on any subject: `scalingFactor`'s meaning change is a behaviour change inside a `looseObject` option bag (`GraphStyle.ts:38`), not a signature change, and a major bump would cascade into the app; the change is documented in Step 8's commit body, as graph-format design 14.3 prescribes for a re-baseline commit ("one commit per package re-baselines stories whose output changes for the documented reasons; the commit message lists the reasons"). Step 13's commit body lists the six stories of Step 2. The `Chromatic (graphty-element)` job of the PR shows them; the owner accepts them; `all-checks` then passes.
+The agent's job for Steps 6-15 is to leave the working tree in the state the Checkpoints describe and to tell the owner these ten subjects, in this order. The agent runs NO git command; appendix 7.1 carries the owner-only commands, including re-pointing `tools/commit-changes.sh`'s STEPS / SUBJECTS / PATHS block. The mapping is: Step 6 = M6-T11 (the fake accelerator ships with the seam it was built for); Step 7 = M6-T19; Step 8 = M6-T12; Step 9 = M6-T13; Step 10 = M6-T14; Step 11 = M6-T15; Step 12 = M6-T16; Step 13 = M6-T17; Step 14 = M6-T20; Step 15 = M6-T18's G6 record, the `srcExclude` line, the two design README edits and the story re-baseline. There is no G12 commit: Task M7-T1 Step 2 carries that record. No `!` on any subject: `scalingFactor`'s meaning change is a behaviour change inside a `looseObject` option bag (`GraphStyle.ts:38`), not a signature change, and a major bump would cascade into the app; the change is documented in Step 8's commit body, as graph-format design 14.3 prescribes for a re-baseline commit ("one commit per package re-baselines stories whose output changes for the documented reasons; the commit message lists the reasons"). Step 13's commit body lists the six stories of Step 2. The `Chromatic (graphty-element)` job of the PR shows them; the owner accepts them; `all-checks` then passes.
 
 ---
 
@@ -4021,9 +4241,10 @@ The agent's job for Steps 6-13 is to leave the working tree in the state the Che
 | M6b Step 0 | `cd /home/apowers/Projects/graphty-monorepo && git worktree add .worktrees/element-accelerator -b feat/element-accelerator master` and the same install / build line |
 | M6-T17 Step 3 | `cd .worktrees/element-accelerator && PORT=9025 pnpm run storybook:graphty-element` -- the PORT is explicit because the script is `storybook dev -p ${PORT:-6006}` after sourcing `.env` (`graphty-element/package.json:105`) and `.env.example` sets `PORT=5173`; then open `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)` |
 | M6-T18 Step 2 | `open https://www.chromatic.com/builds?appId=686eda676c08de218a75ecbf` and accept EXACTLY the six stories listed there |
-| M6-T18 Steps 6-13 | re-point `tools/commit-changes.sh`'s STEPS / SUBJECTS / PATHS block at the E1 change set and its eight subjects, then `./tools/commit-changes.sh --dry-run`, then `./tools/commit-changes.sh` |
+| M6-T20 Step 5 | `cd .worktrees/element-accelerator && PORT=9025 pnpm run storybook:graphty-element`, then open the two WebGPU stories on the dev box's real adapter, drag and pin a node, and capture the screenshots for the visual check |
+| M6-T18 Steps 6-15 | re-point `tools/commit-changes.sh`'s STEPS / SUBJECTS / PATHS block at the E1 change set and its ten subjects, then `./tools/commit-changes.sh --dry-run`, then `./tools/commit-changes.sh` |
 
-**The agent never runs any of these**, including every `git worktree`, `git merge` and `tools/commit-changes.sh` line above; it prepares the tree, verifies the results, and tells the owner which subject to commit. The commit steps in M6-T10 (Steps 7-13) and M6-T18 (Steps 6-14) are one line each and name only a subject, for exactly that reason.
+**The agent never runs any of these**, including every `git worktree`, `git merge` and `tools/commit-changes.sh` line above; it prepares the tree, verifies the results, and tells the owner which subject to commit. The commit steps in M6-T10 (Steps 7-13) and M6-T18 (Steps 6-15) are one line each and name only a subject, for exactly that reason.
 
 ### 7.2 Verification matrix
 
@@ -4041,10 +4262,14 @@ The agent's job for Steps 6-13 is to leave the working tree in the state the Che
 | The five DataManager inversions and the three new cases | M6-T9 | `pnpm exec vitest run --project=browser test/managers/DataManager.test.ts` | 26 tests (23 today plus three new), the merge and incident-edge cases asserting the NEW behaviour and `Node.index` proved where it is assigned |
 | E0 ships no pixel change | M6-T10 | the PR's `Chromatic (graphty-element)` job | zero changed snapshots |
 | The engine contract | M6-T10 | `pnpm exec vitest run --project=browser test/managers/LayoutManager.test.ts` | `load` gets the undirected snapshot; `reload` fires on `snapshot-replaced` |
-| The accelerator surface and the release list | M6-T11 | `pnpm exec vitest run --project=browser test/browser/accelerator-surface.test.ts` | 5 cases: `release(previous)` once per freeze, an accelerator with NO `release` does not throw, `dispose()` never called on the accelerator |
-| The five G6 fake-accelerator cases plus the bridge's own three | M6-T17 | `pnpm exec vitest run --project=browser test/browser/simulation-layout-engine.test.ts` | 8 cases, 1 file: late injection, mid-run removal, pin survival, `gpuMinNodes`, `setRunning`, and `getEdgePosition` / one-`.catch`-per-promise / `reload` re-applies pins |
-| Accelerated equals CPU | M6-T16 | `pnpm exec vitest run --project=default test/algorithms/accelerated-dispatch.test.ts` | 15 cases: same result keys on the same element set on both paths, `precision` f32 vs f64, a throwing method propagates with no fallback |
-| No GPU dependency | M6-T17 | the three commands of M6-T17 Step 5 | grep empty, dependency filter `[]`, knip clean |
+| The internal seam and the release list | M6-T11 | `pnpm exec vitest run --project=browser test/browser/accelerator-surface.test.ts` | 5 cases: `release(previous)` once per freeze, an accelerator with NO `release` does not throw, `dispose()` never called on an injected accelerator |
+| The registry and the factory contract | M6-T19 | `pnpm exec vitest run --project=default test/accelerator/registry.test.ts` | 2 cases: one factory at a time, called with the ceiling, and the options bag optional |
+| The acceleration attribute and the capabilities surface | M6-T19 | `pnpm exec vitest run --project=browser test/browser/acceleration-attribute.test.ts` | 8 cases: the default, `off`, a factory that answers, one that answers `null`, no factory, `required` rejecting with `E_NO_ACCELERATOR`, device loss reaching `"error"`, and `"idle"` below the threshold |
+| One import is the whole integration | M6-T20 | `pnpm exec vitest run --project=default test/webgpu/subpath.test.ts`, then M6-T20 Step 4 | the entry registers once, resolves `null` without throwing where there is no adapter, and a page with only the core import says so in words |
+| The five G6 fake-accelerator cases plus the bridge's own three | M6-T17 | `pnpm exec vitest run --project=browser test/browser/simulation-layout-engine.test.ts` | 8 cases, 1 file: late injection, mid-run removal, pin survival, `acceleration.minNodes`, `setRunning`, and `getEdgePosition` / one-`.catch`-per-promise / `reload` re-applies pins |
+| Accelerated equals CPU | M6-T16 | `pnpm exec vitest run --project=default test/algorithms/accelerated-dispatch.test.ts` | 15 cases: same result keys on the same element set on both paths, `caveats.precision` f32 vs f64, a throwing method propagates with no fallback |
+| The GPU package is an optional peer only | M6-T17, re-run at M6-T20 | the three commands of M6-T17 Step 5 | `peerDependencies` alone with `optional: true`, one importing file (`src/webgpu.ts`) and no other, knip clean |
+| The real GPU settles, drags and pins, and matches the CPU | M6-T20 | Steps 5 and 6 | the two stories render and interact on the dev box's adapter, and the four 11.4 metrics are within 10% |
 | The whole element | M6-T18 | `nx run-many -t lint,build --projects=graphty-element`, then `build-storybook` and `http-server graphty-element/storybook-static -p 9026 &`, then the 1+5+4 vitest shards with `STORYBOOK_URL=http://localhost:9026` on the storybook four, then `knip`, then `./tools/prepush.sh` | every command exit 0 |
 | Chromatic re-baseline | M6-T18 | the Chromatic build | exactly six changed or new stories, all on Step 2's list |
 
@@ -4056,7 +4281,7 @@ The agent's job for Steps 6-13 is to leave the working tree in the state the Che
 | R-M6-2 | The positions array is made resizable to avoid the copy, and every freeze throws `E_UNSUPPORTED` at the attach. | M6-T2 Step 3's second test asserts the throw for a resizable buffer, at the attach rather than at a user's first freeze. `graph-format/src/columns/column.ts:2532-2539` is the refusal. |
 | R-M6-3 | `growPositions` is reordered after the `replaceRole: true` attach and every file coordinate is silently lost -- the layout just places the node itself, with no error. | M6-T3 PLAN DECISION 3 puts the seeding inside `getSnapshot()` above the attach, and Step 1 case 4 asserts a seeded coordinate reached `positions` AND that the seed column is gone afterwards. |
 | R-M6-4 | Something adds a worker or `structuredClone` path and hands `snapshot.transferables()` to `postMessage`, detaching the live positions buffer mid-frame. | DEP-M6-D plus `test/data/no-transfer.test.ts`, which scans all of `src/`. graph-format exports no `noteShared`, so there is no in-format defence. |
-| R-M6-5 | `accelerator-changed` or `snapshot-replaced` is added to `events.ts` but not to `EventManager.addListener`'s switch, so every subscriber throws `TypeError: Unknown event type` at `EventManager.ts:449-450`. | M6-T4 and M6-T11 each make the four edits one task, and each task's first test asserts `addListener` does not throw. `"layout-changed"` / `"layout-updated"` are kept as the standing counter-example. |
+| R-M6-5 | `snapshot-replaced`, `accelerator-changed` or `capabilities-changed` is added to `events.ts` but not to `EventManager.addListener`'s switch, so every subscriber throws `TypeError: Unknown event type` at `EventManager.ts:449-450`. | M6-T4, M6-T11 and M6-T19 each make the four edits one task, and each task's first test asserts `addListener` does not throw. `"layout-changed"` / `"layout-updated"` are kept as the standing counter-example. |
 | R-M6-6 | `test/helpers/mockGraph.ts` grows a hand-rolled fake snapshot instead of a real `GraphStore`, and the 27 importers pass against a data model production does not have. | M6-T9 Step 2 builds a REAL `GraphStore` inside the mock, so the mock exercises the production freeze path. |
 | R-M6-7 | `graph-settled` fires while a GPU batch is in flight, so a Chromatic screenshot is one readback stale. | Accepted (D-M6-14, DEP-M6-E). `settled` lags by at most one batch and a settled batch moves nodes by less than the settle threshold. If a screenshot ever shows a visibly unsettled frame, the fix is a `flush()` on the bridge awaited before `emitGraphSettled`, which is a contained change to `Graph.ts:547-549`. |
 | R-M6-8 | The pre-step loop calls `sim.step(k)` with `k > 256` and a GPU simulation rejects it with `E_INVALID_ARGUMENT`. | M6-T13 PLAN DECISION 4 chunks at `MAX_ITERATIONS_PER_STEP = 256` (`webgpu-graph-algorithms/src/constants.ts:50`, enforced at `src/layouts/force-simulation.ts:1026-1032`): 15000 becomes 59 awaited batches, not 15000 and not one. No STORY exercises this -- the stories with a large `preSteps` are `ngraph` (`stories/NodeStyles.stories.ts:42`) and `d3` (`stories/Layout.stories.ts:257`), neither of which is a `SimulationType`, and the FA2 / Spring stories take the `stories/helpers.ts:303` default -- so the evidence is M6-T13 Step 1's last two cases, which assert the batch sizes `256, 256, 188` for `preSteps: 700` and a single batch before an early `isSettled` break. |
@@ -4080,18 +4305,20 @@ The agent's job for Steps 6-13 is to leave the working tree in the state the Che
 | M6-T9 | the test-helper migration | 2-3 ed |
 | M6-T10 | the engine contract; the E0 green check | 2-3 ed |
 | **E0 total** | | **14.5-20.5 ed, quoted as 15-21 ed** |
-| M6-T11 | the fake accelerator; `Graph.accelerator` and the release list | 1.5-2 ed |
+| M6-T11 | the fake accelerator; the internal seam and the release list | 1.5-2 ed |
+| M6-T19 | the registry, the `acceleration` attribute, the capabilities surface, `acceleration.minNodes` | 1-1.5 ed |
 | M6-T12 | `SimulationLayoutEngine` | 2-3 ed |
 | M6-T13 | re-registration, schemas, the three knobs | 2-3 ed |
 | M6-T14 | `setRunning`, drag and pin | 1-1.5 ed |
 | M6-T15 | the D28 mass role column | 1-1.5 ed |
 | M6-T16 | five adapters through `accelerated()` | 1.5-2 ed |
 | M6-T17 | the two GPU stories, the eight G6 cases green together | 1.5-2.5 ed |
+| M6-T20 | the `webgpu` activation entry, the real-GPU story and the distributional comparison | 1-1.5 ed + owner |
 | M6-T18 | re-baseline, the G6 record, the commits | 1-2 ed + owner |
-| **E1 total** | | **11.5-17.5 ed, quoted as 12-18 ed including the owner time of M6-T18** (the fake accelerator moved from M6-T17 to M6-T11 with its 0.5 ed; the total is unchanged) |
-| **M6 total** | | **27-39 ed** |
+| **E1 total** | | **13.5-20.5 ed, quoted as 14-21 ed including the owner time of M6-T18 and M6-T20** |
+| **M6 total** | | **29-42 ed** |
 
-The design quotes "8-10 ed for E1 across the three packages, on top of E0, which the design does not size" (`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3252`). The element's share of that 8-10 is what this plan sizes at 12-18; the layout and algorithms shares are M5's and M8a's. E0's 15-21 is this plan's own number, and it is the first one anybody has put on it.
+The design quotes "8-10 ed for E1 across the three packages, on top of E0, which the design does not size" (`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3252`). The element's share of that 8-10 is what this plan sizes at 14-21; the layout and algorithms shares are M5's and M8a's. E0's 15-21 is this plan's own number, and it is the first one anybody has put on it.
 
 ---
 
@@ -4113,19 +4340,21 @@ The row is `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3248-
 | E0: `Node.index` | M6-T5; walked on remap in M6-T6 |
 | E0: `LayoutManager` calls `engine.load(dm.undirected(getSnapshot()).snapshot, positions)` / `engine.reload(...)` | M6-T10 |
 | E0: `toAlgorithmGraph` and `EdgeMap` retired | M6-T8 (43 occurrences), M6-T6 (`EdgeMap`) |
-| E1 item 1: `Graph.accelerator`, `setAccelerator()`, `accelerator-changed` and its `LayoutManager` consumer | M6-T11 (surface), M6-T12 Step 3 (consumer) |
+| E1 item 1: the accelerator seam, `setAccelerator()`, `accelerator-changed` and its `LayoutManager` consumer | M6-T11 (the seam), M6-T12 Step 3 (consumer) |
+| The `acceleration` attribute, `capabilities.acceleration` and `graphty-capabilities-change` | M6-T19 |
+| Activation: `import "@graphty/graphty-element/webgpu"` and nothing else | M6-T20 |
 | E1 item 2: the `snapshot-replaced` release list | M6-T11 PLAN DECISION 3 |
 | E1 item 3: adapters through `accelerated(...)` with ONE result-writing loop | M6-T16 |
 | E1 item 4: the `SimulationLayoutEngine` bridge, `step()` once per frame, `.catch` once per distinct promise | M6-T12 |
 | E1 item 5: `NodeBehavior` `beginDrag` / `endDrag` | M6-T14 |
 | E1 item 6: `forceatlas2` / `spring` re-registered, `gravity` nonnegative, `weightPath` live, `scalingFactor` -> `scale` | M6-T13 |
-| E1 item 7: `iterationsPerStep`, `maxInFlight`, `gpuMinNodes` | M6-T13 (the first two), M6-T12 Step 3 (`gpuMinNodes` evaluation) |
-| E1 item 8: the fake accelerator itself; the stories `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)`; no GPU dependency | M6-T11 Step 1 (the fake), M6-T17 (the stories and the dependency check) |
+| E1 item 7: `iterationsPerStep`, `maxInFlight`, and the acceleration threshold | M6-T13 (the two layout knobs), M6-T19 (`acceleration.minNodes`), M6-T12 Step 3 (its evaluation) |
+| E1 item 8: the fake accelerator itself; the stories `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)`; the GPU package as an optional peer only | M6-T11 Step 1 (the fake), M6-T17 (the stories and the dependency check), M6-T20 (the peer wiring) |
 | E1 item 9: `setRunning(running)` with `reheat()` on resume | M6-T14 |
 | E1 item 10: `nodeMass` resolved into a role column (D28) | M6-T15 (DEP-M6-H). `nodeSize` gets no column: `@graphty/layout` defers `adjustSizes` (`layout/src/simulation/forceatlas2.ts:25`), so nothing would read it -- M6-T15 PLAN DECISION 3 states the reversal condition |
 | Gate G6, element part: the five fake-accelerator cases, the distributional metrics, the Chromatic re-baseline | M6-T12 Step 1 writes all five (plus the bridge's own three); M6-T12, M6-T13 and M6-T14 turn them green in that order; M6-T17 Step 1 records all eight green TOGETHER; M6-T18 writes the record, which states plainly what M6 does NOT measure, and owns the re-baseline |
 
-Three clauses of the design's own G6 string are NOT satisfied by this phase and the G6 record says so in its section 2, rather than claiming them: "the story on the real GPU locally settles, drags and pins" and "the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics)" are Task M6-T20's per section 0.0 (design 9.1 forbade the element a dependency on the GPU package; that is superseded); and "the GPU package's structural mirrors match the real interfaces (type test run manually)" is M5b's and M8a's, because the mirrors are in `webgpu-graph-algorithms/src/types/accelerator.ts`, which this phase does not touch.
+Two clauses of the design's own G6 string that an earlier reading handed to a later phase are satisfied HERE, by Task M6-T20, because the element can now reach a real adapter: "the story on the real GPU locally settles, drags and pins" (Step 5) and "the same story on the CPU simulation looks statistically the same (the 11.4 distributional metrics)" (Step 6). One clause is still not this phase's and the G6 record says so rather than claiming it: "the GPU package's structural mirrors match the real interfaces (type test run manually)" is M5b's and M8a's, because the mirrors are in `webgpu-graph-algorithms/src/types/accelerator.ts`, which this phase does not touch.
 
 ### 8.2 Placeholder scan
 
@@ -4152,7 +4381,7 @@ Checked pairwise between producing and consuming tasks:
 - `GraphStoreOptions.onNodeRemap(remap: U32)` (M6-T3) is consumed by `DataManager.walkNodeRemap(remap: U32)` (M6-T6), which writes `Node.index: number` (M6-T5). `remap[n.index]` can be `undefined` under `noUncheckedIndexedAccess`, so the walk is `n.index = remap[n.index] ?? INVALID_INDEX`, which is what M6-T6's table specifies.
 - `fromSnapshot(s, options)` (M6-T8) returns `AlgorithmGraph`, the same type `toAlgorithmGraph` returned. `GraphConverterOptions` has FOUR keys (`graphConverter.ts:12-26`) and `SnapshotGraphOptions` has THREE: the three any call site actually passes -- `directed`, `allowParallelEdges`, `addReverseEdges` -- keep the same names, defaults and semantics, so every one of the 21 call sites in M6-T8 Step 3 type-checks with its option object copied verbatim. The fourth, `weightAttribute` (default `"value"`, `graphConverter.ts:15-16`, `:35`), is dropped on purpose: no adapter passes it (verified across all 21), and the weight is now resolved once at ingestion by `resolveEdgeWeight` (M6-T6 PLAN DECISION 6) and read back through `s.weights[s.edgeToArc[e]]`. That is the one genuinely behaviour-changing part of the substitution, and it is DEP-M6-C's probe order that now decides every weight where the `value` key decided it before.
 - `SimulationHost` (M6-T12) is the only thing the bridge imports from the manager side, and `iterationsPerStep(): number` is where M6-T13 PLAN DECISION 3's `opts.iterationsPerStep ?? opts.stepMultiplier` resolution lands. The bridge never reads the config itself.
-- `GraphAccelerator` (M6-T11) is `AlgorithmAccelerator & LayoutAccelerator & { release?(s): void; dispose?(): void }`. `release` is OPTIONAL because `LayoutAccelerator.release?` is optional in `@graphty/layout` (`layout/src/simulation/types.ts:77`) and design 9.3 makes every accelerator method optional; requiring it in the intersection would reject a conforming GPU accelerator at M7's `attachAccelerator` and would throw at run time in the release path. `createSimulation(type, options, accelerator)` (M5) takes `LayoutAccelerator | null | undefined`, and `accelerated(acc)` (M8a) takes `AlgorithmAccelerator | null | undefined`; an intersection is assignable to both, so `graph.accelerator` passes to each without a cast. `createFakeAccelerator()` (M6-T11 Step 1) returns a `GraphAccelerator`, so the same object satisfies both call sites in the tests and in the stories -- which is D-M6-13's whole point.
+- `GraphAccelerator` (M6-T11) is `AlgorithmAccelerator & LayoutAccelerator & { release?(s): void; dispose?(): void }`. `release` is OPTIONAL because `LayoutAccelerator.release?` is optional in `@graphty/layout` (`layout/src/simulation/types.ts:77`) and design 9.3 makes every accelerator method optional; requiring it in the intersection would reject a conforming GPU accelerator at the registry's factory result (M6-T19, M6-T20) and would throw at run time in the release path. `createSimulation(type, options, accelerator)` (M5) takes `LayoutAccelerator | null | undefined`, and `accelerated(acc)` (M8a) takes `AlgorithmAccelerator | null | undefined`; an intersection is assignable to both, so the accelerator the element holds passes to each without a cast. `createFakeAccelerator()` (M6-T11 Step 1) returns a `GraphAccelerator`, so the same object satisfies both call sites in the tests and in the stories -- which is D-M6-13's whole point.
 - CROSS-PLAN: every symbol this plan takes from `@graphty/algorithms` is spelled as `design/webgpu/plans/2026-09-19-webgpu-m8a-algorithms-seam.md` Task M8a-T8 declares it, and M8a is the authority where the two ever differ. `accelerated(acc: AlgorithmAccelerator | null | undefined): AcceleratedAlgorithms` (M6-T16 Interfaces); `AcceleratedAlgorithms`' six methods `pageRank(s, options?: PageRankOptions)`, `sssp(s, source, options?: SsspOptions)`, `breadthFirstSearch(s, source, options?: BfsOptions)`, `connectedComponents(s)`, `weaklyConnectedComponents(s)`, `minimumSpanningTree(s, options?: MstOptions)`; and the five accelerator result shapes M6-T16 Step 1's fixture table spells out -- `PageRankResultLike`, `BfsResultLike`, `SsspResultLike`, `LabelResultLike`, `MstResultLike`. `AlgorithmAccelerator.kind: string` is the one non-optional member; every method is optional, which is what lets M6-T16's test spread a single method onto the fake.
 - `SimulationLayoutEngine` (M6-T12) implements every `abstract` member of `LayoutEngine` (`LayoutEngine.ts:50-63`): `init`, `addNode`, `addEdge`, `getNodePosition`, `setNodePosition`, `getEdgePosition`, `step`, `pin`, `unpin`, `get nodes`, `get edges`, `get isSettled`. `addNode` / `addEdge` are deliberate no-ops and ARE reached, because `_setLayoutInternal` calls `engine.addNodes(nodeArray); engine.addEdges(edgeArray);` (`LayoutManager.ts:147-148`) before this plan's `load()`. It also overrides `get type()`, because the inherited one reads `(this.constructor as typeof LayoutEngine).type` (`:89-90`), which is `undefined` for a class the registry never registered.
 - `stepAsync(iterations: number): Promise<void>` is produced by M6-T12 and consumed ONLY by M6-T13's pre-step loop, through the feature test `"stepAsync" in engine`. It is not on the abstract class: the base declares `abstract step(): void` (`LayoutEngine.ts:56`), which takes no count and returns nothing awaitable, so the pre-step loop could not be written against `step` at all. `reheat(): void` is produced by M6-T12 and consumed by M6-T14's `Graph.setRunning(true)` behind `"reheat" in engine`.

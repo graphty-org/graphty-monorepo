@@ -1,6 +1,7 @@
 import { closestCenter, DndContext, DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, Group, Text, TextInput } from "@mantine/core";
 import { Layers, Plus } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
@@ -24,24 +25,17 @@ interface LeftSidebarProps {
     onAddLayer: () => void;
 }
 
-export interface LayerItem {
-    id: string;
-    name: string;
-    /** Full metadata object from graphty-element */
-    metadata?: Record<string, unknown>;
-    styleLayer: {
-        node?: {
-            selector: string;
-            style: Record<string, unknown>;
-            calculatedStyle?: Record<string, unknown>;
-        };
-        edge?: {
-            selector: string;
-            style: Record<string, unknown>;
-            calculatedStyle?: Record<string, unknown>;
-        };
-    };
-}
+/**
+ * One row of the layer list: the element's own layer, unchanged.
+ *
+ * It used to be a projection -- an id made out of the layer's array index, a name with a
+ * display fallback baked in, and two halves of loose records -- and the projection was
+ * lossy in both directions: `layer-${index}` went stale the moment anything moved, and
+ * writing an edit back meant reconciling indices in a module of its own. The element now
+ * mints a stable {@link Layer.id}, says who owns the layer in {@link Layer.source} and
+ * locks its own, so the list draws the layer itself and every write names it by id.
+ */
+export type LayerItem = Layer;
 
 interface SortableLayerItemProps {
     layer: LayerItem;

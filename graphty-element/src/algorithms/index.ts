@@ -88,8 +88,6 @@ interface AlgorithmInfo {
     zodOptionsSchema: ZodOptionsSchema;
     /** Whether the algorithm has configurable options (Zod-based) */
     hasOptions: boolean;
-    /** Whether the algorithm has suggested styles */
-    hasSuggestedStyles: boolean;
 }
 
 /**
@@ -142,7 +140,6 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
             key: `${AlgoClass.namespace}:${AlgoClass.type}`,
             zodOptionsSchema: AlgoClass.getZodOptionsSchema(),
             hasOptions: AlgoClass.hasZodOptions(),
-            hasSuggestedStyles: AlgoClass.hasSuggestedStyles(),
         });
     }
 

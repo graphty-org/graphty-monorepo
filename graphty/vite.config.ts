@@ -26,55 +26,54 @@ export default defineConfig(({ mode }) => {
         // Set base path for GitHub Pages deployment
         base: env.VITE_BASE_PATH || "/",
         resolve: {
-            alias: {
-                "@": resolve(__dirname, "./src"),
-                // Resolve to source files for proper tree-shaking and to avoid bundling
-                // the entire Babylon.js library (graphty-element's dist externalizes it)
-                "@graphty/graphty-element": resolve(__dirname, "../graphty-element/index.ts"),
-                // Stub out @mlc-ai/web-llm - it's an optional dependency of graphty-element
-                // that throws a helpful error when used without being installed
-                "@mlc-ai/web-llm": resolve(__dirname, "./src/stubs/web-llm-stub.ts"),
-            },
+            // An ordered list, not a map: the graphty-element rules must be tried before the
+            // bare "@" rule, and the root entry point before the subpath one.
+            alias: [
+                // graphty-element is read from SOURCE rather than from its published dist, so
+                // the dev server hot-reloads element changes without a rebuild. Its exports map
+                // names one file per entry point at the package root (index.ts, schema.ts,
+                // catalog.ts, extend.ts, format.ts, logging.ts, session.ts, commands.ts, ai.ts,
+                // webgpu.ts, react.ts), so a subpath maps to the file of the same name.
+                // tsconfig.json
+                // carries the same two rules; change them together or the editor and the
+                // bundler will disagree about what @graphty/graphty-element/schema means.
+                {
+                    find: /^@graphty\/graphty-element$/,
+                    replacement: resolve(__dirname, "../graphty-element/index.ts"),
+                },
+                {
+                    find: /^@graphty\/graphty-element\/(.+)$/,
+                    replacement: resolve(__dirname, "../graphty-element/$1.ts"),
+                },
+                // @mlc-ai/web-llm is an optional peer of graphty-element, loaded by a dynamic
+                // import inside its WebLlmProvider and nowhere else. It is not a dependency of
+                // this app, but it IS installed in graphty-element/node_modules, so without
+                // this rule the source alias above would pull the whole package into the
+                // bundle. The stub throws an install instruction if that path is ever taken.
+                {
+                    find: "@mlc-ai/web-llm",
+                    replacement: resolve(__dirname, "./src/stubs/web-llm-stub.ts"),
+                },
+                { find: "@", replacement: resolve(__dirname, "./src") },
+            ],
         },
         server: {
             host: true,
-            port: 9000,
             fs: {
                 allow: [
                     // Allow serving files from the project root
                     resolve(__dirname, ".."),
                 ],
             },
-            watch: {
-                // Watch graphty-element source for HMR across monorepo packages
-                // The alias resolves to source files, so Vite should pick up changes
-            },
         },
         build: {
             outDir: "dist",
             sourcemap: true,
-            rollupOptions: {
-                // Externalize @mlc-ai/web-llm - it's an optional dependency of graphty-element
-                // that is dynamically loaded only when WebLLM provider is explicitly requested
-                external: ["@mlc-ai/web-llm"],
-            },
-        },
-        optimizeDeps: {
-            include: ["@babylonjs/core/Meshes/instancedMesh"],
-            // Exclude from pre-bundling:
-            // - @graphty/graphty-element: We access exports dynamically (ApiKeyManager, etc.)
-            //   and Vite's tree-shaking removes them during pre-bundling
-            // - @mlc-ai/web-llm: Optional dependency loaded only when WebLLM is used
-            exclude: ["@graphty/graphty-element", "@mlc-ai/web-llm"],
         },
     };
 
     if (env.HOST && config.server) {
         config.server.host = env.HOST;
-    }
-
-    if (env.PORT && config.server) {
-        config.server.port = parseInt(env.PORT);
     }
 
     if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH && config.server) {

@@ -1,14 +1,27 @@
 import "../index.ts";
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { StyleTemplate } from "../src/config";
-import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
+import { assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
+import {
+    edgeData,
+    eventWaitingDecorator,
+    nodeData,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Data",
     component: "graphty-element",
+    // Every story below passes `setup`, which only `renderFn` reads: it is a story convention,
+    // not an element property, so without this line the element is handed a dead `setup`
+    // property and the pre-steps these stories ask for never arrive.
+    render: renderFn,
     decorators: [eventWaitingDecorator],
     parameters: {
         controls: { exclude: /^(#|_)/ },
@@ -19,7 +32,32 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
+
+/**
+ * Every story in this file exists to prove ONE importer produces the graph its own document
+ * declares, so every one of them asserts the same two things and differs only in the two numbers.
+ *
+ * WHY THE NUMBERS ARE THE WHOLE POINT. Nothing here used to check them. `waitForDataLoaded`
+ * resolves on a five-second timer with the comment "Data may already be loaded (e.g., inline
+ * data) or failed", and the project-level check asks only whether any node arrived -- so a GraphML
+ * fetch that returned three nodes of thirty-four, or a CSV importer that quietly dropped every row
+ * with a quoted field, rendered a picture and passed. The importer's own report is read beside
+ * them, because an edge whose endpoints the store would not take is a dropped row the counts alone
+ * cannot always show.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - Which importer this is, for the failure message.
+ * @param nodes - The nodes the story's document declares.
+ * @param edges - The edges it declares.
+ */
+const imported = async (canvasElement: HTMLElement, story: string, nodes: number, edges: number): Promise<void> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Data ${story}`);
+
+    await assertGraphLoaded(scene, { nodes, edges });
+    await assertLayoutPlaced(scene, { distinct: nodes > 1 && edges > 0 });
+};
 
 export const Basic: Story = {
     args: {
@@ -29,19 +67,10 @@ export const Basic: Story = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for data3.json (77 nodes) with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data3.json (77 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "Basic", 6, 6);
     },
 };
 
@@ -55,20 +84,10 @@ export const Json: Story = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        // Add styleTemplate with preSteps for physics-based layout (ngraph)
-        // data3.json has 77 nodes, which needs more preSteps to settle
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for data3.json (77 nodes) with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data3.json (77 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "Json", 77, 254);
     },
 };
 
@@ -85,25 +104,10 @@ export const ModifiedJson: Story = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        // Put edge field mappings in styleTemplate where they belong
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            data: {
-                knownFields: {
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                },
-            },
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for data2.json (80 nodes) with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for data2.json (80 nodes) with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "ModifiedJson", 77, 254);
     },
 };
 
@@ -115,7 +119,7 @@ export const GraphML: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "GraphML", 34, 78);
     },
 };
 
@@ -137,7 +141,7 @@ backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CSV", 8, 10);
     },
 };
 
@@ -263,7 +267,7 @@ graph [
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "GML", 5, 5);
     },
 };
 
@@ -416,7 +420,7 @@ export const GEXF: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "GEXF", 5, 6);
     },
 };
 
@@ -568,19 +572,10 @@ digraph ComprehensiveTest {
   /* Multi-line comment explaining the architecture */
 }`,
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for DOT with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for DOT with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "DOT", 9, 12);
     },
 };
 
@@ -598,19 +593,10 @@ user-1,user-2,KNOWS,2020,0.8
 user-2,user-3,KNOWS,2021,0.6
 user-1,user-3,MANAGES,2019,1.0`,
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for CSV with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvNeo4j", 3, 3);
     },
 };
 
@@ -626,19 +612,10 @@ server-1,database-1,Directed,0.8,Direct Access
 server-1,cache-1,Directed,3.5,Cache Lookup
 cache-1,database-1,Directed,1.2,Cache Miss`,
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for CSV with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvGephi", 4, 5);
     },
 };
 
@@ -654,19 +631,10 @@ protein-A,protein-D,activates,0.88,high
 protein-C,protein-D,regulates,0.65,low
 protein-D,protein-A,feedback,0.70,medium`,
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for CSV with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvCytoscape", 4, 5);
     },
 };
 
@@ -681,19 +649,10 @@ router-3,router-4:2.5,router-5:1.8
 router-4,router-5:1.0
 router-5,router-1:2.2`,
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for CSV with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvAdjacencyList", 5, 9);
     },
 };
 
@@ -712,19 +671,10 @@ node-6,Frank Miller,person,5,true,Support,frank@example.com
 node-7,Grace Wilson,person,8,true,Engineering,grace@example.com
 node-8,Henry Moore,person,4,false,HR,henry@example.com`,
         },
-        // Add minimal styleTemplate just for preSteps
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for CSV with ngraph
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }), // Extra preSteps for CSV with ngraph
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvNodeList", 8, 0);
     },
 };
 
@@ -759,24 +709,10 @@ export const JsonD3: Story = {
                 path: "links",
             },
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            data: {
-                knownFields: {
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                },
-            },
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonD3", 5, 6);
     },
 };
 
@@ -833,24 +769,10 @@ export const JsonCytoscapeJs: Story = {
                 path: "elements.edges[].data",
             },
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            data: {
-                knownFields: {
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                },
-            },
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonCytoscapeJs", 5, 6);
     },
 };
 
@@ -884,25 +806,11 @@ export const JsonSigma: Story = {
                 path: "edges",
             },
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            data: {
-                knownFields: {
-                    nodeIdPath: "key",
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                },
-            },
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        nodeIdPath: "key",
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonSigma", 5, 6);
     },
 };
 
@@ -936,24 +844,10 @@ export const JsonVisJs: Story = {
                 path: "edges",
             },
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            data: {
-                knownFields: {
-                    edgeSrcIdPath: "from",
-                    edgeDstIdPath: "to",
-                },
-            },
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonVisJs", 5, 6);
     },
 };
 
@@ -965,7 +859,6 @@ export const JsonNetworkX: Story = {
                 JSON.stringify({
                     directed: true,
                     multigraph: false,
-                    graph: {},
                     nodes: [
                         { id: "A", type: "start", value: 10 },
                         { id: "B", type: "middle", value: 20 },
@@ -990,24 +883,10 @@ export const JsonNetworkX: Story = {
                 path: "links",
             },
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            data: {
-                knownFields: {
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                },
-            },
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "JsonNetworkX", 5, 6);
     },
 };
 
@@ -1033,18 +912,10 @@ api-1,server-1,Directed,2.5,REST,10
 monitor-1,server-1,Directed,0.3,Metrics,8
 monitor-1,database-1,Directed,0.3,Metrics,8`)}`,
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "CsvPairedFiles", 6, 8);
     },
 };
 
@@ -1078,18 +949,10 @@ export const Pajek: Story = {
 7 6 1.0
 8 4 2.0`,
         },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: {
-                    preSteps: 8000,
-                },
-            },
-        }),
+        setup: storySetup({ preSteps: 8000 }),
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await imported(canvasElement, "Pajek", 8, 13);
     },
 };
 
@@ -1246,5 +1109,8 @@ export const GraphMLYFiles: Story = {
 </graphml>`,
         },
         layout: "fixed",
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "GraphMLYFiles", 6, 6);
     },
 };

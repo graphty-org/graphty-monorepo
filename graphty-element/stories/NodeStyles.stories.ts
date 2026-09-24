@@ -1,7 +1,30 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, nodeShapes, renderFn, templateCreator, waitForGraphSettled } from "./helpers";
+import {
+    assertDistinctPicture,
+    assertDrawnColour,
+    assertDrawnOpacity,
+    assertDrawnShape,
+    assertGraphLoaded,
+    assertLabelsDrawn,
+    assertNoLabelsDrawn,
+    assertShapeVariety,
+    assertWireframes,
+    type Drawn,
+    drawn,
+    holds,
+} from "./assertions";
+import {
+    eventWaitingDecorator,
+    nodeShapes,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Node",
@@ -10,38 +33,33 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator],
     argTypes: {
-        nodeColor: { control: "color", table: { category: "Texture" }, name: "texture.color" },
-        nodeShape: { control: "select", options: nodeShapes, table: { category: "Shape" }, name: "shape.type" },
+        nodeColor: { control: "color", table: { category: "Colour" }, name: "node.color" },
+        nodeShape: { control: "select", options: nodeShapes, table: { category: "Shape" }, name: "node.shape" },
         nodeSize: {
             control: { type: "range", min: 0.1, max: 10, step: 0.1 },
             table: { category: "Shape" },
-            name: "shape.size",
+            name: "node.size",
         },
-        nodeWireframe: { control: "boolean", table: { category: "Effect" }, name: "effect.wireframe" },
-        nodeLabelEnabled: { control: "boolean", table: { category: "Label" }, name: "label.enabled" },
-        advancedNodeColor: { control: "color", table: { category: "Texture" }, name: "texture.color.value" },
-        advancedNodeOpacity: {
+        nodeWireframe: { control: "boolean", table: { category: "Effect" }, name: "node.wireframe" },
+        nodeLabel: { control: "text", table: { category: "Label" }, name: "node.label" },
+        nodeOpacity: {
             control: { type: "range", min: 0.1, max: 1, step: 0.1 },
-            table: { category: "Texture" },
-            name: "texture.color.opacity",
+            table: { category: "Colour" },
+            name: "node.opacity",
         },
     },
     parameters: {
         // controls: {exclude: /^(#|_)/},
         controls: {
-            include: ["texture.color", "shape.type", "shape.size", "effect.wireframe", "label.enabled"],
+            include: ["node.color", "node.shape", "node.size", "node.wireframe", "node.label"],
         },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
         },
     },
     args: {
-        styleTemplate: templateCreator({
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for ngraph physics layout
-                },
-            },
+        setup: storySetup({
+            preSteps: 8000, // Extra preSteps for ngraph physics layout
         }),
         dataSource: "json",
         dataSourceConfig: {
@@ -55,108 +73,172 @@ const meta: Meta = {
 };
 export default meta;
 
-// Common play function for all stories
-const waitForSettle = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+/**
+ * Wait for the story to settle and read what it drew.
+ *
+ * The cat social network is twenty nodes and twenty-nine edges, and it is fetched over the
+ * network at render time, so the count is also the check that the fetch arrived.
+ */
+const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn> => {
     await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Styles/Node ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+
+    return scene;
 };
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 export const Default: Story = {
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Default");
+
+        // The element's own appearance, with no layer of the story's own: one shape, one size,
+        // one colour, and no label anywhere.
+        await assertDrawnColour(scene, "#6366f1");
+        await assertDrawnShape(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, "icosphere"])));
+        await assertNoLabelsDrawn(scene);
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
 };
 
 export const Color: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Color");
+
+        await assertDrawnColour(scene, "#ff0000");
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { texture: { color: "red" } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.color": "red" },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["texture.color"],
+            include: ["node.color"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Shape: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Shape");
+
+        await assertDrawnShape(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, "box"])));
+        await assertShapeVariety(scene, 1);
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { shape: { type: "box" } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.shape": "box" },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["shape.type"],
+            include: ["node.shape"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Size: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Size");
+
+        // Size is baked into the source mesh rather than written to mesh.scaling, so the reading
+        // that says a node got bigger is its drawn bounding box. The element's default icosphere
+        // is 0.75 across at size 1, so size 3 is 2.25.
+        const wrong = scene.nodes.filter((node) => Math.abs(node.radius - 2.25) > 0.01).map((node) => node.id);
+
+        await holds(
+            wrong.length === 0,
+            `Styles/Node Size: this story asks for size 3 and ${String(wrong.length)} nodes are drawn at a ` +
+                `different size -- first is ${String(scene.nodes[0].radius)}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
-        styleTemplate: templateCreator({ nodeStyle: { shape: { size: 3 } }, behavior: { layout: { preSteps: 8000 } } }),
+        setup: storySetup({ node: { "node.size": 3 }, preSteps: 8000 }),
     },
     parameters: {
         controls: {
-            include: ["shape.size"],
+            include: ["node.size"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Wireframe: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Wireframe");
+
+        await assertWireframes(
+            scene,
+            scene.nodes.map((node) => node.id),
+        );
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { effect: { wireframe: true } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.wireframe": true },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["effect.wireframe"],
+            include: ["node.wireframe"],
         },
     },
-    play: waitForSettle,
 };
 
+/**
+ * A label on every node, reading each node's own id.
+ *
+ * `label: {enabled: true}` used to switch labels on and leave the words to the renderer's
+ * default. A layer says what a label SAYS: writing `node.label` is what switches one on, and
+ * binding it to a column is how the words come from the data.
+ */
 export const Label: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Label");
+
+        await assertLabelsDrawn(scene);
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: { label: { enabled: true } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["label.enabled"],
+            include: ["node.label"],
         },
     },
-    play: waitForSettle,
 };
 
 export const Opacity: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Opacity");
+
+        await assertDrawnColour(scene, "#0000ff");
+        await assertDrawnOpacity(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, 0.5])));
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#0000FF",
-                        opacity: 0.5,
-                    },
-                },
-            },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            node: { "node.color": "#0000FF", "node.opacity": 0.5 },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["texture.color.value", "texture.color.opacity"],
+            include: ["node.color", "node.opacity"],
         },
     },
-    play: waitForSettle,
 };

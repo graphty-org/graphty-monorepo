@@ -2,11 +2,15 @@ import { Button, Divider, Group, Modal, Radio, Select, Stack, Text } from "@mant
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CATEGORY_LABELS, getLayoutMetadata, LAYOUT_METADATA, type LayoutMetadata } from "../data/layoutMetadata";
-import { getHiddenFields, getLayoutSchema } from "../data/layoutSchemas";
+import {
+    CATEGORY_LABELS,
+    getLayoutCategories,
+    getLayoutMetadata,
+    LAYOUT_METADATA,
+    type LayoutMetadata,
+} from "../data/layoutMetadata";
 import { standardModalStyles } from "../utils/modal-styles";
-import { getDefaultValues } from "../utils/zodSchemaParser";
-import { LayoutOptionsForm } from "./layout-options/LayoutOptionsForm";
+import { optionDefaults, OptionsForm } from "./options";
 
 interface RunLayoutsModalProps {
     opened: boolean;
@@ -22,9 +26,7 @@ interface RunLayoutsModalProps {
  * @returns Grouped layout options for the select input
  */
 function getGroupedLayoutOptions(): { group: string; items: { value: string; label: string }[] }[] {
-    const categories: LayoutMetadata["category"][] = ["force", "geometric", "hierarchical", "special"];
-
-    return categories.map((category) => ({
+    return getLayoutCategories().map((category) => ({
         group: CATEGORY_LABELS[category],
         items: LAYOUT_METADATA.filter((layout) => layout.category === category).map((layout) => ({
             value: layout.type,
@@ -34,13 +36,48 @@ function getGroupedLayoutOptions(): { group: string; items: { value: string; lab
 }
 
 /**
- * Warning messages for layouts that require special configuration
+ * Read a list of names as a sentence.
+ * @param names - The names to join.
+ * @returns "a", "a and b", or "a, b and c".
  */
-const REQUIRED_FIELD_WARNINGS: Record<string, string> = {
-    bipartite: "This layout requires node selection. Advanced configuration is not yet available.",
-    bfs: "This layout requires a starting node. Advanced configuration is not yet available.",
-    multipartite: "This layout requires subset key configuration. Advanced configuration is not yet available.",
-};
+function asSentence(names: readonly string[]): string {
+    if (names.length < 2) {
+        return names[0] ?? "";
+    }
+
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * Say what the selected layout still needs, in the catalogue's own words.
+ *
+ * Two different gaps, and the difference matters: an option the engine declares with no default
+ * stops the layout running at all, while a structural input the arrangement reads but publishes
+ * no option for only means the engine falls back on its own split. Both come from the
+ * catalogue, so a layout that gains an option to fill one of these gaps stops warning about it
+ * without anyone editing this file.
+ * @param metadata - The selected layout, or undefined when nothing is selected.
+ * @returns The warning to show, or null when there is nothing to say.
+ */
+function layoutWarning(metadata: LayoutMetadata | undefined): string | null {
+    if (!metadata) {
+        return null;
+    }
+
+    if (metadata.requiredFields.length > 0) {
+        const names = metadata.requiredFields.map(
+            (name) => metadata.options.find((option) => option.name === name)?.plainName ?? name,
+        );
+
+        return `This layout requires ${asSentence(names)}, and choosing one here is not available yet.`;
+    }
+
+    if (metadata.unsupplied.length > 0) {
+        return `This layout arranges the graph by ${asSentence(metadata.unsupplied)}, and choosing that here is not available yet, so the default is used.`;
+    }
+
+    return null;
+}
 
 /**
  * Modal for selecting and configuring layout algorithms.
@@ -69,23 +106,15 @@ export function RunLayoutsModal({
     const selectedLayoutMetadata = getLayoutMetadata(selectedLayoutType);
     const groupedLayoutOptions = getGroupedLayoutOptions();
 
-    // Check if the selected layout has required fields that prevent usage
-    const hasRequiredFields =
-        selectedLayoutMetadata?.requiredFields && selectedLayoutMetadata.requiredFields.length > 0;
-    const requiredFieldWarning = REQUIRED_FIELD_WARNINGS[selectedLayoutType] ?? null;
+    // A layout with an option the engine declares and gives no default for cannot run until
+    // something fills that option in, and nothing here can.
+    const hasRequiredFields = (selectedLayoutMetadata?.requiredFields.length ?? 0) > 0;
+    const requiredFieldWarning = layoutWarning(selectedLayoutMetadata);
 
-    // Get the schema and hidden fields for the selected layout
-    const layoutSchema = useMemo(() => getLayoutSchema(selectedLayoutType), [selectedLayoutType]);
-    const hiddenFields = useMemo(() => getHiddenFields(selectedLayoutType), [selectedLayoutType]);
-
-    // Get default values from the schema
-    const schemaDefaults = useMemo(() => {
-        if (!layoutSchema) {
-            return {};
-        }
-
-        return getDefaultValues(layoutSchema);
-    }, [layoutSchema]);
+    // The options the selected engine declares, straight from the element's catalogue.
+    const layoutOptions = useMemo(() => selectedLayoutMetadata?.options ?? [], [selectedLayoutMetadata]);
+    const hiddenFields = useMemo(() => selectedLayoutMetadata?.hiddenFields ?? [], [selectedLayoutMetadata]);
+    const schemaDefaults = useMemo(() => optionDefaults(layoutOptions), [layoutOptions]);
 
     // Determine if we should show dimension radio based on layout's maxDimensions
     const showDimensionRadio = selectedLayoutMetadata?.maxDimensions === 3;
@@ -202,7 +231,7 @@ export function RunLayoutsModal({
                 )}
 
                 {/* Layout Options Form */}
-                {layoutSchema && (
+                {layoutOptions.length > 0 && (
                     <>
                         <Divider my="xs" />
                         <Group justify="space-between" align="center">
@@ -213,10 +242,11 @@ export function RunLayoutsModal({
                                 Reset to Defaults
                             </Button>
                         </Group>
-                        <LayoutOptionsForm
-                            schema={layoutSchema}
+                        <OptionsForm
+                            options={layoutOptions}
                             values={configValues}
                             onChange={handleConfigChange}
+                            showAdvanced
                             hiddenFields={hiddenFields}
                         />
                     </>

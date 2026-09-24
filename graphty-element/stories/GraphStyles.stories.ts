@@ -1,7 +1,26 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled, waitForSkyboxLoaded } from "./helpers";
+import {
+    assertBackgroundColour,
+    assertDistinctPicture,
+    assertDrawnColour,
+    assertGraphLoaded,
+    assertLayerPainted,
+    assertSkyboxDrawn,
+    type Drawn,
+    drawn,
+} from "./assertions";
+import {
+    eventWaitingDecorator,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+    waitForSkyboxLoaded,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Graph",
@@ -9,13 +28,13 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator],
     argTypes: {
-        skybox: { control: "text", table: { category: "Background" }, name: "graph.background.skybox" },
-        background: { control: "color", table: { category: "Background" }, name: "graph.background.color" },
+        skybox: { control: "text", table: { category: "Background" }, name: "background.skybox" },
+        background: { control: "color", table: { category: "Background" }, name: "background.color" },
     },
     parameters: {
         // controls: {exclude: /^(#|_)/},
         controls: {
-            include: ["graph.background.skybox", "graph.background.color"],
+            include: ["background.skybox", "background.color"],
         },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
@@ -30,26 +49,40 @@ const meta: Meta = {
         layoutConfig: {
             seed: 42, // Fixed seed for consistent layouts in visual tests
         },
-        styleTemplate: templateCreator({
-            behavior: {
-                layout: {
-                    preSteps: 8000, // Extra preSteps for more stable physics layouts
-                },
-            },
+        setup: storySetup({
+            preSteps: 8000, // Extra preSteps for more stable physics layouts
         }),
     },
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
-// Common play function for all stories
-const waitForSettle = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+/**
+ * Settle the story and read what it drew. Every story here is the cat network: twenty nodes,
+ * twenty-nine edges, fetched over the network at render time.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @returns What the story drew.
+ */
+const settled = async (canvasElement: HTMLElement, story: string): Promise<Drawn> => {
     await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Styles/Graph ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+
+    return scene;
 };
 
 export const Default: Story = {
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Default");
+
+        // No background of the story's own, so the element's own is what is behind the graph.
+        await assertBackgroundColour(scene, "#f5f5f5");
+        await assertDistinctPicture(scene, "Styles/Graph");
+    },
 };
 
 export const Skybox: Story = {
@@ -62,18 +95,16 @@ export const Skybox: Story = {
         layoutConfig: {
             dim: 3,
         },
-        styleTemplate: templateCreator({
-            graph: {
-                background: {
-                    backgroundType: "skybox",
-                    data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/rolling_hills_equirectangular_skybox.png",
-                },
+        setup: storySetup({
+            background: {
+                backgroundType: "skybox",
+                data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/rolling_hills_equirectangular_skybox.png",
             },
         }),
     },
     parameters: {
         controls: {
-            include: ["graph.background.skybox"],
+            include: ["background.skybox"],
         },
         chromatic: {
             diffIncludeAntiAliasing: true,
@@ -83,49 +114,67 @@ export const Skybox: Story = {
     play: async ({ canvasElement }) => {
         // Wait for the skybox to fully load before taking the screenshot
         await waitForSkyboxLoaded(canvasElement);
-        await waitForGraphSettled(canvasElement);
+
+        const scene = await settled(canvasElement, "Skybox");
+
+        await assertSkyboxDrawn(scene);
+        await assertDistinctPicture(scene, "Styles/Graph");
     },
 };
 
 export const BackgroundColor: Story = {
     args: {
-        styleTemplate: templateCreator({
-            graph: { background: { backgroundType: "color", color: "hotpink" } },
-            behavior: { layout: { preSteps: 8000 } },
+        setup: storySetup({
+            background: { backgroundType: "color", color: "hotpink" },
+            preSteps: 8000,
         }),
     },
     parameters: {
         controls: {
-            include: ["graph.background.color"],
+            include: ["background.color"],
         },
     },
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "BackgroundColor");
+
+        await assertBackgroundColour(scene, "#ff69b4");
+        await assertDistinctPicture(scene, "Styles/Graph");
+    },
 };
 
+/**
+ * Three layers, each colouring the nodes one of its own selector matches.
+ *
+ * SELECTED BY AN ATTRIBUTE, NOT BY A PREFIX OF THE ID. The element's selector language admits no
+ * functions at all -- it is a declared subset of JMESPath, refused at its edge rather than
+ * narrowed in silence -- so `starts_with(id, 'Mlle')`, which these three layers used to say, is
+ * rejected by name with the offset it went wrong at. Equality against a field the data already
+ * carries says the same thing and costs one column read per node.
+ */
 export const Layers: Story = {
     args: {
-        styleTemplate: templateCreator({
+        setup: storySetup({
             layers: [
                 {
-                    node: {
-                        selector: "starts_with(id, 'Lt.') == `true`",
-                        style: { enabled: true, texture: { color: "black" } },
-                    },
+                    name: "Indoor cats are black",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
+                    set: { "node.color": "black" },
                 },
                 {
-                    node: {
-                        selector: "starts_with(id, 'Mme') == `true`",
-                        style: { enabled: true, texture: { color: "yellow" } },
-                    },
+                    name: "Outdoor cats are yellow",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'outdoor'" },
+                    set: { "node.color": "yellow" },
                 },
                 {
-                    node: {
-                        selector: "starts_with(id, 'Mlle') == `true`",
-                        style: { enabled: true, texture: { color: "red" } },
-                    },
+                    name: "Strays are red",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'stray'" },
+                    set: { "node.color": "red" },
                 },
             ],
-            behavior: { layout: { preSteps: 8000 } },
+            preSteps: 8000,
         }),
     },
     parameters: {
@@ -133,5 +182,22 @@ export const Layers: Story = {
             include: [],
         },
     },
-    play: waitForSettle,
+    play: async ({ canvasElement }) => {
+        const scene = await settled(canvasElement, "Layers");
+
+        // The cat network carries `indoor_outdoor` on every node: seven indoor, five outdoor,
+        // four strays, and four -- a clinic, a human, a kitten and a working cat -- that none of
+        // the three layers names and that are deliberately left to the element's own colour.
+        await assertLayerPainted(scene, "Indoor cats are black", { nodes: 7 });
+        await assertLayerPainted(scene, "Outdoor cats are yellow", { nodes: 5 });
+        await assertLayerPainted(scene, "Strays are red", { nodes: 4 });
+
+        const untouched = scene.nodes.filter((node) => node.hex === "#6366f1");
+
+        await assertDrawnColour(
+            scene,
+            Object.fromEntries(untouched.map((node) => [node.id, "#6366f1"])),
+        );
+        await assertDistinctPicture(scene, "Styles/Graph");
+    },
 };

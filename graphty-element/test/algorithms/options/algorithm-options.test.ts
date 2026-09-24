@@ -50,12 +50,12 @@ class TestAlgorithmWithOptions extends Algorithm<TestOptions> {
         return this.schemaOptions;
     }
 
+    /** What the last run resolved its options to, so a test can read them back. */
+    resolved: TestOptions | undefined;
+
     // eslint-disable-next-line @typescript-eslint/require-await
     async run(): Promise<void> {
-        // Store options in results for testing
-        this.addGraphResult("dampingFactor", this.schemaOptions.dampingFactor);
-        this.addGraphResult("maxIterations", this.schemaOptions.maxIterations);
-        this.addGraphResult("useCache", this.schemaOptions.useCache);
+        this.resolved = this.schemaOptions;
     }
 }
 
@@ -135,10 +135,9 @@ describe("Algorithm Options", () => {
 
             await algo.run();
 
-            const dm = graph.getDataManager();
-            assert.strictEqual(dm.graphResults?.test?.["with-options"]?.dampingFactor, 0.75);
-            assert.strictEqual(dm.graphResults?.test?.["with-options"]?.maxIterations, 200);
-            assert.strictEqual(dm.graphResults?.test?.["with-options"]?.useCache, false);
+            assert.strictEqual(algo.resolved?.dampingFactor, 0.75);
+            assert.strictEqual(algo.resolved?.maxIterations, 200);
+            assert.strictEqual(algo.resolved?.useCache, false);
         });
     });
 

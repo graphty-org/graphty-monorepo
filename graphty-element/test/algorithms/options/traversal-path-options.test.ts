@@ -39,7 +39,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Node A should be level 0 (it's the source)
-                const levelA = getNodeResult(graph, "A", "graphty", "bfs", "level");
+                const levelA = getNodeResult(algo, "A", "graphty", "bfs", "level");
                 assert.strictEqual(levelA, 0);
             });
         });
@@ -86,11 +86,11 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Node B should be level 0 (it's the custom source)
-                const levelB = getNodeResult(graph, "B", "graphty", "bfs", "level");
+                const levelB = getNodeResult(algo, "B", "graphty", "bfs", "level");
                 assert.strictEqual(levelB, 0);
 
                 // Node A should be level 1
-                const levelA = getNodeResult(graph, "A", "graphty", "bfs", "level");
+                const levelA = getNodeResult(algo, "A", "graphty", "bfs", "level");
                 assert.strictEqual(levelA, 1);
             });
         });
@@ -110,7 +110,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Node B should be level 0
-                const levelB = getNodeResult(graph, "B", "graphty", "bfs", "level");
+                const levelB = getNodeResult(algo, "B", "graphty", "bfs", "level");
                 assert.strictEqual(levelB, 0);
             });
         });
@@ -153,7 +153,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Node A should be discovery time 0 (it's the source)
-                const timeA = getNodeResult(graph, "A", "graphty", "dfs", "discoveryTime");
+                const timeA = getNodeResult(algo, "A", "graphty", "dfs", "discoveryTime");
                 assert.strictEqual(timeA, 0);
             });
         });
@@ -200,7 +200,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Node B should be discovery time 0 (it's the custom source)
-                const timeB = getNodeResult(graph, "B", "graphty", "dfs", "discoveryTime");
+                const timeB = getNodeResult(algo, "B", "graphty", "dfs", "discoveryTime");
                 assert.strictEqual(timeB, 0);
             });
         });
@@ -220,7 +220,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Node B should be discovery time 0
-                const timeB = getNodeResult(graph, "B", "graphty", "dfs", "discoveryTime");
+                const timeB = getNodeResult(algo, "B", "graphty", "dfs", "discoveryTime");
                 assert.strictEqual(timeB, 0);
             });
         });
@@ -271,11 +271,11 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // A should be in path (it's the source)
-                const isInPathA = getNodeResult(graph, "A", "graphty", "dijkstra", "isInPath");
+                const isInPathA = getNodeResult(algo, "A", "graphty", "dijkstra", "isInPath");
                 assert.isTrue(isInPathA);
 
                 // C should be in path (it's the default target - last node)
-                const isInPathC = getNodeResult(graph, "C", "graphty", "dijkstra", "isInPath");
+                const isInPathC = getNodeResult(algo, "C", "graphty", "dijkstra", "isInPath");
                 assert.isTrue(isInPathC);
             });
         });
@@ -333,17 +333,17 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // B should be in path
-                const isInPathB = getNodeResult(graph, "B", "graphty", "dijkstra", "isInPath");
+                const isInPathB = getNodeResult(algo, "B", "graphty", "dijkstra", "isInPath");
                 assert.isTrue(isInPathB);
 
                 // C should be in path
-                const isInPathC = getNodeResult(graph, "C", "graphty", "dijkstra", "isInPath");
+                const isInPathC = getNodeResult(algo, "C", "graphty", "dijkstra", "isInPath");
                 assert.isTrue(isInPathC);
 
                 // A and D should NOT be in path
-                const isInPathA = getNodeResult(graph, "A", "graphty", "dijkstra", "isInPath");
+                const isInPathA = getNodeResult(algo, "A", "graphty", "dijkstra", "isInPath");
                 assert.isFalse(isInPathA);
-                const isInPathD = getNodeResult(graph, "D", "graphty", "dijkstra", "isInPath");
+                const isInPathD = getNodeResult(algo, "D", "graphty", "dijkstra", "isInPath");
                 assert.isFalse(isInPathD);
             });
         });
@@ -363,7 +363,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // B should be in path
-                const isInPathB = getNodeResult(graph, "B", "graphty", "dijkstra", "isInPath");
+                const isInPathB = getNodeResult(algo, "B", "graphty", "dijkstra", "isInPath");
                 assert.isTrue(isInPathB);
             });
         });
@@ -414,13 +414,10 @@ describe("Traversal & Path Algorithm Options", () => {
                 const algo = new MaxFlowAlgorithm(graph);
                 await algo.run();
 
-                // A should be marked as source
-                const isSourceA = getNodeResult(graph, "A", "graphty", "max-flow", "isSource");
-                assert.isTrue(isSourceA);
-
-                // C should be marked as sink
-                const isSinkC = getNodeResult(graph, "C", "graphty", "max-flow", "isSink");
-                assert.isTrue(isSinkC);
+                // Which two nodes the flow ran between is part of what qualifies the numbers, so
+                // the run says so once in its caveats rather than flagging every node with two
+                // booleans that are false for all but two of them.
+                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("Flow from A to C")));
             });
         });
 
@@ -475,17 +472,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 const algo = new MaxFlowAlgorithm(graph, { source: "B", sink: "C" });
                 await algo.run();
 
-                // B should be marked as source
-                const isSourceB = getNodeResult(graph, "B", "graphty", "max-flow", "isSource");
-                assert.isTrue(isSourceB);
-
-                // C should be marked as sink
-                const isSinkC = getNodeResult(graph, "C", "graphty", "max-flow", "isSink");
-                assert.isTrue(isSinkC);
-
-                // A should NOT be source
-                const isSourceA = getNodeResult(graph, "A", "graphty", "max-flow", "isSource");
-                assert.isFalse(isSourceA);
+                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("Flow from B to C")));
             });
         });
 
@@ -503,9 +490,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 algo.configure({ source: "B", sink: "C" });
                 await algo.run();
 
-                // B should be marked as source
-                const isSourceB = getNodeResult(graph, "B", "graphty", "max-flow", "isSource");
-                assert.isTrue(isSourceB);
+                assert.ok(algo.result?.summary().caveats.notes.some((note: string) => note.includes("Flow from B to C")));
             });
         });
 
@@ -564,7 +549,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Cut value should be computed
-                const cutValue = getGraphResult(graph, "graphty", "min-cut", "cutValue");
+                const cutValue = getGraphResult(algo, "graphty", "min-cut", "cutValue");
                 assert.isDefined(cutValue);
                 assert.isNumber(cutValue);
             });
@@ -637,7 +622,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Cut value should be computed
-                const cutValue = getGraphResult(graph, "graphty", "min-cut", "cutValue");
+                const cutValue = getGraphResult(algo, "graphty", "min-cut", "cutValue");
                 assert.isDefined(cutValue);
             });
 
@@ -654,7 +639,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Cut value should be computed using Stoer-Wagner
-                const cutValue = getGraphResult(graph, "graphty", "min-cut", "cutValue");
+                const cutValue = getGraphResult(algo, "graphty", "min-cut", "cutValue");
                 assert.isDefined(cutValue);
             });
         });
@@ -674,7 +659,7 @@ describe("Traversal & Path Algorithm Options", () => {
                 await algo.run();
 
                 // Cut value should be computed
-                const cutValue = getGraphResult(graph, "graphty", "min-cut", "cutValue");
+                const cutValue = getGraphResult(algo, "graphty", "min-cut", "cutValue");
                 assert.isDefined(cutValue);
             });
         });

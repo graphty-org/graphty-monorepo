@@ -15,6 +15,7 @@ import type { AiStatus } from "../src/ai/AiStatus";
 import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
+import { assertControlsPresent, assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
 
 // Sample network infrastructure graph
 const SAMPLE_NODES = [
@@ -1367,4 +1368,24 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Default: Story = {};
+export const Default: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "AI Control Default");
+
+        // The showcase puts its own sample network into the element a tick after it renders.
+        await assertGraphLoaded(scene, { nodes: 12, edges: 20 });
+        await assertLayoutPlaced(scene, {});
+
+        // The panel beside the graph is half of what this story is: the provider it will talk to,
+        // the key it will talk with, and the box a person types a command into.
+        await assertControlsPresent(canvasElement, "AI Control Default", [
+            "#provider-select",
+            "#api-key",
+            "#connect-btn",
+            "#command-input",
+            "#send-btn",
+            "#command-history",
+            "#response-output",
+        ]);
+    },
+};

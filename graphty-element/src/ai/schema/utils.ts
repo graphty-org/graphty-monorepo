@@ -15,9 +15,16 @@ export interface NumericStatistics {
 }
 
 /**
- * Histogram bin representation.
+ * One bar of the distribution a schema summary draws for an attribute column.
+ *
+ * NAMED APART FROM THE RESULT HISTOGRAM ON PURPOSE. `./session` publishes a `HistogramBin` of its
+ * own -- `{ from, to, count }`, the bars a run's result is drawn as -- and the two are different
+ * shapes for different questions: this one describes an ATTRIBUTE the data arrived with, carries
+ * its range as a printed string for a language model to read back, and is cut into five bands
+ * rather than twenty. A consumer importing both entry points would otherwise have two types of
+ * one name and no way to tell which it had.
  */
-export interface HistogramBin {
+export interface AttributeHistogramBin {
     range: string;
     count: number;
     min: number;
@@ -124,7 +131,7 @@ export function calculateStatistics(values: number[]): NumericStatistics {
  * @param binCount - Number of bins to create (default 5)
  * @returns Array of histogram bins
  */
-export function generateHistogram(values: number[], binCount = 5): HistogramBin[] {
+export function generateHistogram(values: number[], binCount = 5): AttributeHistogramBin[] {
     if (values.length === 0) {
         return [];
     }
@@ -145,7 +152,7 @@ export function generateHistogram(values: number[], binCount = 5): HistogramBin[
     }
 
     const binSize = (max - min) / binCount;
-    const bins: HistogramBin[] = [];
+    const bins: AttributeHistogramBin[] = [];
 
     // Create bins
     for (let i = 0; i < binCount; i++) {

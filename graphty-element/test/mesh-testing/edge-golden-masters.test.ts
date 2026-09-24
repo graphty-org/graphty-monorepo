@@ -1,1094 +1,380 @@
 /**
  * Edge Golden Master Tests
  *
- * Tests all line types, arrow heads, animations, and edge configurations to achieve
- * 100% coverage of EdgeMesh.ts functionality. Tests CustomLineRenderer (solid lines)
- * and PatternedLineRenderer (instanced patterns) based on the updated architecture.
+ * Every line type the edge schema offers, built through the real `EdgeMesh.create` in 3D and in
+ * 2D, plus the bezier and transform maths that positions it.
+ *
+ * WHAT THE RETIRED VERSION OF THIS FILE ASSERTED, AND WHY. It drove an `EdgeMeshFactory` that
+ * imported nothing from `src/` and described one renderer handling everything. Four of its claims
+ * are false, and each one was worth a block of cases:
+ *
+ *   - "EdgeMesh.create builds the arrows named in the style". It does not. Arrows come from a
+ *     separate `EdgeMesh.createArrowHead` call, so roughly sixty cases passing
+ *     `arrow: {source, target}` into `create` were exercising an API that has never existed. Arrow
+ *     coverage lives in arrowhead-golden-masters.test.ts, against the call that really makes them,
+ *     and the duplicate `ArrowMeshFactory Golden Masters` half of this file is deleted rather than
+ *     translated.
+ *   - "every line type uses CustomLineRenderer". Four different things happen: a solid 3D line is
+ *     cached and instanced, a solid 2D line goes to `Simple2DLineRenderer`, the eight patterned
+ *     types return a `PatternedLineMesh` (which is not a Babylon mesh at all), and a bezier goes to
+ *     `CustomLineRenderer` with its geometry baked in world space.
+ *   - "mesh.metadata carries width and color". `metadata` is null on a cached solid line. The two
+ *     values the product really does put there are `isBezierCurve` and `is2DLine`, and both mean
+ *     something to `Edge.update`.
+ *   - "bezier works with patterned lines". It does not -- see the test that records it below.
  */
 
-import { assert, describe, test } from "vitest";
+import { InstancedMesh, Mesh, ShaderMaterial, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import { ArrowMeshFactory, EdgeMeshFactory } from "./mesh-factory";
+import type { EdgeStyleConfig } from "../../src/config";
+import { EdgeStyle } from "../../src/config/EdgeStyle";
+import { EdgeMesh } from "../../src/meshes/EdgeMesh";
+import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { create2DMeshScene, createMeshScene, type MeshTestScene } from "./real-mesh-harness";
+
+/** The eight line types that are drawn as a run of small meshes rather than as one line. */
+const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"] as const;
+const ALL_LINE_TYPES = ["solid", ...PATTERNED_TYPES] as const;
+
+let ctx: MeshTestScene;
+let counter = 0;
+
+interface EdgeArgs {
+    style: EdgeStyleConfig;
+    width?: number;
+    color?: string;
+    styleId?: string;
+    src?: Vector3;
+    dst?: Vector3;
+}
+
+function makeEdge(args: EdgeArgs): Mesh | InstancedMesh | PatternedLineMesh {
+    counter += 1;
+    return EdgeMesh.create(
+        ctx.cache,
+        { styleId: args.styleId ?? `edge-${counter}`, width: args.width ?? 20, color: args.color ?? "#FF0000" },
+        args.style,
+        ctx.scene,
+        args.src,
+        args.dst,
+    ) as Mesh | InstancedMesh | PatternedLineMesh;
+}
 
 describe("Edge Golden Masters", () => {
-    // Line type tests - all 9 supported line types
-    describe("Line Types", () => {
-        const lineTypes = EdgeMeshFactory.LINE_TYPES;
+    describe("3D dispatch", () => {
+        beforeEach(() => {
+            ctx = createMeshScene();
+        });
 
-        lineTypes.forEach((lineType) => {
-            test(`creates ${lineType} line`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: lineType,
-                    width: 2,
-                    color: "#000000",
-                });
+        afterEach(() => {
+            ctx.dispose();
+        });
 
-                assert.isTrue(
-                    result.validation.isValid,
-                    `${lineType} validation failed: ${result.validation.errors.join(", ")}`,
-                );
-                assert.equal(result.mesh.metadata.lineType, lineType);
+        test("a solid line is a cached instance drawn by the billboard shader", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid" } } }) as InstancedMesh;
 
-                // Solid lines use CustomLineRenderer, all other patterns use PatternedLineRenderer
-                if (lineType === "solid") {
-                    assert.equal(result.mesh.metadata.meshType, "customLine");
-                    assert.equal(result.mesh.metadata.rendererType, "CustomLineRenderer");
-                } else {
-                    assert.equal(result.mesh.metadata.meshType, "instancedPattern");
-                    assert.equal(result.mesh.metadata.rendererType, "PatternedLineRenderer");
-                }
+            assert.instanceOf(mesh, InstancedMesh);
+            assert.instanceOf(mesh.material, ShaderMaterial);
+            assert.equal(ctx.cache.size(), 1);
+        });
+
+        test("solid is the default when the style names no type", () => {
+            const implicit = makeEdge({ style: { line: {} } });
+            const explicit = makeEdge({ style: { line: { type: "solid" } } });
+
+            assert.equal(implicit.constructor.name, explicit.constructor.name);
+            assert.instanceOf(implicit, InstancedMesh);
+        });
+
+        test("a style with no line block at all still produces a line", () => {
+            const mesh = makeEdge({ style: {} });
+
+            assert.instanceOf(mesh, InstancedMesh);
+        });
+
+        PATTERNED_TYPES.forEach((lineType) => {
+            test(`${lineType} is drawn as a run of pattern meshes`, () => {
+                const mesh = makeEdge({ style: { line: { type: lineType } } }) as PatternedLineMesh;
+
+                assert.instanceOf(mesh, PatternedLineMesh);
+                assert.equal(mesh.pattern, lineType);
+                assert.isAbove(mesh.meshes.length, 0, "a pattern with no elements draws nothing");
+            });
+        });
+
+        test("patterned lines are not cached -- each edge owns its own run of meshes", () => {
+            makeEdge({ style: { line: { type: "dot" } }, styleId: "shared-pattern" });
+            makeEdge({ style: { line: { type: "dot" } }, styleId: "shared-pattern" });
+
+            assert.equal(ctx.cache.size(), 0);
+        });
+
+        test("two edges sharing a style id share one cached solid line", () => {
+            const first = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared-solid" }) as InstancedMesh;
+            const second = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared-solid" }) as InstancedMesh;
+
+            assert.notStrictEqual(first, second, "each edge gets its own instance");
+            assert.strictEqual(first.sourceMesh, second.sourceMesh);
+            assert.equal(ctx.cache.size(), 1);
+        });
+
+        test("an animation speed swaps the billboard shader for a scrolling texture", () => {
+            const still = makeEdge({ style: { line: { type: "solid" } } }) as InstancedMesh;
+            const moving = makeEdge({ style: { line: { type: "solid", animationSpeed: 2 } } }) as InstancedMesh;
+
+            assert.instanceOf(still.material, ShaderMaterial);
+            assert.instanceOf(moving.material, StandardMaterial);
+        });
+
+        [0.5, 1, 2, 4].forEach((animationSpeed) => {
+            test(`animation speed ${animationSpeed} still produces a drawable line`, () => {
+                const mesh = makeEdge({ style: { line: { type: "solid", animationSpeed } } }) as InstancedMesh;
+
+                assert.isAbove(mesh.getTotalVertices(), 0);
+            });
+        });
+
+        [0, 0.25, 0.5, 0.75, 1].forEach((opacity) => {
+            test(`line opacity ${opacity} reaches mesh.visibility`, () => {
+                const mesh = makeEdge({ style: { line: { type: "solid", opacity } } });
+
+                assert.equal(mesh.visibility, opacity);
             });
         });
     });
 
-    // Width variations
-    describe("Line Width", () => {
-        const widths = [0.5, 1, 2, 5, 10];
+    describe("Pattern density", () => {
+        beforeEach(() => {
+            ctx = createMeshScene();
+        });
 
-        widths.forEach((width) => {
-            test(`creates line with width ${width}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: width,
-                    color: "#FF0000",
-                });
+        afterEach(() => {
+            ctx.dispose();
+        });
 
-                assert.isTrue(result.validation.isValid);
-                assert.equal(result.mesh.metadata.lineWidth, width);
+        test("without patternCount the element count follows the line's length", () => {
+            const mesh = makeEdge({ style: { line: { type: "dot" } } }) as PatternedLineMesh;
+            const initial = mesh.meshes.length;
+
+            mesh.update(new Vector3(0, 0, 0), new Vector3(50, 0, 0));
+
+            assert.isAbove(mesh.meshes.length, initial, "a longer edge gets more dots");
+        });
+
+        test("patternCount pins the element count whatever the line does", () => {
+            // This is the whole point of the option: the spacing rule puts elements one and a half
+            // element-widths apart, so a long edge at a small line width can reach tens of thousands
+            // of meshes and the frame rate collapses. A pinned count that drifted under update()
+            // would give the caller no way to stop that.
+            const mesh = makeEdge({ style: { line: { type: "dot", patternCount: 5 } } }) as PatternedLineMesh;
+
+            assert.equal(mesh.meshes.length, 5);
+            mesh.update(new Vector3(0, 0, 0), new Vector3(50, 0, 0));
+            assert.equal(mesh.meshes.length, 5);
+        });
+
+        [2, 3, 8, 20].forEach((patternCount) => {
+            test(`patternCount ${patternCount} produces exactly that many elements`, () => {
+                const mesh = makeEdge({ style: { line: { type: "dash", patternCount } } }) as PatternedLineMesh;
+
+                assert.equal(mesh.meshes.length, patternCount);
+            });
+        });
+
+        test("the schema refuses a pattern count below two", () => {
+            assert.isFalse(EdgeStyle.safeParse({ line: { type: "dot", patternCount: 1 } }).success);
+            assert.isTrue(EdgeStyle.safeParse({ line: { type: "dot", patternCount: 2 } }).success);
+        });
+    });
+
+    describe("2D dispatch", () => {
+        beforeEach(() => {
+            ctx = create2DMeshScene();
+        });
+
+        afterEach(() => {
+            ctx.dispose();
+        });
+
+        test("a solid line in 2D is a world-space mesh, not a billboard instance", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid" } } }) as Mesh;
+
+            assert.notInstanceOf(mesh, InstancedMesh);
+            assert.instanceOf(mesh.material, StandardMaterial);
+            assert.isTrue(mesh.metadata.is2DLine, "Edge.update reads this to decide how to move the line");
+            assert.equal(ctx.cache.size(), 0, "2D lines are per-edge, so nothing is cached");
+        });
+
+        test("2D lines are unlit and coloured through the emissive channel", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid" } }, color: "#00FF00" }) as Mesh;
+            const material = mesh.material as StandardMaterial;
+
+            assert.isTrue(material.disableLighting);
+            assert.deepEqual([material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b], [0, 1, 0]);
+        });
+
+        test("2D line opacity lands on the material's alpha", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid", opacity: 0.4 } } }) as Mesh;
+
+            assert.equal((mesh.material as StandardMaterial).alpha, 0.4);
+        });
+
+        test("the requested width reaches the 2D line's geometry", () => {
+            const thin = makeEdge({ style: { line: { type: "solid" } }, width: 20 }) as Mesh;
+            const thick = makeEdge({ style: { line: { type: "solid" } }, width: 80 }) as Mesh;
+
+            assert.isAbove(Number(thick.metadata.lineWidth), Number(thin.metadata.lineWidth));
+        });
+
+        PATTERNED_TYPES.forEach((lineType) => {
+            test(`2D ${lineType} still uses the patterned renderer`, () => {
+                const mesh = makeEdge({ style: { line: { type: lineType } } });
+
+                assert.instanceOf(mesh, PatternedLineMesh);
             });
         });
     });
 
-    // Color variations
-    describe("Line Colors", () => {
-        const colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFFFF", "#000000", "#FFFF00"];
+    describe("Bezier curves", () => {
+        beforeEach(() => {
+            ctx = createMeshScene();
+        });
 
-        colors.forEach((color) => {
-            test(`creates line with color ${color}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: 1,
-                    color: color,
-                });
+        afterEach(() => {
+            ctx.dispose();
+        });
 
-                assert.isTrue(result.validation.isValid);
-                assert.equal(result.mesh.metadata.lineColor, color);
+        test("a bezier is a per-edge mesh flagged so nothing transforms it again", () => {
+            const mesh = makeEdge({
+                style: { line: { type: "solid", bezier: true } },
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            }) as Mesh;
+
+            assert.isTrue(mesh.metadata.isBezierCurve);
+            assert.equal(ctx.cache.size(), 0);
+            assert.isAbove(mesh.getTotalVertices(), 4, "a curve needs more than the four corners of a quad");
+        });
+
+        test("bezier is ignored without both endpoints", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid", bezier: true } } });
+
+            assert.instanceOf(mesh, InstancedMesh);
+        });
+
+        test("bezier silently wins over a line pattern", () => {
+            // REPORTED, NOT FIXED. `EdgeMesh.create` tests `style.line.bezier` before it looks at
+            // the line type, so `{type: "dash", bezier: true}` -- a style the schema accepts in
+            // full -- draws a SOLID curve and the dashes are gone. Nothing warns. This is the same
+            // shape of defect as the gradient node colours that rendered flat white: the schema
+            // says yes, the renderer quietly does something else, and the caller pays the interning
+            // cost for a style they do not get.
+            //
+            // This asserts what happens today so the behaviour is at least recorded. It fails the
+            // moment patterned beziers work, which is the right prompt to update it.
+            const mesh = makeEdge({
+                style: { line: { type: "dash", bezier: true } },
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
             });
+
+            assert.notInstanceOf(mesh, PatternedLineMesh);
+            assert.isTrue((mesh as Mesh).metadata.isBezierCurve);
+        });
+
+        test("bezier opacity reaches the mesh", () => {
+            const mesh = makeEdge({
+                style: { line: { type: "solid", bezier: true, opacity: 0.3 } },
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
+
+            assert.equal(mesh.visibility, 0.3);
+        });
+
+        test("the curve starts and ends where it was asked to", () => {
+            const points = EdgeMesh.createBezierLine(new Vector3(0, 0, 0), new Vector3(5, 0, 0));
+
+            assert.isAbove(points.length / 3, 2, "a curve needs intermediate points to bow");
+            assert.deepEqual(points.slice(0, 3), [0, 0, 0]);
+            assert.deepEqual(points.slice(-3), [5, 0, 0]);
+        });
+
+        test("the curve bows rather than running straight", () => {
+            // The whole visible point of a bezier edge, and the thing a mesh-exists assertion
+            // cannot see: a renderer that dropped the control points would still return a mesh.
+            const points = EdgeMesh.createBezierLine(new Vector3(0, 0, 0), new Vector3(5, 0, 0));
+            let offAxis = 0;
+
+            for (let i = 0; i < points.length; i += 3) {
+                offAxis = Math.max(offAxis, Math.abs(points[i + 1]), Math.abs(points[i + 2]));
+            }
+
+            assert.isAbove(offAxis, 0);
+        });
+
+        test("a self-loop becomes a closed curve rather than a zero-length line", () => {
+            const loop = EdgeMesh.createBezierLine(new Vector3(1, 1, 1), new Vector3(1, 1, 1));
+
+            assert.isAbove(loop.length / 3, 2);
         });
     });
 
-    // Opacity variations (Phase 3 spec section 3.3)
-    describe("Line Opacity", () => {
-        const opacities = [0.0, 0.25, 0.5, 0.75, 1.0];
+    describe("Transforming a straight line", () => {
+        beforeEach(() => {
+            ctx = createMeshScene();
+        });
 
-        opacities.forEach((opacity) => {
-            test(`creates line with opacity ${opacity}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: 1,
-                    color: "#FF0000",
-                    opacity: opacity,
-                });
+        afterEach(() => {
+            ctx.dispose();
+        });
 
-                assert.isTrue(result.validation.isValid);
-                assert.equal(result.mesh.metadata.lineOpacity, opacity);
-            });
+        test("the line is centred between its endpoints and scaled to their distance", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid" } } });
+            EdgeMesh.transformMesh(mesh as Mesh, new Vector3(0, 0, 0), new Vector3(0, 0, 10));
+
+            assert.closeTo(mesh.position.z, 5, 1e-6);
+            assert.closeTo(mesh.scaling.z, 10, 1e-6);
+        });
+
+        test("a diagonal line lands on the midpoint too", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid" } } });
+            EdgeMesh.transformMesh(mesh as Mesh, new Vector3(-3, -4, 0), new Vector3(3, 4, 0));
+
+            assert.closeTo(mesh.position.x, 0, 1e-6);
+            assert.closeTo(mesh.position.y, 0, 1e-6);
+            assert.closeTo(mesh.scaling.z, 10, 1e-6);
         });
     });
 
-    // Bezier curve tests (Phase 3 spec section 3.3)
-    describe("Bezier Curves", () => {
-        test("creates bezier curve when bezier is true", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 1,
-                color: "#FF0000",
-                bezier: true,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isTrue(result.mesh.metadata.bezier);
-            assert.isAtLeast(result.mesh.metadata.segmentCount as number, 10);
+    describe("The line vocabulary", () => {
+        beforeEach(() => {
+            ctx = createMeshScene();
         });
 
-        test("creates straight line when bezier is false", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 1,
-                color: "#FF0000",
-                bezier: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isUndefined(result.mesh.metadata.bezier);
+        afterEach(() => {
+            ctx.dispose();
         });
 
-        test("bezier works with patterned lines", () => {
-            const result = EdgeMeshFactory.create({
-                type: "dash",
-                width: 2,
-                color: "#00FF00",
-                bezier: true,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isTrue(result.mesh.metadata.bezier);
-            assert.equal(result.mesh.metadata.lineType, "dash");
-        });
-    });
-
-    // Static vs animated lines
-    describe("Line Animation", () => {
-        test("creates static line (no animation)", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 2,
-                color: "#FF0000",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isFalse(result.mesh.metadata.animated);
-            assert.isUndefined(result.mesh.metadata.animationSpeed);
-        });
-
-        test("creates animated line with animation speed", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 2,
-                color: "#FF0000",
-                animationSpeed: 1.5,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isTrue(result.mesh.metadata.animated);
-            assert.equal(result.mesh.metadata.animationSpeed, 1.5);
-            assert.isTrue(result.material.metadata.hasAnimationTexture);
-        });
-
-        test("creates animated line with various speeds", () => {
-            const speeds = [0.5, 1, 2, 5];
-
-            speeds.forEach((speed) => {
-                const result = EdgeMeshFactory.create({
-                    type: "dash",
-                    width: 1,
-                    color: "#00FF00",
-                    animationSpeed: speed,
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.isTrue(result.mesh.metadata.animated);
-                assert.equal(result.mesh.metadata.animationSpeed, speed);
-            });
-        });
-    });
-
-    // Pattern shapes - testing the new architecture
-    describe("Pattern Shapes", () => {
-        // Patterns that use instanced meshes with specific shapes
-        const patternTypes: { type: string; shape: string }[] = [
-            { type: "dot", shape: "circle" },
-            { type: "star", shape: "star" },
-            { type: "box", shape: "square" },
-            { type: "dash", shape: "rectangle" },
-            { type: "diamond", shape: "diamond" },
-            { type: "dash-dot", shape: "alternating" },
-        ];
-
-        patternTypes.forEach(({ type, shape }) => {
-            test(`creates ${type} pattern with ${shape} instances`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: type,
-                    width: 2,
-                    color: "#0000FF",
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.equal(result.mesh.metadata.lineType, type);
-                // Patterned lines should have patternShape metadata
-                assert.equal(result.mesh.metadata.patternShape, shape);
-                assert.isTrue(result.mesh.metadata.usesInstancing);
+        ALL_LINE_TYPES.forEach((lineType) => {
+            test(`the edge schema accepts line type "${lineType}"`, () => {
+                assert.isTrue(EdgeStyle.safeParse({ line: { type: lineType } }).success);
             });
         });
 
-        test("creates special wave patterns", () => {
-            const waveTypes = ["sinewave", "zigzag"];
+        test("every line type the schema accepts produces something drawable", () => {
+            for (const lineType of ALL_LINE_TYPES) {
+                const mesh = makeEdge({ style: { line: { type: lineType } } });
+                const drawn =
+                    mesh instanceof PatternedLineMesh ? mesh.meshes.length > 0 : (mesh as Mesh).getTotalVertices() > 0;
 
-            waveTypes.forEach((waveType) => {
-                const result = EdgeMeshFactory.create({
-                    type: waveType,
-                    width: 1,
-                    color: "#FF00FF",
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.equal(result.mesh.metadata.lineType, waveType);
-            });
-        });
-    });
-
-    // Arrow head tests - all 14 arrow types
-    describe("Arrow Heads", () => {
-        const arrowTypes = EdgeMeshFactory.ARROW_TYPES;
-
-        arrowTypes.forEach((arrowType) => {
-            test(`creates source arrow: ${arrowType}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: 2,
-                    color: "#000000",
-                    arrow: {
-                        source: {
-                            type: arrowType,
-                            size: 1,
-                            color: "#FF0000",
-                        },
-                    },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.isDefined(result.mesh.metadata.sourceArrow);
-                assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, arrowType);
-            });
-
-            test(`creates target arrow: ${arrowType}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: 2,
-                    color: "#000000",
-                    arrow: {
-                        target: {
-                            type: arrowType,
-                            size: 1.5,
-                            color: "#00FF00",
-                        },
-                    },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.isDefined(result.mesh.metadata.targetArrow);
-                assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, arrowType);
-                assert.equal((result.mesh.metadata.targetArrow as { size: number }).size, 1.5);
-            });
-        });
-
-        test("creates double-headed arrows", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 3,
-                color: "#000000",
-                arrow: {
-                    source: {
-                        type: "normal",
-                        size: 1,
-                        color: "#FF0000",
-                    },
-                    target: {
-                        type: "inverted",
-                        size: 1.2,
-                        color: "#0000FF",
-                    },
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isDefined(result.mesh.metadata.sourceArrow);
-            assert.isDefined(result.mesh.metadata.targetArrow);
-            assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, "normal");
-            assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, "inverted");
-        });
-    });
-
-    // Arrow size variations
-    describe("Arrow Sizing", () => {
-        const sizes = [0.5, 1, 1.5, 2, 3];
-
-        sizes.forEach((size) => {
-            test(`creates arrow with size ${size}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: 2,
-                    color: "#000000",
-                    arrow: {
-                        target: {
-                            type: "normal",
-                            size: size,
-                            color: "#FF0000",
-                        },
-                    },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.equal((result.mesh.metadata.targetArrow as { size: number }).size, size);
-            });
-        });
-    });
-
-    // Arrow Color Independence (Phase 3 spec section 3.5)
-    describe("Arrow Color Independence", () => {
-        test("arrow color is independent from line color", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 2,
-                color: "#0000FF", // Blue line
-                arrow: {
-                    target: { type: "normal", size: 1, color: "#FF0000" }, // Red arrow
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineColor, "#0000FF");
-            assert.equal((result.mesh.metadata.targetArrow as { color: string }).color, "#FF0000");
-        });
-
-        test("multiple arrows can have different colors", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 2,
-                color: "#000000",
-                arrow: {
-                    source: { type: "normal", size: 1, color: "#FF0000" },
-                    target: { type: "inverted", size: 1, color: "#00FF00" },
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal((result.mesh.metadata.sourceArrow as { color: string }).color, "#FF0000");
-            assert.equal((result.mesh.metadata.targetArrow as { color: string }).color, "#00FF00");
-        });
-    });
-
-    // Arrow Opacity (Phase 3 spec section 3.5)
-    describe("Arrow Opacity", () => {
-        const opacities = [0.0, 0.5, 1.0];
-
-        opacities.forEach((opacity) => {
-            test(`creates arrow with opacity ${opacity}`, () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    width: 2,
-                    color: "#000000",
-                    arrow: {
-                        target: { type: "normal", size: 1, color: "#FF0000", opacity },
-                    },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                assert.equal((result.mesh.metadata.targetArrow as { opacity: number }).opacity, opacity);
-            });
-        });
-    });
-
-    // 2D vs 3D Mode (Phase 3 spec section 3.6)
-    describe("2D vs 3D Mode", () => {
-        describe("3D Mode (Default)", () => {
-            test("3D filled arrows use FilledArrowRenderer", () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    is2D: false,
-                    arrow: { target: { type: "normal", size: 1, color: "#FF0000" } },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                const arrow = result.mesh.metadata.targetArrow as Record<string, unknown>;
-                assert.equal(arrow.rendererType, "FilledArrowRenderer");
-                assert.equal(arrow.geometryPlane, "XZ");
-            });
-
-            test("3D outline arrows use CustomLineRenderer", () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    is2D: false,
-                    arrow: { target: { type: "open-normal", size: 1, color: "#FF0000" } },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                const arrow = result.mesh.metadata.targetArrow as Record<string, unknown>;
-                assert.equal(arrow.rendererType, "CustomLineRenderer");
-            });
-        });
-
-        describe("2D Mode", () => {
-            test("2D arrows use StandardMaterial", () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    is2D: true,
-                    arrow: { target: { type: "normal", size: 1, color: "#FF0000" } },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                const arrow = result.mesh.metadata.targetArrow as Record<string, unknown>;
-                assert.equal(arrow.materialType, "StandardMaterial");
-                assert.equal(arrow.geometryPlane, "XY");
-            });
-
-            test("2D mode affects all arrows", () => {
-                const result = EdgeMeshFactory.create({
-                    type: "solid",
-                    is2D: true,
-                    arrow: {
-                        source: { type: "diamond", size: 1, color: "#FF0000" },
-                        target: { type: "normal", size: 1, color: "#00FF00" },
-                    },
-                });
-
-                assert.isTrue(result.validation.isValid);
-                const sourceArrow = result.mesh.metadata.sourceArrow as Record<string, unknown>;
-                const targetArrow = result.mesh.metadata.targetArrow as Record<string, unknown>;
-                assert.isTrue(sourceArrow.is2D as boolean);
-                assert.isTrue(targetArrow.is2D as boolean);
-                assert.equal(sourceArrow.geometryPlane, "XY");
-                assert.equal(targetArrow.geometryPlane, "XY");
-            });
-        });
-    });
-
-    // Combined configurations
-    describe("Complex Combinations", () => {
-        test("animated dashed line with arrows", () => {
-            const result = EdgeMeshFactory.create({
-                type: "dash-dot",
-                width: 2.5,
-                color: "#FF8800",
-                animationSpeed: 2,
-                arrow: {
-                    source: {
-                        type: "dot",
-                        size: 1,
-                        color: "#FF0000",
-                    },
-                    target: {
-                        type: "diamond",
-                        size: 1.5,
-                        color: "#0000FF",
-                    },
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineType, "dash-dot");
-            assert.isTrue(result.mesh.metadata.animated);
-            assert.equal(result.mesh.metadata.animationSpeed, 2);
-            assert.isDefined(result.mesh.metadata.sourceArrow);
-            assert.isDefined(result.mesh.metadata.targetArrow);
-        });
-
-        test("thick animated zigzag with special arrows", () => {
-            const result = EdgeMeshFactory.create({
-                type: "zigzag",
-                width: 5,
-                color: "#00FFFF",
-                animationSpeed: 0.5,
-                arrow: {
-                    source: {
-                        type: "crow",
-                        size: 2,
-                        color: "#FFFF00",
-                    },
-                    target: {
-                        type: "half-open",
-                        size: 1.5,
-                        color: "#FF00FF",
-                    },
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineType, "zigzag");
-            assert.equal(result.mesh.metadata.lineWidth, 5);
-            assert.isTrue(result.mesh.metadata.animated);
-        });
-
-        test("bezier curve with mixed arrow types", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 2,
-                color: "#00FFFF",
-                bezier: true,
-                arrow: {
-                    source: { type: "tee", size: 1, color: "#FFFF00" },
-                    target: { type: "normal", size: 2, color: "#FF00FF" },
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isTrue(result.mesh.metadata.bezier);
-            assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, "tee");
-            assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, "normal");
-        });
-
-        test("animated dashed line with bidirectional arrows and opacity", () => {
-            const result = EdgeMeshFactory.create({
-                type: "dash-dot",
-                width: 2.5,
-                color: "#FF8800",
-                opacity: 0.8,
-                animationSpeed: 2,
-                arrow: {
-                    source: { type: "dot", size: 1, color: "#FF0000", opacity: 0.9 },
-                    target: { type: "diamond", size: 1.5, color: "#0000FF", opacity: 1.0 },
-                },
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineType, "dash-dot");
-            assert.equal(result.mesh.metadata.lineOpacity, 0.8);
-            assert.isTrue(result.mesh.metadata.animated);
-            assert.equal(result.mesh.metadata.animationSpeed, 2);
-            assert.isDefined(result.mesh.metadata.sourceArrow);
-            assert.isDefined(result.mesh.metadata.targetArrow);
-        });
-    });
-
-    // Geometry validation for new architecture
-    describe("Geometry Validation", () => {
-        test("uses correct geometry type for solid lines", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 1,
-                color: "#000000",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            // CustomLineRenderer uses quad-strip geometry
-            assert.equal(result.mesh.metadata.geometryType, "quadStrip");
-            assert.equal(result.mesh.metadata.verticesPerSegment, 4);
-        });
-
-        test("uses instancing for patterned lines", () => {
-            const result = EdgeMeshFactory.create({
-                type: "dot",
-                width: 1,
-                color: "#000000",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            // PatternedLineRenderer uses instanced meshes
-            assert.isTrue(result.mesh.metadata.usesInstancing);
-            assert.isDefined(result.mesh.metadata.patternShape);
-        });
-    });
-
-    // Animation texture validation
-    describe("Animation Texture", () => {
-        test("creates proper texture for animated lines", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 2,
-                color: "#FF0000",
-                animationSpeed: 1,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isTrue(result.mesh.metadata.animated);
-            assert.equal(result.mesh.metadata.animationSpeed, 1);
-            assert.isTrue(result.material.metadata.hasAnimationTexture);
-        });
-    });
-
-    // Default value handling
-    describe("Default Values", () => {
-        test("applies default line type (solid)", () => {
-            const result = EdgeMeshFactory.create({
-                width: 1,
-                color: "#000000",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineType, "solid");
-        });
-
-        test("applies default width (1)", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                color: "#000000",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineWidth, 1);
-        });
-
-        test("applies default color (#000000)", () => {
-            const result = EdgeMeshFactory.create({
-                type: "solid",
-                width: 1,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.equal(result.mesh.metadata.lineColor, "#000000");
-        });
-    });
-});
-
-/**
- * ArrowMeshFactory Golden Masters - Basic tests for arrow mesh creation
- *
- * Tests the ArrowMeshFactory to validate independent arrow mesh creation
- * with all 15 arrow types, geometry validation, and 2D/3D mode support.
- */
-describe("ArrowMeshFactory Golden Masters", () => {
-    // Test all arrow types can be created
-    describe("Arrow Type Creation", () => {
-        const arrowTypes = ArrowMeshFactory.ARROW_TYPES.filter((t) => t !== "none");
-
-        arrowTypes.forEach((arrowType) => {
-            test(`creates ${arrowType} arrow in 3D mode`, () => {
-                const result = ArrowMeshFactory.create({
-                    type: arrowType,
-                    is2D: false,
-                    size: 1,
-                    color: "#FF0000",
-                });
-
-                assert.isTrue(
-                    result.validation.isValid,
-                    `${arrowType} validation failed: ${result.validation.errors.join(", ")}`,
-                );
-                assert.isNotNull(result.mesh);
-                assert.isNotNull(result.material);
-                assert.equal(result.mesh.metadata.arrowType, arrowType);
-            });
-
-            test(`creates ${arrowType} arrow in 2D mode`, () => {
-                const result = ArrowMeshFactory.create({
-                    type: arrowType,
-                    is2D: true,
-                    size: 1,
-                    color: "#00FF00",
-                });
-
-                assert.isTrue(
-                    result.validation.isValid,
-                    `2D ${arrowType} validation failed: ${result.validation.errors.join(", ")}`,
-                );
-                assert.isNotNull(result.mesh);
-                assert.isNotNull(result.material);
-                assert.equal(result.mesh.metadata.arrowType, arrowType);
-                assert.isTrue(result.mesh.metadata.is2D);
-            });
-        });
-    });
-
-    // Test "none" type returns null
-    describe("None Type Handling", () => {
-        test("'none' type returns null mesh and material", () => {
-            const result = ArrowMeshFactory.create({
-                type: "none",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            assert.isNull(result.mesh);
-            assert.isNull(result.material);
-        });
-    });
-
-    // Test filled vs outline arrow categorization
-    describe("Arrow Categorization", () => {
-        describe("Filled Arrows (3D)", () => {
-            ArrowMeshFactory.FILLED_ARROWS.forEach((arrowType) => {
-                test(`${arrowType} is correctly identified as filled`, () => {
-                    const result = ArrowMeshFactory.create({
-                        type: arrowType,
-                        is2D: false,
-                    });
-
-                    assert.isTrue(result.validation.isValid);
-                    if (result.mesh) {
-                        assert.isTrue(result.mesh.metadata.isFilled);
-                        assert.equal(result.mesh.metadata.rendererType, "FilledArrowRenderer");
-                        assert.equal(result.mesh.metadata.geometryPlane, "XZ");
-                    }
-                });
-            });
-        });
-
-        describe("Outline Arrows (3D)", () => {
-            ArrowMeshFactory.OUTLINE_ARROWS.forEach((arrowType) => {
-                test(`${arrowType} is correctly identified as outline`, () => {
-                    const result = ArrowMeshFactory.create({
-                        type: arrowType,
-                        is2D: false,
-                    });
-
-                    assert.isTrue(result.validation.isValid);
-                    if (result.mesh) {
-                        assert.isFalse(result.mesh.metadata.isFilled);
-                        assert.equal(result.mesh.metadata.rendererType, "CustomLineRenderer");
-                    }
-                });
-            });
-        });
-    });
-
-    // Test geometry plane requirements
-    describe("Geometry Plane Requirements", () => {
-        test("3D filled arrows use XZ plane", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.geometryPlane, "XZ");
-                assert.equal(result.mesh.metadata.faceNormal, "Y");
+                assert.isTrue(drawn, `line type "${lineType}" produced nothing to draw`);
             }
         });
 
-        test("2D filled arrows use XY plane", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-                is2D: true,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.geometryPlane, "XY");
-            }
-        });
-    });
-
-    // Test material type based on mode
-    describe("Material Type Validation", () => {
-        test("3D arrows use ShaderMaterial", () => {
-            const result = ArrowMeshFactory.create({
-                type: "diamond",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                assert.equal(result.material.metadata.materialType, "ShaderMaterial");
-            }
-        });
-
-        test("2D arrows use StandardMaterial", () => {
-            const result = ArrowMeshFactory.create({
-                type: "diamond",
-                is2D: true,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                assert.equal(result.material.metadata.materialType, "StandardMaterial");
-                assert.isTrue(result.material.metadata.disableLighting);
-            }
-        });
-    });
-
-    // Test vertex counts for filled arrows
-    describe("Vertex Count Validation", () => {
-        test("normal arrow has 3 vertices (triangle)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.expectedVertexCount, 3);
-            }
-        });
-
-        test("diamond arrow has 4 vertices", () => {
-            const result = ArrowMeshFactory.create({
-                type: "diamond",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.expectedVertexCount, 4);
-            }
-        });
-
-        test("dot arrow has 33 vertices (32 segments + center)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "dot",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.expectedVertexCount, 33);
-            }
-        });
-    });
-
-    // Test outline arrow path information
-    describe("Outline Arrow Path Info", () => {
-        test("open-normal has V-shape path (3 points, open)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "open-normal",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.pathPoints, 3);
-                assert.isFalse(result.mesh.metadata.isClosed);
-            }
-        });
-
-        test("open-dot has closed circle path", () => {
-            const result = ArrowMeshFactory.create({
-                type: "open-dot",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.pathPoints, 33);
-                assert.isTrue(result.mesh.metadata.isClosed);
-            }
-        });
-
-        test("open-diamond has closed diamond path", () => {
-            const result = ArrowMeshFactory.create({
-                type: "open-diamond",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.pathPoints, 5);
-                assert.isTrue(result.mesh.metadata.isClosed);
-            }
-        });
-
-        test("tee has 2-point perpendicular line", () => {
-            const result = ArrowMeshFactory.create({
-                type: "tee",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.pathPoints, 2);
-                assert.isFalse(result.mesh.metadata.isClosed);
-            }
-        });
-    });
-
-    // Test size variations
-    describe("Size Variations", () => {
-        const sizes = [0.5, 1, 1.5, 2, 3];
-
-        sizes.forEach((size) => {
-            test(`creates arrow with size ${size}`, () => {
-                const result = ArrowMeshFactory.create({
-                    type: "normal",
-                    size: size,
-                });
-
-                assert.isTrue(result.validation.isValid);
-                if (result.mesh) {
-                    assert.equal(result.mesh.metadata.size, size);
-                }
-            });
-        });
-    });
-
-    // Test color handling
-    describe("Color Handling", () => {
-        const colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFFFF", "#000000"];
-
-        colors.forEach((color) => {
-            test(`creates arrow with color ${color}`, () => {
-                const result = ArrowMeshFactory.create({
-                    type: "diamond",
-                    color: color,
-                });
-
-                assert.isTrue(result.validation.isValid);
-                if (result.mesh) {
-                    assert.equal(result.mesh.metadata.color, color);
-                }
-            });
-        });
-    });
-
-    // Test opacity variations
-    describe("Opacity Variations", () => {
-        const opacities = [0.0, 0.25, 0.5, 0.75, 1.0];
-
-        opacities.forEach((opacity) => {
-            test(`creates arrow with opacity ${opacity}`, () => {
-                const result = ArrowMeshFactory.create({
-                    type: "normal",
-                    opacity: opacity,
-                });
-
-                assert.isTrue(result.validation.isValid);
-                if (result.mesh) {
-                    assert.equal(result.mesh.visibility, opacity);
-                }
-            });
-        });
-    });
-
-    // Test default values
-    describe("Default Values", () => {
-        test("applies default type (normal)", () => {
-            const result = ArrowMeshFactory.create({});
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.arrowType, "normal");
-            }
-        });
-
-        test("applies default size (1)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.size, 1);
-            }
-        });
-
-        test("applies default color (#FFFFFF)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.metadata.color, "#FFFFFF");
-            }
-        });
-
-        test("applies default opacity (1)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.equal(result.mesh.visibility, 1);
-            }
-        });
-
-        test("applies default is2D (false)", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                assert.isFalse(result.mesh.metadata.is2D);
-            }
-        });
-    });
-
-    // Test invalid type handling
-    describe("Error Handling", () => {
-        test("throws error for invalid arrow type", () => {
-            assert.throws(() => {
-                ArrowMeshFactory.create({
-                    type: "invalid-arrow-type",
-                });
-            }, /Unknown arrow type/i);
-        });
-    });
-
-    // Test shader properties for 3D filled arrows
-    describe("3D Shader Properties", () => {
-        test("filled arrows have correct shader uniforms", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-                is2D: false,
-                size: 2,
-                color: "#FF0000",
-                opacity: 0.8,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                assert.equal(result.material.metadata.shaderName, "filledArrow");
-
-                const uniforms = result.material.metadata.uniforms as Record<string, unknown>;
-                assert.isDefined(uniforms.size);
-                assert.isDefined(uniforms.color);
-                assert.isDefined(uniforms.opacity);
-                assert.equal(uniforms.size, 2);
-                assert.equal(uniforms.opacity, 0.8);
-            }
-        });
-
-        test("filled arrows have lineDirection attribute for tangent billboarding", () => {
-            const result = ArrowMeshFactory.create({
-                type: "diamond",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                const attributes = result.material.metadata.attributes as string[];
-                assert.include(attributes, "lineDirection");
-                assert.equal(result.material.metadata.thinInstanceAttribute, "lineDirection");
-            }
-        });
-    });
-
-    // Test shader properties for outline arrows
-    describe("Outline Arrow Shader Properties", () => {
-        test("outline arrows use customLine shader", () => {
-            const result = ArrowMeshFactory.create({
-                type: "open-normal",
-                is2D: false,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                assert.equal(result.material.metadata.shaderName, "customLine");
-            }
-        });
-
-        test("outline arrows have thin width", () => {
-            const result = ArrowMeshFactory.create({
-                type: "tee",
-                is2D: false,
-                width: 1,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                const uniforms = result.material.metadata.uniforms as Record<string, unknown>;
-                // Outline arrows should use thin width (0.3 multiplier)
-                assert.isBelow(uniforms.width as number, 1);
-            }
-        });
-    });
-
-    // Test 2D arrow specific properties
-    describe("2D Arrow Properties", () => {
-        test("2D arrows use emissive color", () => {
-            const result = ArrowMeshFactory.create({
-                type: "normal",
-                is2D: true,
-                color: "#00FF00",
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.material) {
-                assert.isTrue(result.material.wasMethodCalled("setEmissiveColor"));
-            }
-        });
-
-        test("2D arrows have rotation metadata", () => {
-            const result = ArrowMeshFactory.create({
-                type: "diamond",
-                is2D: true,
-            });
-
-            assert.isTrue(result.validation.isValid);
-            if (result.mesh) {
-                const rotation = result.mesh.metadata.rotation as { x: number; y: number; z: number };
-                assert.equal(rotation.x, Math.PI / 2);
-            }
+        test("a line type outside the vocabulary is refused by the schema", () => {
+            assert.isFalse(EdgeStyle.safeParse({ line: { type: "squiggle" } }).success);
         });
     });
 });

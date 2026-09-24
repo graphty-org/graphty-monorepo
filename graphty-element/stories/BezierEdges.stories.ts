@@ -1,7 +1,10 @@
+// Registers the <graphty-element> custom element; nothing is referenced by name.
+import "../src/graphty-element";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
+import { assertEdgesCurved, assertGraphLoaded, drawn } from "./assertions";
+import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -14,25 +17,26 @@ const meta: Meta = {
         },
     },
     args: {
-        styleTemplate: templateCreator({
-            nodeStyle: {
-                texture: {
-                    color: {
-                        colorType: "solid",
-                        value: "#5A67D8",
-                    },
-                },
-            },
-        }),
+        setup: storySetup({ node: { "node.color": "#5A67D8" } }),
         layout: "fixed",
         layoutConfig: {},
     },
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 export const Bezier: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge Bezier");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 6 });
+
+        // THE ONE THING THIS STORY IS FOR. Six edges that bow, measured as the furthest each
+        // drawn path leaves the straight line between its own two ends -- because a bezier that
+        // drew a straight line is a mesh that exists, has vertices and is the wrong picture.
+        await assertEdgesCurved(scene, 6);
+    },
     args: {
         nodeData: [
             { id: "A", position: { x: -5, y: 0, z: -3 } },
@@ -48,17 +52,11 @@ export const Bezier: Story = {
             { src: "A", dst: "C" },
             { src: "B", dst: "D" },
         ],
-        styleTemplate: templateCreator({
-            edgeStyle: {
-                line: {
-                    bezier: true,
-                    color: "#48DBFB",
-                },
-                arrowHead: {
-                    type: "normal",
-                    color: "#48DBFB",
-                    size: 1.2,
-                },
+        setup: storySetup({
+            edge: {
+                "edge.curvature": true,
+                "edge.color": "#48DBFB",
+                "edge.arrowHead": "normal",
             },
         }),
     },

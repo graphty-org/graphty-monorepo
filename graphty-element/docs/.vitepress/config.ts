@@ -10,7 +10,6 @@ export default defineConfig({
     vite: {
         server: {
             host: env.HOST || true,
-            port: env.DOCS_PORT ? parseInt(env.DOCS_PORT) : 9027,
             https:
                 env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH
                     ? {
@@ -59,7 +58,7 @@ export default defineConfig({
                         { text: "Web Component API", link: "/guide/web-component" },
                         { text: "JavaScript API", link: "/guide/javascript-api" },
                         { text: "Styling", link: "/guide/styling" },
-                        { text: "Style Helpers & Palettes", link: "/guide/style-helpers" },
+                        { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
                         { text: "Algorithms", link: "/guide/algorithms" },
                         { text: "Data Sources", link: "/guide/data-sources" },
@@ -72,9 +71,13 @@ export default defineConfig({
                 {
                     text: "Extending",
                     items: [
+                        { text: "Extension Points", link: "/guide/extending/" },
+                        { text: "Custom Palettes", link: "/guide/extending/custom-palettes" },
+                        { text: "Custom File Formats", link: "/guide/extending/custom-data-sources" },
+                        { text: "Custom Camera Views", link: "/guide/extending/custom-cameras" },
                         { text: "Custom Layouts", link: "/guide/extending/custom-layouts" },
                         { text: "Custom Algorithms", link: "/guide/extending/custom-algorithms" },
-                        { text: "Custom Data Sources", link: "/guide/extending/custom-data-sources" },
+                        { text: "Custom Log Destinations", link: "/guide/extending/custom-log-destinations" },
                     ],
                 },
             ],

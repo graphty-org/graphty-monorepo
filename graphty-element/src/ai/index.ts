@@ -83,7 +83,7 @@ export { TextInputAdapter, VoiceInputAdapter } from "./input";
 
 // Schema Discovery (Phase 4-6)
 export type {
-    HistogramBin,
+    AttributeHistogramBin,
     NumericStatistics,
     PropertySummary,
     PropertyType,

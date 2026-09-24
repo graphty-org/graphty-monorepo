@@ -33,7 +33,6 @@ describe("Edge Case Handling", () => {
         test("creates solid line mesh for edge < 1 unit", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             // Solid line creation doesn't require srcPoint/dstPoint
@@ -52,7 +51,6 @@ describe("Edge Case Handling", () => {
         test("creates bezier mesh for edge < 1 unit", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000", bezier: true },
-                enabled: true,
             };
 
             const srcPoint = new Vector3(0, 0, 0);
@@ -91,7 +89,6 @@ describe("Edge Case Handling", () => {
         test("patterned line handles edge < 1 unit", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000", type: "dash" },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -109,7 +106,6 @@ describe("Edge Case Handling", () => {
         test("creates solid line mesh for edge > 100 units", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#00FF00" },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -126,7 +122,6 @@ describe("Edge Case Handling", () => {
         test("creates bezier mesh for edge > 100 units", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#00FF00", bezier: true },
-                enabled: true,
             };
 
             const srcPoint = new Vector3(0, 0, 0);
@@ -159,7 +154,6 @@ describe("Edge Case Handling", () => {
         test("patterned line handles edge > 100 units", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#00FF00", type: "diamond" },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -177,7 +171,6 @@ describe("Edge Case Handling", () => {
         test("zero opacity renders invisible mesh", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF00FF", opacity: 0.0 },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -194,7 +187,6 @@ describe("Edge Case Handling", () => {
         test("full opacity (1.0) renders visible mesh", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF00FF", opacity: 1.0 },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -211,7 +203,6 @@ describe("Edge Case Handling", () => {
         test("partial opacity (0.5) is applied correctly", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF00FF", opacity: 0.5 },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -228,7 +219,6 @@ describe("Edge Case Handling", () => {
         test("bezier curve respects zero opacity", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF00FF", opacity: 0.0, bezier: true },
-                enabled: true,
             };
 
             const srcPoint = new Vector3(0, 0, 0);
@@ -420,7 +410,6 @@ describe("Edge Case Handling", () => {
             test(`${pattern} pattern handles very short edge (< 1 unit)`, () => {
                 const style: EdgeStyleConfig = {
                     line: { width: 0.5, color: "#FF0000", type: pattern },
-                    enabled: true,
                 };
 
                 // Pattern lines are created with placeholder positions
@@ -444,7 +433,6 @@ describe("Edge Case Handling", () => {
         test("transformMesh handles zero-length edge gracefully", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -468,7 +456,6 @@ describe("Edge Case Handling", () => {
         test("transformMesh handles negative coordinates", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(
@@ -492,7 +479,6 @@ describe("Edge Case Handling", () => {
         test("transformMesh handles very large coordinates", () => {
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
-                enabled: true,
             };
 
             const mesh = EdgeMesh.create(

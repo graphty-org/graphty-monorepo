@@ -96,7 +96,7 @@ npm run build:all        # both, in order
 npm test                 # vitest in watch mode
 npm run test:run         # run all tests once (~860 tests, ~2 s)
 npm run coverage         # run with v8 coverage (thresholds 80/80/75/80)
-npm run coverage:preview # serve coverage report on port 9056
+npm run coverage:preview # serve coverage report (start it through servherd with PORT={{port}})
 
 # Linting and types
 npm run lint             # eslint (root flat config) + tsc --noEmit over src, test and benchmarks

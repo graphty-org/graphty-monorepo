@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { PANEL_INK } from "../../src/constants/panel";
+import { FLOATING_UI_Z_INDEX } from "../../src/constants/popout";
+import { buttonComponentExtensions } from "../../src/theme/components/buttons";
+import { controlComponentExtensions } from "../../src/theme/components/controls";
+import { displayComponentExtensions } from "../../src/theme/components/display";
+import { feedbackComponentExtensions } from "../../src/theme/components/feedback";
+import { inputComponentExtensions } from "../../src/theme/components/inputs";
+import { navigationComponentExtensions } from "../../src/theme/components/navigation";
+import { overlayComponentExtensions } from "../../src/theme/components/overlays";
 import {
     compactDropdownStyles,
     compactInputElementStyles,
@@ -10,15 +19,6 @@ import {
     compactLabelStyles,
     compactMultiValueStyles,
 } from "../../src/theme/styles/inputs";
-import { inputComponentExtensions } from "../../src/theme/components/inputs";
-import { buttonComponentExtensions } from "../../src/theme/components/buttons";
-import { controlComponentExtensions } from "../../src/theme/components/controls";
-import { displayComponentExtensions } from "../../src/theme/components/display";
-import { feedbackComponentExtensions } from "../../src/theme/components/feedback";
-import { navigationComponentExtensions } from "../../src/theme/components/navigation";
-import { overlayComponentExtensions } from "../../src/theme/components/overlays";
-import { PANEL_INK } from "../../src/constants/panel";
-import { FLOATING_UI_Z_INDEX } from "../../src/constants/popout";
 
 /**
  * CSS Variable Regression Tests

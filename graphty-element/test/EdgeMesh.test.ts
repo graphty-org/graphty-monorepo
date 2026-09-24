@@ -32,7 +32,7 @@ describe("EdgeMesh", () => {
                 width: 0.5,
                 color: "#FF0000",
             };
-            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
+            const style = { line: { width: 0.5, color: "#FF0000" } };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
 
@@ -74,7 +74,7 @@ describe("EdgeMesh", () => {
                 width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: EDGE_CONSTANTS.DEFAULT_LINE_COLOR,
             };
-            const style = { line: {}, enabled: true };
+            const style = { line: {} };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
@@ -87,7 +87,7 @@ describe("EdgeMesh", () => {
                 width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: "#FF0000",
             };
-            const style = { line: { color: "#FF0000" }, enabled: true };
+            const style = { line: { color: "#FF0000" } };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
@@ -190,7 +190,7 @@ describe("EdgeMesh", () => {
             const mesh = EdgeMesh.create(
                 meshCache,
                 { styleId: "test-transform", width: 0.25, color: "#FF0000" },
-                { line: { width: 0.25, color: "#FF0000" }, enabled: true },
+                { line: { width: 0.25, color: "#FF0000" } },
                 scene,
             ) as AbstractMesh;
 
@@ -209,7 +209,7 @@ describe("EdgeMesh", () => {
             const mesh = EdgeMesh.create(
                 meshCache,
                 { styleId: "test-negative", width: 0.25, color: "#FF0000" },
-                { line: { width: 0.25, color: "#FF0000" }, enabled: true },
+                { line: { width: 0.25, color: "#FF0000" } },
                 scene,
             ) as AbstractMesh;
 
@@ -228,7 +228,7 @@ describe("EdgeMesh", () => {
     describe("Caching", () => {
         test("returns cached mesh for same styleId", () => {
             const options = { styleId: "cached-edge", width: 0.25, color: "#FF0000" };
-            const style = { line: { width: 0.25, color: "#FF0000" }, enabled: true };
+            const style = { line: { width: 0.25, color: "#FF0000" } };
 
             const mesh1 = EdgeMesh.create(meshCache, options, style, scene);
             const mesh2 = EdgeMesh.create(meshCache, options, style, scene);
@@ -240,7 +240,7 @@ describe("EdgeMesh", () => {
         });
 
         test("creates new mesh for different styleId", () => {
-            const style = { line: { width: 0.25, color: "#FF0000" }, enabled: true };
+            const style = { line: { width: 0.25, color: "#FF0000" } };
 
             const mesh1 = EdgeMesh.create(meshCache, { styleId: "edge1", width: 0.25, color: "#FF0000" }, style, scene);
             const mesh2 = EdgeMesh.create(meshCache, { styleId: "edge2", width: 0.25, color: "#FF0000" }, style, scene);
@@ -254,7 +254,7 @@ describe("EdgeMesh", () => {
             const staticMesh = EdgeMesh.create(
                 meshCache,
                 options,
-                { line: { width: 0.25, color: "#FF0000" }, enabled: true },
+                { line: { width: 0.25, color: "#FF0000" } },
                 scene,
             ) as AbstractMesh;
 
@@ -264,7 +264,7 @@ describe("EdgeMesh", () => {
             const animatedMesh = EdgeMesh.create(
                 meshCache,
                 options,
-                { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 }, enabled: true },
+                { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 } },
                 scene,
             ) as AbstractMesh;
 
@@ -281,7 +281,7 @@ describe("EdgeMesh", () => {
             EdgeMesh.create(
                 meshCache,
                 { styleId: "test-observer", width: 0.25, color: "#FF0000" },
-                { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 }, enabled: true },
+                { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 } },
                 scene,
             );
 

@@ -1,11 +1,18 @@
 import { leiden } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    communityFieldSpecs,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+} from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { countUniqueCommunities } from "./utils/communityUtils";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Leiden algorithm
@@ -62,7 +69,7 @@ interface LeidenOptions extends Record<string, unknown> {
 /**
  *
  */
-export class LeidenAlgorithm extends Algorithm<LeidenOptions> {
+export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
     static namespace = "graphty";
     static type = "leiden";
 
@@ -107,66 +114,57 @@ export class LeidenAlgorithm extends Algorithm<LeidenOptions> {
         },
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "algorithmResults.graphty.leiden.communityId != `null`",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.leiden.communityId"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.categorical.tolMuted(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "Leiden - Muted Colors",
-                    description: "7 subdued professional community colors",
-                },
-            },
-        ],
-        description: "Visualizes communities detected via Leiden algorithm (improved Louvain)",
-        category: "grouping",
-    });
-
     /**
-     * Executes the Leiden algorithm on the graph
+     * Group the nodes into communities, refining each group before it is kept.
      *
-     * Detects communities using an improved modularity optimization method.
+     * Publishes the community shape's uniform fields: a group per node, and the modularity the
+     * method reported. How many passes it took qualifies those numbers rather than being one of
+     * them, so it travels in the caveats.
+     * @param context - What the element gave the run.
+     * @returns The community result, or null when there are no nodes to group.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
-        // Get options from schema
-        const { resolution, maxIterations, threshold } = this.schemaOptions;
+        const { resolution, randomSeed, maxIterations, threshold } = this.schemaOptions;
 
-        // Convert to @graphty/algorithms Graph format (undirected for community detection)
-        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
+        // Undirected: modularity is defined over unordered pairs.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run Leiden algorithm - returns {communities: Map<string, number>, modularity, iterations}
+        context.report({ phase: "Refining communities", total: null });
+
+        // `randomSeed` is forwarded because it is offered: it is declared in both schemas and
+        // shown as a control, and the library does take one. It was not passed, so turning the
+        // knob changed nothing at all and every run was the library's own default seed.
         const result = leiden(graphData, {
             resolution,
+            randomSeed,
             maxIterations,
             threshold,
         });
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const communityId = result.communities.get(String(nodeId)) ?? 0;
-            this.addNodeResult(nodeId, "communityId", communityId);
-        }
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+            nodes.push({ id: nodeId, values: { group: result.communities.get(String(nodeId)) ?? 0 } });
+        });
 
-        // Store graph-level results
-        this.addGraphResult("modularity", result.modularity);
-        this.addGraphResult("communityCount", countUniqueCommunities(result.communities));
-        this.addGraphResult("iterations", result.iterations);
+        return {
+            shape: "community",
+            fields: communityFieldSpecs(true),
+            nodes,
+            graph: { modularity: result.modularity },
+            caveats: declaredCaveats({
+                method: "leiden",
+                direction: "undirected",
+                weight: { attribute: "weight", meaning: "strength" },
+                iterations: result.iterations,
+                notes: [`Resolution ${String(resolution)}.`],
+            }),
+        };
     }
 }
 

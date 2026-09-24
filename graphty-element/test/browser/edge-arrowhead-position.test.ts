@@ -18,7 +18,7 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph";
-import { arrowConfig, asData, styleTemplate, type TestGraph } from "../helpers/testSetup";
+import { asData, edgeBetween, styleEveryEdge, type TestGraph } from "../helpers/testSetup";
 
 // Constants matching mesh calculations
 const NODE_RADIUS = 0.75; // DEFAULT_NODE_SIZE * ICOSPHERE_RADIUS_MULTIPLIER
@@ -106,24 +106,8 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         graph = new Graph(container);
 
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: true,
-                addDefaultStyle: true,
-                layers: [
-                    {
-                        edge: {
-                            selector: "",
-                            style: {
-                                enabled: true,
-                                arrowHead: arrowConfig({ type: "normal" }),
-                            },
-                        },
-                    },
-                ],
-            }),
-        );
-
+        await graph.setViewMode("2d");
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await graph.operationQueue.waitForCompletion();
 
         // Set up fixed layout so nodes register with LayoutManager
@@ -145,8 +129,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
         for (const edge of edges) {
             await graph.addEdge(
                 asData({ id: `${edge.source}:${edge.target}`, source: edge.source, target: edge.target }),
-                "source",
-                "target",
+                { source: "source", target: "target" },
             );
         }
 
@@ -163,7 +146,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -190,7 +173,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -217,7 +200,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -244,7 +227,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -271,7 +254,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -311,8 +294,8 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         // Verify each edge's arrow position
         for (const edgeDef of pentagonEdges) {
-            const edgeId = `${edgeDef.source}:${edgeDef.target}`;
-            const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);
+            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
+            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
             assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
 
@@ -355,8 +338,8 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         const zTolerance = 0.001;
         for (const edgeDef of edges) {
-            const edgeId = `${edgeDef.source}:${edgeDef.target}`;
-            const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);
+            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
+            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
             assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
 
@@ -396,24 +379,8 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         graph = new Graph(container);
 
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD: false,
-                addDefaultStyle: true,
-                layers: [
-                    {
-                        edge: {
-                            selector: "",
-                            style: {
-                                enabled: true,
-                                arrowHead: arrowConfig({ type: "normal" }),
-                            },
-                        },
-                    },
-                ],
-            }),
-        );
-
+        await graph.setViewMode("3d");
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await graph.operationQueue.waitForCompletion();
 
         // Set up fixed layout so nodes register with LayoutManager
@@ -434,8 +401,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
         for (const edge of edges) {
             await graph.addEdge(
                 asData({ id: `${edge.source}:${edge.target}`, source: edge.source, target: edge.target }),
-                "source",
-                "target",
+                { source: "source", target: "target" },
             );
         }
 
@@ -452,7 +418,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -479,7 +445,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -506,7 +472,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -533,7 +499,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -574,8 +540,8 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         // Verify each edge's arrow position
         for (const edgeDef of tetraEdges) {
-            const edgeId = `${edgeDef.source}:${edgeDef.target}`;
-            const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);
+            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
+            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
             assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
 
@@ -620,8 +586,8 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
         ];
 
         for (const tc of testCases) {
-            const edgeId = `${tc.src}:${tc.dst}`;
-            const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);
+            const edgeId = `${tc.src} -> ${tc.dst}`;
+            const edge = edgeBetween(graph as Graph, tc.src, tc.dst);
             assert(edge, `Edge ${edgeId} should exist`);
             assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
 
@@ -674,8 +640,8 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         // Verify each edge's arrow position
         for (const edgeDef of cubeEdges) {
-            const edgeId = `${edgeDef.source}:${edgeDef.target}`;
-            const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);
+            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
+            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
             assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
 
@@ -726,24 +692,8 @@ describe("Arrow Position Edge Cases", () => {
 
         graph = new Graph(container);
 
-        await graph.setStyleTemplate(
-            styleTemplate({
-                twoD,
-                addDefaultStyle: true,
-                layers: [
-                    {
-                        edge: {
-                            selector: "",
-                            style: {
-                                enabled: true,
-                                arrowHead: arrowConfig({ type: "normal" }),
-                            },
-                        },
-                    },
-                ],
-            }),
-        );
-
+        await graph.setViewMode(twoD ? "2d" : "3d");
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await graph.operationQueue.waitForCompletion();
 
         // Set up fixed layout so nodes register with LayoutManager
@@ -763,8 +713,7 @@ describe("Arrow Position Edge Cases", () => {
         for (const edge of edges) {
             await graph.addEdge(
                 asData({ id: `${edge.source}:${edge.target}`, source: edge.source, target: edge.target }),
-                "source",
-                "target",
+                { source: "source", target: "target" },
             );
         }
 
@@ -784,7 +733,7 @@ describe("Arrow Position Edge Cases", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -813,7 +762,7 @@ describe("Arrow Position Edge Cases", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 
@@ -841,7 +790,7 @@ describe("Arrow Position Edge Cases", () => {
             [{ source: "A", target: "B" }],
         );
 
-        const edge = (graph as unknown as TestGraph).dataManager.edges.get("A:B");
+        const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
         assert(edge.arrowMesh, "Arrow mesh should exist");
 

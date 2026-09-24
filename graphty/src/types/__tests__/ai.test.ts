@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the graphty-element module
-vi.mock("@graphty/graphty-element", () => ({
+vi.mock("@graphty/graphty-element/ai", () => ({
     ApiKeyManager: class MockApiKeyManager {
         enablePersistence = vi.fn();
         disablePersistence = vi.fn();

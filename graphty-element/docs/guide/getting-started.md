@@ -88,6 +88,13 @@ Connect them with relationships:
 </graphty-element>
 ```
 
+An edge names its endpoints with `source` and `target`. If your data already spells them `src`
+and `dst`, or `from` and `to`, the element reads those too -- it works the spelling out once for a
+whole batch of records and tells you which one it used, rather than guessing per record. Data that
+answers none of the three stops the load with a message naming the columns it does carry, so you
+will never get a canvas of unconnected dots and no explanation. To settle it yourself, set
+`edge-src-id-path` and `edge-dst-id-path`.
+
 ### Step 4: Choose a Layout
 
 Select how nodes are positioned:
@@ -106,11 +113,31 @@ Available layouts include:
 
 ### Step 5: Apply Styling
 
-Use a style template for a polished look:
+Set the background from the tag, and say what the nodes look like with a style layer:
 
 ```html
-<graphty-element layout="ngraph" style-template="dark" node-data="[...]" edge-data="[...]"> </graphty-element>
+<graphty-element
+    id="graph"
+    layout="ngraph"
+    background='{"backgroundType":"color","color":"#101014"}'
+    node-data="[...]"
+    edge-data="[...]"
+>
+</graphty-element>
 ```
+
+```javascript
+const element = document.querySelector("#graph");
+
+await element.session.styles.add({
+    name: "Nodes",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#8B5CF6", "node.size": 1.5 },
+});
+```
+
+See the [styling guide](/guide/styling) for the whole vocabulary.
 
 ## Interactive Examples
 

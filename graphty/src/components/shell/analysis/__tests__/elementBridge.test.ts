@@ -1,68 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { describe, expect, it } from "vitest";
 
-import {
-    addStyleLayers,
-    asElementGraph,
-    type ElementGraph,
-    type ElementStyleLayerLike,
-    readResultPath,
-    removeLayersFromSource,
-    repaintStyles,
-} from "../elementBridge";
+import { asElementGraph, type ElementGraph, elementSession, readResultPath } from "../elementBridge";
 
-/** What a stub records, so a test can see what the bridge did to the element. */
-interface StubGraph {
-    /** The graph the bridge talks to. */
-    readonly graph: ElementGraph;
-    /** The layer list, in the order the bridge left it. */
-    readonly layers: ElementStyleLayerLike[];
-    /** How many times the node repaint ran. */
-    readonly nodeRepaints: () => number;
-    /** How many times the edge repaint ran. */
-    readonly edgeRepaints: () => number;
-}
+/** A stand-in session. Only its identity matters here: the bridge hands it over untouched. */
+const SESSION = { styles: { list: () => [] } } as unknown as GraphSession;
 
 /**
- * A hand-written element graph that records repaints and holds a real layer list.
- * @param initialLayers - the layers the graph starts with.
- * @returns the stub and its recorded calls.
+ * A hand-written element graph carrying the four methods the bridge requires.
+ * @returns the graph.
  */
-function makeStub(initialLayers: ElementStyleLayerLike[] = []): StubGraph {
-    const layers = [...initialLayers];
-    const applyStylesToExistingNodes = vi.fn();
-    const applyStylesToExistingEdges = vi.fn();
-
-    const graph: ElementGraph = {
+function makeStub(): ElementGraph {
+    return {
         runAlgorithm: async () => {
             await Promise.resolve();
         },
         getNodes: () => [],
-        getDataManager: () => ({
-            graphResults: undefined,
-            applyStylesToExistingNodes,
-            applyStylesToExistingEdges,
-        }),
-        getStyleManager: () => ({
-            addLayer: (layer) => {
-                layers.push(layer);
-            },
-            getLayers: () => layers,
-            removeLayerByIndex: (index) => {
-                if (index < 0 || index >= layers.length) {
-                    return false;
-                }
-
-                layers.splice(index, 1);
-                return true;
-            },
-        }),
-    };
-
-    return {
-        graph,
-        layers,
-        nodeRepaints: () => applyStylesToExistingNodes.mock.calls.length,
-        edgeRepaints: () => applyStylesToExistingEdges.mock.calls.length,
+        getDataManager: () => ({ graphResults: undefined }),
+        getSession: () => SESSION,
     };
 }
 
@@ -96,7 +51,7 @@ describe("asElementGraph", () => {
                 runAlgorithm: () => Promise.resolve(),
                 getNodes: () => [],
                 getDataManager: () => ({}),
-                getStyleManager: "not a function",
+                getSession: "not a function",
             }),
         ).toBeNull();
     });
@@ -106,9 +61,20 @@ describe("asElementGraph", () => {
     });
 
     it("accepts a graph carrying all four methods, and returns it unchanged", () => {
-        const stub = makeStub();
+        const graph = makeStub();
 
-        expect(asElementGraph(stub.graph)).toBe(stub.graph);
+        expect(asElementGraph(graph)).toBe(graph);
+    });
+});
+
+describe("elementSession", () => {
+    it("hands back the element's own session", () => {
+        expect(elementSession(makeStub())).toBe(SESSION);
+    });
+
+    it("answers null while the element is still coming up", () => {
+        expect(elementSession(undefined)).toBeNull();
+        expect(elementSession({ getNodes: () => [] })).toBeNull();
     });
 });
 
@@ -132,74 +98,5 @@ describe("readResultPath", () => {
         const root = { a: 1 };
 
         expect(readResultPath(root, [])).toBe(root);
-    });
-});
-
-describe("repaintStyles", () => {
-    it("re-applies styles to existing nodes and edges exactly once each", () => {
-        const stub = makeStub();
-
-        repaintStyles(stub.graph);
-
-        expect(stub.nodeRepaints()).toBe(1);
-        expect(stub.edgeRepaints()).toBe(1);
-    });
-});
-
-describe("addStyleLayers", () => {
-    it("adds the layers in order and repaints once", () => {
-        const stub = makeStub();
-
-        addStyleLayers(stub.graph, [{ metadata: { name: "first" } }, { metadata: { name: "second" } }]);
-
-        expect(stub.layers.map((layer) => layer.metadata?.name)).toEqual(["first", "second"]);
-        expect(stub.nodeRepaints()).toBe(1);
-        expect(stub.edgeRepaints()).toBe(1);
-    });
-
-    it("still repaints when the layer list is empty", () => {
-        const stub = makeStub();
-
-        addStyleLayers(stub.graph, []);
-
-        expect(stub.nodeRepaints()).toBe(1);
-    });
-});
-
-describe("removeLayersFromSource", () => {
-    it("removes every layer carrying the tag and leaves the rest in order", () => {
-        const stub = makeStub([
-            { metadata: { name: "neutral" } },
-            { metadata: { name: "groups 1", algorithmSource: "graphty:louvain" } },
-            { metadata: { name: "size" } },
-            { metadata: { name: "groups 2", algorithmSource: "graphty:louvain" } },
-            { metadata: { name: "groups 3", algorithmSource: "graphty:louvain" } },
-        ]);
-
-        removeLayersFromSource(stub.graph, "graphty:louvain");
-
-        expect(stub.layers.map((layer) => layer.metadata?.name)).toEqual(["neutral", "size"]);
-        expect(stub.nodeRepaints()).toBe(1);
-    });
-
-    it("leaves a different source's layers alone", () => {
-        const stub = makeStub([
-            { metadata: { name: "degree", algorithmSource: "graphty:degree" } },
-            { metadata: { name: "groups", algorithmSource: "graphty:louvain" } },
-        ]);
-
-        removeLayersFromSource(stub.graph, "graphty:louvain");
-
-        expect(stub.layers.map((layer) => layer.metadata?.name)).toEqual(["degree"]);
-    });
-
-    it("does not repaint when nothing carried the tag", () => {
-        const stub = makeStub([{ metadata: { name: "neutral" } }]);
-
-        removeLayersFromSource(stub.graph, "graphty:louvain");
-
-        expect(stub.layers).toHaveLength(1);
-        expect(stub.nodeRepaints()).toBe(0);
-        expect(stub.edgeRepaints()).toBe(0);
     });
 });

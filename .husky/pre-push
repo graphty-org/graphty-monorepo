@@ -1,8 +1,11 @@
 #!/bin/sh
-# Pre-push hook: runs lint (including knip) and fast tests
+# Pre-push hook.
 #
-# This script runs build, lint, knip, and fast tests (no browser/chromatic tests)
-# to catch issues before pushing to remote.
+# Runs tools/prepush.sh: build every package, lint, knip, then the fast tests --
+# each package's node-only project, graphty-element's default, mesh and contract
+# projects, and graphty's full browser suite. graphty-element's browser,
+# interactions and storybook projects are CI-only; tools/prepush.sh says why, with
+# the wall clock each one costs.
 #
 # To skip this hook: git push --no-verify
 # To run manually: pnpm run prepush:fast

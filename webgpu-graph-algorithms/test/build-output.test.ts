@@ -182,7 +182,8 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.scripts.coverage).toBe(`${bothProjects} --coverage`);
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
         expect(packageJson.scripts["test:node:ci"]).toBe("node scripts/run-node-shard.js");
-        expect(packageJson.scripts["coverage:preview"]).toContain("9058");
+        // No fixed port: servherd assigns one through PORT, and the script refuses to start without it.
+        expect(packageJson.scripts["coverage:preview"]).toContain("${PORT:?");
     });
 });
 

@@ -21,21 +21,53 @@ const DEFAULT_CONFIG: LoggerConfig = {
 let currentConfig: LoggerConfig = { ...DEFAULT_CONFIG, format: { ...DEFAULT_CONFIG.format } };
 
 /**
- * Configure the logging system.
- * @param config - Partial configuration to merge with defaults
+ * Change the logging configuration, leaving alone everything the caller did not mention.
+ *
+ * WHY IT MERGES RATHER THAN RESETS. Attaching a destination is a `configure` call -- that is the
+ * declarative route, and the only route a configuration a host stored can take -- so a call that
+ * rebuilt the whole configuration from defaults would turn "send my records here as well" into
+ * "and put the level back to INFO and the modules back to everything". Whoever was reading debug
+ * output would watch it stop, with nothing in the call that said so.
+ * @param config - The settings to change. What is absent keeps the value it has.
  */
 export function configureLogging(config: Partial<LoggerConfig>): void {
     currentConfig = {
-        enabled: config.enabled ?? DEFAULT_CONFIG.enabled,
-        level: config.level ?? DEFAULT_CONFIG.level,
-        modules: config.modules ?? DEFAULT_CONFIG.modules,
+        enabled: config.enabled ?? currentConfig.enabled,
+        level: config.level ?? currentConfig.level,
+        modules: config.modules ?? currentConfig.modules,
+        moduleLevels: config.moduleLevels ?? currentConfig.moduleLevels,
         format: {
-            timestamp: config.format?.timestamp ?? DEFAULT_CONFIG.format.timestamp,
-            timestampFormat: config.format?.timestampFormat ?? DEFAULT_CONFIG.format.timestampFormat,
-            module: config.format?.module ?? DEFAULT_CONFIG.format.module,
-            colors: config.format?.colors ?? DEFAULT_CONFIG.format.colors,
+            timestamp: config.format?.timestamp ?? currentConfig.format.timestamp,
+            timestampFormat: config.format?.timestampFormat ?? currentConfig.format.timestampFormat,
+            module: config.format?.module ?? currentConfig.format.module,
+            colors: config.format?.colors ?? currentConfig.format.colors,
         },
     };
+}
+
+/**
+ * The level that applies to one category: its own override when it has one, the global level
+ * otherwise.
+ *
+ * The most specific segment of the category wins, so with `{ graphty: WARN, layout: TRACE }` a
+ * record from ["graphty", "layout"] is kept down to TRACE.
+ * @param category - Hierarchical category path, e.g. ["graphty", "layout", "ngraph"].
+ * @returns The lowest severity that is still delivered for that category.
+ */
+export function levelForCategory(category: readonly string[]): LogLevel {
+    const overrides = currentConfig.moduleLevels;
+    if (overrides === undefined) {
+        return currentConfig.level;
+    }
+
+    for (let index = category.length - 1; index >= 0; index--) {
+        const override = overrides[category[index]];
+        if (override !== undefined) {
+            return override;
+        }
+    }
+
+    return currentConfig.level;
 }
 
 /**

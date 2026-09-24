@@ -17,7 +17,7 @@ describe("Light/Dark Mode Support", () => {
                 const styles = segmentedControlExtension.styles({} as never);
                 expect(styles?.indicator?.backgroundColor).toContain("light-dark");
             } else if (typeof segmentedControlExtension?.styles === "object") {
-                const styles = segmentedControlExtension.styles;
+                const {styles} = segmentedControlExtension;
                 expect(styles?.indicator?.backgroundColor).toContain("light-dark");
             }
         });

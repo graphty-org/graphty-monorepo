@@ -2,81 +2,35 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
-import type { AdHocData } from "../../../src/config";
+import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
 
-interface MockGraphOpts {
-    dataPath?: string;
-}
-
+/**
+ * The shared mock, kept behind the name and the loose return type this file already used.
+ *
+ * It carries a real graph store, which is where an algorithm now reads its input from; the node
+ * and edge maps it also exposes are where the results land.
+ * @param opts - which fixture to load
+ * @returns the mock graph
+ */
  
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    const nodes = new Map<string | number, AdHocData>();
-    const edges = new Map<string | number, AdHocData>();
-    let graphResults: AdHocData | undefined;
-
-    if (typeof opts.dataPath === "string") {
-        const imp = await import(opts.dataPath);
-        for (const n of imp.nodes) {
-            nodes.set(n.id, n);
-        }
-        for (const e of imp.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, e);
-        }
-    }
-
-    const fakeGraph = {
-        nodes,
-        edges,
-        getDataManager() {
-            return {
-                nodes,
-                edges,
-                get graphResults() {
-                    return graphResults;
-                },
-                set graphResults(val: AdHocData | undefined) {
-                    graphResults = val;
-                },
-            };
-        },
-    };
-
-    return fakeGraph;
+    return createMockGraph(opts);
 }
 
-// Create a small graph for testing Floyd-Warshall (to avoid O(n³) performance issues)
+/**
+ * A small graph for testing Floyd-Warshall, which is O(n^3): A -- B -- C -- D.
+ * @returns the mock graph
+ */
  
-function mockSmallGraph(): any {
-    const nodes = new Map<string | number, AdHocData>();
-    const edges = new Map<string | number, AdHocData>();
-    let graphResults: AdHocData | undefined;
-
-    // Create a simple 4-node graph: A -- B -- C -- D
-    nodes.set("A", { id: "A" } as unknown as AdHocData);
-    nodes.set("B", { id: "B" } as unknown as AdHocData);
-    nodes.set("C", { id: "C" } as unknown as AdHocData);
-    nodes.set("D", { id: "D" } as unknown as AdHocData);
-
-    edges.set("A:B", { srcId: "A", dstId: "B", value: 1 } as unknown as AdHocData);
-    edges.set("B:C", { srcId: "B", dstId: "C", value: 2 } as unknown as AdHocData);
-    edges.set("C:D", { srcId: "C", dstId: "D", value: 3 } as unknown as AdHocData);
-
-    return {
-        nodes,
-        edges,
-        getDataManager() {
-            return {
-                nodes,
-                edges,
-                get graphResults() {
-                    return graphResults;
-                },
-                set graphResults(val: AdHocData | undefined) {
-                    graphResults = val;
-                },
-            };
-        },
-    };
+async function mockSmallGraph(): Promise<any> {
+    return createMockGraph({
+        nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
+        edges: [
+            { srcId: "A", dstId: "B", value: 1 },
+            { srcId: "B", dstId: "C", value: 2 },
+            { srcId: "C", dstId: "D", value: 3 },
+        ],
+    });
 }
 
 describe("FloydWarshallAlgorithm", () => {
@@ -95,25 +49,25 @@ describe("FloydWarshallAlgorithm", () => {
         });
 
         it("computes all-pairs shortest paths", async () => {
-            const smallGraph = mockSmallGraph();
+            const smallGraph = await mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            const { results } = algo;
-            assert.property(results, "graph");
-            assert.property(results.graph?.graphty?.["floyd-warshall"], "nodeCount");
+            const { result } = algo;
+            assert.ok(result);
+            assert.strictEqual(result.measured.nodes, 4);
         });
 
         it("stores distance information on graph", async () => {
-            const smallGraph = mockSmallGraph();
+            const smallGraph = await mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            const { results } = algo;
-            const fwResults = results.graph?.graphty?.["floyd-warshall"];
-            assert.ok(fwResults);
-            assert.property(fwResults, "nodeCount");
-            assert.strictEqual(fwResults.nodeCount, 4);
+            const { result } = algo;
+            assert.ok(result);
+            // 1.10 published the node count as a graph result of its own; a result now says how
+            // many elements it measured, for every algorithm, without each one restating it.
+            assert.strictEqual(result.measured.nodes, 4);
         });
 
         it("handles empty graph", async () => {
@@ -123,97 +77,59 @@ describe("FloydWarshallAlgorithm", () => {
             // Should not throw
         });
 
-        it("stores eccentricity on nodes", async () => {
-            const smallGraph = mockSmallGraph();
+        it("measures every node's eccentricity", async () => {
+            const smallGraph = await mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            // Each node should have eccentricity stored
+            const { result } = algo;
+            assert.ok(result);
+
+            // Eccentricity is published under the node-metric shape's own name for "the number
+            // this run measured on this element", which is `value`. Published under a name of its
+            // own it was unpaintable: the shape a run declares is what tells the element there is
+            // a per-element measurement here to colour by at all.
             for (const node of smallGraph.nodes.values()) {
-                assert.property(node.algorithmResults, "graphty");
-                assert.property(node.algorithmResults.graphty, "floyd-warshall");
-                assert.property(node.algorithmResults.graphty["floyd-warshall"], "eccentricity");
+                assert.property(result.node(node.id as string) ?? {}, "value");
             }
         });
 
         it("computes diameter and radius", async () => {
-            const smallGraph = mockSmallGraph();
+            const smallGraph = await mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            const { results } = algo;
-            const fwResults = results.graph?.graphty?.["floyd-warshall"];
-            assert.ok(fwResults);
-            assert.property(fwResults, "diameter");
-            assert.property(fwResults, "radius");
+            const { result } = algo;
+            assert.ok(result);
+            assert.property(result.graph, "diameter");
+            assert.property(result.graph, "radius");
 
             // For a path graph A-B-C-D:
             // Diameter (max eccentricity) should be 3 (A to D or D to A)
             // Radius (min eccentricity) should be 2 (from B or C)
-            assert.isAtLeast(fwResults.diameter, fwResults.radius);
+            assert.isAtLeast(result.graph.diameter as number, result.graph.radius as number);
         });
 
         it("identifies central nodes", async () => {
-            const smallGraph = mockSmallGraph();
+            const smallGraph = await mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            // Some nodes should be marked as central (eccentricity = radius)
+            // 1.10 wrote an isCentral flag onto every node. A node is central when its
+            // eccentricity equals the radius, which the result publishes, so the flag is a
+            // comparison the reader makes rather than a value the run repeats per node.
+            const { result } = algo;
+            assert.ok(result);
+
             let hasCentralNode = false;
             for (const node of smallGraph.nodes.values()) {
-                if (node.algorithmResults?.graphty?.["floyd-warshall"]?.isCentral) {
+                if (result.node(node.id as string)?.value === result.graph.radius) {
                     hasCentralNode = true;
                     break;
                 }
             }
+
             assert.isTrue(hasCentralNode);
-        });
-    });
-
-    describe("Suggested Styles", () => {
-        it("has suggested styles defined", () => {
-            assert.isTrue(FloydWarshallAlgorithm.hasSuggestedStyles());
-        });
-
-        it("returns correct category", () => {
-            const styles = FloydWarshallAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.strictEqual(styles.category, "path");
-        });
-
-        it("has node layer for eccentricity visualization", () => {
-            const styles = FloydWarshallAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const hasNodeLayer = styles.layers.some((l) => l.node);
-            assert.isTrue(hasNodeLayer);
-        });
-
-        it("uses StyleHelpers for color mapping", () => {
-            const styles = FloydWarshallAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const nodeLayer = styles.layers.find((l) => l.node?.calculatedStyle);
-            assert.ok(nodeLayer);
-            assert.ok(nodeLayer.node?.calculatedStyle?.expr.includes("StyleHelpers"));
-        });
-
-        it("has layers with metadata", () => {
-            const styles = FloydWarshallAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            for (const layer of styles.layers) {
-                assert.ok(layer.metadata);
-                assert.ok(layer.metadata.name);
-            }
-        });
-
-        it("description mentions shortest paths or eccentricity", () => {
-            const styles = FloydWarshallAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.ok(styles.description);
-            const desc = styles.description.toLowerCase();
-            assert.ok(desc.includes("path") || desc.includes("eccentricity") || desc.includes("distance"));
         });
     });
 });

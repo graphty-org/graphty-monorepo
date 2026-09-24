@@ -36,6 +36,37 @@ export const JsonDataSourceConfig = z.object({
 type JsonDataSourceConfigType = z.infer<typeof JsonDataSourceConfig>;
 
 /**
+ * The direction a JSON document declares at its root, or null when it declares none.
+ *
+ * There is no JSON graph format, only conventions, and this reads the one that is nearly
+ * universal: the top-level `directed` boolean of node-link JSON, which is what NetworkX's
+ * `node_link_data` writes and what D3, sigma and vis.js documents inherit from it when they carry
+ * the key at all. A document without it -- a Cytoscape `elements` document, a bare
+ * `{nodes, links}` pair -- has said nothing, and nothing is what this reports: JSON is the format
+ * where a guess would be most tempting and least founded, because the shape of the document says
+ * nothing about whether its links point.
+ *
+ * The key is read from the document ROOT, independently of the JMESPath expressions that find the
+ * nodes and edges, because it is the root that the convention puts it at. Anything other than a
+ * boolean there is not the convention and is ignored.
+ * @param document - the parsed JSON document
+ * @returns the direction and the text that stated it, or null when the root carries no boolean
+ *     `directed` key
+ */
+function readDirectedKey(document: unknown): { directed: boolean; statedBy: string } | null {
+    if (document === null || typeof document !== "object" || Array.isArray(document)) {
+        return null;
+    }
+
+    const value = (document as { directed?: unknown }).directed;
+    if (typeof value !== "boolean") {
+        return null;
+    }
+
+    return { directed: value, statedBy: `"directed": ${String(value)}` };
+}
+
+/**
  * Data source for loading graph data from JSON files.
  * Supports JMESPath queries for extracting nodes and edges from complex JSON structures.
  */
@@ -113,6 +144,13 @@ export class JsonDataSource extends DataSource {
 
             yield* this.chunkData([], []);
             return;
+        }
+
+        // Declared before the first chunk is yielded, so the direction reaches the builder while it
+        // still holds no edges.
+        const declared = readDirectedKey(data);
+        if (declared !== null) {
+            this.declareDirection(declared.directed, declared.statedBy);
         }
 
         // Extract nodes using JMESPath
@@ -306,41 +344,14 @@ export class JsonDataSource extends DataSource {
             return false;
         }
 
-        // Check for source/target fields (common requirement)
-        const edgeObj = edge as Record<string, unknown>;
-        const hasSource = "source" in edgeObj || "src" in edgeObj || "from" in edgeObj;
-        const hasTarget = "target" in edgeObj || "dst" in edgeObj || "to" in edgeObj;
-
-        if (!hasSource) {
-            const canContinue = this.errorAggregator.addError({
-                message: `Edge at index ${index} is missing source field (expected 'source', 'src', or 'from')`,
-                category: "missing-value",
-                field: "edges.source",
-                line: index,
-            });
-
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
-
-            return false;
-        }
-
-        if (!hasTarget) {
-            const canContinue = this.errorAggregator.addError({
-                message: `Edge at index ${index} is missing target field (expected 'target', 'dst', or 'to')`,
-                category: "missing-value",
-                field: "edges.target",
-                line: index,
-            });
-
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
-
-            return false;
-        }
-
+        // WHETHER A RECORD NAMES ITS ENDPOINTS IS NOT THIS READER'S QUESTION. It used to be: a
+        // record carrying none of the six accepted keys was dropped here, one error per record,
+        // and the load then finished "successfully" with a graph of unconnected nodes. The
+        // element's own endpoint resolution answers the same question ONCE for the batch and
+        // refuses it with `E_EDGE_ENDPOINTS_UNRESOLVED`, naming the keys the records actually
+        // carry -- which is the message a reader can act on, and the only one that can name a
+        // column the reader chose. This reader checks that an edge is an OBJECT, which is its own
+        // question, and passes the record through.
         return true;
     }
 }

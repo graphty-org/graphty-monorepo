@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, test } from "vitest";
 
 import type { AdHocData } from "../../../src/config/index.js";
 import { Graph } from "../../../src/Graph.js";
+import { setBehavior } from "../../helpers/testSetup.js";
 
 describe("Camera Presets - 3D", () => {
     let graph: Graph;
@@ -22,43 +23,12 @@ describe("Camera Presets - 3D", () => {
         // Initialize
         await graph.init();
 
-        // Use fixed layout so positions from data are used directly (using full template)
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: false,
-                viewMode: "3d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "fixed",
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                },
-            },
-            behavior: {
-                layout: {
-                    type: "fixed",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        // The document the graph is configured from, one setting at a time. It used to arrive as
+        // one style template; each of these is its own verb now.
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        await graph.setViewMode("3d");
+        await graph.setLayout("fixed");
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -156,8 +126,8 @@ describe("Camera Presets - 3D", () => {
         assert.ok(presetState.alpha !== undefined);
         assert.ok(presetState.beta !== undefined);
 
-        // Classic isometric: alpha ≈ 45°, beta ≈ 35.264°
+        // Classic isometric: alpha ~= 45 deg, beta ~= 35.264 deg
         assert.approximately(presetState.alpha, Math.PI / 4, 0.1);
-        assert.approximately(presetState.beta, 0.615, 0.1); // ≈35.264° in radians
+        assert.approximately(presetState.beta, 0.615, 0.1); // ~= 35.264 deg in radians
     });
 });

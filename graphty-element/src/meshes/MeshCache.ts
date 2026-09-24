@@ -1,10 +1,9 @@
-// WORKAROUND: Import InstancedMesh side-effect first
-// See: https://github.com/graphty-org/graphty-element/issues/54
+// Installs Mesh.prototype.createInstance, which get() calls. This module loads it itself so any
+// path that reaches get() -- including a consumer resolving the element from source -- has it.
+// See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh";
 
 import { InstancedMesh, Mesh } from "@babylonjs/core";
-
-import type { NodeStyleId } from "../Styles";
 
 type MeshCreatorFn = () => Mesh;
 
@@ -15,7 +14,7 @@ type MeshCreatorFn = () => Mesh;
  * identical geometries. Tracks cache hits and misses for performance monitoring.
  */
 export class MeshCache {
-    meshCacheMap = new Map<string | NodeStyleId, Mesh>();
+    meshCacheMap = new Map<string, Mesh>();
     hits = 0;
     misses = 0;
 
@@ -25,11 +24,11 @@ export class MeshCache {
      * @param creator - Function to create the mesh if not cached
      * @returns Instanced mesh from cache or newly created
      */
-    get(name: string | NodeStyleId, creator: MeshCreatorFn): InstancedMesh {
+    get(name: string, creator: MeshCreatorFn): InstancedMesh {
         let mesh = this.meshCacheMap.get(name);
         if (mesh) {
             this.hits++;
-            return mesh.createInstance(`${name}`);
+            return mesh.createInstance(name);
         }
 
         this.misses++;
@@ -44,7 +43,7 @@ export class MeshCache {
 
         mesh.freezeWorldMatrix();
         this.meshCacheMap.set(name, mesh);
-        return mesh.createInstance(`${name}`);
+        return mesh.createInstance(name);
     }
 
     /**

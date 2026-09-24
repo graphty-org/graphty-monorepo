@@ -15,7 +15,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { FieldRow, PanelField, PANEL_GRID, PanelLabelsProvider } from "../../../src";
+import { FieldRow, PANEL_GRID, PanelField, PanelLabelsProvider } from "../../../src";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 
 /** The two directions every measurement is repeated in. */

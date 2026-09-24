@@ -134,11 +134,12 @@ export const BadgeStyleManager = {
             options.marginLeft = options.marginRight = padding;
         }
 
+        // Every label, not only a badge: `smartOverflow` is a published label field, so a plain
+        // label that asks for it is shortened too. The count and notification badges switch it on
+        // by default, so they are unchanged.
+        BadgeStyleManager.applySmartOverflow(options, userOptions);
+
         switch (badgeType) {
-            case "notification":
-            case "count":
-                BadgeStyleManager.applySmartOverflow(options, userOptions);
-                break;
             case "dot":
                 if (options._removeText) {
                     options.text = "";

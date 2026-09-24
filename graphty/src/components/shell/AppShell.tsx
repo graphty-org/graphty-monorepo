@@ -73,6 +73,14 @@
  * - **The legend's channels.** With nothing encoded the legend renders nothing by
  *   design (spec 01 section 9), so an empty channel list is the correct state, not a
  *   missing one.
+ * - **A reproducible scatter on a large graph.** `recommendLayout` picks the Scattered
+ *   arrangement above the large-graph threshold and says of it that the result is "the same
+ *   every time", but the recommendation is a descriptor with no configuration and the random
+ *   engine's own seed defaults to null, so each load scatters differently. The shell applies
+ *   the arrangement the element named and adds no seed of its own: a layout option written
+ *   down here would be the copy of the element's catalogue this file has just finished
+ *   deleting. The promise holds the day the recommendation carries the configuration it
+ *   describes.
  */
 
 import {
@@ -82,6 +90,9 @@ import {
     PopoutManager,
     PopoutRegion,
 } from "@graphty/compact-mantine";
+import type { DataLoadingErrorEvent } from "@graphty/graphty-element";
+import type { MetricAvailability } from "@graphty/graphty-element/catalog";
+import { type Channel, type GraphStatistics, type LayerSpec, recommendLayout, type RunId } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -90,30 +101,25 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import { useGraphInfo } from "../../hooks/useGraphInfo";
 import type { ProviderType } from "../../types/ai";
-import { createEmptyStyleLayer, type IndexedLayerItem, styleLayersToLayerItems } from "../../utils/layerConversion";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { FeedbackModal } from "../FeedbackModal";
-import type { GraphtyHandle, SelectionChangedDetail, StyleLayer, StylesChangedDetail } from "../Graphty";
+import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
-import type { AlgorithmStyleLayer } from "../RunAlgorithmModal";
+import { asElementGraph, elementSession } from "./analysis/elementBridge";
 import {
-    addStyleLayers,
-    asElementGraph,
-    type ElementStyleLayerLike,
-    removeLayersFromSource,
-    repaintStyles,
-} from "./analysis/elementBridge";
-import { computeGraphShape, edgeEndpoints, type GraphShape } from "./analysis/graphShape";
-import { estimateMetricCost, estimateSecondsByMetric, type MetricCostEstimate } from "./analysis/metricCost";
+    edgeEndpoints,
+    EMPTY_GRAPH_STATISTICS,
+    readGraphStatistics,
+    smallPartsAreSingleNodes,
+} from "./analysis/graphShape";
+import { metricCost, type MetricCostEstimate, metricCosts, readMetricAvailability } from "./analysis/metricCost";
 import {
     metricDistribution,
     NODE_METRIC_DEFINITIONS,
     NODE_METRIC_IDS,
     type NodeMetricId,
-    rankingFromDegreeResults,
     runNodeMetric,
 } from "./analysis/nodeMetrics";
 import { COMMUNITY_METHOD_NAME, type DegreeResults, runCommunityDetection, runDegreePass } from "./analysis/runs";
@@ -123,7 +129,7 @@ import type { DataDrawerTab } from "./canvas/DataTableDrawer";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
-import { communityColourChannel, nodeMetricColourChannel } from "./canvas/legendChannels";
+import { legendChannels as canvasLegendChannels } from "./canvas/legendChannels";
 import { type WelcomeSample, WelcomeSampleList } from "./canvas/WelcomeSampleList";
 import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
@@ -141,25 +147,15 @@ import {
     STATUS_BAR_HEIGHT,
     TOP_BAR_HEIGHT,
 } from "./constants";
-import { labelDegreeThreshold, LARGE_GRAPH_NODE_THRESHOLD, loadDefaults } from "./defaults/loadDefaults";
 import {
-    autoApplyDecision,
-    markHandBound,
-    NODE_METRIC_LAYER_SOURCE_TAGS,
-    nodeMetricColourLayer,
-    nodeMetricLayerName,
-    nodeMetricLayerSource,
-    viridisAt,
-} from "./defaults/nodeMetricStyle";
-import {
-    COMMUNITY_LAYER_NAME,
-    COMMUNITY_LAYER_SOURCE,
-    COMMUNITY_PALETTE,
-    communityColourLayers,
-    LOAD_DEFAULTS_LAYER_SOURCE,
-    type StyleLayerDescriptor,
-    topDegreeLabelLayer,
-} from "./defaults/styleDescriptors";
+    colourHeldBy,
+    removeOtherRunLayers,
+    removeRunLayers,
+    runColourBlock,
+    topSwatchColour,
+} from "./defaults/encodingReport";
+import { labelDegreeThreshold, loadDefaults } from "./defaults/loadDefaults";
+import { SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "./defaults/styleDescriptors";
 import {
     graphDeselectNode,
     graphDisableBuiltInXrButtons,
@@ -239,6 +235,8 @@ const SUGGESTED_CARD_METRICS: Readonly<Record<string, NodeMetricId>> = {
  * take `result-${metric}` on the same rule.
  */
 const COMMUNITY_RESULT_ID = "groups";
+
+
 
 /**
  * The community run's PLAIN name, which is the half floor item 6 insists is the same on
@@ -420,9 +418,10 @@ function fileSizeLabel(bytes: number): string {
  * Only measured facts go in. The format is there when the request NAMED one; with
  * "auto" the loader detected it and publishes no answer, so the compound is not drawn
  * rather than drawn with a guess. The size is there when a real file was read. The
- * direction is in neither: nothing in this build reads it off the data --
- * `useGraphInfo`'s `directed` is its own default, not a measurement -- and the one
- * place a wrong direction would do its damage is silently, in every algorithm after it.
+ * direction is in neither, and not because it is unknown: the element measures it and the
+ * Counts "Type" row prints that. It is absent from THIS compound because the compound
+ * describes the REQUEST -- what the reader asked for and what was read -- and the direction
+ * is a fact about the graph that came back.
  * @param request - the load request that just succeeded.
  * @returns the compound's values, or undefined when the request measured none of them.
  */
@@ -470,12 +469,10 @@ function focusWhenMounted(selector: string): void {
 }
 
 /*
- * A private `edgeEndpoint(value)` helper stood here until 2026-09-14, and with it a
- * `neighborsOf` loop that read `edge.source` and `edge.target`. Those are precisely the
- * two fields `GraphtyHandle.getData` never writes, so the node inspector reported zero
- * neighbours for every node on every dataset. Both are gone; `neighborsOf` now calls
- * `edgeEndpoints` from `analysis/graphShape.ts`, which is the one reader of that fact and
- * carries the full account of the defect in its own doc comment.
+ * A private `edgeEndpoint(value)` helper stood here, and with it a second reader of an
+ * edge's ends. It is gone: `neighborsOf` calls `edgeEndpoints` from
+ * `analysis/graphShape.ts`, which is the shell's one reader of that fact. Keep it that
+ * way -- a second reader here is free to invent a spelling the first one does not use.
  */
 
 /**
@@ -532,70 +529,6 @@ function selectedNodeSelectionKind(
 }
 
 /**
- * One style-layer descriptor, as the element bridge takes it.
- *
- * The two modules meet here and nowhere else: `defaults/styleDescriptors.ts` owns the
- * descriptor VOCABULARY as named interfaces, and `analysis/elementBridge.ts` takes a
- * layer as open records, because that is what graphty-element's `StyleManager` accepts.
- * A named interface carries no index signature, so the two shapes are structurally
- * compatible in one direction only; spreading each half produces the anonymous object
- * type the bridge asks for. Nothing is renamed, dropped or nested -- in particular
- * `calculatedStyle` stays a SIBLING of `style`, which is the one mistake that would make
- * a calculated value silently vanish.
- * @param layer - the descriptor a builder in `defaults/` produced.
- * @returns the same layer, shaped as the bridge takes it.
- */
-function elementStyleLayer(layer: StyleLayerDescriptor): ElementStyleLayerLike {
-    return { metadata: { ...layer.metadata }, node: { ...layer.node } };
-}
-
-/**
- * One half of a layer as the list and the inspector hand it back: the node half or the
- * edge half of a `LayerItem`, absent on a layer that does not style that end.
- */
-type LayerItemHalf = LayerItem["styleLayer"]["node"] | LayerItem["styleLayer"]["edge"];
-
-/**
- * Whether two halves of a layer say the same thing.
- *
- * Compared by VALUE and not by reference: the inspector rebuilds the half it edits on
- * every keystroke (`StyleLayerPropertiesPanel.handleColorChange` restates the whole
- * style), so a reference test would call every edit a change -- including the halves a
- * rename leaves alone. A half holds only what graphty-element's `StyleLayer` holds --
- * a selector string and two plain records of style values -- so serialising it is a
- * true value test, and the worst a key-order difference can cost is one write of the
- * same values.
- * @param before - the half the shell last read from the element.
- * @param after - the half that just came up the list's channel.
- * @returns true when nothing in the half changed.
- */
-function sameStyleHalf(before: LayerItemHalf, after: LayerItemHalf): boolean {
-    if (before === undefined || after === undefined) {
-        return before === after;
-    }
-
-    return JSON.stringify(before) === JSON.stringify(after);
-}
-
-/**
- * One half of a layer, shaped as graphty-element's `StyleLayer` takes it.
- *
- * `calculatedStyle` is written only when the half carries one, so a half without one
- * does not plant an `undefined` beside `style` -- the element's own schema reads the
- * two as siblings, and a present-but-undefined calculated style is not the same fact as
- * an absent one.
- * @param half - the half the list or the inspector handed back.
- * @returns the same half, as the element's layer takes it.
- */
-function elementStyleHalf(half: NonNullable<LayerItemHalf>): NonNullable<StyleLayer["node"]> {
-    return {
-        selector: half.selector,
-        style: half.style,
-        ...(half.calculatedStyle === undefined ? {} : { calculatedStyle: half.calculatedStyle }),
-    };
-}
-
-/**
  * The graph data the shell holds on to: what `GraphtyHandle.getData` last reported.
  */
 interface ShellGraphData {
@@ -606,6 +539,9 @@ interface ShellGraphData {
 }
 
 const NO_GRAPH_DATA: ShellGraphData = { nodes: [], edges: [] };
+
+/** What the shell reports as pinned before the element is up to be asked. */
+const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
 
 /**
  * The event graphty-element publishes when a data source has finished loading.
@@ -633,24 +569,16 @@ const DATA_LOADED_EVENT = "data-loaded";
 const DATA_LOADING_ERROR_EVENT = "data-loading-error";
 
 /**
- * What that event carries (graphty-element's `events.ts:113-122`).
+ * What that event carries: graphty-element's own `DataLoadingErrorEvent`, imported.
  *
- * Restated here rather than imported, as `Graphty.tsx` restates `SelectionChangedDetail`
- * and for the same two reasons: no type export of that package resolves through the
- * application's path alias, and every member is optional here because this is a DOM
- * CustomEvent whose `detail` is whatever the dispatcher put on it. The shell reads two
- * of the fields and treats a missing one as a fact it was not told.
+ * A near-copy of this interface stood here, with a note saying no type export of the
+ * package resolved through the application's path alias. It does now -- the element
+ * publishes an exports map and real declarations -- so the copy is gone and the shell
+ * reads the element's own shape. The `| undefined` is not defensiveness about the
+ * FIELDS; it is the one honest thing a DOM listener can say about `detail`, which is
+ * whatever the dispatcher put on the event.
  */
-interface DataLoadingErrorDetail {
-    /** What went wrong, as the parser or the fetch threw it. */
-    readonly error?: unknown;
-    /** Where it went wrong: detection, validation or parsing. */
-    readonly context?: string;
-    /** The data source type the element was reading. */
-    readonly format?: string;
-    /** Whether the load carries on despite this error. */
-    readonly canContinue?: boolean;
-}
+type DataLoadingErrorDetail = DataLoadingErrorEvent;
 
 /**
  * The events graphty-element publishes WHILE a load is still arriving.
@@ -666,6 +594,17 @@ const DATA_LOADING_PROGRESS_EVENT = "data-loading-progress";
 
 /** The other half of that heartbeat: one per chunk of nodes and one per chunk of edges. */
 const DATA_ADDED_EVENT = "data-added";
+
+/**
+ * The event graphty-element publishes when the reader finishes dragging a node.
+ *
+ * It is the only way a pin the reader made with the POINTER reaches this shell. `pinOnDrag`
+ * is on by default, so letting go of a dragged node pins it, and nothing else in the shell
+ * is told: the Pin verb below knows about the pins it makes itself and about no others.
+ * The element mirrors its node events to the DOM under a `graphty-` prefix, bubbling and
+ * composed, so the frame hears this the same way it hears a load completing.
+ */
+const NODE_DRAG_END_EVENT = "graphty-node-drag-end";
 
 /**
  * How long the shell waits on a SILENT element before it stops waiting, in milliseconds.
@@ -1023,22 +962,44 @@ function degreeHistogram(degreesDescending: readonly number[]): DegreeHistogram 
 }
 
 /**
- * What the Counts "Type" row may say about direction.
+ * What the Counts "Type" row says about direction.
  *
- * The row's string is a claim plus where the claim was read: "Directed (from file),
- * weighted (amount), timed (opened)" (inspectorConstants.ts:336), which is spec line 843
- * -- "Direction (Directed / Undirected, from the file where the format carries it)". A
- * measured direction therefore keeps its provenance, and where the format carried none
- * the row says that and claims nothing. It does NOT read
- * `graphInfo.graphType.directed`, which defaults to true and measures nothing, and there
- * is no 6.3 pair for a fact nobody read: a plain-language phrase alone is the whole
- * vocabulary the unknown case has.
+ * It states what graphty-element says the graph IS -- the direction the snapshot is
+ * frozen with, which is the direction every run, every layout and every degree uses.
+ *
+ * THE PROVENANCE CLAUSE IS GONE, and its absence is the honest half of this row. Spec
+ * line 843 writes it as "Direction (Directed / Undirected, from the file where the format
+ * carries it)", and the row used to print "(from file)". The element publishes what the
+ * graph is and not where that came from: under `data.directed: "auto"` a format that
+ * states nothing leaves the element's own default standing, and the row cannot tell that
+ * apart from a file header that said so. Claiming the file said it would be inventing a
+ * source. The clause comes back the day the element publishes where the direction was
+ * settled -- see the element note in this module's header.
+ *
+ * "unknown" survives as the empty graph's answer: nothing has settled the question yet,
+ * and there is no 6.3 pair for a fact nobody read, so a plain-language phrase alone is
+ * the whole vocabulary that case has.
  */
-const COUNTS_TYPE_ROW: Readonly<Record<GraphShape["directedness"], string>> = {
-    directed: "Directed (from file)",
-    undirected: "Undirected (from file)",
-    unknown: "Not stated in the file",
+const COUNTS_TYPE_ROW: Readonly<Record<GraphStatistics["directedness"], string>> = {
+    directed: "Directed",
+    undirected: "Undirected",
+    mixed: "Mixed directions",
+    unknown: "Not stated yet",
 };
+
+/**
+ * The Type row: what the graph is, and where that came from when a file is what settled it.
+ * @param statistics - the element's statistics for the loaded graph
+ * @returns the row text
+ */
+function countsTypeRow(statistics: GraphStatistics): string {
+    const claim = COUNTS_TYPE_ROW[statistics.directedness];
+
+    // The source qualifies the claim only when data said so. A direction the reader themselves
+    // configured, or one nothing has stated, is still true of the graph -- but "(from file)" on
+    // either would credit the file with a decision it did not make.
+    return statistics.directednessSource.by === "file" ? `${claim} (from file)` : claim;
+}
 
 /**
  * Props of {@link AppShell}.
@@ -1094,7 +1055,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     const graphtyRef = useRef<GraphtyHandle>(null);
-    const { graphInfo, updateStats, addDataSource } = useGraphInfo();
     const [datasetName, setDatasetName] = useState<string | null>(null);
     const [dataLoaded, setDataLoaded] = useState(false);
     /* The load that did not arrive, or null while nothing has failed since the last
@@ -1103,12 +1063,45 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
     const [loadedSummary, setLoadedSummary] = useState<LoadedDataSummary | undefined>(undefined);
     const [graphData, setGraphData] = useState<ShellGraphData>(NO_GRAPH_DATA);
+    /*
+     * The graph's shape, as graphty-element last reported it.
+     *
+     * Held beside the records rather than derived from them, because it is not derivable
+     * from them: the element measures the snapshot it froze, and the records are a copy
+     * the shell keeps for its data table. Both are re-read together in `refreshGraphData`,
+     * on the element's own data events, so the two can never describe different graphs.
+     */
+    const [graphStatistics, setGraphStatistics] = useState<GraphStatistics>(EMPTY_GRAPH_STATISTICS);
+    /*
+     * What the element says each metric would cost on the graph it is holding.
+     *
+     * It feeds two surfaces that must agree: the Suggested Run's own label and tooltip,
+     * and the Insights strip's 60 s ceiling. The strip's gate is inert without it -- an
+     * unestimated betweenness card is offered whatever the graph's size -- so a 200k-node
+     * graph would have gone on suggesting a pass measured in hours as a one-click card.
+     *
+     * Read beside the statistics, on the same data events, because the same thing makes
+     * both answers move: the estimate is O(1) over the shape the session maintains, so
+     * asking for all three costs no more than reading the shape once. The number the
+     * reader is asked to ACCEPT is asked for again on the click -- see `runNodeMetricCard`
+     * -- because by then the element may have timed a real run and know better.
+     */
+    const [metricEstimates, setMetricEstimates] = useState<Readonly<Record<NodeMetricId, MetricCostEstimate>>>(() =>
+        metricCosts(null),
+    );
+    /* What the element says this graph can support and what each analysis would cost, one
+       entry per algorithm it ships. The Insights strip reads it so that a card is offered
+       only for a run the element will actually perform, and so that the 60 s ceiling has a
+       number for every card rather than for the three this shell estimates for its own Run
+       buttons. Empty until the element is up, which is what it also answers for a graph of
+       no size. */
+    const [elementMetrics, setElementMetrics] = useState<readonly MetricAvailability[]>([]);
     /* How many loads the element has reported COMPLETE since the last dataset boundary.
        The 7.2 defaults wait on it rather than on the first data event: a chunked load
        publishes `data-added` per chunk, and a decision taken on the first one is taken
        over a partial graph. */
     const [loadCompletions, setLoadCompletions] = useState(0);
-    const [layers, setLayers] = useState<IndexedLayerItem[]>([]);
+    const [layers, setLayers] = useState<readonly LayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     /* The Explore search field and the set it runs over.
        They are held HERE, beside `selectedLayerId` and the canvas layout's
@@ -1127,8 +1120,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
     const [selectedNode, setSelectedNode] = useState<{
         readonly id: string;
+        /*
+         * The same node, as the ELEMENT spells its id. Kept beside the printed form because the
+         * element looks a node up by exact map key: `element.pin("34")` finds nothing on a graph
+         * whose ids are numbers, and unlike `selectNode` the pin verbs return nothing, so a miss
+         * cannot even be detected and retried. Every call on the element made from this state
+         * passes this field.
+         */
+        readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;
     } | null>(null);
+    /*
+     * Which nodes the element has pinned, as the inspector's Pinned badge and its Pin/Unpin verb
+     * read it. Re-read from the element rather than tracked here, because the element pins on
+     * drag as well (`pinOnDrag` is on by default) and a copy kept up to date only by this shell's
+     * own calls would say "Pin" over a node the reader has already fixed by dragging it. The two
+     * things that move it are this shell's own Pin verb and {@link NODE_DRAG_END_EVENT}.
+     */
+    const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
     const firstLoadDone = useRef(false);
     /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
@@ -1292,49 +1301,42 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            verbs act on and the count Remove result states before it acts -- or it did not,
            and carries none of the four.
 
-           `layerSource` is here rather than in a state field beside it because the verb
-           acts on the layer belonging to THE RESULT THE READER IS LOOKING AT. Inferring
-           the tag from a separate "which metric is applied" field is how Delete layer on a
-           Groups card came to delete the degree ramp: the field was never cleared by a
-           community run, and the card and the field disagreed about which result was on
-           screen. */
+           `layerRunId` is here rather than in a state field beside it because the verb acts
+           on the layers belonging to THE RESULT THE READER IS LOOKING AT. Inferring the run
+           from a separate "which metric is applied" field is how Delete layer on a Groups
+           card came to delete the degree ramp: the field was never cleared by a community
+           run, and the card and the field disagreed about which result was on screen. */
         readonly layerName?: string;
         readonly stateSwatch?: string;
-        /** The `algorithmSource` tag of every layer this result painted. */
-        readonly layerSource?: string;
-        /** How many layers carry that tag, which is the count Remove result names. */
+        /** The run every layer this result painted names as its source. */
+        readonly layerRunId?: RunId;
+        /** How many layers name that run, which is the count Remove result states. */
         readonly layerCount?: number;
     } | null>(null);
 
     /*
-     * The colour channel the legend draws, set by whatever painted the canvas.
+     * The legend's blocks, translated from whatever the element's style stack is painting.
      *
-     * It is the home of the sentence the community reading no longer carries. Design line
-     * 201 gives the legend the channel header "Color: groups, categorical", and 5808 has
-     * Copy reading pick up "the legend's channel lines" -- so what the colours MEAN is the
-     * legend's fact, and repeating it as a third sentence in the reading both broke RT-10's
-     * two-sentence budget and said the same thing twice. Null until something encodes
-     * colour, because an unencoded channel is absent rather than empty (spec 4121).
-     */
-    const [colourChannel, setColourChannel] = useState<LegendChannel | null>(null);
-
-    /*
-     * The legend's encoded channels: colour, from whatever painted the canvas last.
+     * Every figure in them is the ELEMENT's: the field's plain and technical names, the scale
+     * in words out of the scale catalogue, the domain, the swatches and their colours, and the
+     * departures as finished sentences. The shell used to rebuild all of it from a ranking it
+     * had summarised itself, which is a second reading of the picture free to disagree with
+     * the canvas -- and one of them did: a metric's result swatch was drawn at the palette's
+     * top end rather than at the top node's own fraction.
      *
-     * Colour is the only channel the shell encodes now. The 7.2 size-by-degree layer was
-     * reverted with the node defaults, and naming a size channel the canvas does not apply
-     * would be the legend asserting an encoding that is not there. An unencoded channel is
-     * absent rather than empty (spec 4121), so with nothing painted no `legend` config is
-     * passed at all and the legend draws nothing.
+     * It is the home of the sentence the community reading no longer carries. Design line 201
+     * gives the legend the channel header "Color: groups, categorical", and 5808 has Copy
+     * reading pick up "the legend's channel lines" -- so what the colours MEAN is the legend's
+     * fact, and repeating it as a third sentence in the reading both broke RT-10's
+     * two-sentence budget and said the same thing twice. Empty until something encodes a
+     * channel the canvas legend draws, because an unencoded channel is absent rather than
+     * empty (spec 4121).
      *
-     * It is derived HERE, immediately beside the state it reads, rather than beside the
-     * canvas props it feeds, because the key dispatcher is wired further down the file and
+     * It is held HERE, immediately beside the state it reads, rather than beside the canvas
+     * props it feeds, because the key dispatcher is wired further down the file and
      * `toggleLegend` below has to know whether there is a legend to toggle.
      */
-    const legendChannels = useMemo<readonly LegendChannel[]>(
-        () => (colourChannel === null ? [] : [colourChannel]),
-        [colourChannel],
-    );
+    const [legendChannels, setColourChannel] = useState<readonly LegendChannel[]>([]);
 
     /*
      * Whether the legend CAN be drawn: whether anything is encoded at all.
@@ -1452,15 +1454,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
 
     /* ---------------------------------------------------------------------- */
-    /* What one O(n+m) pass over the loaded records can honestly say            */
+    /* What is still true of the graph the shell last measured                 */
     /* ---------------------------------------------------------------------- */
 
-    /* Components, isolated nodes, self-loops, parallel edges and the direction the
-       records actually carry -- the facts the graph-summary reading and the 7.3 rule
-       table both read. Nothing above O(n+m) is in here: no diameter, no path lengths,
-       and no direction guessed from `graphInfo.graphType.directed`, which defaults to
-       true and is therefore not a measurement. */
-    const graphShape = useMemo(() => computeGraphShape(graphData), [graphData]);
     /*
      * The held degree pass, or null when it no longer describes the graph on the canvas.
      *
@@ -1474,10 +1470,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return null;
         }
 
-        const fresh = degreePass.nodeCount === graphShape.nodeCount && degreePass.edgeCount === graphShape.edgeCount;
+        const fresh =
+            degreePass.nodeCount === graphStatistics.nodeCount && degreePass.edgeCount === graphStatistics.edgeCount;
 
         return fresh ? degreePass.results : null;
-    }, [degreePass, graphShape.edgeCount, graphShape.nodeCount]);
+    }, [degreePass, graphStatistics.edgeCount, graphStatistics.nodeCount]);
 
     /* ---------------------------------------------------------------------- */
     /* The 6.1 state axis, derived rather than stored twice                    */
@@ -1578,10 +1575,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     const refreshGraphData = useCallback(() => {
         const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
+        const session = elementSession(graphtyRef.current?.graph);
+        const statistics = readGraphStatistics(session);
 
+        /* The counts travel with the rest of the shape, in {@link graphStatistics}, so the
+           number in the status bar and the number every reading is written from are the same
+           field of the same object. They are the nodes and edges the element actually froze,
+           which is not always the length of the record lists: an edge naming a node no record
+           declared is still an edge of the graph. */
         setGraphData({ nodes: data.nodes, edges: data.edges });
-        updateStats(data.nodes.length, data.edges.length);
-    }, [updateStats]);
+        setGraphStatistics(statistics);
+        setMetricEstimates(metricCosts(session));
+        setElementMetrics(readMetricAvailability(session));
+    }, []);
 
     useEffect(() => {
         refreshGraphDataRef.current = refreshGraphData;
@@ -1706,6 +1712,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             frame?.removeEventListener(DATA_LOADED_EVENT, onDataLoaded);
             frame?.removeEventListener(DATA_LOADING_PROGRESS_EVENT, onLoadProgress);
             frame?.removeEventListener(DATA_ADDED_EVENT, onLoadProgress);
+        };
+    }, []);
+
+    /*
+     * Keeps the Pinned badge honest for a pin the READER made with the pointer.
+     *
+     * The whole set is re-read rather than the event's own `pinned` flag applied, because the
+     * element is where a pin lives and it is the only thing that knows about pins this shell
+     * did not make. The event says WHEN to look, not what the answer is.
+     */
+    useEffect(() => {
+        const frame = frameRef.current;
+
+        const onNodeDragEnd = (): void => {
+            setPinnedNodes(new Set(graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES));
+        };
+
+        frame?.addEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
+
+        return () => {
+            frame?.removeEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
         };
     }, []);
 
@@ -1939,7 +1966,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         setLoadCompletions(0);
         setDegreePass(null);
         setActiveResult(null);
-        setColourChannel(null);
+        setColourChannel([]);
         /* A metric run describes the graph that has gone exactly as a community run does:
            a pass still in flight is about to write over records that no longer exist, and a
            pending confirm names a size that is no longer the graph's. The tag of whatever
@@ -1947,30 +1974,26 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         setRunningMetric(null);
         setMetricConfirm(null);
 
-        /* The style layers the SHELL added encode the graph that has gone -- every
-           selector in them matches on a node id or on an `algorithmResults` value that
-           left with it -- so they go too. Without this a replacing load stacked a second
-           set of 7.2 layers on top of the first, and every later load one more.
+        /* The style layers that describe the graph that has gone go with it: the shell's own
+           7.2 defaults, whose selector names a run over nodes that have left, and every layer
+           a run painted, whose binding reads a column that is no longer there. Without this a
+           replacing load stacked a second set on top of the first, and every later load one
+           more.
 
-           Scoped by tag, never by index. graphty-element's own stack opens with its
-           `default` layer, which carries every node's shape type (Styles.ts:54-67), and
-           an index walk took that with it: the next load then died in mesh building with
-           "shape with type required to create mesh" and drew nothing at all. The shell
-           removes what the shell added and leaves the element's own layers alone. */
-        const graph = asElementGraph(graphtyRef.current?.graph);
+           BY SOURCE, never by position. The shell's layers carry its template id and a run's
+           carry the run, so a sweep names a category rather than a set of indices; and an
+           element-owned layer is never swept whatever the predicate says. The index walk this
+           replaces took graphty-element's own base layer with it -- the one carrying every
+           node's shape type -- and the next load then died in mesh building with "shape with
+           type required to create mesh" and drew nothing at all. */
+        const session = elementSession(graphtyRef.current?.graph);
 
-        if (graph !== null) {
-            removeLayersFromSource(graph, LOAD_DEFAULTS_LAYER_SOURCE);
-            removeLayersFromSource(graph, COMMUNITY_LAYER_SOURCE);
-
-            /* The metric encoding layers go the same way and for the same reason: their
-               calculated half reads `algorithmResults.graphty.<metric>.<fraction>` off
-               nodes that left with the dataset. By TAG, never by index -- the "shape with
-               type required to create mesh" failure the paragraph above records applies
-               to these identically, and one walk of the whole stack is what caused it. */
-            for (const tag of NODE_METRIC_LAYER_SOURCE_TAGS) {
-                removeLayersFromSource(graph, tag);
-            }
+        if (session !== null) {
+            void session.styles.removeBySource(
+                (source) =>
+                    (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) ||
+                    source.by === "run",
+            );
         }
 
         // Focus cannot move here. The same state change empties the canvas, so any
@@ -2016,13 +2039,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const finishLoad = useCallback(
         (name: string, type: string, summary: LoadedDataSummary | undefined) => {
-            addDataSource({ name, type });
             setDatasetName(name);
             setDataLoaded(true);
             setLoadedSummary(summary);
             refreshGraphData();
         },
-        [addDataSource, refreshGraphData],
+        [refreshGraphData],
     );
 
     /**
@@ -2343,176 +2365,149 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* Style layers, from graphty-element as the single source of truth        */
     /* ---------------------------------------------------------------------- */
 
+    /**
+     * The stack, as the element publishes it after every edit.
+     *
+     * The element's OWN layers are dropped on the way in. They are the floor every picture is
+     * painted on -- the node and edge appearance before anything else is asked for -- they are
+     * locked against removal, editing and reordering, and a list that drew them would offer a
+     * reader three controls that all refuse. `locked` is exactly `source.by === "element"`,
+     * which replaces identifying them BY NAME from a list of two strings: the shell used to do
+     * that, and its own comment admitted a reader who called their layer "default" lost the
+     * suppression.
+     * @param detail - what the element published.
+     */
     const handleStylesChange = useCallback((detail: StylesChangedDetail) => {
-        setLayers(styleLayersToLayerItems(detail.layers));
+        setLayers(detail.layers.filter((layer) => !layer.locked));
     }, []);
 
     /**
-     * Repaints after a layer-list write, through the bridge's own repaint.
+     * Applies a patch to one layer, by id.
      *
-     * This callback holds the element's `Graph`, which the bridge's `ElementGraph` view is
-     * a subset of, so it goes through `asElementGraph` like every other call here.
-     * @param graph - the element graph, as this callback holds it.
+     * The one write path for everything the style-layer inspector edits: a channel's fixed
+     * value, the selector, the name. `update` merges the patch one key deep over the layer's
+     * current specification, checks the result exactly as a new layer would be checked, and
+     * repaints before it commits -- so a refused edit leaves the stack exactly as it was rather
+     * than leaving the list saying one thing and the canvas showing another.
+     *
+     * There is no repaint call beside it. The verb repaints; the wrapper that used to do it by
+     * hand existed because the old `addLayer` was a push with a "TODO: recalculate" comment.
+     * @param layerId - the layer to change.
+     * @param patch - what to change about it.
      */
-    const repaintElementStyles = useCallback((graph: unknown) => {
-        const bridged = asElementGraph(graph);
+    const updateLayer = useCallback((layerId: string, patch: Partial<LayerSpec>) => {
+        const session = elementSession(graphtyRef.current?.graph);
 
-        if (bridged !== null) {
-            repaintStyles(bridged);
+        if (session === null) {
+            return;
         }
+
+        void session.styles.update(layerId, patch).then(
+            () => undefined,
+            (error: unknown) => {
+                console.error("[shell] the element refused the layer edit:", error);
+            },
+        );
     }, []);
 
+    /**
+     * Turns one channel's rule into the fixed value it currently produces, so it can be edited.
+     *
+     * The paired verb of `styles.explain()`, which reports a channel worked out from the data
+     * as not editable: a control offered there would take a value, write it, and be painted
+     * over by the rule on the same repaint.
+     * @param layerId - the layer carrying the rule.
+     * @param channel - the channel the rule paints.
+     */
+    const resolveLayerChannel = useCallback((layerId: string, channel: Channel) => {
+        const session = elementSession(graphtyRef.current?.graph);
+
+        if (session === null) {
+            return;
+        }
+
+        void session.styles.resolveToStatic(layerId, channel).then(
+            () => undefined,
+            (error: unknown) => {
+                console.error("[shell] the element refused to fix the channel's value:", error);
+            },
+        );
+    }, []);
+
+    /**
+     * What the layer list reports: a rename, or a reorder.
+     *
+     * Those are the only two edits the list itself makes -- every channel edit comes through
+     * {@link updateLayer} from the inspector -- and both are said by ID. The reconciliation
+     * this replaces compared positional ids (`layer-${index}`) to tell a rename from a move,
+     * read the live layer back out of the manager, spread it, and wrote the whole thing again;
+     * one off-by-one in the index arithmetic beside it once took the element's own base layer
+     * with it and the next load died in mesh building.
+     * @param next - the list as the reader left it.
+     */
     const handleLayersChange = useCallback(
         (next: LayerItem[]) => {
-            const graph = graphtyRef.current?.graph ?? null;
+            const session = elementSession(graphtyRef.current?.graph);
 
-            if (graph === null) {
+            if (session === null) {
                 return;
             }
 
-            const manager = graph.getStyleManager();
-            const currentIds = layers.map((layer) => layer.id);
-            const nextIds = next.map((layer) => layer.id);
+            for (const item of next) {
+                const before = layers.find((layer) => layer.id === item.id);
 
-            /* The list has one upward channel and it carries every kind of edit, so it has
-               to say which this was. Layer ids are positional (`layer-${index}`,
-               layerConversion.ts:29), so the SAME ids in the SAME order cannot be a reorder:
-               the list was edited IN PLACE. Before this branch existed every rename fell
-               through the loop below on `continue` and reached graphty-element -- the single
-               source of truth these names are drawn from -- never at all, so the row kept
-               drawing the old name while the editor held the new one. */
-            const inPlace =
-                currentIds.length === nextIds.length && currentIds.every((id, index) => id === nextIds[index]);
-
-            if (inPlace) {
-                const live = manager.getLayers();
-
-                for (const item of next) {
-                    const before = layers.find((layer) => layer.id === item.id);
-
-                    if (before === undefined) {
-                        continue;
-                    }
-
-                    /* An in-place edit is not only a rename. The same channel carries the
-                       style-layer inspector's own edits -- `onUpdate` for the node half,
-                       `onEdgeUpdate` for the edge half -- so the branch asks WHAT changed
-                       instead of assuming. It used to read the live layer back, spread it and
-                       override `metadata.name` alone, which spread a style edit away: product
-                       owner, 2026-09-13, "changing the color of a style in the style inspector
-                       doesn't change the color in component or in the graph". */
-                    const renamed = before.name !== item.name;
-                    const nodeEdited = !sameStyleHalf(before.styleLayer.node, item.styleLayer.node);
-                    const edgeEdited = !sameStyleHalf(before.styleLayer.edge, item.styleLayer.edge);
-
-                    if (!renamed && !nodeEdited && !edgeEdited) {
-                        continue;
-                    }
-
-                    const layer = live[before.index];
-
-                    if (layer === undefined) {
-                        continue;
-                    }
-
-                    /* The live layer is read from the manager and spread, rather than rebuilt
-                       from the `LayerItem`: the item is a lossy projection of a layer
-                       (layerConversion.ts:23-49 keeps only selector, style and
-                       calculatedStyle), so only the halves that actually changed are written
-                       over. Metadata is spread rather than replaced so a layer created by a run
-                       keeps its `algorithmSource` binding -- which is what DECISIONS-1.7:1829
-                       and :1962 mean by "the typed name once renamed" and "a renamed layer
-                       never re-derives". */
-                    /* The name is written only by a rename. `LayerItem.name` falls back to
-                       `Layer ${index + 1}` when a layer carries none (layerConversion.ts:25), so
-                       writing it unconditionally would turn that display fallback into a name the
-                       element then owns, on the back of an edit to a colour. */
-                    const metadataAfterRename = renamed ? { ...layer.metadata, name: item.name } : layer.metadata;
-
-                    /* A node edit is a HAND taking the channel, and the layer is flagged as one
-                       whether a run made it or not. Without the flag the next run's auto-apply
-                       read a layer with an `algorithmSource` as "still the machine's", replaced
-                       it, and the reader's own colour was gone with no record that it had ever
-                       been set (spec 2219-2231, limit 2: "suppressed for the same reason once the
-                       user has re-bound that channel by hand"). The tag is KEPT beside the flag,
-                       never dropped to mark the hand: every retirement this file performs --
-                       Delete layer, Remove result, the dataset boundary, a rerun that replaces --
-                       removes by tag, and a layer with no tag is one nothing can retire. */
-                    const metadata = nodeEdited ? markHandBound(metadataAfterRename) : metadataAfterRename;
-
-                    manager.updateLayerByIndex(before.index, {
-                        ...layer,
-                        ...(renamed || nodeEdited ? { metadata } : {}),
-                        ...(nodeEdited && item.styleLayer.node !== undefined
-                            ? { node: elementStyleHalf(item.styleLayer.node) }
-                            : {}),
-                        ...(edgeEdited && item.styleLayer.edge !== undefined
-                            ? { edge: elementStyleHalf(item.styleLayer.edge) }
-                            : {}),
-                    });
+                if (before !== undefined && before.name !== item.name) {
+                    updateLayer(item.id, { name: item.name });
                 }
-
-                /* Repaint, always. `updateLayerByIndex` re-evaluates selectors through the
-                   element's own style-changed handler, which runs WITHOUT algorithmResults
-                   and never runs calculated values (elementBridge.ts:142-151). So any edit
-                   to the list -- a bare rename included -- silently dropped every
-                   algorithmResults-driven encoding on the canvas, and the top-degree labels
-                   never came back. Found in review, 2026-09-13. */
-                repaintElementStyles(graph);
-
-                return;
             }
 
-            for (let index = 0; index < nextIds.length; index += 1) {
-                if (currentIds[index] === nextIds[index]) {
+            /* A move is said as "put this one below that one", which is what the list's own
+               drop already means, so nothing here computes a destination index. `null` is the
+               top of the stack, where the dropped layer has nothing above it. */
+            for (let at = 0; at < next.length; at += 1) {
+                if (layers[at]?.id === next[at].id) {
                     continue;
                 }
 
-                const movedId = nextIds[index];
-                const from = layers.find((layer) => layer.id === movedId);
-                const to = layers[index] as IndexedLayerItem | undefined;
+                const above = next[at + 1];
 
-                if (from !== undefined && to !== undefined) {
-                    manager.reorderLayers(from.index, to.index);
-                    // Same reason as the edit path above: reordering re-evaluates the stack.
-                    repaintElementStyles(graph);
-                }
+                void session.styles.move(next[at].id, above?.id ?? null).then(
+                    () => undefined,
+                    (error: unknown) => {
+                        console.error("[shell] the element refused the reorder:", error);
+                    },
+                );
 
                 break;
             }
         },
-        [layers, repaintElementStyles],
+        [layers, updateLayer],
     );
 
+    /**
+     * Adds an empty layer over every node, for a reader to paint into.
+     *
+     * The element mints the id. A layer added here says it is the READER's --
+     * `source.by === "user"` is what a specification with no source of its own becomes -- which
+     * is what makes a later run's encoding stand aside for it rather than paint over it.
+     */
     const handleAddLayer = useCallback(() => {
-        const graph = graphtyRef.current?.graph ?? null;
+        const session = elementSession(graphtyRef.current?.graph);
 
-        if (graph === null) {
+        if (session === null) {
             return;
         }
 
-        const name = `New Layer ${layerCounter.current}`;
+        const name = `New Layer ${String(layerCounter.current)}`;
 
         layerCounter.current += 1;
-        graph.getStyleManager().addLayer(createEmptyStyleLayer(name));
-    }, []);
 
-    const handleAddAlgorithmLayers = useCallback((algorithmLayers: AlgorithmStyleLayer[]) => {
-        const graph = graphtyRef.current?.graph ?? null;
-
-        if (graph === null) {
-            return;
-        }
-
-        for (const algorithmLayer of algorithmLayers) {
-            const styleLayer: StyleLayer = {
-                metadata: { name: algorithmLayer.name, algorithmSource: algorithmLayer.id },
-                node: algorithmLayer.styleLayer.node,
-                edge: algorithmLayer.styleLayer.edge,
-            };
-
-            graph.getStyleManager().addLayer(styleLayer);
-        }
+        void session.styles.add({ name, target: "node", selector: { match: "everything" } }).then(
+            () => undefined,
+            (error: unknown) => {
+                console.error("[shell] the element refused the new layer:", error);
+            },
+        );
     }, []);
 
     const handleApplyLayout = useCallback((type: string, config: Record<string, unknown>) => {
@@ -2534,7 +2529,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        setSelectedNode({ id: String(detail.currentNodeId), attributes: detail.currentNodeData });
+        setSelectedNode({
+            id: String(detail.currentNodeId),
+            elementId: detail.currentNodeId,
+            attributes: detail.currentNodeData,
+        });
     }, []);
 
     /*
@@ -2639,32 +2638,32 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 return;
             }
 
+            const session = graph.getSession();
             const stats = await runCommunityDetection(graph);
-            const colourLayers = communityColourLayers(stats.groups);
 
-            /* One result owns one set of layers, so the previous run's colours come off
-               before these go on -- by the same tag and the same helper the inspector's
-               Delete layer uses. Without the removal a second run left two full stacks of
-               community colours on the graph for one result. */
-            removeLayersFromSource(graph, COMMUNITY_LAYER_SOURCE);
+            /* The RUN painted the groups, not the shell. A community result publishes a group
+               per node, so the session derives a categorical colour encoding from the result's
+               shape on the run's first completion -- scoped to the nodes the run actually
+               grouped, with a palette out of the element's own catalogue. The shell used to
+               build one layer per group by hand, capped at eight because the element's palette
+               helper cycles past that and group 9 would have been painted like group 1.
 
-            /* And so does the OTHER family that drives node colour. A node-metric layer paints
-               through a calculatedStyle with an empty selector, and graphty-element merges
-               calculated values OVER the static style it just built (Node.ts:151), so a metric
-               ramp left standing beats every group colour whatever the stack order: the canvas
-               did not change by one pixel while this result's legend named eleven group
-               swatches and its card named a layer nobody could see. Node colour has one owner
-               at a time, and this run is taking it. */
-            for (const tag of NODE_METRIC_LAYER_SOURCE_TAGS) {
-                removeLayersFromSource(graph, tag);
-            }
+               What is left for the shell is the rule that NODE COLOUR HAS ONE OWNER. A metric
+               ramp left standing from an earlier run paints over every group colour, so the
+               canvas would not change by one pixel while this result's legend named group
+               swatches and its card named a layer nobody could see. This run is taking the
+               channel, so every other run's layers go. */
+            const { runId } = stats;
 
-            addStyleLayers(graph, colourLayers.map(elementStyleLayer));
+            await removeOtherRunLayers(session, runId);
+
+            const block = runColourBlock(session, runId);
+            const colouredGroupCount = block === undefined ? 0 : block.swatches.length;
 
             const statistics = {
                 ...stats,
-                colouredGroupCount: Math.min(stats.groupCount, colourLayers.length),
-                encodingApplied: colourLayers.length > 0,
+                colouredGroupCount: Math.min(stats.groupCount, colouredGroupCount),
+                encodingApplied: block !== undefined,
             };
 
             /* A selected node outranks a result on this surface, so the result is only
@@ -2704,16 +2703,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    and how many layers that tag holds, which is the count Remove result names
                    before it acts (spec 2241-2249). A run that coloured nothing passes none of
                    them and the card draws its un-applied form. */
-                ...(colourLayers.length === 0
+                ...(block === undefined
                     ? {}
                     : {
-                          layerName: COMMUNITY_LAYER_NAME,
-                          stateSwatch: COMMUNITY_PALETTE[0],
-                          layerSource: COMMUNITY_LAYER_SOURCE,
-                          layerCount: colourLayers.length,
+                          layerName: session.styles.get(block.layerId)?.name ?? COMMUNITY_METHOD_NAME,
+                          ...(topSwatchColour(block) === undefined
+                              ? {}
+                              : { stateSwatch: topSwatchColour(block) }),
+                          layerRunId: runId,
+                          layerCount: session.styles.list().filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
                       }),
             });
-            setColourChannel(colourLayers.length === 0 ? null : communityColourChannel(statistics));
+            setColourChannel(canvasLegendChannels(session.styles.legend()));
             openPanelAt("analyze");
             undoStore.push({
                 id: `groups-${String(Date.now())}`,
@@ -2740,26 +2741,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     /*
-     * What each metric is expected to cost on THIS graph, in seconds.
-     *
-     * It feeds two surfaces that must agree: the Suggested Run's own label and tooltip,
-     * and the Insights strip's 60 s ceiling. The strip's gate is inert without it -- an
-     * unestimated betweenness card is offered whatever the graph's size -- so a 200k-node
-     * graph would have gone on suggesting a pass measured in hours as a one-click card.
-     */
-    const metricEstimates = useMemo(
-        () => estimateSecondsByMetric({ nodeCount: graphShape.nodeCount, edgeCount: graphShape.edgeCount }),
-        [graphShape.edgeCount, graphShape.nodeCount],
-    );
-
-    /*
      * What each Suggested row's Run says about what it will cost, per card id.
      *
-     * Every string comes from `estimateMetricCost` and none is composed here: the label,
-     * the tooltip and the warning sentence are one register, and the card and the confirm
-     * dialog draw the SAME sentence (spec 2043-2047) precisely because neither builds it.
-     * A cost string formatted at a call site would also escape the table-driven test that
-     * holds all of them to spec 1918-1927.
+     * Every string comes from the gate and none is composed here: the label, the tooltip
+     * and the warning sentence are one register, and the card and the confirm dialog draw
+     * the SAME sentence (spec 2043-2047) precisely because neither builds it. A cost
+     * string formatted at a call site would also escape the table-driven test that holds
+     * all of them to spec 1918-1927.
      */
     const suggestedRunCosts = useMemo(() => {
         const labels: Record<string, string> = {};
@@ -2767,11 +2755,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const warnings: Record<string, string> = {};
 
         for (const [cardId, metric] of Object.entries(SUGGESTED_CARD_METRICS)) {
-            const estimate = estimateMetricCost({
-                metric,
-                nodeCount: graphShape.nodeCount,
-                edgeCount: graphShape.edgeCount,
-            });
+            const estimate = metricEstimates[metric];
 
             labels[cardId] = estimate.runLabel;
             titles[cardId] = estimate.runTitle;
@@ -2782,7 +2766,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         return { labels, titles, warnings };
-    }, [graphShape.edgeCount, graphShape.nodeCount]);
+    }, [metricEstimates]);
 
     /* Which Suggested ROW is in flight, in the panel's own vocabulary. The panel keys by
        card id and the shell holds a metric id, so the map is read backwards here rather
@@ -2844,11 +2828,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             if (!confirmed) {
-                const estimate = estimateMetricCost({
-                    metric,
-                    nodeCount: graphShape.nodeCount,
-                    edgeCount: graphShape.edgeCount,
-                });
+                /* Asked again HERE rather than read off the memo above, because this is the
+                   click and the memo is a frame old. The element's estimate improves as it
+                   learns: a run of the same algorithm on this machine is timed and the next
+                   estimate is scaled from that timing rather than modelled, so the number
+                   the reader is asked to accept should be the freshest one the element has.
+                   It is O(1) over the shape the session already maintains. */
+                const estimate = metricCost(graph.getSession(), metric);
+
+                if (estimate.verdict === "unavailable") {
+                    /* The element will not run this on this graph and said why. Nothing is
+                       confirmed, because there is nothing a Run button could do: the card
+                       is already drawing the same sentence under its own Run. */
+                    console.error(`[shell] the element cannot run ${metric}:`, estimate.warningSentence);
+
+                    return;
+                }
 
                 if (estimate.verdict !== "run") {
                     /* The route's own flag rides along on the confirm, because the dialog
@@ -2865,21 +2860,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setRunningMetric(metric);
 
             try {
-                /* Ruling 3: the degree pass already ran at import and the shell is holding
-                   its result. `readNodeMetricResults` exists to read without running, and
-                   this is the reader. The other two have nothing held, so they run.
-
-                   `degreeResults` is null the moment that held pass stops describing the
-                   live graph, so a graph that has changed under it falls through to a real
-                   pass rather than ranking the records that were there when it ran -- which
-                   is what the short circuit did, under a run record counting them and a
-                   ramp leaving every node the pass never saw unencoded. The live node count
-                   goes in beside the readings so the ranking can say how many nodes it did
-                   NOT measure; without it that departure could never fire on this path. */
-                const ranking =
-                    metric === "degree" && degreeResults !== null
-                        ? rankingFromDegreeResults(degreeResults, graphShape.nodeCount)
-                        : await runNodeMetric(graph, metric);
+                /* The shell no longer decides whether the degree pass already covers this
+                   graph, because the element decides it better. Starting a run the session
+                   already holds returns that run untouched when nothing it measured has
+                   moved, and re-executes it when the graph has -- compared by the scope's
+                   own membership digest rather than by a flag the shell keeps in sync by
+                   hand. The short circuit this replaces was the shell keeping that flag,
+                   and it got it wrong on an additive load: the held pass described one file
+                   while the ranking reported its node count as the whole graph. */
+                const ranking = await runNodeMetric(graph, metric);
                 const top = ranking.byValueDescending[0];
 
                 if (top === undefined) {
@@ -2891,23 +2880,46 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     return;
                 }
 
-                const decision = autoApplyDecision({ layers, alreadyAppliedInBatch: false });
+                /* The RUN painted the ramp, if it painted one. A node metric publishes a value
+                   per node, so the session derives a sequential colour encoding from the
+                   result's shape on the run's first completion, scoped to the nodes the run
+                   measured -- and it stands aside when a layer somebody wrote by hand already
+                   drives node colour. The shell used to build the ramp, decide whether it was
+                   allowed to paint, and mark the reader's own edits so a later run would not
+                   overwrite them; all three are the element's now.
 
-                if (decision.kind === "apply") {
-                    /* One node-metric encoding drives colour at a time. Without this a
-                       second run left two ramps stacked for one reading and the legend
-                       named whichever happened to be on top. */
-                    for (const tag of NODE_METRIC_LAYER_SOURCE_TAGS) {
-                        removeLayersFromSource(graph, tag);
+                   What is left for the shell is the rule that NODE COLOUR HAS ONE OWNER: a
+                   second ramp or a group colouring left standing beats this one whatever the
+                   stack order, so every other run's layers go. */
+                const session = graph.getSession();
+                const { runId } = ranking;
+
+                /* A degree ranking read back off the load's own pass has a run behind it that
+                   was deliberately told not to paint (`{ style: false }`, analysis/runs.ts), so
+                   the picture has to be asked for here -- unless a layer somebody wrote by hand
+                   already drives node colour, which is the one case a run stands aside for. */
+                if (runId !== undefined) {
+                    await removeOtherRunLayers(session, runId);
+
+                    if (runColourBlock(session, runId) === undefined && colourHeldBy(layers) === undefined) {
+                        await session.styles.encode({ run: runId, channel: "node.color" }).then(
+                            () => undefined,
+                            (error: unknown) => {
+                                console.error("[shell] the element refused the metric encoding:", error);
+                            },
+                        );
                     }
+                }
 
-                    /* And the community stack goes with them, for the same reason and in
-                       the same breath: this ramp is about to paint over every group colour
-                       whatever the stack order, so leaving those layers standing leaves
-                       colours on the graph that nothing on screen accounts for. */
-                    removeLayersFromSource(graph, COMMUNITY_LAYER_SOURCE);
+                const block = runId === undefined ? undefined : runColourBlock(session, runId);
+                const heldBy = block === undefined ? colourHeldBy(layers) : undefined;
 
-                    addStyleLayers(graph, [elementStyleLayer(nodeMetricColourLayer(metric))]);
+                if (heldBy !== undefined) {
+                    /* Spec 2222-2226 asks the suppressed card's TITLE to name the layer that
+                       holds the channel instead, and `ResultInspector` has no title field for
+                       it, so that half waits on a surface this slice does not build. Saying it
+                       once here is better than the reader being told nothing at all. */
+                    console.warn(`[shell] the encoding was not applied: ${heldBy} holds node colour`);
                 }
 
                 const definition = NODE_METRIC_DEFINITIONS[metric];
@@ -3002,14 +3014,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        are all 0 (degree on an edgeless graph, betweenness on a ring) drew a
                        yellow swatch beside three deep-purple legend stops and a deep-purple
                        graph. */
-                    ...(decision.kind === "apply"
-                        ? {
-                              layerName: nodeMetricLayerName(metric),
-                              stateSwatch: viridisAt(ranking.maxFraction),
-                              layerSource: nodeMetricLayerSource(metric),
-                              layerCount: 1,
-                          }
-                        : {}),
+                    ...(block === undefined || runId === undefined
+                        ? {}
+                        : {
+                              layerName: session.styles.get(block.layerId)?.name ?? definition.plainName,
+                              ...(topSwatchColour(block) === undefined
+                                  ? {}
+                                  : { stateSwatch: topSwatchColour(block) }),
+                              layerRunId: runId,
+                              layerCount: session.styles
+                                  .list()
+                                  .filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
+                          }),
                 });
 
                 /* Only a run that PAINTED touches the channel. A suppressed run painted
@@ -3017,8 +3033,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    put there and the legend must go on naming it: clearing the channel here
                    took the legend off the screen while the colours it named were still on
                    it, which is exactly the obligation floor item 5 states. */
-                if (decision.kind === "apply") {
-                    setColourChannel(nodeMetricColourChannel({ metric, ranking, encodingApplied: true }));
+                if (block !== undefined) {
+                    setColourChannel(canvasLegendChannels(session.styles.legend()));
                 }
 
                 openPanelAt("analyze");
@@ -3048,7 +3064,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, graphShape.edgeCount, graphShape.nodeCount, layers, openPanelAt, undoStore],
+        [degreeResults, layers, openPanelAt, undoStore],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -3056,9 +3072,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     /*
-     * The layout, the label budget, the size scale and the one neutral colour, applied
-     * once per dataset from the loaded graph's size alone. Nothing else runs (7.2), and
-     * every number and every hex comes from the defaults module rather than from here.
+     * The arrangement and the label budget, applied once per dataset. Nothing else runs
+     * (7.2).
+     *
+     * WHICH ARRANGEMENT IS THE ELEMENT'S ANSWER, not this file's and not the defaults
+     * module's. `recommendLayout` reads the graph's shape and how many nodes already carry
+     * a coordinate, resolves each candidate against the element's own layout catalogue, and
+     * never names one the element cannot serve at this size or without an input nobody has
+     * supplied. What it replaced was the same three cases decided here from a copy of that
+     * catalogue -- a copy that named "grid" as 7.2's first choice for years after the engine
+     * behind it stopped existing.
      *
      * The degree pass is awaited because three of the four decisions need it: the size
      * scale reads `degreePct`, the label selector needs the labelCount-th degree as its
@@ -3091,10 +3114,26 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         loadDefaultsAppliedRef.current = true;
 
-        const defaults = loadDefaults({ nodeCount: graphShape.nodeCount });
+        const defaults = loadDefaults({ nodeCount: graphStatistics.nodeCount });
+        const session = graph.getSession();
 
-        setLayoutType(defaults.layout.type);
-        setLayoutConfig(defaults.layout.config);
+        /* `seededNodeCount`, NOT `positions.placedCount`, and the difference is the whole
+           decision. The position array is written by the importer AND by every running layout,
+           so one animation frame after a file with no coordinates loads, every node carries a
+           position -- the layout put it there. This effect runs after that frame, so reading the
+           live count answered "keep the arrangement the data arrived with" for a file that
+           arrived with none, and froze the graph at whatever the first step of a force layout
+           reached. The seeded count is what the importer itself placed and nothing else writes. */
+        const arrangement = recommendLayout(graphStatistics, { placedNodes: session.seededNodeCount });
+
+        if (arrangement !== undefined) {
+            /* `engine` and not `id`: `id` is the arrangement's public name ("force"), and
+               `setLayout` takes the engine that draws it ("ngraph"). No configuration of the
+               shell's own goes with it -- the element's recommendation is the whole decision,
+               and options belong to the Layout panel, where a reader can see them. */
+            setLayoutType(arrangement.layout.engine);
+            setLayoutConfig({});
+        }
 
         const apply = async (): Promise<void> => {
             const degrees = await runDegreePass(graph);
@@ -3102,7 +3141,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             /* Stamped with the graph it was just measured over. Both counts, not only the
                nodes: a file that adds edges between nodes that are already here changes
                every degree in the ranking without changing its length. */
-            setDegreePass({ results: degrees, nodeCount: graphShape.nodeCount, edgeCount: graphShape.edgeCount });
+            setDegreePass({ results: degrees, nodeCount: graphStatistics.nodeCount, edgeCount: graphStatistics.edgeCount });
 
             /* NO node colour or size layer, which is a deliberate departure from 7.2's
                "node size by degree on a square-root scale" and "a single neutral node
@@ -3120,17 +3159,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                normalisation first, against the observed degree RANGE rather than the
                maximum alone. Labels stay: they add a channel rather than overriding a
                tuned value. */
-            const styleLayers: StyleLayerDescriptor[] = [];
-
             const degreeThreshold = labelDegreeThreshold(degrees.degreesDescending, defaults.labelCount);
+            const degreeRunId = degrees.runId;
 
-            if (degreeThreshold !== undefined) {
-                styleLayers.push(topDegreeLabelLayer({ degreeThreshold }));
+            /* The layer names the RUN that measured the degrees, so a node the pass never
+               reached carries no value, reads absent and is not labelled -- rather than being
+               compared against the cut and labelled because `null >= 0` is true, which the
+               expression this replaces had to guard against by hand. No run, no layer: a cut
+               with nothing to read it off would be a selector matching nothing. */
+            if (degreeThreshold !== undefined && degreeRunId !== undefined) {
+                await session.styles.add(topDegreeLabelLayer({ degreeRunId, degreeThreshold })).then(
+                    () => undefined,
+                    (error: unknown) => {
+                        console.error("[shell] the element refused the top-degree label layer:", error);
+                    },
+                );
             }
-
-            // `addStyleLayers` repaints, which is what makes the calculated size and the
-            // `algorithmResults` selector take effect at all.
-            addStyleLayers(graph, styleLayers.map(elementStyleLayer));
 
             const pending = pendingSuggestedRef.current;
 
@@ -3152,8 +3196,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         dataLoaded,
         graphData.nodes.length,
-        graphShape.edgeCount,
-        graphShape.nodeCount,
+        graphStatistics.edgeCount,
+        graphStatistics.nodeCount,
         loadCompletions,
         runFindGroups,
     ]);
@@ -3459,8 +3503,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        too small" state and never reaches this line. The prop stays on both region
        components because their own tests and stories still exercise the overlay form. */
     const presentation = "docked";
-    const { nodeCount } = graphInfo;
-    const { edgeCount } = graphInfo;
+    const { nodeCount } = graphStatistics;
+    const { edgeCount } = graphStatistics;
 
     /* Which activity the 280 px panel is drawing, or null when the sidebars are hidden.
        The store always holds an activity -- there is no "no panel" state any more -- so
@@ -3524,7 +3568,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         setDatasetName(null);
                         setGraphData(NO_GRAPH_DATA);
                         setLoadedSummary(undefined);
-                        updateStats(0, 0);
+                        /* The WHOLE shape goes, not just the two counts. Every field of it
+                           describes the dataset being closed -- the density, the parts, the
+                           direction -- so leaving the rest standing beside a node count of
+                           zero would have the Counts rows describing a graph nobody can see. */
+                        setGraphStatistics(EMPTY_GRAPH_STATISTICS);
                         crossDatasetBoundary();
                     },
                 },
@@ -3538,22 +3586,30 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     label: RESET_STYLES_ROW,
                     separatorBefore: true,
                     onSelect: () => {
-                        const styleManager = graphtyRef.current?.graph?.getStyleManager() ?? null;
+                        const session = elementSession(graphtyRef.current?.graph);
 
-                        if (styleManager === null) {
+                        if (session === null) {
                             return;
                         }
 
-                        for (const layer of [...layers].reverse()) {
-                            styleManager.removeLayerByIndex(layer.index);
-                        }
+                        /* One sweep, and the element's own layers survive it whatever the
+                           predicate says. The loop this replaces walked the list in reverse
+                           removing by index, which is where the off-by-one that took
+                           graphty-element's base layer -- and with it every node's shape type
+                           -- came from. */
+                        void session.styles.removeBySource(() => true).then(
+                            () => undefined,
+                            (error: unknown) => {
+                                console.error("[shell] the element refused to reset the styles:", error);
+                            },
+                        );
                     },
                 },
             ];
         }
 
         return [];
-    }, [activeActivity, crossDatasetBoundary, layers, updateStats]);
+    }, [activeActivity, crossDatasetBoundary]);
 
     const panelBody = useMemo(() => {
         switch (activeActivity) {
@@ -3616,7 +3672,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 return (
                     <AnalyzePanel
                         graphtyRef={graphtyRef}
-                        onAddLayers={handleAddAlgorithmLayers}
                         persist={persist}
                         /*
                             7.3: a capability run from its OWN panel retires its insight
@@ -3657,7 +3712,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             case "style":
                 return (
                     <StylePanel
-                        layers={layers}
+                        layers={[...layers]}
                         selectedLayerId={selectedLayerId}
                         onLayersChange={handleLayersChange}
                         onLayerSelect={setSelectedLayerId}
@@ -3734,7 +3789,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openResult,
         exploreQuery,
         exploreScope,
-        handleAddAlgorithmLayers,
         handleAddLayer,
         handleApplyLayout,
         handleLayersChange,
@@ -3777,29 +3831,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /**
      * The distinct neighbours of one node, as the inspector's Neighbors block draws them.
      *
-     * THE DEFECT THIS CLOSES. Until 2026-09-14 the loop read `edge.source` and
-     * `edge.target` through a private helper in this file. `GraphtyHandle.getData`
-     * (`Graphty.tsx:280-286`) writes every edge as `{id, src, dst, ...edge.data}` and
-     * never writes either of those two names, so `other` was null on every iteration, the
-     * loop returned an empty array for every node on every dataset, and the inspector
-     * drew "Expand 0 neighbors" for a node whose own result card said 17 links -- verified
-     * in the browser on node 34 of Karate Club. It looked like an id-type problem and was
-     * not one: the private helper already stringified a finite number, and a JSON file
-     * spelled `{"source":..,"target":..}` accidentally worked because `getData` spreads
-     * `edge.data` over the record, while `karate.gml` could not, because `GMLDataSource`
-     * deletes `source` and `target` from the data it hands on.
-     *
-     * The fix is to use `edgeEndpoints`, which was already the shell's one correct reader
-     * of an edge's ends (it is what the graph-shape pass uses, which is why THAT pass
-     * always counted the links right). Two spellings of one fact become one, which is the
-     * only version of this fix that stops a third call site inventing a fourth spelling.
+     * The ends come from `edgeEndpoints`, the shell's one reader of that fact, which reads
+     * the two names the element resolved and publishes. Nothing here probes for a second
+     * spelling, and nothing here should: the element answers the endpoint question once,
+     * per load, and refuses a file it cannot answer it for.
      *
      * `direction` is derived from which end matched, and it is only MEANINGFUL on a
      * directed graph -- on an undirected one it is an artefact of the order the loader
      * happened to write the endpoints in. It is safe to pass unconditionally because the
-     * one consumer, `NodeInspector`, filters on it only while `directed === true`, and
-     * the shell passes `graphInfo.graphType.directed` for that. Do not start drawing an
-     * arrow from this field without re-checking that guard.
+     * one consumer, `NodeInspector`, filters on it only while `directed === true`, and the
+     * shell passes the element's MEASURED direction for that -- `graphStatistics.directedness`,
+     * not the handle's default, which is the constant true. Do not start drawing an arrow from
+     * this field without re-checking that guard.
      * @param nodeId - the node whose neighbours are wanted.
      * @returns one row per DISTINCT neighbour, in edge-record order.
      */
@@ -3837,6 +3880,35 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         [graphData.edges],
     );
 
+    /**
+     * Pins the node where it is, or releases one already pinned.
+     *
+     * The inspector's Pin row and its Pinned badge's Unpin button are the same verb, and both
+     * are the reader's only way back out of a pin: `pinOnDrag` is on by default and a pin now
+     * survives a layout change, a 2D/3D switch and a template apply, so every node the reader
+     * has ever dragged stays where they put it until this is called.
+     *
+     * The set is re-read from the element afterwards rather than edited here. The element is
+     * where a pin lives, and it is the only thing that knows about the pins this shell did not
+     * make.
+     * @param elementId - the node, as the element spells its id.
+     */
+    const togglePin = useCallback((elementId: string | number) => {
+        const handle = graphtyRef.current;
+
+        if (handle === null) {
+            return;
+        }
+
+        if (handle.pinnedNodes.has(elementId)) {
+            handle.unpin(elementId);
+        } else {
+            handle.pin(elementId);
+        }
+
+        setPinnedNodes(new Set(handle.pinnedNodes));
+    }, []);
+
     const copyReading = useCallback((text: string) => {
         navigator.clipboard?.writeText(text).catch((error: unknown) => {
             console.error("[shell] could not copy the reading:", error);
@@ -3845,23 +3917,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     /*
      * The graph-summary reading (7.5). It is the template's, not a sentence assembled
-     * here, and it is fed only facts one O(n+m) pass measured.
+     * here, and every fact in it is one the element published.
      *
      * Two clauses the spec draws are deliberately absent. The type clause ("17 cats, 1 dog
      * and 2 humans") needs a node-type ROLE, and no column-role model exists in either
      * package -- the cat fixture's `breed` carries 17 values with counts of 1 to 3, so the
      * drawn string is not derivable from the data. The "at most 5 steps" clause needs an
-     * exact diameter, which is above the O(n+m) ceiling spec 5843 sets for a template. The
-     * template accepts `nodeTypes` and `exactDiameter` for the day either lands.
+     * exact diameter, which is above the O(n+m) ceiling spec 5843 sets for a template and
+     * which the element's statistics do not carry. The template accepts `nodeTypes` and
+     * `exactDiameter` for the day either lands.
      */
     const graphReading = dataLoaded
         ? graphSummaryReading({
-              nodeCount: graphShape.nodeCount,
-              edgeCount: graphShape.edgeCount,
+              nodeCount: graphStatistics.nodeCount,
+              edgeCount: graphStatistics.edgeCount,
               edgeNoun: DEFAULT_EDGE_NOUN,
-              connectedPartCount: graphShape.connectedPartCount,
-              largestPartNodeCount: graphShape.largestPartNodeCount,
-              smallPartsMostlySingleNodes: graphShape.smallPartsMostlySingleNodes,
+              connectedPartCount: graphStatistics.components.count,
+              largestPartNodeCount: graphStatistics.components.largestSize,
+              smallPartsMostlySingleNodes: smallPartsAreSingleNodes(graphStatistics.components),
           })
         : GRAPH_SUMMARY_EMPTY_READING;
 
@@ -3883,27 +3956,33 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
 
     /**
-     * Takes off every layer a result painted, by the tag the RESULT carries.
+     * Takes off every layer a result painted, by the RUN that painted them.
      *
-     * By TAG and never by index: `removeLayersFromSource` walks the stack for that
-     * `algorithmSource` and repaints, and an index walk over the same stack takes
-     * graphty-element's own `default` layer with it -- the one carrying every node's shape
-     * type -- after which the next load dies in mesh building with "shape with type
-     * required to create mesh" and draws nothing at all.
+     * By SOURCE and never by index: a run-made layer records the run that made it, so the
+     * sweep names the run rather than a set of positions that go stale the moment anything
+     * else moves -- and an element-owned layer is never swept whatever the predicate says.
+     * The index walk this replaces took graphty-element's own base layer with it, the one
+     * carrying every node's shape type, after which the next load died in mesh building with
+     * "shape with type required to create mesh" and drew nothing at all.
      *
-     * A result that painted nothing carries no tag and this removes nothing, which is the
+     * A result that painted nothing names no run and this removes nothing, which is the
      * un-applied card's whole point: its two layer verbs have no layer to act on.
-     * @param layerSource - the tag the result's layers carry, or undefined for a result
-     * that painted none.
+     * @param layerRunId - the run the result's layers name, or undefined for a result that
+     * painted none.
      */
-    const removeResultLayers = useCallback((layerSource: string | undefined) => {
-        const graph = asElementGraph(graphtyRef.current?.graph);
+    const removeResultLayers = useCallback((layerRunId: RunId | undefined) => {
+        const session = elementSession(graphtyRef.current?.graph);
 
-        if (graph === null || layerSource === undefined) {
+        if (session === null || layerRunId === undefined) {
             return;
         }
 
-        removeLayersFromSource(graph, layerSource);
+        void removeRunLayers(session, layerRunId).then(
+            () => undefined,
+            (error: unknown) => {
+                console.error("[shell] the element refused to remove the result's layers:", error);
+            },
+        );
     }, []);
 
     const inspectorSelection = useMemo<InspectorSelection>(() => {
@@ -3921,54 +4000,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     kind: "style-layer",
                     layer: {
                         layer: picked,
-                        onUpdate: (layerId, updates) => {
-                            handleLayersChange(
-                                layers.map((layer) =>
-                                    layer.id === layerId
-                                        ? {
-                                              ...layer,
-                                              styleLayer: {
-                                                  ...layer.styleLayer,
-                                                  /* The half's required fields are restated, not spread
-                                                     from an optional: `styleLayer.node` may be absent on a
-                                                     layer that only styles edges, and spreading `undefined`
-                                                     would leave `selector` missing. */
-                                                  node: {
-                                                      selector: layer.styleLayer.node?.selector ?? "",
-                                                      style: layer.styleLayer.node?.style ?? {},
-                                                      ...(layer.styleLayer.node?.calculatedStyle === undefined
-                                                          ? {}
-                                                          : { calculatedStyle: layer.styleLayer.node.calculatedStyle }),
-                                                      ...updates,
-                                                  },
-                                              },
-                                          }
-                                        : layer,
-                                ),
-                            );
-                        },
-                        onEdgeUpdate: (layerId, updates) => {
-                            handleLayersChange(
-                                layers.map((layer) =>
-                                    layer.id === layerId
-                                        ? {
-                                              ...layer,
-                                              styleLayer: {
-                                                  ...layer.styleLayer,
-                                                  edge: {
-                                                      selector: layer.styleLayer.edge?.selector ?? "",
-                                                      style: layer.styleLayer.edge?.style ?? {},
-                                                      ...(layer.styleLayer.edge?.calculatedStyle === undefined
-                                                          ? {}
-                                                          : { calculatedStyle: layer.styleLayer.edge.calculatedStyle }),
-                                                      ...updates,
-                                                  },
-                                              },
-                                          }
-                                        : layer,
-                                ),
-                            );
-                        },
+                        onUpdate: updateLayer,
+                        onResolveToStatic: resolveLayerChannel,
                     },
                 };
             }
@@ -4010,7 +4043,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        the run -- off the screen with the picture, which is not what its
                        words say and not what the reader asked for. */
                     onDeleteLayer: () => {
-                        removeResultLayers(activeResult.layerSource);
+                        removeResultLayers(activeResult.layerRunId);
 
                         /* The un-applied form of the SAME result: the reading, caveats, run
                            record, body and chart stay exactly as they were, and the four
@@ -4036,7 +4069,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                   },
                         );
                         // The colours went with the layers, so the channel naming them goes too.
-                        setColourChannel(null);
+                        setColourChannel([]);
                     },
                     /* Spec 2243-2244: "Remove result deletes the run and every layer that
                        reads it." Both, in that order, which is what the count above says it
@@ -4044,9 +4077,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        the legend naming it with the one tag-aware removal control gone from
                        the screen. */
                     onRemoveResult: () => {
-                        removeResultLayers(activeResult.layerSource);
+                        removeResultLayers(activeResult.layerRunId);
                         setActiveResult(null);
-                        setColourChannel(null);
+                        setColourChannel([]);
                     },
                 },
             };
@@ -4061,21 +4094,21 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         ? {
                               nodes: nodeCount.toLocaleString(),
                               edges: edgeCount.toLocaleString(),
-                              /* What the O(n+m) pass READ off the edge records, never
-                                 `graphInfo.graphType.directed`, which defaults to true
-                                 and measures nothing. */
-                              types: COUNTS_TYPE_ROW[graphShape.directedness],
-                              density: graphInfo.density.toFixed(3),
-                              densityTitle: graphInfo.density.toExponential(2),
-                              averageDegree: nodeCount === 0 ? "0" : ((edgeCount * 2) / nodeCount).toFixed(1),
-                              connectedParts: formatCount(graphShape.connectedPartCount),
+                              types: countsTypeRow(graphStatistics),
+                              /* The element's density, which excludes self loops from both
+                                 halves of the fraction and knows the direction the pairs
+                                 should be counted in. */
+                              density: graphStatistics.density.toFixed(3),
+                              densityTitle: graphStatistics.density.toExponential(2),
+                              averageDegree: graphStatistics.meanDegree.toFixed(1),
+                              connectedParts: formatCount(graphStatistics.components.count),
                               // 6.2's zero rule: a count of nothing is not a row.
                               selfLoops:
-                                  graphShape.selfLoopCount === 0 ? undefined : formatCount(graphShape.selfLoopCount),
+                                  graphStatistics.selfLoopCount === 0 ? undefined : formatCount(graphStatistics.selfLoopCount),
                               parallelEdges:
-                                  graphShape.parallelEdgeCount === 0
+                                  graphStatistics.repeatedEdgeCount === 0
                                       ? undefined
-                                      : formatCount(graphShape.parallelEdgeCount),
+                                      : formatCount(graphStatistics.repeatedEdgeCount),
                           }
                         : null,
                     mostConnected,
@@ -4130,7 +4163,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 notes: [],
                 neighborCount: neighbors.length,
                 neighborBreakdown: [],
-                directed: graphInfo.graphType.directed,
+                /* The MEASURED answer. The shell used to carry its own graph-type record whose
+                   `directed` was the constant `true`, so the inspector split every node's
+                   neighbours into incoming and outgoing on graphs that have no direction, three
+                   feet from a Counts row that says "Undirected". The element knows which it is;
+                   this reads that. */
+                directed: graphStatistics.directedness === "directed",
                 neighbors,
                 onCopyId: () => {
                     copyReading(selectedNode.id);
@@ -4157,7 +4195,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onSeeAllNeighbors: () => {
                     openDrawerOn("edges");
                 },
-                onAction: () => undefined,
+                pinnedToCanvas: pinnedNodes.has(selectedNode.elementId),
+                onUnpinFromCanvas: () => {
+                    togglePin(selectedNode.elementId);
+                },
+                onAction: (action) => {
+                    if (action === "pinNode") {
+                        togglePin(selectedNode.elementId);
+                    }
+                },
             },
         };
     }, [
@@ -4167,13 +4213,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeDistribution,
         degreeResults,
         edgeCount,
-        graphInfo.density,
-        graphInfo.graphType.directed,
         graphReading,
-        graphShape.connectedPartCount,
-        graphShape.directedness,
-        graphShape.parallelEdgeCount,
-        graphShape.selfLoopCount,
+        graphStatistics.components.count,
+        graphStatistics.density,
+        graphStatistics.directedness,
+        graphStatistics.repeatedEdgeCount,
+        graphStatistics.selfLoopCount,
         handleLayersChange,
         layers,
         mostConnected,
@@ -4181,9 +4226,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         nodeCount,
         openDrawerOn,
         openPanelAt,
+        pinnedNodes,
         removeResultLayers,
         selectedLayerId,
         selectedNode,
+        togglePin,
         zoomToSelection,
     ]);
 
@@ -4546,22 +4593,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         const shape: InsightsGraphShape = {
-            nodeCount: graphShape.nodeCount,
-            edgeCount: graphShape.edgeCount,
-            directedness: graphShape.directedness,
+            nodeCount: graphStatistics.nodeCount,
+            edgeCount: graphStatistics.edgeCount,
+            directedness: graphStatistics.directedness,
             hasTimeRole: false,
             validationIssueTypeCount: 0,
             searchExample: degreeResults?.byDegreeDescending[0]?.id,
-            largeGraphThreshold: LARGE_GRAPH_NODE_THRESHOLD,
-            /* The 60 s ceiling is inert without this: an unestimated betweenness card is
-               offered at ANY size, so a graph big enough to cost hours would still have
-               been suggested as a one-click card. The record is keyed by metric and the
-               gate by capability, so the three pairs are spelled out at the seam. */
-            estimateSeconds: {
-                "centrality-degree": metricEstimates.degree,
-                "centrality-pagerank": metricEstimates.pagerank,
-                "centrality-betweenness": metricEstimates.betweenness,
-            },
+            /* Whether a run is possible on this graph and what it would cost, for every
+               algorithm the element ships. It replaces a three-entry record this file
+               assembled by hand: the 60 s ceiling had a number for Most connected, Influence
+               and Bridges and none for anything else, so every other card passed the ceiling
+               by never having been measured. The threshold the strip branches on is not
+               passed either -- the element publishes its own, and the shell's was ten times
+               larger with nothing between them able to notice. */
+            metrics: elementMetrics,
         };
 
         /* The cap of four is spent only on cards this build can carry through to a
@@ -4619,11 +4664,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         dataLoaded,
         degreeResults,
-        graphShape.directedness,
-        graphShape.edgeCount,
-        graphShape.nodeCount,
+        elementMetrics,
+        graphStatistics.directedness,
+        graphStatistics.edgeCount,
+        graphStatistics.nodeCount,
         insightsMemory.retiredCapabilities,
-        metricEstimates,
         openPanelAt,
         runFindGroups,
         runNodeMetricCard,
@@ -4688,7 +4733,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
          */
         minimap: { nodeCount },
         graph: {
-            layers,
+            layers: [...layers],
             viewMode,
             layout: layoutType,
             layoutConfig,

@@ -2,10 +2,76 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
+import { ref } from "lit/directives/ref.js";
 
-import { StyleTemplate } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
+import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn, holds } from "./assertions";
+import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
+
+/**
+ * Settle a camera story, then press one of its own buttons and check the camera moved.
+ *
+ * WHAT THIS STORY IS FOR is the buttons: every one of them asks the element to fly the camera
+ * somewhere, and nothing checked that any of them did. A story whose buttons are all inert draws
+ * exactly the same picture as one whose buttons work.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @param mode - The view mode this variant is drawn in.
+ */
+const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"): Promise<void> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Camera Controls ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 6, edges: 6 });
+    await assertLayoutPlaced(scene, {});
+    await assertViewMode(scene, mode);
+
+    const buttons = [...canvasElement.querySelectorAll("button")];
+
+    await holds(
+        buttons.length >= 5,
+        `Camera Controls ${story}: the presets are the story and it put ${String(buttons.length)} buttons on ` +
+            "the page",
+    );
+
+    // WHERE THE CAMERA IS, in whichever of the two senses this variant uses. A perspective camera
+    // zooms by moving; an orthographic one zooms by changing the box it projects, and its position
+    // does not move at all -- so reading only the position would report the 2D presets as inert
+    // when they are working.
+    const where = (): string => {
+        const camera = scene.graph.scene.activeCamera as
+            | { position: { x: number; y: number; z: number }; orthoLeft?: number | null; orthoTop?: number | null }
+            | null;
+
+        return [camera?.position.x, camera?.position.y, camera?.position.z, camera?.orthoLeft, camera?.orthoTop]
+            .map((value) => (typeof value === "number" ? value.toFixed(3) : "-"))
+            .join(",");
+    };
+
+    const before = where();
+
+    buttons[0].click();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const afterPreset = where();
+
+    await holds(
+        afterPreset !== before,
+        `Camera Controls ${story}: pressing "${String(buttons[0].textContent).trim()}" left the camera at ` +
+            `(${before}), where it already was`,
+    );
+
+    // The last button is Reset, which must bring it back somewhere else again.
+    buttons[buttons.length - 1].click();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    await holds(
+        where() !== afterPreset,
+        `Camera Controls ${story}: pressing "${String(buttons[buttons.length - 1].textContent).trim()}" left ` +
+            `the camera where the preset put it (${afterPreset})`,
+    );
+};
 
 const meta: Meta = {
     title: "Camera Controls",
@@ -43,13 +109,6 @@ export const ThreeD: Story = {
     name: "3D",
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -60,7 +119,11 @@ export const ThreeD: Story = {
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
                     .layoutConfig=${args.layoutConfig}
-                    .styleTemplate=${args.styleTemplate}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 
@@ -174,7 +237,7 @@ export const ThreeD: Story = {
         </div>
     `,
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await flies(canvasElement, "3D", "3d");
     },
 };
 
@@ -185,17 +248,6 @@ export const TwoD: Story = {
     name: "2D",
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                viewMode: "2d",
-                background: { backgroundType: "color", color: "#f0f0f0" },
-            },
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -206,7 +258,15 @@ export const TwoD: Story = {
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
                     .layoutConfig=${args.layoutConfig}
-                    .styleTemplate=${args.styleTemplate}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            // The 2D story's own setup: the view mode and the background it is
+                            // drawn against, beside the pre-steps every story needs.
+                            el.viewMode = "2d";
+                            el.background = { backgroundType: "color", color: "#f0f0f0" };
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 
@@ -362,6 +422,6 @@ export const TwoD: Story = {
         </div>
     `,
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await flies(canvasElement, "2D", "2d");
     },
 };

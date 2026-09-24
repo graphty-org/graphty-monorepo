@@ -5,38 +5,20 @@
 graphty-element includes a comprehensive logging system for debugging and monitoring. The logging system is:
 
 - **Disabled by default** - No console output when not configured
-- **URL parameter controlled** - Enable/disable via URL query strings
+- **Switched on by the application** - one `configure` call, never the page's address bar
 - **Hierarchical** - Filter by module categories
 - **Configurable** - Multiple log levels and output sinks
 - **Zero overhead** - No performance impact when disabled
 
 ## Quick Start
 
-### Enable via URL Parameters
-
-The easiest way to enable logging is via URL parameters:
-
-```text
-# Enable all logging at INFO level
-?graphty-element-logging=true
-
-# Enable specific modules only
-?graphty-element-logging=layout,xr,camera
-
-# Set log level
-?graphty-element-logging=true&graphty-element-log-level=debug
-
-# Per-module log levels
-?graphty-element-logging=layout:debug,xr:trace
-
-# Enable remote logging to a server
-?graphty-element-logging=true&graphty-element-remote-log=https://localhost:9080
-```
-
-### Enable Programmatically
+Everything here is imported from `@graphty/graphty-element/logging`. That subpath resolves with
+no renderer anywhere in its import graph, so a worker, a build step or a Node test can attach a
+destination without loading a 3D engine. The root barrel defines `<graphty-element>` and does not
+publish any of these names.
 
 ```typescript
-import { GraphtyLogger, LogLevel } from "@graphty/graphty-element";
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
 
 // Configure logging
 await GraphtyLogger.configure({
@@ -51,6 +33,28 @@ const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 logger.info("Layout started", { nodeCount: 100 });
 logger.debug("Processing nodes...");
 logger.error("Something went wrong", new Error("Test error"));
+```
+
+### Driving it from the page's query string
+
+Mounting the element does not read `window.location.search`. It used to, and reconfigured
+logging globally for whatever application it was embedded in, which no host could anticipate,
+opt out of, or test. The parser is still published, so a page that wants a query string to
+control its own logging calls it and hands the answer over:
+
+```typescript
+import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "@graphty/graphty-element/logging";
+
+// ?graphty-element-logging=layout:debug,xr:trace&graphty-element-log-level=debug
+const params = parseLoggingURLParams();
+if (params?.enabled) {
+    await GraphtyLogger.configure({
+        enabled: true,
+        modules: params.modules,
+        level: params.level ?? LogLevel.INFO,
+        format: { timestamp: true, module: true, colors: true },
+    });
+}
 ```
 
 ## Log Levels
@@ -77,7 +81,10 @@ Logs are organized hierarchically by module. Common categories include:
 - `graphty.lifecycle` - Component lifecycle messages
 - `graphty.render` - Rendering messages
 
-## URL Parameter Reference
+## What `parseLoggingURLParams` Understands
+
+These are the parameters the parser reads out of a query string when a page calls it. The
+element never reads them for you.
 
 | Parameter                    | Description                                                | Example                                              |
 | ---------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
@@ -90,7 +97,7 @@ Logs are organized hierarchically by module. Common categories include:
 ### Configuration
 
 ```typescript
-import { GraphtyLogger, LogLevel, configureLogging, getLoggingConfig } from "@graphty/graphty-element";
+import { GraphtyLogger, LogLevel, configureLogging, getLoggingConfig } from "@graphty/graphty-element/logging";
 
 // Configure via GraphtyLogger
 await GraphtyLogger.configure({
@@ -141,7 +148,7 @@ if (logger.isDebugEnabled()) {
 Create custom sinks to send logs to external services:
 
 ```typescript
-import { GraphtyLogger, type Sink, type LogRecord } from "@graphty/graphty-element";
+import { GraphtyLogger, type Sink, type LogRecord } from "@graphty/graphty-element/logging";
 
 // Create a custom sink
 const customSink: Sink = {
@@ -212,13 +219,7 @@ npx graphty-log-server --log-file ./tmp/graphty.log
 
 ### Enable Remote Logging in Browser
 
-Add the remote log URL to your URL parameters:
-
-```text
-?graphty-element-logging=true&graphty-element-remote-log=https://localhost:9080
-```
-
-Or configure programmatically:
+Name the server in the configuration:
 
 ```typescript
 await GraphtyLogger.configure({
@@ -235,7 +236,7 @@ await GraphtyLogger.configure({
 Logging configuration can be persisted across page reloads:
 
 ```typescript
-import { saveLoggingConfig, loadLoggingConfig, clearLoggingConfig, getLoggingConfig } from "@graphty/graphty-element";
+import { saveLoggingConfig, loadLoggingConfig, clearLoggingConfig, getLoggingConfig } from "@graphty/graphty-element/logging";
 
 // Save current config to sessionStorage
 saveLoggingConfig(getLoggingConfig());

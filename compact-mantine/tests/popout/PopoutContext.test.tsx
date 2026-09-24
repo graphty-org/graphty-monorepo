@@ -1,5 +1,5 @@
 import { MantineProvider } from "@mantine/core";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -375,11 +375,8 @@ describe("PopoutManagerProvider", () => {
         it("closes descendants depth-first (children before parents)", async () => {
             const user = userEvent.setup();
 
-            // Track close order
-            const closeOrder: string[] = [];
-
-            // We can't directly track close order with the current API,
-            // but we can verify that all descendants are closed when parent closes
+            // The current API reports no close order, so what is asserted below is the
+            // weaker fact it can see: that every descendant is gone once the parent closes.
             renderPopout(
                 <Popout>
                     <Popout.Trigger>

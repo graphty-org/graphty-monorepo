@@ -43,6 +43,43 @@ export interface BellmanFordResult {
 }
 
 /**
+ * One relaxable arc: a direction an edge can actually be traversed in.
+ */
+interface Arc {
+    from: NodeId;
+    to: NodeId;
+    weight: number;
+}
+
+/**
+ * Expand the graph's edges into the arcs Bellman-Ford may relax.
+ *
+ * A directed graph yields one arc per edge. An UNDIRECTED graph yields two, because
+ * `graph.edges()` reports each undirected edge once, arbitrarily oriented from one of its
+ * endpoints. Relaxing only that orientation makes every edge one-way and leaves most of an
+ * undirected graph unreachable from the source -- the distances come back as Infinity for
+ * nodes that are plainly connected.
+ *
+ * Note that expanding is not merely a convenience: on an undirected graph a single
+ * negative-weight edge IS a negative cycle, since it can be traversed back and forth forever.
+ * Producing both arcs is what lets the cycle check below report that correctly.
+ * @param graph - The graph whose edges are being expanded.
+ * @returns Every arc that may be relaxed, in edge order.
+ */
+function relaxableArcs(graph: Graph): Arc[] {
+    const arcs: Arc[] = [];
+    for (const edge of graph.edges()) {
+        const weight = edge.weight ?? 1;
+        arcs.push({ from: edge.source, to: edge.target, weight });
+        if (!graph.isDirected) {
+            arcs.push({ from: edge.target, to: edge.source, weight });
+        }
+    }
+
+    return arcs;
+}
+
+/**
  * Find shortest paths from source using Bellman-Ford algorithm
  * @param graph - The graph to search
  * @param source - The starting node for the search
@@ -57,6 +94,7 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
     const distances = new Map<NodeId, number>();
     const predecessors = new Map<NodeId, NodeId | null>();
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
+    const arcs = relaxableArcs(graph);
 
     // Initialize distances
     for (const nodeId of nodes) {
@@ -68,10 +106,10 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
     for (let i = 0; i < nodes.length - 1; i++) {
         let updated = false;
 
-        for (const edge of Array.from(graph.edges())) {
-            const u = edge.source;
-            const v = edge.target;
-            const weight = edge.weight ?? 1;
+        for (const arc of arcs) {
+            const u = arc.from;
+            const v = arc.to;
+            const {weight} = arc;
 
             const distanceU = distances.get(u);
             const distanceV = distances.get(v);
@@ -102,10 +140,10 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
     const negativeCycleNodes: NodeId[] = [];
     let hasNegativeCycle = false;
 
-    for (const edge of graph.edges()) {
-        const u = edge.source;
-        const v = edge.target;
-        const weight = edge.weight ?? 1;
+    for (const arc of arcs) {
+        const u = arc.from;
+        const v = arc.to;
+        const {weight} = arc;
 
         const distanceU = distances.get(u);
         const distanceV = distances.get(v);

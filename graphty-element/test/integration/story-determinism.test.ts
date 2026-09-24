@@ -7,7 +7,7 @@
  * 2. Physics-based layouts (ngraph, d3, forceatlas2, spring, random) without proper
  *    configuration:
  *    - Missing seed in layoutConfig
- *    - Missing preSteps in styleTemplate.behavior.layout
+ *    - Missing preSteps in the story's setup
  *    - Missing waitForGraphSettled in play function
  */
 import fs from "node:fs";
@@ -50,12 +50,92 @@ interface DeterminismIssue {
     severity: "error" | "warning";
 }
 
+/**
+ * The names of the file's own helpers that reach `waitForGraphSettled`, directly or through
+ * another helper in the same file.
+ *
+ * WHY THIS EXISTS. This check used to ask whether the literal text "waitForGraphSettled" appeared
+ * inside a story's own object literal. That reads as a settle check and is really a spelling
+ * check: the moment a file lifts the settle into one shared helper -- which is what every story
+ * file here does now, because the settle is followed by a dozen assertions nobody wants to repeat
+ * twenty-two times -- the string leaves the story block and twenty-one correctly-settling stories
+ * are reported as unsettled. Grepping the whole file instead would be the opposite error: one
+ * story with a settle would excuse every other story in the file.
+ *
+ * So the call is followed one hop at a time. A story is settled when its play function calls
+ * `waitForGraphSettled`, or calls a helper in this file that does, or calls a helper that calls a
+ * helper that does. A story whose play function reaches no such helper is still an error, which is
+ * the property that matters.
+ * @param content - The story file's full source.
+ * @returns Every local helper name from which a settle is reachable.
+ */
+function settlingHelperNames(content: string): Set<string> {
+    // `const name = (...) => { ... }`, `const name = async (...) => { ... }`,
+    // `function name(...) { ... }` and `async function name(...) { ... }`.
+    const declaration = /(?:const\s+(\w+)\s*(?::[^=]+)?=\s*(?:async\s+)?(?:\([^)]*\)|\w+)\s*(?::[^=]*)?=>|(?:async\s+)?function\s+(\w+)\s*\()/g;
+    const bodies = new Map<string, string>();
+    let match;
+
+    while ((match = declaration.exec(content)) !== null) {
+        const name = match[1] ?? match[2];
+        if (!name) {
+            continue;
+        }
+
+        // Take the helper's body by balancing braces from the first one after its signature.
+        const open = content.indexOf("{", match.index + match[0].length - 1);
+        if (open === -1) {
+            continue;
+        }
+
+        let depth = 0;
+        let end = open;
+        for (let i = open; i < content.length; i++) {
+            if (content[i] === "{") {
+                depth++;
+            } else if (content[i] === "}") {
+                depth--;
+                if (depth === 0) {
+                    end = i;
+                    break;
+                }
+            }
+        }
+
+        bodies.set(name, content.slice(open, end + 1));
+    }
+
+    const settling = new Set<string>();
+    let grew = true;
+
+    while (grew) {
+        grew = false;
+        for (const [name, body] of bodies) {
+            if (settling.has(name)) {
+                continue;
+            }
+
+            const reaches =
+                body.includes("waitForGraphSettled") ||
+                [...settling].some((known) => new RegExp(`\\b${known}\\s*\\(`).test(body));
+
+            if (reaches) {
+                settling.add(name);
+                grew = true;
+            }
+        }
+    }
+
+    return settling;
+}
+
 // Check a file for determinism issues
 function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
     const issues: DeterminismIssue[] = [];
     const content = fs.readFileSync(filePath, "utf-8");
     const lines = content.split("\n");
     const relativePath = path.relative(path.join(__dirname, "../.."), filePath);
+    const settlingHelpers = settlingHelperNames(content);
 
     // Check for Math.random() usage
     // This regex looks for Math.random() that is NOT inside a seededRandom function or similar
@@ -132,7 +212,6 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
         // Storybook argTypes can map args like "randomSeed" or "ngraphSeed" to "graph.layoutOptions.seed"
         const hasSeed =
             /layoutConfig:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
-            /styleTemplate.*seed:\s*\d+/s.test(storyBlock) ||
             /layoutOptions:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
             // Check for aliased seed args like ngraphSeed, randomSeed, springSeed, fa2Seed, d3Seed
             /ngraphSeed:\s*\d+/.test(storyBlock) ||
@@ -151,12 +230,12 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
             });
         }
 
-        // Check for preSteps in behavior.layout
-        // templateCreator includes default preSteps, so stories using it are covered
+        // Check for preSteps in the story's setup. `storySetup()` fills in a Chromatic default,
+        // so a story that calls it is covered whether or not it names a count of its own.
         const hasPreSteps =
             /preSteps:\s*\d+/.test(storyBlock) ||
             /preSteps:\s*isChromatic/.test(storyBlock) ||
-            /templateCreator\s*\(/.test(storyBlock);
+            /storySetup\s*\(/.test(storyBlock);
 
         if (!hasPreSteps) {
             issues.push({
@@ -167,9 +246,13 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
             });
         }
 
-        // Check for play function with waitForGraphSettled
+        // Check for play function that reaches waitForGraphSettled -- in the story itself, or
+        // through one of this file's own helpers. See settlingHelperNames above for why the hop
+        // has to be followed rather than grepped for.
         const hasPlayFunction = /play:\s*async/.test(storyBlock);
-        const hasWaitForSettled = storyBlock.includes("waitForGraphSettled");
+        const hasWaitForSettled =
+            storyBlock.includes("waitForGraphSettled") ||
+            [...settlingHelpers].some((helper) => new RegExp(`\\b${helper}\\s*\\(`).test(storyBlock));
 
         if (!hasPlayFunction || !hasWaitForSettled) {
             issues.push({

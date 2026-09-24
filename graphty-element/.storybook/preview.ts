@@ -9,7 +9,6 @@ import manifest from "virtual:vite-plugin-cem/custom-elements-manifest";
 
 import { initConsoleCaptureUI } from "@graphty/remote-logger/ui";
 
-import { StyleTemplate } from "../src/config";
 // Force import and registration of graphty-element and all its dependencies
 import { Graphty } from "../src/graphty-element";
 // @ts-expect-error MDX files are handled by Storybook's build system
@@ -62,6 +61,14 @@ async function waitForGraphSettled({ canvasElement }: { canvasElement: HTMLEleme
     });
 }
 
+/**
+ * How many simulation steps a story runs before its first frame.
+ *
+ * PRE-STEPS ARE WHY A SNAPSHOT IS THE SAME PICTURE TWICE: an unstepped force layout is a graph
+ * in mid-flight, and how far it has flown depends on when the picture was taken.
+ */
+const CHROMATIC_PRE_STEPS = 1000;
+
 const preview: Preview = {
     decorators: [
         (Story) => {
@@ -78,16 +85,16 @@ const preview: Preview = {
             ) {
                 const graphty = originalStory as Graphty;
 
-                // If no styleTemplate is set, create a minimal one with preSteps
-                graphty.styleTemplate ??= StyleTemplate.parse({
-                    graphtyTemplate: true,
-                    majorVersion: "1",
-                    behavior: {
-                        layout: {
-                            preSteps: 1000,
-                        },
-                    },
-                });
+                // PRE-STEPS ARE WHY A CHROMATIC SNAPSHOT IS THE SAME PICTURE TWICE. A physics
+                // layout that has not been stepped is a graph flying apart, and how far apart
+                // depends on when the screenshot was taken.
+                //
+                // Only when the story has not asked for something else. A story that wants an
+                // unsettled graph -- one demonstrating the layout running, say -- must be able
+                // to have one, so a pre-step count the story set is left alone.
+                if (graphty.layoutBehavior === undefined) {
+                    graphty.layoutBehavior = { layout: { preSteps: CHROMATIC_PRE_STEPS } };
+                }
             }
 
             return originalStory;

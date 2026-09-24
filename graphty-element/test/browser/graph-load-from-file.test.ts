@@ -1,5 +1,7 @@
 import { assert, beforeEach, describe, test } from "vitest";
 
+import { type GraphtyError, isGraphtyError } from "../../extend";
+
 describe("Graph.loadFromFile", () => {
     beforeEach(() => {
         // Create a fresh canvas for each test
@@ -58,7 +60,18 @@ describe("Graph.loadFromFile", () => {
             await graph.loadFromFile(file);
         } catch (error) {
             errorThrown = true;
-            assert.match((error as Error).message, /Could not detect file format/);
+
+            // A CODE RATHER THAN A SENTENCE. This used to be a plain Error whose message named a
+            // hard-coded list of the element's own seven formats, so a consumer whose format WAS
+            // registered could still be told the element does not have it. `details.available` is
+            // read from the catalogue, so it names whatever this page actually has.
+            assert.isTrue(isGraphtyError(error), "a failure the element reports carries a code");
+            assert.strictEqual((error as GraphtyError).code, "E_UNKNOWN_FORMAT");
+            assert.include(
+                (error as GraphtyError).details.available as string[],
+                "graphml",
+                "and says what it could have read instead",
+            );
         }
 
         assert.isTrue(errorThrown, "Should throw error for unknown format");

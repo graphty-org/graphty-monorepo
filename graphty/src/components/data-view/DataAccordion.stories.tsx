@@ -51,7 +51,7 @@ export const NarrowWidth: Story = {
 /** Accordion with custom title */
 export const CustomTitle: Story = {
     args: {
-        data: { id: "edge-1", src: "a", dst: "b", weight: 1.5 },
+        data: { id: "0", source: "a", target: "b", weight: 1.5 },
         title: "Edge Properties",
     },
 };

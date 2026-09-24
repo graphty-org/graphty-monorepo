@@ -25,20 +25,45 @@ The `<graphty-element>` Web Component provides a declarative way to add graph vi
 
 All configuration is done through HTML attributes or their corresponding JavaScript properties:
 
-| Property           | Attribute            | Type                           | Default     | Description                    |
-| ------------------ | -------------------- | ------------------------------ | ----------- | ------------------------------ |
-| `nodeData`         | `node-data`          | `Array<object>`                | `[]`        | Array of node objects          |
-| `edgeData`         | `edge-data`          | `Array<object>`                | `[]`        | Array of edge objects          |
-| `layout`           | `layout`             | `string`                       | `'ngraph'`  | Layout algorithm name          |
-| `layoutConfig`     | `layout-config`      | `object`                       | `{}`        | Layout algorithm options       |
-| `styleTemplate`    | `style-template`     | `string`                       | `undefined` | Built-in style template        |
-| `viewMode`         | `view-mode`          | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
-| `dataSource`       | `data-source`        | `string`                       | `undefined` | Data source type               |
-| `dataSourceConfig` | `data-source-config` | `object`                       | `{}`        | Data source configuration      |
-| `nodeIdPath`       | `node-id-path`       | `string`                       | `'id'`      | Path to node ID in data        |
-| `edgeSrcIdPath`    | `edge-src-id-path`   | `string`                       | `'source'`  | Path to source ID in edge data |
-| `edgeDstIdPath`    | `edge-dst-id-path`   | `string`                       | `'target'`  | Path to target ID in edge data |
-| `debug`            | `debug`              | `boolean`                      | `false`     | Enable debug overlay           |
+| Property                 | Attribute                  | Type                           | Default     | Description                    |
+| ------------------------ | -------------------------- | ------------------------------ | ----------- | ------------------------------ |
+| `nodeData`               | `node-data`                | `Array<object>`                | `[]`        | Array of node objects          |
+| `edgeData`               | `edge-data`                | `Array<object>`                | `[]`        | Array of edge objects          |
+| `layout`                 | `layout`                   | `string`                       | `'ngraph'`  | Layout algorithm name          |
+| `layoutConfig`           | `layout-config`            | `object`                       | `{}`        | Layout algorithm options       |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
+| `background`             | `background`               | `object`                       | whitesmoke  | A colour, or a skybox image    |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | `30`        | How far the camera starts out  |
+| `dataSource`             | `data-source`              | `string`                       | `undefined` | Data source type               |
+| `dataSourceConfig`       | `data-source-config`       | `object`                       | `{}`        | Data source configuration      |
+| `nodeIdPath`             | `node-id-path`             | `string`                       | `'id'`      | Path to node ID in data        |
+| `edgeSrcIdPath`          | `edge-src-id-path`         | `string`                       | unset       | Path to source ID in edge data; unset means probe |
+| `edgeDstIdPath`          | `edge-dst-id-path`         | `string`                       | unset       | Path to target ID in edge data; unset means probe |
+| `edgeIdPath`             | `edge-id-path`             | `string`                       | unset       | Path to an edge's own identifier, for data that carries one |
+| `repeatedEdges`          | `repeated-edges`           | `'keep' \| 'first' \| 'last' \| 'sum' \| 'min' \| 'max' \| 'error'` | `'keep'` | What a second edge between one pair does |
+| `nodeLabelPath`          | `node-label-path`          | `string`                       | unset       | Path to what to CALL a node, as distinct from its id |
+| `edgeWeightPath`         | `edge-weight-path`         | `string`                       | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads |
+| `positionScale`          | `position-scale`           | `number`                       | `1`         | Multiplier from a record's own coordinates into scene units |
+| `directed`               | `directed`                 | `boolean \| 'auto'`            | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide |
+| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }` | gold halo   | What a selected node looks like |
+| `layoutBehavior`         | property only              | `object`                       | `{}`        | How the element drives the layout, and the two on-demand expansion functions |
+| `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`      | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads)) |
+| `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                      | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence |
+| `debug`                  | `debug`                    | `boolean`                      | `false`     | Enable debug overlay           |
+
+### How the element finds an edge's endpoints
+
+Leave `edge-src-id-path` and `edge-dst-id-path` unset and the element works out which keys name the
+endpoints. It tries `source` and `target` first, then `src` and `dst`, then `from` and `to`, and it
+decides once for a whole batch of records rather than once per record -- so a file cannot spell one
+edge one way and the next edge another and have both silently accepted.
+
+A batch that answers none of the three fails the load with `E_EDGE_ENDPOINTS_UNRESOLVED`, naming
+the columns the records do carry. It never loads a graph with nodes and no edges in silence, which
+is what 1.x did to every file spelled the way the guides teach.
+
+Setting either attribute settles the question and turns the probe off. A record that then does not
+answer the column you named is rejected and counted rather than guessed at again.
 
 ### Read-only Properties
 
@@ -50,6 +75,62 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 ### Methods
 
 The Web Component exposes many methods directly. See [Direct Methods](#direct-methods-on-the-web-component) below for the complete list.
+
+### What a selected node looks like
+
+The highlight is a gold halo around the selected node, and it is configuration rather than a style
+layer -- a selection is what a reader is pointing at, not a property of the data, so a layer
+drawing it would be reorderable, persistable and lost at a dataset boundary along with every other
+layer.
+
+```javascript
+element.selectionStyle = {
+    color: "#00BCD4", // any colour the element understands
+    scale: 1.8, // how far past the node it stands, as a multiple of the node's size
+    opacity: 0.55, // 0 to 1
+};
+```
+
+Merged over what is already set, so naming one field leaves the others alone, and it takes effect
+on a selection that is already on screen.
+
+### Expanding a node's neighbourhood on demand
+
+Double-clicking a node asks you for that node's neighbours and adds what comes back, so a graph
+too large to load at once can be explored a step at a time. Hand over the two functions through
+`layoutBehavior`:
+
+```javascript
+element.layoutBehavior = {
+    fetchEdges: (node) => fetchEdgesFor(node.id), // an iterable of edge records
+    fetchNodes: (nodeIds) => fetchNodesFor([...nodeIds]), // an iterable of node records
+};
+```
+
+Both are called on the double-click, so switching expansion on after the graph is drawn reaches
+the nodes already on screen. An edge record may spell its endpoints `source`/`target`, `src`/`dst`
+or `from`/`to`; the element decides once per batch. An edge the graph already holds is not
+duplicated.
+
+### Pacing the layout
+
+`layoutBehavior.layout` carries the four settings that decide how hard the element drives the
+layout engine:
+
+```javascript
+element.layoutBehavior = {
+    layout: {
+        preSteps: 500, // run this many steps before the first frame is drawn
+        stepMultiplier: 2, // steps per rendered frame
+        minDelta: 0.001, // stop once a whole frame moves every node less than this
+        zoomStepInterval: 5, // re-frame the camera every N steps while the layout runs
+    },
+    node: { pinOnDrag: true }, // a dropped node stays where the reader put it
+};
+```
+
+`preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
+its default of `0` leaves the engine to decide when it has finished.
 
 ## Basic Usage
 
@@ -68,7 +149,7 @@ The Web Component exposes many methods directly. See [Direct Methods](#direct-me
 ```html
 <graphty-element
     layout="circular"
-    style-template="dark"
+    background='{"backgroundType":"color","color":"#101014"}'
     node-data='[{"id": "a"}, {"id": "b"}, {"id": "c"}]'
     edge-data='[{"source": "a", "target": "b"}, {"source": "b", "target": "c"}]'
 >
@@ -190,13 +271,25 @@ element.layoutConfig = {
 };
 ```
 
-## Style Templates
+## Styling
 
-Apply built-in style templates:
+The background is a property of the element. What the nodes and edges look like is a stack of
+style layers, which is reached through the session:
 
 ```html
-<graphty-element style-template="dark"></graphty-element> <graphty-element style-template="light"></graphty-element>
+<graphty-element id="graph" background='{"backgroundType":"color","color":"#101014"}'></graphty-element>
 ```
+
+```javascript
+await document.querySelector("#graph").session.styles.add({
+    name: "Nodes",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#E5E7EB" },
+});
+```
+
+See the [styling guide](/guide/styling) for selectors, channels and the rest of the vocabulary.
 
 ## View Modes
 
@@ -382,7 +475,8 @@ const selected = element.getSelectedNode();
 
 // Layout control
 element.setLayout("circular");
-await element.waitForSettled();
+await element.waitForSettled(); // the queued operations are done
+await element.waitForStableFrame(); // the picture has stopped changing
 ```
 
 ### Camera Control
@@ -407,7 +501,6 @@ const controller = element.getCameraController();
 // Access internal managers
 const dataManager = element.getDataManager();
 const layoutManager = element.getLayoutManager();
-const styleManager = element.getStyleManager();
 const selectionManager = element.getSelectionManager();
 const eventManager = element.getEventManager();
 const statsManager = element.getStatsManager();
@@ -445,13 +538,16 @@ element.disableAiControl();
 
 ```javascript
 // Take screenshot
-const result = await element.takeScreenshot({
+const result = await element.captureScreenshot({
     width: 1920,
     height: 1080,
 });
 
-// Check capabilities
-const capability = await element.checkScreenshotCapability();
+// Check capabilities before asking for a large one
+const capability = await element.canCaptureScreenshot({ multiplier: 4 });
+if (!capability.supported) {
+    console.warn(capability.reason);
+}
 ```
 
 ### Algorithms

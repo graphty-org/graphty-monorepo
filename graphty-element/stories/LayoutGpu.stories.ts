@@ -29,6 +29,7 @@ import type { AccelerationCapabilities, AccelerationStatus } from "../src/accele
 import { Graphty } from "../src/graphty-element";
 import { createFakeAccelerator, type FakeAccelerator } from "../src/testing/fakeAccelerator";
 import { storyGraph } from "../test/helpers/story-graph";
+import { assertDistinctArrangement, drawn } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
 
 // The same 150 / 250 graph the real-GPU browser test lays out, so what a reader watches here and
@@ -126,6 +127,23 @@ function acceleratedStory(configure: (element: Graphty) => void): Decorator {
         return withCaption(rendered);
     };
 }
+
+/**
+ * The sibling set the two fake stories check each other against, and how far apart they promise
+ * to be.
+ *
+ * The real-WebGPU story is deliberately not in it: it is ForceAtlas2 with this same seed and
+ * these same options, so it is MEANT to arrange the graph the way `ForceAtlas2Fake` does, and on
+ * a machine with no device it is the same computation outright.
+ *
+ * The distance is a shape distance -- see `assertDistinctArrangement`. Measured on this graph
+ * from seed 42: these two sit 0.613 apart, one model from two different seeds sits 1.5 to 1.6
+ * apart, and the translating fake these stories used to run sat at 0.
+ */
+const FAKE_FAMILY = "Layout/GPU (fake accelerator)";
+
+/** How far apart the two fake stories' arrangements must be. See {@link FAKE_FAMILY}. */
+const FAKE_FAMILY_APART = 0.25;
 
 /** The fake each fake-accelerator story attached, so that story's `play` can interrogate it. */
 const fakes = new WeakMap<Graphty, FakeAccelerator>();
@@ -269,6 +287,11 @@ export const ForceAtlas2Fake: Story = {
         }
 
         assertRanOnTheFake(canvasElement, "forceAtlas2");
+        await assertDistinctArrangement(
+            await drawn(canvasElement, "Layout/GPU ForceAtlas2 (fake accelerator)"),
+            FAKE_FAMILY,
+            FAKE_FAMILY_APART,
+        );
     },
 };
 
@@ -293,6 +316,11 @@ export const SpringFake: Story = {
         }
 
         assertRanOnTheFake(canvasElement, "fruchtermanReingold");
+        await assertDistinctArrangement(
+            await drawn(canvasElement, "Layout/GPU Spring (fake accelerator)"),
+            FAKE_FAMILY,
+            FAKE_FAMILY_APART,
+        );
     },
 };
 

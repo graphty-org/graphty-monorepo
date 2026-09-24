@@ -82,14 +82,25 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
-            # migration of design/graph-format section 14 is pending), so a PR that touches only the
-            # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
-            # artifact and every test shard's Download step would fail with "Artifact not found".
-            # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
-            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
+            # Every test shard downloads every package's dist, so every package must be built even when the
+            # pull request leaves it unaffected: an upload that finds no files creates no artifact, and the
+            # shard's download then fails with "Artifact not found". This step used to name only
+            # graph-format, graph-io and webgpu-graph-algorithms, the packages outside graphty's dependency
+            # closure, which held while a pull request touching one of them also touched the element -- a
+            # pull request confined to webgpu-graph-algorithms left graphty, graphty-element, remote-logger
+            # and compact-mantine unbuilt and failed all twenty shards (run 35668273734). Building every
+            # project is what master already does, and the Nx cache makes it a no-op for whatever the
+            # affected build above produced.
+            - name: Build the rest (PR), so every shard finds its artifact
               if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
+              run: pnpm exec nx run-many -t build --parallel=3
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
+                  VITE_BASE_PATH: /
+                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
             - name: Lint affected (PR)
               if: github.event_name == 'pull_request'
@@ -312,9 +323,26 @@ jobs:
                     # The twin pass covers test/algorithms as well: pr-scale and pr-finalize declare
                     # needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
                     # path the twin would never exercise the PageRank reduction on a device without the feature.
+                    # the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
+                    # vitest's own code. On a non-zero exit its FIRST line is the [missing-files] block -- how many test
+                    # files started, how many reported, and the names of the difference, which is what a dead worker
+                    # swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
+                    # wait channel and a Node diagnostic report per surviving process (G4-F14).
+                    # The files that break a device on purpose are the `node-device-errors` project and run in an
+                    # invocation of their own, one file at a time, AFTER the node project has written its coverage:
+                    # a worker they kill then takes eleven files with it instead of the hundred and fourteen beside
+                    # them. Their coverage goes to .coverage-parts/device-errors and is uploaded as a second
+                    # artifact, which tools/merge-coverage.sh merges with the first the way it already merges the
+                    # graphty-element shards.
+                    # The twin pass runs TWICE for the same reason. `--project=node` no longer reaches the four
+                    # device-error files under test/layouts (fa2-lifecycle, fr-lifecycle, grid-lifecycle,
+                    # force-simulation), so a second twin invocation names them through the device-error project:
+                    # 44 + 4 = the 48 layout files the twin pass covered before the split, unchanged. It carries no
+                    # --passWithNoTests on purpose -- an empty match there means those files moved and the twin pass
+                    # shrank again, which should be a red step and not a silent pass.
                     - shard: webgpu-graph-algorithms-node
                       package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms --passWithNoTests
+                      test-command: cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node --coverage && COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors test/layouts
                       needs-browser: false
                       needs-lavapipe: true
                     # the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
@@ -560,6 +588,19 @@ jobs:
               with:
                   name: coverage-${{ matrix.shard }}
                   path: webgpu-graph-algorithms/coverage/lcov.info
+                  retention-days: 1
+                  if-no-files-found: error
+                  overwrite: true
+
+            # The device-error project's own run: a second artifact for the same package, which
+            # tools/merge-coverage.sh collects by the coverage-<package>-<shard> prefix and merges with the one
+            # above before rewriting the paths (it already does this for the graphty-element shards).
+            - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
+              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-${{ matrix.shard }}-device-errors
+                  path: webgpu-graph-algorithms/.coverage-parts/device-errors/lcov.info
                   retention-days: 1
                   if-no-files-found: error
                   overwrite: true

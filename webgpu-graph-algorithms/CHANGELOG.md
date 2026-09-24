@@ -1,3 +1,67 @@
+## 0.6.1 (2026-09-24)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** accept @graphty/algorithms 2.x as a peer ([bdb6ece8](https://github.com/graphty-org/graphty-monorepo/commit/bdb6ece8))
+- **webgpu-graph-algorithms:** keep the Dawn handles referenced until the test worker exits ([d362cac4](https://github.com/graphty-org/graphty-monorepo/commit/d362cac4))
+- **webgpu-graph-algorithms:** export springSizeFactor again for the grid-law helper ([67624f21](https://github.com/graphty-org/graphty-monorepo/commit/67624f21))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 2.0.0
+- Updated layout to 1.8.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.0 (2026-09-23)
+
+### 🚀 Features
+
+- ⚠️  **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
+- **webgpu-graph-algorithms:** record the grid layout baseline on the Tesla T4 ([4c0735b0](https://github.com/graphty-org/graphty-monorepo/commit/4c0735b0))
+- **webgpu-graph-algorithms:** add calibrateLayout, layout-grid and the crossover re-check ([f12b9098](https://github.com/graphty-org/graphty-monorepo/commit/f12b9098))
+- **webgpu-graph-algorithms:** give the FR and spring-electrical models the grid tier through LAW ([201ba566](https://github.com/graphty-org/graphty-monorepo/commit/201ba566))
+- **webgpu-graph-algorithms:** add the grid repulsion tier of ForceAtlas2 ([e5d38678](https://github.com/graphty-org/graphty-monorepo/commit/e5d38678))
+- **webgpu-graph-algorithms:** add the grid centroids, the hub-cell path and the pyramid ([e845cbae](https://github.com/graphty-org/graphty-monorepo/commit/e845cbae))
+- **webgpu-graph-algorithms:** add the grid spec, the cell keys and the sorted cell ranges ([aff68ce5](https://github.com/graphty-org/graphty-monorepo/commit/aff68ce5))
+- **webgpu-graph-algorithms:** execute windowed uploads for degree and segmentedReduce ([25943b4c](https://github.com/graphty-org/graphty-monorepo/commit/25943b4c))
+- **webgpu-graph-algorithms:** run the attraction kernel over the degree tiers in every layout model ([cc9df077](https://github.com/graphty-org/graphty-monorepo/commit/cc9df077))
+- **webgpu-graph-algorithms:** add the mid and high degree tiers of the row-walking kernels ([d34157f1](https://github.com/graphty-org/graphty-monorepo/commit/d34157f1))
+- **webgpu-graph-algorithms:** add the stable LSD radixSort primitive ([c2afbffe](https://github.com/graphty-org/graphty-monorepo/commit/c2afbffe))
+- **webgpu-graph-algorithms:** add the histogram and counting-sort primitives ([4d10bbbd](https://github.com/graphty-org/graphty-monorepo/commit/4d10bbbd))
+- **webgpu-graph-algorithms:** add the exclusiveScan primitive ([2683fbc5](https://github.com/graphty-org/graphty-monorepo/commit/2683fbc5))
+- **webgpu-graph-algorithms:** add planIndirect, the indirect finalize kernel and dispatchIndirect ([af532c25](https://github.com/graphty-org/graphty-monorepo/commit/af532c25))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** settle the device check before the loop, not inside it ([032a3157](https://github.com/graphty-org/graphty-monorepo/commit/032a3157))
+- **webgpu-graph-algorithms:** give the regression gate a floor it can measure ([fc5f207a](https://github.com/graphty-org/graphty-monorepo/commit/fc5f207a))
+- **webgpu-graph-algorithms:** stop the benchmark gate blessing its own regression ([c0e06173](https://github.com/graphty-org/graphty-monorepo/commit/c0e06173))
+- **webgpu-graph-algorithms:** give the block total a ride to the lane that stores it ([4f0a22aa](https://github.com/graphty-org/graphty-monorepo/commit/4f0a22aa))
+- **webgpu-graph-algorithms:** read the block index where it is used, not before ([3f279ea8](https://github.com/graphty-org/graphty-monorepo/commit/3f279ea8))
+- **webgpu-graph-algorithms:** stop the test process tearing the graphics device down ([f2752f57](https://github.com/graphty-org/graphty-monorepo/commit/f2752f57))
+- **webgpu-graph-algorithms:** carry the block index through workgroup memory ([9fda60fe](https://github.com/graphty-org/graphty-monorepo/commit/9fda60fe))
+- **webgpu-graph-algorithms:** let the pool end each test worker, not the worker itself ([704cb9f2](https://github.com/graphty-org/graphty-monorepo/commit/704cb9f2))
+- **webgpu-graph-algorithms:** set the teardown allowance where vitest reads it ([8d6e88b3](https://github.com/graphty-org/graphty-monorepo/commit/8d6e88b3))
+- **webgpu-graph-algorithms:** write only the coverage report a runner reads ([b505032e](https://github.com/graphty-org/graphty-monorepo/commit/b505032e))
+- **webgpu-graph-algorithms:** run two workers when coverage runs on a small machine ([af7088e2](https://github.com/graphty-org/graphty-monorepo/commit/af7088e2))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** walk a dense row with a constant stride again ([57873440](https://github.com/graphty-org/graphty-monorepo/commit/57873440))
+
+### ⚠️  Breaking Changes
+
+- **webgpu-graph-algorithms:** refuse a device that computes the wrong answer  ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
+  E_DEVICE_INCORRECT joins the exported error code union, and a device that
+  computes incorrectly now raises it instead of returning numbers.
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.5.1 (2026-09-21)
 
 ### 🚀 Features

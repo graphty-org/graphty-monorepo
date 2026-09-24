@@ -18,8 +18,8 @@ import { RichTextAnimator } from "./RichTextAnimator";
 import { RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 
-/** The Babylon rendering group every label is drawn in: after nodes and edges (group 0). */
-const LABEL_RENDERING_GROUP = 1;
+/** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
+const ON_TOP_RENDERING_GROUP = 1;
 
 export type BadgeType =
     | "notification"
@@ -95,6 +95,11 @@ interface InternalBadgeProperties {
 // Additional runtime properties that can be passed to RichTextLabel
 interface RuntimeProperties {
     attachTo?: AbstractMesh | Vector3;
+    /**
+     * Draw over the whole graph instead of sorting by depth with it. A tooltip sets this; an
+     * ordinary label does not, so a node or an edge nearer the camera passes in front of it.
+     */
+    onTop?: boolean;
 }
 
 // RichTextLabelOptions extends the config schema with runtime properties
@@ -110,6 +115,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "icon"
     | "progress"
     | "attachTo"
+    | "onTop"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -903,11 +909,12 @@ export class RichTextLabel {
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
-        // Text is drawn over the graph, never inside it. Nodes and edges are in rendering group
-        // 0; group 1 is drawn after it with the depth buffer cleared, so an edge or a node that
-        // sits nearer the camera than a label, a tooltip or an edge's text can no longer cut
-        // through the words. Labels still depth-test and sort against each other.
-        this.mesh.renderingGroupId = LABEL_RENDERING_GROUP;
+        // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
+        // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
+        // in the graph can cover what the reader pointed at.
+        if (this.options.onTop === true) {
+            this.mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+        }
     }
 
     private _attachToTarget(): void {

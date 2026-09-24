@@ -18,14 +18,15 @@ import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { U32_MAX } from "../constants.js";
 import { type GpuContext } from "../context.js";
-import { isWebGpuGraphError, WebGpuGraphError } from "../errors.js";
+import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
 import { groupsOf, plan1d } from "../kernel/dispatch.js";
 import { kernelSpec, PR_PARAMS, PR_PARTIAL } from "../kernels.js";
 import { type ArrayBinding, type CoreBinding } from "../memory/residency.js";
-import { coreOfView } from "../primitives/core-shape.js";
+import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
 import { prepareSegmentedReduce } from "../primitives/segmented-reduce.js";
 import { prepareSpmvPull } from "../primitives/spmv.js";
+import { assertDeviceComputes } from "../primitives/verify.js";
 import { type GpuPageRankResult, type PageRankOptions } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
@@ -62,26 +63,17 @@ function checkDest(dest: Float32Array | Uint32Array | undefined, n: number, algo
 }
 
 /**
- * The resident core; a windowed plan (`E_TOO_LARGE { path: "windowed", algorithm: null }`, spec 3.8) is re-thrown
- * with the algorithm name (3.12). Transcribed from degree.ts, whose coreOf is module-private.
+ * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (spec 3.8, 3.12;
+ * DEP-P4-B: only degree and segmentedReduce execute windows).
  * @param ctx - the context
  * @param s - the snapshot
  * @param algorithm - the caller's name
  * @returns the core binding
  */
 function coreOf(ctx: GpuContext, s: GraphSnapshot, algorithm: string): CoreBinding {
-    try {
-        return ctx.residency.core(s);
-    } catch (error: unknown) {
-        if (isWebGpuGraphError(error) && error.code === "E_TOO_LARGE" && error.details.path === "windowed") {
-            throw new WebGpuGraphError(
-                "E_TOO_LARGE",
-                `${algorithm}: the arc arrays need a windowed upload, which P1-P3 plan but do not execute`,
-                { ...error.details, algorithm },
-            );
-        }
-        throw error;
-    }
+    const core = ctx.residency.core(s);
+    assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, algorithm);
+    return core;
 }
 
 /**
@@ -126,6 +118,7 @@ async function run(
     algorithm: string,
 ): Promise<GpuPageRankResult> {
     ctx.assertReady();
+    await assertDeviceComputes(ctx);
     const n = s.nodeCount;
     const alpha = options?.dampingFactor ?? 0.85;
     const maxIterations = options?.maxIterations ?? 100;
@@ -144,7 +137,13 @@ async function run(
     }
     if (n === 0) {
         options?.onProgress?.(maxIterations, maxIterations);
-        return { scores: dest ?? new Float32Array(0), iterations: 0, converged: true, danglingMass: 0, precision: "f32" };
+        return {
+            scores: dest ?? new Float32Array(0),
+            iterations: 0,
+            converged: true,
+            danglingMass: 0,
+            precision: "f32",
+        };
     }
     const core = coreOf(ctx, s, algorithm);
     if (s.arcCount === 0) {
@@ -322,7 +321,10 @@ export async function personalizedPageRank(
             expected,
         });
     if (!(personalization instanceof Float32Array) || personalization.length !== n) {
-        throw invalid(`${personalization.constructor.name}(${personalization.length})`, `a Float32Array of length ${n}`);
+        throw invalid(
+            `${personalization.constructor.name}(${personalization.length})`,
+            `a Float32Array of length ${n}`,
+        );
     }
     let total = 0;
     for (let v = 0; v < n; v++) {

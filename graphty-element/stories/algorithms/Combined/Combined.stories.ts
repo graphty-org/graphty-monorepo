@@ -5,10 +5,11 @@ import {
     assertDrawnVariety,
     assertEdgeVariety,
     assertGraphLoaded,
+    type Drawn,
     drawn,
     holds,
 } from "../../assertions";
-import { algorithmMetaBase, type Story, storySetup, waitForGraphSettled } from "../helpers";
+import { algorithmMetaBase, assertSizedBy, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -37,12 +38,12 @@ async function sizeByPageRank(graphtyElement: Graphty, story: string): Promise<v
 }
 
 /**
- * Two algorithms of the same shape, competing for one channel.
+ * Colour is the degree, size is the influence, as 1.x drew it.
  *
- * A node metric suggests a colour over the nodes it measured, and both of these are node
- * metrics, so both suggest `node.color` and only the one named LAST is the picture. PageRank is
- * named last here, so what a reader is looking at is influence; Degree is underneath it, one
- * `styles.move` away from being the picture instead.
+ * Both are node metrics, so both suggest `node.color` and only the one named LAST wins the colour:
+ * Degree is named last here. Size is a separate channel that no suggestion writes, so PageRank's
+ * picture is asked for there -- node size, 1 to 5 -- and the two show at once: a well-connected
+ * node is dark, an influential one is large, and a node that is one without the other stands out.
  */
 export const DegreeAndPageRank: Story = {
     args: {
@@ -69,7 +70,7 @@ export const DegreeAndPageRank: Story = {
 
         await graph.operationQueue.waitForCompletion();
 
-        const applied = graph.applySuggestedStyles(["graphty:degree", "graphty:pagerank"]);
+        const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:degree"]);
 
         await holds(
             applied,
@@ -77,15 +78,46 @@ export const DegreeAndPageRank: Story = {
                 "so neither run had anything to paint",
         );
 
+        await sizeByPageRank(graphtyElement, "Algorithms/Combined DegreeAndPageRank");
+
         const scene = await drawn(canvasElement, "Algorithms/Combined DegreeAndPageRank");
 
         await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
         await assertAlgorithmPainted(scene, "graphty:degree", { paints: "node", atLeast: 20 });
         await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
         await assertDrawnVariety(scene, "hex", 3);
+        await assertColourFollowsDegree(scene);
+        await assertSizedBy(scene, "pagerank", [1, 5]);
         await assertDistinctPicture(scene, "Algorithms/Combined");
     },
 };
+
+/**
+ * The colour is Degree's, not PageRank's: nodes of one degree share one colour, and there are as
+ * many colours as degrees. PageRank separates nearly every node, so had it won the colour there
+ * would be more colours than degrees.
+ * @param scene - What the story drew.
+ */
+async function assertColourFollowsDegree(scene: Drawn): Promise<void> {
+    const degree = scene.session.runs
+        .list()
+        .find((entry) => entry.algorithm === "degree" && entry.status === "succeeded");
+    const colourOf = new Map<string, Set<string>>();
+
+    for (const node of scene.nodes) {
+        const value = String(degree?.result?.node(node.id)?.value);
+        colourOf.set(value, (colourOf.get(value) ?? new Set()).add(node.hex ?? "none"));
+    }
+
+    const hexes = new Set(scene.nodes.map((node) => node.hex));
+    const mixed = [...colourOf].filter(([, colours]) => colours.size > 1);
+
+    await holds(
+        mixed.length === 0 && hexes.size === colourOf.size,
+        `${scene.story}: the colour should follow degree, and ${String(colourOf.size)} degrees are drawn in ` +
+            `${String(hexes.size)} colours; degrees drawn in more than one: ${mixed.map(([d]) => d).join(", ")}`,
+    );
+}
 
 /**
  * Centrality against community: colour is the community, size is the influence.

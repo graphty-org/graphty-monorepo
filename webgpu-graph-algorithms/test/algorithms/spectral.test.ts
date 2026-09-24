@@ -13,6 +13,10 @@ import { type TestContext } from "vitest";
 import { coreOf, reverseOf, runPowerIteration } from "../../src/algorithms/power-iteration.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../../src/algorithms/spectral.js";
 import { GpuContext } from "../../src/context.js";
+import { GraphResidency } from "../../src/memory/residency.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
+import { withResidency } from "../helpers/degree-check.js";
 import { fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectAllClose, expectBitwiseEqual, maxRelError } from "../helpers/matchers.js";
@@ -43,7 +47,8 @@ const LEGS: readonly Leg[] = [
     },
     {
         name: "eigenvectorCentrality",
-        gpu: async (ctx, s, k, weighted) => (await eigenvectorCentrality(ctx, s, { maxIterations: k, weighted })).scores,
+        gpu: async (ctx, s, k, weighted) =>
+            (await eigenvectorCentrality(ctx, s, { maxIterations: k, weighted })).scores,
         oracle: (s, k, weighted) =>
             eigenvectorOracle(s, { ...OPTS, maxIterations: k, weighted: weighted ?? true }).scores,
     },
@@ -130,12 +135,30 @@ describe("spectral oracles (pure)", () => {
         const arc = hitsOracle(snapshotOf([[0, 1]], { directed: true }), OPTS);
         expect(Array.from(arc.hubs)).toEqual([1, 0]);
         expect(Array.from(arc.authorities)).toEqual([0, 1]);
-        const path = hitsOracle(snapshotOf([[0, 1], [1, 2]], { directed: true }), OPTS);
+        const path = hitsOracle(
+            snapshotOf(
+                [
+                    [0, 1],
+                    [1, 2],
+                ],
+                { directed: true },
+            ),
+            OPTS,
+        );
         expect(Array.from(path.hubs)).toEqual([0.5, 0.5, 0]);
         expect(Array.from(path.authorities)).toEqual([0, 0.5, 0.5]);
         expect(path.converged).toBe(true);
         // an odd pin swaps which chain ends on the hubs; the vectors must not
-        const odd = hitsOracle(snapshotOf([[0, 1], [1, 2]], { directed: true }), { ...OPTS, maxIterations: 7 });
+        const odd = hitsOracle(
+            snapshotOf(
+                [
+                    [0, 1],
+                    [1, 2],
+                ],
+                { directed: true },
+            ),
+            { ...OPTS, maxIterations: 7 },
+        );
         expect(Array.from(odd.hubs)).toEqual([0.5, 0.5, 0]);
         expect(Array.from(odd.authorities)).toEqual([0, 0.5, 0.5]);
     });
@@ -196,7 +219,10 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
             ] as const;
             for (const [result, expected, label] of runs) {
                 expect(result.converged, `${label}/${name}: converged`).toBe(expected.converged);
-                expect(Math.abs(result.iterations - expected.iterations), `${label}/${name}: iterations`).toBeLessThanOrEqual(1);
+                expect(
+                    Math.abs(result.iterations - expected.iterations),
+                    `${label}/${name}: iterations`,
+                ).toBeLessThanOrEqual(1);
             }
             ctx.release(snapshot);
         }
@@ -221,7 +247,12 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         const undirected = snapshotOf(edges, { label: "undirected" });
         for (const leg of LEGS) {
             expectAllClose(await leg.gpu(ctx, directed, 8), leg.oracle(directed, 8), PARITY, `${leg.name}/directed`);
-            expectAllClose(await leg.gpu(ctx, undirected, 8), leg.oracle(undirected, 8), PARITY, `${leg.name}/undirected`);
+            expectAllClose(
+                await leg.gpu(ctx, undirected, 8),
+                leg.oracle(undirected, 8),
+                PARITY,
+                `${leg.name}/undirected`,
+            );
         }
         const d = await hits(ctx, directed, { maxIterations: 8 });
         expect(maxRelError(d.hubs, d.authorities, FLOOR)).toBeGreaterThan(1e-2);
@@ -260,7 +291,11 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         const ctx = await context(t);
         const { snapshot } = fixture("random1k", gpuScale());
         for (const leg of LEGS) {
-            expectBitwiseEqual(await leg.gpu(ctx, snapshot, 100), await leg.gpu(ctx, snapshot, 100), `${leg.name} twice`);
+            expectBitwiseEqual(
+                await leg.gpu(ctx, snapshot, 100),
+                await leg.gpu(ctx, snapshot, 100),
+                `${leg.name} twice`,
+            );
         }
         const first = await hits(ctx, snapshot);
         const second = await hits(ctx, snapshot);
@@ -345,16 +380,26 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         const own = GpuContext.from(device);
         const s = snapshotOf(randomEdges(100, 300, 5), { nodeCount: 100, label: "leak" });
         try {
+            // the device self-check runs once per device, on an ADOPTED device too (GpuContext.from); pay it
+            // before counting, so what is counted is one algorithm run (src/primitives/verify.ts)
+            await verifyDevice(own);
             counter.resetMapAsync();
             const eigen = await eigenvectorCentrality(own, s, { maxIterations: 8 });
             expect(counter.mapAsyncCalls, "mapAsync calls of eigenvectorCentrality over 8 iterations").toBe(1);
-            expectAllClose(eigen.scores, eigenvectorOracle(s, { ...OPTS, maxIterations: 8 }).scores, PARITY, "leak eigen");
+            expectAllClose(
+                eigen.scores,
+                eigenvectorOracle(s, { ...OPTS, maxIterations: 8 }).scores,
+                PARITY,
+                "leak eigen",
+            );
             counter.resetMapAsync();
             await katzCentrality(own, s, { maxIterations: 8 });
             expect(counter.mapAsyncCalls, "mapAsync calls of katzCentrality over 8 iterations").toBe(1);
             counter.resetMapAsync();
             await hits(own, s, { maxIterations: 8 });
-            expect(counter.mapAsyncCalls, "mapAsync calls of hits over 8 iterations (two chains, one batch each)").toBe(2);
+            expect(counter.mapAsyncCalls, "mapAsync calls of hits over 8 iterations (two chains, one batch each)").toBe(
+                2,
+            );
             own.release(s);
             expect(own.residency.stats().buffers).toBe(0);
         } finally {
@@ -405,5 +450,39 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         expect(result.hubs).toBe(dest);
         expect(seen[seen.length - 1]).toBe(32);
         ctx.release(snapshot);
+    });
+
+    it("a windowed core is refused with E_TOO_LARGE { path: 'windowed', algorithm } before any work, for all three, directed and undirected (DEP-P4-B)", async (t) => {
+        const ctx = await context(t);
+        // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not, so the core plan is windowed
+        const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
+        const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+        const proxied = withResidency(ctx, residency);
+        try {
+            for (const directed of [true, false]) {
+                const s = snapshotOf(KARATE_EDGES, { directed });
+                await expect(hits(proxied, s)).rejects.toMatchObject({
+                    code: "E_TOO_LARGE",
+                    details: { path: "windowed", algorithm: "hits", needed: 4 * s.arcCount },
+                });
+                await expect(eigenvectorCentrality(proxied, s)).rejects.toMatchObject({
+                    code: "E_TOO_LARGE",
+                    details: { path: "windowed", algorithm: "eigenvectorCentrality" },
+                });
+                // Katz walks only the reverse adjacency: directed, that view is uploaded per array and is never
+                // windowed, so the run completes; undirected, the view IS the windowed core and the residency refuses
+                if (directed) {
+                    expect((await katzCentrality(proxied, s)).scores.length).toBe(s.nodeCount);
+                } else {
+                    await expect(katzCentrality(proxied, s)).rejects.toMatchObject({
+                        code: "E_TOO_LARGE",
+                        details: { path: "windowed", algorithm: null },
+                    });
+                }
+            }
+        } finally {
+            residency.destroyAll();
+        }
+        expect(ctx.residency.stats().snapshots).toBe(0);
     });
 });

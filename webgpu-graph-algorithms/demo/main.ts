@@ -5,7 +5,7 @@
  * frame loop will (fire-and-forget step(), at most maxInFlight batches in flight), with drag / pin through
  * setPosition / setFixed; a "Run PageRank" button runs the device PageRank over the same resident snapshot, checks
  * the f32 scores against the test suite's f64 oracle, and colours and sizes the nodes by score.
- * Served by `pnpm exec vite demo --host --port <9000-9099>`; not part of the package build, the tests or the lint set.
+ * Served by `pnpm run dev:webgpu-graph-algorithms` (started through servherd, which sets PORT); not part of the package build, the tests or the lint set.
  */
 
 import { installRemoteLog } from "./remote-log.js";

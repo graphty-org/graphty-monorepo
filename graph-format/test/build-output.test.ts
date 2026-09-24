@@ -99,7 +99,8 @@ describe("Build Output Tests", () => {
         ]) {
             expect(packageJson.scripts[name], `script ${name}`).toBeTypeOf("string");
         }
-        expect(packageJson.scripts["coverage:preview"]).toContain("9056");
+        // No fixed port: servherd assigns one through PORT, and the script refuses to start without it.
+        expect(packageJson.scripts["coverage:preview"]).toContain("${PORT:?");
     });
 
     it("should have TypeScript configuration for ES modules", () => {

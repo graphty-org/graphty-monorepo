@@ -29,10 +29,12 @@
  * it, a paused one is not.
  *
  * The spec 7.8 re-fix rule lives here as `exactMaxNodesFromLadder` (item 4): the largest measured ladder n with
- * <= EXACT_BUDGET_MS per iteration, rounded down to a power of two. Its second clause ("not slower than the grid tier at
- * the same n") has no grid tier to compare with in P3 and is re-checked at G4. docs/decisions/G3.md section 3 records
- * the run of this rule over the committed baseline that produced the value src/constants.ts carries (appendix A of
- * G3.md keeps the script that applied it; this function is the only copy of the rule).
+ * <= EXACT_BUDGET_MS per iteration and (its second clause, evaluable since P4's `layout-grid` group, PD-24) not
+ * slower than the grid tier at the same n, rounded down to a power of two. docs/decisions/G3.md section 3 records the
+ * run of the budget clause over the committed baseline that produced the value src/constants.ts carries (appendix A
+ * of G3.md keeps the script that applied it); G4.md records the re-check with both clauses (1024 on the dev box) and
+ * owner decision G4-D1, which keeps the constant at 32768 while the accuracy work G4-F1 leaves is open. This function is the only
+ * copy of the rule the records apply; src/layouts/calibrate.ts carries its twin for the device-side probe.
  */
 
 import { type GpuContext } from "../src/context.js";
@@ -118,16 +120,33 @@ export function floorPow2(n: number): number {
 }
 
 /**
- * The spec 7.8 crossover rule, reduced to its budget clause: the largest measured n with msPerIteration <= budgetMs,
- * rounded down to a power of two. The order of the rows is irrelevant. The "not slower than the grid tier at the same n"
- * clause is not evaluable before P4 (no grid tier exists) and is re-checked at G4; P4 extends this function with it.
+ * The spec 7.8 crossover rule in full (PLAN DECISION PD-24, P4-T14): a rung is a candidate iff its exact time is
+ * within budgetMs AND, when `gridRows` holds a row of the same n, not above the grid tier's time at that n; the result
+ * is the largest candidate rounded down to a power of two. The order of the rows is irrelevant. Without `gridRows`
+ * the rule is its budget clause alone (what G3 applied, no grid tier existing then); G4 re-checks it with the
+ * `layout-grid` 2D rows at 32k and 65k (docs/decisions/G4.md). src/layouts/calibrate.ts re-implements the same rule
+ * over its probed sizes (src/ cannot import this file) and test/layouts/calibrate.test.ts compares the two.
  * @param rows - the measured ladder rows (ladderRowsOf of a session's results)
  * @param budgetMs - the per-iteration budget (default EXACT_BUDGET_MS = 4)
- * @returns the exactMaxNodes value src/constants.ts carries
+ * @param gridRows - the grid tier's rows (gridLadderRowsOf of the same session); a rung with no grid row is judged by the budget alone
+ * @returns the rule's exactMaxNodes (what src/constants.ts carries, unless an owner decision of the gate record overrides it)
  */
-export function exactMaxNodesFromLadder(rows: readonly LadderRow[], budgetMs: number = EXACT_BUDGET_MS): number {
+export function exactMaxNodesFromLadder(
+    rows: readonly LadderRow[],
+    budgetMs: number = EXACT_BUDGET_MS,
+    gridRows?: readonly LadderRow[],
+): number {
     if (rows.length === 0) {
         throw new Error("exactMaxNodesFromLadder: no ladder rows");
+    }
+    const gridAt = new Map<number, number>();
+    for (const row of gridRows ?? []) {
+        if (!Number.isFinite(row.msPerIteration) || row.msPerIteration < 0) {
+            throw new Error(
+                `exactMaxNodesFromLadder: the grid row n=${row.n} needs a finite, non-negative msPerIteration, got ${String(row.msPerIteration)}`,
+            );
+        }
+        gridAt.set(row.n, row.msPerIteration);
     }
     let best = 0;
     for (const row of rows) {
@@ -136,7 +155,9 @@ export function exactMaxNodesFromLadder(rows: readonly LadderRow[], budgetMs: nu
                 `exactMaxNodesFromLadder: the row n=${row.n} needs a finite, non-negative msPerIteration, got ${String(row.msPerIteration)}`,
             );
         }
-        if (row.msPerIteration <= budgetMs && row.n > best) {
+        const grid = gridAt.get(row.n);
+        const notSlowerThanGrid = grid === undefined || row.msPerIteration <= grid;
+        if (row.msPerIteration <= budgetMs && notSlowerThanGrid && row.n > best) {
             best = row.n;
         }
     }

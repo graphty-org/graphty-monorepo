@@ -1,3 +1,182 @@
+# 2.0.0 (2026-09-24)
+
+### 🚀 Features
+
+- **graphty-element:** load-time algorithms can carry run options ([f75d710f](https://github.com/graphty-org/graphty-monorepo/commit/f75d710f))
+- **graphty-element:** an eigenvector run that does not converge fails with E_NOT_CONVERGED ([47b116ac](https://github.com/graphty-org/graphty-monorepo/commit/47b116ac))
+- **graphty-element:** overflow policy for groups, and size by a run's metric ([#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050))
+- **graphty-element:** research-backed default palettes for measurements and groups ([d1423a36](https://github.com/graphty-org/graphty-monorepo/commit/d1423a36))
+- **graphty-element:** publish CHANNEL_DESCRIPTORS so the app stops copying it ([1ee1170d](https://github.com/graphty-org/graphty-monorepo/commit/1ee1170d))
+- ⚠️  **graphty-element:** declarative style-channel api and self-sufficient rendering ([9970ab84](https://github.com/graphty-org/graphty-monorepo/commit/9970ab84))
+- ⚠️  **graphty-element:** give every limit a name that carries its unit ([bd6c0fe6](https://github.com/graphty-org/graphty-monorepo/commit/bd6c0fe6))
+- ⚠️  **graphty-element:** settle the custom element's attributes and events ([e108753a](https://github.com/graphty-org/graphty-monorepo/commit/e108753a))
+- ⚠️  **graphty-element:** answer from the session what a consumer was computing itself ([bcfcd131](https://github.com/graphty-org/graphty-monorepo/commit/bcfcd131))
+- ⚠️  **graphty-element:** give the layouts edge weights and keep a reader's pins ([5f444b73](https://github.com/graphty-org/graphty-monorepo/commit/5f444b73))
+- ⚠️  **graphty-element:** let a file declare its own direction ([e52c44f8](https://github.com/graphty-org/graphty-monorepo/commit/e52c44f8))
+- ⚠️  **graphty-element:** name edge endpoints source and target, and give every edge its own id ([ecf4461e](https://github.com/graphty-org/graphty-monorepo/commit/ecf4461e))
+- ⚠️  **graphty-element:** scope what an algorithm's layer paints, and register palettes ([2d9648c2](https://github.com/graphty-org/graphty-monorepo/commit/2d9648c2))
+- ⚠️  **graphty-element:** make a named camera view something a third party can add ([62364e89](https://github.com/graphty-org/graphty-monorepo/commit/62364e89))
+- ⚠️  **graphty-element:** move the logger to its own entry point ([5e00d5d8](https://github.com/graphty-org/graphty-monorepo/commit/5e00d5d8))
+- ⚠️  **graphty-element:** publish the algorithm base classes a plugin needs ([a9f73da6](https://github.com/graphty-org/graphty-monorepo/commit/a9f73da6))
+- ⚠️  **graphty-element:** register palettes, formats, cameras, layouts and log sinks ([0247d18e](https://github.com/graphty-org/graphty-monorepo/commit/0247d18e))
+- **graphty-element:** add the error codes the new refusals report ([05631c4f](https://github.com/graphty-org/graphty-monorepo/commit/05631c4f))
+- ⚠️  **graphty-element:** delete the old style system ([35c48108](https://github.com/graphty-org/graphty-monorepo/commit/35c48108))
+- ⚠️  **graphty-element:** derive an algorithm's styling from what its result declares ([c3561815](https://github.com/graphty-org/graphty-monorepo/commit/c3561815))
+- ⚠️  **graphty-element:** replace evaluated style expressions with declarative layers ([8036cc2d](https://github.com/graphty-org/graphty-monorepo/commit/8036cc2d))
+- ⚠️  **graphty-element:** give selection real sets and add a visibility model ([82af6b59](https://github.com/graphty-org/graphty-monorepo/commit/82af6b59))
+- ⚠️  **graphty-element:** make a run an object with an identity, progress and a cost ([13125c76](https://github.com/graphty-org/graphty-monorepo/commit/13125c76))
+- **graphty-element:** add a headless model that holds the graph ([554f791e](https://github.com/graphty-org/graphty-monorepo/commit/554f791e))
+- ⚠️  **graphty-element:** move graph data off the render objects into a store ([a4f8d2c0](https://github.com/graphty-org/graphty-monorepo/commit/a4f8d2c0))
+- ⚠️  **graphty-element:** publish a map of entry points, five of them free of a 3D engine ([8584d235](https://github.com/graphty-org/graphty-monorepo/commit/8584d235))
+- **graphty-element:** own WebGPU detection, attachment and recovery ([6f3842ce](https://github.com/graphty-org/graphty-monorepo/commit/6f3842ce))
+- ⚠️  **graphty-element:** publish the catalogue as plain JSON descriptors ([16dfd948](https://github.com/graphty-org/graphty-monorepo/commit/16dfd948))
+- **graphty-element:** publish an error model with codes a consumer can switch on ([1416ab30](https://github.com/graphty-org/graphty-monorepo/commit/1416ab30))
+
+### 🩹 Fixes
+
+- **graphty-element:** the picture is not final while a mesh or glow shader is still arriving ([0e1b6304](https://github.com/graphty-org/graphty-monorepo/commit/0e1b6304))
+- **graphty-element:** a second registration of the tag warns instead of throwing ([2150334d](https://github.com/graphty-org/graphty-monorepo/commit/2150334d))
+- **graphty-element:** forget what a layer painted when the dataset is renumbered ([3f36833d](https://github.com/graphty-org/graphty-monorepo/commit/3f36833d))
+- **graphty-element:** each module imports the Babylon augmentations it calls ([c4340504](https://github.com/graphty-org/graphty-monorepo/commit/c4340504))
+- **graphty-element:** the picture is not final while a style edit waits to be drawn ([e3769c7f](https://github.com/graphty-org/graphty-monorepo/commit/e3769c7f))
+- **graphty-element:** declare the source entry files as side effects ([f895ebda](https://github.com/graphty-org/graphty-monorepo/commit/f895ebda))
+- **graphty-element:** only tooltips draw over the graph; labels sort by depth ([095195f8](https://github.com/graphty-org/graphty-monorepo/commit/095195f8))
+- **graphty-element:** cost models for louvain and eigenvector, measured on twelve shapes ([41f1d05d](https://github.com/graphty-org/graphty-monorepo/commit/41f1d05d))
+- **algorithms:** optimised louvain finds communities on graphs over 50 nodes ([7f66c545](https://github.com/graphty-org/graphty-monorepo/commit/7f66c545))
+- **graphty-element:** give closeness its own cost model, and test cost across graph shapes ([4fa6c5b8](https://github.com/graphty-org/graphty-monorepo/commit/4fa6c5b8))
+- **graphty-element:** a removed layer takes back everything it painted ([3cf9bdab](https://github.com/graphty-org/graphty-monorepo/commit/3cf9bdab))
+- **graphty-element:** hold cost estimates to measured runs, and fix two rates ([dea31006](https://github.com/graphty-org/graphty-monorepo/commit/dea31006))
+- **graphty-element:** honour handTracking false, and test real XR sessions ([617ad2aa](https://github.com/graphty-org/graphty-monorepo/commit/617ad2aa))
+- **graphty-element:** refuse selectors that ignore the element ([391d1ef3](https://github.com/graphty-org/graphty-monorepo/commit/391d1ef3))
+- **graphty-element:** colour the nodes of flow and matching runs, and size encodings ([0d21967b](https://github.com/graphty-org/graphty-monorepo/commit/0d21967b))
+- **graphty-element:** build the opening layout in 2D when the graph opens in 2D ([76ca7037](https://github.com/graphty-org/graphty-monorepo/commit/76ca7037))
+- **graphty-element:** apply smartOverflow to plain labels ([f8094ed8](https://github.com/graphty-org/graphty-monorepo/commit/f8094ed8))
+- **graphty-element:** draw labels and tooltips over edges and nodes ([34bb20f9](https://github.com/graphty-org/graphty-monorepo/commit/34bb20f9))
+- **graphty-element:** make the colour helpers total so a repaint cannot abort ([905c390b](https://github.com/graphty-org/graphty-monorepo/commit/905c390b))
+
+### ⚠️  Breaking Changes
+
+- **graphty-element:** declarative style-channel api and self-sufficient rendering  ([9970ab84](https://github.com/graphty-org/graphty-monorepo/commit/9970ab84))
+  the 1.x StyleManager, calculatedStyle, the StyleHelpers namespace,
+  per-algorithm suggestedStyles, EdgeStyle.tooltip, NodeStyle.enabled, EdgeStyle.enabled,
+  LabelStyle.maxWidth, LabelStyle.wrap and NodeStyle.effect.outline.width are removed.
+  Node and edge appearance is set through style-layer channels.
+- **graphty-element:** give every limit a name that carries its unit  ([bd6c0fe6](https://github.com/graphty-org/graphty-monorepo/commit/bd6c0fe6))
+  `Limits.exactComputationCap` is `Limits.approximateAboveNodes` and
+  `Limits.memoryBudgetBytes` is `Limits.graphMemoryBudgetBytes`.
+  `CostGateLimits.exactComputationCap` is `CostGateLimits.exactComputationSeconds` and
+  `CostGateLimits.memoryBudgetBytes` is `CostGateLimits.runColumnBudgetBytes`.
+- **graphty-element:** settle the custom element's attributes and events  ([e108753a](https://github.com/graphty-org/graphty-monorepo/commit/e108753a))
+  the graphty-element-logging, graphty-element-log-level and
+  profiling URL parameters are ignored; call configureLogging instead.
+  data-loading-progress.nodesLoaded and .edgesLoaded are renamed to
+  nodeRecordsLoaded and edgeRecordsLoaded.
+- **graphty-element:** answer from the session what a consumer was computing itself  ([bcfcd131](https://github.com/graphty-org/graphty-monorepo/commit/bcfcd131))
+  GraphStatistics gains directednessSource and meanDegree. A
+  run's per-edge answers are keyed by the element's edge id. Every run, layout
+  and export is scoped to what is visible by default, so a run under an active
+  filter measures fewer elements than 1.x measured on the same dataset.
+- **graphty-element:** give the layouts edge weights and keep a reader's pins  ([5f444b73](https://github.com/graphty-org/graphty-monorepo/commit/5f444b73))
+  every Kamada-Kawai and ForceAtlas2 arrangement of a graph with
+  real weights moves. Node.isPinned() answers the element's own field, so code
+  that branched on it and never took the pinned path now can.
+- **graphty-element:** let a file declare its own direction  ([e52c44f8](https://github.com/graphty-org/graphty-monorepo/commit/e52c44f8))
+  an undirected file loads one edge per file edge rather than a
+  mirrored pair, so edge counts halve and every degree, density and centrality
+  moves with them.
+- **graphty-element:** name edge endpoints source and target, and give every edge its own id  ([ecf4461e](https://github.com/graphty-org/graphty-monorepo/commit/ecf4461e))
+  edge records carry source and target, not src and dst. Edge
+  ids are element-minted strings, so a selection or scope saved by 1.x matches
+  nothing, and there is no translation because the old id was ambiguous. Edge
+  counts rise on any multigraph and density, degree and every derived figure rise
+  with them. Removing a node emits elements-removed naming the edges that went.
+- **graphty-element:** scope what an algorithm's layer paints, and register palettes  ([2d9648c2](https://github.com/graphty-org/graphty-monorepo/commit/2d9648c2))
+  the 1.x style template is removed; a look is a StyleDocument
+  applied through the style layer API. A layer or document naming an unknown
+  palette reports E_UNKNOWN_PALETTE.
+- **graphty-element:** make a named camera view something a third party can add  ([62364e89](https://github.com/graphty-org/graphty-monorepo/commit/62364e89))
+  BUILTIN_PRESETS is no longer exported; camera views are
+  catalogue data reached through session.catalog. Three ScreenshotErrorCode
+  members are removed -- CAMERA_PRESET_NOT_FOUND, CAMERA_PRESET_NOT_AVAILABLE_IN_2D
+  and CANNOT_OVERWRITE_BUILTIN_PRESET -- because camera failures are now
+  GraphtyErrors carrying E_UNKNOWN_CAMERA, E_UNSUPPORTED and E_PROTECTED.
+- **graphty-element:** move the logger to its own entry point  ([5e00d5d8](https://github.com/graphty-org/graphty-monorepo/commit/5e00d5d8))
+  the root barrel no longer exports the 23 logging symbols;
+  import them from @graphty/graphty-element/logging. The seven colour-vision
+  helpers move to @graphty/graphty-element/schema, beside the palettes whose
+  colorblindSafe flag is computed from them.
+- **graphty-element:** publish the algorithm base classes a plugin needs  ([a9f73da6](https://github.com/graphty-org/graphty-monorepo/commit/a9f73da6))
+  edgeResultId is not published. An endpoint pair is a lookup
+  key and not an identity -- it cannot name one of two parallel edges -- so a
+  per-edge result row carries the id the element minted for that edge.
+- **graphty-element:** register palettes, formats, cameras, layouts and log sinks  ([0247d18e](https://github.com/graphty-org/graphty-monorepo/commit/0247d18e))
+  session.catalog tables are composed rather than frozen
+  built-in arrays, and the descriptor lookups search registrations as well as
+  built-ins. OptionsSchema and resolveOptions are deprecated in favour of
+  OptionDescriptor[] and resolveOptionValues.
+- **graphty-element:** delete the old style system  ([35c48108](https://github.com/graphty-org/graphty-monorepo/commit/35c48108))
+  Styles, StyleManager and the style id types are no longer exported.
+- **graphty-element:** derive an algorithm's styling from what its result declares  ([c3561815](https://github.com/graphty-org/graphty-monorepo/commit/c3561815))
+  the pictures seven algorithms draw change, and dimming what an algorithm did not
+  select no longer ships with the algorithm. What to do with the elements a result says nothing
+  about is a reader's decision, not the algorithm's.
+- **graphty-element:** replace evaluated style expressions with declarative layers  ([8036cc2d](https://github.com/graphty-org/graphty-monorepo/commit/8036cc2d))
+  calculatedStyle and its expression string are removed, not sandboxed. Anything
+  beyond the declared grammar is a registered scale, which is code shipped by a plugin: code stays
+  code and layers stay data. Layers are addressed by a stable id rather than by array index, which
+  forced the one consumer to write an index reconciliation module and delete highest-index-first;
+  one off-by-one there once took the element's own base layer with it. A layer write now validates
+  and repaints or rejects, where adding a layer used to be a push and a comment reading "TODO:
+  recalculate".
+- **graphty-element:** give selection real sets and add a visibility model  ([82af6b59](https://github.com/graphty-org/graphty-monorepo/commit/82af6b59))
+  the selection surface is two sets rather than a single node, and the element no
+  longer writes a selected flag onto algorithm results.
+- **graphty-element:** make a run an object with an identity, progress and a cost  ([13125c76](https://github.com/graphty-org/graphty-monorepo/commit/13125c76))
+  results move from a path keyed by namespace and type to one keyed by run id.
+  The old path carried no parameters, so one algorithm at two settings wrote to the same place and
+  a style layer could not say which it was drawing. Betweenness and closeness now publish the
+  graph-level minimum and maximum they withheld, and a convergence flag reports null when it was
+  never measured rather than asserting something untrue.
+- **graphty-element:** move graph data off the render objects into a store  ([a4f8d2c0](https://github.com/graphty-org/graphty-monorepo/commit/a4f8d2c0))
+  betweenness centrality returns half what it used to, and the old number was
+  wrong. The mesh-to-graph conversion built a directed graph carrying both arcs of every undirected
+  edge, so the algorithm never took its undirected branch, where it halves its raw pair counts. On
+  a three-node path the middle node scored two where the correct answer is one. Closeness,
+  eigenvector and katz are unchanged to the last digit, and the percentage form of betweenness is
+  unaffected because a uniform halving leaves a min-max normalisation identical.
+- **graphty-element:** publish a map of entry points, five of them free of a 3D engine  ([8584d235](https://github.com/graphty-org/graphty-monorepo/commit/8584d235))
+  the exports map replaces the single entry, and the UMD build is gone. A page
+  with a script tag and no installer loads ./bundle, one self-contained file. Sibling packages are
+  externalised, so a consumer who installs one of them resolves a single copy rather than getting
+  this package's private duplicate with types that do not assign to each other. Sourcemaps leave
+  the tarball, which was forty-one megabytes unpacked with twenty-six of it maps.
+- **graphty-element:** publish the catalogue as plain JSON descriptors  ([16dfd948](https://github.com/graphty-org/graphty-monorepo/commit/16dfd948))
+  option schemas cross the package boundary as plain JSON rather than as Zod
+  objects. They crossed as Zod before, and the one consumer had to read Zod's private internals in
+  two modules to recover a type, a default and a range -- carrying a branch for two Zod versions,
+  because the element imported one major while depending on another. Shipping a validation library
+  across a boundary made the consumer's version of it part of this package's API.
+  Built-in algorithm keys are renamed, and five of twenty-three fold into two: dijkstra,
+  bellman-ford and floyd-warshall become shortest-path with a method parameter, and scc becomes
+  components with a strength parameter. Each descriptor names the keys it replaces, so a migration
+  has one source of truth. Layout names become semantic -- force rather than the name of whichever
+  library implements it -- so swapping an implementation stops being a rename a consumer can see.
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 2.0.0
+- Updated layout to 1.8.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.10.5 (2026-09-23)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.4
+
 ## 1.10.4 (2026-09-21)
 
 ### 🧱 Updated Dependencies

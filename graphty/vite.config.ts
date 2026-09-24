@@ -59,7 +59,6 @@ export default defineConfig(({ mode }) => {
         },
         server: {
             host: true,
-            port: 9000,
             fs: {
                 allow: [
                     // Allow serving files from the project root
@@ -71,20 +70,10 @@ export default defineConfig(({ mode }) => {
             outDir: "dist",
             sourcemap: true,
         },
-        optimizeDeps: {
-            // main.tsx imports this module for its side effect, and Babylon.js only registers
-            // InstancedMesh when it is loaded. Pre-bundling it keeps that registration in the
-            // same optimized chunk as the rest of Babylon.
-            include: ["@babylonjs/core/Meshes/instancedMesh"],
-        },
     };
 
     if (env.HOST && config.server) {
         config.server.host = env.HOST;
-    }
-
-    if (env.PORT && config.server) {
-        config.server.port = parseInt(env.PORT);
     }
 
     if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH && config.server) {

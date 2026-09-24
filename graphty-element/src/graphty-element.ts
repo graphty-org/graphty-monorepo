@@ -1,16 +1,12 @@
-// WORKAROUND: Import InstancedMesh side-effect first
-// See: https://github.com/graphty-org/graphty-element/issues/54
-import "@babylonjs/core/Meshes/instancedMesh";
-
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import { LitElement } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
 import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
 import type { AlgorithmKey, Scope } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
-import { REPEATED_EDGE_POLICIES } from "./config/DataConfig";
+import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph } from "./Graph";
@@ -34,7 +30,6 @@ const RUN_PROGRESS_INTERVAL_MS = 100;
 /**
  * Graphty creates a graph
  */
-@customElement("graphty-element")
 export class Graphty extends LitElement {
     #graph: Graph;
     #element: Element;
@@ -396,7 +391,7 @@ export class Graphty extends LitElement {
 
     #selectionStyle?: GraphSelectionStyleInput;
 
-    #algorithmsOnLoad?: readonly string[];
+    #algorithmsOnLoad?: readonly AlgorithmOnLoad[];
     #runAlgorithmsOnLoad?: boolean;
     #xr?: PartialXRConfig;
 
@@ -1219,31 +1214,43 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Which algorithms to run once data has finished loading.
+     * Which algorithms to run once data has finished loading, and how.
      * @remarks
-     * Catalogue keys, run in the order given. This is the LIST; `runAlgorithmsOnLoad` is the
-     * switch that decides whether the list is honoured, and a switch with an empty list beside
-     * it does nothing -- which is what happened when the style template that used to carry the
-     * list was removed and nothing replaced it.
+     * Run in the order given. Each entry is an algorithm -- a catalogue key such as "pagerank" or
+     * a 1.x address such as "graphty:pagerank" -- or an object carrying the algorithm and the
+     * run options that make sense on load: `{ algorithm, params?, style?, seed?, as? }`, the same
+     * options `session.runs.start` takes. `style: { size: [1, 5] }` colours AND sizes the nodes
+     * by the result, exactly as it does there.
+     *
+     * This is the LIST; `runAlgorithmsOnLoad` is the switch that decides whether the list is
+     * honoured, and a switch with an empty list beside it does nothing.
+     *
+     * A malformed entry is refused with a `GraphtyError` coded `E_BAD_COMMAND` naming the entry
+     * and its index, and the list already set is kept.
+     *
+     * A property only, with no HTML attribute: how markup should declare load-time runs is left
+     * to a declarative child-element design rather than a JSON string in an attribute.
      * @since 2.0.0
      * @example
      * ```typescript
-     * element.algorithmsOnLoad = ["degree"];
+     * element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1, 5] } }];
      * element.runAlgorithmsOnLoad = true;
      * ```
-     * @returns The keys, or undefined when none have been set on this element
+     * @returns The entries, or undefined when none have been set on this element
      */
     @property({ attribute: false })
-    get algorithmsOnLoad(): readonly string[] | undefined {
+    get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined {
         return this.#algorithmsOnLoad;
     }
     /**
      * Sets which algorithms run once data has finished loading.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the first malformed entry.
      */
-    set algorithmsOnLoad(value: readonly string[] | undefined) {
+    set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined) {
+        const parsed = value === undefined ? undefined : parseAlgorithmsOnLoad(value);
         const oldValue = this.#algorithmsOnLoad;
         this.#algorithmsOnLoad = value;
-        this.#graph.styles.config.data.algorithms = value === undefined ? undefined : [...value];
+        this.#graph.styles.config.data.algorithms = parsed;
         this.requestUpdate("algorithmsOnLoad", oldValue);
     }
 
@@ -1433,11 +1440,14 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Whether or not to run all algorithims in a style template when the
-     * template is loaded.
+     * Whether to run the algorithms listed in `algorithmsOnLoad` once data has loaded.
+     * @remarks
+     * A boolean attribute: its presence turns it on, as `hidden` does. It was read as a string,
+     * so `<graphty-element run-algorithms-on-load>` handed the setter "" -- which is false -- and
+     * the documented HTML form ran nothing.
      * @returns Boolean flag or undefined if not set
      */
-    @property({ attribute: "run-algorithms-on-load" })
+    @property({ attribute: "run-algorithms-on-load", type: Boolean })
     get runAlgorithmsOnLoad(): boolean | undefined {
         return this.#runAlgorithmsOnLoad;
     }
@@ -3205,6 +3215,24 @@ export class Graphty extends LitElement {
 export type GraphtyElement = Graphty;
 
 /*
+ * Registration is guarded rather than done by Lit's `@customElement`, which throws when the tag is
+ * taken. A page can evaluate this module twice (two bundles that each carry a copy, or a page that
+ * registered its own element first), and a throw here would abort every script that imported it.
+ * The first definition wins; a different class under the tag is reported, because elements the
+ * second copy creates will not be instances of its own class.
+ */
+const registered = customElements.get("graphty-element");
+if (registered === undefined) {
+    customElements.define("graphty-element", Graphty);
+} else if (registered !== Graphty) {
+    console.warn(
+        "<graphty-element> is already defined by another class, so this copy of " +
+            "@graphty/graphty-element was not registered. Two copies of the package are loaded; " +
+            "make every import resolve to one.",
+    );
+}
+
+/*
  * The tag, declared to TypeScript.
  *
  * `document.createElement("graphty-element")` and `document.querySelector("graphty-element")` are
@@ -3215,7 +3243,7 @@ export type GraphtyElement = Graphty;
  * type the element already has", and this is the declaration that makes the ordinary two lines of
  * DOM code obey it.
  *
- * It lives beside the `@customElement` call on purpose: the tag name is written twice in this
+ * It lives beside the `customElements.define` call on purpose: the tag name is written twice in this
  * file and nowhere else, so the two cannot drift apart unnoticed.
  */
 declare global {

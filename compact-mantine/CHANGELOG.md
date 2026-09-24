@@ -1,3 +1,13 @@
+## 0.8.3 (2026-09-24)
+
+### 🩹 Fixes
+
+- **compact-mantine:** lint stories and tests and fix what surfaced ([20c20faa](https://github.com/graphty-org/graphty-monorepo/commit/20c20faa))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.2 (2026-09-21)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

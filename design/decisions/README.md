@@ -3,6 +3,12 @@
 One decision per file, named `YYYY-MM-DD-<slug>.md`, never edited after it lands.
 A later decision that changes an earlier one gets its own file and links back.
 
+One exception, and only this one: a record is amended in place to complete ITS OWN list, when
+the decision turns out to reach a place its author did not enumerate. The amendment is a dated
+section at the end that says what it adds and changes nothing that was decided. Anything that
+changes the decision itself still gets its own file. Two records carry such a section, both
+dated 2026-09-23.
+
 ## Why these are separate files
 
 The design documents in this directory tree are plans of record: they say what was
@@ -42,3 +48,10 @@ version of the code.
 | [2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md](2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md) | A Fruchterman-Reingold reheat restarts the temperature at 70% of the budget, not the iteration count |
 | [2026-09-20-spring-electrical-integrates-like-ngraph.md](2026-09-20-spring-electrical-integrates-like-ngraph.md) | The spring-electrical preset integrates like ngraph: semi-implicit Euler with a unit speed clamp |
 | [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](2026-09-20-spring-electrical-settles-by-the-shared-rule.md) | The spring-electrical preset settles by the shared rule, not by ngraph's absolute one |
+| [2026-09-20-compact-lands-with-the-frontier-phase.md](2026-09-20-compact-lands-with-the-frontier-phase.md) | `compact` and `dedupe` land with the frontier phase, not with the grid |
+| [2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md](2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md) | Windowed execution covers `degree` and `segmentedReduce`; the layout and the pull keep their refusal |
+| [2026-09-20-sort-scratch-is-model-owned.md](2026-09-20-sort-scratch-is-model-owned.md) | The grid's sort scratch is model-owned, not a pool lease per batch |
+| [2026-09-20-scan-has-no-subgroup-variant.md](2026-09-20-scan-has-no-subgroup-variant.md) | `exclusiveScan` has no subgroup variant |
+| [2026-09-20-far-field-levels-are-a-uniform.md](2026-09-20-far-field-levels-are-a-uniform.md) | The far field's level count is a uniform, not an override |
+| [2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md](2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md) | The cell histogram is zeroed by a `fill` dispatch, not by `clearBuffer` |
+| [2026-09-20-workgroup-row-tiers-fold-without-kahan.md](2026-09-20-workgroup-row-tiers-fold-without-kahan.md) | The workgroup-per-row tiers fold plainly, without Kahan compensation |

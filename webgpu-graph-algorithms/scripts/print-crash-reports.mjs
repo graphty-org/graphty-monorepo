@@ -69,6 +69,11 @@ function printReport(file) {
     console.log(
         `process ${body.procName ?? header.app_name} at ${header.timestamp} on ${body.osVersion?.train ?? header.os_version ?? "?"}`,
     );
+    // header.timestamp is when ReportCrash WROTE the report, seconds after the crash; captureTime is the crash
+    // itself, and pid / parentPid tie it to the step's [hang-report] process table.
+    console.log(
+        `pid ${body.pid ?? "?"} parent ${body.parentPid ?? "?"} (${body.parentProc ?? "?"}) launched ${body.procLaunch ?? "?"} crashed ${body.captureTime ?? "?"}`,
+    );
     if (body.exception) {
         const e = body.exception;
         console.log(

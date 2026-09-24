@@ -11,6 +11,7 @@ import {
     assertDrawnVariety,
     assertEdgeVariety,
     assertGraphLoaded,
+    type Drawn,
     drawn,
     holds,
 } from "../assertions";
@@ -93,6 +94,13 @@ interface AlgorithmStoryExpectations {
     readonly distinct?: boolean;
     /** The reader's own layers, beneath the algorithm's. */
     readonly readerLayers?: readonly LayerSpec[];
+    /**
+     * Size the nodes by the run as well as colour them, over this node size range.
+     *
+     * A node metric suggests a colour and no size, so a story that wants both asks for it the way
+     * a consumer does: `{ algorithm, style: { size: [min, max] } }` in the load-time list.
+     */
+    readonly size?: readonly [min: number, max: number];
 }
 
 export const createAlgorithmStory = (
@@ -102,12 +110,12 @@ export const createAlgorithmStory = (
     const asked: AlgorithmStoryExpectations = Array.isArray(expectations)
         ? { readerLayers: expectations as readonly LayerSpec[] }
         : (expectations as AlgorithmStoryExpectations);
-    const {readerLayers} = asked;
+    const { readerLayers, size } = asked;
 
     return {
         args: {
             setup: storySetup({
-                algorithms: [algorithmId],
+                algorithms: [size === undefined ? algorithmId : { algorithm: algorithmId, style: { size } }],
                 preSteps: 8000, // Extra preSteps for ngraph physics layout
             }),
             runAlgorithmsOnLoad: true,
@@ -133,12 +141,14 @@ export const createAlgorithmStory = (
             // run of this algorithm has anything per element to paint -- which is to say, when
             // this story is a picture of the element's own defaults with no algorithm in it. All
             // twenty-seven of these stories called it as a bare statement and passed either way.
+            // A run started with `style: { size }` suggests its size as well as its colour, so
+            // this puts both back on top of the reader's layers.
             const applied = graph.applySuggestedStyles(algorithmId);
 
             await holds(
                 applied,
-                `${algorithmId}: applySuggestedStyles returned false, so no finished run of this algorithm had ` +
-                    "anything to paint and this story is a picture of the element's defaults",
+                `${algorithmId}: applySuggestedStyles returned false, so no finished run of this algorithm ` +
+                    "had anything to paint and this story is a picture of the element's defaults",
             );
 
             const scene = await drawn(canvasElement, `Algorithms ${algorithmId}`);
@@ -153,6 +163,10 @@ export const createAlgorithmStory = (
                 await assertDrawnVariety(scene, asked.varies, asked.atLeast ?? 3);
             }
 
+            if (size !== undefined) {
+                await assertSizedBy(scene, algorithmKey(algorithmId), size);
+            }
+
             if (asked.edgeVariety !== undefined) {
                 await assertEdgeVariety(scene, asked.edgeVariety);
             }
@@ -163,6 +177,55 @@ export const createAlgorithmStory = (
         },
     };
 };
+
+/**
+ * The catalogue key a `namespace:type` story address names, such as "hits" for "graphty:hits".
+ * @param algorithmId - The story's address.
+ * @returns The key `session.runs.start` takes.
+ */
+function algorithmKey(algorithmId: string): string {
+    return algorithmId.replace(/^graphty:/, "");
+}
+
+/**
+ * The nodes are drawn at a range of sizes set by one run, read off the meshes the renderer draws.
+ *
+ * At least four distinct sizes, the node the run ranks first drawn the largest, and the largest
+ * about `max / min` times the smallest -- so a size layer the style model holds and the renderer
+ * never applies fails here, and so does a size that follows some other field.
+ * @param scene - What the story drew.
+ * @param algorithm - The catalogue key of the run the sizes follow, such as "pagerank".
+ * @param range - The node size range the story asked for.
+ */
+export async function assertSizedBy(
+    scene: Drawn,
+    algorithm: string,
+    range: readonly [min: number, max: number],
+): Promise<void> {
+    const run = scene.session.runs
+        .list()
+        .find((entry) => entry.algorithm === algorithm && entry.status === "succeeded");
+    const top = run?.result?.ranking("value", 1)[0];
+
+    await holds(top !== undefined, `${scene.story}: no ${algorithm} run succeeded, so nothing sizes the nodes`);
+    await assertDrawnVariety(scene, "radius", 4);
+
+    const radii = scene.nodes.map((node) => node.radius);
+    const largest = Math.max(...radii);
+    const smallest = Math.min(...radii);
+    const topNode = scene.nodes.find((node) => node.id === String(top?.id));
+
+    await holds(
+        topNode?.radius === largest,
+        `${scene.story}: ${algorithm} ranks ${String(top?.id)} first, which is drawn at radius ` +
+            `${String(topNode?.radius)} while the largest node is ${String(largest)}`,
+    );
+    await holds(
+        largest / smallest >= 0.9 * (range[1] / range[0]),
+        `${scene.story}: asked for sizes ${String(range[0])} to ${String(range[1])} and the largest node is ` +
+            `only ${(largest / smallest).toFixed(2)} times the smallest`,
+    );
+}
 
 // Re-export helpers for convenience
 export { storySetup, waitForGraphSettled } from "../helpers";

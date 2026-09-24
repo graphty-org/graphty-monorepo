@@ -1,13 +1,13 @@
 /**
- * T-5 (spec 10.4): the FA2 per-frame cost in Chromium -- step(1) + the 12n readback -- at the 10k exact tier,
- * measured by this `bench`-tagged browser test (spec 11.6 item 8, 11.7) and appended to
- * benchmarks/out/<runner class>.json through the Vitest commands bridge (contract 2.5 appendBenchRecord, 6.4).
- * Skipped unless GRAPHTY_BROWSER_GPU === "nvidia" (software adapters never time anything, spec 11.7). The 100k
- * grid-tier half of T-5 is P4 (no grid tier exists at P3).
+ * T-5 (spec 10.4): the FA2 per-frame cost in Chromium -- step(1) + the 12n readback -- at the 10k exact tier and
+ * (P4-T14) at the 100k grid tier, measured by this `bench`-tagged browser test (spec 11.6 item 8, 11.7) and appended
+ * to benchmarks/out/<runner class>.json through the Vitest commands bridge (contract 2.5 appendBenchRecord, 6.4).
+ * Skipped unless GRAPHTY_BROWSER_GPU === "nvidia" (software adapters never time anything, spec 11.7).
  *
- * The target (<= 6 ms on the 4070 at 10k) is a G3 record, not an assertion here: a missed target is re-fixed by an
- * owner decision, never relaxed silently (spec 10.4), and the T4 lane runs this test on slower hardware. The median
- * is printed on the console and stored in the session record P3-T7 copies into docs/decisions/G3.md.
+ * The targets (<= 6 ms on the 4070 at 10k; <= 12 ms at 100k on the grid tier) are a G3 / G4 record, not an assertion
+ * here: a missed target is re-fixed by an owner decision, never relaxed silently (spec 10.4), and the T4 lane runs
+ * this test on slower hardware. The median is printed on the console and stored in the session record the gate
+ * records copy (docs/decisions/G3.md, G4.md).
  *
  * The session is built here: benchmarks/harness.ts imports node:fs / node:os and cannot enter the browser bundle
  * (its types are imported with `import type`, which esbuild erases). The runner class comes from the ONE copy of
@@ -27,13 +27,26 @@ import type { BenchResult, BenchSession, GpuSessionInfo } from "../../benchmarks
 import { runnerClass } from "../../scripts/runner-class.js";
 import { type GpuContext } from "../../src/context.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
+import { type GpuLayoutTuning } from "../../src/types/layout.js";
 import { randomEdges, snapshotOf } from "../helpers/graphs.js";
 import { acquireBrowser, browserGpu, requireBrowserGpu } from "../setup/browser.js";
 
-const NODES = 10_000;
-const EDGES = 100_000; // E = 10 n, the exact-ladder density of T-4 (spec 10.4)
+const EDGE_FACTOR = 10; // E = 10 n, the ladder density of T-4 / T-6 (spec 10.4)
 const WARM_FRAMES = 5;
 const TIMED_FRAMES = 50;
+
+/** One T-5 case: the node count, the tier it forces and the row it writes. */
+interface FrameCase {
+    readonly nodes: number;
+    readonly tuning: GpuLayoutTuning;
+    readonly row: string;
+    readonly title: string;
+}
+
+const CASES: readonly FrameCase[] = [
+    { nodes: 10_000, tuning: { repulsion: "exact" }, row: "fa2-exact-10k-step1-readback", title: "10k nodes (exact)" },
+    { nodes: 100_000, tuning: { repulsion: "grid" }, row: "fa2-grid-100k-step1-readback", title: "100k nodes (grid)" },
+];
 
 /**
  * The GpuSessionInfo of a browser context (the browser twin of benchmarks/harness.ts gpuSessionInfo, 6.1: the same
@@ -73,28 +86,28 @@ function median(values: readonly number[]): number {
     return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-describe.skipIf(browserGpu() !== "nvidia")(
-    "[bench] T-5: FA2 exact-tier per-frame cost in Chromium (NVIDIA only)",
-    () => {
-        it("10k nodes: step(1) + readback timings appended through commands.appendBenchRecord", async (t) => {
+describe.skipIf(browserGpu() !== "nvidia")("[bench] T-5: FA2 per-frame cost in Chromium (NVIDIA only)", () => {
+    for (const c of CASES) {
+        it(`${c.title}: step(1) + readback timings appended through commands.appendBenchRecord`, async (t) => {
             await requireBrowserGpu(t);
             const ctx = await acquireBrowser();
             expect(ctx.caps.software).toBe(false); // never time a software adapter (spec 11.7); a SwiftShader pick is red, not silent
             expect(ctx.caps.vendor).toBe("nvidia");
-            const snapshot = snapshotOf(randomEdges(NODES, EDGES, 5), { nodeCount: NODES });
-            expect(snapshot.nodeCount).toBe(NODES);
+            const snapshot = snapshotOf(randomEdges(c.nodes, EDGE_FACTOR * c.nodes, 5), { nodeCount: c.nodes });
+            expect(snapshot.nodeCount).toBe(c.nodes);
             const sim = createForceAtlas2(ctx, {
                 seed: 1,
                 maxIter: 1_000_000,
                 settleThreshold: 0,
-                repulsion: "exact",
                 maxInFlight: 1,
+                ...c.tuning,
             });
-            const positions = new Float32Array(3 * NODES).fill(NaN);
+            const positions = new Float32Array(3 * c.nodes).fill(NaN);
             sim.load(snapshot, positions);
             for (let i = 0; i < WARM_FRAMES; i++) {
                 await sim.step(1); // pipeline compile, the first submit, the staging ring's growth
             }
+            expect(sim.stats.repulsionTier).toBe(c.tuning.repulsion);
             const deltas: number[] = [];
             for (let i = 0; i < TIMED_FRAMES; i++) {
                 const start = performance.now();
@@ -108,7 +121,7 @@ describe.skipIf(browserGpu() !== "nvidia")(
             expect(medianMs).toBeGreaterThan(0);
             const result: BenchResult = {
                 group: "layout-browser",
-                name: "fa2-exact-10k-step1-readback",
+                name: c.row,
                 medianMs,
                 minMs: Math.min(...deltas),
                 maxMs: Math.max(...deltas),
@@ -135,10 +148,10 @@ describe.skipIf(browserGpu() !== "nvidia")(
             const file = await commands.appendBenchRecord({ runnerClass: cls, session });
             expect(file).toMatch(/benchmarks[\\/]out[\\/][A-Za-z0-9_.-]+\.json$/);
             console.warn(
-                `T-5 fa2 exact 10k step(1) + readback: median ${medianMs.toFixed(3)} ms (min ${result.minMs.toFixed(3)}, max ${result.maxMs.toFixed(3)}) over ${TIMED_FRAMES} frames on ${cls} -> ${file}`,
+                `T-5 ${c.row}: median ${medianMs.toFixed(3)} ms (min ${result.minMs.toFixed(3)}, max ${result.maxMs.toFixed(3)}) over ${TIMED_FRAMES} frames on ${cls} -> ${file}`,
             );
             sim.dispose();
             ctx.release(snapshot);
         });
-    },
-);
+    }
+});

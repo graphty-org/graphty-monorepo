@@ -77,6 +77,35 @@
  * nearly cancelling terms under NVIDIA's 2.5-ulp division, 2e-5 where the k = auto member measured 6e-7, and the
  * error carries through K5's direction into the displacement, positions and scene) feed the SAME rows, so every
  * derived FR / spring tolerance covers the configurations its suite asserts.
+ *
+ * P4 members (P4-T11 Step 3; the caps come from test/helpers/grid-parity.ts): the u32 primitive members, bitwise
+ * across adapters (PD-10) and against their oracle where the writer records one -- indirect-finalize / counts9,
+ * scan-block / random1m, scan-add / random20k-cellStart, histogram / random1m-4096 and random20k-cellHist,
+ * counting-scatter / random1m-4096-keys, radix-hist / random1m-24-table, radix-scatter / random1m-24, grid-cell-key /
+ * random20k (each recording `<kernel>.cross`); the f32 tier members segmented-reduce / hub10k-tiers, spmv-pull /
+ * hub10k-tiers (elementwise) and fa2-attraction / hub10k-K2-tiers (floored stride-3); the grid stage members on the
+ * UNSCALED random20k in 2D, every per-node one holding every 4th node -- grid-centroid / random20k-pyramid (the xyz
+ * lanes of at most 1,024 cells of every level, floored stride-3; the mass lane is exact and checked bitwise by the
+ * suite), grid-far-field / random20k-far (the force after G6: K2's attraction plus the far field), grid-near-field /
+ * random20k-near (the force after G7, the whole total; its twin row grid-twins.force.twin), fa2-stats-finalize /
+ * random20k-K1-grid (the eight grid-block values of the K1 fold of iteration 2), fa2-integrate / random20k-K5-grid
+ * (the positions after K5) with its WIDENING member fa2-stats-finalize / isolated-K1-grid (the same eight values on
+ * the unscaled isolated fixture, whose one-iteration jump to a radius near 200 gives the f32 rmsRadius fold a 3e-6
+ * floor on the RTX 4070 SUPER), plus the two the T9 primitives suite writes, grid-downsample / random20k-L1 and
+ * grid-centroid-hub / hubcell-L0 (the four lanes of the hub cell; its twin row grid-twins.hubCentroid.twin); and the
+ * five approximation members of PD-20, whose "oracle-f64" class holds the EXACT GPU TIER's values on the same
+ * adapter (PD-19: a known literal mismatch of the same kind as the oracle-f32 rows, the b field of the row names the
+ * class): grid-exact / random20k-rms and random20k-p99 (the grid tier's force after G7 against the exact tier's
+ * after K3, every 4th node, through the "floored-rms" / "floored-p99" metrics -- the RMS and the 99th percentile of
+ * the floored per-node error of spec 11.4, so the recorded floor IS the approximation error the gate reads),
+ * grid-expansion / random20k-spread200 (the spread after 50 and 200 iterations of each tier, elementwise),
+ * grid-distributional / random20k-metrics200 (the layoutMetrics record after 200 iterations, the "distributional"
+ * metric over the fixture's own keys) and grid-unbiased / hubcell-mean<UNBIASED_SEEDS> (the mean over
+ * UNBIASED_SEEDS seeded G7 iterations at nearMax 8 against the exact force, "field-ratio": the whole-field
+ * |mean - exact| / |exact|, G4-F2). Writers: grid-inspect.test.ts (adapter + oracle-f64 of the
+ * five stages), grid-twins.test.ts (the two -no-subgroups twins), grid-exact.test.ts (the five approximation
+ * members), the T1-T9 primitives and kernel suites (the u32 members, the downsample and the hub centroid), the
+ * T5 / T6 suites (the tier members).
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -115,8 +144,9 @@ import {
     type FrNoiseFixtureName,
     P5_TOLERANCE_CAPS,
 } from "./helpers/fr-parity.js";
-import { KARATE_EDGES, snapshotOf } from "./helpers/graphs.js";
-import { expectBitwiseEqual, flooredRelError, maxRelError } from "./helpers/matchers.js";
+import { fixture, KARATE_EDGES, snapshotOf } from "./helpers/graphs.js";
+import { GRID_NOISE_FIXTURES, type GridNoiseFixtureName, P4_TOLERANCE_CAPS } from "./helpers/grid-parity.js";
+import { expectBitwiseEqual, fieldRelError, flooredRelError, maxRelError } from "./helpers/matchers.js";
 import { layoutMetrics } from "./helpers/metrics.js";
 import {
     adapterClass,
@@ -127,6 +157,7 @@ import {
     writeNoiseFixture,
 } from "./helpers/noise-floor.js";
 import { SE_KARATE_FIXTURES, SE_NOISE_FIXTURES, SE_TOLERANCE_CAPS } from "./helpers/se-parity.js";
+import { componentsOracle } from "./oracle/components.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
 // ---------------------------------------------------------------- the file, the set and the caps
@@ -151,7 +182,15 @@ const SEED_CLASS = "seed";
 /** Rows recorded by P1-T5's tests (one writer per row id): required to be present, never recorded here, no tolerance derived from them. */
 const REQUIRED_ROWS: readonly string[] = ["degree.cross", "reduce.sum.twin", "reduce.sum.cross"];
 
-type Metric = "bitwise" | "elementwise" | "floored-stride3" | "distributional" | "resync-trace";
+type Metric =
+    | "bitwise"
+    | "elementwise"
+    | "floored-stride3"
+    | "floored-rms"
+    | "floored-p99"
+    | "field-ratio"
+    | "distributional"
+    | "resync-trace";
 type Comparison = "cross-adapter" | "twin" | "oracle-f64";
 /** What a comparison is held to: a tolerance id of noise-floor.json, an analytic bound (a number), or null (bitwise). */
 type Limit = string | number | null;
@@ -683,7 +722,202 @@ const P5_NOISE_SET: readonly NoiseMember[] = [
     ),
 ];
 
-/** The P1 noise set (contract 5.6, G1: degree, reduce and the FA2 skeleton from every adapter) followed by the P3 and P5 sets. */
+// ---------------------------------------------------------------- the P4 members (P4-T11)
+
+/**
+ * A u32 member of the P4 primitives (PD-10: bitwise across adapters and against its oracle where one was written):
+ * the cross-adapter row `<kernel>.cross` and, with `oracle`, the row `<kernel>.oracle-f64`, both held to bitwise.
+ * @param kernel - the kernel id
+ * @param fixture - the fixture name
+ * @param writer - who writes the fixtures
+ * @param oracle - whether an "oracle-f64" fixture exists for the member
+ * @returns the member
+ */
+function p4U32Member(kernel: string, fixture: string, writer: string, oracle: boolean): NoiseMember {
+    return {
+        kernel,
+        fixture,
+        dtype: "u32",
+        metric: "bitwise",
+        rows: { "cross-adapter": `${kernel}.cross`, twin: null, "oracle-f64": oracle ? `${kernel}.oracle-f64` : null },
+        tolerances: NO_ROWS,
+        writer,
+    };
+}
+
+function p4Member(
+    name: GridNoiseFixtureName,
+    metric: Metric,
+    rows: Readonly<Record<Comparison, string | null>>,
+    tolerances: Readonly<Record<Comparison, string | null>>,
+    writer: string,
+    keys?: () => readonly string[],
+): NoiseMember {
+    return { kernel: name.kernel, fixture: name.fixture, dtype: "f32", metric, rows, tolerances, writer, keys };
+}
+
+/**
+ * The metric names of the random20k distributional member: layoutMetrics' key set is a property of the graph alone
+ * (`separation` is present iff it has two or more components), so the keys come from the metrics of a THREE-node
+ * stand-in with the same component structure as the unscaled fixture (layoutMetrics at 20k nodes is O(n^2) in JS,
+ * 40 s, and the values are not needed).
+ * @returns the sorted metric names
+ */
+function random20kMetricsKeys(): readonly string[] {
+    const { count } = componentsOracle(fixture("random20k", 1).snapshot);
+    const standIn = snapshotOf(
+        count > 1
+            ? [[0, 1]]
+            : [
+                  [0, 1],
+                  [1, 2],
+              ],
+        { nodeCount: 3, label: "keys" },
+    );
+    return metricsValues(layoutMetrics(standIn, Float32Array.from([0, 0, 0, 1, 0, 0, 0, 1, 0]), 2)).keys;
+}
+
+const P4_GRID_INSPECT_WRITER = "test/layouts/grid-inspect.test.ts (adapter + oracle-f64)";
+const P4_GRID_TWINS_WRITER = "test/layouts/grid-twins.test.ts (-no-subgroups)";
+const P4_GRID_EXACT_WRITER = "test/layouts/grid-exact.test.ts (adapter + the exact GPU tier under oracle-f64, PD-19)";
+
+/**
+ * The P4 noise set (P4-T11 Step 3; rule (f): a row per kernel): the nine u32 primitive members (bitwise across
+ * adapters, PD-10), the f32 stage members of the tiers (P4-T5 / T6) and of the grid (the pyramid, the far field,
+ * the near field with its twin, the K1 grid block, the K5 positions; the downsample and the hub centroid with its
+ * twin from the T9 primitives suite), and the five approximation members of PD-20 (the exact-vs-grid force as
+ * the RMS and the p99 of the floored per-node error, the spread after 50 / 200 iterations, the layoutMetrics
+ * record after 200 iterations, the whole-field ratio of the UNBIASED_SEEDS-seed mean of the force), whose "oracle-f64" class holds the EXACT GPU
+ * TIER's values (PD-19) and whose basis rows are the measured approximation floors.
+ */
+const P4_NOISE_SET: readonly NoiseMember[] = [
+    p4U32Member("indirect-finalize", "counts9", "test/kernel/indirect.test.ts", false),
+    p4U32Member("scan-block", "random1m", "test/primitives/scan.test.ts", false),
+    p4U32Member("scan-add", "random20k-cellStart", "test/primitives/grid.test.ts", true),
+    p4U32Member("histogram", "random1m-4096", "test/primitives/histogram.test.ts", false),
+    p4U32Member("histogram", "random20k-cellHist", "test/primitives/grid.test.ts", true),
+    p4U32Member("counting-scatter", "random1m-4096-keys", "test/primitives/histogram.test.ts", false),
+    p4U32Member("radix-hist", "random1m-24-table", "test/primitives/radix-sort.test.ts", false),
+    p4U32Member("radix-scatter", "random1m-24", "test/primitives/radix-sort.test.ts", false),
+    p4U32Member("grid-cell-key", "random20k", "test/primitives/grid.test.ts", true),
+    p4Member(
+        GRID_NOISE_FIXTURES.tiersSegmentedReduce,
+        "elementwise",
+        stageRows("segmented-reduce.tiers", null),
+        stageTolerances("segmented-reduce.tiers", null),
+        "test/primitives/tiers.test.ts (adapter + oracle-f64)",
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.tiersSpmv,
+        "elementwise",
+        stageRows("spmv-pull.tiers", null),
+        stageTolerances("spmv-pull.tiers", null),
+        "test/primitives/tiers.test.ts (adapter + oracle-f64)",
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.tiersAttraction,
+        "floored-stride3",
+        stageRows("tiers-inspect.attraction", null),
+        stageTolerances("tiers-inspect.attraction", null),
+        "test/layouts/tiers-inspect.test.ts (adapter + oracle-f64)",
+    ),
+    // G4 has no reduction: no twin row
+    p4Member(
+        GRID_NOISE_FIXTURES.pyramid,
+        "floored-stride3",
+        stageRows("grid-inspect.pyramid", null),
+        stageTolerances("grid-inspect.pyramid", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.downsample,
+        "elementwise",
+        stageRows("grid-inspect.downsample", null),
+        stageTolerances("grid-inspect.downsample", null),
+        "test/primitives/grid-pyramid.test.ts (adapter + oracle-f64)",
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.hubCentroid,
+        "elementwise",
+        stageRows("grid-inspect.hubCentroid", "grid-twins.hubCentroid.twin"),
+        stageTolerances("grid-inspect.hubCentroid", "grid-twins.hubCentroid"),
+        `test/primitives/grid-pyramid.test.ts (adapter + oracle-f64) and ${P4_GRID_TWINS_WRITER}`,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.farField,
+        "floored-stride3",
+        stageRows("grid-inspect.farField", null),
+        stageTolerances("grid-inspect.farField", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.nearField,
+        "floored-stride3",
+        stageRows("grid-inspect.nearField", "grid-twins.force.twin"),
+        stageTolerances("grid-inspect.nearField", "grid-twins.force"),
+        `${P4_GRID_INSPECT_WRITER} and ${P4_GRID_TWINS_WRITER}`,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.k1,
+        "elementwise",
+        stageRows("grid-inspect.k1", null),
+        stageTolerances("grid-inspect.k1", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
+    // the widening member of the K1 row: the unscaled isolated fixture (the grid-parity.ts module comment)
+    p4Member(
+        GRID_NOISE_FIXTURES.k1Isolated,
+        "elementwise",
+        stageRows("grid-inspect.k1", null),
+        stageTolerances("grid-inspect.k1", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("grid-inspect.positions", null),
+        stageTolerances("grid-inspect.positions", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.exactRms,
+        "floored-rms",
+        metricsRows("grid-exact.rms"),
+        metricsTolerances("grid-exact.rms"),
+        P4_GRID_EXACT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.exactP99,
+        "floored-p99",
+        metricsRows("grid-exact.p99"),
+        metricsTolerances("grid-exact.p99"),
+        P4_GRID_EXACT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.expansion,
+        "elementwise",
+        metricsRows("grid-expansion"),
+        metricsTolerances("grid-expansion"),
+        P4_GRID_EXACT_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.distributional,
+        "distributional",
+        metricsRows("grid-distributional"),
+        metricsTolerances("grid-distributional"),
+        P4_GRID_EXACT_WRITER,
+        random20kMetricsKeys,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.unbiased,
+        "field-ratio",
+        metricsRows("grid-unbiased"),
+        metricsTolerances("grid-unbiased"),
+        P4_GRID_EXACT_WRITER,
+    ),
+];
+
+/** The P1 noise set (contract 5.6, G1: degree, reduce and the FA2 skeleton from every adapter) followed by the P3, P5 and P4 sets. */
 const NOISE_SET: readonly NoiseMember[] = [
     {
         kernel: "degree",
@@ -749,9 +983,10 @@ const NOISE_SET: readonly NoiseMember[] = [
     },
     ...P3_NOISE_SET,
     ...P5_NOISE_SET,
+    ...P4_NOISE_SET,
 ];
 
-/** Every tolerance the file carries: the spec cap it is derived under and the row it is derived from (the P1 entries, then the P3 caps of test/helpers/fa2-parity.ts and the P5 caps of fr-parity.ts / se-parity.ts, one table, never retyped). */
+/** Every tolerance the file carries: the spec cap it is derived under and the row it is derived from (the P1 entries, then the P3 caps of test/helpers/fa2-parity.ts, the P5 caps of fr-parity.ts / se-parity.ts and the P4 caps of grid-parity.ts, one table, never retyped). */
 const TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly basis: string }>> = {
     "fa2-skeleton.force": { cap: 1e-5, basis: "fa2-skeleton.force.oracle-f64" },
     "fa2-skeleton.trace": { cap: 1e-5, basis: "fa2-skeleton.trace.oracle-f64" },
@@ -762,6 +997,7 @@ const TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly b
     ...P3_TOLERANCE_CAPS,
     ...P5_TOLERANCE_CAPS,
     ...SE_TOLERANCE_CAPS,
+    ...P4_TOLERANCE_CAPS,
 };
 
 interface NoiseAdapter {
@@ -874,6 +1110,25 @@ function pairError(
                 abs,
                 mismatches,
             };
+        case "floored-rms":
+            // P4 PD-20: the RMS over nodes of the floored per-node error (the exact-vs-grid RMS of spec 11.4, b the
+            // exact tier), the same metric in both directions for the cross-adapter pair
+            return {
+                rel: Math.max(flooredRelError(a, b, FLOOR_FRACTION).rms, flooredRelError(b, a, FLOOR_FRACTION).rms),
+                abs,
+                mismatches,
+            };
+        case "floored-p99":
+            // P4 PD-20: the 99th percentile of the floored per-node error
+            return {
+                rel: Math.max(flooredRelError(a, b, FLOOR_FRACTION).p99, flooredRelError(b, a, FLOOR_FRACTION).p99),
+                abs,
+                mismatches,
+            };
+        case "field-ratio":
+            // P4 G4-F2: the whole-field ratio |a - b| / |b| of the unbiasedness item (b the exact tier), the same
+            // metric in both directions for the cross-adapter pair
+            return { rel: Math.max(fieldRelError(a, b), fieldRelError(b, a)), abs, mismatches };
         case "distributional":
             // the ONE implementation of the metrics100 comparison (test/helpers/fa2-parity.ts): the values are in
             // the sorted key order of metricsValues(), reconstructed from the member's own graph (the P3 random1k

@@ -58,6 +58,17 @@ const SIDE_EFFECTFUL = ["./dist/graphty.js", "./dist/graphty.bundle.js", "./dist
 const REGISTRATION_MODULES = ["./src/algorithms/index.ts", "./src/data/index.ts", "./src/layout/index.ts"];
 
 /**
+ * The source of the root entry and the module that defines `<graphty-element>`.
+ *
+ * A consumer that resolves this package to its source rather than to `dist` -- the graphty app
+ * and its Storybook do -- and writes the documented `import "@graphty/graphty-element"` gets
+ * nothing if these are declared pure: the bundler drops the import, the tag is never defined, and
+ * the page shows an empty box where the graph should be. The dev server does not tree-shake, so
+ * only a production build (a static Storybook, a Chromatic snapshot) shows it.
+ */
+const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
+
+/**
  * Names that mean three incompatible things across this package and its siblings, so no barrel
  * may re-export one of them from a sibling package.
  */
@@ -180,7 +191,17 @@ describe("the exports map", () => {
 
 describe("what the package promises about side effects and size", () => {
     it("declares a side effect for every published file that has one, and for nothing else", () => {
-        assert.deepEqual([...manifest.sideEffects].sort(), [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES].sort());
+        assert.deepEqual(
+            [...manifest.sideEffects].sort(),
+            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES].sort(),
+        );
+    });
+
+    it("keeps a bare import of the root entry's source from being tree-shaken away", () => {
+        for (const module of SOURCE_ENTRY_MODULES) {
+            assert.include(manifest.sideEffects, module);
+            assert.isTrue(existsSync(resolve(PACKAGE_ROOT, module)));
+        }
     });
 
     it("keeps the built-in registrations out of reach of the tree-shaker", () => {

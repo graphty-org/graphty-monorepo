@@ -1,0 +1,7 @@
+{
+    "kernel": "grid-centroid-hub",
+    "fixture": "hubcell-L0",
+    "adapterClass": "oracle-f64",
+    "dtype": "f32",
+    "values": [2000.002376936376, 1999.9775516092777, 1999.965166196227, 20000]
+}

@@ -1,6 +1,7 @@
 /**
- * The spring-electrical preset on the exact repulsion tier (spec 7.20 "the preset"; contract 3.13): ngraph.forcelayout's
- * physics under ngraph's option names and defaults -- Coulomb repulsion `-g m_i m_j / d^2` (K3, LAW 2), Hooke springs
+ * The spring-electrical preset on the exact or the grid repulsion tier (spec 7.20 "the preset", 7.8; contract 3.13):
+ * ngraph.forcelayout's physics under ngraph's option names and defaults -- Coulomb repulsion `-g m_i m_j / d^2` (K3,
+ * LAW 2; G6 / G7 with LAW 2 on the grid tier, P4-T13), Hooke springs
  * `k_s (d - L)` (K2, LAW 2), drag and the semi-implicit Euler step with the unit speed clamp over a per-node velocity
  * (K5, APPLY 2), the kinetic energy folded into the trace (K1, STATS_MODE 2; PD-4) -- as the ForceModel that
  * ForceSimulation drives over the four FA2 kernels K1 K2 K3 K5 per iteration and toScene per batch. No K4: there is no
@@ -10,9 +11,12 @@
  * `Fa2Params.coulomb` while FA2's centre gravity is 0 (PD-12). Settlement is the shared rule of spec 7.17
  * (DEP-P5-A); `reheat()` leaves the velocities alone (ngraph has no reheat).
  *
- * Model decisions this file shares with forceatlas2.ts: the K1-K5 dispatches of one batch share ONE compute pass and
- * toScene runs in a second pass that ends it; the fill kernel takes its FillParams from a model-owned 256-byte uniform
- * buffer; `repulsion: "grid"` is E_UNSUPPORTED at load() (the simulation's tier rule).
+ * Model decisions this file shares with forceatlas2.ts: on the exact tier the K1-K5 dispatches of one batch share ONE
+ * compute pass and toScene runs in a second pass that ends it; the fill kernel takes its FillParams from a model-owned
+ * 256-byte uniform buffer. The grid tier (P4-T13, PD-22) is FA2's: `RepulsionGrid` with `LAW` 2 when `tierFor(tuning,
+ * n)` says so (PD-18), the grid buffers from `buffers()`, K1's grid block under `gridMax > 0` (PD-14) over the model's
+ * own `hubCounters`, the three passes `se-k1` / `se-attraction` / `se-grid` before `se-to-scene` (PD-16), and the
+ * union stage list (PD-17; K4 is never recorded).
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -32,7 +36,9 @@ import { type DispatchPlan, plan1d } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { type UniformBlock, type UniformValues } from "../kernel/struct-block.js";
 import { type WgslModuleSpec } from "../kernel/wgsl.js";
-import { FA2_PARAMS, FA2_STATE, FA2_TRACE, FILL_PARAMS, graphBindings, kernelSpec } from "../kernels.js";
+import { FA2_PARAMS, FA2_STATE, FA2_TRACE, FILL_PARAMS, kernelSpec } from "../kernels.js";
+import { arcCountOf } from "../primitives/core-shape.js";
+import { type GridSpec, gridSpecFor } from "../primitives/grid.js";
 import {
     type GpuLayoutSimulation,
     type GpuLayoutTuning,
@@ -49,9 +55,12 @@ import {
     type ModelInputs,
     type ModelResources,
     type StateWriter,
+    tierFor,
 } from "./force-simulation.js";
-import { resolveLayoutTuning } from "./forceatlas2.js";
+import { resolveLayoutTuning, writeGridFrame } from "./forceatlas2.js";
 import {
+    type AttractionBound,
+    bindAttraction,
     describeValue,
     FILL_PARAMS_BUFFER,
     FORCE_BYTES_PER_NODE,
@@ -62,16 +71,27 @@ import {
     pickDim,
     pickNumber,
     pickSeed,
+    recordAttraction,
     scalar,
     seedWord,
     subset,
     vector,
 } from "./model-common.js";
+import { type GridStage, RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js";
 
 // ============================================================ constants
 
-/** The stage names of one iteration in dispatch order plus the per-batch toScene (no K4: spec 7.20). */
-const SE_STAGES = ["K1", "K2", "K3", "K5", "toScene"] as const;
+/** The stage names of both tiers in dispatch order plus the per-batch toScene (spec 7.20; P4 PD-17: the union list; the exact tier records K1 K2 K3 K5, the grid tier K1 K2 G1..G7 K5, K4 never). */
+const SE_STAGES = ["K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "K4", "K5", "toScene"] as const;
+
+/** The SE_STAGES index of the first grid stage, of K4, of K5 and of toScene. */
+const STAGE_G1 = 3;
+const STAGE_K4 = 10;
+const STAGE_K5 = 11;
+const STAGE_TO_SCENE = 12;
+
+/** The name of the model-owned hub-counter buffer K1 binds on every tier (P4 PD-14). */
+const HUB_COUNTERS_BUFFER = "hubCounters";
 
 /** The one-workgroup dispatch of K1. */
 const ONE_WORKGROUP: DispatchPlan = { x: 1, y: 1, z: 1, items: 1, stride: null };
@@ -87,6 +107,14 @@ const SE_OVERRIDES: Overrides = Object.freeze({
     LAW: 2,
     APPLY: 2,
     STATS_MODE: 2,
+});
+
+/** The grid stage's override set (G6 / G7 / K4; P4-T13, PD-22): K3's constant three and the coulomb law. */
+const SE_GRID_OVERRIDES: RepulsionGridOverrides = Object.freeze({
+    SWING_MODE: 1,
+    STRONG_GRAVITY: false,
+    GRAVITY_CENTER: 0,
+    LAW: 2,
 });
 
 /** Every override K1 accepts, with its default. */
@@ -127,7 +155,7 @@ const DEFAULT_RESOLVED: ResolvedSpringElectricalOptions = Object.freeze<Resolved
  * @param n - the node count
  * @returns the factor in (0, 1]
  */
-function springSizeFactor(n: number): number {
+export function springSizeFactor(n: number): number {
     return Math.min(1, SE_SCALE_REFERENCE_NODES / Math.max(1, n));
 }
 
@@ -229,11 +257,13 @@ interface BoundModel {
     readonly fillPlan: DispatchPlan;
     readonly k1: Kernel;
     readonly k1Bound: BoundKernel;
-    readonly k2: Kernel;
-    /** null when arcCount === 0 (K2 is not recorded; the fill below zeroes force instead). */
-    readonly k2Bound: BoundKernel | null;
-    readonly k3: Kernel;
-    readonly k3Bound: BoundKernel;
+    /** The K2 tier dispatches (P4 PD-7); null when arcCount === 0 (K2 is not recorded; the fill below zeroes force instead). */
+    readonly attraction: AttractionBound | null;
+    /** K3 and its bind group, or null on the grid tier (P4 PD-18): one tier's kernels compile per load. */
+    readonly k3: Kernel | null;
+    readonly k3Bound: BoundKernel | null;
+    /** The grid-tier stage (G1-G7), or null on the exact tier (P4 PD-18). */
+    readonly grid: RepulsionGrid | null;
     readonly k5: Kernel;
     readonly k5Bound: BoundKernel;
     readonly toScene: Kernel;
@@ -258,12 +288,12 @@ function massOf(s: GraphSnapshot): Float32Array<ArrayBuffer> {
     return out;
 }
 
-/** The spring-electrical model (spec 7.20: K1 K2 K3 K5 per iteration; toScene once per batch). Stages: ["K1", "K2", "K3", "K5", "toScene"]. */
+/** The spring-electrical model (spec 7.20: K1 K2 K3 K5 per iteration on the exact tier, K1 K2 G1..G7 K5 on the grid tier; toScene once per batch). Stages: the union list of PD-17. */
 export class SpringElectricalModel implements ForceModel<SpringElectricalOptions, SpringElectricalStats> {
     /** The model kind of spec 7.19. */
     readonly kind = "springElectrical";
     /** The stage names in dispatch order (the `upTo` vocabulary of recordIteration and debugRunStages). */
-    readonly stages: readonly ["K1", "K2", "K3", "K5", "toScene"] = SE_STAGES;
+    readonly stages: typeof SE_STAGES = SE_STAGES;
     /** Fa2Params: the per-iteration uniform block (the simulation writes the shared fields into it). */
     readonly params: UniformBlock = FA2_PARAMS;
     /** Fa2State: the state header block. */
@@ -279,6 +309,8 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
     private resources: ModelResources | null = null;
     /** The kernels and bind groups of the last bind(), or null before it (and for n === 0). */
     private bound: BoundModel | null = null;
+    /** The grid of the load inputs() last resolved (null on the exact tier): onLoad() writes its frame, specs() lists its kernels. */
+    private nextGrid: GridSpec | null = null;
     /** The K1-K5 compute pass of the batch being recorded, keyed by CommandBatch.id; null between batches. */
     private openPass: { readonly id: number; readonly pass: GPUComputePassEncoder } | null = null;
 
@@ -294,15 +326,18 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
 
     /**
      * force 12n (zeroed), velocity 12n (zeroed: every load() starts at rest, `allocate()` / `clearKept()` honour
-     * `zero`) and the 256-byte FillParams uniform buffer. n = 0 reports one node's worth of bytes so no zero-length
-     * buffer is ever created.
+     * `zero`), the 256-byte FillParams uniform buffer, the 16-byte `hubCounters` K1 binds on every tier (P4 PD-14),
+     * and the grid buffers of `RepulsionGrid.buffers` exactly when `tierFor(tuning, n)` is the grid tier (PD-18).
+     * n = 0 reports one node's worth of bytes so no zero-length buffer is ever created.
      * @param n - the node count
-     * @param _dim - the layout dimension (the arrays are stride 3 in both)
-     * @returns the three model-owned buffer specs
+     * @param dim - the layout dimension (the arrays are stride 3 in both; the grid's geometry differs)
+     * @returns the model-owned buffer specs
      */
-    buffers(n: number, _dim: 2 | 3): readonly BufferSpec[] {
+    buffers(n: number, dim: 2 | 3): readonly BufferSpec[] {
         const bytes = Math.max(1, n) * FORCE_BYTES_PER_NODE;
         const usage = BufferUsage.STORAGE | BufferUsage.COPY_SRC | BufferUsage.COPY_DST;
+        const grid =
+            tierFor(this.tuning, n) === "grid" ? RepulsionGrid.buffers(n, gridSpecFor(n, dim, this.tuning)) : [];
         return [
             { name: "force", byteLength: bytes, usage, zero: true },
             { name: VELOCITY_BUFFER, byteLength: bytes, usage, zero: true },
@@ -312,18 +347,24 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
                 usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
                 zero: false,
             },
+            { name: HUB_COUNTERS_BUFFER, byteLength: 16, usage, zero: true },
+            ...grid,
         ];
     }
 
     /**
      * { mass: 1 + degree / 3, weights: none } (PD-11): the preset has no mass or weight option, and K2 compiles
-     * HAS_WEIGHTS = false. No `fixed` (setFixed is the live API). The tier rule is the simulation's (load() throws
-     * E_UNSUPPORTED for the grid tier before calling this).
+     * HAS_WEIGHTS = false. No `fixed` (setFixed is the live API). Also remembers the grid of this load
+     * (`tierFor(tuning, n)`, spec 7.8) for onLoad() and specs(): the simulation calls inputs() first, then onLoad()
+     * before bind().
      * @param s - the snapshot being loaded
-     * @param _options - the simulation's current option record (unused: nothing in it affects the inputs)
+     * @param options - the simulation's current option record (its dimension picks the grid's geometry)
      * @returns the per-load inputs
      */
-    inputs(s: GraphSnapshot, _options: SpringElectricalOptions): ModelInputs {
+    inputs(s: GraphSnapshot, options: SpringElectricalOptions): ModelInputs {
+        const { dim } = resolveSpringElectricalOptions(options, this.current);
+        const n = s.nodeCount;
+        this.nextGrid = tierFor(this.tuning, n) === "grid" ? gridSpecFor(n, dim, this.tuning) : null;
         return { mass: massOf(s), weights: { data: null, source: "none", column: null } };
     }
 
@@ -338,12 +379,15 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
 
     /**
      * The six module specs of an override set in dispatch order -- K1, K2, K3, K5, toScene, fill -- each with only the
-     * override names its entry declares (K2 also USE_PERM / HAS_WEIGHTS), for warm() and the compile matrix.
+     * override names its entry declares (K2 also USE_PERM / HAS_WEIGHTS), for warm() and the compile matrix,
+     * followed by the grid tier's specs (`RepulsionGrid.specs` under SE_GRID_OVERRIDES) when the load inputs() last
+     * resolved is a grid load (the pipeline key carries no geometry).
      * @param overrides - the merged override set (the model's plus USE_PERM / HAS_WEIGHTS)
      * @param _subgroups - accepted for the ForceModel interface and unused (the composer picks the twin from caps)
      * @returns the specs
      */
     specs(overrides: Overrides, _subgroups: boolean): readonly WgslModuleSpec[] {
+        const grid = this.nextGrid === null ? [] : RepulsionGrid.specs(SE_GRID_OVERRIDES, this.nextGrid);
         return [
             kernelSpec("fa2-stats-finalize", subset(overrides, K1_DEFAULTS)),
             kernelSpec("fa2-attraction", subset(overrides, K2_DEFAULTS)),
@@ -351,45 +395,64 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
             kernelSpec("fa2-integrate", subset(overrides, K5_DEFAULTS)),
             kernelSpec("fa2-to-scene"),
             kernelSpec("fill"),
+            ...grid,
         ];
     }
 
     /**
-     * Compiles (through the cache) and binds every kernel against the buffers of this load(): K1, K2 (or the fill of
-     * force when arcCount === 0), K3 and K5 with the velocity in their `oldForce` slot (PD-2), toScene; writes the
-     * FillParams { count: 3n, value: 0, mode: 0 } into the model's uniform buffer. With n === 0 nothing is bound.
+     * Compiles (through the cache) and binds every kernel against the buffers of this load(): K1, K2 over the degree
+     * tiers through bindAttraction (or the fill of force when arcCount === 0), K3 on the exact tier or G1-G7 through
+     * RepulsionGrid on the grid tier (PD-18), K5, with the velocity in the `oldForce` slot of K3 / G7 / K5 (PD-2),
+     * toScene; writes the FillParams { count: 3n, value: 0, mode: 0 } into the model's uniform buffer. With n === 0
+     * nothing is bound. The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them (P4 PD-7).
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
      */
     async bind(resources: ModelResources, overrides: Overrides): Promise<void> {
         this.dropBound();
         this.resources = resources;
-        const { n, pipelines, caps, core, perm, ring, device } = resources;
+        const { n, pipelines, caps, core, ring, device } = resources;
         if (n === 0) {
             return;
         }
-        const [k1, k2, k3, k5, toScene, fill] = await Promise.all([
+        const pos = resources.buffer("positions");
+        const force = resources.buffer("force");
+        const params = ring.binding(FA2_PARAMS);
+        const hasArcs = core.colIdx !== null;
+        const [k1, k5, toScene, fill] = await Promise.all([
             pipelines.kernel(kernelSpec("fa2-stats-finalize", subset(overrides, K1_DEFAULTS))),
-            pipelines.kernel(kernelSpec("fa2-attraction", subset(overrides, K2_DEFAULTS))),
-            pipelines.kernel(kernelSpec("fa2-repulsion-exact", subset(overrides, K3_DEFAULTS))),
             pipelines.kernel(kernelSpec("fa2-integrate", subset(overrides, K5_DEFAULTS))),
             pipelines.kernel(kernelSpec("fa2-to-scene")),
             pipelines.kernel(kernelSpec("fill")),
         ]);
+        const k3 =
+            resources.tier === "grid"
+                ? null
+                : await pipelines.kernel(kernelSpec("fa2-repulsion-exact", subset(overrides, K3_DEFAULTS)));
+        const attraction = hasArcs
+            ? await bindAttraction(resources, subset(overrides, K2_DEFAULTS), { pos, force, params })
+            : null;
+        const grid =
+            resources.tier === "grid"
+                ? await RepulsionGrid.create(
+                      resources,
+                      k1.workgroupSize,
+                      SE_GRID_OVERRIDES,
+                      gridSpecFor(n, resources.dim, this.tuning),
+                  )
+                : null;
         if (this.resources !== resources) {
             // a newer bind() superseded this one while the pipelines compiled; its own bind groups stand
+            grid?.dispose();
             return;
         }
-        const pos = resources.buffer("positions");
         const scene = resources.buffer("scenePositions");
         const fixed = resources.buffer("fixed");
         const partials = resources.buffer("partials");
         const state = resources.buffer("state");
         const trace = resources.buffer("trace");
-        const force = resources.buffer("force");
         const velocity = resources.buffer(VELOCITY_BUFFER);
         const fillParamsBuffer = resources.buffer(FILL_PARAMS_BUFFER);
-        const params = ring.binding(FA2_PARAMS);
         const fillParams: Binding = {
             buffer: fillParamsBuffer.buffer,
             offset: fillParamsBuffer.offset,
@@ -399,20 +462,48 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
         const fillBytes = new ArrayBuffer(FILL_PARAMS.byteLength);
         FILL_PARAMS.write(new DataView(fillBytes), { count: 3 * n, value: 0, mode: 0 });
         device.queue.writeBuffer(fillParamsBuffer.buffer, fillParamsBuffer.offset, fillBytes);
-        const hasArcs = core.colIdx !== null;
+        const hubCounters = resources.buffer(HUB_COUNTERS_BUFFER);
+        grid?.bind({
+            pos,
+            state,
+            trace,
+            force,
+            oldForce: velocity,
+            fixedMask: fixed,
+            partials,
+            params,
+            cellKey: resources.buffer("cellKey"),
+            cellVal: resources.buffer("cellVal"),
+            sortedKey: resources.buffer("sortedKey"),
+            sortedIdx: resources.buffer("sortedIdx"),
+            cellHist: resources.buffer("cellHist"),
+            cellStart: resources.buffer("cellStart"),
+            hubList: resources.buffer("hubList"),
+            hubCounters,
+            hubArgs: resources.buffer("hubArgs"),
+            pyramid: resources.buffer("pyramid"),
+        });
         const wg = k1.workgroupSize;
         this.bound = {
             n,
             plan: plan1d(n, wg, caps),
             fillPlan: plan1d(3 * n, wg, caps),
             k1,
-            k1Bound: k1.bind({ partials, S: state, T: trace, P: params }),
-            k2,
-            k2Bound: hasArcs
-                ? k2.bind({ ...graphBindings(core, perm, resources.weights), pos, force, P: params })
-                : null,
+            // PD-14: on the exact tier K1's cellHist slot takes a dummy (partials, both read-only) and the block is
+            // dead under gridMax 0; hubCounters is the model's 16-byte buffer on every tier
+            k1Bound: k1.bind({
+                partials,
+                S: state,
+                T: trace,
+                cellHist: grid === null ? partials : resources.buffer("cellHist"),
+                hubCounters,
+                P: params,
+            }),
+            attraction,
             k3,
-            k3Bound: k3.bind({ pos, S: state, force, oldForce: velocity, fixedMask: fixed, partials, P: params }),
+            k3Bound:
+                k3?.bind({ pos, S: state, force, oldForce: velocity, fixedMask: fixed, partials, P: params }) ?? null,
+            grid,
             k5,
             k5Bound: k5.bind({ force, oldForce: velocity, fixedMask: fixed, S: state, pos, partials, P: params }),
             toScene,
@@ -430,14 +521,19 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
      * @returns the uniform values
      */
     paramsFor(iteration: number, options: SpringElectricalOptions): UniformValues {
-        const { n } = this.requireResources();
+        const { n, core, tiers, tier, dim } = this.requireResources();
         const resolved = resolveSpringElectricalOptions(options, this.current);
         const { nearMax, extentFactor } = this.tuning;
+        const grid = tier === "grid" ? gridSpecFor(n, dim, this.tuning) : null;
+        // P4 PD-7: TIER 2 reads [0, hiEnd), TIER 1 [hiEnd, midEnd), TIER 0 [tierStart, tierEnd) = [midEnd, n)
+        const so = tiers?.segmentOffsets;
+        const hiEnd = so?.[1] ?? 0;
+        const midEnd = so?.[2] ?? 0;
         return {
             n,
             dim: resolved.dim,
             flags: 0,
-            tierStart: 0,
+            tierStart: midEnd,
             tierEnd: n,
             iterationIndex: iteration,
             seed: seedWord(resolved.seed),
@@ -449,9 +545,13 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
             center: [resolved.center[0], resolved.center[1], resolved.center[2], 0],
             settleThreshold: resolved.settleThreshold,
             extentFactor,
-            gridMax: 0,
-            levels: 0,
-            pad: [0, 0, 0, 0],
+            gridMax: grid?.g ?? 0,
+            levels: grid?.levels ?? 0,
+            arcBase: 0,
+            arcEnd: arcCountOf(core),
+            accumulate: 0,
+            hiEnd,
+            midEnd,
             frK: 0,
             temperature: 0,
             springLength: resolved.springLength,
@@ -463,23 +563,20 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
     }
 
     /**
-     * Records one iteration into the batch: K1, K2 (or the fill of force when arcCount === 0), K3, K5 in the batch's
-     * ONE K1-K5 compute pass, then toScene in a second pass that ends it, stopping after stage `upTo` when given.
-     * With n === 0 nothing is recorded; a call before bind() completed is E_NOT_LOADED.
+     * Records one iteration into the batch, stopping after stage `upTo` when given (PD-17: `upTo` names a position
+     * in the union list and the recording stops after the last stage recorded at or before it, so "K3" on the grid
+     * tier stops after K2 and "G5" on the exact tier after K3). The exact tier: K1, K2 (or the fill of force when
+     * arcCount === 0), K3, K5 in the batch's ONE compute pass, then toScene in a second pass that ends it. The grid
+     * tier (PD-16): the passes `se-k1` (K1), `se-attraction` (K2's tiers) and `se-grid` (G1-G7, K5) per iteration,
+     * then `se-to-scene`. With n === 0 nothing is recorded; a call before bind() completed is E_NOT_LOADED.
      * @param batch - the batch being recorded
      * @param slot - the UniformRing slot holding this iteration's Fa2Params
-     * @param tier - "exact" (the grid tier is E_UNSUPPORTED; the simulation never passes "grid")
+     * @param tier - the tier the simulation resolved at load() (the same rule bind() applied, PD-18)
      * @param upTo - a stage name to stop after; undefined records every stage including toScene
      */
     recordIteration(batch: CommandBatch, slot: number, tier: "exact" | "grid", upTo?: string): void {
-        if (tier === "grid") {
-            throw new WebGpuGraphError("E_UNSUPPORTED", "the grid repulsion tier lands in P4", {
-                feature: "repulsion.grid",
-                hint: 'pass repulsion: "exact"',
-            });
-        }
         const resources = this.requireResources();
-        const stop = upTo === undefined ? SE_STAGES.length - 1 : this.stageIndex(upTo);
+        const stop = upTo === undefined ? STAGE_TO_SCENE : this.stageIndex(upTo);
         const { bound } = this;
         if (bound === null) {
             if (resources.n === 0) {
@@ -492,41 +589,110 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
             );
         }
         const offset = resources.ring.offsetOf(slot);
+        if (tier === "grid") {
+            this.recordGridIteration(batch, bound, offset, stop);
+            return;
+        }
+        const { k3, k3Bound } = bound;
+        if (k3 === null || k3Bound === null) {
+            throw new WebGpuGraphError("E_NOT_LOADED", "the spring-electrical model was bound on the grid tier", {
+                state: "loaded",
+            });
+        }
         const pass = this.openPass !== null && this.openPass.id === batch.id ? this.openPass.pass : batch.pass("se");
         this.openPass = { id: batch.id, pass };
         bound.k1.dispatch(pass, bound.k1Bound, ONE_WORKGROUP, [offset]);
         if (stop < 1) {
             return;
         }
-        if (bound.k2Bound !== null) {
-            bound.k2.dispatch(pass, bound.k2Bound, bound.plan, [offset]);
-        } else if (bound.fillForceBound !== null) {
-            bound.fill.dispatch(pass, bound.fillForceBound, bound.fillPlan, [0]);
-        }
+        this.recordK2(pass, bound, offset);
         if (stop < 2) {
             return;
         }
-        bound.k3.dispatch(pass, bound.k3Bound, bound.plan, [offset]);
-        if (stop < 3) {
+        k3.dispatch(pass, k3Bound, bound.plan, [offset]);
+        if (stop < STAGE_K5) {
             return;
         }
         bound.k5.dispatch(pass, bound.k5Bound, bound.plan, [offset]);
-        if (stop < 4) {
+        if (stop < STAGE_TO_SCENE) {
             return;
         }
-        // the second pass ends the K1-K5 pass; the batch is complete after toScene, so nothing reuses it
+        this.recordToScene(batch, bound, offset);
+    }
+
+    /**
+     * The grid tier's iteration (PD-16): three compute passes before toScene; no K4.
+     * @param batch - the batch being recorded
+     * @param bound - the bound model
+     * @param offset - the Fa2Params dynamic offset of the iteration
+     * @param stop - the SE_STAGES index to stop after
+     */
+    private recordGridIteration(batch: CommandBatch, bound: BoundModel, offset: number, stop: number): void {
+        const { grid } = bound;
+        if (grid === null) {
+            throw new WebGpuGraphError("E_NOT_LOADED", "the spring-electrical model was bound on the exact tier", {
+                state: "loaded",
+            });
+        }
+        this.openPass = null;
+        bound.k1.dispatch(batch.pass("se-k1"), bound.k1Bound, ONE_WORKGROUP, [offset]);
+        if (stop < 1) {
+            return;
+        }
+        this.recordK2(batch.pass("se-attraction"), bound, offset);
+        if (stop < STAGE_G1) {
+            return;
+        }
+        const pass = batch.pass("se-grid");
+        const gridStop = stop < STAGE_K4 ? (SE_STAGES[stop] as GridStage) : undefined;
+        grid.recordRepulsion(pass, bound.n, offset, gridStop);
+        if (stop < STAGE_K5) {
+            return;
+        }
+        bound.k5.dispatch(pass, bound.k5Bound, bound.plan, [offset]);
+        if (stop < STAGE_TO_SCENE) {
+            return;
+        }
+        this.recordToScene(batch, bound, offset);
+    }
+
+    /**
+     * K2's tier dispatches, or the fill of force when the graph has no arcs (spec 7.5).
+     * @param pass - the open compute pass
+     * @param bound - the bound model
+     * @param offset - the Fa2Params dynamic offset
+     */
+    private recordK2(pass: GPUComputePassEncoder, bound: BoundModel, offset: number): void {
+        if (bound.attraction !== null) {
+            recordAttraction(pass, bound.attraction, offset);
+        } else if (bound.fillForceBound !== null) {
+            bound.fill.dispatch(pass, bound.fillForceBound, bound.fillPlan, [0]);
+        }
+    }
+
+    /**
+     * The toScene pass that ends the iteration's pass; the batch is complete after it, so nothing reuses the pass.
+     * @param batch - the batch
+     * @param bound - the bound model
+     * @param offset - the Fa2Params dynamic offset
+     */
+    private recordToScene(batch: CommandBatch, bound: BoundModel, offset: number): void {
         this.openPass = null;
         const scenePass = batch.pass("se-to-scene");
         bound.toScene.dispatch(scenePass, bound.toSceneBound, bound.plan, [offset]);
     }
 
     /**
-     * kineticEnergy = 0 and temperature = 0 in the header (the velocities start at 0 through the buffer's `zero`).
+     * kineticEnergy = 0 and temperature = 0 in the header (the velocities start at 0 through the buffer's `zero`);
+     * on a grid load the frame of the first build (K1 folds nothing on the first iteration).
      * @param state - the state writer of the simulation
      */
     onLoad(state: StateWriter): void {
         state.set("kineticEnergy", 0);
         state.set("temperature", 0);
+        if (this.nextGrid !== null) {
+            writeGridFrame(state, this.nextGrid, this.tuning.extentFactor);
+        }
     }
 
     /**
@@ -548,9 +714,10 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
     }
 
     /**
-     * Decodes the state header and the k trace records of a completed batch into SpringElectricalStats: the exact
-     * tier with null grid fields; msPerIteration null (the simulation owns the clock); `kineticEnergy` is the last
-     * folded value (one iteration behind the last integrate, PD-4).
+     * Decodes the state header and the k trace records of a completed batch into SpringElectricalStats:
+     * `repulsionTier` is the bound tier, the grid fields are the header's on the grid tier and null on the exact
+     * tier; msPerIteration null (the simulation owns the clock); `kineticEnergy` is the last folded value (one
+     * iteration behind the last integrate, PD-4).
      * @param state - a DataView over the 256-byte state header
      * @param trace - a DataView over the k Fa2Trace records of the batch
      * @returns the stats
@@ -568,15 +735,16 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
                 settledCount: scalar(record, "settledCount"),
             });
         }
+        const grid = this.resources?.tier === "grid";
         return {
             iteration: scalar(header, "iteration"),
             meanDisplacement: scalar(header, "meanDisplacement"),
             rmsRadius: scalar(header, "rmsRadius"),
             layoutRadius: scalar(header, "radius"),
             centroid: [centroid[0], centroid[1], centroid[2]],
-            repulsionTier: "exact",
-            maxCellOccupancy: null,
-            outsideGrid: null,
+            repulsionTier: grid ? "grid" : "exact",
+            maxCellOccupancy: grid ? scalar(header, "maxCellOccupancy") : null,
+            outsideGrid: grid ? scalar(header, "outsideGrid") : null,
             msPerIteration: null,
             kineticEnergy: scalar(header, "kineticEnergy"),
             trace: records,
@@ -612,16 +780,26 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
         throw invalid("upTo", upTo, SE_STAGES.join(" | "));
     }
 
-    /** Drops the bind groups of the previous bind() (the buffers changed) and forgets the pass of a batch recorded before the rebind. */
+    /** Releases the grid stage's lease and the bind groups (the simulation calls it from dispose() once every in-flight batch has settled). */
+    dispose(): void {
+        this.dropBound();
+    }
+
+    /** Drops the bind groups of the previous bind() (the buffers changed), releases the grid stage's lease and forgets the pass of a batch recorded before the rebind. */
     private dropBound(): void {
         this.openPass = null;
         const { bound } = this;
         if (bound === null) {
             return;
         }
-        for (const kernel of [bound.k1, bound.k2, bound.k3, bound.k5, bound.toScene, bound.fill]) {
+        for (const kernel of [bound.k1, bound.k5, bound.toScene, bound.fill]) {
             kernel.invalidate();
         }
+        bound.k3?.invalidate();
+        for (const [kernel] of bound.attraction?.kernels ?? []) {
+            kernel.invalidate();
+        }
+        bound.grid?.dispose();
         this.bound = null;
     }
 }
@@ -643,7 +821,8 @@ function resolvePatch(
 
 /**
  * Spec 3.3 createSpringElectrical, verbatim: a GpuLayoutSimulation running ngraph's spring-electrical model on the
- * exact repulsion tier with ngraph's defaults (spec 7.20) and the GPU-only tuning of GpuLayoutTuning.
+ * exact or the grid repulsion tier (spec 7.8) with ngraph's defaults (spec 7.20) and the GPU-only tuning of
+ * GpuLayoutTuning.
  * @param ctx - the context (E_DISPOSED / E_DEVICE_LOST through assertReady)
  * @param options - the spring-electrical options and the GPU-only tuning knobs in one record
  * @returns the simulation in state "created"; load() next

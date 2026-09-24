@@ -9,6 +9,8 @@
  *   pnpm exec tsx benchmarks/run.ts upload roundtrip      # selected groups
  *   pnpm exec tsx benchmarks/run.ts layout-exact          # the T-4 ladder and the 10k frame rung (P3)
  *   pnpm exec tsx benchmarks/run.ts layout-fr             # T-14 (P5)
+ *   pnpm exec tsx benchmarks/run.ts layout-grid           # the grid ladder in 2D / 3D, T-6 / T-7 and the 7.8 re-check rows (P4)
+ *   pnpm exec tsx benchmarks/run.ts attraction-scale      # the attraction gather across the working-set ladder (the G4-F16 diagnostic)
  *   pnpm exec tsx benchmarks/run.ts --no-save             # print only
  *   pnpm exec tsx benchmarks/run.ts --runs 3              # 3 timed runs per benchmark
  *   pnpm exec tsx benchmarks/run.ts --allow-software      # time on a software adapter anyway (never for a baseline)
@@ -21,9 +23,11 @@
 
 import { type GpuContext } from "../src/context.js";
 import { createNodeGpuContext } from "../src/node/index.js";
+import { ATTRACTION_SCALE_GROUP, runAttractionScaleBenchmarks } from "./attraction-scale.bench.js";
 import { appendSession, type BenchResult, gpuSessionInfo, printTable, runnerClass, setBenchRuns } from "./harness.js";
 import { LAYOUT_EXACT_GROUP, runLayoutExactBenchmarks } from "./layout-exact.bench.js";
 import { LAYOUT_FR_GROUP, runLayoutFrBenchmarks } from "./layout-fr.bench.js";
+import { LAYOUT_GRID_GROUP, runLayoutGridBenchmarks } from "./layout-grid.bench.js";
 import { runPagerankBenchmarks } from "./pagerank.bench.js";
 import { runRoundtripBenchmarks } from "./roundtrip.bench.js";
 import { runUploadBenchmarks } from "./upload.bench.js";
@@ -31,7 +35,8 @@ import { runWccBenchmarks } from "./wcc.bench.js";
 
 /**
  * The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side
- * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14.
+ * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14, `layout-grid` T-6 / T-7 and the grid rows of the 7.8
+ * re-check. `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than a gate row.
  */
 const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]>>> = {
     upload: runUploadBenchmarks,
@@ -40,6 +45,8 @@ const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]
     pagerank: runPagerankBenchmarks,
     wcc: runWccBenchmarks,
     [LAYOUT_FR_GROUP]: runLayoutFrBenchmarks,
+    [LAYOUT_GRID_GROUP]: runLayoutGridBenchmarks,
+    [ATTRACTION_SCALE_GROUP]: runAttractionScaleBenchmarks,
 };
 
 /** The parsed command line. */

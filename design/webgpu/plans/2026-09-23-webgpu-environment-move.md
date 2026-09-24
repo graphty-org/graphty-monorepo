@@ -142,7 +142,7 @@ finding ENV-F2 and is the one item that must reach the owner before the branch m
 
 **Status: DONE.** Repository: `graphty-monorepo`. Files: `.github/workflows/ci.yml`, `.github/workflows/gpu.yml`.
 
-- [x] Replace `runs-on: ubuntu-latest` with `runs-on: ubuntu-24.04` in all eleven `ci.yml` jobs. A no-op today --
+- [x] Replace `runs-on: ubuntu-latest` with `runs-on: ubuntu-24.04` in all ten `ci.yml` jobs. A no-op today --
       `ubuntu-latest` IS 24.04 -- which is the point: it makes the next move a reviewed commit. GitHub has
       announced `ubuntu-latest` becoming Ubuntu 26 from 2026-10-19 (`actions/runner-images#14748`).
 - [x] Add a header comment to `ci.yml` stating what the label did and why it is now named.

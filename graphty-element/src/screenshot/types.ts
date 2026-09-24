@@ -1,3 +1,5 @@
+import type { CameraState } from "../camera/types.js";
+
 export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 /**
@@ -109,33 +111,14 @@ export interface ScreenshotResult {
     };
 }
 
-// Camera state for screenshots
-export interface CameraState {
-    type?: "arcRotate" | "free" | "universal" | "orthographic";
-
-    // 3D Camera Properties
-    position?: { x: number; y: number; z: number };
-    target?: { x: number; y: number; z: number };
-    alpha?: number;
-    beta?: number;
-    radius?: number;
-    fov?: number;
-
-    // 2D Camera Properties
-    zoom?: number;
-    pan?: { x: number; y: number };
-    rotation?: number;
-
-    // Orthographic frustum (advanced)
-    orthoLeft?: number;
-    orthoRight?: number;
-    orthoTop?: number;
-    orthoBottom?: number;
-
-    // OrbitCameraController-specific fields
-    pivotRotation?: { x: number; y: number; z: number };
-    cameraDistance?: number;
-}
+/*
+ * CAMERA STATE IS DECLARED IN `src/camera/types.ts` and re-exported here.
+ *
+ * A registered camera view returns one, and a view has to be writable against a Node-safe entry
+ * point -- so the declaration lives in a module `./extend` and `./catalog` can reach, and this
+ * file keeps publishing the name every screenshot caller already imports.
+ */
+export type { CameraState };
 
 // Camera animation options (extends QueueableOptions for operation queue integration)
 export interface CameraAnimationOptions {

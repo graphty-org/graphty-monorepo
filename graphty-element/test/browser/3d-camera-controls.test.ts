@@ -1,72 +1,49 @@
  
-// @ts-nocheck
 import {} from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { OrbitCameraController } from "../../src/cameras/OrbitCameraController";
 import { OrbitInputController } from "../../src/cameras/OrbitInputController";
 import { Graph } from "../../src/Graph";
-import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+import { cleanupTestGraph, createTestGraph, setBehavior } from "../helpers/testSetup";
 
 describe("3D Camera Controls", () => {
     let graph: Graph;
     let cameraController: OrbitCameraController;
-    let inputController: OrbitInputController;
+    /**
+     * The controller plus the two private fields this file asserts on. The rotation velocities are
+     * the controller's inertia state and there is no public reader for them, so the test declares
+     * what it reaches for instead of casting at each use.
+     */
+    type InspectableOrbitController = {
+        [K in keyof OrbitInputController]: OrbitInputController[K];
+    } & {
+        rotationVelocityX: number;
+        rotationVelocityY: number;
+    };
+
+    let inputController: InspectableOrbitController;
 
     beforeEach(async () => {
         // Create test graph
         graph = await createTestGraph();
 
-        // Switch to 3D mode using proper template format
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                twoD: false, // 3D mode
-                background: { backgroundType: "color", color: "#f0f0f0" },
-                addDefaultStyle: true,
-                startingCameraDistance: 30,
-                layout: "ngraph",
-            },
-            layers: [],
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "src",
-                    edgeDstIdPath: "dst",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                },
-            },
-            behavior: {
-                layout: {
-                    type: "ngraph",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.001,
-                    zoomStepInterval: 5,
-                },
-                node: {
-                    pinOnDrag: true,
-                },
-            },
-        });
+        graph.setBackground({ backgroundType: "color", color: "#f0f0f0" });
+        setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
+        await graph.setViewMode("3d");
+        await graph.setLayout("ngraph");
 
         // Wait for camera to be activated
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Get the camera controller
         const cameraManager = graph.camera;
-        // @ts-expect-error Accessing private property for testing
         cameraController = (cameraManager as unknown as { activeCameraController: OrbitCameraController })
             .activeCameraController;
         assert.isDefined(cameraController, "Camera controller should be defined after switching to 3D mode");
 
         // Access the input controller through camera manager
-        // @ts-expect-error Accessing private property for testing
-        inputController = (cameraManager as unknown as { activeInputHandler: OrbitInputController }).activeInputHandler;
+        inputController = (cameraManager as unknown as { activeInputHandler: InspectableOrbitController }).activeInputHandler;
         assert.isDefined(inputController, "Input controller should be defined");
 
         // Verify input controller is enabled

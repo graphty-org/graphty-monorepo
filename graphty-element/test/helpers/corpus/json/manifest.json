@@ -8,7 +8,10 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["d3", "nodes-links"]
+            "features": [
+                "d3",
+                "nodes-links"
+            ]
         },
         {
             "path": "cytoscape-format.json",
@@ -16,7 +19,11 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["cytoscape", "elements", "data-wrapper"]
+            "features": [
+                "cytoscape",
+                "elements",
+                "data-wrapper"
+            ]
         },
         {
             "path": "sigma-format.json",
@@ -24,7 +31,11 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["sigma", "graphology", "key-attributes"]
+            "features": [
+                "sigma",
+                "graphology",
+                "key-attributes"
+            ]
         },
         {
             "path": "visjs-format.json",
@@ -32,7 +43,10 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["visjs", "from-to"]
+            "features": [
+                "visjs",
+                "from-to"
+            ]
         },
         {
             "path": "networkx-format.json",
@@ -40,7 +54,11 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["networkx", "directed-flag", "multigraph-flag"]
+            "features": [
+                "networkx",
+                "directed-flag",
+                "multigraph-flag"
+            ]
         },
         {
             "path": "karate-d3.json",
@@ -48,7 +66,11 @@
             "license": "Academic",
             "expectedNodes": 34,
             "expectedEdges": 78,
-            "features": ["d3", "nodes-links", "medium"]
+            "features": [
+                "d3",
+                "nodes-links",
+                "medium"
+            ]
         },
         {
             "path": "miserables.json",
@@ -56,7 +78,22 @@
             "license": "BSD",
             "expectedNodes": 77,
             "expectedEdges": 254,
-            "features": ["d3", "nodes-links", "real-world"]
+            "features": [
+                "d3",
+                "nodes-links",
+                "real-world"
+            ]
+        },
+        {
+            "path": "unnamed-endpoints.json",
+            "source": "created",
+            "license": "MIT",
+            "unreadable": "Edge records whose endpoint keys are named a and b, which is none of the three spellings the element probes. It exists so that the element's refusal -- E_EDGE_ENDPOINTS_UNRESOLVED, naming the keys the records do carry -- has a fixture to be asserted against, in test/browser/edge-endpoints.test.ts.",
+            "expectedNodes": 0,
+            "expectedEdges": 0,
+            "features": [
+                "unnamed-endpoints"
+            ]
         }
     ]
 }

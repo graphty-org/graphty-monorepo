@@ -2,7 +2,7 @@ import assert from "node:assert";
 
 import { describe, it } from "vitest";
 
-import { StyleHelpers } from "../../src/config";
+import { StyleHelpers } from "../helpers/styleHelpers";
 
 describe("StyleHelpers.color.categorical.okabeIto", () => {
     it("returns Orange (#E69F00) for category 0", () => {
@@ -20,29 +20,29 @@ describe("StyleHelpers.color.categorical.okabeIto", () => {
         assert.strictEqual(result, "#009E73");
     });
 
-    it("returns Yellow (#F0E442) for category 3", () => {
+    it("returns Blue (#0072B2) for category 3", () => {
         const result = StyleHelpers.color.categorical.okabeIto(3);
-        assert.strictEqual(result, "#F0E442");
-    });
-
-    it("returns Blue (#0072B2) for category 4", () => {
-        const result = StyleHelpers.color.categorical.okabeIto(4);
         assert.strictEqual(result, "#0072B2");
     });
 
-    it("returns Vermillion (#D55E00) for category 5", () => {
-        const result = StyleHelpers.color.categorical.okabeIto(5);
+    it("returns Vermillion (#D55E00) for category 4", () => {
+        const result = StyleHelpers.color.categorical.okabeIto(4);
         assert.strictEqual(result, "#D55E00");
     });
 
-    it("returns Reddish Purple (#CC79A7) for category 6", () => {
-        const result = StyleHelpers.color.categorical.okabeIto(6);
+    it("returns Reddish Purple (#CC79A7) for category 5", () => {
+        const result = StyleHelpers.color.categorical.okabeIto(5);
         assert.strictEqual(result, "#CC79A7");
     });
 
-    it("returns Gray (#999999) for category 7", () => {
+    it("returns Black (#000000) for category 6", () => {
+        const result = StyleHelpers.color.categorical.okabeIto(6);
+        assert.strictEqual(result, "#000000");
+    });
+
+    it("returns Yellow (#F0E442) for category 7", () => {
         const result = StyleHelpers.color.categorical.okabeIto(7);
-        assert.strictEqual(result, "#999999");
+        assert.strictEqual(result, "#F0E442");
     });
 
     it("wraps around for category 8 (returns Orange again)", () => {

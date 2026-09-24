@@ -2,6 +2,7 @@ import { PANEL_GRID, PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it } from "vitest";
 
+import { makeLayer } from "../../../test/layerFixture";
 import { render, screen, within } from "../../../test/test-utils";
 import type { LayerItem } from "../../layout/LeftSidebar";
 import { ShellProvider } from "../../shell/ShellContext";
@@ -28,14 +29,9 @@ import { StyleLayerPropertiesPanel } from "../panels/StyleLayerPropertiesPanel";
  * with the library's own `ControlSection` -- was inset 16px.
  */
 
-const layer: LayerItem = {
-    id: "integration-layer",
-    name: "Integration Layer",
-    styleLayer: {
-        node: { selector: "", style: { texture: { color: "#E11D48" } } },
-        edge: { selector: "", style: { line: { type: "solid", width: 8, color: "#A9A9A9" } } },
-    },
-};
+const layer: LayerItem = makeLayer("integration-layer", "Integration Layer", {
+    set: { "node.color": "#E11D48" },
+});
 
 /**
  * Renders the panel with the two contexts it needs.

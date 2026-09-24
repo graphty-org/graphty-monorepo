@@ -44,18 +44,20 @@ export function _lbfgsDirection(grad: number[], sList: number[][], yList: number
         gamma = s.reduce((sum, val, i) => sum + val * y[i], 0) / y.reduce((sum, val) => sum + val * val, 0);
     }
 
-    // Initialize direction with scaled negative gradient
-    const direction = q.map((val) => -gamma * val);
+    // r = H0 q, then the backward pass turns it into H g. The direction is -r, negated only at
+    // the end: running the pass on -r while keeping these signs gives a direction that is not
+    // H g, and often not downhill at all.
+    const r = q.map((val) => gamma * val);
 
     // Backward pass
     for (let i = 0; i < sList.length; i++) {
         const s = sList[i];
         const y = yList[i];
-        const beta = rho[i] * y.reduce((sum, val, j) => sum + val * direction[j], 0);
-        for (let j = 0; j < direction.length; j++) {
-            direction[j] += s[j] * (alpha[i] - beta);
+        const beta = rho[i] * y.reduce((sum, val, j) => sum + val * r[j], 0);
+        for (let j = 0; j < r.length; j++) {
+            r[j] += s[j] * (alpha[i] - beta);
         }
     }
 
-    return direction;
+    return r.map((val) => -val);
 }

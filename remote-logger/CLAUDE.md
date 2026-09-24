@@ -121,7 +121,7 @@ npm run test:run -- test/integration/client-server.test.ts
 Tests use specific port ranges to avoid conflicts:
 - Server tests: 8100-8199
 - Integration tests: 8200-8399
-- Development servers: 9000-9099
+- Development servers: 9000-9999
 
 ## Common Tasks
 

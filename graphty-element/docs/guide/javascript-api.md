@@ -30,13 +30,16 @@ const element = document.querySelector("graphty-element");
 const graph = element.graph;
 ```
 
-For TypeScript with proper typing:
+In TypeScript, no cast is needed. Importing the package declares the tag, so
+`document.querySelector("graphty-element")` and `document.createElement("graphty-element")` both
+answer the element's own type:
 
 ```typescript
-import type { Graph, Graphty } from "@graphty/graphty-element";
+import "@graphty/graphty-element";
+import type { Graph } from "@graphty/graphty-element";
 
-const element = document.querySelector("graphty-element") as Graphty;
-const graph: Graph = element.graph;
+const element = document.querySelector("graphty-element");
+const graph: Graph | undefined = element?.graph;
 ```
 
 ::: tip
@@ -76,10 +79,22 @@ await graph.addEdges([
 **Removing Elements:**
 
 ```typescript
-// Remove nodes (edges are removed automatically)
+// Remove nodes. The edges attached to them go too.
 await graph.removeNodes(["node1"]);
 await graph.removeNodes(["node1", "node2"]);
 ```
+
+One `elements-removed` event follows each call, naming the node ids you asked for and every edge
+id that went with them -- including edges you never mentioned:
+
+```typescript
+graph.on("elements-removed", ({ nodes, edges }) => {
+    console.log(`${nodes.length} nodes and ${edges.length} edges left the graph`);
+});
+```
+
+In 1.x the edges stayed behind: lines drawn to a node that no longer existed, which a filter could
+not reach and nothing could hide.
 
 **Bulk Data Loading:**
 
@@ -116,16 +131,30 @@ const node = graph.getNode("node1");
 // Get all nodes
 const allNodes = graph.getNodes();
 
-// Get a single edge
-const edge = graph.getEdge("node1", "node2");
-
-// Get all edges
-const allEdges = graph.getEdges();
-
 // Get counts
 const nodeCount = graph.getNodeCount();
 const edgeCount = graph.getEdgeCount();
 ```
+
+Edge records are read through the session, by the edge's own id. Ask for the ids first:
+
+```typescript
+const session = element.session;
+
+for (const id of (await session.scope.resolve("graph")).edges) {
+    const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
+}
+```
+
+"The edge between two nodes" is plural, because a graph may hold more than one:
+
+```typescript
+const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // readonly Edge[]
+```
+
+In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
+colon. Neither could represent a graph that holds two edges between one pair -- see
+[Data Sources](./data-sources#two-edges-between-the-same-pair).
 
 ### Selection
 
@@ -157,22 +186,22 @@ graph.setLayout("ngraph", {
     dimensions: 3,
 });
 
-// Wait for layout to finish
-await graph.waitForSettled();
+// Wait for the picture to stop changing: the layout converged, the camera framed it,
+// and a frame was drawn showing that
+await graph.waitForStableFrame();
 ```
 
 ### Algorithms
 
 ```typescript
-// Run an algorithm
-await graph.runAlgorithm("graphty", "degree");
+// Run an algorithm. The run hands back its own result.
+const run = await graph.run("degree");
 
-// Apply visualization from algorithm results
-graph.applySuggestedStyles("graphty:degree");
+// One element's value
+const degree = run.result.node("node1")?.value;
 
-// Access results on individual nodes
-const node = graph.getNode("node1");
-const degree = node.algorithmResults["graphty:degree"];
+// Put the algorithm's own suggested picture back, after a reader cleared it
+graph.applySuggestedStyles("degree");
 ```
 
 ### Camera Control
@@ -207,9 +236,6 @@ const dataManager = graph.getDataManager();
 // Layout control
 const layoutManager = graph.getLayoutManager();
 
-// Style management
-const styleManager = graph.getStyleManager();
-
 // Event handling
 const eventManager = graph.getEventManager();
 
@@ -224,17 +250,17 @@ const statsManager = graph.getStatsManager();
 
 ```typescript
 // Take a screenshot
-const result = await graph.takeScreenshot({
+const result = await graph.captureScreenshot({
     width: 1920,
     height: 1080,
-    quality: "high",
+    format: "png",
 });
 
 // Copy to clipboard
-await graph.takeScreenshot({ copyToClipboard: true });
+await graph.captureScreenshot({ destination: { clipboard: true } });
 
 // Capture video animation
-const video = await graph.captureVideo({
+const video = await graph.captureAnimation({
     duration: 5000,
     fps: 30,
 });
@@ -345,21 +371,24 @@ graph.on("data-loaded", ({ nodeCount, edgeCount }) => {
 **Removing Listeners:**
 
 ```typescript
-const handler = () => console.log("Settled");
-graph.on("graph-settled", handler);
+const stop = graph.on("graph-settled", () => console.log("Settled"));
 
 // Later, remove the listener
-graph.off("graph-settled", handler);
+stop();
 ```
 
 ## Complete Example
 
 ```typescript
 import "@graphty/graphty-element";
-import type { Graph, Graphty } from "@graphty/graphty-element";
+import type { Graph } from "@graphty/graphty-element";
 
 async function initGraph() {
-    const element = document.querySelector("graphty-element") as Graphty;
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        return;
+    }
+
     const graph: Graph = element.graph;
 
     // Load data
@@ -375,19 +404,18 @@ async function initGraph() {
         { source: "c", target: "a" },
     ]);
 
-    // Wait for layout to stabilize
+    // Wait for the queued operations to finish
     await graph.waitForSettled();
 
     // Run algorithm
-    await graph.runAlgorithm("graphty", "degree");
-    graph.applySuggestedStyles("graphty:degree");
+    const run = await graph.run("degree");
 
     // Fit view
     graph.zoomToFit();
 
     // Set up interaction
     graph.on("node-click", ({ node }) => {
-        console.log(`Clicked ${node.id} (degree: ${node.algorithmResults["graphty:degree"]})`);
+        console.log(`Clicked ${node.id} (degree: ${String(run.result.node(node.id)?.value)})`);
         graph.selectNode(node.id);
     });
 }

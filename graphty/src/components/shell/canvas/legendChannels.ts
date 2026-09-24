@@ -1,263 +1,253 @@
 /**
- * The legend's channel lines, built from what the shell actually painted.
+ * The canvas legend's blocks, translated from the element's own encoding model.
  *
- * One encoding reaches the canvas on the novice path -- a community run recolours the
- * nodes -- and until this module existed the legend did not name it: `CanvasRegion`
- * defaults its channel list to empty, so a graph whose every node had just been repainted
- * drew a legend with nothing in it.
+ * WHAT THIS FILE STOPPED DOING. It used to REBUILD the legend: it held the community
+ * palette and re-indexed it by rank, it re-derived a viridis ramp's three stops from a
+ * ranking the shell had summarised itself, it wrote the scale out in words from a table of
+ * its own, and it counted the nodes a run did not reach so it could print the departure.
+ * Every one of those was a second reading of a picture the element had already worked out,
+ * free to disagree with the canvas the moment either side moved -- and one of them did
+ * exactly that: the swatch beside a metric's result card was drawn at the palette's top
+ * rather than at the top node's own fraction, so a run whose fractions were all zero drew
+ * a yellow chip over a deep-purple graph.
  *
- * There is no SIZE channel. 7.2 asks a load to size nodes by degree and that was reverted
- * on 2026-09-13 in favour of the element's hand-tuned defaults, so nothing encodes size
- * and a "Size: Most connected, sqrt scale" line would name an encoding the canvas does not
- * apply.
+ * `styles.legend()` answers all of it from the prepared bindings the repaint painted from:
+ * the field's plain and technical names, the scale's own words out of the scale catalogue,
+ * the domain, the palette, up to twelve swatches with their values and their colours, and
+ * the departures as finished sentences. It is synchronous and measures nothing.
  *
- * This is also where the sentence the community reading gave up now lives. RT-10 caps a
- * reading at two sentences (design line 4672, restated at 5794 and in
- * COMPACTION-1.6.md:324), and "Colors now show groups." was the third: design line 201
- * gives the legend the header "Color: groups, categorical", and 5808 has Copy reading
- * pick the legend's channel lines up, so what the colours MEAN is the legend's fact and
- * repeating it in the reading said the same thing twice.
+ * WHAT IS LEFT HERE is presentation, which is the app's: which of the element's channels
+ * the canvas legend draws a block for, the canvas's own five-category cap and its Other
+ * row, and the three-stop shape a quantitative block takes on this surface. None of it
+ * invents a number, and since this pass none of it invents a WORD for one either: the middle
+ * stop used to be labelled "median" over a value the element had swept out of the domain,
+ * which named a statistic nothing here had computed. It says "midpoint", which is what that
+ * value is.
  *
- * A node metric run -- Most connected, Influence or Bridges -- declares a COLOUR channel
- * of its own, and it REPLACES the community one rather than joining it: the shell holds a
- * single colourChannel and the canvas paints a single colour per node, so a legend drawing
- * two colour blocks would name an encoding that is no longer on the screen.
- *
- * A channel is built only for an encoding that was actually applied. An unencoded channel
- * is absent rather than empty (design line 4121), which is why both builders can return
- * null and the caller passes no `legend` config at all when they do. A metric run reaches
- * this module unapplied whenever a hand-authored layer already drives node colour: the
- * result card draws its un-applied form, the canvas paints nothing, and so the legend
- * names nothing.
+ * The Other row's neutral is read off the element's own default node style for the same reason
+ * every swatch is read off its block: a hex written down beside the element is a copy, and a
+ * copy is wrong the moment the element changes it, silently. The shell held two of them.
  */
 
-import {
-    NODE_METRIC_DEFINITIONS,
-    type NodeMetricId,
-    type NodeMetricNormalisation,
-    type NodeMetricRanking,
-} from "../analysis/nodeMetrics";
-import { UNENCODED_NODE_COLOR } from "../defaults/loadDefaults";
-import { viridisAt } from "../defaults/nodeMetricStyle";
-import { COMMUNITY_PALETTE } from "../defaults/styleDescriptors";
-import type { CommunityStatistics } from "../readings/communityReading";
-import { formatMetricValue } from "../readings/nodeMetricReading";
-import { formatCount, formatPercent } from "../readings/readingFormat";
-import { CANVAS_METRICS } from "./canvasLayout";
+import type { Channel, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
+
+import { defaultNodeHex } from "../../../utils/channelControls";
+import { CANVAS_METRICS, type LegendChannelId } from "./canvasLayout";
 import type { LegendCategory, LegendChannel, LegendStop } from "./Legend";
 
-/** The plain-then-technical pair (6.3) the community encoding is named by. */
-const COMMUNITY_ATTRIBUTE = "Groups";
-
-/** The technical half, without its parentheses -- the legend draws those. */
-const COMMUNITY_TECHNICAL_NAME = "Communities, Louvain";
-
 /**
- * The colour channel for a community run: one category per coloured group, largest
- * first, and an Other row for the groups the colour cap left neutral.
+ * Which canvas legend block one element channel belongs to.
  *
- * Categories are named by RANK rather than by community id, because that is how the
- * result body and every board label them ("Group 1" is the largest), and the legend has
- * to agree with the rows beside it.
- * @param statistics - what the grouping run reported, after the encoding was applied.
- * @returns the colour channel, or null when nothing was painted.
+ * The canvas draws five blocks (`LEGEND_BLOCK_ORDER`) and the element paints twenty-two
+ * channels, so this is a narrowing and not a rename: a channel with no entry draws no
+ * block, which is the honest reading of "the canvas legend has no row for that".
  */
-export function communityColourChannel(statistics: CommunityStatistics): LegendChannel | null {
-    const { colouredGroupCount, encodingApplied, groupCount, nodeCount } = statistics;
+const CANVAS_BLOCK_OF: Partial<Record<Channel, LegendChannelId>> = {
+    "node.color": "color",
+    "node.size": "size",
+    "node.outline": "outline",
+    "edge.color": "color",
+    "edge.width": "edgeWidth",
+    "edge.arrowHead": "arrow",
+};
 
-    if (!encodingApplied || colouredGroupCount <= 0) {
-        return null;
-    }
-
-    const coloured = statistics.groups.slice(0, colouredGroupCount);
-    const categories: LegendCategory[] = coloured.map((group, index) => ({
-        id: `group-${String(group.communityId)}`,
-        label: `Group ${String(index + 1)}`,
-        color: COMMUNITY_PALETTE[index % COMMUNITY_PALETTE.length],
-    }));
-
-    /* The Other row covers every group the legend does not NAME, which is not the same as
-       every group the canvas leaves neutral. Design line 234-237 gives the canvas legend
-       "the five largest categories by member count and then one Other row ... reading
-       'Other (3,388 groups, 43% of nodes)'", and `capLegendCategories` enforces that five
-       silently. Counting only the groups past the COLOUR cap let a painted-but-unnamed
-       group disappear from the legend altogether: six groups painted, five named, the
-       sixth nowhere on screen.
-
-       The swatch stays the neutral the spec names, which is exact whenever the unnamed
-       groups really are neutral and approximate for a painted one the cap pushed out; the
-       count and the share are the facts the row carries, and they are now right either
-       way. */
-    const namedGroups = Math.min(colouredGroupCount, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS);
-    const remainingGroups = groupCount - namedGroups;
-
-    if (remainingGroups <= 0) {
-        return {
-            channel: "color",
-            channelLabel: "Color",
-            attribute: COMMUNITY_ATTRIBUTE,
-            technicalName: COMMUNITY_TECHNICAL_NAME,
-            scaleLine: "categorical",
-            scaleShort: "categorical",
-            categories,
-        };
-    }
-
-    /* The remainder's share is counted from the groups that kept the neutral colour, so
-       the footer reports the nodes a reader can actually see are grey. */
-    let uncovered = 0;
-
-    for (const group of statistics.groups.slice(namedGroups)) {
-        uncovered += group.size;
-    }
-
-    return {
-        channel: "color",
-        channelLabel: "Color",
-        attribute: COMMUNITY_ATTRIBUTE,
-        technicalName: COMMUNITY_TECHNICAL_NAME,
-        scaleLine: "categorical",
-        scaleShort: "categorical",
-        categories,
-        other: {
-            label: "Other",
-            coverage: `${formatCount(remainingGroups)} ${remainingGroups === 1 ? "group" : "groups"}, ${formatPercent(nodeCount > 0 ? uncovered / nodeCount : 0)} of nodes`,
-            color: UNENCODED_NODE_COLOR,
-        },
-    };
-}
-
-/**
- * The word the MIDDLE stop carries inside its own label. Legend.tsx's {@link LegendStop}
- * doc is explicit that the median names itself rather than being read off its position:
- * "1 to 44" and "1 to 44" print the same string over two very different distributions,
- * and the median is the one number that tells them apart.
- */
-const MEDIAN_STOP_PREFIX = "median ";
-
-/** The compact form's dimmed suffix for a metric ramp (Legend.tsx, `scaleShort`). */
-const NODE_METRIC_SCALE_SHORT = "linear";
-
-/**
- * The scale IN WORDS, one sentence per normalisation.
- *
- * Keyed by {@link NodeMetricNormalisation} rather than by metric, so a fourth metric
- * normalised one of these two ways needs no edit here, and a metric normalised some third
- * way cannot compile until this record has a sentence for it.
- *
- * Design line 232-236 prints the scale "always, even where it is the default, because the
- * scale word is the one line on the legend that nothing else on the screen says", and
- * Legend.tsx's own header restates it. So a linear ramp says "linear" rather than saying
- * nothing.
- *
- * The two sentences differ, and they have to. Degree's degreePct and PageRank's rankPct
- * are value/max, so the lowest-scoring node lands wherever its own share of the maximum
- * puts it and is only at the bottom of the ramp if it scores zero. Betweenness's scorePct
- * is (score - min) / (max - min), so the lowest node is always exactly at the ramp's
- * bottom and the highest always exactly at its top. One shared "percent" sentence would
- * be wrong for one of the two whichever way it was written: it would either promise a
- * floor that only min-max delivers, or hide the floor min-max really has.
- */
-const NODE_METRIC_SCALE_LINES: Readonly<Record<NodeMetricNormalisation, string>> = {
-    max: "linear, scaled to the highest value",
-    "min-max": "linear, scaled between the lowest and highest value",
+/** The word the legend puts at the head of each block. */
+const BLOCK_LABEL: Readonly<Record<LegendChannelId, string>> = {
+    color: "Color",
+    size: "Size",
+    outline: "Outline",
+    edgeWidth: "Edge width",
+    arrow: "Arrow",
 };
 
 /**
- * One end of the ramp, drawn in the ink the CANVAS paints that node.
+ * The word the MIDDLE stop carries inside its own label, and it is "midpoint" rather than
+ * "median" because a midpoint is what the element publishes there.
  *
- * The swatch takes that reading's own fraction rather than 0, 0.5 and 1. A median swatch
- * drawn at `viridisAt(0.5)` would be the ramp's midpoint rather than the colour the
- * median node actually carries, and a metric ranking is almost always skewed -- on a
- * degree or betweenness distribution the median's fraction sits far nearer 0 than 0.5.
- * A legend whose middle swatch is green beside a canvas whose middle node is purple is a
- * swatch that lies about the picture next to it.
- *
- * The ranking carries the value and the fraction as separate scalars
- * ({@link NodeMetricRanking.medianValue} and {@link NodeMetricRanking.medianFraction}),
- * which is why they arrive here as two arguments: the label is the VALUE a reader reads
- * and the swatch is the FRACTION the canvas painted, and the two must not be derived from
- * each other.
- * @param metric - which metric the value belongs to; its precision is a property of it.
- * @param value - the metric value at this end of the domain.
- * @param fraction - where on the ramp the canvas paints it, 0 to 1.
- * @param prefix - {@link MEDIAN_STOP_PREFIX} for the middle stop, "" for the two ends.
- * @returns the stop, with its printed label and its ink.
+ * A quantitative block's swatches are stops the element swept across the DOMAIN -- seven evenly
+ * spaced values for a ramp, one per painted group for a stepped encoding -- so the middle one is
+ * the middle of that row of stops and says nothing about where the values actually sit. Calling
+ * it the median was a claim about the distribution that no number in the block supports, and
+ * "median 3" over a column whose median is 47 is exactly the false reading this file's header
+ * says a legend exists to prevent. Build spec 01 section 9 writes the line as "the domain
+ * endpoints with the median or midpoint", so naming the midpoint is the specified form for a
+ * block that carries one.
  */
-function metricStop(metric: NodeMetricId, value: number, fraction: number, prefix: string): LegendStop {
+const MIDPOINT_STOP_PREFIX = "midpoint ";
+
+/** What the compact form's dimmed suffix says for a block with no scale of its own. */
+const LITERAL_SCALE_SHORT = "fixed";
+
+/**
+ * The neutral the Other row is drawn in: what an element no category covers is painted.
+ *
+ * Read off the element's own default node style rather than written here, so the chip and the
+ * nodes it stands for cannot come to disagree. The shell held two copies of this hex before
+ * this, neither of which anything would have updated.
+ * @returns the colour as "#RRGGBB".
+ */
+function otherRowColor(): string {
+    return defaultNodeHex();
+}
+
+/**
+ * Whether a legend block describes a ramp rather than a list.
+ * @param block - the block the element published.
+ * @returns true for a sequential or diverging encoding.
+ */
+function isQuantitative(block: LegendBlock): boolean {
+    return block.kind === "sequential" || block.kind === "diverging";
+}
+
+/**
+ * One swatch as the canvas draws a ramp endpoint.
+ *
+ * The colour is the swatch's OWN colour, never a palette lookup at a position this module
+ * chose: the element painted the canvas from the same prepared binding, so the chip and the
+ * node it stands for are one value read twice rather than two guesses.
+ * @param swatch - the swatch the element published.
+ * @param prefix - {@link MIDPOINT_STOP_PREFIX} for the middle stop, "" for the two ends.
+ * @returns the stop, or undefined when the element published no swatch there.
+ */
+function stopOf(swatch: LegendSwatch | undefined, prefix: string): LegendStop | undefined {
+    if (swatch === undefined) {
+        return undefined;
+    }
+
     return {
-        label: `${prefix}${formatMetricValue(metric, value)}`,
-        color: viridisAt(fraction),
+        label: `${prefix}${swatch.label}`,
+        ...(swatch.color === undefined ? {} : { color: swatch.color }),
+        ...(swatch.size === undefined ? {} : { radius: swatch.size }),
     };
 }
 
 /**
- * What the legend needs of a node metric run in order to name its colour.
- * @public
+ * The three stops a quantitative block draws: the two ends of the domain and the middle.
+ *
+ * The middle is the swatch the element put in the middle of its own list, and it carries the
+ * COLOUR that swatch carries rather than a palette lookup at a position chosen here -- so the
+ * chip and the nodes it stands for are one value read twice. A block with fewer than three
+ * swatches draws the ones it has.
+ * @param swatches - the swatches the element published, low to high.
+ * @returns the stops, in drawing order.
  */
-export interface NodeMetricChannelInput {
-    /** Which metric ran; it names the channel through {@link NODE_METRIC_DEFINITIONS}. */
-    readonly metric: NodeMetricId;
-    /** What the run reported, read back off the element. */
-    readonly ranking: NodeMetricRanking;
-    /** Whether the colour ramp was actually applied. False draws no channel at all. */
-    readonly encodingApplied: boolean;
+function rampStops(swatches: readonly LegendSwatch[]): readonly LegendStop[] {
+    if (swatches.length === 0) {
+        return [];
+    }
+
+    const middle = swatches.length > 2 ? swatches[Math.floor(swatches.length / 2)] : undefined;
+    const stops = [
+        stopOf(swatches[0], ""),
+        stopOf(middle, MIDPOINT_STOP_PREFIX),
+        stopOf(swatches.length > 1 ? swatches[swatches.length - 1] : undefined, ""),
+    ];
+
+    return stops.filter((stop): stop is LegendStop => stop !== undefined);
 }
 
 /**
- * The colour channel for a node metric run: the metric's plain-then-technical pair, the
- * scale in words, the domain's two ends with the median between them, and the departure
- * line for any node the run did not reach.
+ * The categorical rows a block draws, capped at the canvas's own five.
+ * @param swatches - the swatches the element published, largest first.
+ * @returns at most five rows.
+ */
+function categoriesOf(swatches: readonly LegendSwatch[]): readonly LegendCategory[] {
+    return swatches.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS).map(
+        (swatch, index): LegendCategory => ({
+            id: `swatch-${String(index)}`,
+            label: swatch.label,
+            color: swatch.color ?? otherRowColor(),
+        }),
+    );
+}
+
+/**
+ * The Other row, when the encoding covers more categories than the canvas names.
  *
- * It is QUANTITATIVE, so it carries `stops` and neither `categories` nor `other`. A
- * categorical row under a ramp would be a second kind of legend for one encoding, and the
- * Other row's coverage footer belongs to a categorical cap this channel does not have.
+ * The count is every category the BLOCK does not name -- the ones the cap pushed out plus
+ * the ones the element's own twelve-swatch limit never sent -- because a painted-but-unnamed
+ * category disappearing from the legend altogether is the defect this row exists to prevent.
+ * The share is counted from the swatches' own counts and is omitted when the element could
+ * not say how many elements carry each value.
+ * @param block - the block the element published.
+ * @returns the row, or undefined when every category is named.
+ */
+function otherRowOf(block: LegendBlock): LegendChannel["other"] {
+    const named = Math.min(block.swatches.length, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS);
+    const remaining = block.swatches.length - named + (block.overflow?.hidden ?? 0);
+
+    if (remaining <= 0) {
+        return undefined;
+    }
+
+    return {
+        label: "Other",
+        coverage: `${String(remaining)} ${remaining === 1 ? "category" : "categories"}`,
+        color: otherRowColor(),
+    };
+}
+
+/**
+ * One canvas legend block, or undefined when the canvas draws no block for that channel.
  *
- * The technical half is handed over WITHOUT its parentheses: Legend.tsx's own
- * {@link LegendChannel.technicalName} doc says it is drawn dimmed inside parentheses on
- * the same line, so a parenthesised name here would print twice over.
- * @param input - the metric, its ranking and whether the ramp was applied.
- * @returns the colour channel, or null when nothing was painted.
+ * A LITERAL block -- a layer painting a fixed colour -- is drawn as a single category, which
+ * is what it is: one value, one chip. It carries the scale word "fixed" rather than a scale
+ * it does not have.
+ * @param block - the block the element published.
+ * @returns the canvas's own block, or undefined.
  * @public
  */
-export function nodeMetricColourChannel(input: NodeMetricChannelInput): LegendChannel | null {
-    const { encodingApplied, metric, ranking } = input;
+export function legendChannelOf(block: LegendBlock): LegendChannel | null {
+    const id = CANVAS_BLOCK_OF[block.channel];
 
-    if (!encodingApplied || ranking.rankedCount === 0) {
+    if (id === undefined) {
         return null;
     }
 
-    const definition = NODE_METRIC_DEFINITIONS[metric];
-    const stops: readonly LegendStop[] = [
-        metricStop(metric, ranking.minValue, ranking.minFraction, ""),
-        metricStop(metric, ranking.medianValue, ranking.medianFraction, MEDIAN_STOP_PREFIX),
-        metricStop(metric, ranking.maxValue, ranking.maxFraction, ""),
-    ];
+    const scaleLine = block.scale?.label ?? LITERAL_SCALE_SHORT;
+    const common = {
+        channel: id,
+        channelLabel: BLOCK_LABEL[id],
+        attribute: block.field?.plainName ?? block.scale?.label ?? BLOCK_LABEL[id],
+        ...(block.field?.technicalName === undefined ? {} : { technicalName: block.field.technicalName }),
+        scaleLine,
+        scaleShort: block.scale?.kind ?? LITERAL_SCALE_SHORT,
+        ...(block.departures.length === 0 ? {} : { departures: block.departures }),
+    };
 
-    /* Legend.tsx's LegendChannel.departures doc names this exact line -- "including the
-       clamp line and 'not measured (N nodes)'" -- and design lines 236 and 5117 name it
-       twice more. It is the legend's half of the rule that a node the run did not reach
-       keeps the neutral UNENCODED_NODE_COLOR rather than being painted viridis(0): the
-       canvas shows grey nodes under a ramp, and this line is what says why they are grey.
+    if (isQuantitative(block)) {
+        return { ...common, stops: rampStops(block.swatches) };
+    }
 
-       Floor item 2 prunes duplicates, never the departure itself, so the count appears
-       ONCE here and appears whenever there is one, whatever the result card's caveats
-       line also says. When the run reached every node the field is omitted rather than
-       set to an empty array -- absent is how this module says "nothing to report", the
-       same way an unencoded channel is absent rather than empty.
-
-       The wording is the spec's, printed as written rather than inflected, because the
-       same line is quoted by the screen legend and by the composed export legend. */
-    const notMeasured = ranking.nodeCount - ranking.rankedCount;
+    const other = otherRowOf(block);
 
     return {
-        channel: "color",
-        channelLabel: "Color",
-        attribute: definition.plainName,
-        technicalName: definition.technicalName,
-        scaleLine: NODE_METRIC_SCALE_LINES[definition.normalisation],
-        scaleShort: NODE_METRIC_SCALE_SHORT,
-        stops,
-        ...(notMeasured > 0 ? { departures: [`Not measured (${formatCount(notMeasured)} nodes)`] } : {}),
+        ...common,
+        categories: categoriesOf(block.swatches),
+        ...(other === undefined ? {} : { other }),
     };
+}
+
+/**
+ * Every canvas legend block, from the element's own legend.
+ *
+ * The element returns its blocks BOTTOM FIRST, which is paint order, so the list is reversed
+ * on the way out: a reader looks at the topmost encoding first, and `orderLegendChannels`
+ * then puts what survives into the canvas's fixed block order.
+ * @param blocks - what `session.styles.legend()` answered.
+ * @returns one canvas block per channel the canvas legend draws, topmost encoding first.
+ * @public
+ */
+export function legendChannels(blocks: readonly LegendBlock[]): readonly LegendChannel[] {
+    const channels: LegendChannel[] = [];
+
+    for (let at = blocks.length - 1; at >= 0; at--) {
+        const channel = legendChannelOf(blocks[at]);
+
+        if (channel !== null && !channels.some((held) => held.channel === channel.channel)) {
+            channels.push(channel);
+        }
+    }
+
+    return channels;
 }

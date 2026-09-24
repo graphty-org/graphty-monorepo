@@ -52,6 +52,13 @@ export class NodeEffects {
 
     /**
      * Get or create the HighlightLayer for selection outlines.
+     *
+     * CREATED LAZILY, ON THE FIRST MESH THAT ASKS FOR AN OUTLINE, for the reason spelled out on
+     * {@link NodeEffects.getOrCreateGlowLayer}: a highlight layer is a full-screen post-process
+     * with a render target and two blur passes, and until this was lazy every graph paid for one
+     * on its first node paint whether anything was ever outlined or not. The removal branch of
+     * {@link NodeEffects.applyOutlineEffect} deliberately does NOT create one.
+     *
      * The layer is stored on scene.metadata for reuse.
      * @param scene - The Babylon.js scene
      * @returns The highlight layer for the scene
@@ -78,39 +85,44 @@ export class NodeEffects {
     }
 
     /**
-     * Apply outline effect to a mesh based on the style configuration.
-     * If the style has an outline effect, the mesh is added to the HighlightLayer.
-     * If not, the mesh is removed from the HighlightLayer.
+     * Apply (or remove) the outline effect for a mesh, based on the style configuration.
+     *
+     * WHAT WAS BROKEN, and it drew nothing at all in any circumstance: this method used to hand
+     * `HighlightLayer.addMesh` the node's own mesh, which is always an `InstancedMesh` -- see
+     * {@link NodeEffects.resolveRenderedMesh}. Babylon renders an instance through its SOURCE
+     * mesh, so the inclusion list was given a mesh the layer never consults; and before it could
+     * even fail quietly it failed loudly, because `addMesh` subscribes to
+     * `mesh.onBeforeBindObservable`, which `Mesh` declares and `InstancedMesh` does not. The
+     * resulting TypeError went into a `try/catch` whose comment said the failure "is expected for
+     * instanced meshes", so an outline was accepted, validated, interned and silently dropped for
+     * the whole life of the channel. `test/browser/channel-paints.test.ts` measured it at zero
+     * pixels changed and `node.outline` sat in `UNPAINTED_CHANNELS` because of it.
+     *
+     * THE FIX IS THE ONE THE GLOW PATH ALREADY USED: resolve the rendered mesh first. The call no
+     * longer throws, so there is no catch here -- an outline that cannot be applied is a defect
+     * that must be seen rather than a frame that must be saved.
      * @param mesh The mesh to apply the effect to
      * @param effect The effect configuration from the node style
      */
     static applyOutlineEffect(mesh: AbstractMesh, effect: NodeStyleConfig["effect"] | undefined): void {
         const scene = mesh.getScene();
-        const highlightLayer = this.getOrCreateHighlightLayer(scene);
-
-        // Cast to Mesh - our node meshes are always Mesh or InstancedMesh (which extends Mesh)
-        const meshAsMesh = mesh as Mesh;
+        const renderedMesh = this.resolveRenderedMesh(mesh);
 
         if (effect?.outline) {
-            // Extract outline color
             const colorValue = this.extractColorValue(effect.outline.color);
             const color = Color3.FromHexString(colorValue ?? DEFAULT_OUTLINE_COLOR);
 
-            // Add mesh to highlight layer with the outline color
-            // Note: HighlightLayer has issues with InstancedMesh, so we catch errors
-            // and silently fail. For instanced meshes, use texture color changes instead.
-            try {
-                highlightLayer.addMesh(meshAsMesh, color);
-            } catch {
-                // Silently fail - this is expected for instanced meshes
-            }
-        } else {
-            // Remove mesh from highlight layer if no outline effect
-            try {
-                highlightLayer.removeMesh(meshAsMesh);
-            } catch {
-                // Silently fail - mesh may not be in the layer
-            }
+            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, color);
+
+            return;
+        }
+
+        // NO LAYER IS CREATED HERE, for the reason on getOrCreateHighlightLayer: asking a node
+        // not to be outlined must not cost the scene a full-screen post-process.
+        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
+
+        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
+            existingLayer.removeMesh(renderedMesh);
         }
     }
 
@@ -254,7 +266,15 @@ export class NodeEffects {
 
     /**
      * Remove a mesh from the highlight layer.
-     * Should be called when disposing a node.
+     *
+     * EXACTLY THE MESH IT IS HANDED, AND NOT THAT MESH'S SOURCE, which is what makes it safe to
+     * call while a node is being disposed. An outline is applied to the shared source mesh (see
+     * {@link NodeEffects.applyOutlineEffect}), so one source is precisely the set of nodes drawn
+     * with one outline configuration -- and resolving to it here would take the outline away from
+     * every sibling still on screen. That is the same reasoning `Node.dispose` records for glow,
+     * and it has the same consequence: for an instanced node this removes nothing, the source is
+     * freed when `MeshCache` is cleared, and the layer's leftover uniqueId is inert because
+     * Babylon's uniqueIds are monotonic per scene and never reused.
      * @param mesh - The mesh to remove from highlighting
      */
     static removeFromHighlight(mesh: AbstractMesh): void {

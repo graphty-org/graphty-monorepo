@@ -48,6 +48,52 @@ interface YFilesPolyLineEdge {
 }
 
 /**
+ * The direction the `<graph>` element declares, or null when it declares none.
+ *
+ * GraphML states direction in one place, `edgedefault`, and the specification makes the attribute
+ * REQUIRED -- so unlike GEXF or GML there is no format-assigned default to fall back on, and a
+ * file that omits it has not said anything the element may act on.
+ * @param graph - the parsed `<graph>` element
+ * @returns the direction and the text that stated it, or null when the attribute is absent or
+ *     carries a value GraphML does not define
+ */
+function readEdgeDefault(graph: { "@_edgedefault"?: unknown }): { directed: boolean; statedBy: string } | null {
+    const attribute = graph["@_edgedefault"];
+    if (typeof attribute !== "string") {
+        return null;
+    }
+
+    const value = attribute.trim().toLowerCase();
+    if (value !== "directed" && value !== "undirected") {
+        return null;
+    }
+
+    return { directed: value === "directed", statedBy: `edgedefault="${attribute}"` };
+}
+
+/**
+ * Whether an edge's own `directed` attribute says directed, or null when it says nothing usable.
+ *
+ * GraphML spells this one as the XML boolean `true` / `false`, not as the `directed` /
+ * `undirected` keywords `edgedefault` uses.
+ * @param edge - the parsed `<edge>` element
+ * @returns true, false, or null when the attribute is absent or unreadable
+ */
+function readEdgeDirected(edge: { "@_directed"?: unknown }): boolean | null {
+    const attribute = edge["@_directed"];
+    if (typeof attribute !== "string") {
+        return null;
+    }
+
+    const value = attribute.trim().toLowerCase();
+    if (value === "true") {
+        return true;
+    }
+
+    return value === "false" ? false : null;
+}
+
+/**
  * Data source for loading graph data from GraphML files.
  * Supports GraphML format with yFiles extensions for node shapes and edge styles.
  */
@@ -109,7 +155,16 @@ export class GraphMLDataSource extends DataSource {
 
         // Parse and yield nodes in chunks
         const nodes = this.parseNodes(graph.node, keys);
-        const edges = this.parseEdges(graph.edge, keys);
+        const declared = readEdgeDefault(graph as { "@_edgedefault"?: unknown });
+        const { edges, conflicts } = this.parseEdges(graph.edge, keys, declared?.directed ?? null);
+
+        // Declared BEFORE the first chunk is yielded, so the direction reaches the builder while it
+        // still holds no edges. A file with no `edgedefault` declares nothing: the attribute is
+        // REQUIRED by the GraphML specification, so its absence is a malformed document rather
+        // than a statement, and a malformed document is not something to read a direction out of.
+        if (declared !== null) {
+            this.declareDirection(declared.directed, declared.statedBy, conflicts);
+        }
 
         // Use shared chunking helper
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
@@ -202,13 +257,32 @@ export class GraphMLDataSource extends DataSource {
         return nodes;
     }
 
-    private parseEdges(edgeData: unknown, keys: Map<string, GraphMLKey>): unknown[] {
+    /**
+     * Parse the `<edge>` children, and count the ones that contradict the graph's declaration.
+     *
+     * A GraphML edge may carry `directed="true|false"` of its own, which overrides `edgedefault`
+     * for that edge alone and so makes a MIXED graph expressible in the file but not in the
+     * element, whose snapshot holds one direction flag for the whole graph. `edgedefault` is what
+     * the element adopts, because it is the file's statement about the graph AS A WHOLE. The
+     * per-edge value is not discarded: it is kept on the edge record as `directed`, where a style
+     * layer can still read it, and the count returned here is what the element logs.
+     * @param edgeData - the parsed `<edge>` elements
+     * @param keys - the key definitions
+     * @param declaredDirected - what `edgedefault` declared, or null when it declared nothing
+     * @returns the edge records, and how many carried a `directed` attribute that disagrees
+     */
+    private parseEdges(
+        edgeData: unknown,
+        keys: Map<string, GraphMLKey>,
+        declaredDirected: boolean | null,
+    ): { edges: unknown[]; conflicts: number } {
         if (!edgeData) {
-            return [];
+            return { edges: [], conflicts: 0 };
         }
 
         const edgeArray = Array.isArray(edgeData) ? edgeData : [edgeData];
         const edges: unknown[] = [];
+        let conflicts = 0;
 
         for (const edge of edgeArray) {
             try {
@@ -224,7 +298,15 @@ export class GraphMLDataSource extends DataSource {
                     continue;
                 }
 
-                const parsedEdge: Record<string, unknown> = { src, dst };
+                const parsedEdge: Record<string, unknown> = { source: src, target: dst };
+
+                const edgeDirected = readEdgeDirected(edge as { "@_directed"?: unknown });
+                if (edgeDirected !== null) {
+                    parsedEdge.directed = edgeDirected;
+                    if (declaredDirected !== null && edgeDirected !== declaredDirected) {
+                        conflicts++;
+                    }
+                }
 
                 // Parse data elements
                 if (edge.data) {
@@ -263,7 +345,7 @@ export class GraphMLDataSource extends DataSource {
             }
         }
 
-        return edges;
+        return { edges, conflicts };
     }
 
     private parseValue(value: string | object, type: string): unknown {

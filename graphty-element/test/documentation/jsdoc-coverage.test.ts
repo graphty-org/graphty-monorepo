@@ -50,7 +50,7 @@ describe("JSDoc Coverage", () => {
         });
 
         // Check specific properties have JSDoc
-        const properties = ["nodeData", "edgeData", "layout", "viewMode", "styleTemplate"];
+        const properties = ["nodeData", "edgeData", "layout", "viewMode", "background", "startingCameraDistance"];
 
         for (const prop of properties) {
             it(`${prop} property has JSDoc`, () => {
@@ -70,22 +70,37 @@ describe("JSDoc Coverage", () => {
     });
 
     describe("colorblind simulation exports", () => {
+        // The seven simulators are published from `./schema`, beside the palettes they exist to
+        // check, and from there only. They used to be published from the root barrel as well,
+        // which meant a consumer met two import lines for one function with nothing to say they
+        // were the same function -- and the root barrel defines the custom element, so checking
+        // a palette for colour-vision safety cost a 3D engine.
+        const schemaContent = readFileSync("schema.ts", "utf8");
         const indexContent = readFileSync("index.ts", "utf8");
 
-        it("exports colorblind simulation utilities", () => {
-            // Check that colorblind simulation functions are exported
-            const expectedExports = [
-                "simulateProtanopia",
-                "simulateDeuteranopia",
-                "simulateTritanopia",
-                "toGrayscale",
-                "colorDifference",
-                "isPaletteSafe",
-                "areDistinguishableInGrayscale",
-            ];
+        const expectedExports = [
+            "simulateProtanopia",
+            "simulateDeuteranopia",
+            "simulateTritanopia",
+            "toGrayscale",
+            "colorDifference",
+            "isPaletteSafe",
+            "areDistinguishableInGrayscale",
+        ];
 
+        it("exports colorblind simulation utilities from ./schema", () => {
             for (const exportName of expectedExports) {
-                assert.include(indexContent, exportName, `index.ts should export ${exportName}`);
+                assert.include(schemaContent, exportName, `schema.ts should export ${exportName}`);
+            }
+        });
+
+        it("publishes each of them from exactly one address, so the root barrel carries none", () => {
+            for (const exportName of expectedExports) {
+                assert.notInclude(
+                    indexContent,
+                    exportName,
+                    `index.ts should not also export ${exportName}: ./schema is where it lives`,
+                );
             }
         });
     });

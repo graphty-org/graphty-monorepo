@@ -24,8 +24,8 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(chunks[0].nodes.length, 2);
         assert.strictEqual(chunks[0].edges.length, 1);
         assert.strictEqual(chunks[0].nodes[0].id, "n0");
-        assert.strictEqual(chunks[0].edges[0].src, "n0");
-        assert.strictEqual(chunks[0].edges[0].dst, "n1");
+        assert.strictEqual(chunks[0].edges[0].source, "n0");
+        assert.strictEqual(chunks[0].edges[0].target, "n1");
     });
 
     test("parses key definitions and data elements", async () => {
@@ -243,8 +243,8 @@ describe("GraphMLDataSource", () => {
             }
 
             const edge = chunks[0].edges[0];
-            assert.strictEqual(edge.src, "n0");
-            assert.strictEqual(edge.dst, "n1");
+            assert.strictEqual(edge.source, "n0");
+            assert.strictEqual(edge.target, "n1");
             assert.strictEqual(edge.color, "#FF0000");
             assert.strictEqual(edge.width, 3.0);
             assert.strictEqual(edge.directed, true); // target arrow means directed

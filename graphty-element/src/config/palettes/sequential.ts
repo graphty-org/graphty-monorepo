@@ -4,6 +4,23 @@
  */
 
 /**
+ * Yellow-Orange-Brown, trimmed for a light background
+ * Light orange -> Dark brown, listed LOW value first
+ * Research: Paul Tol, "Colour Schemes" (2021), the YlOrBr sequential scheme
+ *
+ * Only the five steps of Tol's YlOrBr that stand off the element's whitesmoke background by
+ * between 2:1 and 12:1 are kept: the paler yellows vanish against it. One hue family, so it
+ * reads as "how much" rather than as groups. The element's default for a measurement.
+ */
+export const YLORBR_COLORS = [
+    "#ef7818", // lowest value - orange
+    "#d85a09",
+    "#b84203",
+    "#8e3104",
+    "#662506", // highest value - dark brown
+] as const;
+
+/**
  * Viridis palette - matplotlib default, perceptually uniform
  * Purple → Green → Yellow
  * ✅ Colorblind-safe ✅ Print-friendly ✅ Perceptually uniform

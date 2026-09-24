@@ -6,15 +6,21 @@
  * deterministic execution order based on dependencies, not call order.
  *
  * These tests correspond to the stories in stories/Determinism.stories.ts
+ *
+ * THE EDGES ARE SUPPLIED WITH `setEdges`, NOT `addEdges`, and the difference matters now. Several
+ * variants below hand the same edge set over more than once, which is what a host that re-renders
+ * on state change does. `addEdges` ADDS -- two records for one pair are two edges, because the
+ * element can hold parallel edges and no longer drops a repeat -- so an additive re-supply would
+ * double the graph. `setEdges` is the verb for "this is my edge set", and it is what the
+ * `edge-data` property calls. What these tests are about is unchanged: the same operations in any
+ * order end with the same graph.
  */
 
-import { Color3, InstancedMesh, StandardMaterial } from "@babylonjs/core";
+import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type { StyleSchema } from "../../src/config";
 import { Graph } from "../../src/Graph";
-import { Styles } from "../../src/Styles";
-import { isDisposed, type TestGraph } from "../helpers/testSetup";
+import { isDisposed, styleEveryEdge, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
 const TEST_NODES = [
@@ -35,95 +41,27 @@ const TEST_EDGES = [
     { src: "6", dst: "1" },
 ];
 
-// Style template matching the stories (cast to AdHocData for partial config)
-const STYLE_TEMPLATE = {
-    graphtyTemplate: true,
-    majorVersion: "1",
-    graph: {
-        addDefaultStyle: true,
-    },
-    layers: [
-        {
-            node: {
-                selector: "",
-                style: {
-                    texture: {
-                        color: "#4CAF50",
-                    },
-                    shape: {
-                        type: "sphere",
-                        size: 10,
-                    },
-                },
-            },
-            edge: {
-                selector: "",
-                style: {
-                    line: {
-                        color: "#666666",
-                        width: 3,
-                    },
-                },
-            },
-        },
-    ],
-} as unknown as StyleSchema;
+/** The appearance every variant in this file settles on: a green sphere of size 10. */
+const NODE_STYLE = { "node.color": "#4CAF50", "node.shape": "sphere", "node.size": 10 } as const;
 
-// Base style properties for reuse
-const BASE_STYLE_PROPS = {
-    nodeStyle: {
-        texture: {
-            color: "#4CAF50",
-        },
-        shape: {
-            type: "sphere" as const,
-            size: 10,
-        },
-    },
-    edgeStyle: {
-        line: {
-            color: "#666666",
-            width: 3,
-        },
-    },
-};
+/** And grey edges three units wide. */
+const EDGE_STYLE = { "edge.color": "#666666", "edge.width": 3 } as const;
 
-// Helper to create style templates (returns StyleSchema cast for partial config)
-function createStyleTemplate(overrides: Record<string, unknown> = {}): StyleSchema {
-    const graphOverrides = overrides.graph as Record<string, unknown> | undefined;
-    const nodeStyleOverrides = overrides.nodeStyle as Record<string, unknown> | undefined;
-    const edgeStyleOverrides = overrides.edgeStyle as Record<string, unknown> | undefined;
-    const base: Record<string, unknown> = {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            ...(graphOverrides ?? {}),
-        },
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        texture: nodeStyleOverrides?.texture ?? BASE_STYLE_PROPS.nodeStyle.texture,
-                        shape: nodeStyleOverrides?.shape ?? BASE_STYLE_PROPS.nodeStyle.shape,
-                    },
-                },
-                edge: {
-                    selector: "",
-                    style: {
-                        line: edgeStyleOverrides?.line ?? BASE_STYLE_PROPS.edgeStyle.line,
-                    },
-                },
-            },
-        ],
-    };
+/** The node colour as the renderer writes it into a node's own instance. */
+const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 
-    if (overrides.data) {
-        base.data = overrides.data;
-    }
-
-    return base as unknown as StyleSchema;
+/**
+ * Put the appearance every variant ends at onto a graph.
+ *
+ * A layer added later paints over a layer added earlier, so a variant that applies a wrong
+ * appearance first and this one afterwards ends up drawing this one -- which is the whole point
+ * of the scenarios below, said in the vocabulary of a stack rather than of a document that
+ * replaced everything each time it was applied.
+ * @param graph - The graph to style.
+ */
+async function applyFinalStyle(graph: Graph): Promise<void> {
+    await styleEveryNode(graph, NODE_STYLE, "final nodes");
+    await styleEveryEdge(graph, EDGE_STYLE, "final edges");
 }
 
 // Helper to wait for a delay
@@ -184,15 +122,25 @@ describe("Property Order Independence", () => {
 
     /**
      * Verify that all nodes have the expected style properties applied.
-     * This ensures eventual consistency - regardless of operation order,
-     * the final visual style should match the expected STYLE_TEMPLATE.
+     *
+     * This ensures eventual consistency: regardless of operation order, the final picture must
+     * be the one the last layer asked for. Read from the style stack's own answer per node,
+     * which is the one reading that says what a node is drawn as -- the colour beside the style,
+     * because it is written into the node's own instance rather than into the material of the
+     * source mesh every node of that shape shares.
      */
-    function verifyNodeStyles(expectedColor: string, expectedShape: string, expectedSize: number): void {
+    function verifyNodeStyles(
+        expectedColor: { r: number; g: number; b: number; a: number },
+        expectedShape: string,
+        expectedSize: number,
+    ): void {
         for (const node of graph.getNodes()) {
-            const style = Styles.getStyleForNodeStyleId(node.styleId);
-            assert.equal(style.texture?.color, expectedColor, `Node ${node.id} should have color ${expectedColor}`);
-            assert.equal(style.shape?.type, expectedShape, `Node ${node.id} should have shape ${expectedShape}`);
-            assert.equal(style.shape?.size, expectedSize, `Node ${node.id} should have size ${expectedSize}`);
+            const paint = graph.getStylePainter().nodePaint(node.index);
+
+            assert.isNotNull(paint, `Node ${node.id} should have been painted`);
+            assert.deepEqual(paint?.color, expectedColor, `Node ${node.id} should have the expected colour`);
+            assert.equal(paint?.style.shape?.type, expectedShape, `Node ${node.id} should have shape ${expectedShape}`);
+            assert.equal(paint?.style.shape?.size, expectedSize, `Node ${node.id} should have size ${expectedSize}`);
         }
     }
 
@@ -202,9 +150,13 @@ describe("Property Order Independence", () => {
      */
     function verifyEdgeStyles(expectedColor: string, expectedWidth: number): void {
         for (const edge of graph.getDataManager().edges.values()) {
-            const style = Styles.getStyleForEdgeStyleId(edge.styleId);
-            assert.equal(style.line?.color, expectedColor, `Edge should have color ${expectedColor}`);
-            assert.equal(style.line?.width, expectedWidth, `Edge should have width ${expectedWidth}`);
+            // An edge carries its colour IN its style, because the edge renderer has no
+            // per-instance state to carry one. See EdgePaint.
+            const paint = graph.getStylePainter().edgePaint(edge.index);
+
+            assert.isNotNull(paint, "Edge should have been painted");
+            assert.equal(paint?.style.line?.color, expectedColor, `Edge should have color ${expectedColor}`);
+            assert.equal(paint?.style.line?.width, expectedWidth, `Edge should have width ${expectedWidth}`);
         }
     }
 
@@ -212,9 +164,7 @@ describe("Property Order Independence", () => {
      * Combined verification helper for the standard STYLE_TEMPLATE
      */
     function verifyFinalStyles(): void {
-        // Verify node styles match STYLE_TEMPLATE
-        verifyNodeStyles("#4CAF50", "sphere", 10);
-        // Verify edge styles match STYLE_TEMPLATE
+        verifyNodeStyles(NODE_COLOR, "sphere", 10);
         verifyEdgeStyles("#666666", 3);
     }
 
@@ -321,34 +271,24 @@ describe("Property Order Independence", () => {
     }
 
     /**
-     * Verify node mesh materials have the expected color applied.
-     * This ensures the style system properly configured the mesh materials.
+     * Verify the colour the renderer wrote into each node's own instance.
+     *
+     * NOT THE MATERIAL. Every node of one shape and size shares a source mesh whose material is
+     * deliberately neutral, so that a graph of fifty thousand colours is fifty thousand
+     * instances of one mesh rather than fifty thousand meshes.
      */
     function verifyNodeMeshMaterials(expectedColor: string): void {
         const expectedColorObj = Color3.FromHexString(expectedColor);
 
         for (const node of graph.getNodes()) {
-            const material = node.mesh.material as StandardMaterial | null;
-            if (material?.diffuseColor) {
-                // Compare colors with tolerance for floating point
-                assert.closeTo(
-                    material.diffuseColor.r,
-                    expectedColorObj.r,
-                    0.01,
-                    `Node ${node.id} material red should match expected color`,
-                );
-                assert.closeTo(
-                    material.diffuseColor.g,
-                    expectedColorObj.g,
-                    0.01,
-                    `Node ${node.id} material green should match expected color`,
-                );
-                assert.closeTo(
-                    material.diffuseColor.b,
-                    expectedColorObj.b,
-                    0.01,
-                    `Node ${node.id} material blue should match expected color`,
-                );
+            const painted = (node.mesh as InstancedMesh).instancedBuffers?.color as
+                | { r: number; g: number; b: number }
+                | undefined;
+
+            if (painted) {
+                assert.closeTo(painted.r, expectedColorObj.r, 0.01, `Node ${node.id} instance red should match`);
+                assert.closeTo(painted.g, expectedColorObj.g, 0.01, `Node ${node.id} instance green should match`);
+                assert.closeTo(painted.b, expectedColorObj.b, 0.01, `Node ${node.id} instance blue should match`);
             }
         }
     }
@@ -478,9 +418,9 @@ describe("Property Order Independence", () => {
     describe("Scenario 1: Deterministic Output Despite Property Order", () => {
         it("Variant 1: Style → Data → Layout", async () => {
             // Order: Style → Data → Layout
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
             await graph.setLayout("circular");
 
             await graph.operationQueue.waitForCompletion();
@@ -499,9 +439,9 @@ describe("Property Order Independence", () => {
         it("Variant 2: Layout → Data (reversed) → Style", async () => {
             // Order: Layout → Data (reversed) → Style
             await graph.setLayout("circular");
-            await graph.addEdges(TEST_EDGES); // Edges before nodes!
+            await graph.setEdges(TEST_EDGES); // Edges before nodes!
             await graph.addNodes(TEST_NODES);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -525,7 +465,7 @@ describe("Property Order Independence", () => {
         it("Variant 3: Delayed data loading with wrong initial state", async () => {
             // Start with wrong layout
             await graph.setLayout("random");
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             // Load partial data first
             await delay(5);
@@ -540,7 +480,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
 
             await delay(5);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -556,14 +496,11 @@ describe("Property Order Independence", () => {
 
         it("Variant 4: Multiple style updates with delayed data", async () => {
             // Start with wrong style
-            const wrongStyle = createStyleTemplate({
-                nodeStyle: {
-                    texture: { color: "#FF0000" },
-                    shape: { type: "sphere", size: 10 },
-                },
-            });
-
-            await graph.setStyleTemplate(wrongStyle);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#FF0000", "node.shape": "sphere", "node.size": 10 },
+                "wrong nodes",
+            );
             await graph.setLayout("random");
 
             // Fix layout first
@@ -573,11 +510,11 @@ describe("Property Order Independence", () => {
             // Load data
             await delay(5);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             // Update to correct style last
             await delay(30);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -600,18 +537,13 @@ describe("Property Order Independence", () => {
     describe("Scenario 3: Partial Data Updates", () => {
         it("Variant 5: Incremental data loading with corrections", async () => {
             // Start with wrong layout and style
-            const wrongStyle = createStyleTemplate({
-                nodeStyle: {
-                    texture: { color: "#0000FF" },
-                    shape: { type: "box", size: 10 },
-                },
-                edgeStyle: {
-                    line: { color: "#FF0000", width: 3 },
-                },
-            });
-
             await graph.setLayout("random");
-            await graph.setStyleTemplate(wrongStyle);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#0000FF", "node.shape": "box", "node.size": 10 },
+                "wrong nodes",
+            );
+            await styleEveryEdge(graph, { "edge.color": "#FF0000", "edge.width": 3 }, "wrong edges");
 
             // Load partial data immediately
             await graph.addNodes(TEST_NODES.slice(0, 2));
@@ -626,7 +558,7 @@ describe("Property Order Independence", () => {
 
             // Fix style
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             // Load complete node data
             await delay(5);
@@ -634,7 +566,7 @@ describe("Property Order Independence", () => {
 
             // Load edges last
             await delay(5);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -650,7 +582,7 @@ describe("Property Order Independence", () => {
 
         it("Variant 6: Maximum chaos with multiple wrong updates", async () => {
             // Chaotic sequence of operations
-            await graph.addEdges(TEST_EDGES); // Edges first - will be buffered
+            await graph.setEdges(TEST_EDGES); // Edges first - will be buffered
             await graph.setLayout("random");
 
             await delay(5);
@@ -662,21 +594,21 @@ describe("Property Order Independence", () => {
             await delay(2);
             await graph.addNodes(TEST_NODES.slice(0, 4));
 
-            const wrongStyle1 = createStyleTemplate({
-                nodeStyle: { texture: { color: "#0000FF" }, shape: { type: "box", size: 10 } },
-                edgeStyle: { line: { color: "#FF0000", width: 3 } },
-            });
+            await delay(5);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#0000FF", "node.shape": "box", "node.size": 10 },
+                "wrong nodes 1",
+            );
+            await styleEveryEdge(graph, { "edge.color": "#FF0000", "edge.width": 3 }, "wrong edges 1");
 
             await delay(5);
-            await graph.setStyleTemplate(wrongStyle1);
-
-            const wrongStyle2 = createStyleTemplate({
-                nodeStyle: { texture: { color: "#FF00FF" }, shape: { type: "cylinder", size: 10 } },
-                edgeStyle: { line: { color: "#00FF00", width: 3 } },
-            });
-
-            await delay(5);
-            await graph.setStyleTemplate(wrongStyle2);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#FF00FF", "node.shape": "cylinder", "node.size": 10 },
+                "wrong nodes 2",
+            );
+            await styleEveryEdge(graph, { "edge.color": "#00FF00", "edge.width": 3 }, "wrong edges 2");
 
             await delay(5);
             await graph.setLayout("circular");
@@ -685,10 +617,10 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
 
             await delay(5);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -709,26 +641,26 @@ describe("Property Order Independence", () => {
 
     describe("Scenario 4: Cancellation Patterns", () => {
         it("Variant 7: Cancel style loading mid-flight", async () => {
-            const wrongStyle1 = createStyleTemplate({
-                nodeStyle: { texture: { color: "#FF0000" }, shape: { type: "sphere", size: 10 } },
-            });
-
-            const wrongStyle2 = createStyleTemplate({
-                nodeStyle: { texture: { color: "#0000FF" }, shape: { type: "sphere", size: 10 } },
-            });
-
-            // Set multiple styles in quick succession - only last should apply
-            await graph.setStyleTemplate(wrongStyle1);
+            // Add several layers in quick succession - the last one painted is what shows
+            await styleEveryNode(
+                graph,
+                { "node.color": "#FF0000", "node.shape": "sphere", "node.size": 10 },
+                "wrong nodes 1",
+            );
 
             await delay(5);
-            await graph.setStyleTemplate(wrongStyle2);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#0000FF", "node.shape": "sphere", "node.size": 10 },
+                "wrong nodes 2",
+            );
 
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await delay(5);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await delay(5);
             await graph.setLayout("circular");
@@ -748,20 +680,20 @@ describe("Property Order Independence", () => {
         it("Variant 8: Cancel data loading and set new data", async () => {
             // Load wrong partial data
             await graph.addNodes(TEST_NODES.slice(0, 2));
-            await graph.addEdges(TEST_EDGES.slice(0, 1));
+            await graph.setEdges(TEST_EDGES.slice(0, 1));
 
             // Replace with different partial data
             await delay(5);
             await graph.addNodes(TEST_NODES.slice(0, 4));
-            await graph.addEdges(TEST_EDGES.slice(0, 3));
+            await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             // Load correct complete data
             await delay(5);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             await graph.operationQueue.waitForCompletion();
@@ -788,8 +720,8 @@ describe("Property Order Independence", () => {
 
             await delay(5);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await graph.setEdges(TEST_EDGES);
+            await applyFinalStyle(graph);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -810,19 +742,17 @@ describe("Property Order Independence", () => {
 
     describe("Scenario 5: Algorithm Integration", () => {
         it("Variant 10: Algorithm + Style, then load data", async () => {
-            // Set style with algorithms configured (but no data yet)
-            const styleWithAlgorithm = createStyleTemplate({
-                data: {
-                    algorithms: ["graphty:pagerank"],
-                },
-            });
-
-            await graph.setStyleTemplate(styleWithAlgorithm);
+            // AN ALGORITHM IS A VERB NOW, so it is started where the data it measures exists.
+            // The style template used to carry a list of algorithms to run on load, which is
+            // why this variant set it before the data; the ordering actually under test is
+            // still the one between the style, the layout and the load.
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -834,8 +764,6 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
-            // The Determinism stories don't set runAlgorithmsOnLoad, so we don't verify algorithm results
         });
 
         it("Variant 11: Layout before data", async () => {
@@ -843,11 +771,11 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await delay(5);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -869,7 +797,7 @@ describe("Property Order Independence", () => {
     describe("Scenario 6: Manual Node/Edge Addition", () => {
         it("Variant 12: Config then manual add", async () => {
             // Set all configuration first
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             // Manually add nodes incrementally
@@ -893,13 +821,13 @@ describe("Property Order Independence", () => {
 
             // Add edges incrementally
             await delay(5);
-            await graph.addEdges([TEST_EDGES[0]]);
+            await graph.setEdges([TEST_EDGES[0]]);
 
             await delay(5);
-            await graph.addEdges(TEST_EDGES.slice(0, 3));
+            await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             await delay(5);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -916,22 +844,22 @@ describe("Property Order Independence", () => {
         it("Variant 13: Interleaved manual add", async () => {
             // Add some initial data
             await graph.addNodes(TEST_NODES.slice(0, 2));
-            await graph.addEdges([TEST_EDGES[0]]);
+            await graph.setEdges([TEST_EDGES[0]]);
 
             await delay(10);
             // Set configuration in the middle
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             await delay(10);
             // Add more nodes
             await graph.addNodes(TEST_NODES.slice(0, 4));
-            await graph.addEdges(TEST_EDGES.slice(0, 3));
+            await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             await delay(10);
             // Complete the data
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -952,20 +880,20 @@ describe("Property Order Independence", () => {
 
     describe("Scenario 7: Configuration Replacement", () => {
         it("Variant 14: Replace style after initial setup", async () => {
-            const wrongStyle = createStyleTemplate({
-                nodeStyle: { texture: { color: "#FF0000" }, shape: { type: "box", size: 10 } },
-                edgeStyle: { line: { color: "#0000FF", width: 3 } },
-            });
-
             // Initial complete setup with wrong style
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(wrongStyle);
+            await graph.setEdges(TEST_EDGES);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#FF0000", "node.shape": "box", "node.size": 10 },
+                "wrong nodes",
+            );
+            await styleEveryEdge(graph, { "edge.color": "#0000FF", "edge.width": 3 }, "wrong edges");
             await graph.setLayout("circular");
 
             // Replace style after everything is loaded
             await delay(20);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -982,8 +910,8 @@ describe("Property Order Independence", () => {
         it("Variant 15: Replace layout after initial setup", async () => {
             // Initial complete setup with wrong layout
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await graph.setEdges(TEST_EDGES);
+            await applyFinalStyle(graph);
             await graph.setLayout("random");
 
             // Replace layout after everything is loaded
@@ -1003,20 +931,20 @@ describe("Property Order Independence", () => {
         });
 
         it("Variant 16: Replace both layout and style", async () => {
-            const wrongStyle = createStyleTemplate({
-                nodeStyle: { texture: { color: "#0000FF" }, shape: { type: "cylinder", size: 10 } },
-                edgeStyle: { line: { color: "#FF00FF", width: 3 } },
-            });
-
             // Initial complete setup with wrong style and layout
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(wrongStyle);
+            await graph.setEdges(TEST_EDGES);
+            await styleEveryNode(
+                graph,
+                { "node.color": "#0000FF", "node.shape": "cylinder", "node.size": 10 },
+                "wrong nodes",
+            );
+            await styleEveryEdge(graph, { "edge.color": "#FF00FF", "edge.width": 3 }, "wrong edges");
             await graph.setLayout("ngraph");
 
             // Replace both after everything is loaded
             await delay(30);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             await graph.operationQueue.waitForCompletion();
@@ -1042,22 +970,22 @@ describe("Property Order Independence", () => {
             await graph.addNodes([TEST_NODES[0]]);
 
             await delay(5);
-            await graph.addEdges([TEST_EDGES[0]]);
+            await graph.setEdges([TEST_EDGES[0]]);
 
             await delay(5);
             await graph.addNodes(TEST_NODES.slice(0, 3));
 
             await delay(5);
-            await graph.addEdges(TEST_EDGES.slice(0, 3));
+            await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             await delay(5);
             await graph.addNodes(TEST_NODES);
 
             await delay(5);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             await graph.operationQueue.waitForCompletion();
@@ -1075,8 +1003,8 @@ describe("Property Order Independence", () => {
         it("Variant 18: Multiple rapid layout changes", async () => {
             // Set data and style first
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await graph.setEdges(TEST_EDGES);
+            await applyFinalStyle(graph);
 
             // Rapidly switch layouts
             await graph.setLayout("random");
@@ -1114,13 +1042,13 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             await delay(10);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             await delay(10);
             await graph.addNodes(TEST_NODES);
 
             await delay(10);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1136,13 +1064,13 @@ describe("Property Order Independence", () => {
 
         it("Variant 20: Configuration first, long-delayed data", async () => {
             // Set all configuration immediately
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             // Wait a long time before loading data
             await delay(50);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1165,27 +1093,24 @@ describe("Property Order Independence", () => {
         it("Variant 21: Algorithm re-run on data add", async () => {
             await graph.setLayout("circular");
 
-            const styleWithAlgorithm = createStyleTemplate({
-                data: { algorithms: ["graphty:pagerank"] },
-            });
-
             // Load initial data
             await delay(10);
             await graph.addNodes(TEST_NODES.slice(0, 3));
-            await graph.addEdges(TEST_EDGES.slice(0, 2));
+            await graph.setEdges(TEST_EDGES.slice(0, 2));
 
             await delay(5);
-            await graph.setStyleTemplate(styleWithAlgorithm);
+            await applyFinalStyle(graph);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // Add more data - algorithm should automatically re-run
             await delay(5);
             await graph.addNodes(TEST_NODES.slice(0, 5));
-            await graph.addEdges(TEST_EDGES.slice(0, 4));
+            await graph.setEdges(TEST_EDGES.slice(0, 4));
 
             // Add final data - algorithm should re-run again
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1197,32 +1122,26 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
         });
 
         it("Variant 22: Algorithm re-run on data replace", async () => {
-            // Configure algorithm and layout before data
-            const styleWithAlgorithm = createStyleTemplate({
-                data: { algorithms: ["graphty:pagerank"] },
-            });
-
-            await graph.setStyleTemplate(styleWithAlgorithm);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             // Load initial data
             await delay(10);
             await graph.addNodes(TEST_NODES.slice(0, 3));
-            await graph.addEdges(TEST_EDGES.slice(0, 2));
+            await graph.setEdges(TEST_EDGES.slice(0, 2));
 
             // Replace with different data
             await delay(10);
             await graph.addNodes(TEST_NODES.slice(0, 4));
-            await graph.addEdges(TEST_EDGES.slice(0, 3));
+            await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             // Replace with final complete data
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1234,30 +1153,24 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
         });
 
         it("Variant 23: Multiple algorithms re-run", async () => {
-            // Configure multiple algorithms
-            const styleWithAlgorithms = createStyleTemplate({
-                data: { algorithms: ["graphty:pagerank", "graphty:betweenness"] },
-            });
-
-            await graph.setStyleTemplate(styleWithAlgorithms);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
             // Add data incrementally - algorithms should re-run each time
             await delay(10);
             await graph.addNodes(TEST_NODES.slice(0, 2));
-            await graph.addEdges([TEST_EDGES[0]]);
+            await graph.setEdges([TEST_EDGES[0]]);
 
             await delay(10);
             await graph.addNodes(TEST_NODES.slice(0, 4));
-            await graph.addEdges(TEST_EDGES.slice(0, 3));
+            await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1269,8 +1182,6 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Verify both algorithms ran on final data
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
         });
     });
 
@@ -1281,16 +1192,13 @@ describe("Property Order Independence", () => {
     describe("Scenario 10: Camera Mode (2D/3D) with Style Updates", () => {
         it("Variant 24: 2D camera + style updates", async () => {
             // Configure 2D camera from the start
-            const style2D = createStyleTemplate({
-                graph: { twoD: true },
-            });
-
-            await graph.setStyleTemplate(style2D);
+            await graph.setViewMode("2d");
+            await applyFinalStyle(graph);
 
             // Load data
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             // Change layout
             await delay(10);
@@ -1298,10 +1206,7 @@ describe("Property Order Independence", () => {
 
             // Update style properties (while in 2D mode)
             await delay(10);
-            const updatedStyle = createStyleTemplate({
-                graph: { twoD: true },
-            });
-            await graph.setStyleTemplate(updatedStyle);
+            await applyFinalStyle(graph);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1317,22 +1222,19 @@ describe("Property Order Independence", () => {
         it("Variant 25: 3D → 2D + Style Update", async () => {
             // Start in 3D (default)
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
             await graph.setLayout("circular");
 
             // Set initial 3D style
             await delay(10);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
 
             // Verify we're in 3D mode initially
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D camera
             await delay(10);
-            const style2D = createStyleTemplate({
-                graph: { twoD: true },
-            });
-            await graph.setStyleTemplate(style2D);
+            await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1350,12 +1252,19 @@ describe("Property Order Independence", () => {
         it("Variant 26: Rapid camera switch with Z restoration", async () => {
             // Load data first
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
             await graph.setLayout("circular");
 
             // Initial 3D style
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await applyFinalStyle(graph);
             await graph.operationQueue.waitForCompletion();
+
+            // The mesh positions are synced from the layout engine on the frame loop, so they
+            // are asked for explicitly here: a Z read before the sync is 0, and a test that
+            // recorded 0 as the "original" would pass whether or not it was ever restored.
+            for (const node of graph.getNodes()) {
+                node.update();
+            }
 
             // Store original 3D Z positions
             const originalZPositions = new Map<string | number, number>();
@@ -1365,7 +1274,7 @@ describe("Property Order Independence", () => {
 
             // Switch to 2D
             await delay(5);
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions are flattened
@@ -1373,7 +1282,7 @@ describe("Property Order Independence", () => {
 
             // Switch back to 3D
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions are restored
@@ -1394,7 +1303,7 @@ describe("Property Order Independence", () => {
 
             // Switch to 2D again
             await delay(5);
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify Z positions are flattened again
@@ -1402,7 +1311,7 @@ describe("Property Order Independence", () => {
 
             // Final: back to 3D
             await delay(5);
-            await graph.setStyleTemplate(STYLE_TEMPLATE);
+            await graph.setViewMode("3d");
             await graph.operationQueue.waitForCompletion();
 
             // Verify final state
@@ -1433,27 +1342,20 @@ describe("Property Order Independence", () => {
 
     describe("Scenario 11: Algorithm + Camera Combinations", () => {
         it("Variant 27: Algorithm 3D → 2D", async () => {
-            // Load data in 3D with algorithm
-            const styleWithAlgorithm = createStyleTemplate({
-                data: { algorithms: ["graphty:pagerank"] },
-            });
-
+            // Load data in 3D and measure it
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await graph.setStyleTemplate(styleWithAlgorithm);
+            await graph.setEdges(TEST_EDGES);
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
+            await graph.runAlgorithm("graphty", "pagerank");
 
-            // Switch to 2D camera after algorithm runs
+            // Switch to 2D camera after the algorithm has run
             await delay(20);
-            const style2D = createStyleTemplate({
-                graph: { twoD: true },
-                data: { algorithms: ["graphty:pagerank"] },
-            });
-            await graph.setStyleTemplate(style2D);
+            await graph.setViewMode("2d");
 
             // Switch back to 3D
             await delay(10);
-            await graph.setStyleTemplate(styleWithAlgorithm);
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1464,26 +1366,20 @@ describe("Property Order Independence", () => {
         });
 
         it("Variant 28: 2D camera + algorithm", async () => {
-            // Configure 2D camera with algorithm
-            const style2DWithAlgorithm = createStyleTemplate({
-                graph: { twoD: true },
-                data: { algorithms: ["graphty:pagerank"] },
-            });
-
-            await graph.setStyleTemplate(style2DWithAlgorithm);
+            // Configure 2D camera, then measure the graph in it
+            await graph.setViewMode("2d");
+            await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            // Load data (algorithm will run in 2D mode)
+            // Load data, then run the algorithm over it in 2D mode
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // Switch to 3D
             await delay(20);
-            const style3DWithAlgorithm = createStyleTemplate({
-                data: { algorithms: ["graphty:pagerank"] },
-            });
-            await graph.setStyleTemplate(style3DWithAlgorithm);
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1496,14 +1392,14 @@ describe("Property Order Independence", () => {
         it("Variant 29: Algorithm + layout + camera all changing", async () => {
             // Load data first
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             // Wrong layout initially
             await graph.setLayout("random");
 
             // Wrong camera mode initially (2D)
             await delay(10);
-            await graph.setStyleTemplate(createStyleTemplate({ graph: { twoD: true } }));
+            await graph.setViewMode("2d");
 
             // Fix layout
             await delay(10);
@@ -1511,20 +1407,12 @@ describe("Property Order Independence", () => {
 
             // Add algorithm
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await applyFinalStyle(graph);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // Fix camera to 3D
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1537,8 +1425,6 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
-            // The Determinism stories don't set runAlgorithmsOnLoad, so we don't verify algorithm results
         });
     });
 
@@ -1550,11 +1436,12 @@ describe("Property Order Independence", () => {
         it("Variant 30: Complex delayed updates", async () => {
             // 1. Load data
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             // 2. Run algorithm
             await delay(10);
-            await graph.setStyleTemplate(createStyleTemplate({ data: { algorithms: ["graphty:pagerank"] } }));
+            await applyFinalStyle(graph);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // 3. Change layout
             await delay(10);
@@ -1562,20 +1449,12 @@ describe("Property Order Independence", () => {
 
             // 4. Switch to 2D camera
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.setViewMode("2d");
 
             // 5. Update style and switch back to 3D
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await applyFinalStyle(graph);
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1588,57 +1467,42 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
-            // The Determinism stories don't set runAlgorithmsOnLoad, so we don't verify algorithm results
         });
 
         it("Variant 31: Interleaved complex operations", async () => {
             // 1. Add initial data
             await graph.addNodes(TEST_NODES.slice(0, 3));
-            await graph.addEdges(TEST_EDGES.slice(0, 2));
+            await graph.setEdges(TEST_EDGES.slice(0, 2));
 
             // 2. Run algorithm on initial data
             await delay(10);
-            await graph.setStyleTemplate(createStyleTemplate({ data: { algorithms: ["graphty:pagerank"] } }));
+            await applyFinalStyle(graph);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // 3. Add more data
             await delay(10);
             await graph.addNodes(TEST_NODES.slice(0, 5));
-            await graph.addEdges(TEST_EDGES.slice(0, 4));
+            await graph.setEdges(TEST_EDGES.slice(0, 4));
 
             // 4. Switch to 2D camera
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.setViewMode("2d");
 
             // 5. Update style
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await applyFinalStyle(graph);
 
             // 6. Add final data and set layout
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await delay(10);
             await graph.setLayout("circular");
 
             // Switch back to 3D
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1651,8 +1515,6 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
-            // The Determinism stories don't set runAlgorithmsOnLoad, so we don't verify algorithm results
         });
 
         it("Variant 32: Manual add + algorithm", async () => {
@@ -1662,9 +1524,9 @@ describe("Property Order Independence", () => {
             // Manually add first node
             await graph.addNodes([TEST_NODES[0]]);
 
-            // Configure algorithm
+            // Style the graph
             await delay(5);
-            await graph.setStyleTemplate(createStyleTemplate({ data: { algorithms: ["graphty:pagerank"] } }));
+            await applyFinalStyle(graph);
 
             // Continue adding nodes manually
             await delay(5);
@@ -1672,19 +1534,19 @@ describe("Property Order Independence", () => {
 
             await delay(5);
             await graph.addNodes(TEST_NODES.slice(0, 3));
-            await graph.addEdges([TEST_EDGES[0]]);
+            await graph.setEdges([TEST_EDGES[0]]);
 
             await delay(5);
             await graph.addNodes(TEST_NODES.slice(0, 4));
-            await graph.addEdges(TEST_EDGES.slice(0, 2));
+            await graph.setEdges(TEST_EDGES.slice(0, 2));
 
             await delay(5);
             await graph.addNodes(TEST_NODES.slice(0, 5));
-            await graph.addEdges(TEST_EDGES.slice(0, 4));
+            await graph.setEdges(TEST_EDGES.slice(0, 4));
 
             await delay(5);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1696,42 +1558,28 @@ describe("Property Order Independence", () => {
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
         });
 
         it("Variant 33: Full 2D setup", async () => {
             // Set 2D layout
             await graph.setLayout("circular");
 
-            // Set 2D camera with algorithm
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            // Set 2D camera
+            await graph.setViewMode("2d");
 
-            // Load data
+            // Load data, then measure it
             await delay(10);
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // Update styles (still in 2D)
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await applyFinalStyle(graph);
 
             // Switch to 3D to match final state
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1740,43 +1588,28 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
         });
 
         it("Variant 34: Cancel algorithm + camera", async () => {
             // Load data
             await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
+            await graph.setEdges(TEST_EDGES);
             await graph.setLayout("circular");
 
             // Start with betweenness
-            await graph.setStyleTemplate(createStyleTemplate({ data: { algorithms: ["graphty:betweenness"] } }));
+            await graph.runAlgorithm("graphty", "betweenness");
 
             // Switch camera mode
             await delay(5);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:betweenness"] },
-                }),
-            );
+            await graph.setViewMode("2d");
 
-            // Cancel betweenness and run pagerank instead
+            // Run pagerank beside it
             await delay(5);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    graph: { twoD: true },
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.runAlgorithm("graphty", "pagerank");
 
             // Switch back to 3D
             await delay(10);
-            await graph.setStyleTemplate(
-                createStyleTemplate({
-                    data: { algorithms: ["graphty:pagerank"] },
-                }),
-            );
+            await graph.setViewMode("3d");
 
             await graph.operationQueue.waitForCompletion();
 
@@ -1785,7 +1618,6 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
-            // Note: Algorithm config is set but algorithms don't run without runAlgorithmsOnLoad=true
         });
     });
 });

@@ -99,16 +99,15 @@ describe("DataManager", () => {
         it("should remove a node", () => {
             dataManager.addNode({ id: "node1", __brand: "AdHocData" } as AdHocData);
 
-            const removed = dataManager.removeNode("node1");
+            const removed = dataManager.removeNodeAndIncidentEdges("node1");
 
-            assert.isTrue(removed);
+            assert.deepStrictEqual(removed, [], "the node went, and it had no edges to take with it");
             assert.isUndefined(dataManager.getNode("node1"));
             assert.equal(dataManager.nodes.size, 0);
         });
 
-        it("should return false when removing non-existent node", () => {
-            const removed = dataManager.removeNode("non-existent");
-            assert.isFalse(removed);
+        it("should answer null when removing non-existent node", () => {
+            assert.isNull(dataManager.removeNodeAndIncidentEdges("non-existent"));
         });
 
         it("should get all nodes", () => {
@@ -136,9 +135,9 @@ describe("DataManager", () => {
 
             dataManager.addEdge(edgeData);
 
-            const edge = dataManager.getEdge("node1:node2");
+            const edge = dataManager.getEdge("0");
             assert.isDefined(edge);
-            assert.equal(edge.id, "node1:node2");
+            assert.equal(edge.id, "0", "the element's own counter, not anything the record carried");
             assert.equal(edge.srcId, "node1");
             assert.equal(edge.dstId, "node2");
         });
@@ -153,12 +152,13 @@ describe("DataManager", () => {
             dataManager.addEdges(edgesData);
 
             assert.equal(dataManager.edges.size, 3);
-            assert.isDefined(dataManager.getEdge("node1:node2"));
-            assert.isDefined(dataManager.getEdge("node2:node3"));
-            assert.isDefined(dataManager.getEdge("node3:node1"));
+            // The ids are the element's own counters, handed out in arrival order.
+            assert.isDefined(dataManager.getEdge("0"));
+            assert.isDefined(dataManager.getEdge("1"));
+            assert.isDefined(dataManager.getEdge("2"));
         });
 
-        it("should auto-generate edge id if not provided", () => {
+        it("should give every edge the element's own id, whatever the record carries", () => {
             const edgeData = {
                 src: "node1",
                 dst: "node2",
@@ -166,9 +166,11 @@ describe("DataManager", () => {
 
             dataManager.addEdge(edgeData);
 
-            const edge = dataManager.getEdge("node1:node2");
+            const edge = dataManager.getEdge("0");
             assert.isDefined(edge);
-            assert.equal(edge.id, "node1:node2");
+            assert.equal(edge.id, "0");
+            assert.equal(edge.srcId, "node1");
+            assert.equal(edge.dstId, "node2");
         });
 
         it("should handle edge with custom source/target paths", () => {
@@ -178,9 +180,9 @@ describe("DataManager", () => {
                 to: "node2",
             } as unknown as AdHocData;
 
-            dataManager.addEdge(edgeData, "from", "to");
+            dataManager.addEdge(edgeData, { source: "from", target: "to" });
 
-            const edge = dataManager.getEdge("node1:node2");
+            const edge = dataManager.getEdge("0");
             assert.isDefined(edge);
             assert.equal(edge.srcId, "node1");
             assert.equal(edge.dstId, "node2");
@@ -197,8 +199,7 @@ describe("DataManager", () => {
             dataManager.addEdge(edgeData);
 
             // Edge should not be created yet
-            const edge = dataManager.getEdge("non-existent:node2");
-            assert.isUndefined(edge);
+            assert.equal(dataManager.edges.size, 0);
         });
 
         it("should defer edge creation if target node doesn't exist", () => {
@@ -212,8 +213,7 @@ describe("DataManager", () => {
             dataManager.addEdge(edgeData);
 
             // Edge should not be created yet
-            const edge = dataManager.getEdge("node1:non-existent");
-            assert.isUndefined(edge);
+            assert.equal(dataManager.edges.size, 0);
         });
 
         it("should remove an edge", () => {
@@ -223,33 +223,33 @@ describe("DataManager", () => {
                 dst: "node2",
             } as unknown as AdHocData);
 
-            const removed = dataManager.removeEdge("node1:node2");
+            const removed = dataManager.removeEdge("0");
 
             assert.isTrue(removed);
-            assert.isUndefined(dataManager.getEdge("node1:node2"));
+            assert.isUndefined(dataManager.getEdge("0"));
             assert.equal(dataManager.edges.size, 0);
         });
 
         it("should return false when removing non-existent edge", () => {
-            const removed = dataManager.removeEdge("non:existent");
+            const removed = dataManager.removeEdge("nothing-of-the-sort");
             assert.isFalse(removed);
         });
 
-        it("should not remove edges when node is removed (current behavior)", () => {
+        it("removes the edges attached to a node when the node is removed", () => {
             dataManager.addEdges([
                 { id: "edge1", src: "node1", dst: "node2" },
                 { id: "edge2", src: "node1", dst: "node3" },
                 { id: "edge3", src: "node2", dst: "node3" },
             ] as unknown as AdHocData[]);
 
-            dataManager.removeNode("node1");
+            const removed = dataManager.removeNodeAndIncidentEdges("node1");
 
-            // TODO: Currently removeNode doesn't remove connected edges
-            // This is a known limitation (see TODO in DataManager.removeNode)
-            assert.isDefined(dataManager.getEdge("node1:node2"));
-            assert.isDefined(dataManager.getEdge("node1:node3"));
-            assert.isDefined(dataManager.getEdge("node2:node3"));
-            assert.equal(dataManager.edges.size, 3);
+            assert.deepStrictEqual([...(removed ?? [])].sort(), ["0", "1"], "both edges at node1 are named");
+            assert.isUndefined(dataManager.getEdge("0"), "node1 -> node2 went with node1");
+            assert.isUndefined(dataManager.getEdge("1"), "node1 -> node3 went with node1");
+            assert.isDefined(dataManager.getEdge("2"), "node2 -> node3 touches neither end and stays");
+            assert.equal(dataManager.edges.size, 1);
+            assert.equal(dataManager.edgeCache.size, 1, "and the pair cache agrees");
         });
     });
 
@@ -268,21 +268,38 @@ describe("DataManager", () => {
             assert.strictEqual(node1, node2);
         });
 
-        it("should use edge cache for existing edges", () => {
+        it("holds a second edge between one pair as a second edge, under the default policy", () => {
             dataManager.addNode({ id: "node1", __brand: "AdHocData" } as AdHocData);
             dataManager.addNode({ id: "node2", __brand: "AdHocData" } as AdHocData);
 
             const edgeData = { src: "node1", dst: "node2" } as unknown as AdHocData;
 
             dataManager.addEdge(edgeData);
-            const edge1 = dataManager.getEdge("node1:node2");
-
-            // Try to add same edge again
             dataManager.addEdge(edgeData);
-            const edge2 = dataManager.getEdge("node1:node2");
 
-            // Should return the same instance
-            assert.strictEqual(edge1, edge2);
+            const between = dataManager.getEdgesBetween("node1", "node2");
+            assert.equal(between.length, 2, "two records for one pair are two edges");
+            assert.notStrictEqual(between[0], between[1]);
+            assert.deepStrictEqual(
+                between.map((edge) => edge.id),
+                ["0", "1"],
+                "each carries its own id",
+            );
+        });
+
+        it("folds a repeat back into the edge already present when the caller asks for first", () => {
+            dataManager.addNode({ id: "node1", __brand: "AdHocData" } as AdHocData);
+            dataManager.addNode({ id: "node2", __brand: "AdHocData" } as AdHocData);
+
+            const edgeData = { src: "node1", dst: "node2" } as unknown as AdHocData;
+
+            dataManager.addEdge(edgeData, { repeated: "first" });
+            const first = dataManager.getEdge("0");
+
+            dataManager.addEdge(edgeData, { repeated: "first" });
+
+            assert.equal(dataManager.edges.size, 1, "the repeat did not become an edge");
+            assert.strictEqual(dataManager.getEdge("0"), first, "and the edge already there was untouched");
         });
     });
 
@@ -294,7 +311,7 @@ describe("DataManager", () => {
 
             assert.equal(dataManager.nodes.size, 3);
 
-            dataManager.removeNode("node2");
+            dataManager.removeNodeAndIncidentEdges("node2");
             assert.equal(dataManager.nodes.size, 2);
         });
 
@@ -310,7 +327,7 @@ describe("DataManager", () => {
 
             assert.equal(dataManager.edges.size, 2);
 
-            dataManager.removeEdge("node1:node2");
+            dataManager.removeEdge("0");
             assert.equal(dataManager.edges.size, 1);
         });
     });

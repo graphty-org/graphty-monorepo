@@ -1,10 +1,18 @@
 import { depthFirstSearch } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    DeclaredAlgorithm,
+    declaredCaveats,
+    forEachChunked,
+    metricFieldSpecs,
+} from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for DFS algorithm
@@ -63,7 +71,7 @@ interface DFSOptions extends Record<string, unknown> {
  * Performs a depth-first traversal from a source node, computing discovery time,
  * finish time, and predecessor relationships for each reachable node.
  */
-export class DFSAlgorithm extends Algorithm<DFSOptions> {
+export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
     static namespace = "graphty";
     static type = "dfs";
 
@@ -109,28 +117,6 @@ export class DFSAlgorithm extends Algorithm<DFSOptions> {
      */
     private legacyOptions: { source: number | string } | null = null;
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "algorithmResults.graphty.dfs.discoveryTimePct != `null`",
-                    style: { enabled: true },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.dfs.discoveryTimePct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.inferno(arguments[0] ?? 0) }",
-                    },
-                },
-                metadata: {
-                    name: "DFS - Discovery Time Colors",
-                    description: "Colors nodes by DFS discovery time (inferno gradient: black to yellow)",
-                },
-            },
-        ],
-        description: "Visualizes depth-first traversal discovery order from source node",
-        category: "hierarchy",
-    });
-
     /**
      * Configure the algorithm with source node
      * @param options - Configuration options
@@ -144,66 +130,63 @@ export class DFSAlgorithm extends Algorithm<DFSOptions> {
     }
 
     /**
-     * Executes the DFS algorithm on the graph
+     * Walk as deep as possible from one node before backtracking.
      *
-     * Computes discovery time, finish time, and predecessor information for all reachable nodes.
+     * What a depth-first walk produces is one number per node -- the position it was reached in
+     * -- so the result is a node metric, and the ranking and range of that column come from the
+     * element rather than from here. A node the walk never reached carries no position, and says
+     * so with `visited`, because "not reached" and "reached first" are not the same answer.
+     * @param context - What the element gave the run.
+     * @returns The exploration order, or null when there is nothing to walk.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const dm = g.getDataManager();
-        const nodes = Array.from(dm.nodes.keys());
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const dataManager = this.graph.getDataManager();
+        const nodeIds = Array.from(dataManager.nodes.keys());
 
-        if (nodes.length === 0) {
-            return;
+        if (nodeIds.length === 0) {
+            return null;
         }
 
         // Get source from legacy options, schema options, or use first node as default
         // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodes[0];
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const { targetNode, recursive, preOrder } = this._schemaOptions;
 
-        // Check if source exists
-        if (!dm.nodes.has(source)) {
-            return;
+        if (!dataManager.nodes.has(source)) {
+            return null;
         }
 
-        // Convert to @graphty/algorithms format (undirected for traversal)
-        const graphData = toAlgorithmGraph(g);
+        // Undirected: the traversal follows an edge in either direction.
+        const graphData = this.algorithmGraph("undirected");
 
-        // Run DFS algorithm - returns {visited: Set, order: NodeId[], tree?: Map}
+        context.report({ phase: "Walking deep", total: null });
         const result = depthFirstSearch(graphData, source, {
             targetNode: targetNode ?? undefined,
             recursive,
             preOrder,
         });
 
-        // Build discovery time map from order array (index = discovery time)
-        const discoveryTimeMap = new Map<number | string, number>();
-        for (let i = 0; i < result.order.length; i++) {
-            discoveryTimeMap.set(result.order[i], i);
-        }
+        const positionOf = new Map<number | string, number>();
+        result.order.forEach((nodeId, position) => positionOf.set(nodeId, position));
 
-        // Max discovery time for normalization
-        const maxTime = result.order.length > 0 ? result.order.length - 1 : 0;
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Recording the order", nodeIds, (nodeId) => {
+            const position = positionOf.get(nodeId);
 
-        // Store results on nodes
-        for (const nodeId of nodes) {
-            const discoveryTime = discoveryTimeMap.get(nodeId);
-            const isVisited = result.visited.has(nodeId);
+            nodes.push({ id: nodeId, values: { value: position, visited: result.visited.has(nodeId) } });
+        });
 
-            this.addNodeResult(nodeId, "visited", isVisited);
-
-            if (discoveryTime !== undefined) {
-                this.addNodeResult(nodeId, "discoveryTime", discoveryTime);
-                // Normalize discovery time to percentage
-                const discoveryTimePct = maxTime > 0 ? discoveryTime / maxTime : 0;
-                this.addNodeResult(nodeId, "discoveryTimePct", discoveryTimePct);
-            }
-        }
-
-        // Store graph-level results
-        this.addGraphResult("maxTime", maxTime);
-        this.addGraphResult("visitedCount", result.visited.size);
+        return {
+            shape: "node-metric",
+            fields: [...metricFieldSpecs("node", "integer"), { name: "visited", kind: "node", type: "boolean" }],
+            nodes,
+            caveats: declaredCaveats({
+                method: "dfs",
+                direction: "undirected",
+                weight: null,
+                notes: [`Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`],
+            }),
+        };
     }
 }
 

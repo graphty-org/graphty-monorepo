@@ -22,7 +22,7 @@ describe("LifecycleManager", () => {
             // Verify key managers are accessible
             assert.isNotNull(graph.getDataManager());
             assert.isNotNull(graph.getLayoutManager());
-            assert.isNotNull(graph.getStyleManager());
+            assert.isNotNull(graph.getStyles());
         });
 
         it("should handle graph shutdown gracefully", () => {
@@ -45,7 +45,7 @@ describe("LifecycleManager", () => {
             // Verify managers are accessible
             assert.isNotNull(newGraph.getDataManager());
             assert.isNotNull(newGraph.getLayoutManager());
-            assert.isNotNull(newGraph.getStyleManager());
+            assert.isNotNull(newGraph.getStyles());
 
             // Cleanup
             newGraph.shutdown();
@@ -72,7 +72,7 @@ describe("LifecycleManager", () => {
             // All managers should be properly initialized
             assert.isNotNull(newGraph.getDataManager());
             assert.isNotNull(newGraph.getLayoutManager());
-            assert.isNotNull(newGraph.getStyleManager());
+            assert.isNotNull(newGraph.getStyles());
 
             // Cleanup
             newGraph.shutdown();

@@ -2,7 +2,7 @@ import assert from "node:assert";
 
 import { describe, it } from "vitest";
 
-import { StyleHelpers } from "../../src/config";
+import { StyleHelpers } from "../helpers/styleHelpers";
 
 describe("StyleHelpers.opacity.linear", () => {
     it("returns minOpacity (0.1) for value 0 with default params", () => {

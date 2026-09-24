@@ -37,6 +37,14 @@ interface Operation {
 export type OperationCategory =
     | "style-init" // Initialize style template
     | "style-apply" // Apply styles to existing elements
+    // One write to the session's style stack: add, update, remove, move, encode, highlight,
+    // a template import. ITS OWN CATEGORY, and the reason is what a category is FOR: it is the
+    // unit the obsolescence rules speak about, so two features sharing one category cannot be
+    // given different rules. A style write is a standing instruction about how to paint whatever
+    // the graph holds; an `algorithm-run` is a computation whose answer describes the data it
+    // read. A load must cancel the second and must not touch the first, and while both were
+    // called "algorithm-run" that was not expressible.
+    | "style-edit" // Write to the session's style stack
     | "data-add" // Add nodes/edges
     | "data-remove" // Remove nodes/edges
     | "data-update" // Update node/edge properties
@@ -44,6 +52,24 @@ export type OperationCategory =
     | "layout-update" // Update layout positions
     | "algorithm-run" // Run graph algorithms
     | "camera-update" // Update camera position/mode
+    // Switching between the 2D, 3D, VR and AR views. ITS OWN CATEGORY, for the same reason
+    // `style-edit` is: a category is the unit the obsolescence rules speak about, so two features
+    // that share one cannot be given different rules.
+    //
+    // A `camera-update` is a request about where the viewer STANDS -- a zoom-to-fit, a preset, an
+    // animation -- and a new layout rightly cancels a pending one, because it was aimed at
+    // positions that have moved. `layout-set` therefore obsoletes `camera-update`. A view-mode
+    // switch is not that: it rebuilds every mesh, swaps a perspective camera for an orthographic
+    // one and flattens the layout's third dimension, and it stays correct whatever the nodes do
+    // next. While it shared the `camera-update` category, the ordinary thing a consumer writes --
+    //
+    //   element.viewMode = "2d";
+    //   element.layout = "circular";
+    //
+    // -- queued the switch and then cancelled it, and the element went on reporting "2d" from its
+    // own property while the graph drew a perspective 3D scene. Reversing the two lines, or
+    // setting the mode again a moment later, worked; nothing said why.
+    | "view-mode" // Switch between the 2d, 3d, vr and ar views
     | "render-update"; // Update rendering settings
 
 /**
@@ -116,11 +142,22 @@ export class OperationQueueManager implements Manager {
         // Style application depends on algorithms (for calculated styles)
         ["style-apply", "algorithm-run"],
 
+        // A style edit paints as part of committing, so when a load arrives beside it the rows
+        // should exist first -- otherwise the edit repaints an empty graph and reports having
+        // painted nothing, and only the load's own repaint makes the layer visible.
+        ["style-edit", "data-add"],
+
         // Camera updates may depend on layout for zoom-to-fit
         ["camera-update", "layout-set"],
 
+        // A view-mode switch rebuilds every node and edge mesh from the style the stack resolved,
+        // so the style has to be there first. It deliberately depends on nothing else: it is
+        // correct with no data, with no layout, and before either arrives.
+        ["view-mode", "style-init"],
+
         // Render updates come last
         ["render-update", "style-apply"],
+        ["render-update", "style-edit"],
         ["render-update", "data-add"],
         ["render-update", "layout-update"],
     ];
@@ -199,6 +236,9 @@ export class OperationQueueManager implements Manager {
         this.activeControllers.forEach((controller) => {
             controller.abort();
         });
+
+        // Before the maps are emptied, because emptying them is what loses the resolvers.
+        this.settleEveryOutstandingOperation();
 
         this.queue.clear();
         this.pendingOperations.clear();
@@ -372,6 +412,14 @@ export class OperationQueueManager implements Manager {
                     this.pendingOperations.delete(operation.id);
                     this.queuedOperations.delete(operation.id);
                     this.currentBatch.delete(operation.id);
+
+                    // AND SETTLE WHOEVER IS AWAITING IT. Aborting the controller stops the work;
+                    // it does not answer the caller. An operation dropped here never reaches
+                    // `executeOperation`, which is the only other place that settles, so without
+                    // this line `await graph.setViewMode("2d")` waits for ever whenever a second
+                    // view-mode switch arrives behind it -- no value, no error, no event the
+                    // caller can see. See `settleResolved` for why it resolves rather than throws.
+                    this.settleResolved(operation);
                 }
             }
         }
@@ -569,35 +617,98 @@ export class OperationQueueManager implements Manager {
             });
 
             // Resolve the operation's promise
-            if (operation.resolve) {
-                operation.resolve();
-            }
+            this.settleResolved(operation);
 
             // Trigger post-execution operations if not skipped
             if (!operation.metadata?.skipTriggers) {
                 this.triggerPostExecutionOperations(operation);
             }
         } catch (error) {
-            if (error && (error as Error).name === "AbortError") {
-                // Reject the operation's promise
-                if (operation.reject) {
-                    operation.reject(error);
-                }
+            // WAS THIS OPERATION CANCELLED, or did it fail? The question is answered by the
+            // operation's own signal, not by the shape of the throw: a body that checks
+            // `context.signal.aborted` and gives up throws whatever it likes, and a `fetch` deep
+            // inside a body that ran to completion can raise an `AbortError` of its own that has
+            // nothing to do with this queue. A cancelled operation resolves and is not reported;
+            // anything else is the caller's error and the graph's.
+            const cancelled = operation.abortController?.signal.aborted === true;
 
+            if (cancelled) {
+                this.settleResolved(operation);
+            } else {
+                this.settleRejected(operation, error);
+            }
+
+            if (error instanceof Error && error.name === "AbortError") {
                 // Remove from running on abort
                 this.runningOperations.delete(operation.id);
                 throw error; // Let p-queue handle abort errors
             }
 
-            // Reject the operation's promise
-            if (operation.reject) {
-                operation.reject(error);
+            if (!cancelled) {
+                this.handleOperationError(operation, error);
             }
-
-            this.handleOperationError(operation, error);
         } finally {
             // Always remove from running operations
             this.runningOperations.delete(operation.id);
+        }
+    }
+
+    /**
+     * Answer whoever is awaiting this operation, and make sure nothing answers them twice.
+     *
+     * A CANCELLED OPERATION RESOLVES. The element cancels an operation when a newer instruction
+     * makes it redundant -- that is what the table in `src/constants/obsolescence-rules.ts` is --
+     * so the work not happening is the element's own decision about the caller's own later
+     * request, not a failure the caller has to handle. The graph's constructor depends on exactly
+     * that: it queues the default `ngraph` layout expressly so that a consumer's own `layout`
+     * can obsolete it, and a rejection there would print an error on the console of every page
+     * that sets a layout, for the element doing precisely what it was built to do.
+     *
+     * The resolvers are dropped as they are called, so an operation that is cancelled and then
+     * finishes anyway, or is cancelled twice, settles once.
+     * @param operation - The operation nobody will hear from again.
+     */
+    private settleResolved(operation: Operation): void {
+        const { resolve } = operation;
+
+        operation.resolve = undefined;
+        operation.reject = undefined;
+        resolve?.();
+    }
+
+    /**
+     * The failing half of {@link OperationQueueManager.settleResolved}: the operation ran and
+     * threw, and the caller gets the error.
+     * @param operation - The operation that failed.
+     * @param error - What it threw.
+     */
+    private settleRejected(operation: Operation, error: unknown): void {
+        const { reject } = operation;
+
+        operation.resolve = undefined;
+        operation.reject = undefined;
+        reject?.(error);
+    }
+
+    /**
+     * Settle every operation this manager still holds, for a queue that is being emptied or torn
+     * down.
+     *
+     * `clear()` and `dispose()` abort the controllers and then drop the maps, and the resolvers
+     * live in those maps -- so without this, tearing down a graph leaves every caller who awaited
+     * an unfinished operation waiting for a graph that no longer exists.
+     */
+    private settleEveryOutstandingOperation(): void {
+        for (const operation of this.pendingOperations.values()) {
+            this.settleResolved(operation);
+        }
+
+        for (const operation of this.queuedOperations.values()) {
+            this.settleResolved(operation);
+        }
+
+        for (const operation of this.runningOperations.values()) {
+            this.settleResolved(operation);
         }
     }
 
@@ -686,6 +797,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Resolve once nothing is queued or running.
+     *
+     * The same wait as {@link OperationQueueManager.waitForCompletion}, under the name the
+     * session's queue contract uses. Both exist so that this manager satisfies `RunQueue`
+     * STRUCTURALLY, with no cast and no adapter: the session must be able to talk to the
+     * renderer's queue without importing it, which is the whole reason that contract is shaped
+     * the way it is.
+     * @returns A promise that resolves when the queue is idle.
+     */
+    async settled(): Promise<void> {
+        return this.waitForCompletion();
+    }
+
+    /**
      * Get queue statistics
      * @returns Current queue state including pending operations, size, and pause status
      */
@@ -729,6 +854,9 @@ export class OperationQueueManager implements Manager {
                 });
             }
         });
+
+        // Before the maps are emptied; see `settleEveryOutstandingOperation`.
+        this.settleEveryOutstandingOperation();
 
         this.queue.clear();
         this.pendingOperations.clear();
@@ -814,15 +942,21 @@ export class OperationQueueManager implements Manager {
         options?: Partial<OperationMetadata>,
     ): Promise<void> {
         const id = this.queueOperation(category, execute, options);
+        const operation =
+            this.pendingOperations.get(id) ?? this.queuedOperations.get(id) ?? this.runningOperations.get(id);
+
+        if (!operation) {
+            // The operation was gone before the resolvers could be hung on it, which means it was
+            // cancelled. Attaching them to nothing and returning the promise anyway is what used
+            // to leave the caller waiting for ever.
+            return Promise.resolve();
+        }
 
         // Create promise that resolves when this specific operation completes
         const promise = new Promise<void>((resolve, reject) => {
             // Store resolvers with the operation
-            const operation = this.pendingOperations.get(id);
-            if (operation) {
-                operation.resolve = resolve;
-                operation.reject = reject;
-            }
+            operation.resolve = resolve;
+            operation.reject = reject;
         });
 
         if (this.batchMode) {
@@ -979,7 +1113,7 @@ export class OperationQueueManager implements Manager {
                 }
 
                 // Queue the triggered operation
-                void this.queueTriggeredOperation(triggerCategory, operation.metadata);
+                this.fireAndForget(this.queueTriggeredOperation(triggerCategory, operation.metadata));
             }
         }
 
@@ -988,14 +1122,35 @@ export class OperationQueueManager implements Manager {
             const result = trigger(operation.metadata);
             if (result) {
                 // Queue the custom triggered operation
-                void this.queueTriggeredOperation(
-                    result.category,
-                    operation.metadata,
-                    result.execute,
-                    result.description,
+                this.fireAndForget(
+                    this.queueTriggeredOperation(result.category, operation.metadata, result.execute, result.description),
                 );
             }
         }
+    }
+
+    /**
+     * Watch work nobody awaited, so a trigger that fails is reported rather than dropped.
+     *
+     * A trigger is the element's own follow-up work -- repaint the stack after a load, reposition
+     * the nodes after a data change -- and no caller holds its promise. Discarding that promise
+     * with `void` meant a repaint that threw reached nobody: not the host, not
+     * `emitGraphError`, only the page's unhandled-rejection channel, where it reads as a stray
+     * error with no graph attached to it. Being cancelled is the ordinary end of such an
+     * operation -- a second load arrives and the repaint queued behind the first is not wanted --
+     * so an abort passes in silence and everything else is reported as the graph's own error.
+     * @param work - The promise nobody is holding.
+     */
+    private fireAndForget(work: Promise<void>): void {
+        void work.catch((error: unknown) => {
+            if (error instanceof Error && error.name === "AbortError") {
+                return;
+            }
+
+            this.eventManager.emitGraphError(null, error instanceof Error ? error : new Error(String(error)), "other", {
+                component: "OperationQueueManager.trigger",
+            });
+        });
     }
 
     /**

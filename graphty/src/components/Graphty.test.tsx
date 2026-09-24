@@ -13,12 +13,9 @@ vi.mock("@graphty/graphty-element", () => {
 // Mock custom element with graph property that has getLayers method
 class MockGraphtyElement extends HTMLElement {
     private _layout?: string;
-    // Mock graph property with getLayers method
+    /* The element's headless model, which is the one door to the style stack. */
     graph = {
-        getLayers: (): unknown[] => [],
-        getStyleManager: () => ({
-            getLayers: () => [],
-        }),
+        getSession: () => ({ styles: { list: (): unknown[] => [] }, on: () => () => undefined }),
     };
 
     connectedCallback(): void {
@@ -66,7 +63,7 @@ describe("Graphty", () => {
 
     it("has proper styling", () => {
         const { container } = render(<Graphty layers={[]} />);
-        const graphtyElement = container.querySelector("graphty-element");
+        const graphtyElement = container.querySelector<HTMLElement>("graphty-element");
         expect(graphtyElement?.style.width).toBe("100%");
         expect(graphtyElement?.style.height).toBe("100%");
     });

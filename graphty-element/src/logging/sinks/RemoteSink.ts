@@ -8,21 +8,29 @@
  * npx @graphty/remote-logger --port 9080
  * ```
  *
- * Then enable remote logging in graphty-element via URL parameter:
- * ```
- * ?graphty-element-logging=true&graphty-element-remote-log=https://localhost:9080
+ * Then point the element at it. The element does not read the page's query string, so the
+ * server is named in the logging configuration -- by a live sink, or by the reference a stored
+ * configuration can record:
+ * ```ts
+ * import { GraphtyLogger } from "@graphty/graphty-element/logging";
+ *
+ * await GraphtyLogger.configure({
+ *     enabled: true,
+ *     sinks: [{ use: "remote", options: { serverUrl: "https://localhost:9080" } }],
+ * });
  * ```
  */
 
 import { RemoteLogClient, type ThrottlePattern } from "@graphty/remote-logger";
 
+import { formatLogRecord } from "../format.js";
 import { LOG_LEVEL_TO_NAME, type LogRecord, type Sink } from "../types.js";
 
 /**
  * Options for the remote sink.
  */
 export interface RemoteSinkOptions {
-    /** URL of the remote log server (e.g., https://localhost:9080) */
+    /** URL of the remote log server (e.g., `https://localhost:9080`) */
     serverUrl: string;
     /** Prefix for session ID (default: "graphty") */
     sessionPrefix?: string;
@@ -39,18 +47,21 @@ export interface RemoteSinkOptions {
 }
 
 /**
- * Format a LogRecord into a message string for the remote server.
+ * Render one record as the single line a log server stores.
+ *
+ * The line itself is the element's own rendering, so a record read back off a server is the
+ * record a developer would have seen in their console. Two parts are settled here rather than
+ * taken from the logging configuration: the time is left off, because the server records its own
+ * and the client sends one beside the line; and the category is always named, because a server
+ * collects from several pages at once and "who said it" is the first thing anybody filters on.
+ *
+ * What is appended is what a console shows beside the line and a single string cannot: the
+ * structured facts, and the failure's stack.
  * @param record - The log record to format
  * @returns A formatted message string
  */
 function formatRecord(record: LogRecord): string {
-    const parts: string[] = [];
-
-    // Add category
-    parts.push(`[${record.category.join(".")}]`);
-
-    // Add message
-    parts.push(record.message);
+    const parts: string[] = [formatLogRecord(record, { timestamp: false, module: true })];
 
     // Add structured data if present
     if (record.data && Object.keys(record.data).length > 0) {
@@ -114,6 +125,15 @@ export function createRemoteSink(options: RemoteSinkOptions): Sink {
 
         async flush(): Promise<void> {
             await client.flush();
+        },
+
+        /*
+         * The client holds a batch timer, and before `dispose` existed nothing ever stopped it:
+         * removing this destination left it posting to a server the page had stopped listening
+         * to. `close` sends what is buffered first, so records already accepted are not lost.
+         */
+        async dispose(): Promise<void> {
+            await client.close();
         },
     };
 }

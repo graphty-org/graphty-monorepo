@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors/index.js";
 import { Graph } from "../../../src/Graph.js";
 
 describe("Camera Presets - User Defined", () => {
@@ -74,9 +75,12 @@ describe("Camera Presets - User Defined", () => {
             graph.saveCameraPreset("fitToGraph");
             assert.fail("Should have thrown an error");
         } catch (error) {
-            assert.ok(error instanceof Error);
-            assert.equal(error.name, "ScreenshotError");
-            assert.ok(error.message.includes("Cannot overwrite built-in preset"));
+            // A snapshot records where the camera IS; a view is a rule that recomputes itself for
+            // whatever is on screen. Letting a snapshot take a view's name would replace the
+            // second with the first, silently.
+            assert.ok(isGraphtyError(error));
+            assert.equal(error.code, "E_PROTECTED");
+            assert.ok(error.message.includes("fitToGraph"));
         }
     });
 
@@ -160,9 +164,11 @@ describe("Camera Presets - User Defined", () => {
             await graph.loadCameraPreset("nonExistentPreset");
             assert.fail("Should have thrown an error");
         } catch (error) {
-            assert.ok(error instanceof Error);
-            assert.equal(error.name, "ScreenshotError");
-            assert.ok(error.message.includes("Unknown camera preset"));
+            // The refusal names every view that would have worked, so a consumer can show the
+            // list instead of guessing at the spelling.
+            assert.ok(isGraphtyError(error));
+            assert.equal(error.code, "E_UNKNOWN_CAMERA");
+            assert.include(error.details?.available as string[], "fitToGraph");
         }
     });
 });

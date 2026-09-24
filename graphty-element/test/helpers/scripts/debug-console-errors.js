@@ -30,7 +30,7 @@ async function main() {
             }
 
             const props = {};
-            for (const prop of ["dataSource", "dataSourceConfig", "layout", "layoutConfig", "styleTemplate"]) {
+            for (const prop of ["dataSource", "dataSourceConfig", "layout", "layoutConfig", "background"]) {
                 try {
                     props[prop] = el[prop] ? "present" : "missing";
                 } catch (e) {

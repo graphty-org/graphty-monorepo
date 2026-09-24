@@ -53,67 +53,29 @@ describe("Graph Batch Integration - Deferred Promises", () => {
                 // Call in wrong order intentionally
                 await graph.setLayout("ngraph");
                 await graph.addNodes([{ id: "1" }]);
-                await graph.setStyleTemplate({
-                    graphtyTemplate: true,
-                    majorVersion: "1",
-                    graph: {
-                        addDefaultStyle: true,
-                        background: {
-                            backgroundType: "color",
-                            color: "whitesmoke",
-                        },
-                        startingCameraDistance: 100,
-                        layout: "ngraph",
-                        twoD: false,
-                        viewMode: "3d",
-                    },
-                    data: {
-                        knownFields: {
-                            nodeIdPath: "id",
-                            nodeWeightPath: null,
-                            nodeTimePath: null,
-                            edgeSrcIdPath: "source",
-                            edgeDstIdPath: "target",
-                            edgeWeightPath: null,
-                            edgeTimePath: null,
-                        },
-                    },
-                    behavior: {
-                        layout: {
-                            type: "ngraph",
-                            preSteps: 0,
-                            stepMultiplier: 1,
-                            minDelta: 0.01,
-                            zoomStepInterval: 10,
-                        },
-                        node: {
-                            pinOnDrag: false,
-                        },
-                    },
-                    layers: [
-                        {
-                            node: {
-                                selector: "*",
-                                style: {
-                                    texture: {
-                                        color: "blue",
-                                    },
-                                    enabled: true,
-                                },
-                            },
-                        },
-                    ],
+                // NOT AWAITED, and that is a fact about batching rather than a shortcut: a
+                // batch holds every queued operation until its callback returns, and a style
+                // edit is a queued run -- so awaiting one here would wait for a queue that is
+                // waiting for this callback. A style edit fired and forgotten is the shape the
+                // stack is built for; the refusal, if any, arrives as a rejected run.
+                void graph.getSession().styles.add({
+                    name: "every node blue",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "blue" },
                 });
             });
 
-            // Check execution order
-            const styleIndex = executionOrder.findIndex((op) => op === "style-init");
-            const dataIndex = executionOrder.findIndex((op) => op === "data-add");
+            await graph.operationQueue.waitForCompletion();
 
-            // Verify dependency: data-add depends on style-init
-            if (styleIndex !== -1 && dataIndex !== -1) {
-                expect(styleIndex).toBeLessThan(dataIndex);
-            }
+            // Check execution order. A style edit is a queued run rather than the `style-init`
+            // operation `setStyleTemplate` used to put here, and what the batch has to get right
+            // is unchanged: the rows a load adds are painted after the load, never before it.
+            const dataIndex = executionOrder.findIndex((op) => op === "data-add");
+            const paintIndex = executionOrder.findIndex((op) => op === "style-apply");
+
+            expect(dataIndex).not.toBe(-1);
+            expect(paintIndex).toBeGreaterThan(dataIndex);
 
             // Note: layout-set does NOT depend on data-add in stateless design
             // So we don't check dataIndex < layoutIndex
@@ -139,7 +101,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
 
             // Third batch
             await graph.batchOperations(async () => {
-                await graph.addEdges([{ source: "1", target: "2" }], "source", "target");
+                await graph.addEdges([{ source: "1", target: "2" }], { source: "source", target: "target" });
             });
 
             expect(graph.getEdgeCount()).toBe(1);
@@ -194,7 +156,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
                 await graph.batchOperations(async () => {
                     await graph.addNodes([{ id: "1" }]);
                     // This might cause an error if the edge references don't exist yet
-                    await graph.addEdges([{ source: "999", target: "888" }], "source", "target");
+                    await graph.addEdges([{ source: "999", target: "888" }], { source: "source", target: "target" });
                     await graph.addNodes([{ id: "2" }]);
                 });
             } catch {
@@ -251,7 +213,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
 
                  
                 if (shouldAddEdge) {
-                    await graph.addEdges([{ source: "1", target: "2" }], "source", "target");
+                    await graph.addEdges([{ source: "1", target: "2" }], { source: "source", target: "target" });
                 }
 
                 await graph.setLayout("circular");
@@ -278,8 +240,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
                                 target: nodeIds[i + 1],
                             },
                         ],
-                        "source",
-                        "target",
+                        { source: "source", target: "target" },
                     );
                 }
             });

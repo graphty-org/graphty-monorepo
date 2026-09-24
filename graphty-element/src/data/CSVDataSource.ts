@@ -4,11 +4,86 @@ import { AdHocData } from "../config";
 import { type CSVVariant, type CSVVariantInfo, detectCSVVariant } from "./csv-variant-detection.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
+/**
+ * The direction a Gephi edge CSV declares in its `Type` column, or null when it declares none.
+ *
+ * CSV has no header that speaks for the graph, and most CSV dialects say nothing about direction
+ * at all -- an edge list of `source,target` pairs is exactly as compatible with a digraph as with
+ * an undirected graph, so those importers stay silent and leave the element's own configuration
+ * standing. Gephi's dialect is the exception: it writes a `Type` column holding `Directed` or
+ * `Undirected`, per row.
+ *
+ * Per row means a Gephi CSV can describe a mixed graph, which the element's snapshot cannot hold.
+ * A file whose rows disagree is read as DIRECTED, for the same reason a mixed Pajek file is:
+ * storing a directed row in an undirected graph invents a reverse path the file denies, while
+ * storing an undirected row in a directed graph drops one -- a loss that is countable, and counted
+ * here. Rows that leave `Type` empty are not counted against either reading; they say nothing.
+ * @param rows - every parsed row of the file
+ * @param typeColumn - the header the variant assigns to the type column
+ * @returns the declaration, or null when no row carried a usable `Type`
+ */
+function readGephiTypeColumn(
+    rows: readonly Record<string, unknown>[],
+    typeColumn: string,
+): { directed: boolean; statedBy: string; conflictingEdges: number } | null {
+    let directedRows = 0;
+    let undirectedRows = 0;
+    for (const row of rows) {
+        const value = row[typeColumn];
+        if (typeof value !== "string") {
+            continue;
+        }
+
+        const type = value.trim().toLowerCase();
+        if (type === "directed") {
+            directedRows++;
+        } else if (type === "undirected") {
+            undirectedRows++;
+        }
+    }
+
+    if (directedRows > 0) {
+        return { directed: true, statedBy: `${typeColumn}=Directed`, conflictingEdges: undirectedRows };
+    }
+
+    if (undirectedRows > 0) {
+        return { directed: false, statedBy: `${typeColumn}=Undirected`, conflictingEdges: 0 };
+    }
+
+    return null;
+}
+
+/**
+ * Whether a row carries NEITHER of the two endpoint columns the reader is looking for.
+ *
+ * Such a row is not a malformed edge, it is a file whose endpoint columns are named something
+ * else entirely -- and the reader has no idea what. Dropping it produced a graph with no edges,
+ * a pile of "Missing source in row N" errors and a load that reported success. Handing it over
+ * unread lets the ELEMENT refuse the batch and name the columns the file does carry, which is the
+ * one message a reader can act on.
+ * @param row - the parsed row
+ * @param sourceColName - the column the reader was looking for
+ * @param targetColName - the other one
+ * @returns true when the file names neither
+ */
+function namesNoEndpointColumn(row: Record<string, unknown>, sourceColName: string, targetColName: string): boolean {
+    return !(sourceColName in row) && !(targetColName in row);
+}
+
 interface CSVDataSourceConfig extends BaseDataSourceConfig {
     delimiter?: string;
     variant?: CSVVariant; // Allow explicit variant override
-    sourceColumn?: string;
-    targetColumn?: string;
+    /**
+     * The column holding the node an edge starts at.
+     *
+     * Named `edgeSource` rather than `sourceColumn` so that ONE pair of option names describes the
+     * endpoints for every format the element reads. The catalogue used to advertise
+     * `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/`targetColumn` for CSV and nothing
+     * at all for the other five, which is three names for one fact.
+     */
+    edgeSource?: string;
+    /** The column holding the node an edge ends at. See {@link CSVDataSourceConfig.edgeSource}. */
+    edgeTarget?: string;
     idColumn?: string;
     // For paired files
     nodeFile?: File;
@@ -109,8 +184,8 @@ export class CSVDataSource extends DataSource {
                 hasHeaders: defaults.hasHeaders ?? true,
                 delimiter: this.config.delimiter ?? ",",
                 // Use user config or variant defaults
-                sourceColumn: this.config.sourceColumn ?? defaults.sourceColumn,
-                targetColumn: this.config.targetColumn ?? defaults.targetColumn,
+                sourceColumn: this.config.edgeSource ?? defaults.sourceColumn,
+                targetColumn: this.config.edgeTarget ?? defaults.targetColumn,
                 idColumn: this.config.idColumn ?? defaults.idColumn,
                 labelColumn: defaults.labelColumn,
                 typeColumn: defaults.typeColumn,
@@ -220,11 +295,11 @@ export class CSVDataSource extends DataSource {
         const srcStr = typeof src === "string" || typeof src === "number" ? String(src) : JSON.stringify(src);
         const dstStr = typeof dst === "string" || typeof dst === "number" ? String(dst) : JSON.stringify(dst);
 
-        // Create edge with all row properties except source/target columns
-        // (they're now in src/dst)
+        // Create edge with all row properties except the two endpoint columns, which are
+        // republished under the element's canonical names.
         const edge: Record<string, unknown> = {
-            src: srcStr,
-            dst: dstStr,
+            source: srcStr,
+            target: dstStr,
         };
 
         // Copy all other properties from row except source/target columns
@@ -241,18 +316,23 @@ export class CSVDataSource extends DataSource {
         const edges: unknown[] = [];
         const nodeIds = new Set<string>();
         // Default to lowercase column names for generic edge lists
-        const sourceCol = this.config.sourceColumn ?? "source";
-        const targetCol = this.config.targetColumn ?? "target";
+        const sourceCol = this.config.edgeSource ?? "source";
+        const targetCol = this.config.edgeTarget ?? "target";
 
         for (let i = 0; i < rows.length; i++) {
             try {
                 const row = rows[i];
+                if (namesNoEndpointColumn(row, sourceCol, targetCol)) {
+                    edges.push(row);
+                    continue;
+                }
+
                 const edge = this.createEdge(row[sourceCol], row[targetCol], row, sourceCol, targetCol, i + 1);
 
                 if (edge) {
                     // Track unique node IDs
-                    nodeIds.add(edge.src as string);
-                    nodeIds.add(edge.dst as string);
+                    nodeIds.add(edge.source as string);
+                    nodeIds.add(edge.target as string);
 
                     edges.push(edge);
 
@@ -328,6 +408,11 @@ export class CSVDataSource extends DataSource {
     private *parseNeo4jFormat(rows: string[][]): Generator<DataSourceChunk, void, unknown> {
         // Neo4j format has multiple sections with headers
         // Format: header row, data rows, header row, data rows, etc.
+        //
+        // This importer declares NO direction, deliberately. A Neo4j relationship is directed as a
+        // property of the database, not as something the CSV states -- the file carries :START_ID
+        // and :END_ID and no field that could say otherwise -- so there is nothing here to read.
+        // The element's own configuration stands, and under "auto" that is already directed.
         const nodes: unknown[] = [];
         const edges: unknown[] = [];
 
@@ -378,9 +463,9 @@ export class CSVDataSource extends DataSource {
                     const value = row[i];
 
                     if (header === ":START_ID") {
-                        edge.src = value;
+                        edge.source = value;
                     } else if (header === ":END_ID") {
-                        edge.dst = value;
+                        edge.target = value;
                     } else if (header === ":TYPE") {
                         edge.type = value;
                     } else if (!header.startsWith(":")) {
@@ -388,7 +473,7 @@ export class CSVDataSource extends DataSource {
                     }
                 }
 
-                if (edge.src && edge.dst) {
+                if (edge.source && edge.target) {
                     edges.push(edge);
                 }
             }
@@ -425,15 +510,28 @@ export class CSVDataSource extends DataSource {
         const sourceCol = info.sourceColumn ?? "Source";
         const targetCol = info.targetColumn ?? "Target";
 
+        // Declared before the first chunk is yielded -- and therefore before the first edge reaches
+        // the builder -- which is why it reads the whole row array rather than accumulating as the
+        // rows are converted.
+        const declared = readGephiTypeColumn(rows, info.typeColumn ?? "Type");
+        if (declared !== null) {
+            this.declareDirection(declared.directed, declared.statedBy, declared.conflictingEdges);
+        }
+
         for (let i = 0; i < rows.length; i++) {
             try {
                 const row = rows[i];
+                if (namesNoEndpointColumn(row, sourceCol, targetCol)) {
+                    edges.push(row);
+                    continue;
+                }
+
                 const edge = this.createEdge(row[sourceCol], row[targetCol], row, sourceCol, targetCol, i + 1);
 
                 if (edge) {
                     // Track unique node IDs
-                    nodeIds.add(edge.src as string);
-                    nodeIds.add(edge.dst as string);
+                    nodeIds.add(edge.source as string);
+                    nodeIds.add(edge.target as string);
 
                     edges.push(edge);
 
@@ -476,12 +574,17 @@ export class CSVDataSource extends DataSource {
         for (let i = 0; i < rows.length; i++) {
             try {
                 const row = rows[i];
+                if (namesNoEndpointColumn(row, sourceCol, targetCol)) {
+                    edges.push(row);
+                    continue;
+                }
+
                 const edge = this.createEdge(row[sourceCol], row[targetCol], row, sourceCol, targetCol, i + 1);
 
                 if (edge) {
                     // Track unique node IDs
-                    nodeIds.add(edge.src as string);
-                    nodeIds.add(edge.dst as string);
+                    nodeIds.add(edge.source as string);
+                    nodeIds.add(edge.target as string);
 
                     edges.push(edge);
 
@@ -547,8 +650,8 @@ export class CSVDataSource extends DataSource {
                 const edge = this.createEdge(sourceNode, targetNode, rowData, "source", "target", rowIndex + 1);
 
                 if (edge) {
-                    nodeIds.add(edge.src as string);
-                    nodeIds.add(edge.dst as string);
+                    nodeIds.add(edge.source as string);
+                    nodeIds.add(edge.target as string);
 
                     edges.push(edge);
 
@@ -615,11 +718,27 @@ export class CSVDataSource extends DataSource {
                 transformHeader: (header) => header.trim(),
             });
 
-            for (const row of edgeParse.data as Record<string, unknown>[]) {
+            const edgeRows = edgeParse.data as Record<string, unknown>[];
+
+            // The same Gephi `Type` column the single-file route reads, read here too: an export
+            // split into a node file and an edge file is the same export, and it must not be read
+            // as a different graph because of how it was handed over. A file without the column --
+            // which is most of them -- declares nothing, exactly as it does there.
+            const declared = readGephiTypeColumn(edgeRows, "Type");
+            if (declared !== null) {
+                this.declareDirection(declared.directed, declared.statedBy, declared.conflictingEdges);
+            }
+
+            for (const row of edgeRows) {
+                // The endpoint columns are taken OUT of the spread rather than shadowed by it.
+                // Spreading the row after writing the endpoints put the file's own `source` key
+                // straight back over the resolved one, so an edge file whose header differed from
+                // its data -- a `Source` column, say -- silently published both spellings.
+                const { source, src, Source, target, dst, Target, ...rest } = row;
                 edges.push({
-                    src: row.source ?? row.src ?? row.Source,
-                    dst: row.target ?? row.dst ?? row.Target,
-                    ...row,
+                    source: source ?? src ?? Source,
+                    target: target ?? dst ?? Target,
+                    ...rest,
                 });
             }
         }

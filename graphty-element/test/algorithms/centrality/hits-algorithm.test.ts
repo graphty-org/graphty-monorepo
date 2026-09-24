@@ -2,46 +2,19 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { HITSAlgorithm } from "../../../src/algorithms/HITSAlgorithm";
-import type { AdHocData } from "../../../src/config";
+import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
 
-interface MockGraphOpts {
-    dataPath?: string;
-}
-
+/**
+ * The shared mock, kept behind the name and the loose return type this file already used.
+ *
+ * It carries a real graph store, which is where an algorithm now reads its input from; the node
+ * and edge maps it also exposes are where the results land.
+ * @param opts - which fixture to load
+ * @returns the mock graph
+ */
  
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    const nodes = new Map<string | number, AdHocData>();
-    const edges = new Map<string | number, AdHocData>();
-    let graphResults: AdHocData | undefined;
-
-    if (typeof opts.dataPath === "string") {
-        const imp = await import(opts.dataPath);
-        for (const n of imp.nodes) {
-            nodes.set(n.id, n);
-        }
-        for (const e of imp.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, e);
-        }
-    }
-
-    const fakeGraph = {
-        nodes,
-        edges,
-        getDataManager() {
-            return {
-                nodes,
-                edges,
-                get graphResults() {
-                    return graphResults;
-                },
-                set graphResults(val: AdHocData | undefined) {
-                    graphResults = val;
-                },
-            };
-        },
-    };
-
-    return fakeGraph;
+    return createMockGraph(opts);
 }
 
 describe("HITSAlgorithm", () => {
@@ -60,24 +33,22 @@ describe("HITSAlgorithm", () => {
         });
 
         it("calculates hub and authority scores for all nodes", async () => {
-            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
+            const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
             const algo = new HITSAlgorithm(fakeGraph);
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
-                assert.property(node.algorithmResults, "graphty");
-                assert.property(node.algorithmResults.graphty, "hits");
-                assert.property(node.algorithmResults.graphty.hits, "hubScore");
-                assert.property(node.algorithmResults.graphty.hits, "authorityScore");
-                assert.property(node.algorithmResults.graphty.hits, "hubScorePct");
-                assert.property(node.algorithmResults.graphty.hits, "authorityScorePct");
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "hubScore"));
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "authorityScore"));
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct"));
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct"));
 
-                assert.isNumber(node.algorithmResults.graphty.hits.hubScore);
-                assert.isNumber(node.algorithmResults.graphty.hits.authorityScore);
-                assert.isAtLeast(node.algorithmResults.graphty.hits.hubScorePct, 0);
-                assert.isAtMost(node.algorithmResults.graphty.hits.hubScorePct, 1);
-                assert.isAtLeast(node.algorithmResults.graphty.hits.authorityScorePct, 0);
-                assert.isAtMost(node.algorithmResults.graphty.hits.authorityScorePct, 1);
+                assert.isNumber(getNodeResult(algo, node.id, "graphty", "hits", "hubScore"));
+                assert.isNumber(getNodeResult(algo, node.id, "graphty", "hits", "authorityScore"));
+                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct"), 0);
+                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct"), 1);
+                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct"), 0);
+                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct"), 1);
             }
         });
 
@@ -89,56 +60,17 @@ describe("HITSAlgorithm", () => {
         });
 
         it("computes combined score for visualization", async () => {
-            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
+            const fakeGraph = await mockGraph({ dataPath: "./data4.json" });
             const algo = new HITSAlgorithm(fakeGraph);
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
-                assert.property(node.algorithmResults.graphty.hits, "combinedScore");
-                assert.property(node.algorithmResults.graphty.hits, "combinedScorePct");
-                assert.isNumber(node.algorithmResults.graphty.hits.combinedScore);
-                assert.isAtLeast(node.algorithmResults.graphty.hits.combinedScorePct, 0);
-                assert.isAtMost(node.algorithmResults.graphty.hits.combinedScorePct, 1);
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "combinedScore"));
+                assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct"));
+                assert.isNumber(getNodeResult(algo, node.id, "graphty", "hits", "combinedScore"));
+                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct"), 0);
+                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct"), 1);
             }
-        });
-    });
-
-    describe("Suggested Styles", () => {
-        it("has suggested styles defined", () => {
-            assert.isTrue(HITSAlgorithm.hasSuggestedStyles());
-        });
-
-        it("returns correct category", () => {
-            const styles = HITSAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.strictEqual(styles.category, "node-metric");
-        });
-
-        it("uses StyleHelpers for visualization", () => {
-            const styles = HITSAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            const hasStyleHelper = styles.layers.some((layer) =>
-                layer.node?.calculatedStyle?.expr.includes("StyleHelpers"),
-            );
-            assert.isTrue(hasStyleHelper);
-        });
-
-        it("has multiple layers for hub/authority visualization", () => {
-            const styles = HITSAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-            assert.property(styles, "layers");
-            assert.isArray(styles.layers);
-            assert.isAtLeast(styles.layers.length, 1);
-        });
-
-        it("references HITS algorithm results", () => {
-            const styles = HITSAlgorithm.getSuggestedStyles();
-            assert.ok(styles);
-
-            const hasHITSInput = styles.layers.some((layer) =>
-                layer.node?.calculatedStyle?.inputs.some((input) => input.includes("algorithmResults.graphty.hits")),
-            );
-            assert.isTrue(hasHITSInput);
         });
     });
 });

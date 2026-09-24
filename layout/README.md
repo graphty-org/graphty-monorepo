@@ -1014,7 +1014,7 @@ npm run serve
 
 This will:
 
-- Start a development server on port 3000
+- Start a development server on the port in `PORT` (required, e.g. `PORT=3000 npm run serve`)
 - Automatically open your browser to `/examples/`
 - Provide hot module reloading for development
 
@@ -1035,15 +1035,11 @@ You can customize the server configuration using environment variables:
     HOST=localhost    # For local-only access
     HOST=0.0.0.0     # For network access
     HOST=my.server.com # For custom domain
-
-    # Server port (defaults to 3000)
-    PORT=3000
-    PORT=8080        # Custom port
     ```
 
-3. **Start the server with your configuration:**
+3. **Start the server with your configuration** (the port is required and comes from `PORT`):
     ```bash
-    npm run serve
+    PORT=3000 npm run serve
     ```
 
 ### Alternative: Build and Serve
@@ -1143,7 +1139,7 @@ npm run serve
 This will:
 
 1. Build the bundled `dist/layout.js`
-2. Start a Vite dev server at http://localhost:3000
+2. Start a Vite dev server on the port in `PORT`
 3. Automatically redirect imports to use the bundled version
 
 ### Building for GitHub Pages

@@ -73,7 +73,7 @@ graph-io/
 pnpm run build:all       # tsc -p tsconfig.build.json, then the multi-entry vite bundle and the d.ts shims
 pnpm run test:run        # run all tests once (pnpm exec vitest run test/formats/<fmt> for one format)
 pnpm run coverage        # v8 coverage, thresholds 80/80/75/80
-pnpm run coverage:preview # serve coverage report on port 9057
+pnpm run coverage:preview # serve coverage report (start it through servherd with PORT={{port}})
 pnpm run lint            # eslint (root flat config) + tsc --noEmit
 pnpm run typecheck       # tsc --noEmit only
 pnpm run typecheck:strict-consumer  # compile test/types/*.test-d.ts against dist/*.d.ts (build first)

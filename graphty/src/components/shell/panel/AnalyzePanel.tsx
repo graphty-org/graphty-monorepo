@@ -12,7 +12,7 @@ import React, { type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { GraphtyHandle } from "../../Graphty";
-import { type AlgorithmStyleLayer, RunAlgorithmModal } from "../../RunAlgorithmModal";
+import { RunAlgorithmModal } from "../../RunAlgorithmModal";
 import {
     COMING_TAG_FONT_SIZE,
     COMING_TAG_FONT_WEIGHT,
@@ -636,8 +636,6 @@ function ResultRow(props: ResultRowProps): React.JSX.Element {
 export interface AnalyzePanelProps {
     /** The canvas host the re-homed Run algorithm dialog runs against. */
     readonly graphtyRef: RefObject<GraphtyHandle | null>;
-    /** Receives the style layers a completed run applies. */
-    readonly onAddLayers?: (layers: AlgorithmStyleLayer[]) => void;
     /**
      * Every result on the Results tab, in the order they are drawn.
      *
@@ -756,7 +754,6 @@ export interface AnalyzePanelProps {
 export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
     const {
         graphtyRef,
-        onAddLayers,
         results = EMPTY_RESULTS,
         activeResultId,
         onOpenResult,
@@ -1177,7 +1174,6 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
             <RunAlgorithmModal
                 opened={pickerOpen}
                 graphtyRef={graphtyRef}
-                onAddLayers={onAddLayers}
                 onClose={() => {
                     setPickerOpen(false);
                 }}

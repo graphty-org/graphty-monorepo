@@ -30,8 +30,8 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks[0].nodes[0].id, "n0");
         assert.equal(chunks[0].nodes[0].label, "Node 0");
         assert.equal(chunks[0].nodes[1].id, "n1");
-        assert.equal(chunks[0].edges[0].src, "n0");
-        assert.equal(chunks[0].edges[0].dst, "n1");
+        assert.equal(chunks[0].edges[0].source, "n0");
+        assert.equal(chunks[0].edges[0].target, "n1");
     });
 
     test("parses attributes from attvalues", async () => {

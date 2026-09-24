@@ -30,24 +30,24 @@ describe("PajekDataSource Integration Tests", () => {
 
         // Verify edges
         // First 2 edges are arcs (directed)
-        assert.equal(chunk.value.edges[0].src, "1");
-        assert.equal(chunk.value.edges[0].dst, "2");
+        assert.equal(chunk.value.edges[0].source, "1");
+        assert.equal(chunk.value.edges[0].target, "2");
         assert.equal(chunk.value.edges[0].directed, true);
         assert.equal(chunk.value.edges[0].weight, 1);
 
-        assert.equal(chunk.value.edges[1].src, "2");
-        assert.equal(chunk.value.edges[1].dst, "3");
+        assert.equal(chunk.value.edges[1].source, "2");
+        assert.equal(chunk.value.edges[1].target, "3");
         assert.equal(chunk.value.edges[1].directed, true);
         assert.equal(chunk.value.edges[1].weight, 2);
 
         // Last 2 edges are undirected
-        assert.equal(chunk.value.edges[2].src, "3");
-        assert.equal(chunk.value.edges[2].dst, "4");
+        assert.equal(chunk.value.edges[2].source, "3");
+        assert.equal(chunk.value.edges[2].target, "4");
         assert.equal(chunk.value.edges[2].directed, false);
         assert.equal(chunk.value.edges[2].weight, 1);
 
-        assert.equal(chunk.value.edges[3].src, "1");
-        assert.equal(chunk.value.edges[3].dst, "4");
+        assert.equal(chunk.value.edges[3].source, "1");
+        assert.equal(chunk.value.edges[3].target, "4");
         assert.equal(chunk.value.edges[3].directed, false);
     });
 

@@ -39,7 +39,6 @@ describe("Edge Label Configuration", () => {
                     attachOffset: 1.5,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Verify the config structure is correct
@@ -56,7 +55,6 @@ describe("Edge Label Configuration", () => {
                     fontSize: 32,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             const { label } = style;
@@ -145,7 +143,6 @@ describe("Edge Label Configuration", () => {
                     location: "top",
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             const { label } = style;
@@ -160,7 +157,6 @@ describe("Edge Label Configuration", () => {
                     text: "Test Label",
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             const { label } = style;
@@ -180,7 +176,6 @@ describe("Edge Label Configuration", () => {
                         location,
                     },
                     line: { color: "darkgrey" },
-                    enabled: true,
                 };
 
                 assert.equal(style.label?.location, location);
@@ -251,7 +246,6 @@ describe("Edge Label Configuration", () => {
                     opacity: 1,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             const edgeLabelStyle: EdgeStyleConfig = {
@@ -262,7 +256,6 @@ describe("Edge Label Configuration", () => {
                     attachOffset: 1.0,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Both should accept the same offset value
@@ -283,7 +276,6 @@ describe("Edge Label Configuration", () => {
                     fontSize: 48,
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             assert.equal(style.label?.fontSize, 48);
@@ -298,7 +290,6 @@ describe("Edge Label Configuration", () => {
                     backgroundColor: "#00FF00",
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             assert.equal(style.label?.textColor, "#FF0000");
@@ -313,7 +304,6 @@ describe("Edge Label Configuration", () => {
                     backgroundColor: "transparent",
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             assert.equal(style.label?.backgroundColor, "transparent");
@@ -329,7 +319,6 @@ describe("Edge Label Configuration", () => {
                     text: "Visible Label",
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             const styleWithoutEnabled: EdgeStyleConfig = {
@@ -338,7 +327,6 @@ describe("Edge Label Configuration", () => {
                     // enabled is not set (defaults to false)
                 },
                 line: { color: "darkgrey" },
-                enabled: true,
             };
 
             // Edge.ts checks style.label?.enabled before creating the label

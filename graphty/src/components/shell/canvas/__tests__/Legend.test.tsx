@@ -14,7 +14,7 @@ const SIZE: LegendChannel = {
     technicalName: "Degree centrality",
     scaleLine: "sqrt scale",
     scaleShort: "sqrt",
-    stops: [{ label: "2" }, { label: "median 3" }, { label: "4" }],
+    stops: [{ label: "2" }, { label: "midpoint 3" }, { label: "4" }],
 };
 
 const OTHER: LegendOtherRow = {
@@ -93,7 +93,7 @@ describe("Legend", () => {
             render(<Legend {...defaultProps} channels={[SIZE]} />);
 
             expect(screen.getByText("2", SPAN)).toBeInTheDocument();
-            expect(screen.getByText("median 3", SPAN)).toBeInTheDocument();
+            expect(screen.getByText("midpoint 3", SPAN)).toBeInTheDocument();
             expect(screen.getByText("4", SPAN)).toBeInTheDocument();
         });
 
@@ -169,7 +169,7 @@ describe("Legend", () => {
 
             expect(screen.getByText(/Color: node type/, SPAN)).toHaveTextContent("Color: node type, categorical");
             expect(screen.getByText(/Size: Most connected/, SPAN)).toHaveTextContent("Size: Most connected, sqrt");
-            expect(screen.queryByText("median 3", SPAN)).toBeNull();
+            expect(screen.queryByText("midpoint 3", SPAN)).toBeNull();
             expect(screen.queryByText("Group 1", SPAN)).toBeNull();
         });
 

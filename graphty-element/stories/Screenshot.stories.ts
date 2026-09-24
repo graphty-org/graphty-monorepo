@@ -2,10 +2,18 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
+import { ref } from "lit/directives/ref.js";
 
-import { StyleTemplate } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
+import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "./assertions";
+import {
+    edgeData,
+    eventWaitingDecorator,
+    nodeData,
+    setLayoutPreSteps,
+    type StoryArgs,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Screenshot",
@@ -21,7 +29,41 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
+
+/**
+ * Settle a capture story and check the element will actually hand over an image.
+ *
+ * WHY THE CAPTURE IS DRIVEN HERE RATHER THAN BY CLICKING A BUTTON: every button in these two
+ * stories ends in a download, which a headless browser refuses, so the button press proves
+ * nothing either way. The verb behind them is the thing worth asserting, and it is the same one
+ * the buttons call.
+ *
+ * NOTE FOR ANYONE COMPARING WITH THE OTHER TEST LANES: `test/setup.ts` stubs Babylon's
+ * `CreateScreenshotAsync` to a 1x1 white PNG, and the storybook project does not load it. So this
+ * is the one lane in the package where a real capture of a real scene happens.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @returns The element, for a story that wants to go on asking it things.
+ */
+const captures = async (canvasElement: HTMLElement, story: string): Promise<Graphty> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Screenshot ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 6, edges: 6 });
+    await assertLayoutPlaced(scene, {});
+
+    const buttons = [...canvasElement.querySelectorAll("button")];
+
+    await holds(
+        buttons.length >= 5,
+        `Screenshot ${story}: the capture presets are the story and it put ${String(buttons.length)} buttons ` +
+            "on the page",
+    );
+
+    return scene.element;
+};
 
 /**
  * Capture screenshots of the graph in various formats and resolutions.
@@ -29,13 +71,6 @@ type Story = StoryObj<Graphty>;
 export const Image: Story = {
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -46,7 +81,11 @@ export const Image: Story = {
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
                     .layoutConfig=${args.layoutConfig}
-                    .styleTemplate=${args.styleTemplate}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 
@@ -170,7 +209,27 @@ export const Image: Story = {
         </div>
     `,
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        const element = await captures(canvasElement, "Image");
+        const shot = await element.captureScreenshot({ format: "png", destination: { blob: true } });
+
+        await holds(
+            shot.metadata.width > 0 && shot.metadata.height > 0,
+            `Screenshot Image: the element captured an image measuring ` +
+                `${String(shot.metadata.width)}x${String(shot.metadata.height)}`,
+        );
+
+        // A capture of an empty canvas is a handful of bytes; a capture of this graph is not.
+        await holds(
+            shot.metadata.byteSize > 1000,
+            `Screenshot Image: the element captured a ${String(shot.metadata.byteSize)}-byte ` +
+                `${shot.metadata.format} image, which is too small to be a picture of a graph`,
+        );
+
+        await holds(
+            shot.blob.size === shot.metadata.byteSize,
+            `Screenshot Image: the element reports ${String(shot.metadata.byteSize)} bytes and handed over a ` +
+                `blob of ${String(shot.blob.size)}`,
+        );
     },
 };
 
@@ -180,13 +239,6 @@ export const Image: Story = {
 export const Video: Story = {
     args: {
         layoutConfig: { seed: 42 },
-        styleTemplate: StyleTemplate.parse({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            behavior: {
-                layout: { preSteps: 2000 },
-            },
-        }),
     },
     render: (args) => html`
         <div style="display: flex; flex-direction: column; height: 100vh;">
@@ -196,8 +248,12 @@ export const Video: Story = {
                     style="width: 100%; height: 100%; display: block;"
                     .nodeData=${args.nodeData}
                     .edgeData=${args.edgeData}
-                    .styleTemplate=${args.styleTemplate}
                     .layoutConfig=${args.layoutConfig}
+                    ${ref((el) => {
+                        if (el instanceof Graphty) {
+                            setLayoutPreSteps(el, 2000);
+                        }
+                    })}
                 ></graphty-element>
             </div>
 
@@ -384,6 +440,28 @@ export const Video: Story = {
         </div>
     `,
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        const element = await captures(canvasElement, "Video");
+
+        // One short recording rather than any of the story's own presets, which all end in a
+        // download the browser refuses here. What the story promises is that the element records
+        // the live scene at all, and half a second of it says so.
+        const video = await element.captureAnimation({
+            duration: 500,
+            fps: 20,
+            cameraMode: "stationary",
+            download: false,
+        });
+
+        await holds(
+            video.metadata.framesCaptured > 1,
+            `Screenshot Video: half a second at twenty frames a second recorded ` +
+                `${String(video.metadata.framesCaptured)} frames`,
+        );
+
+        await holds(
+            video.blob.size > 1000,
+            `Screenshot Video: the element handed over a ${String(video.blob.size)}-byte ` +
+                `${video.metadata.format} recording, which is too small to be a picture of anything`,
+        );
     },
 };

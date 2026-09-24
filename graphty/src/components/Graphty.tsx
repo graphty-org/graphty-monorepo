@@ -1,9 +1,8 @@
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
-import type { EdgeStyle } from "../types/style-layer";
-import { editorToElementRichTextStyle } from "../utils/richTextStyleBridge";
-import { editorToElementArrow, editorToElementEdgeLine } from "../utils/styleBridge";
 import type { LayerItem } from "./layout/LeftSidebar";
 
 interface GraphNode {
@@ -18,16 +17,26 @@ interface GraphEdge {
     data: Record<string, unknown>;
 }
 
-interface GraphtyElementType extends HTMLElement {
+/**
+ * The element as this wrapper drives it.
+ *
+ * The property half is still written out here, because the element's own class type cannot be
+ * used whole: `Graph.dataManager` is private on it and {@link GraphtyHandle.getData} reads the
+ * node and edge maps through it, which is the element gap recorded on `getData` itself.
+ *
+ * The pin verbs are NOT written out. They are picked off the element's own class, so their
+ * signatures are the element's and a rename over there is a type error here rather than a
+ * method that quietly stops existing.
+ */
+interface GraphtyElementType extends HTMLElement, Pick<GraphtyElement, "pin" | "unpin" | "pinnedNodes"> {
     nodeData?: { id: number | string; [key: string]: unknown }[];
-    edgeData?: { src: number | string; dst: number | string; [key: string]: unknown }[];
+    edgeData?: { source: number | string; target: number | string; [key: string]: unknown }[];
     layout?: string;
     /** @deprecated Use viewMode instead */
     layout2d?: boolean;
     /** View mode: "2d", "3d", "vr", or "ar" */
     viewMode?: "2d" | "3d" | "vr" | "ar";
     layoutConfig?: Record<string, unknown>;
-    styleTemplate?: unknown;
     dataSource?: string;
     dataSourceConfig?: Record<string, unknown>;
     /** Clears the graph AND resets the element's per-load data-source guard. */
@@ -36,70 +45,16 @@ interface GraphtyElementType extends HTMLElement {
 }
 
 /**
- * Turns the editor's whole edge style into graphty-element's.
+ * How often the style effect looks for the element's session while it is still coming up.
  *
- * The only conversion this component still owns. `utils/styleBridge` and
- * `utils/richTextStyleBridge` hold one writer per BRANCH -- line, arrow, rich text -- and
- * this is the composition of them, which neither bridge has a twin for. What the
- * composition adds is the OMISSION discipline: a branch whose writer returns undefined is
- * left OFF the result entirely rather than written as a present key with an `undefined`
- * value.
- *
- * That discipline is the point, not a detail. graphty-element interns styles by deep value
- * equality (`Styles.styleToId`, which scans every style it has ever seen) and `NodeMesh`
- * keys its mesh cache on the id that scan hands back, so `{arrowHead: undefined}` and `{}`
- * are two style ids -- and two meshes -- for one look, and each extra id makes every later
- * lookup slower. An absent key also lets another matching layer's value through the
- * element's `defaultsDeep` merge, where a present undefined does not, so the two are
- * different facts as well as different costs.
- *
- * Every MAPPING it needs comes from the bridges and none of them is copied here: two
- * copies of a canonicalisation drift, and a drifted shape is a new style id. This function
- * belongs beside those writers in `utils/styleBridge`, and is named as it would be named
- * there.
- * @param edgeStyle - the edge style configuration the editor handed back.
- * @returns the element-shaped edge style, carrying only the branches that have a value.
- * @public
+ * The element builds its graph asynchronously and publishes no "ready" event a consumer
+ * can wait on, so the one honest option is to look again. The interval is cleared the
+ * moment the session is found.
  */
-export function editorToElementEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
+const SESSION_POLL_MS = 50;
 
-    if (edgeStyle.line) {
-        result.line = editorToElementEdgeLine(edgeStyle.line);
-    }
-
-    if (edgeStyle.arrowHead) {
-        const converted = editorToElementArrow(edgeStyle.arrowHead);
-        if (converted) {
-            result.arrowHead = converted;
-        }
-    }
-
-    if (edgeStyle.arrowTail) {
-        const converted = editorToElementArrow(edgeStyle.arrowTail);
-        if (converted) {
-            result.arrowTail = converted;
-        }
-    }
-
-    // Convert label if present and enabled
-    if (edgeStyle.label) {
-        const convertedLabel = editorToElementRichTextStyle(edgeStyle.label);
-        if (convertedLabel) {
-            result.label = convertedLabel;
-        }
-    }
-
-    // Convert tooltip if present and enabled
-    if (edgeStyle.tooltip) {
-        const convertedTooltip = editorToElementRichTextStyle(edgeStyle.tooltip);
-        if (convertedTooltip) {
-            result.tooltip = convertedTooltip;
-        }
-    }
-
-    return result;
-}
+/** What {@link GraphtyHandle.pinnedNodes} answers before the element exists to be asked. */
+const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
 
 type ViewMode = "2d" | "3d" | "vr" | "ar";
 
@@ -110,24 +65,20 @@ export interface SelectionChangedDetail {
     currentNodeData: Record<string, unknown> | null;
 }
 
-/** Style layer from graphty-element */
-export interface StyleLayer {
-    metadata?: Record<string, unknown>;
-    node?: {
-        selector?: string;
-        style?: Record<string, unknown>;
-        calculatedStyle?: Record<string, unknown>;
-    };
-    edge?: {
-        selector?: string;
-        style?: Record<string, unknown>;
-        calculatedStyle?: Record<string, unknown>;
-    };
-}
+/**
+ * One style layer, exactly as the element holds it.
+ *
+ * Re-exported rather than re-declared. The app used to carry its own shape for this --
+ * a metadata bag and two halves of loose records -- and every field of it was a guess at
+ * what `StyleManager` happened to accept. A layer is now addressed by {@link Layer.id},
+ * says who owns it in {@link Layer.source}, and carries the channels it paints in
+ * `set` and `encode`, so there is one declaration and it is the element's.
+ */
+type StyleLayer = Layer;
 
 /** Event detail for style-changed events */
 export interface StylesChangedDetail {
-    layers: StyleLayer[];
+    layers: readonly StyleLayer[];
 }
 
 interface GraphtyProps {
@@ -237,30 +188,16 @@ interface Graph {
         nodes: Map<string | number, GraphNode>;
         edges: Map<string, GraphEdge>;
     };
-    /** Get all style layers */
-    getLayers: () => StyleLayer[];
-    /** Get the StyleManager for layer mutations */
-    getStyleManager: () => StyleManager;
+    /**
+     * The headless model: the style stack, the runs and their results, the selection.
+     *
+     * The only door to the layers. There is no `getStyleManager` and no `getLayers` here
+     * any more -- both addressed a layer by its place in an array, and the stack is now
+     * read bottom first off `session.styles.list()` with every layer carrying its own id.
+     */
+    getSession: () => GraphSession;
     // Additional Graph methods accessible via the instance
     [key: string]: unknown;
-}
-
-/**
- * StyleManager interface for layer management operations.
- */
-interface StyleManager {
-    /** Add a layer at the end */
-    addLayer: (layer: StyleLayer) => void;
-    /** Insert a layer at a specific position */
-    insertLayer: (position: number, layer: StyleLayer) => void;
-    /** Remove a layer at a specific index */
-    removeLayerByIndex: (index: number) => boolean;
-    /** Update a layer at a specific index */
-    updateLayerByIndex: (index: number, layer: StyleLayer) => boolean;
-    /** Reorder layers by moving from one index to another */
-    reorderLayers: (fromIndex: number, toIndex: number) => boolean;
-    /** Get all layers */
-    getLayers: () => StyleLayer[];
 }
 
 export interface GraphtyHandle {
@@ -277,6 +214,18 @@ export interface GraphtyHandle {
     loadData: (format: string, config: Record<string, unknown>) => void;
     /** Clear all data from the graph */
     clearData: () => void;
+    /**
+     * Pin nodes where they are, so no layout moves them again.
+     *
+     * Forwarded to the element's own verb rather than reached through `graph`. The ids are the
+     * element's own, `string | number`, NOT the printed form a surface holds: the element looks
+     * a node up by exact map key, so `pin("34")` finds nothing on a graph whose ids are numbers.
+     */
+    pin: (ids: (string | number) | readonly (string | number)[]) => void;
+    /** Release nodes a reader or a drag pinned. The same id rule as {@link GraphtyHandle.pin}. */
+    unpin: (ids: (string | number) | readonly (string | number)[]) => void;
+    /** Which nodes are pinned right now, by the element's own ids; empty before the element is up. */
+    pinnedNodes: ReadonlySet<string | number>;
     /** Access to the underlying Graph instance for advanced operations (e.g., AI integration) */
     graph: Graph | null;
 }
@@ -303,6 +252,18 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
     useImperativeHandle(
         ref,
         () => ({
+            /*
+             * The node and edge records the data table and the node inspector draw.
+             *
+             * ELEMENT GAP, and the reason this reaches through `graph.dataManager` -- which is
+             * PRIVATE on the element's own class, so the wrapper cannot use that class as its
+             * element type and writes the property half out by hand instead. The session's data
+             * surface answers `node(id)` and `edge(id)` one at a time and publishes no listing
+             * verb: its own documentation says id listings over a scope are asynchronous by
+             * construction and not part of that surface yet. Until one exists there is no
+             * supported way to ask the element for its records, so this walks the maps behind
+             * the private field. Delete this the day the element publishes a listing.
+             */
             getData: () => {
                 const dataManager = graphtyRef.current?.graph?.dataManager;
                 if (!dataManager) {
@@ -315,12 +276,15 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                     ...node.data,
                 }));
 
-                // Extract edge data from the Map
+                // Extract edge data from the Map, under the names the element publishes. The id
+                // is written LAST rather than first: a record that carries its own `id` -- a GEXF
+                // file's edge identifier, say -- used to win the collision through the spread and
+                // replace the element's id in every record the app then read.
                 const edges = Array.from(dataManager.edges.values()).map((edge) => ({
-                    id: edge.id,
-                    src: edge.srcId,
-                    dst: edge.dstId,
                     ...edge.data,
+                    id: edge.id,
+                    source: edge.srcId,
+                    target: edge.dstId,
                 }));
 
                 return { nodes, edges };
@@ -399,6 +363,15 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 graphtyRef.current.dataSource = format;
                 graphtyRef.current.dataSourceConfig = config;
             },
+            pin: (ids: (string | number) | readonly (string | number)[]) => {
+                graphtyRef.current?.pin(ids);
+            },
+            unpin: (ids: (string | number) | readonly (string | number)[]) => {
+                graphtyRef.current?.unpin(ids);
+            },
+            get pinnedNodes() {
+                return graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES;
+            },
             clearData: () => {
                 // The element's own method, not `graph.dataManager.clear()`: clearing the
                 // data has to reset the element's per-load data-source guard as well, and
@@ -454,12 +427,10 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
     }, [layout, layoutConfig]);
 
     // NOTE: Layer state is managed by graphty-element (Single Source of Truth).
-    // We no longer push layers via styleTemplate. Instead:
-    // 1. graphty queries layers from graphty-element via getLayers()
-    // 2. User makes changes via UI
-    // 3. graphty calls StyleManager API methods (addLayer, updateLayerByIndex, etc.)
-    // 4. graphty-element fires style-changed event
-    // 5. graphty re-queries and re-renders
+    // The loop is: the app reads `session.styles.list()`, the user edits, the app calls a
+    // `session.styles` verb by LAYER ID, the session publishes `style:changed` once the
+    // repaint has committed, and the app re-reads. Nothing here holds an index and nothing
+    // here pushes a styleTemplate down.
 
     useEffect(() => {
         if (graphtyRef.current) {
@@ -497,56 +468,62 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         };
     }, [onSelectionChange]);
 
-    // Handle style-changed events from graphty-element
+    /* The style stack, read back whenever it changes.
+
+       Through the SESSION rather than through a DOM event. `style:changed` is published by
+       the session for every verb that changes the stack -- including the ones the element
+       itself performs, such as the encoding a finished run paints by itself -- and it
+       arrives AFTER the repaint has committed, so what `list()` answers next is what the
+       canvas is already showing. The element's `style-changed` DOM event predates the
+       stack and fires for none of that.
+
+       The session appears when the element finishes coming up, which is asynchronous, so
+       this polls for it exactly as the layer sync did before. */
     useEffect(() => {
         const element = graphtyRef.current;
         if (!element || !onStylesChange) {
             return undefined;
         }
 
-        const handleStyleChanged = (): void => {
-            // Query current state from graphty-element
-            // Guard against partially initialized graph in test environments
-            const { graph } = element;
-            if (!graph || typeof graph.getLayers !== "function") {
-                return;
-            }
-            const layers = graph.getLayers();
-            onStylesChange({ layers });
-        };
-
-        element.addEventListener("style-changed", handleStyleChanged);
-
-        // Sync initial layers when the graph becomes available
-        // Poll until graph is ready (graphty-element initializes asynchronously)
+        let unwatch: (() => void) | null = null;
         let pollInterval: ReturnType<typeof setInterval> | null = null;
-        let synced = false;
 
-        const syncInitialLayers = (): void => {
-            // Guard against partially initialized graph in test environments
-            if (element.graph && typeof element.graph.getLayers === "function" && !synced) {
-                synced = true;
-                if (pollInterval) {
-                    clearInterval(pollInterval);
-                    pollInterval = null;
-                }
-                handleStyleChanged();
+        const stopPolling = (): void => {
+            if (pollInterval !== null) {
+                clearInterval(pollInterval);
+                pollInterval = null;
             }
         };
 
-        // Try immediately (graph may already be ready)
-        syncInitialLayers();
+        const bind = (): boolean => {
+            // Guard against a partially initialised graph, which is what a test environment
+            // and the first few frames of a real load both hand back.
+            const { graph } = element;
+            if (!graph || typeof graph.getSession !== "function") {
+                return false;
+            }
 
-        // If not ready, poll until it is
-        if (!synced) {
-            pollInterval = setInterval(syncInitialLayers, 50);
+            const session = graph.getSession();
+
+            unwatch = session.on("style:changed", () => {
+                onStylesChange({ layers: session.styles.list() });
+            });
+            onStylesChange({ layers: session.styles.list() });
+
+            return true;
+        };
+
+        if (!bind()) {
+            pollInterval = setInterval(() => {
+                if (bind()) {
+                    stopPolling();
+                }
+            }, SESSION_POLL_MS);
         }
 
         return () => {
-            element.removeEventListener("style-changed", handleStyleChanged);
-            if (pollInterval) {
-                clearInterval(pollInterval);
-            }
+            stopPolling();
+            unwatch?.();
         };
     }, [onStylesChange]);
 

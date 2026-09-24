@@ -11,16 +11,11 @@ const meta: Meta = {
 
 The graphty-element logging system provides configurable, hierarchical logging for debugging and development.
 
-## URL Parameter Configuration
+## Where to import it from
 
-Enable logging via URL parameters:
-
-| Parameter | Example | Description |
-|-----------|---------|-------------|
-| \`graphty-element-logging=true\` | Enable all modules | Turns on logging for all modules at default level |
-| \`graphty-element-logging=layout,xr\` | Enable specific modules | Only log from specified modules |
-| \`graphty-element-logging=layout:debug,xr:trace\` | Per-module levels | Set different log levels per module |
-| \`graphty-element-log-level=debug\` | Set global level | Override the default log level |
+Everything below comes from \`@graphty/graphty-element/logging\`, which resolves in Node with no
+renderer anywhere in its import graph. The registration verb for a destination of your own,
+\`registerLogSink\`, comes from \`@graphty/graphty-element/extend\`.
 
 ## Log Levels
 
@@ -36,7 +31,7 @@ From least to most verbose:
 ## Programmatic Usage
 
 \`\`\`typescript
-import { GraphtyLogger, LogLevel } from "@graphty/graphty-element";
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
 
 // Configure logging
 await GraphtyLogger.configure({
@@ -51,6 +46,28 @@ const logger = GraphtyLogger.getLogger(["graphty", "myModule"]);
 logger.info("Message", { data: "value" });
 logger.debug("Debug info");
 logger.error("Something went wrong", error);
+\`\`\`
+
+## Turning logging on from the page's query string
+
+The element does not read the query string. A component that reconfigured global logging
+because of something in its host page's URL could not be opted out of and could not be tested,
+so the reading moved to the page that wants it -- the parser is still published, and one call
+wires it back up:
+
+\`\`\`typescript
+import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "@graphty/graphty-element/logging";
+
+// ?graphty-element-logging=layout:debug,xr:trace&graphty-element-log-level=debug
+const params = parseLoggingURLParams();
+if (params?.enabled) {
+    await GraphtyLogger.configure({
+        enabled: true,
+        modules: params.modules,
+        level: params.level ?? LogLevel.INFO,
+        format: { timestamp: true, module: true, colors: true },
+    });
+}
 \`\`\`
 `,
             },

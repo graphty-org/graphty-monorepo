@@ -1,4 +1,5 @@
 import type { Graph } from "../../core/graph.js";
+import { ConvergenceError } from "../../errors.js";
 import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
@@ -9,135 +10,153 @@ import type { CentralityOptions, CentralityResult } from "../../types/index.js";
  * that themselves have high eigenvector centrality.
  *
  * Time complexity: O(V + E) per iteration
- * Space complexity: O(V)
+ * Space complexity: O(V + E)
  */
 
 export interface EigenvectorCentralityOptions extends CentralityOptions {
     maxIterations?: number; // Maximum iterations (default: 100)
-    tolerance?: number; // Convergence tolerance (default: 1e-6)
+    tolerance?: number; // Convergence tolerance per node (default: 1e-6)
     startVector?: Map<string, number>; // Initial vector (optional)
 }
 
 /**
  * Calculate eigenvector centrality for all nodes in the graph.
- * Uses the power iteration method to find the dominant eigenvector.
+ *
+ * Iterates x <- (A + I) x, as networkx does. Shifting by the identity raises every eigenvalue by
+ * one and leaves the eigenvectors alone, so the largest eigenvalue becomes the only one of largest
+ * magnitude -- even on a bipartite graph, whose spectrum holds both +lambda and -lambda and makes
+ * unshifted power iteration oscillate forever. The run stops when the L1 change summed over all
+ * nodes falls below `n * tolerance`, networkx's test.
+ *
+ * A node is fed by `graph.neighbors`, i.e. by its out-neighbours on a directed graph. When the
+ * graph has no cycle along that relation (no edges, or a directed acyclic graph) the adjacency
+ * matrix is nilpotent, its only eigenvalue is 0, and every score is exactly 0.
  * @param graph - The graph to compute eigenvector centrality on
  * @param options - Configuration options for the computation
  * @returns Object mapping node IDs to their eigenvector centrality scores
+ * @throws {ConvergenceError} When `maxIterations` passes do not meet `tolerance`, as networkx
+ *   raises `PowerIterationFailedConvergence`. Raise `maxIterations` or `tolerance` and call again.
  */
 export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
     const { maxIterations = 100, tolerance = 1e-6, normalized = true, startVector } = options;
 
+    const nodeIds = Array.from(graph.nodes(), (node) => node.id);
+    const keys = nodeIds.map((id) => id.toString());
+    const n = keys.length;
     const centrality: CentralityResult = {};
-    const nodes = Array.from(graph.nodes());
-    const nodeIds = nodes.map((node) => node.id);
 
-    if (nodeIds.length === 0) {
+    if (n === 0) {
         return centrality;
     }
 
-    // Initialize the eigenvector
-    let currentVector = new Map<string, number>();
-    let previousVector = new Map<string, number>();
+    const index = new Map(keys.map((key, i) => [key, i]));
+    const adjacency = nodeIds.map((id) => Array.from(graph.neighbors(id), (m) => index.get(m.toString()) ?? 0));
 
-    if (startVector) {
-        // Use provided start vector
-        for (const nodeId of nodeIds) {
-            const key = nodeId.toString();
-            currentVector.set(key, startVector.get(key) ?? 1.0 / Math.sqrt(nodeIds.length));
+    if (isNilpotent(adjacency)) {
+        for (const key of keys) {
+            centrality[key] = 0;
         }
-    } else {
-        // Initialize with uniform distribution
-        const initialValue = 1.0 / Math.sqrt(nodeIds.length);
-        for (const nodeId of nodeIds) {
-            currentVector.set(nodeId.toString(), initialValue);
-        }
+        return centrality;
     }
 
-    // Power iteration
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
-        previousVector = new Map(currentVector);
-        currentVector = new Map();
+    // A node with nothing feeding it scores exactly 0 once the largest eigenvalue is positive,
+    // so it starts there and (A + I) keeps it there.
+    let x = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+        x[i] = adjacency[i]?.length ? (startVector?.get(keys[i] ?? "") ?? 1) : 0;
+    }
+    scaleToUnitLength(x);
 
-        // Update each node's centrality based on neighbors
-        for (const nodeId of nodeIds) {
-            let sum = 0;
-            const neighbors = Array.from(graph.neighbors(nodeId));
-
-            for (const neighbor of neighbors) {
-                const neighborKey = neighbor.toString();
-                const prevValue = previousVector.get(neighborKey);
-                sum += prevValue ?? 0;
+    let next = new Float64Array(n);
+    let converged = false;
+    for (let iteration = 0; iteration < maxIterations && !converged; iteration++) {
+        for (let i = 0; i < n; i++) {
+            let sum = x[i] ?? 0;
+            for (const j of adjacency[i] ?? []) {
+                sum += x[j] ?? 0;
             }
-
-            currentVector.set(nodeId.toString(), sum);
+            next[i] = sum;
         }
+        scaleToUnitLength(next);
 
-        // Normalize the vector
-        let norm = 0;
-        for (const value of Array.from(currentVector.values())) {
-            norm += value * value;
+        let change = 0;
+        for (let i = 0; i < n; i++) {
+            change += Math.abs((next[i] ?? 0) - (x[i] ?? 0));
         }
-        norm = Math.sqrt(norm);
-
-        if (norm === 0) {
-            // Graph has no edges or is disconnected
-            for (const nodeId of nodeIds) {
-                centrality[nodeId.toString()] = 0;
-            }
-            return centrality;
-        }
-
-        // Normalize the vector
-        for (const [nodeId, value] of Array.from(currentVector)) {
-            currentVector.set(nodeId, value / norm);
-        }
-
-        // Check for convergence
-        let maxDiff = 0;
-        for (const [nodeId, value] of Array.from(currentVector)) {
-            const prevValue = previousVector.get(nodeId) ?? 0;
-            const diff = Math.abs(value - prevValue);
-            maxDiff = Math.max(maxDiff, diff);
-        }
-
-        if (maxDiff < tolerance) {
-            break;
-        }
+        [x, next] = [next, x];
+        converged = change < n * tolerance;
+    }
+    if (!converged) {
+        throw new ConvergenceError("eigenvectorCentrality", maxIterations, tolerance);
     }
 
-    // Prepare results
-    for (const [nodeId, value] of Array.from(currentVector)) {
-        centrality[nodeId] = value;
+    for (let i = 0; i < n; i++) {
+        centrality[keys[i] ?? ""] = x[i] ?? 0;
     }
 
     // Additional normalization if requested (normalize to [0,1] range)
     if (normalized) {
         let maxValue = 0;
         let minValue = Number.POSITIVE_INFINITY;
-
-        for (const value of Object.values(centrality)) {
+        for (const value of x) {
             maxValue = Math.max(maxValue, value);
             minValue = Math.min(minValue, value);
         }
-
         const range = maxValue - minValue;
-        if (range > 0) {
-            for (const nodeId of Object.keys(centrality)) {
-                const centralityValue = centrality[nodeId];
-                if (centralityValue !== undefined) {
-                    centrality[nodeId] = (centralityValue - minValue) / range;
-                }
-            }
-        } else {
-            // All values are the same, set to 1
-            for (const nodeId of Object.keys(centrality)) {
-                centrality[nodeId] = maxValue > 0 ? 1 : 0;
-            }
+        // All scores equal: 1 each, or 0 each when there is nothing to score.
+        const flat = maxValue > 0 ? 1 : 0;
+        for (const key of keys) {
+            centrality[key] = range > 0 ? ((centrality[key] ?? 0) - minValue) / range : flat;
         }
     }
 
     return centrality;
+}
+
+/**
+ * Whether the relation has no cycle (Kahn's algorithm), which makes its adjacency matrix nilpotent.
+ * @param adjacency - Each node's neighbour indices
+ * @returns True when every node can be peeled off in topological order
+ */
+function isNilpotent(adjacency: number[][]): boolean {
+    const inDegree = new Int32Array(adjacency.length);
+    for (const targets of adjacency) {
+        for (const j of targets) {
+            inDegree[j] = (inDegree[j] ?? 0) + 1;
+        }
+    }
+    const queue: number[] = [];
+    inDegree.forEach((degree, i) => {
+        if (degree === 0) {
+            queue.push(i);
+        }
+    });
+    for (let head = 0; head < queue.length; head++) {
+        for (const j of adjacency[queue[head] ?? 0] ?? []) {
+            inDegree[j] = (inDegree[j] ?? 0) - 1;
+            if (inDegree[j] === 0) {
+                queue.push(j);
+            }
+        }
+    }
+    return queue.length === adjacency.length;
+}
+
+/**
+ * Scale a vector in place to unit Euclidean length (a zero vector is left alone).
+ * @param v - The vector to scale
+ */
+function scaleToUnitLength(v: Float64Array): void {
+    let norm = 0;
+    for (const value of v) {
+        norm += value * value;
+    }
+    norm = Math.sqrt(norm);
+    if (norm > 0) {
+        for (let i = 0; i < v.length; i++) {
+            v[i] = (v[i] ?? 0) / norm;
+        }
+    }
 }
 
 /**

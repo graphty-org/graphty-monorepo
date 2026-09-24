@@ -3,6 +3,23 @@
  */
 
 /**
+ * The key an `@graphty/algorithms` result is matched back onto the element's edges by: the two
+ * endpoint ids, in the orientation the record declared.
+ *
+ * THIS IS A LOOKUP KEY AND NOT AN IDENTITY, which is the whole reason it has a name of its own
+ * and is not published from `./extend`. The algorithms package answers by endpoint pair, because
+ * that is all it can represent; the element identifies an edge by its own counter. A key that
+ * names a pair cannot name one of two parallel edges, so nothing may publish it as an edge id --
+ * an algorithm looks a result up with this and then publishes `edge.id`.
+ * @param source - the id of the node the edge leaves
+ * @param target - the id of the node the edge enters
+ * @returns the lookup key
+ */
+export function edgePairKey(source: string | number, target: string | number): string {
+    return `${String(source)}:${String(target)}`;
+}
+
+/**
  * Minimal edge data interface required by graph utilities
  */
 export interface MinimalEdge {

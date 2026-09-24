@@ -57,7 +57,7 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("should ensure style-init before data operations", async () => {
+    it("puts a style edit and a data load in one queue, in the order they were asked for", async () => {
         const operations: string[] = [];
         const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
 
@@ -66,57 +66,17 @@ describe("Graph Queue Integration", () => {
             return originalQueue(category, execute, metadata);
         });
 
-        // Set style template
-        await graph.setStyleTemplate({
-            graphtyTemplate: true,
-            majorVersion: "1",
-            graph: {
-                addDefaultStyle: true,
-                background: {
-                    backgroundType: "color",
-                    color: "whitesmoke",
-                },
-                startingCameraDistance: 100,
-                layout: "ngraph",
-                twoD: false,
-                viewMode: "3d",
-            },
-            data: {
-                knownFields: {
-                    nodeIdPath: "id",
-                    nodeWeightPath: null,
-                    nodeTimePath: null,
-                    edgeSrcIdPath: "source",
-                    edgeDstIdPath: "target",
-                    edgeWeightPath: null,
-                    edgeTimePath: null,
-                },
-            },
-            behavior: {
-                layout: {
-                    type: "ngraph",
-                    preSteps: 0,
-                    stepMultiplier: 1,
-                    minDelta: 0.01,
-                    zoomStepInterval: 10,
-                },
-                node: {
-                    pinOnDrag: false,
-                },
-            },
-            layers: [
-                {
-                    node: {
-                        selector: "*",
-                        style: {
-                            texture: {
-                                color: "blue",
-                            },
-                            enabled: true,
-                        },
-                    },
-                },
-            ],
+        // A style edit takes its turn in the same queue as everything else. It used to be a
+        // `style-init` operation, queued by `setStyleTemplate`; a layer edit is a session run
+        // now, queued as `style-edit`, and the repaint that follows a data load is the queue's
+        // own `style-apply`. The category is its own rather than shared with `algorithm-run`
+        // because `data-add` obsoletes an algorithm run -- a computation over data that has just
+        // changed -- and must not cancel a layer, which says how to paint whatever arrives.
+        await graph.getSession().styles.add({
+            name: "every node blue",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "blue" },
         });
 
         // Add nodes
@@ -125,13 +85,17 @@ describe("Graph Queue Integration", () => {
         // Wait for operations to complete
         await graph.operationQueue.waitForCompletion();
 
-        // Verify style-init comes before data-add
-        const styleInitIndex = operations.indexOf("style-init");
+        const styleEditIndex = operations.indexOf("style-edit");
         const dataAddIndex = operations.indexOf("data-add");
+        const repaintIndex = operations.indexOf("style-apply");
 
-        assert(styleInitIndex !== -1, "style-init should be present");
+        assert(styleEditIndex !== -1, "a style edit is a queued run");
         assert(dataAddIndex !== -1, "data-add should be present");
-        assert(styleInitIndex < dataAddIndex, "style-init should come before data-add");
+        assert(styleEditIndex < dataAddIndex, "the style edit was asked for first, so it is queued first");
+        assert(
+            repaintIndex > dataAddIndex,
+            "and the rows a load added are painted after it, which is what the data-add trigger is for",
+        );
     });
 
     it("should handle batchOperations method", async () => {
@@ -150,7 +114,7 @@ describe("Graph Queue Integration", () => {
                 { id: "2", label: "Node 2" },
             ]);
 
-            await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], "source", "target");
+            await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], { source: "source", target: "target" });
 
             await graph.setLayout("circular");
         });
@@ -171,7 +135,7 @@ describe("Graph Queue Integration", () => {
 
         // These should work as before
         await graph.addNodes(nodes);
-        await graph.addEdges(edges, "source", "target");
+        await graph.addEdges(edges, { source: "source", target: "target" });
         await graph.setLayout("random");
 
         // Wait for operations to complete
@@ -208,7 +172,7 @@ describe("Graph Queue Integration", () => {
 
         // Third batch
         await graph.batchOperations(async () => {
-            await graph.addEdges([{ source: "1", target: "2" }], "source", "target");
+            await graph.addEdges([{ source: "1", target: "2" }], { source: "source", target: "target" });
         });
 
         // All batches should complete in order
@@ -248,7 +212,7 @@ describe("Graph Queue Integration", () => {
         ]);
 
         // Then add edges
-        await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], "source", "target");
+        await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], { source: "source", target: "target" });
 
         // Should have queued data-add operations and their triggers
         // Verify the edge data-add operation was queued
@@ -313,7 +277,12 @@ describe("Graph Queue Integration", () => {
 
     describe("Algorithms", () => {
         it("should queue algorithm operations", async () => {
-            const queueSpy = vi.spyOn(graph.operationQueue, "queueOperationAsync");
+            // `queueOperation` rather than `queueOperationAsync`: the latter is a thin wrapper
+            // that calls the former, and a run now reaches the queue through the primitive. What
+            // this test is for is that algorithm work takes its turn in the element's queue --
+            // where it is ordered against loads, layouts and style passes -- and that is still
+            // exactly what happens, on the same queue object, under the same category.
+            const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
             // Add nodes first
             await graph.addNodes([
@@ -328,8 +297,7 @@ describe("Graph Queue Integration", () => {
                     { source: "1", target: "2" },
                     { source: "2", target: "3" },
                 ],
-                "source",
-                "target",
+                { source: "source", target: "target" },
             );
 
             // Run algorithm using the available degree algorithm
@@ -343,6 +311,7 @@ describe("Graph Queue Integration", () => {
                 "algorithm-run",
                 expect.any(Function),
                 expect.objectContaining({
+                    // The run's own id, which for a built-in algorithm is derived from its key.
                     description: expect.stringContaining("degree"),
                 }),
             );
@@ -374,8 +343,7 @@ describe("Graph Queue Integration", () => {
                     { source: "1", target: "2" },
                     { source: "2", target: "3" },
                 ],
-                "source",
-                "target",
+                { source: "source", target: "target" },
             );
 
             // Run algorithm

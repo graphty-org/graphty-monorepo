@@ -120,6 +120,21 @@ const config: KnipConfig = {
         // graphty-element package
         "graphty-element": {
             entry: [
+                // The published entry points. Each has a subpath in package.json's exports map,
+                // so each is a door a consumer comes through and nothing reachable from one is
+                // dead. Listing only src/graphty-element.ts here made all ten invisible to
+                // dead-code analysis -- neither entry nor project -- while they were public API.
+                "index.ts",
+                "ai.ts",
+                "catalog.ts",
+                "commands.ts",
+                "extend.ts",
+                "format.ts",
+                "logging.ts",
+                "react.ts",
+                "schema.ts",
+                "session.ts",
+                "webgpu.ts",
                 "src/graphty-element.ts",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
@@ -127,11 +142,23 @@ const config: KnipConfig = {
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
             ],
-            project: ["src/**/*.ts", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["*.ts", "src/**/*.ts", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
+                "@graphty/webgpu-graph-algorithms",
+                // The AI SDK and its key store, same shape as `webgpu` over in
+                // webgpu-graph-algorithms: each is an OPTIONAL peer and an exact devDependency,
+                // imported from src so the element works without it and lights up with it. knip
+                // 5.77 reports every referenced optional peer, so they are ignored by name --
+                // without this the gate fails on five findings that are the package doing exactly
+                // what an optional peer is for.
+                "@ai-sdk/anthropic",
+                "@ai-sdk/google",
+                "@ai-sdk/openai",
+                "ai",
+                "encrypt-storage",
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
@@ -203,6 +230,15 @@ const config: KnipConfig = {
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
 
+    // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
+    // every named type in a published signature to be exported -- the parameter and return types
+    // of `createPluginRegistry`, say. It is the opposite of `@public`: a symbol nobody outside its
+    // own module may use. Tagging one keeps it visible to a reader while taking it out of
+    // dead-code detection, and it is per symbol rather than a blanket setting. Knip accepts the
+    // key only at the root, so it applies to every workspace; the "unused tag" hints it prints are
+    // exports already tagged `@internal` that something does import, which is worth knowing.
+    tags: ["-internal"],
+
     // Global ignore patterns.
     //
     // `pnpm run lint:knip` passes `--no-gitignore`, so the scratch directories the root
@@ -227,6 +263,9 @@ const config: KnipConfig = {
     ignoreBinaries: [
         "wait", // Shell built-in used in npm scripts
         "http-server", // Used in CI for serving files
+        // coverage:preview scripts run `npx serve` with a ${PORT:?...} guard, which knip no longer
+        // recognises as an npx invocation.
+        "serve",
     ],
 };
 

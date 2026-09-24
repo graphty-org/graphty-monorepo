@@ -367,6 +367,7 @@ type KnownAlgorithm = "degree" | "betweenness" | "closeness" | "pagerank" | "eig
 type AlgorithmKey = KnownAlgorithm | (string & {});
 type LayoutId = "force" | "force-2d" | "circular" | "radial" | "hierarchical" | "grid"
               | "shell" | "spectral" | "bipartite" | "layers" | "fixed" | "random"
+              | "planar" | "spiral"
               | (string & {});
 type FormatId = "json" | "csv" | "graphml" | "gexf" | "gml" | "dot" | "pajek" | "sif" | "cx2"
               | (string & {});
@@ -490,10 +491,11 @@ road is not an API. There is exactly one unsupported door, `unstable_internals`,
 one-line documentation says it is not semver-protected.
 
 **Breaking: `dispose()` is honest and the element is re-attachable.** Today `disconnectedCallback`
-(`graphty-element/src/graphty-element.ts:134`) disconnects a resize observer and calls
-`super.disconnectedCallback()`; `Graph.shutdown()` exists at `Graph.ts:427` and `Graph.dispose()`
-at `Graph.ts:4134` is never called by the element at all, so the voice adapter, the AI manager
-and the XR session leak when the element leaves the DOM. In 2.0 the view releases renderer
+(`graphty-element/src/graphty-element.ts:133-143`) disconnects a resize observer, calls
+`this.#graph.shutdown()` and then `super.disconnectedCallback()`. `Graph.dispose()`
+(`Graph.ts:4134-4146`) is the superset: it disposes the voice adapter, the AI manager, the XR UI
+and the XR session, and then calls `shutdown()` itself. The element never calls `dispose()`, so
+those four leak when the element leaves the DOM. In 2.0 the view releases renderer
 resources on disconnect and recreates them on connect; teardown is deferred one frame so a
 React StrictMode double-mount does not destroy the engine; the session outlives both and is
 disposed only when you dispose it.
@@ -536,13 +538,24 @@ is a surprise a third-party host cannot anticipate and cannot diagnose. It becom
 Eleven, and every one of them is a string or a boolean. `src` and `sample` are mutually
 exclusive; setting both is `E_BAD_COMMAND` naming the pair.
 
+**`acceleration` is a session setting, and the element never persists it.** It is an attribute
+and a property, it lives as long as the session does, and it is not a `ConfigValues` key, so
+`config.toDocument()` does not carry it and `applyDocument()` cannot set it. Storing what a
+reader chose, and restoring it on the next visit, is the host application's job: the app keeps
+its own storage key and writes the attribute when it mounts the element. The element persists
+nothing on a reader's behalf, because a component that writes to a host page's storage without
+being asked is a surprise the host cannot anticipate -- and a reader preference restored by the
+element would fight the attribute the host page wrote in its own markup.
+
 Two slots, and only two: `<script type="application/json" slot="data">` and `slot="theme">`.
 Both appear in the Custom Elements Manifest.
 
-**Breaking: the five object-valued attributes are removed, and twelve of the fourteen attributes
-go in total.** The five are `node-data`, `edge-data`, `data-source-config`, `layout-config` and
-`style-template` (`graphty-element/src/graphty-element.ts:187`, `:233`, `:279`, `:461`,
-`:580`); `layout` and `view-mode` are the two that survive. They are not fixed, they are
+**Breaking: the five object-valued attributes are removed, and thirteen of the fifteen attributes
+go in total.** The element declares fifteen today
+(`graphty-element/src/graphty-element.ts:187`, `:233`, `:257`, `:279`, `:344`, `:368`, `:392`,
+`:435`, `:461`, `:501`, `:527`, `:580`, `:604`, `:631`, `:669`). The five object-valued ones are
+`node-data`, `edge-data`, `data-source-config`, `layout-config` and `style-template` (`:187`,
+`:233`, `:279`, `:461`, `:580`); `layout` and `view-mode` are the two that survive. They are not fixed, they are
 deleted; the migration document carries the per-attribute table. They are silently
 non-functional today: `grep -n converter graphty-element/src/graphty-element.ts`
 returns nothing, so no Lit converter is declared on any of them, which means
@@ -1326,9 +1339,18 @@ interface Caveats {
   filterScope?: boolean; windowScope?: boolean;
   direction: "directed" | "undirected" | "as-loaded";
   weight?: { attribute: string; meaning: "distance" | "strength" } | null;
+  precision: "f32" | "f64";              // the arithmetic that produced these numbers
   method: string; partialReason?: string; notes: readonly string[];
 }
 ```
+
+**`precision` says which arithmetic produced the numbers, and it lives on the run.** A run on an
+accelerator that computes in single precision reports `"f32"`; a run on the CPU path reports
+`"f64"`. It belongs to the result, next to `exact`, `converged` and `method`, because two runs of
+the same algorithm on the same graph can differ in it -- so a graph-level bag of facts could not
+answer "why does this number disagree with the one I had a minute ago" for the run in front of
+you, and a consumer comparing a value against a saved one, or ranking two nodes whose scores are
+within a rounding error, reads it from the same object that carries the value.
 
 **Breaking: `runAlgorithm(namespace, type, options?): Promise<void>` is replaced by
 `runs.start(): Run`.** Today the result is unreachable from the call
@@ -1353,10 +1375,17 @@ failure.
 interface StartOptions extends RunOptions {
   scope?: Scope; seed?: number; timeBoxMs?: number;
   as?: RunId;                    // author-assigned id; REQUIRED for anything persisted
-  style?: boolean;               // opt out of the auto-applied derived layer
+  style?: RunStyle;              // false opts out; { size } also sizes by a node metric
   exact?: boolean;               // refuse to approximate; above the cap this throws
   sample?: number;               // sample size for an approximable algorithm
 }
+
+// true / omitted: the derived colour suggestion. false: nothing.
+// { size: true | [min, max] }: the colour suggestion PLUS a node.size encoding of the same field,
+// for a run whose shape is "node-metric" only (ignored, without an error, for any other shape).
+// size: true is the range [1, 3] -- 1 is the default node size, so the lowest node is unchanged.
+// The size layer is scoped { match: "has" } like every run layer and is removed with the run.
+type RunStyle = boolean | { size?: boolean | readonly [min: number, max: number] };
 
 interface RunsApi {
   start(algorithm: AlgorithmKey, params?: Record<string, unknown>, o?: StartOptions): Run;
@@ -1368,6 +1397,18 @@ interface RunsApi {
   readonly queue: readonly { runId: RunId; index: number; of: number }[];
 }
 ```
+
+**The load-time list takes the same options, as data.** `<graphty-element>`'s
+`algorithmsOnLoad` property (property only -- markup gets a declarative child-element form
+later, not a JSON attribute; switched on by `run-algorithms-on-load`) and the style template's `data.algorithms` accept, per entry, either an
+algorithm name or `{ algorithm, params?, style?, seed?, as? }` -- the subset of `StartOptions`
+that means something before the data exists. `signal`, `onProgress` and `queue` steer a run
+someone is watching; `scope` names a view of data that is not there yet; `timeBoxMs`, `exact`
+and `sample` answer a cost estimate nobody has seen. Each entry becomes one `runs.start` with no
+per-algorithm branch, so `{ algorithm: "pagerank", style: { size: [1, 5] } }` colours and sizes
+exactly as the call does. The object is strict: a malformed entry or an unknown option is refused
+with `E_BAD_COMMAND` naming the entry and its index. The type is `AlgorithmOnLoad`
+(`graphty-element/src/config/DataConfig.ts`).
 
 **What an ungated `run()` does on a graph that is too big.** A stranger's first line is
 `g.run("betweenness")` with nothing in front of it, on whatever graph they happened to load, so
@@ -1437,6 +1478,26 @@ interface ResultsApi {
 `results.*` path can be reported with the nearest candidates rather than matching nothing
 (4.15.2). `field` defaults to the shape's primary field, so `results.path(run)` is the common
 call.
+
+**A path going into an expression is quoted first, and the element publishes the quoting.** A
+run id carries its algorithm's name and ten of the twenty-four catalogue algorithms are
+hyphenated -- `shortest-path`, `min-cut`, `bipartite-matching` -- while the selector grammar
+reads a bare hyphen as subtraction. So `` `${results.path(run)} >= \`3\`` `` is not a comparison
+at all on those runs: it parses as one column minus another and the layer is refused outright.
+`quotePath`, exported from `./session` alongside `resultPath`, writes any segment that is not a
+bare identifier as a quoted name, and is what every expression built outside the element goes
+through:
+
+```ts
+import { quotePath, resultPath } from "@graphty/graphty-element/session";
+
+selector: { match: "expression", where: `${quotePath(resultPath(run.id, "value"))} >= \`3\`` }
+```
+
+It applies to attribute paths on the same terms -- `data.node-type` is refused for the same
+reason -- so it is published as a path-to-expression conversion rather than as a result helper.
+The selector `encode()` writes for itself needs none of this: it takes the `path` form, where a
+hyphen is just a character.
 
 `run.label` is computed by the element, not the consumer: the algorithm's plain name alone while
 it is the only run of that algorithm, gaining the differing parameter in parentheses the moment
@@ -1551,7 +1612,10 @@ the bands without rewriting the sentence, and the locale is a parameter.
 
 On a run's **first** completion the element applies the derived encoding layer, never again;
 suppressed when a user-authored layer already drives that channel; once per batch, so six runs
-never paint six times. `{ style: false }` opts out.
+never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
+`{ size: [min, max] }`) also suggests a `node.size` encoding of a node metric's primary field,
+through the same `encode()` and the same batch coalescing (keyed by channel); it is the one-flag
+form of `encode({ run, channel: "node.size", range })`.
 
 **An explicit `encode()` replaces the derived layer for the same `(runId, channel)` pair**, it
 does not stack on it, and it returns that layer's id. This is the case the suppression rule
@@ -2001,6 +2065,7 @@ type Binding =
       range?: [number, number];
       map?: Record<string, string | number>;               // per-value overrides
       other?: { threshold: number; value: string | number };
+      overflow?: "other" | "shape" | "extend";             // too many groups; see above
       missing?: "skip" | { value: string | number };       // DEFAULT: "skip"
       reverse?: boolean; midpoint?: number; bins?: number; exponent?: number };
 
@@ -2012,7 +2077,10 @@ interface EncodingSpec {
   channel: Channel;
   scale?: Binding["scale"]; palette?: PaletteId;
   domain?: Binding["domain"]; clamp?: Binding["clamp"];
+  range?: Binding["range"];             // a numeric channel's output, e.g. [1, 5] for a size
   missing?: Binding["missing"]; reverse?: boolean;
+  overflow?: "other" | "shape" | "extend";  // DEFAULT "other" for a categorical colour with no
+                                            // palette named; see the overflow rule above
   name?: string;
 }
 ```
@@ -2061,10 +2129,28 @@ the `missing` branch -- by default `"skip"`, so it is not painted -- and is coun
 `LegendBlock.departures` as "N not plottable on a log scale"; it is never `NaN`, never clamped
 to the domain floor, and never silently reassigned. Betweenness has zeros on every real graph,
 so this is the common case, not the edge case. And a categorical or ordinal encoding with more
-distinct values than `PaletteDescriptor.capacity` takes `Binding.other` when one is declared;
-when none is, the layer is **disabled** with `E_CAP_EXCEEDED` in `disabledReason` naming the
-value count and the capacity. The palette never wraps. Silent wrapping -- group 8 colliding
-with group 0 -- is why the one consumer refuses the element's Louvain layer today.
+distinct values than `PaletteDescriptor.capacity` follows `Binding.overflow`:
+
+- `"other"` -- **what `encode()` writes by default** onto a categorical colour binding that names
+  no palette. The N largest groups (N = the palette's capacity, 8 for Okabe-Ito) keep its colours
+  in palette order, largest first; every remaining group is painted one grey, #505050 (Delta E
+  >= 15 from every Okabe-Ito colour, >= 2:1 on the background -- the light greys fail), and the
+  legend's last row reads "other: K groups".
+- `"shape"` -- node encodings only; refused with `E_BAD_COMMAND` from `encode()` and `E_BAD_LAYER`
+  from a hand-written edge layer. Group i is colour i mod N and node shape floor(i / N) from
+  icosphere (the default), box, octahedron, cylinder, cone, torus; past N x 6 groups the rest fold
+  to the grey. `encode()` writes the `node.shape` binding into the SAME layer as the colour, so
+  the two are added, scoped and removed together.
+- `"extend"` -- a distinct colour per group: the smallest categorical palette that fits, else the
+  sequential default sampled once per group; with a named palette, its colours then samples of
+  the sequential default. Distinctness past the capacity is not guaranteed.
+
+With no `overflow`, the older rule holds: `Binding.other` when declared; a palette the element
+picks is chosen large enough; a palette the CALLER named that is too small disables the layer
+with `E_CAP_EXCEEDED` in `disabledReason` naming the value count and the capacity. So a caller
+who names a palette and no overflow is still refused, and naming an overflow applies it. The
+palette never wraps silently. Silent wrapping -- group 8 colliding with group 0 -- is why the
+one consumer refused the element's Louvain layer.
 
 `encode()` **writes the selector itself**: the resulting layer's selector is
 `{ match: "has", path: "results.<runId>.<field>" }`, scoped to exactly the elements the run
@@ -2425,7 +2511,7 @@ const pdf = await el.report({ format: "pdf", title: "Backbone of the payment net
 Two catalogues and one rule between them:
 
 > **Session events fire for every change, whatever caused it. View DOM events fire for user
-> interaction in that view, plus `ready` and `error`, plus three documented mirrors.**
+> interaction in that view, plus `ready` and `error`, plus four documented mirrors.**
 
 That rule prevents the React binding loop (set property -> event -> binding -> set property)
 while still letting a model be observable without polling. If you hold the session, listen to
@@ -2455,7 +2541,7 @@ costs nothing, so a read in a render function is safe. A struct that returns a f
 read reopens on the property path exactly the re-render loop the event rule above closes on the
 event path.
 
-**Breaking: the event catalogue is replaced.** Twenty-two prefixed, typed, declared DOM events;
+**Breaking: the event catalogue is replaced.** Twenty-three prefixed, typed, declared DOM events;
 thirteen session events; the counts are the two tables in 4.10.1 and 4.10.2 and the CI test of
 8.5 asserts against them, so this sentence cannot drift from them; `on()` returns its own unsubscribe so there is no `off` to learn; `detail`
 carries no engine reference. Today the element blanket-forwards roughly fifty unprefixed
@@ -2498,9 +2584,15 @@ elsewhere.
 | `graphty-selection-change` (mirror) | `SelectionDelta` |
 | `graphty-run-change` (mirror) | `{ run: RunRecord; phase: "queued"\|"start"\|"progress"\|"end" }` |
 | `graphty-load-change` (mirror) | `{ phase; fraction; summary: string; endpoints?: Inspection["endpoints"]; report?: ImportReport }` -- `endpoints` and `report` are present at `phase: "end"`, which is where the report of which endpoint spelling was used lands |
+| `graphty-capabilities-change` (mirror) | `{ capabilities: Capabilities }` -- the same detail as the session's `capabilities:changed` |
 
-The three mirrors exist so an HTML-only consumer can build a status bar without touching the
-session. They are documented as mirrors and coalesced.
+The four mirrors -- `graphty-selection-change`, `graphty-run-change`, `graphty-load-change` and
+`graphty-capabilities-change` -- exist so an HTML-only consumer can build a status bar without
+touching the session. They are documented as mirrors and coalesced.
+`graphty-capabilities-change` is what an acceleration status chip listens to: a page with a
+`<graphty-element>` tag and six lines of script can show whether the GPU is in use, say why it
+is not, and update itself when a device is lost, without importing the session module or naming
+a single GPU type.
 
 #### 4.10.2 Session events
 
@@ -2558,7 +2650,7 @@ type Command =
   | { op: "data.sample"; name: SampleDatasetId }
   | { op: "data.match"; pattern: Pattern | string; similarity?: number; limit?: number }
   | { op: "algo.run"; algorithm: AlgorithmKey; params?: Record<string, unknown>;
-      scope?: Scope; seed?: number; as?: RunId; style?: boolean }
+      scope?: Scope; seed?: number; as?: RunId; style?: RunStyle }
   | { op: "algo.remove"; runId: RunId }
   | { op: "style.patch"; add?: readonly LayerSpec[]; update?: Record<LayerId, Partial<LayerSpec>>;
       remove?: readonly LayerId[]; order?: readonly LayerId[] }
@@ -2734,7 +2826,7 @@ await otherSession.journal.replay(recipe.steps, { onData: () => otherFile });
 ```ts
 interface Capabilities {
   readonly acceleration: {
-    state: "active" | "idle" | "unavailable" | "error" | "off";
+    state: "probing" | "active" | "idle" | "unavailable" | "error" | "off";
     backend?: "webgpu";
     vendor?: string; architecture?: string; device?: string;
     reason?: string;                 // "requires a secure context (https or localhost)"
@@ -2754,6 +2846,27 @@ interface Limits {
   exactComputationCap: number; selectionCap: number; edgesDrawn: number;
 }
 ```
+
+**The six acceleration states, each in one line:**
+
+- **`"probing"`** -- the element is looking for an accelerator and the answer is not known yet.
+  A consumer shows nothing definitive while this is the state: not "GPU on", not "GPU
+  unavailable", just whatever it shows for a pending answer. Without this state the only honest
+  reading of an unfinished probe is one of the failure states, which flickers a false "no GPU"
+  onto every page that then gets one.
+- **`"active"`** -- an accelerator is attached and work is on it right now.
+- **`"idle"`** -- an accelerator is attached and usable, and nothing is currently using it. This
+  is the resting state of a working accelerator, not a degraded one: a graph below
+  `acceleration.minNodes`, or a page where nothing has been run yet, sits here.
+- **`"unavailable"`** -- no accelerator could be attached. `reason` says why in a sentence a
+  person can read and `code` says why in a string a `switch` can take.
+- **`"error"`** -- an accelerator was attached and then failed, device loss being the usual
+  cause. `code` carries which failure; the element continues on the CPU path having said so.
+- **`"off"`** -- acceleration is switched off by the consumer, so the element never looked.
+
+Every transition between them emits `capabilities:changed` on the session and
+`graphty-capabilities-change` on every bound view, so a status chip is written once and is
+correct from the first frame through a device loss.
 
 The consumer reads state; the consumer never probes. `session.calibrate()` is the element's
 own first-run probe -- device memory, hardware concurrency, the renderer string, DPR, then a
@@ -2790,6 +2903,7 @@ interface ConfigValues {
   patternTimeBoxMs: number; searchDebounceMs: number; searchResultCap: number;
   hoverEnabled: boolean; tooltipsEnabled: boolean; pinOnDrag: boolean;
   performanceMode: "auto" | "on" | "off";
+  "acceleration.minNodes": number;      // default 0; see below
   transitionMs: number; temporalChangeThreshold: number;
   exportMaxSide: number; journalCap: number; journalBytesCap: number;   // default 64 MB
   xrTextArcmin: number; xrPanelDistanceM: number; xrSnapTurnDegrees: number;
@@ -2799,6 +2913,23 @@ interface ConfigValues {
 
 Every key round-trips, so "export my settings" and "apply this profile" are two calls. A
 rejected key comes back with a reason rather than being dropped.
+
+**`acceleration.minNodes` is the node count at which acceleration starts paying for itself.** At
+or above it, a run or a layout that has an accelerated implementation uses the accelerator;
+below it the element takes the CPU path even though an accelerator is attached, and
+`acceleration.state` reads `"idle"`. The default is `0`, which means "use the accelerator
+whenever one is attached"; raise it when a graph is small enough that uploading it costs more
+than computing it. It is the only threshold that governs acceleration, and it is a different
+number from `largeGraphThreshold`, which decides how much visual detail to draw and has nothing
+to say about where a computation runs.
+
+**The reader's acceleration preference is not in this document.** `acceleration` is an attribute
+and a session property, it is not a `ConfigValues` key, and `toDocument()` therefore does not
+carry it -- an exported settings file moved to another machine would otherwise demand a GPU that
+machine may not have. The element persists nothing on a reader's behalf: remembering that this
+person chose to turn acceleration off, and restoring that choice on the next visit, is storage
+the host application owns and the element must not reach into. The app keeps its own key and
+writes the attribute when it mounts the element.
 
 `transitionMs` is the default animation duration for the three things that animate --
 applying a preset or a template, stepping the time window, and moving the camera to focus
@@ -2817,7 +2948,7 @@ import "@graphty/graphty-element/webgpu";   // the optional peer; this is all of
 ```
 
 After that line the element probes for an adapter, requests a context, constructs the
-accelerator, attaches it, handles `ctx.lost`, applies the node-count threshold and reports.
+accelerator, attaches it, handles `ctx.lost`, applies `acceleration.minNodes` and reports.
 Three rules the design commits to:
 
 - **No GPU type crosses the boundary.** `GpuContext`, `GpuCaps`, `ProbeResult` and every
@@ -2854,11 +2985,13 @@ type GraphtyErrorCode =
   | "E_BAD_COMMAND" | "E_BAD_QUERY" | "E_BAD_LAYER" | "E_BAD_SELECTOR" | "E_BAD_FORMULA"
   | "E_SELECTOR_EMPTY" | "E_UNSCOPED_RUN_ENCODING" | "E_UNKNOWN_SCALE" | "E_UNKNOWN_CHANNEL"
   | "E_UNKNOWN_OPTION" | "E_OPTION_RANGE" | "E_UNKNOWN_ATTRIBUTE"
-  | "E_UNKNOWN_ALGORITHM" | "E_UNKNOWN_LAYOUT" | "E_UNKNOWN_FORMAT" | "E_UNKNOWN_RUN"
-  | "E_UNSTABLE_RUN_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_PLUGIN" | "E_PROTECTED"
+  | "E_UNKNOWN_ALGORITHM" | "E_UNKNOWN_LAYOUT" | "E_UNKNOWN_FORMAT"
+  | "E_UNKNOWN_PALETTE" | "E_UNKNOWN_CAMERA" | "E_UNKNOWN_SINK" | "E_UNKNOWN_RUN"
+  | "E_UNSTABLE_RUN_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_PLUGIN" | "E_PROTECTED"
   | "E_FETCH_FAILED" | "E_PARSE_FAILED" | "E_EDGE_ENDPOINTS_UNRESOLVED" | "E_ID_MISSING"
-  | "E_TOO_LARGE" | "E_OUT_OF_MEMORY" | "E_CAP_EXCEEDED" | "E_SCOPE_EMPTY"
-  | "E_NO_ACCELERATOR" | "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_DEVICE_LOST" | "E_NO_WEBGL"
+  | "E_TOO_LARGE" | "E_OUT_OF_MEMORY" | "E_CAP_EXCEEDED" | "E_SCOPE_EMPTY" | "E_NOT_CONVERGED"
+  | "E_NO_ACCELERATOR" | "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST"
+  | "E_NO_WEBGL"
   | "E_UNSUPPORTED" | "E_READONLY" | "E_DISPOSED" | "E_INTERNAL";
 ```
 
@@ -2930,6 +3063,20 @@ formats, scales, palettes and commands -- are things that would otherwise have t
 element's own source to exist at all. The async `data-source` hooks (`fetchNodes`,
 `fetchEdges`) are declared even though lazy fetching itself is deferred, because retrofitting a
 hook later changes the contract for everyone who already wrote a plugin against it.
+
+**The accelerator factory is called with the ceiling it must respect.**
+
+```ts
+type AcceleratorFactory = (options?: { exactMaxNodes?: number })
+  => Promise<GraphAccelerator | null>;
+```
+
+`exactMaxNodes` is the largest graph the element will ask this accelerator to compute exactly,
+and the element passes it when it calls the factory. A backend that must size buffers, choose an
+index width or decide it cannot serve a graph this large needs that number before it builds
+anything, and asking for it at construction time means a factory answers `null` once instead of
+failing on the first run. The parameter is optional so a factory that does not care writes
+`() => create()` and ignores it.
 
 `registry.load(url)` is the markup door's engine: `<graphty-plugin src="...">` imports an ES
 module by URL and registers its default export, reporting what it registered. That is what
@@ -3324,7 +3471,7 @@ declare global {
     "graphty-ready": CustomEvent<Record<string, never>>;
     "graphty-node-click": CustomEvent<NodeClickDetail>;
     "graphty-selection-change": CustomEvent<SelectionDelta>;
-    // The remaining seventeen follow the same pattern; each detail type is spelled out in
+    // The remaining eighteen follow the same pattern; each detail type is spelled out in
     // the reference table of 4.10.1 and generated into custom-elements.json at build.
     "graphty-edge-click": CustomEvent<EdgeClickDetail>;
     "graphty-run-change": CustomEvent<{ run: RunRecord; phase: string }>;
@@ -3354,7 +3501,7 @@ return `void` and take non-optional parameters; discriminated unions for `Filter
 ### 6.5 Documentation, generated from one declaration
 
 - `custom-elements.json` is complete and discoverable: the `customElements` field points at it;
-  every attribute with its default, every property, every method, all twenty-two DOM events with
+  every attribute with its default, every property, every method, all twenty-three DOM events with
   their `detail` types, both slots, no `#private` members. Today it is generated from one file,
   ships without the field so no tool can find it, records 18 `#private` fields among its 34
   `field` members (19 `#`-prefixed members in all; measured against
@@ -3522,7 +3669,7 @@ has no case and ends in `throw new TypeError` (`src/managers/EventManager.ts:450
 `void`, so a listener can never be removed; and the element forwards roughly fifty unprefixed
 internal names to the DOM.
 
-**Structural.** The catalogue is closed and declared in one place: the twenty-two DOM events of
+**Structural.** The catalogue is closed and declared in one place: the twenty-three DOM events of
 the table in 4.10.1, each with `@fires`, and the thirteen session events of 4.10.2, all in
 `custom-elements.json` and in `GraphtyEventMap`. A CI test asserts the three lists agree, and
 asserts them against the two tables in this document rather than against a number written in
@@ -3797,7 +3944,7 @@ See design/element-api/element-api-migration.md
 | `element.graph`, the eleven manager classes and the ten manager getters are removed | 4.1 |
 | `dispose()` releases everything; the element is re-attachable | 4.1 |
 | The element stops reading `window.location.search` | 4.1 |
-| The five object-valued attributes removed; twelve of the fourteen attributes go | 4.1.1 |
+| The five object-valued attributes removed; thirteen of the fifteen attributes go | 4.1.1 |
 | `data-source`/`data-source-config` leave the reserved `data-*` namespace | 4.1.1 |
 | `Edge.id` becomes an element-assigned counter; default edge weight field becomes `weight` | 4.3.1 |
 | Unresolved edge endpoints are reported, never buffered silently | 4.3.2 |
@@ -4009,7 +4156,7 @@ type Direction = "in" | "out" | "all";
 
 // --- runs ------------------------------------------------------------------------
 interface RunSpec { algorithm: AlgorithmKey; params?: Record<string, unknown>;
-                    scope?: Scope; seed?: number; as?: RunId; style?: boolean }
+                    scope?: Scope; seed?: number; as?: RunId; style?: RunStyle }
 interface BatchResult { label: string; total: number; completed: number; partial: boolean;
                         steps: readonly { index: number; runId?: RunId; ok: boolean;
                                           reason?: string }[] }
@@ -4090,8 +4237,9 @@ interface DataPlan { version: 1;
                      knownFields: Partial<Record<"nodeId" | "edgeSource" | "edgeTarget"
                                                  | "nodeLabel" | "edgeWeight" | "time", string>>;
                      directed?: boolean | "auto"; idCoercion?: "canonical" | "keep";
-                     runOnLoad?: readonly { algorithm: AlgorithmKey;
-                                            params?: Record<string, unknown> }[];
+                     runOnLoad?: readonly (AlgorithmKey | { algorithm: AlgorithmKey;
+                                            params?: Record<string, unknown>;
+                                            style?: RunStyle; seed?: number; as?: RunId })[];
                      name?: string; fingerprint?: string }
 interface AnnotationSet { version: 1; notes: readonly Note[];
                           name?: string; fingerprint?: string }
@@ -4197,7 +4345,8 @@ type EnrichmentFn = (ids: readonly NodeId[]) => Promise<readonly NodeRecord[]>;
 type FetchNodes = (ids: readonly NodeId[]) => Promise<readonly NodeRecord[]>;
 type FetchEdges = (id: NodeId, o: { direction: Direction; limit: number; offset: number })
   => Promise<{ rows: readonly EdgeRecord[]; total: number }>;
-type AcceleratorFactory = () => Promise<GraphAccelerator | null>;
+type AcceleratorFactory = (options?: { exactMaxNodes?: number })
+  => Promise<GraphAccelerator | null>;
 
 // --- accelerator ------------------------------------------------------------------
 // Named from the CPU packages, never from the GPU package. Every member is optional, so a

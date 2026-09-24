@@ -4,11 +4,32 @@
  * Spec 7.3 "Insights strip" (app-shell-progressive-disclosure-design.md lines 5693 to
  * 5754) states the table as eight prioritised rows, a deterministic replacement set
  * above the large-graph threshold, a cap of four cards with Search always last, and a
- * 60 s estimate ceiling. This module is that table and nothing else: it is pure, it
- * imports nothing (not even a shell constant -- the large-graph threshold arrives as an
- * input field so the one declaration in `defaults/loadDefaults.ts` cannot be
- * shadowed here), and it performs no side effects. The caller maps
- * {@link InsightCardSpec} onto `InsightCard` and binds the activation.
+ * 60 s estimate ceiling. This module is that table and nothing else: it is pure and it
+ * performs no side effects. The caller maps {@link InsightCardSpec} onto `InsightCard`
+ * and binds the activation.
+ *
+ * WHAT THE TABLE STOPPED DECIDING FOR ITSELF. Two of its inputs used to be the app's own
+ * answers about a GRAPH, and both are now the element's:
+ *
+ * - WHETHER A CARD CAN RUN AT ALL. The table used to offer whatever its rules named and
+ *   leave the element to refuse it later. `session.catalog.metrics()` says, per algorithm,
+ *   whether this graph can support it and why not when it cannot, so a card for something
+ *   the element has already said it will not run is never offered. The listing arrives on
+ *   {@link InsightsGraphShape.metrics}.
+ * - WHAT A RUN WOULD COST. The 60 s ceiling used to read a per-capability record the shell
+ *   assembled for three metrics and nothing else, so every other card passed the ceiling by
+ *   never being measured. The same listing carries `estimateSeconds` for every algorithm the
+ *   element ships, from the same cost model the Run button asks, so the strip and the button
+ *   cannot quote different numbers.
+ *
+ * The large-graph threshold is the element's `DEFAULT_LIMITS.largeGraphThreshold` unless a
+ * caller names one. It was a constant of the app's own, ten times the element's, and nothing
+ * between the two could notice they disagreed.
+ *
+ * WHAT IS STILL THIS PRODUCT'S, and stays: the eight-row priority order, the cap of four,
+ * Search always last, the 60 s ceiling itself, the above-threshold replacement set, and every
+ * card's copy. Which analysis a reader is OFFERED, in what order, is a decision about this
+ * interface; whether the element can perform it is a fact about the graph.
  *
  * WHY a pure table rather than logic inside the strip: the strip component is already
  * built and takes its cards as props, and the interesting part of 7.3 is the choice,
@@ -22,6 +43,9 @@
  * parentheses and no line of its own; the strip adds the parentheses when it draws the
  * pair.
  */
+
+import type { AlgorithmKey, MetricAvailability } from "@graphty/graphty-element/catalog";
+import { DEFAULT_LIMITS, type GraphStatistics } from "@graphty/graphty-element/session";
 
 /**
  * The capabilities the 7.3 rule table can offer. Also the card ids.
@@ -39,16 +63,23 @@ export type InsightCapability =
     | "temporal-navigation";
 
 /**
- * What the data's direction is KNOWN to be. "unknown" is a real answer: graphty-element
- * carries no graph-level directedness flag and only two data sources write a per-edge
- * `directed` key, so most loads cannot say. Rule 3 fires on "directed" alone; rule 4's
- * "Not directed" is satisfied by "unknown" too.
+ * Which way the graph's edges run, as graphty-element reports it.
+ *
+ * It is the element's own four-state answer rather than a copy of three of its values,
+ * because the table has to keep branching correctly on whatever the element can say. Rule
+ * 3 fires on "directed" alone; rule 4's "Not directed" is satisfied by every other value,
+ * including "mixed" -- a graph whose edges do not agree is not a directed graph, and the
+ * Influence reading needs one that is.
+ *
+ * "unknown" is a real answer and means the question is not settled: an empty graph the
+ * element has been told nothing about. Neither rule treats it as directed.
  * @public
  */
-export type Directedness = "directed" | "undirected" | "unknown";
+export type Directedness = GraphStatistics["directedness"];
 
 /**
- * Everything the rule table reads. Primitives only: the module imports nothing.
+ * Everything the rule table reads. Plain values and the element's own metric listing, so a
+ * board can state a graph in a literal and the table stays testable without a live element.
  * @public
  */
 export interface InsightsGraphShape {
@@ -56,7 +87,7 @@ export interface InsightsGraphShape {
     readonly nodeCount: number;
     /** Edges loaded. */
     readonly edgeCount: number;
-    /** Measured direction, or "unknown" when nothing read it off the data. */
+    /** Which way the edges run, as the element reports it. */
     readonly directedness: Directedness;
     /** Whether a time role has been assigned. False until a column-role model exists. */
     readonly hasTimeRole: boolean;
@@ -64,10 +95,27 @@ export interface InsightsGraphShape {
     readonly validationIssueTypeCount: number;
     /** The highest-degree node's label, for the Search card's example. */
     readonly searchExample?: string;
-    /** The 7.2/7.3 threshold, supplied by the caller so this module stays free of constants it does not own. */
-    readonly largeGraphThreshold: number;
-    /** Per-capability estimates in seconds. An absent estimate is treated as unknown. */
-    readonly estimateSeconds?: Readonly<Partial<Record<InsightCapability, number>>>;
+    /**
+     * The node count above which 7.2's Performance branch and 7.3's replacement set apply.
+     *
+     * Omitted, it is the element's own `DEFAULT_LIMITS.largeGraphThreshold`, which is the
+     * size the element itself starts drawing less detail at. A caller names one only to
+     * exercise the above-threshold branch on a graph small enough to state in a literal.
+     */
+    readonly largeGraphThreshold?: number;
+    /**
+     * What the element says about every algorithm it ships, from `session.catalog.metrics()`.
+     *
+     * Two things the table used to guess at: whether a run is possible on THIS graph
+     * (`available`, with a `reason` when it is not) and what it would cost
+     * (`estimateSeconds`, from the same cost model the Run button asks). A capability whose
+     * algorithm the element lists as unavailable is never offered, whatever the rules say.
+     *
+     * Omitted, or missing the algorithm behind a capability, the card is treated exactly as
+     * an unestimated one always has been: allowed below the threshold, where a run is cheap
+     * by construction, and above it only if it belongs to the deterministic set.
+     */
+    readonly metrics?: readonly MetricAvailability[];
 }
 
 /**
@@ -115,11 +163,15 @@ export const NARROW_VIEW_NODE_FLOOR = 50000;
 export const INSIGHT_ACTION_LABEL = "Try it";
 
 /**
- * The above-threshold deterministic set, in the order
- * ExplorerLargeGraph.dc.html:2867 draws it. Membership here is also what exempts a
- * card from needing an estimate above the threshold: the spec names these as the set
- * that IS shown, so refusing them for want of an estimator nobody has written would
- * empty the strip on exactly the graphs that most need it.
+ * The above-threshold deterministic set, in the order ExplorerLargeGraph.dc.html:2867 draws it.
+ *
+ * Membership here exempts a card from needing a MEASUREMENT above the threshold: the spec names
+ * these as the set that IS shown, so refusing them because nothing measured them would empty the
+ * strip on exactly the graphs that most need it. It is not an exemption from the 60 s ceiling
+ * or from the element's refusal. A card the element has measured at more than a minute, or has
+ * said it will not run on this graph, is dropped from the set like any other -- the ceiling is
+ * unconditional in 7.3, and a card promising a run that cannot happen is worse than a short
+ * strip.
  */
 const ABOVE_THRESHOLD_DETERMINISTIC_SET: readonly InsightCapability[] = [
     "data-validation",
@@ -289,28 +341,68 @@ function searchCard(searchExample: string, aboveThreshold: boolean): InsightCard
 }
 
 /**
- * The 60 s gate. A card with an estimate at or above the ceiling is refused in both
- * branches ("The strip never offers a card whose estimate exceeds 60 s"). A card with
- * NO estimate is permitted below the threshold, where a run is cheap by construction,
- * and refused above it unless it belongs to the deterministic set -- above the
- * threshold an unestimated run is the thing the gate exists to stop.
+ * Which of the element's algorithms each card would run.
+ *
+ * The capability names are this interface's, the keys are the element's catalogue's, and this
+ * is the one place the two are spelled side by side. Four capabilities are deliberately
+ * absent: Search, Narrow the view, the validation report and the time slider run no algorithm,
+ * so the element has nothing to say about whether they are possible or what they cost.
+ */
+const INSIGHT_CAPABILITY_ALGORITHMS: Readonly<Partial<Record<InsightCapability, AlgorithmKey>>> = {
+    "centrality-betweenness": "betweenness",
+    "centrality-degree": "degree",
+    "centrality-pagerank": "pagerank",
+    "community-detection": "louvain",
+    "component-analysis": "components",
+};
+
+/**
+ * What the element said about the algorithm behind one card.
+ * @param shape - the loaded graph's shape.
+ * @param capability - the candidate capability.
+ * @returns the element's entry, or undefined when the card runs no algorithm or the element
+ * was not asked.
+ */
+function elementListing(shape: InsightsGraphShape, capability: InsightCapability): MetricAvailability | undefined {
+    const key = INSIGHT_CAPABILITY_ALGORITHMS[capability];
+
+    if (key === undefined) {
+        return undefined;
+    }
+
+    return shape.metrics?.find((metric) => metric.key === key);
+}
+
+/**
+ * Whether a card may be offered: the element has to be willing to run it, and the run has to
+ * fit under the 60 s ceiling.
+ *
+ * A metric the element reports as unavailable is refused outright, in both branches. There is
+ * no card to draw for a run that cannot happen -- the element's `reason` says why, and 7.3 has
+ * nowhere to print it, so the honest strip leaves the slot to a card that works.
+ *
+ * A run at or above the ceiling is refused in both branches too ("The strip never offers a card
+ * whose estimate exceeds 60 s"). A card the element said NOTHING about -- one that runs no
+ * algorithm, or a listing the caller did not supply -- is permitted below the threshold, where
+ * a run is cheap by construction, and refused above it unless it belongs to the deterministic
+ * set: above the threshold an unmeasured run is the thing the gate exists to stop.
  * @param shape - the loaded graph's shape.
  * @param capability - the candidate capability.
  * @param aboveThreshold - whether the Performance branch was taken.
  * @returns whether the card may be offered.
  */
-function passesEstimateGate(
-    shape: InsightsGraphShape,
-    capability: InsightCapability,
-    aboveThreshold: boolean,
-): boolean {
-    const estimate = shape.estimateSeconds?.[capability];
+function mayBeOffered(shape: InsightsGraphShape, capability: InsightCapability, aboveThreshold: boolean): boolean {
+    const listed = elementListing(shape, capability);
 
-    if (estimate === undefined) {
+    if (listed === undefined) {
         return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.includes(capability);
     }
 
-    return estimate < INSIGHTS_ESTIMATE_CEILING_SECONDS;
+    if (!listed.available) {
+        return false;
+    }
+
+    return listed.estimateSeconds < INSIGHTS_ESTIMATE_CEILING_SECONDS;
 }
 
 /**
@@ -320,7 +412,7 @@ function passesEstimateGate(
  * @returns whether the graph is above the large-graph threshold.
  */
 function isAboveThreshold(shape: InsightsGraphShape): boolean {
-    return shape.nodeCount > shape.largeGraphThreshold;
+    return shape.nodeCount > (shape.largeGraphThreshold ?? DEFAULT_LIMITS.largeGraphThreshold);
 }
 
 /**
@@ -354,7 +446,8 @@ export function insightCandidates(shape: InsightsGraphShape): readonly InsightCa
 
         // Spec 7.3: "Between the threshold and 1M nodes Find groups may appear as a
         // fourth card only when its label-propagation estimate is under 60 s." The gate
-        // below refuses it outright when no estimate exists, so pushing it here is safe.
+        // below refuses it outright when the element said nothing about it, so pushing it
+        // here is safe.
         candidates.push(communityCard());
     } else {
         // Rule 1.
@@ -365,14 +458,14 @@ export function insightCandidates(shape: InsightsGraphShape): readonly InsightCa
         // Rule 2: always.
         candidates.push(communityCard());
 
-        // Rule 3: directed. Only a MEASURED direction counts; "unknown" does not.
+        // Rule 3: directed. Only "directed" counts; "mixed" and "unknown" do not.
         //
-        // The estimate gate is consulted HERE rather than only in the filter below,
-        // because rule 4 reads whether the Influence card actually survived: a PageRank
-        // card the 60 s ceiling refuses is a card that is "not shown", and rule 4's
-        // second disjunct exists so the degree card takes its slot.
+        // The gate is consulted HERE rather than only in the filter below, because rule 4
+        // reads whether the Influence card actually survived: a PageRank card the element
+        // refuses, or one the 60 s ceiling refuses, is a card that is "not shown", and rule
+        // 4's second disjunct exists so the degree card takes its slot.
         const influenceShown =
-            shape.directedness === "directed" && passesEstimateGate(shape, "centrality-pagerank", aboveThreshold);
+            shape.directedness === "directed" && mayBeOffered(shape, "centrality-pagerank", aboveThreshold);
 
         if (influenceShown) {
             candidates.push(pagerankCard());
@@ -402,7 +495,7 @@ export function insightCandidates(shape: InsightsGraphShape): readonly InsightCa
         candidates.push(searchCard(shape.searchExample, aboveThreshold));
     }
 
-    return candidates.filter((candidate) => passesEstimateGate(shape, candidate.capability, aboveThreshold));
+    return candidates.filter((candidate) => mayBeOffered(shape, candidate.capability, aboveThreshold));
 }
 
 /**
@@ -464,11 +557,11 @@ export function insightsStripModel(
  *
  * One gate this widening now leans on. "Find the bridges" needs BOTH of the rule-5
  * conditions (spec line 7268: nodes > 20 AND below the large-graph threshold) and, on
- * top of them, the 60 s estimate ceiling -- which only bites when the caller supplies
- * {@link InsightsGraphShape.estimateSeconds}. AppShell now supplies it from
- * `analysis/metricCost.ts`. Without it an unestimated betweenness card below the
- * threshold is permitted BY DESIGN, as {@link passesEstimateGate} already records:
- * below the threshold a run is cheap by construction, and refusing every unestimated
+ * top of them, whatever the element says about betweenness on this graph -- its
+ * availability and its estimate against the 60 s ceiling, both read off
+ * {@link InsightsGraphShape.metrics}. Without that listing an unmeasured betweenness card
+ * below the threshold is permitted BY DESIGN, as {@link mayBeOffered} already records:
+ * below the threshold a run is cheap by construction, and refusing every unmeasured
  * card there would empty the strip on the small graphs the novice path is written for.
  */
 export const SLICE_AVAILABLE_CAPABILITIES: readonly InsightCapability[] = [

@@ -46,16 +46,26 @@ export class DOTDataSource extends DataSource {
         const dotContent = await this.getContent();
 
         // Parse DOT
-        const { nodes, edges } = this.parseDOT(dotContent);
+        const { nodes, edges, directed } = this.parseDOT(dotContent);
+
+        // Declared BEFORE the first chunk is yielded, so the direction reaches the builder while it
+        // still holds no edges. DOT states direction exactly ONCE, in the keyword that opens the
+        // file, and there is nothing that can disagree with it: `->` in a `graph` and `--` in a
+        // `digraph` are syntax errors rather than per-edge overrides, so an edge operator is not a
+        // second statement to weigh against the first. A file with no opening keyword is malformed
+        // and declares nothing.
+        if (directed !== null) {
+            this.declareDirection(directed, directed ? "digraph" : "graph");
+        }
 
         // Use shared chunking helper
         yield* this.chunkData(nodes, edges);
     }
 
-    private parseDOT(content: string): { nodes: AdHocData[]; edges: AdHocData[] } {
+    private parseDOT(content: string): { nodes: AdHocData[]; edges: AdHocData[]; directed: boolean | null } {
         // Handle empty content gracefully
         if (content.trim() === "") {
-            return { nodes: [], edges: [] };
+            return { nodes: [], edges: [], directed: null };
         }
 
         // Remove comments
@@ -76,16 +86,16 @@ export class DOTDataSource extends DataSource {
                 throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
             }
 
-            return { nodes: [], edges: [] };
+            return { nodes: [], edges: [], directed: null };
         }
 
         // Handle empty token list
         if (tokens.length === 0) {
-            return { nodes: [], edges: [] };
+            return { nodes: [], edges: [], directed: null };
         }
 
         // Parse structure with error recovery
-        const { nodes: parsedNodes, edges: parsedEdges } = this.parseTokens(tokens);
+        const { nodes: parsedNodes, edges: parsedEdges, directed } = this.parseTokens(tokens);
 
         // Convert to AdHocData
         const nodes = parsedNodes.map((node) => ({
@@ -94,12 +104,12 @@ export class DOTDataSource extends DataSource {
         })) as unknown as AdHocData[];
 
         const edges = parsedEdges.map((edge) => ({
-            src: edge.src,
-            dst: edge.dst,
+            source: edge.src,
+            target: edge.dst,
             ...edge.attributes,
         })) as unknown as AdHocData[];
 
-        return { nodes, edges };
+        return { nodes, edges, directed };
     }
 
     private tokenize(content: string): string[] {
@@ -242,10 +252,13 @@ export class DOTDataSource extends DataSource {
         return tokens;
     }
 
-    private parseTokens(tokens: string[]): { nodes: DOTNode[]; edges: DOTEdge[] } {
+    private parseTokens(tokens: string[]): { nodes: DOTNode[]; edges: DOTEdge[]; directed: boolean | null } {
         const nodes = new Map<string, DOTNode>();
         const edges: DOTEdge[] = [];
         let i = 0;
+        // Null until the opening keyword is seen, and it stays null for a file that has none: a
+        // truncated or garbled document states no direction, and "no keyword" is not "undirected".
+        let directed: boolean | null = null;
 
         // Skip graph type and optional name
         while (i < tokens.length && !/^(strict|graph|digraph)$/i.exec(tokens[i])) {
@@ -257,6 +270,12 @@ export class DOTDataSource extends DataSource {
         }
 
         if (/^(graph|digraph)$/i.exec(tokens[i])) {
+            // The keyword that opens the file is the file's whole statement about its direction.
+            // Only the FIRST one counts: a `subgraph` further in reuses neither keyword, and a
+            // `graph [...]` attribute statement inside the body is a default-attribute list, not a
+            // second declaration -- this read happens before the body is walked, so neither can
+            // reach it.
+            directed = /^digraph$/i.test(tokens[i]);
             i++; // Skip 'graph' or 'digraph'
         }
 
@@ -464,6 +483,7 @@ export class DOTDataSource extends DataSource {
         return {
             nodes: Array.from(nodes.values()),
             edges,
+            directed,
         };
     }
 

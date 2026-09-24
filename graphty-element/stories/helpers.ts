@@ -8,15 +8,11 @@ import isChromatic from "chromatic/isChromatic";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
-const merge = lodash.merge.bind(lodash);
 
-import {
-    type AdHocData,
-    type CalculatedStyleConfig,
-    type StyleLayerType,
-    type StyleSchema,
-    StyleTemplate,
-} from "../src/config";
+import { LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
+import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
+import { type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
+import type { AlgorithmOnLoad } from "../src/config/DataConfig";
 import type { Graphty } from "../src/graphty-element";
 
 // Global storage for event promises set up by decorators
@@ -29,8 +25,15 @@ const eventWaitingState = new WeakMap<
 >();
 
 /**
- * Set up event listeners for a graphty-element to capture events early.
- * This prevents race conditions where events fire before play() can attach listeners.
+ * Start listening to a graphty-element before a play function can.
+ *
+ * `data-loaded` fires while the story is still being mounted, so a listener attached inside
+ * `play()` can miss it entirely and then wait for an event that has already gone by. Attaching
+ * here, from a decorator, turns that event into a promise that is just as true after the fact.
+ *
+ * ONLY the events something waits for are pre-attached. `graph-settled` was pre-attached too and
+ * nothing has read it since the capture wait started asking the element whether the PICTURE is
+ * final, and a promise nobody awaits is a device that looks like it is guaranteeing something.
  */
 function setupEventListenersForElement(element: HTMLElement): void {
     // Skip if already set up
@@ -42,9 +45,9 @@ function setupEventListenersForElement(element: HTMLElement): void {
     const promises = new Map<string, Promise<void>>();
     const resolvers = new Map<string, () => void>();
 
-    // Set up promises for common events
-    // Note: skybox-loaded is optional and only fires if a skybox is configured
-    const events = ["graph-settled", "data-loaded"];
+    // Note: skybox-loaded is optional and only fires if a skybox is configured, so it is waited
+    // for directly by the few stories that configure one.
+    const events = ["data-loaded"];
     events.forEach((eventName) => {
         let resolver: (() => void) | undefined;
         const promise = new Promise<void>((resolve) => {
@@ -107,127 +110,113 @@ export const eventWaitingDecorator = (story: any): any => {
     return result;
 };
 
-// Helper to wait for data to load - useful for URL-based data sources
-async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
-    const graphtyElement = canvasElement.querySelector("graphty-element");
-    if (!graphtyElement) {
-        return;
-    }
+/**
+ * How long a story's data source may take to answer.
+ *
+ * Only a story that names a data source waits at all, and one that does is waiting on a file,
+ * which is why this is measured in seconds rather than in frames.
+ */
+const DATA_LOAD_TIMEOUT_MS = 15000;
 
-    const state = eventWaitingState.get(graphtyElement as HTMLElement);
-    if (state?.promises.has("data-loaded")) {
-        const dataPromise = state.promises.get("data-loaded");
-        if (!dataPromise) {
-            return;
+/**
+ * Reject when a promise has not settled in time, with a sentence a reader can act on.
+ * @param promise - What is being waited for.
+ * @param timeoutMs - How long to wait.
+ * @param whatWasWaitedFor - Named in the error, so the failure says what did not happen.
+ * @returns The promise's own resolution, or a rejection describing the timeout.
+ */
+async function within(promise: Promise<void>, timeoutMs: number, whatWasWaitedFor: string): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+        await Promise.race([
+            promise,
+            new Promise<never>((_resolve, reject) => {
+                timer = setTimeout(() => {
+                    reject(new Error(`${whatWasWaitedFor} within ${String(timeoutMs)} ms.`));
+                }, timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timer !== undefined) {
+            clearTimeout(timer);
         }
-
-        // Timeout for network requests (5 seconds - inline data loads instantly)
-        const timeoutPromise = new Promise<void>((resolve) => {
-            setTimeout(() => {
-                // Data may already be loaded (e.g., inline data) or failed
-                resolve();
-            }, 5000);
-        });
-
-        await Promise.race([dataPromise, timeoutPromise]);
-    } else {
-        // Fallback: wait for data-loaded event with timeout
-        await new Promise<void>((resolve) => {
-            let resolved = false;
-
-            const timeout = setTimeout(() => {
-                if (!resolved) {
-                    resolved = true;
-                    resolve();
-                }
-            }, 5000);
-
-            const handleDataLoaded = (): void => {
-                if (!resolved) {
-                    resolved = true;
-                    clearTimeout(timeout);
-                    resolve();
-                }
-            };
-
-            graphtyElement.addEventListener("data-loaded", handleDataLoaded, { once: true });
-        });
     }
 }
 
-// Helper to wait for graph to settle - now uses pre-attached listeners
-// For URL-based data sources, this function first waits for data to load
-export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<void> {
-    const graphtyElement = canvasElement.querySelector("graphty-element");
+/**
+ * Wait for a story's DATA SOURCE to finish loading, when it has one.
+ *
+ * `data-loaded` is emitted by a data source completing a load and by nothing else, so a story
+ * that hands the element its nodes and edges directly never sees it. Waiting for it anyway is
+ * what put a silent five second wait in front of every such story -- a wait that ended in the
+ * story being captured regardless of whether anything had loaded. A story that DOES name a source
+ * and never gets an answer now fails and says which source it was, because the alternative is
+ * photographing an empty canvas and calling it a snapshot.
+ * @param canvasElement - The story's root element.
+ */
+async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
+    const graphtyElement = canvasElement.querySelector<Graphty>("graphty-element");
     if (!graphtyElement) {
         return;
     }
 
-    // First, wait for data to load (important for URL-based data sources)
-    // This ensures the layout has a chance to run before we wait for settling
+    const source = graphtyElement.dataSource;
+
+    if (source === undefined) {
+        return;
+    }
+
+    const state = eventWaitingState.get(graphtyElement);
+    const loaded =
+        state?.promises.get("data-loaded") ??
+        new Promise<void>((resolve) => {
+            graphtyElement.addEventListener("data-loaded", () => {
+                resolve();
+            });
+        });
+
+    await within(loaded, DATA_LOAD_TIMEOUT_MS, `the ${source} data source did not finish loading`);
+}
+
+/**
+ * How long a story may take to reach a picture that will not change again.
+ *
+ * Generous against the 2.5 seconds every story here has been measured to need, and well inside
+ * the 30 second timeout the Storybook test project allows, so the element's own message -- which
+ * names what was still moving -- is what a reader sees rather than a bare harness timeout.
+ */
+const STABLE_FRAME_TIMEOUT_MS = 15000;
+
+/**
+ * Wait until the story's graph is drawing a picture that will not change again.
+ *
+ * WHAT IT WAITS FOR IS THE FRAME, not the `graph-settled` event. That event fires the instant the
+ * layout engine converges, one update pass before the element has even asked for the final
+ * framing, so a snapshot taken on it is a snapshot of a camera still in motion -- measured at
+ * 27,914 projected pixels from the final picture on a force layout. `waitForStableFrame` is the
+ * element's own answer to "is this the finished picture", and every consumer has it, not just
+ * these stories.
+ *
+ * IT THROWS RATHER THAN GIVING UP. What stood here before raced the settle event against a five
+ * second timer and resolved either way, so a story that had not finished moving was photographed
+ * anyway and said nothing about it -- a determinism device that failed silently, which is the
+ * same defect as a waiver that hides a bug. A story that cannot reach a final frame now fails,
+ * with the element's account of what was still moving.
+ * @param canvasElement - The story's root element.
+ */
+export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<void> {
+    const graphtyElement = canvasElement.querySelector<Graphty>("graphty-element");
+    if (!graphtyElement) {
+        return;
+    }
+
+    // First, wait for data to load (important for URL-based data sources): a graph that has not
+    // been given anything to draw yet is trivially finished, and waiting for its frame would
+    // answer about the wrong picture.
     await waitForDataLoaded(canvasElement);
 
-    // For static layouts, the settled event may fire immediately on the first render
-    // We need to give the render loop a chance to run
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Check if we have pre-attached promises
-    const state = eventWaitingState.get(graphtyElement as HTMLElement);
-    if (state?.promises.has("graph-settled")) {
-        // Get the settled promise
-        const settledPromise = state.promises.get("graph-settled");
-        if (!settledPromise) {
-            return;
-        }
-
-        // Longer timeout for physics-based layouts to settle (5 seconds)
-        const timeoutPromise = new Promise<void>((resolve) => {
-            setTimeout(() => {
-                // For static layouts, this is not an error - they may have already settled
-                resolve();
-            }, 5000);
-        });
-
-        await Promise.race([settledPromise, timeoutPromise]);
-    } else {
-        // Fallback to original implementation if decorator wasn't used
-
-        // Give the graph a moment to initialize and potentially fire the event
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        await new Promise<void>((resolve) => {
-            let settled = false;
-
-            // Longer timeout for physics-based layouts (5 seconds)
-            const timeout = setTimeout(() => {
-                if (!settled) {
-                    // Not a warning - static layouts may have already settled
-                    settled = true;
-                    resolve();
-                }
-            }, 5000);
-
-            const handleSettled = (): void => {
-                if (!settled) {
-                    settled = true;
-                    clearTimeout(timeout);
-                    resolve();
-                }
-            };
-
-            graphtyElement.addEventListener("graph-settled", handleSettled, { once: true });
-        });
-    }
-
-    // Render a fixed number of frames after settling to ensure Babylon.js completes rendering
-    // Only needed for Chromatic visual testing - skip for regular tests to improve performance
-    if (isChromatic()) {
-        // Access private updateManager for Chromatic rendering - using type assertion since this is test-only code
-        const { graph } = graphtyElement as Graphty;
-        const updateMgr = (graph as unknown as { updateManager: { renderFixedFrames: (n: number) => void } })
-            .updateManager;
-        updateMgr.renderFixedFrames(30); // 30 frames = 0.5s at 60fps
-    }
+    await graphtyElement.waitForStableFrame({ timeoutMs: STABLE_FRAME_TIMEOUT_MS });
 }
 
 // Helper to wait for skybox to load - only call this if your story actually uses a skybox
@@ -273,87 +262,203 @@ export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<v
     });
 }
 
-// Re-export all the original helpers unchanged
-interface TemplateOpts {
-    nodeStyle?: Record<string, unknown>;
-    nodeSelector?: string;
-    nodeCalculatedStyle?: CalculatedStyleConfig;
-    edgeStyle?: Record<string, unknown>;
-    edgeSelector?: string;
-    edgeCalculatedStyle?: CalculatedStyleConfig;
-    algorithms?: string[];
-    graph?: Record<string, unknown>;
-    layers?: StyleLayerType[];
-    behavior?: Record<string, unknown>;
-    data?: Record<string, unknown>;
+/**
+ * What a story asks the element to draw, beyond the data it loads.
+ *
+ * ONE STACK, ONE DOCUMENT. `node`, `edge`, `nodeEncode`, `edgeEncode` and `layers` become layers
+ * on `session.styles`, which is the only style stack there is; the rest are the element's own
+ * configuration properties. What used to sit here instead was a 1.x style template, which
+ * carried both halves in one object and replaced the whole of it every time a story applied one.
+ */
+interface StorySetup {
+    /** Channels every node is painted with, such as `{"node.color": "red"}`. */
+    node?: StaticStyle;
+    /** Node channels bound to a value in the data, such as a label read from a column. */
+    nodeEncode?: Encoding;
+    /** Channels every edge is painted with. */
+    edge?: StaticStyle;
+    /** Edge channels bound to a value in the data. */
+    edgeEncode?: Encoding;
+    /** Layers beyond the two above, in paint order: the last one listed paints over the rest. */
+    layers?: readonly LayerSpec[];
+    /** 2D or 3D. */
+    viewMode?: ViewMode;
+    /** What the graph is drawn against: a colour, or a photo-dome skybox. */
+    background?: GraphBackgroundConfig;
+    /** How far the camera starts from the graph. */
+    startingCameraDistance?: number;
+    /** Algorithms to run once the data has loaded: names, or `{ algorithm, style, ... }` entries. */
+    algorithms?: readonly AlgorithmOnLoad[];
+    /** How many layout steps to run before the first frame is drawn. */
+    preSteps?: number;
 }
 
-export function templateCreator(opts: TemplateOpts): StyleSchema {
-    const config = {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-        },
-        // Add default behavior with preSteps for Chromatic testing
-        // Most layouts don't need preSteps (they compute to completion immediately)
-        // Only physics-based layouts (ngraph, d3) need preSteps
-        behavior: {
-            layout: {
-                preSteps: isChromatic() ? 2000 : 0, // 2000 for Chromatic visual tests, 0 for regular tests
-            },
-        },
-    } as unknown as AdHocData;
+/**
+ * What a story's args are: the element's own properties, plus the setup above.
+ *
+ * `StoryObj<StoryArgs>` alone types `args` as a partial element, which `setup` is not part of --
+ * it is this package's own way of describing a story, not something a consumer sets on a tag.
+ */
+export type StoryArgs = Graphty & { setup: StorySetup };
 
-    if (opts.nodeStyle) {
-        deepSet(config, "layers[0].node.style", opts.nodeStyle);
-        deepSet(config, "layers[0].node.selector", opts.nodeSelector ?? "");
+/**
+ * Fill in the defaults every story shares.
+ *
+ * The only one is the layout pre-step count, which is what makes a Chromatic snapshot the same
+ * picture twice: a physics layout that has not been stepped is a graph in mid-flight, and how far
+ * it has flown depends on when the screenshot was taken.
+ * @param opts - What this story wants.
+ * @returns The setup to hand the element.
+ */
+export function storySetup(opts: StorySetup = {}): StorySetup {
+    return { preSteps: isChromatic() ? 2000 : 0, ...opts };
+}
+
+/**
+ * The label fields a `node.labelStyle` or `edge.labelStyle` control writes.
+ *
+ * A control named `node.labelStyle.font` writes the `font` field of that channel's value.
+ *
+ * READ OFF THE VOCABULARY, NEVER RESTATED. This was a hand-written list of seven, and it stayed
+ * seven while the renderer went on drawing pointers, badges, shadows, margins, gradients and
+ * depth fade that no control could reach. Deriving it means a field added to `LabelStyle` is
+ * offered by every story control that names it, on the next reload, with nothing edited here.
+ */
+const LABEL_FIELDS = new Set<keyof LabelStyle>(LABEL_STYLE_FIELDS);
+
+/**
+ * Write one control's value into the setup it belongs to.
+ *
+ * A control is named after the channel it writes -- `node.color`, `edge.width` -- or after one
+ * field of a label style, as `node.labelStyle.font`. Anything else is a control for a property of
+ * the element rather than for a style channel, and is left to the caller.
+ * @param setup - The setup being built.
+ * @param name - The control's name.
+ * @param value - What the reader set it to.
+ * @returns True when the control was a style channel and has been written.
+ */
+function writeChannelControl(setup: StorySetup, name: string, value: unknown): boolean {
+    let target: "node" | "edge" | null = null;
+    if (name.startsWith("node.")) {
+        target = "node";
+    } else if (name.startsWith("edge.")) {
+        target = "edge";
     }
 
-    if (opts.nodeCalculatedStyle) {
-        deepSet(config, "layers[0].node.calculatedStyle", opts.nodeCalculatedStyle);
-        deepSet(config, "layers[0].node.selector", opts.nodeSelector ?? "");
-        deepSet(config, "layers[0].node.style", opts.nodeStyle ?? {});
+    if (target === null) {
+        return false;
     }
 
-    if (opts.edgeStyle) {
-        deepSet(config, "layers[0].edge.style", opts.edgeStyle);
-        deepSet(config, "layers[0].edge.selector", opts.edgeSelector ?? "");
+    const style: StaticStyle = { ...(target === "node" ? setup.node : setup.edge) };
+    const labelStyleChannel = `${target}.labelStyle`;
+
+    if (name.startsWith(`${labelStyleChannel}.`)) {
+        const field = name.slice(labelStyleChannel.length + 1) as keyof LabelStyle;
+
+        if (!LABEL_FIELDS.has(field)) {
+            return false;
+        }
+
+        style[labelStyleChannel as Channel] = {
+            ...(style[labelStyleChannel as Channel] as LabelStyle | undefined),
+            [field]: value,
+        };
+    } else {
+        style[name as Channel] = value as StaticStyle[Channel];
     }
 
-    if (opts.edgeCalculatedStyle) {
-        deepSet(config, "layers[0].edge.calculatedStyle", opts.edgeCalculatedStyle);
-        deepSet(config, "layers[0].edge.selector", opts.edgeSelector ?? "");
-        deepSet(config, "layers[0].edge.style", opts.edgeStyle ?? {});
+    if (target === "node") {
+        setup.node = style;
+    } else {
+        setup.edge = style;
     }
 
-    if (opts.algorithms) {
-        deepSet(config, "data.algorithms", opts.algorithms);
+    return true;
+}
+
+/**
+ * How many layout steps to run before the first frame is drawn.
+ *
+ * Stories with a render function of their own call this, because they build the element
+ * themselves and so do not pass through {@link applyConfiguration}.
+ * @param element - The element to configure.
+ * @param preSteps - How many steps to run before the first frame.
+ */
+export function setLayoutPreSteps(element: Graphty, preSteps: number): void {
+    element.layoutBehavior = { layout: { preSteps } };
+}
+
+/**
+ * Turn a story's setup into layers on the element's own style stack.
+ *
+ * Added before the data is, which is deliberate: a layer is a standing instruction rather than a
+ * pass over what happens to be loaded, so the rows a later load adds are painted by it too.
+ * @param element - The element to style.
+ * @param setup - What the story asked for.
+ */
+function applyStyleLayers(element: Graphty, setup: StorySetup): void {
+    const layers: LayerSpec[] = [];
+
+    if (setup.node !== undefined || setup.nodeEncode !== undefined) {
+        layers.push({
+            name: "Story - nodes",
+            target: "node",
+            selector: { match: "everything" },
+            ...(setup.node === undefined ? {} : { set: setup.node }),
+            ...(setup.nodeEncode === undefined ? {} : { encode: setup.nodeEncode }),
+        });
     }
 
-    if (opts.layers) {
-        deepSet(config, "layers", opts.layers);
+    if (setup.edge !== undefined || setup.edgeEncode !== undefined) {
+        layers.push({
+            name: "Story - edges",
+            target: "edge",
+            selector: { match: "everything" },
+            ...(setup.edge === undefined ? {} : { set: setup.edge }),
+            ...(setup.edgeEncode === undefined ? {} : { encode: setup.edgeEncode }),
+        });
     }
 
-    if (opts.graph) {
-        // Merge with existing graph config instead of overwriting
-        config.graph = { ...config.graph, ...opts.graph };
+    layers.push(...(setup.layers ?? []));
+
+    for (const layer of layers) {
+        // Fired and forgotten: a style edit is a queued run that reports its own refusal, and a
+        // render function cannot await one.
+        void element.session.styles.add(layer);
+    }
+}
+
+/**
+ * Apply the configuration half of a story's setup to the element.
+ *
+ * TWO OF THESE REACH THROUGH `graph`, AND SHOULD NOT HAVE TO. The layout pre-step count and the
+ * list of algorithms to run on load were reachable only through the style template, and when that
+ * was removed nothing replaced them: every other setting it carried has a property on
+ * `<graphty-element>` -- `viewMode`, `background`, `startingCameraDistance`, `layout` -- and these
+ * two have none. Until the element grows them, a story writes the configuration document.
+ * @param element - The element to configure.
+ * @param setup - What the story asked for.
+ */
+function applyConfiguration(element: Graphty, setup: StorySetup): void {
+    if (setup.viewMode !== undefined) {
+        element.viewMode = setup.viewMode;
     }
 
-    if (opts.behavior) {
-        // Merge behavior options instead of replacing them entirely
-        // This preserves the default preSteps setting for Chromatic
-        config.behavior = merge({}, config.behavior, opts.behavior);
+    if (setup.background !== undefined) {
+        element.background = setup.background;
     }
 
-    if (opts.data) {
-        // Merge with any existing data config
-        config.data = { ...config.data, ...opts.data };
+    if (setup.startingCameraDistance !== undefined) {
+        element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    const template = StyleTemplate.parse(config);
+    if (setup.preSteps !== undefined) {
+        element.layoutBehavior = { layout: { preSteps: setup.preSteps } };
+    }
 
-    return template;
+    if (setup.algorithms !== undefined) {
+        element.algorithmsOnLoad = setup.algorithms;
+    }
 }
 
 export const nodeData = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
@@ -367,6 +472,17 @@ export const edgeData = [
     { src: 3, dst: 5 },
 ];
 
+/**
+ * Element properties a story sets directly, which this render function must hand over itself.
+ *
+ * Storybook's DEFAULT web-components renderer assigns every arg as a property, so a story that
+ * routes through a render function loses any arg the function does not forward. These are the
+ * element's own data-shape properties: which field of a record carries a node's id, and which two
+ * carry an edge's ends. A story reading a document that names them anything other than `id`,
+ * `src` and `dst` cannot load without them.
+ */
+const FORWARDED_ELEMENT_PROPERTIES = ["nodeIdPath", "edgeSrcIdPath", "edgeDstIdPath"] as const;
+
 type RenderArg1 = Parameters<NonNullable<Meta["render"]>>[0];
 type RenderArg2 = Parameters<NonNullable<Meta["render"]>>[1];
 
@@ -379,77 +495,78 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad;
     }
 
-    // Process styleTemplate to apply argTypes modifications
-    const t = args.styleTemplate;
+    // The story's own setup, with whatever the reader has moved a control to written over it. A
+    // control is named after the thing it sets: a style channel, a layout option, or a property
+    // of the element.
+    const setup: StorySetup = { ...((args.setup as StorySetup | undefined) ?? {}) };
+    const layoutConfig: Record<string, unknown> = { ...(args.layoutConfig as Record<string, unknown> | undefined) };
 
-    // if argTypes have a name like "texture.color", apply that value to the node style
     for (const arg of Object.getOwnPropertyNames(args)) {
-         
         const name = storyConfig.argTypes[arg]?.name;
 
-        // if the arg has a name...
-        if (name) {
-            const val = args[arg];
+        if (!name) {
+            continue;
+        }
 
-            // Map control names to the correct template paths
-            if (name.startsWith("label.")) {
-                // For label properties, check if we're using nodeStyle or layers
-                const labelProp = name.substring(6); // Remove "label." prefix
-                if (t.nodeStyle) {
-                    deepSet(t, `nodeStyle.label.${labelProp}`, val);
-                } else if (t.layers) {
-                    deepSet(t, `layers[0].node.style.label.${labelProp}`, val);
-                }
-            } else if (name.startsWith("texture.") || name.startsWith("shape.") || name.startsWith("effect.")) {
-                // For other node properties
-                if (t.nodeStyle) {
-                    deepSet(t, `nodeStyle.${name}`, val);
-                } else if (t.layers) {
-                    deepSet(t, `layers[0].node.style.${name}`, val);
-                }
-            } else if (
-                name.startsWith("line.") ||
-                name.startsWith("arrowHead.") ||
-                name.startsWith("arrowTail.") ||
-                name.startsWith("tooltip.")
-            ) {
-                // For edge properties (including tail and tooltip)
-                if (t.edgeStyle) {
-                    deepSet(t, `edgeStyle.${name}`, val);
-                } else if (t.layers) {
-                    deepSet(t, `layers[0].edge.style.${name}`, val);
-                }
-            } else if (name.startsWith("graph.layoutOptions.")) {
-                // For layout options
-                const configKey = name.substring(20); // Remove "graph.layoutOptions." prefix
-                if (val !== undefined) {
-                    deepSet(t, `graph.layoutOptions.${configKey}`, val);
-                }
-            } else if (
-                ![
-                    "dataSource",
-                    "dataSourceConfig",
-                    "layout",
-                    "layoutConfig",
-                    "styleTemplate",
-                    "nodeData",
-                    "edgeData",
-                    "runAlgorithmsOnLoad",
-                    "onGraphSettled",
-                    "onSkyboxLoaded",
-                    "xr",
-                ].includes(arg)
-            ) {
-                // For other properties, apply directly (but skip component-level props and event handlers)
-                deepSet(t, name, val);
+        const value = args[arg];
+
+        if (writeChannelControl(setup, name, value)) {
+            continue;
+        }
+
+        // The two background controls build the element's own background value: one names a
+        // colour and the other the image a photo dome is built from.
+        if (name === "background.color" && typeof value === "string" && value !== "") {
+            setup.background = { backgroundType: "color", color: value };
+            continue;
+        }
+
+        if (name === "background.skybox" && typeof value === "string" && value !== "") {
+            setup.background = { backgroundType: "skybox", data: value };
+            continue;
+        }
+
+        if (name.startsWith("layoutConfig.")) {
+            if (value !== undefined) {
+                layoutConfig[name.slice("layoutConfig.".length)] = value;
             }
+
+            continue;
+        }
+
+        if (
+            ![
+                "dataSource",
+                "dataSourceConfig",
+                "layout",
+                "layoutConfig",
+                "setup",
+                "nodeData",
+                "edgeData",
+                "runAlgorithmsOnLoad",
+                "onGraphSettled",
+                "onSkyboxLoaded",
+                "xr",
+            ].includes(arg)
+        ) {
+            deepSet(setup, name, value);
         }
     }
 
-    // Set styleTemplate BEFORE adding data, because the trigger checks algorithms in the template
-    g.styleTemplate = t;
+    applyConfiguration(g, setup);
+    applyStyleLayers(g, setup);
 
-    // Now add data - this will trigger data-add operation which checks for algorithms
+    // BEFORE the data, because these say how a record is read and the reading happens as the rows
+    // arrive. See FORWARDED_ELEMENT_PROPERTIES.
+    for (const property of FORWARDED_ELEMENT_PROPERTIES) {
+        const value = args[property];
+
+        if (typeof value === "string") {
+            g[property] = value;
+        }
+    }
+
+    // Now add data - this will trigger data-add, which runs the algorithms the setup named
     if (args.dataSource) {
         // Set dataSourceConfig BEFORE dataSource, because setting dataSource
         // triggers addDataFromSource which needs the config
@@ -464,8 +581,8 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // Set layout properties if provided
     // IMPORTANT: Set layoutConfig BEFORE layout so that when layout triggers
     // setLayout(), it already has access to the seed value for deterministic layouts
-    if (args.layoutConfig) {
-        g.layoutConfig = args.layoutConfig;
+    if (Object.keys(layoutConfig).length > 0) {
+        g.layoutConfig = layoutConfig;
     }
 
     if (args.layout) {
@@ -624,29 +741,30 @@ function enableRemoteLoggingInBrowser(): void {
     /* eslint-enable no-console */
 }
 
-export const nodeShapes = [
+/**
+ * Every node shape the element can draw, in the order the schema declares them.
+ *
+ * READ OFF `NodeShapes`, NEVER RETYPED. The hand-written copy of this list held twenty-four
+ * names while the schema held twenty-five, so `torus` -- added to the schema with a paragraph
+ * explaining why -- was drawn by no story and seen by nobody. A list derived from the enum
+ * cannot fall behind it.
+ */
+export const nodeShapes = NodeShapes.options;
+
+/** Every arrow cap a layer can ask for, which is what `edge.arrowHead` and `edge.arrowTail` take. */
+export const arrowTypes = [
+    "normal",
+    "inverted",
+    "dot",
+    "sphere-dot",
+    "open-dot",
+    "none",
+    "tee",
+    "open-normal",
+    "diamond",
+    "open-diamond",
+    "crow",
     "box",
-    "sphere",
-    "cylinder",
-    "cone",
-    "capsule",
-    "torus-knot",
-    "tetrahedron",
-    "octahedron",
-    "dodecahedron",
-    "icosahedron",
-    "rhombicuboctahedron",
-    "triangular_prism",
-    "pentagonal_prism",
-    "hexagonal_prism",
-    "square_pyramid",
-    "pentagonal_pyramid",
-    "triangular_dipyramid",
-    "pentagonal_dipyramid",
-    "elongated_square_dipyramid",
-    "elongated_pentagonal_dipyramid",
-    "elongated_pentagonal_cupola",
-    "goldberg",
-    "icosphere",
-    "geodesic",
+    "half-open",
+    "vee",
 ] as const;

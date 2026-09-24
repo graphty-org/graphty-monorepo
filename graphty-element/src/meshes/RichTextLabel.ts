@@ -18,6 +18,9 @@ import { RichTextAnimator } from "./RichTextAnimator";
 import { RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 
+/** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
+const ON_TOP_RENDERING_GROUP = 1;
+
 export type BadgeType =
     | "notification"
     | "label"
@@ -92,6 +95,11 @@ interface InternalBadgeProperties {
 // Additional runtime properties that can be passed to RichTextLabel
 interface RuntimeProperties {
     attachTo?: AbstractMesh | Vector3;
+    /**
+     * Draw over the whole graph instead of sorting by depth with it. A tooltip sets this; an
+     * ordinary label does not, so a node or an edge nearer the camera passes in front of it.
+     */
+    onTop?: boolean;
 }
 
 // RichTextLabelOptions extends the config schema with runtime properties
@@ -107,6 +115,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "icon"
     | "progress"
     | "attachTo"
+    | "onTop"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -839,8 +848,15 @@ export class RichTextLabel {
         y: number,
         width: number,
         height: number,
-        radius: number,
+        wanted: number,
     ): void {
+        // CLAMPED TO WHAT THE BOX CAN HOLD. A corner radius larger than half the box has no
+        // meaning, and the path below does not degrade gracefully into one: `moveTo(x + r, y)`
+        // followed by `lineTo(x + width - r, y)` runs backwards, and the quadratics close over a
+        // shape that fills the corners it was asked to cut away. Every badge in the badge table
+        // asks for 999 to mean "a pill", and every one of them was drawn as a square.
+        const radius = Math.max(0, Math.min(wanted, width / 2, height / 2));
+
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
         ctx.lineTo(x + width - radius, y);
@@ -893,6 +909,12 @@ export class RichTextLabel {
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
+        // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
+        // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
+        // in the graph can cover what the reader pointed at.
+        if (this.options.onTop === true) {
+            this.mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+        }
     }
 
     private _attachToTarget(): void {
@@ -1016,7 +1038,13 @@ export class RichTextLabel {
                 return;
             }
 
-            const distance = Vector3.Distance(camera.position, this.mesh.position);
+            // THE ABSOLUTE POSITION, NOT THE LOCAL ONE. A label's plane is PARENTED to the node
+            // it belongs to, so `mesh.position` is its offset from that node -- the same small
+            // vector on every label in the graph. Measuring the camera against that measured the
+            // camera against the origin, so every label in the scene faded by exactly the same
+            // amount however near or far its node was, which is the one thing depth fading is
+            // for. Read back in a story: twenty labels, twenty identical alphas.
+            const distance = Vector3.Distance(camera.position, this.mesh.getAbsolutePosition());
 
             let fadeFactor = 1.0;
             if (distance < this.options.depthFadeNear) {

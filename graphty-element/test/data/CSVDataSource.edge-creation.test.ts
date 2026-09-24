@@ -14,8 +14,8 @@ n1,n2,1.5,friend,#ff0000`;
         }
 
         const edge = chunks[0].edges[0];
-        assert.strictEqual(edge.src, "n1");
-        assert.strictEqual(edge.dst, "n2");
+        assert.strictEqual(edge.source, "n1");
+        assert.strictEqual(edge.target, "n2");
         assert.strictEqual(edge.weight, 1.5);
         assert.strictEqual(edge.type, "friend");
         assert.strictEqual(edge.color, "#ff0000");
@@ -34,7 +34,7 @@ n3,n4`;
 
         // First edge should be skipped due to missing source
         assert.strictEqual(chunks[0].edges.length, 1);
-        assert.strictEqual(chunks[0].edges[0].src, "n3");
+        assert.strictEqual(chunks[0].edges[0].source, "n3");
 
         const errors = source.getErrorAggregator().getErrors();
         assert.strictEqual(errors.length, 1);
@@ -53,7 +53,7 @@ n3,n4`;
         }
 
         assert.strictEqual(chunks[0].edges.length, 1);
-        assert.strictEqual(chunks[0].edges[0].src, "n3");
+        assert.strictEqual(chunks[0].edges[0].source, "n3");
 
         const errors = source.getErrorAggregator().getErrors();
         assert.strictEqual(errors.length, 1);
@@ -71,9 +71,9 @@ true,false`;
             chunks.push(chunk);
         }
 
-        assert.strictEqual(typeof chunks[0].edges[0].src, "string");
-        assert.strictEqual(typeof chunks[0].edges[0].dst, "string");
-        assert.strictEqual(chunks[0].edges[0].src, "123");
-        assert.strictEqual(chunks[0].edges[1].src, "true");
+        assert.strictEqual(typeof chunks[0].edges[0].source, "string");
+        assert.strictEqual(typeof chunks[0].edges[0].target, "string");
+        assert.strictEqual(chunks[0].edges[0].source, "123");
+        assert.strictEqual(chunks[0].edges[1].source, "true");
     });
 });

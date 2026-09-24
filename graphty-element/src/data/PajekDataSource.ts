@@ -20,6 +20,48 @@ interface ParsedEdge {
 }
 
 /**
+ * The direction a Pajek file declares, or null when it declares none.
+ *
+ * Pajek states direction by which SECTION an edge is written in: a line under `*Arcs` is a
+ * directed arc, a line under `*Edges` is an undirected edge. There is no graph-level statement to
+ * appeal to, which means a file carrying both sections has described a mixed graph -- and the
+ * element's snapshot has one direction flag for the whole graph.
+ *
+ * A mixed file is read as DIRECTED, because that is the reading that loses least: an arc stored in
+ * an undirected graph GAINS a path that the file denies, from target back to source, and every
+ * degree, reachability and centrality answer downstream is then computed over an edge the author
+ * never wrote. An undirected edge stored in a directed graph loses its reverse direction, which is
+ * visible, countable and reported here. Each edge also keeps its own `directed` flag on its record.
+ *
+ * A file with no edge lines at all falls back to the section HEADERS: `*Arcs` with nothing under it
+ * still says this file lists arcs. A file with neither header states nothing.
+ * @param edges - every edge line parsed, each carrying the section it came from
+ * @param headers - which section headers appeared, however empty
+ * @param headers.arcs - whether an `*Arcs` header appeared
+ * @param headers.edges - whether an `*Edges` header appeared
+ * @returns the declaration, or null when the file stated nothing
+ */
+function declareFromSections(
+    edges: readonly ParsedEdge[],
+    headers: { arcs: boolean; edges: boolean },
+): { directed: boolean; statedBy: string; conflictingEdges: number } | null {
+    const arcs = edges.filter((edge) => edge.directed).length;
+    if (arcs > 0) {
+        return { directed: true, statedBy: "*Arcs", conflictingEdges: edges.length - arcs };
+    }
+
+    if (edges.length > 0) {
+        return { directed: false, statedBy: "*Edges", conflictingEdges: 0 };
+    }
+
+    if (headers.arcs) {
+        return { directed: true, statedBy: "*Arcs", conflictingEdges: 0 };
+    }
+
+    return headers.edges ? { directed: false, statedBy: "*Edges", conflictingEdges: 0 } : null;
+}
+
+/**
  * Data source for loading graph data from Pajek NET format files.
  * Supports vertices, edges (arcs), and undirected edges with coordinates and weights.
  */
@@ -50,20 +92,34 @@ export class PajekDataSource extends DataSource {
         const content = await this.getContent();
 
         // Parse Pajek NET format
-        const { vertices, edges } = this.parsePajek(content);
+        const { vertices, edges, headers } = this.parsePajek(content);
 
         // Convert to AdHocData
         const nodes = vertices.map((v) => this.vertexToNode(v));
         const edgeData = edges.map((e) => this.edgeToEdgeData(e));
 
+        // Declared BEFORE the first chunk is yielded, so the direction reaches the builder while it
+        // still holds no edges.
+        const declared = declareFromSections(edges, headers);
+        if (declared !== null) {
+            this.declareDirection(declared.directed, declared.statedBy, declared.conflictingEdges);
+        }
+
         // Use shared chunking helper
         yield* this.chunkData(nodes, edgeData);
     }
 
-    private parsePajek(content: string): { vertices: ParsedVertex[]; edges: ParsedEdge[] } {
+    private parsePajek(content: string): {
+        vertices: ParsedVertex[];
+        edges: ParsedEdge[];
+        headers: { arcs: boolean; edges: boolean };
+    } {
         const lines = content.split("\n").map((line) => line.trim());
         const vertices: ParsedVertex[] = [];
         const edges: ParsedEdge[] = [];
+        // A section header with no lines under it still says what kind of list this file is, which
+        // is the only statement a file with no edges at all makes about its direction.
+        const headers = { arcs: false, edges: false };
 
         let section: "none" | "vertices" | "arcs" | "edges" = "none";
 
@@ -83,11 +139,13 @@ export class PajekDataSource extends DataSource {
 
             if (line.toLowerCase().startsWith("*arcs")) {
                 section = "arcs";
+                headers.arcs = true;
                 continue;
             }
 
             if (line.toLowerCase().startsWith("*edges")) {
                 section = "edges";
+                headers.edges = true;
                 continue;
             }
 
@@ -110,7 +168,7 @@ export class PajekDataSource extends DataSource {
             }
         }
 
-        return { vertices, edges };
+        return { vertices, edges, headers };
     }
 
     private parseVertexLine(line: string, lineNum: number): ParsedVertex | null {
@@ -286,8 +344,8 @@ export class PajekDataSource extends DataSource {
 
     private edgeToEdgeData(edge: ParsedEdge): AdHocData {
         const edgeData: Record<string, unknown> = {
-            src: edge.src,
-            dst: edge.dst,
+            source: edge.src,
+            target: edge.dst,
             directed: edge.directed,
         };
 

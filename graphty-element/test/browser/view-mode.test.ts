@@ -6,49 +6,8 @@
  */
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type { StyleSchema, ViewMode } from "../../src/config";
+import type { ViewMode } from "../../src/config";
 import { Graph } from "../../src/Graph";
-
-// Helper to create minimal style templates - uses twoD to test deprecated API compatibility
-function createStyleTemplate(
-    overrides: {
-        graph?: { viewMode?: ViewMode; twoD?: boolean };
-    } = {},
-): StyleSchema {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            ...overrides.graph,
-        },
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        texture: {
-                            color: "#4CAF50",
-                        },
-                        shape: {
-                            type: "sphere" as const,
-                            size: 10,
-                        },
-                    },
-                },
-                edge: {
-                    selector: "",
-                    style: {
-                        line: {
-                            color: "#888888",
-                            width: 3,
-                        },
-                    },
-                },
-            },
-        ],
-    } as unknown as StyleSchema;
-}
 
 describe("ViewMode API", () => {
     let graph: Graph;
@@ -238,53 +197,60 @@ describe("ViewMode API", () => {
         });
     });
 
-    describe("Style template with viewMode", () => {
-        it("should set viewMode from style template", async () => {
-            const template = createStyleTemplate({ graph: { viewMode: "2d" } });
-            await graph.setStyleTemplate(template);
+    /**
+     * Every place the view mode is written down, and the rule that they never disagree.
+     *
+     * This used to be a block about the style template, which could set `viewMode` or the
+     * deprecated `twoD` and had to decide which of them won when a document carried both. The
+     * template is gone and `setViewMode` is the only door, so there is no precedence question
+     * left -- but there are still four readings of one setting, and a reader who takes the wrong
+     * one gets a graph that says it is 2D while the camera is orbiting.
+     */
+    describe("the view mode, wherever it is read from", () => {
+        /**
+         * Assert every reading of the view mode agrees.
+         * @param mode - What the graph should say it is in.
+         */
+        function assertAgrees(mode: ViewMode): void {
+            const twoD = mode === "2d";
+
+            assert.strictEqual(graph.getViewMode(), mode);
+            assert.strictEqual(graph.is2D(), twoD);
+            assert.strictEqual(graph.styles.config.graph.viewMode, mode, "the configuration document");
+            assert.strictEqual(graph.styles.config.graph.twoD, twoD, "and its deprecated twoD beside it");
+            assert.strictEqual(graph.scene.metadata?.viewMode, mode, "and the scene the renderer reads");
+            assert.strictEqual(graph.scene.metadata?.twoD, twoD);
+        }
+
+        it("agrees everywhere after a switch to 2D", async () => {
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
-            assert.strictEqual(graph.getViewMode(), "2d");
-            assert.isTrue(graph.getViewMode() === "2d");
+            assertAgrees("2d");
         });
 
-        it("should prioritize viewMode over twoD in style template", async () => {
-            // If both are set, viewMode should take precedence
-            const template = createStyleTemplate({
-                graph: { viewMode: "3d", twoD: true },
+        it("agrees everywhere after a switch back to 3D", async () => {
+            await graph.setViewMode("2d");
+            await graph.operationQueue.waitForCompletion();
+            await graph.setViewMode("3d");
+            await graph.operationQueue.waitForCompletion();
+
+            assertAgrees("3d");
+        });
+
+        it("still agrees with a graph and a style layer on it", async () => {
+            await graph.addNodes(TEST_NODES);
+            await graph.addEdges(TEST_EDGES);
+            await graph.getSession().styles.add({
+                name: "green nodes",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#4CAF50", "node.shape": "sphere", "node.size": 10 },
             });
-            await graph.setStyleTemplate(template);
+            await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
-            // viewMode should win
-            assert.strictEqual(graph.getViewMode(), "3d");
-        });
-
-        it("should handle deprecated twoD in style template", async () => {
-            // Using only twoD (deprecated)
-            const template = createStyleTemplate({ graph: { twoD: true } });
-            await graph.setStyleTemplate(template);
-            await graph.operationQueue.waitForCompletion();
-
-            // Should work but convert to viewMode internally
-            assert.strictEqual(graph.getViewMode(), "2d");
-            assert.isTrue(graph.getViewMode() === "2d");
-        });
-
-        it("should switch modes when style template changes viewMode", async () => {
-            // Start in 3D
-            const template3D = createStyleTemplate({ graph: { viewMode: "3d" } });
-            await graph.setStyleTemplate(template3D);
-            await graph.operationQueue.waitForCompletion();
-
-            assert.strictEqual(graph.getViewMode(), "3d");
-
-            // Switch to 2D via style template
-            const template2D = createStyleTemplate({ graph: { viewMode: "2d" } });
-            await graph.setStyleTemplate(template2D);
-            await graph.operationQueue.waitForCompletion();
-
-            assert.strictEqual(graph.getViewMode(), "2d");
+            assertAgrees("2d");
         });
     });
 

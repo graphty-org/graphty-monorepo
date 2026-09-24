@@ -27,9 +27,6 @@ const CONFIG = {
     // Significantly reduced to prevent p-queue stack overflow in vitest browser mode
     TEST_DURATION_MS: 500,
 
-    // Warmup time before measuring (ms)
-    WARMUP_MS: 100,
-
     // Edge counts to test
     // Minimized to work within vitest browser mode limits
     EDGE_COUNTS: {
@@ -143,8 +140,24 @@ function calculatePercentile(values: number[], percentile: number): number {
     return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
 }
 
-async function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Resolve once the graph's scene has drawn its next frame.
+ *
+ * The benchmark is paced on FRAMES, not on a timer. The render loop draws on every animation
+ * frame, and a frame of 1000 edges on a software rasteriser keeps the main thread busy from one
+ * frame to the next; Chrome runs rendering ahead of timer tasks, so a `setTimeout(16)` there
+ * waited through many frames instead of one. Paced on a timer, the 31 steps of one scenario took
+ * about six seconds locally and past fifteen on a slower CI runner, and what was recorded as a
+ * "frame time" was the timer's delay. One step per drawn frame costs 31 frames and measures them.
+ * @param graph - The graph whose scene is rendering.
+ * @returns A promise that resolves after the next render.
+ */
+async function nextRenderedFrame(graph: Graph): Promise<void> {
+    return new Promise((resolve) => {
+        graph.scene.onAfterRenderObservable.addOnce(() => {
+            resolve();
+        });
+    });
 }
 
 // ============================================================================
@@ -165,14 +178,13 @@ async function animateRotation(graph: Graph, durationMs: number): Promise<number
 
     const startAlpha = camera.alpha;
 
-    // Use fixed number of iterations instead of requestAnimationFrame to prevent queue accumulation
-    const frameIntervalMs = 16; // ~60fps simulation
+    // A fixed number of drawn frames: as many as a 60fps display shows in the duration
+    const frameIntervalMs = 16;
     const frameCount = Math.floor(durationMs / frameIntervalMs);
     let lastFrameTime = startTime;
 
     for (let i = 0; i < frameCount; i++) {
-        // Simulate frame timing
-        await new Promise((resolve) => setTimeout(resolve, frameIntervalMs));
+        await nextRenderedFrame(graph);
 
         const now = performance.now();
         const elapsed = now - startTime;
@@ -204,14 +216,13 @@ async function animateZoom(graph: Graph, durationMs: number): Promise<number[]> 
 
     const startRadius = camera.radius;
 
-    // Use fixed number of iterations instead of requestAnimationFrame to prevent queue accumulation
-    const frameIntervalMs = 16; // ~60fps simulation
+    // A fixed number of drawn frames: as many as a 60fps display shows in the duration
+    const frameIntervalMs = 16;
     const frameCount = Math.floor(durationMs / frameIntervalMs);
     let lastFrameTime = startTime;
 
     for (let i = 0; i < frameCount; i++) {
-        // Simulate frame timing
-        await new Promise((resolve) => setTimeout(resolve, frameIntervalMs));
+        await nextRenderedFrame(graph);
 
         const now = performance.now();
         const elapsed = now - startTime;
@@ -289,8 +300,9 @@ async function runBenchmark(config: TestConfig): Promise<TestResult> {
 
     (graph as Graph & { setData: (data: unknown) => void }).setData(graphData);
 
-    // Wait for initial render
-    await sleep(CONFIG.WARMUP_MS);
+    // Warm up until the graph is fully drawn -- every mesh has its shader -- so the measured
+    // frames are steady-state ones. A fixed sleep here was a timer too, and was starved the same way.
+    await graph.waitForStableFrame();
 
     // Get initial draw calls
     const statsManager = graph.getStatsManager();

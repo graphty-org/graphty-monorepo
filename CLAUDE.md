@@ -176,21 +176,23 @@ pnpm run coverage                 # Run all coverage
 # Lint
 pnpm run lint                     # Lint all packages
 
-# Development servers
-pnpm run dev:algorithms           # Port 9000
-pnpm run dev:layout               # Port 9010
-pnpm run dev:graphty-element      # Port 9020
-pnpm run dev:graphty              # Port 9050
+# Watch builds (tsc --watch, no server)
+pnpm run dev:algorithms
+pnpm run dev:layout
+```
 
-# Storybook
-pnpm run storybook:graphty-element  # Port 9025
-pnpm run storybook:graphty          # Port 9035
-pnpm run storybook:algorithms       # Port 9001
-pnpm run storybook:layout           # Port 9011
+Every server below (Vite dev servers, Storybook, docs, coverage previews, interactive
+examples) takes its port from `PORT` and refuses to start without it. See "Starting Servers".
 
-# Interactive examples
-pnpm run examples:algorithms      # Algorithm demos
-pnpm run examples:layout          # Layout demos
+```bash
+pnpm run dev:graphty-element
+pnpm run dev:graphty
+pnpm run dev:webgpu-graph-algorithms      # the WebGPU demo page
+pnpm run storybook:graphty-element
+pnpm run storybook:graphty                # HTTPS only
+pnpm run examples:algorithms              # Algorithm demos
+pnpm run examples:layout                  # Layout demos
+pnpm run docs:dev                         # VitePress docs
 ```
 
 ### Per-Package Commands
@@ -209,14 +211,16 @@ npm run lint:fix      # Auto-fix lint issues
 ### Coverage Preview (HTTP servers)
 
 ```bash
-pnpm run coverage:preview:algorithms       # Port 9051
-pnpm run coverage:preview:layout           # Port 9052
-pnpm run coverage:preview:graphty-element  # Port 9053
-pnpm run coverage:preview:graphty          # Port 9054
-pnpm run coverage:preview:graph-format     # Port 9056
-pnpm run coverage:preview:graph-io         # Port 9057
-pnpm run coverage:preview:webgpu-graph-algorithms  # Port 9058
+pnpm run coverage:preview:algorithms
+pnpm run coverage:preview:layout
+pnpm run coverage:preview:graphty-element
+pnpm run coverage:preview:graphty
+pnpm run coverage:preview:graph-format
+pnpm run coverage:preview:graph-io
+pnpm run coverage:preview:webgpu-graph-algorithms
 ```
+
+Each package also has its own `npm run coverage:preview`.
 
 ## Shared Configuration
 
@@ -224,7 +228,7 @@ The monorepo uses shared configuration files in the root directory:
 
 | File | Purpose |
 |------|---------|
-| `vite.shared.config.ts` | Shared Vite config factory (port assignments, build formats) |
+| `vite.shared.config.ts` | Shared Vite config factory (build formats) |
 | `vitest.shared.config.ts` | Shared Vitest config factory (coverage thresholds, environment) |
 | `tsconfig.base.json` | Shared TypeScript settings with project references |
 | `eslint.config.js` | Shared ESLint flat config |
@@ -241,20 +245,44 @@ The `tools/` directory contains build scripts:
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 
-### Port Assignments
+### Starting Servers
 
-All dev servers use ports 9000-9099:
-- algorithms: 9000
-- algorithms Storybook: 9001
-- layout: 9010
-- layout Storybook: 9011
-- graphty-element: 9020
-- graphty-element Storybook: 9025
-- graphty: 9050
-- graphty Storybook: 9035
-- compact-mantine Storybook: 9060
-- webgpu-graph-algorithms demo (vite): 9030
-- Coverage previews: 9051-9054, graph-format 9056, graph-io 9057, webgpu-graph-algorithms 9058
+No server has a fixed port. Every dev server, Storybook, docs server and coverage preview reads
+`PORT` and fails with "start it through servherd, which sets PORT" when it is unset. Start them
+through the servherd MCP and let it assign the port: `{{port}}` goes into `env.PORT`. For HTTPS
+pass `protocol: "https"` and hand servherd's certificate over as `HTTPS_CERT_PATH` /
+`HTTPS_KEY_PATH` -- on the COMMAND, with `env`, because servherd substitutes `{{httpsCert}}` and
+`{{httpsKey}}` in the command but not in `env` values, and it runs the command without a shell.
+`HOST` (optional) sets what to bind: `{{hostname}}` for Vite and VitePress, `0.0.0.0` for
+Storybook (Storybook answers "Invalid host" (403) to a request for the hostname when it is bound
+to that hostname). Starting the same name again restarts the server instead of adding a copy.
+
+```jsonc
+// Vite dev server (graphty-element, graphty, the webgpu-graph-algorithms demo, examples)
+servherd_start({ name: "graphty-element-dev", cwd: "<repo>/graphty-element",
+  command: "npm run dev", env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
+
+// Storybook (graphty-element, compact-mantine, algorithms, layout)
+servherd_start({ name: "graphty-element-storybook", cwd: "<repo>/graphty-element",
+  command: "npm run storybook", env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
+
+// Storybook over HTTPS (graphty's Storybook requires it; the others accept it)
+servherd_start({ name: "graphty-storybook", cwd: "<repo>/graphty", protocol: "https",
+  command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook",
+  env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
+
+// Coverage preview
+servherd_start({ name: "graphty-element-coverage", cwd: "<repo>/graphty-element",
+  command: "npm run coverage:preview", env: { PORT: "{{port}}" } })
+
+// VitePress docs (root docs/, or a package's docs:dev)
+servherd_start({ name: "docs", cwd: "<repo>", command: "pnpm run docs:dev",
+  env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
+```
+
+CI never starts a dev server (Storybook is built statically for Chromatic, and Vitest browser
+mode picks its own ports). A script run outside servherd needs `PORT` set by hand, e.g.
+`PORT=6006 npm run storybook`.
 
 ## Testing Infrastructure
 
@@ -286,6 +314,7 @@ All dev servers use ports 9000-9099:
 - `browser` - Playwright tests (5 CI shards)
 - `storybook` - Component tests (4 CI shards)
 - `interactions` - Interaction tests
+- `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
 - `llm-regression` - LLM regression tests
 
 ### Running Specific Test Projects
@@ -485,10 +514,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - Storybook auto-reloads on changes (no manual rebuild needed)
 - Visual regression via Chromatic
-- algorithms: port 9001 (interactive algorithm demos)
-- layout: port 9011 (interactive layout demos)
-- graphty-element: port 9025
-- graphty: port 9035 (requires SSL cert)
+- Ports come from servherd (see "Starting Servers"); graphty's Storybook requires HTTPS
 - GitHub Pages: https://graphty.app/storybook/
 
 ### GitHub Pages URLs
@@ -508,7 +534,11 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - ES modules are the default format
 - Bundled distributions: `dist/{package}.js`
-- UMD builds available for graphty-element
+- graphty-element is ESM-only. It publishes a map of entry points rather than one barrel, and
+  five of them -- `./session`, `./schema`, `./catalog`, `./extend` and `./format` -- must stay
+  free of Babylon.js, Lit and the DOM so they run in Node. A test fails the build if one of
+  them stops being. A consumer with no bundler loads `./bundle`, a single self-contained file
+  built by `vite.bundle.config.ts`; that replaced the UMD build, which is gone
 
 ## Design Documents
 

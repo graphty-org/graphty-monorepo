@@ -1,6 +1,8 @@
 import { AbstractMesh, NullEngine, Scene } from "@babylonjs/core";
 
-import type { AdHocData, EdgeStyleConfig, StyleSchemaV1 } from "../../src/config";
+import type { LayerSpec, StaticStyle } from "../../src/catalog/types";
+import type { AdHocData, EdgeStyleConfig, StyleSchemaV1, ViewMode } from "../../src/config";
+import type { Edge } from "../../src/Edge";
 import { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers/DataManager";
 import type { LayoutManager } from "../../src/managers/LayoutManager";
@@ -38,31 +40,28 @@ export interface TestGraph extends Omit<Graph, "dataManager" | "layoutManager"> 
 }
 
 /**
+ * The render edge running from one node to another, for a test that has the endpoints and wants
+ * the `Edge`.
+ *
+ * `dataManager.edges` is keyed by the element's own edge id -- a counter -- rather than by the
+ * endpoint pair, because two edges can run between one pair and a pair string cannot name either
+ * of them. This is the lookup a test actually wants, and it goes through the manager's own verb
+ * rather than rebuilding a key.
+ * @param graph - the graph under test
+ * @param source - the node the edge leaves
+ * @param target - the node the edge enters
+ * @returns the oldest edge between them, or undefined when there is none
+ */
+export function edgeBetween(graph: Graph, source: string | number, target: string | number): Edge | undefined {
+    return graph.getDataManager().getEdgesBetween(source, target)[0];
+}
+
+/**
  * Cast a plain object to AdHocData for test purposes
  * This allows tests to pass simple objects to graph.addNode/addEdge
  */
 export function asData<T extends Record<string, unknown>>(data: T): AdHocData & T {
     return data as AdHocData & T;
-}
-
-/**
- * Create a complete graph config with defaults filled in
- */
-export function graphConfig(opts: { twoD?: boolean; addDefaultStyle?: boolean }): {
-    addDefaultStyle: boolean;
-    background: { backgroundType: "color"; color: string };
-    startingCameraDistance: number;
-    viewMode: "2d" | "3d";
-    twoD: boolean;
-} {
-    const twoD = opts.twoD ?? false;
-    return {
-        addDefaultStyle: opts.addDefaultStyle ?? true,
-        background: { backgroundType: "color", color: "#2D2D2D" },
-        startingCameraDistance: 30,
-        viewMode: twoD ? "2d" : "3d",
-        twoD,
-    };
 }
 
 /**
@@ -92,7 +91,6 @@ export function edgeStyleConfig(opts: {
     arrowHeadColor?: string;
 }): EdgeStyleConfig {
     return {
-        enabled: true,
         line: {
             type: opts.lineType ?? "solid",
             color: opts.lineColor ?? "#AAAAAA",
@@ -102,42 +100,92 @@ export function edgeStyleConfig(opts: {
 }
 
 /**
- * Create a complete style template with all required properties
+ * Set part of the behaviour half of a graph's configuration document.
+ *
+ * Goes through the graph's own public verb, which merges one level deep, so naming
+ * `layout.preSteps` leaves the other pacing settings alone.
+ * @param graph - The graph to configure.
+ * @param behavior - The settings to merge in. Anything left out keeps the value it had.
  */
-export function styleTemplate(opts: {
-    twoD?: boolean;
-    addDefaultStyle?: boolean;
-    layers?: StyleSchemaV1["layers"];
-}): StyleSchemaV1 {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: graphConfig({ twoD: opts.twoD, addDefaultStyle: opts.addDefaultStyle }),
-        layers: opts.layers ?? [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-            },
-        },
-        behavior: {
-            layout: {
-                type: "ngraph",
-                preSteps: 0,
-                stepMultiplier: 1,
-                minDelta: 0,
-                zoomStepInterval: 1,
-            },
-            node: {
-                pinOnDrag: true,
-            },
-        },
-    };
+export function setBehavior(
+    graph: Graph,
+    behavior: {
+        layout?: Partial<StyleSchemaV1["behavior"]["layout"]>;
+        node?: Partial<StyleSchemaV1["behavior"]["node"]>;
+    },
+): void {
+    graph.setLayoutBehavior(behavior);
+}
+
+/**
+ * Configure a graph the way a test needs it, in one call.
+ *
+ * WHAT THIS REPLACES. Every one of these settings used to arrive as a whole style template --
+ * forty lines of document to say "2D, circular layout, do not pin on drag" -- and applying one
+ * rewrote every other setting in it. Each is its own verb now, and this is only their order:
+ * the behaviour document first, because the layout reads it as it starts, then the view mode,
+ * then the layout.
+ * @param graph - The graph to configure.
+ * @param options - What to set. Anything left out keeps the value it had.
+ * @param options.viewMode - "2d" or "3d".
+ * @param options.layout - The layout to place the graph with.
+ * @param options.layoutOptions - The layout's own options, such as `{dim: 2}`.
+ * @param options.pinOnDrag - Whether dragging a node pins it.
+ */
+export async function configureGraph(
+    graph: Graph,
+    options: {
+        viewMode?: ViewMode;
+        layout?: string;
+        layoutOptions?: object;
+        pinOnDrag?: boolean;
+    },
+): Promise<void> {
+    if (options.pinOnDrag !== undefined) {
+        setBehavior(graph, { node: { pinOnDrag: options.pinOnDrag } });
+    }
+
+    if (options.viewMode !== undefined) {
+        await graph.setViewMode(options.viewMode);
+    }
+
+    if (options.layout !== undefined) {
+        await graph.setLayout(options.layout, options.layoutOptions ?? {});
+    }
+}
+
+/**
+ * Put one style layer on a graph, which means putting it on the session's stack.
+ *
+ * THERE IS ONE STACK. A test that wants a node or an edge to look a particular way says so here;
+ * the style template that used to carry a parallel stack of jmespath layers is gone, and so is
+ * the rule that decided which of the two painted. Awaiting this means the repaint it drove has
+ * finished, so the meshes are the ones the layer asked for by the time the next line runs.
+ * @param graph - The graph to style.
+ * @param spec - The layer.
+ */
+export async function addStyleLayer(graph: Graph, spec: LayerSpec): Promise<void> {
+    await graph.getSession().styles.add(spec);
+}
+
+/**
+ * Paint every node in a graph the same way.
+ * @param graph - The graph to style.
+ * @param set - The channels to write, such as `{"node.color": "#4CAF50", "node.size": 10}`.
+ * @param name - What to call the layer, for a test that wants to find it again.
+ */
+export async function styleEveryNode(graph: Graph, set: StaticStyle, name = "test nodes"): Promise<void> {
+    await addStyleLayer(graph, { name, target: "node", selector: { match: "everything" }, set });
+}
+
+/**
+ * Paint every edge in a graph the same way.
+ * @param graph - The graph to style.
+ * @param set - The channels to write, such as `{"edge.color": "#666666", "edge.width": 3}`.
+ * @param name - What to call the layer, for a test that wants to find it again.
+ */
+export async function styleEveryEdge(graph: Graph, set: StaticStyle, name = "test edges"): Promise<void> {
+    await addStyleLayer(graph, { name, target: "edge", selector: { match: "everything" }, set });
 }
 
 /**

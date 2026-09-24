@@ -111,15 +111,16 @@ done
 # ---------------------------------------------------------------------------
 # THE PLAN.
 #
-# One entry per commit, in the order they are made. The order is a build order:
-# the dependency before the code that imports it, the library before the app, the
-# shell before the deletion of the shell it supersedes, tooling last.
+# One entry per commit, in the order they are made. This change set is three
+# unrelated repairs that the merge of master into this branch turned up, plus
+# this script's own re-point. They are separate commits because they are
+# separate packages and separate reasons, and a reader chasing any one of them
+# should not have to read the other two.
 #
 # PATHS entries are space-separated pathspecs (no path in this repository has a
 # space in it, so the word splitting below is deliberate). A directory pathspec
-# takes everything under it, which is what makes the 134-file shell one entry --
-# ignored files under it (the __screenshots__ directories) are not added, because
-# `git add` without -f leaves ignored paths alone and the preview below uses
+# takes everything under it -- ignored files are not added, because `git add`
+# without -f leaves ignored paths alone and the preview uses
 # `git ls-files --others --exclude-standard`, which counts the same set.
 # ---------------------------------------------------------------------------
 
@@ -175,9 +176,8 @@ declare -A PATHS=(
 )
 
 # ---------------------------------------------------------------------------
-# The message bodies. One function each, a quoted heredoc so backticks, `$` and
-# `${...}` in the prose stay literal. Keep every line at or under 100 characters:
-# that is commitlint's body-max-line-length, and it is checked before staging.
+# One body per step. Written for someone reading `git log` a year from now with
+# none of this conversation.
 # ---------------------------------------------------------------------------
 
 body_indirect() {
@@ -494,7 +494,7 @@ selects the grid.
 BODY
 }
 
-body_parity() {
+body_workspace() {
     cat <<'BODY'
 The parity layer of the grid tier and the one recording run that derives its
 tolerances. test/oracle/grid-field.ts holds the f64 far field, the near field

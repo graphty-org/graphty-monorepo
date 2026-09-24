@@ -1,4 +1,5 @@
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, NumberInput, Overlay, Switch } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
@@ -9,7 +10,6 @@ import { OVERLAY_INSET, PANEL_HEADER_HEIGHT, SHELL_OVERLAY_Z_INDEX } from "../co
 import {
     LABEL_COUNT_MAX,
     LABEL_COUNT_MIN,
-    LARGE_GRAPH_NODE_THRESHOLD,
     PERFORMANCE_LABEL_COUNT,
     type PersistedLabelSettings,
     readPersistedLabelSettings,
@@ -99,10 +99,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
  *
  * `performance` joined it on 2026-09-13 with the label controls below: spec 7.2 puts the
  * label budget in this pane, and the product owner asked that the top-degree label layer
- * "have a setting that can disable that feature". The pane draws the two label controls
- * and NOT the rest of 7.2's Performance branch -- the large-graph threshold, the layout
- * substitution and the size scale stay code constants -- which is why this is the smallest
- * honest pane rather than a page of switches over settings nothing reads.
+ * "have a setting that can disable that feature". The pane draws the two label controls and
+ * NOT the rest of 7.2's Performance branch: the large-graph threshold and the choice of
+ * arrangement are graphty-element's, published as `DEFAULT_LIMITS` and `recommendLayout`, and
+ * a control here would be the shell overriding what the element knows about its own renderer.
+ * That is why this is the smallest honest pane rather than a page of switches over settings
+ * nothing reads.
  */
 const SHIPPED_SECTION_IDS: readonly string[] = ["appearance", "shortcuts", "performance", "ai"];
 
@@ -117,7 +119,7 @@ const LABEL_SWITCH_DESCRIPTION =
 const LABEL_COUNT_LABEL = "How many labels";
 
 /** What an empty budget field means, and the two ceilings a number is held to. */
-const LABEL_COUNT_DESCRIPTION = `Empty follows the graph's size: the rounded square root of the node count, never fewer than ${String(LABEL_COUNT_MIN)} and never more than ${String(LABEL_COUNT_MAX)}, and at most ${String(PERFORMANCE_LABEL_COUNT)} above ${LARGE_GRAPH_NODE_THRESHOLD.toLocaleString("en-US")} nodes.`;
+const LABEL_COUNT_DESCRIPTION = `Empty follows the graph's size: the rounded square root of the node count, never fewer than ${String(LABEL_COUNT_MIN)} and never more than ${String(LABEL_COUNT_MAX)}, and at most ${String(PERFORMANCE_LABEL_COUNT)} above ${DEFAULT_LIMITS.largeGraphThreshold.toLocaleString("en-US")} nodes.`;
 
 /** The placeholder that says what an empty field will do. */
 const LABEL_COUNT_PLACEHOLDER = "Automatic";

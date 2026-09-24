@@ -3,25 +3,73 @@
     "version": "1.10.5",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
-    "main": "./dist/graphty.umd.cjs",
+    "customElements": "./dist/custom-elements.json",
     "module": "./dist/graphty.js",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
-            "import": "./dist/graphty.js",
-            "require": "./dist/graphty.umd.cjs"
-        }
+            "import": "./dist/graphty.js"
+        },
+        "./session": {
+            "types": "./dist/session.d.ts",
+            "import": "./dist/session.js"
+        },
+        "./schema": {
+            "types": "./dist/schema.d.ts",
+            "import": "./dist/schema.js"
+        },
+        "./catalog": {
+            "types": "./dist/catalog.d.ts",
+            "import": "./dist/catalog.js"
+        },
+        "./commands": {
+            "types": "./dist/commands.d.ts",
+            "import": "./dist/commands.js"
+        },
+        "./extend": {
+            "types": "./dist/extend.d.ts",
+            "import": "./dist/extend.js"
+        },
+        "./format": {
+            "types": "./dist/format.d.ts",
+            "import": "./dist/format.js"
+        },
+        "./logging": {
+            "types": "./dist/logging.d.ts",
+            "import": "./dist/logging.js"
+        },
+        "./react": {
+            "types": "./dist/react.d.ts",
+            "import": "./dist/react.js"
+        },
+        "./webgpu": {
+            "types": "./dist/webgpu.d.ts",
+            "import": "./dist/webgpu.js"
+        },
+        "./ai": {
+            "types": "./dist/ai.d.ts",
+            "import": "./dist/ai.js"
+        },
+        "./bundle": "./dist/graphty.bundle.js",
+        "./custom-elements.json": "./dist/custom-elements.json",
+        "./graphty-catalog.json": "./dist/graphty-catalog.json"
     },
     "sideEffects": [
         "./dist/graphty.js",
-        "./dist/graphty.umd.cjs",
-        "./src/layout/index.ts",
+        "./dist/graphty.bundle.js",
+        "./dist/webgpu.js",
+        "./dist/chunks/*.js",
+        "./src/algorithms/index.ts",
         "./src/data/index.ts",
-        "./src/algorithms/index.ts"
+        "./src/layout/index.ts",
+        "./index.ts",
+        "./src/graphty-element.ts"
     ],
     "files": [
         "dist/",
+        "!dist/**/*.map",
+        "AGENTS.md",
         "README.md",
         "LICENSE"
     ],
@@ -53,21 +101,24 @@
         "test": "npm run test:shards:parallel && npm run test:visual",
         "test:default": "vitest --project=default",
         "test:browser": "vitest --project=browser",
+        "test:xr": "vitest run --project=xr",
         "test:storybook": "vitest --project=storybook",
-        "test:visual": "npx chromatic",
+        "test:visual": "../tools/chromatic.sh graphty-element",
         "test:shard:default": "npm run test:shard:default:run",
-        "test:shard:default:run": "vitest run --project=default",
+        "test:shard:default:run": "vitest run --project=default --project=mesh",
+        "test:prepush": "vitest run --project=default --project=mesh --project=contract --project=xr",
+        "test:cost": "COST_GUARD=1 vitest run --project=default test/session/cost/estimate-against-measured-runs.test.ts",
         "test:shard:browser": "npm run test:shard:browser:run",
-        "test:shard:browser:run": "vitest run --project=browser --project=interactions",
+        "test:shard:browser:run": "vitest run --project=browser --project=interactions --project=xr",
         "test:shard:storybook": "npm run test:shard:storybook:run",
         "test:shard:storybook:run": "vitest run --project=storybook",
-        "test:shard:visual": "npx chromatic",
+        "test:shard:visual": "../tools/chromatic.sh graphty-element",
         "test:shards": "npm run test:shard:default && npm run test:shard:browser && npm run test:shard:storybook && npm run test:shard:visual",
-        "test:shards:parallel": "npm run test:shard:default:run & npm run test:shard:browser:run & npm run test:shard:storybook:run & wait",
-        "test:visual:debug": "npx chromatic --debug",
-        "test:mesh": "vitest run --config test/mesh-testing/vitest-mesh.config.ts",
-        "test:mesh:watch": "vitest --config test/mesh-testing/vitest-mesh.config.ts",
-        "test:mesh:coverage": "vitest run --config test/mesh-testing/vitest-mesh.config.ts --coverage",
+        "test:shards:parallel": "pids=''; npm run test:shard:default:run & pids=\"$pids $!\"; npm run test:shard:browser:run & pids=\"$pids $!\"; npm run test:shard:storybook:run & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "test:visual:debug": "../tools/chromatic.sh graphty-element --debug",
+        "test:mesh": "vitest run --project=mesh",
+        "test:mesh:watch": "vitest --project=mesh",
+        "test:mesh:coverage": "vitest run --project=mesh --coverage",
         "test:interactions": "vitest run --project=interactions",
         "test:interactions:unit": "vitest run --project=interactions test/interactions/unit/",
         "test:interactions:browser": "vitest run --project=interactions test/interactions/integration/",
@@ -79,42 +130,45 @@
         "coverage:merge": "./scripts/coverage-merge.sh",
         "coverage:shards": "npm run coverage:shards:clean && npm run coverage:shards:run",
         "coverage:shards:clean": "rm -rf .coverage-parts",
-        "coverage:shards:run": "npm run coverage:shard:default & npm run coverage:shard:browser & npm run coverage:shard:storybook & wait",
-        "coverage:shard:default": "COVERAGE_DIR=.coverage-parts/default vitest run --project=default --coverage",
-        "coverage:shard:browser": "npm run coverage:shard:browser:1 & npm run coverage:shard:browser:2 & npm run coverage:shard:browser:3 & npm run coverage:shard:browser:4 & npm run coverage:shard:browser:5 & wait",
+        "coverage:shards:run": "pids=''; npm run coverage:shard:default & pids=\"$pids $!\"; npm run coverage:shard:browser & pids=\"$pids $!\"; npm run coverage:shard:storybook & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "coverage:shard:default": "COVERAGE_DIR=.coverage-parts/default vitest run --project=default --project=mesh --coverage",
+        "coverage:shard:browser": "pids=''; npm run coverage:shard:browser:1 & pids=\"$pids $!\"; npm run coverage:shard:browser:2 & pids=\"$pids $!\"; npm run coverage:shard:browser:3 & pids=\"$pids $!\"; npm run coverage:shard:browser:4 & pids=\"$pids $!\"; npm run coverage:shard:browser:5 & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
         "coverage:shard:browser:1": "COVERAGE_DIR=.coverage-parts/browser-1 vitest run --project=browser --project=interactions --shard=1/5 --coverage",
         "coverage:shard:browser:2": "COVERAGE_DIR=.coverage-parts/browser-2 vitest run --project=browser --project=interactions --shard=2/5 --coverage",
         "coverage:shard:browser:3": "COVERAGE_DIR=.coverage-parts/browser-3 vitest run --project=browser --project=interactions --shard=3/5 --coverage",
         "coverage:shard:browser:4": "COVERAGE_DIR=.coverage-parts/browser-4 vitest run --project=browser --project=interactions --shard=4/5 --coverage",
         "coverage:shard:browser:5": "COVERAGE_DIR=.coverage-parts/browser-5 vitest run --project=browser --project=interactions --shard=5/5 --coverage",
-        "coverage:shard:storybook": "npm run coverage:shard:storybook:1 & npm run coverage:shard:storybook:2 & npm run coverage:shard:storybook:3 & npm run coverage:shard:storybook:4 & wait",
+        "coverage:shard:storybook": "pids=''; npm run coverage:shard:storybook:1 & pids=\"$pids $!\"; npm run coverage:shard:storybook:2 & pids=\"$pids $!\"; npm run coverage:shard:storybook:3 & pids=\"$pids $!\"; npm run coverage:shard:storybook:4 & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
         "coverage:shard:storybook:1": "COVERAGE_DIR=.coverage-parts/storybook-1 vitest run --project=storybook --shard=1/4 --coverage",
         "coverage:shard:storybook:2": "COVERAGE_DIR=.coverage-parts/storybook-2 vitest run --project=storybook --shard=2/4 --coverage",
         "coverage:shard:storybook:3": "COVERAGE_DIR=.coverage-parts/storybook-3 vitest run --project=storybook --shard=3/4 --coverage",
         "coverage:shard:storybook:4": "COVERAGE_DIR=.coverage-parts/storybook-4 vitest run --project=storybook --shard=4/4 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
-        "coverage:preview": "npx serve coverage -p 9053",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && tsc --noEmit",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty-element",
-        "dev": "vite --force --mode development",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
+        "dev": "vite --force --mode development --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "dev:xr": "node examples/xr/xr-demo-server.js",
-        "build": "vite build && tsc --project tsconfig.build.json",
-        "preview": "vite preview",
+        "build": "vite build && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs",
+        "preview": "vite preview --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "build:storybook": "npm run build-storybook",
-        "storybook": "rm -rf node_modules/.vite && npm run build-storybook && . ./.env 2>/dev/null; storybook dev -p ${PORT:-6006} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
-        "chromatic": "npx chromatic --exit-zero-on-changes",
+        "storybook": "rm -rf node_modules/.vite && npm run build-storybook && storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "chromatic": "../tools/chromatic.sh graphty-element",
         "build-storybook": "storybook build",
         "ready:commit": "npm run build && npm run lint && npm test",
         "merge:upstream": "git pull origin master --no-rebase",
-        "docs:api": "typedoc && node scripts/sanitize-api-docs.js",
+        "docs:api": "node scripts/build-api-docs.mjs && node scripts/sanitize-api-docs.js",
         "docs:api:watch": "typedoc --watch",
-        "docs:dev": "vitepress dev docs",
+        "docs:dev": "vitepress dev docs --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "docs:watch": "npm run docs:api && (npm run docs:api:watch & npm run docs:dev & wait)",
         "docs:build": "npm run docs:api && vitepress build docs",
-        "docs:preview": "vitepress preview docs"
+        "docs:preview": "vitepress preview docs --port ${PORT:?start it through servherd, which sets PORT}"
     },
     "devDependencies": {
+        "@ai-sdk/anthropic": "^2.0.50",
+        "@ai-sdk/google": "^2.0.44",
+        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.36.1",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
@@ -127,6 +181,8 @@
         "@types/jmespath": "^0.15.2",
         "@types/lodash": "^4.17.19",
         "@types/toposort": "^2.0.7",
+        "ai": "^5.0.104",
+        "encrypt-storage": "^2.14.7",
         "eslint-plugin-jsdoc": "^50.6.17",
         "fast-check": "^4.2.0",
         "iwer": "^2.1.1",
@@ -136,41 +192,62 @@
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",
+        "typescript": "^5.9.3",
         "vite-plugin-cem": "^0.8.2",
         "vite-plugin-eslint": "^1.8.1",
-        "vitepress": "^1.6.3"
+        "vitepress": "^1.6.3",
+        "vitest": "^3.2.4"
     },
     "peerDependencies": {
+        "@ai-sdk/anthropic": "^2.0.50",
+        "@ai-sdk/google": "^2.0.44",
+        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
+        "@graphty/graph-format": "^1.0.0",
+        "@graphty/webgpu-graph-algorithms": "^0.2.0",
         "@mlc-ai/web-llm": ">=0.2.0",
+        "ai": "^5.0.104",
+        "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0"
     },
     "peerDependenciesMeta": {
+        "@ai-sdk/anthropic": {
+            "optional": true
+        },
+        "@ai-sdk/google": {
+            "optional": true
+        },
+        "@ai-sdk/openai": {
+            "optional": true
+        },
+        "@graphty/webgpu-graph-algorithms": {
+            "optional": true
+        },
         "@mlc-ai/web-llm": {
+            "optional": true
+        },
+        "ai": {
+            "optional": true
+        },
+        "encrypt-storage": {
             "optional": true
         }
     },
     "dependencies": {
-        "@ai-sdk/anthropic": "^2.0.50",
-        "@ai-sdk/google": "^2.0.44",
-        "@ai-sdk/openai": "^2.0.74",
         "@graphty/algorithms": "workspace:^",
+        "@graphty/graph-format": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
-        "@logtape/logtape": "^1.2.2",
         "@types/papaparse": "^5.5.0",
-        "ai": "^5.0.104",
         "colorjs.io": "^0.5.2",
         "d3-force-3d": "^3.0.6",
-        "encrypt-storage": "^2.14.7",
         "fast-xml-parser": "^5.3.1",
         "hammerjs": "^2.0.8",
         "jmespath": "^0.16.0",
         "lodash": "^4.17.21",
         "ngraph.forcelayout": "^3.3.1",
         "ngraph.graph": "^20.0.1",
-        "on-change": "^5.0.1",
         "p-queue": "^8.1.1",
         "papaparse": "^5.5.3",
         "toposort": "^2.0.2",

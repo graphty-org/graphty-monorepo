@@ -68,6 +68,13 @@ coverage/
 .env.local
 .env.*.local
 *.local
+# Backups a script makes before rewriting .env. One of these was sitting untracked and
+# unignored in the repository root on 2026-09-22 holding four Chromatic project tokens and
+# three LLM API keys, which `git add -A` would have staged.
+.env.bak
+.env.bak.*
+.env.backup
+.env.backup.*
 
 # Runtime data
 pids/
@@ -79,6 +86,12 @@ pids/
 .vitest/
 test-results/
 playwright-report/
+# Vitest saves a PNG for every browser-mode failure. Its default place for one is a
+# __screenshots__ directory beside the test file, so a failing run leaves them scattered
+# through test/ -- never wanted in a commit, and against graphty-element/CLAUDE.md, which
+# says a directory under test/ is for files meant to be committed. graphty-element now
+# redirects them to its own tmp/ (vitest.config.ts, FAILURE_SCREENSHOT_DIR); this rule
+# stays because every other package still writes them where vitest chooses.
 **/__screenshots__/
 
 # Playwright visual test artifacts

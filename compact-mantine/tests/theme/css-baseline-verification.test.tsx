@@ -11,51 +11,51 @@
  * - Computed styles (padding, borderRadius, backgroundColor, fontSize, etc.)
  */
 import {
-    MantineProvider,
-    // Input components
-    TextInput,
-    NumberInput,
-    Select,
-    Textarea,
-    PasswordInput,
+    ActionIcon,
+    // Navigation components
+    Anchor,
     Autocomplete,
-    MultiSelect,
-    TagsInput,
-    PillsInput,
-    FileInput,
-    JsonInput,
-    InputClearButton,
+    Avatar,
+    Badge,
+    Burger,
     // Button components
     Button,
-    ActionIcon,
-    CloseButton,
-    // Control components
-    Switch,
     Checkbox,
-    Radio,
-    Slider,
-    RangeSlider,
-    SegmentedControl,
-    // Display components
-    Text,
-    Badge,
-    Pill,
-    Avatar,
-    ThemeIcon,
+    CloseButton,
+    FileInput,
     Indicator,
+    InputClearButton,
+    JsonInput,
     Kbd,
     // Feedback components
     Loader,
-    Progress,
-    RingProgress,
-    // Navigation components
-    Anchor,
-    Burger,
+    MantineProvider,
+    MultiSelect,
+    NumberInput,
     Pagination,
+    PasswordInput,
+    Pill,
+    PillsInput,
+    Progress,
+    Radio,
+    RangeSlider,
+    RingProgress,
+    SegmentedControl,
+    Select,
+    Slider,
     Stepper,
+    // Control components
+    Switch,
+    TagsInput,
+    // Display components
+    Textarea,
+    // Input components
+    TextInput,
+    ThemeIcon,
 } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
 import { compactTheme } from "../../src";
 import { displayComponentExtensions } from "../../src/theme/components/display";
 
@@ -77,7 +77,9 @@ const EXPECTED_CSS_VARS = {
  * Helper to extract CSS variables from an element's computed style.
  */
 function getCssVars(element: Element | null): Record<string, string> {
-    if (!element) return {};
+    if (!element) {
+        return {};
+    }
     const style = getComputedStyle(element);
     return {
         "--input-size": style.getPropertyValue("--input-size").trim(),
@@ -91,21 +93,10 @@ function getCssVars(element: Element | null): Record<string, string> {
  * Helper to extract a specific CSS variable from an element.
  */
 function getCssVar(element: Element | null, varName: string): string {
-    if (!element) return "";
-    return getComputedStyle(element).getPropertyValue(varName).trim();
-}
-
-/**
- * Helper to extract computed style properties from an element.
- */
-function getComputedStyles(element: Element | null, properties: string[]): Record<string, string> {
-    if (!element) return {};
-    const style = getComputedStyle(element);
-    const result: Record<string, string> = {};
-    for (const prop of properties) {
-        result[prop] = style.getPropertyValue(prop);
+    if (!element) {
+        return "";
     }
-    return result;
+    return getComputedStyle(element).getPropertyValue(varName).trim();
 }
 
 /**

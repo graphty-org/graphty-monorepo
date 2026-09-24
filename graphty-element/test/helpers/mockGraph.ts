@@ -7,7 +7,15 @@
  *
  * The return type is Graph to satisfy algorithm constructors, but internally it's
  * a simplified mock object.
+ *
+ * The mock keeps a REAL GraphStore, built from the same records, because an algorithm reads its
+ * input from the snapshot the store freezes -- not from the node and edge maps, which hold render
+ * objects in the running element. The maps are still here: results are written back onto them.
  */
+import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
+
+import { GraphStore } from "../../src/data/GraphStore";
+import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/data/ingest";
 import type { Graph } from "../../src/Graph";
 
 /**
@@ -55,6 +63,8 @@ interface MockNode {
  * Internal mock edge type for algorithm results storage
  */
 interface MockEdge {
+    /** The element-assigned edge id: the counter this mock hands out, printed. */
+    id: string;
     srcId: string | number;
     dstId: string | number;
     algorithmResults?: Record<string, Record<string, Record<string, unknown>>>;
@@ -65,6 +75,54 @@ interface MockEdge {
  * Type for graph-level algorithm results
  */
 type GraphResults = Record<string, Record<string, Record<string, unknown>>>;
+
+/**
+ * The two data-manager members an algorithm reads its input through.
+ */
+export interface MockSnapshotSource {
+    /** The current snapshot of the mock's records. */
+    getSnapshot: () => GraphSnapshot;
+    /** The undirected view of that snapshot. */
+    undirected: (snapshot: GraphSnapshot) => DerivedGraph;
+}
+
+/**
+ * Build the store the algorithms actually read, out of a mock's records.
+ *
+ * Any mock graph that an algorithm will be run against needs this: since the algorithms moved off
+ * the render object graph, the node and edge maps alone are no longer an input they can see.
+ *
+ * The weight path is "weight", which is the element's configured default; `resolveEdgeWeight`
+ * falls back to the legacy "value" key, which is what every fixture in this repository carries.
+ * @param nodes - the mock's node records, keyed by id
+ * @param edges - the mock's edge records, keyed by "srcId:dstId"
+ * @returns the two members to put on the mock's data manager
+ */
+export function createMockSnapshotSource(
+    nodes: ReadonlyMap<string | number, Record<string | number, unknown>>,
+    edges: ReadonlyMap<string | number, Record<string | number, unknown>>,
+): MockSnapshotSource {
+    const store = new GraphStore({
+        directed: "auto",
+        positionScale: () => 1,
+        onNodeRemap: () => undefined,
+        onEdgeRemap: () => undefined,
+        onReplaced: () => undefined,
+    });
+
+    for (const [id, record] of nodes) {
+        ingestNode(store, id, record);
+    }
+
+    for (const record of edges.values()) {
+        ingestEdge(store, record.srcId, record.dstId, resolveEdgeWeight(record, "weight").weight);
+    }
+
+    return {
+        getSnapshot: () => store.getSnapshot(),
+        undirected: (snapshot) => store.undirected(snapshot),
+    };
+}
 
 /**
  * Creates a mock graph for algorithm testing
@@ -114,10 +172,14 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
         }
     }
 
-    // Add inline edges (deep copy to avoid shared state between tests)
+    // Add inline edges (deep copy to avoid shared state between tests). Keyed by the element's
+    // own edge id, which is a counter handed out in arrival order -- the same thing `DataManager`
+    // does, and what makes two edges between one pair two entries rather than one.
+    let nextEdgeId = 0;
     if (opts.edges) {
         for (const e of opts.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, { ...e } as MockEdge);
+            const id = String(nextEdgeId++);
+            edges.set(id, { ...e, id } as MockEdge);
         }
     }
 
@@ -131,9 +193,16 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
             nodes.set(n.id, { ...n } as MockNode);
         }
         for (const e of imp.edges) {
-            edges.set(`${e.srcId}:${e.dstId}`, { ...e } as MockEdge);
+            const id = String(nextEdgeId++);
+            edges.set(id, { ...e, id } as MockEdge);
         }
     }
+
+    // Push the same records into a real store, nodes first and then edges, which is the order
+    // DataManager pushes them in. Order matters: it is the order the snapshot assigns dense
+    // indices in, and an algorithm that breaks a tie by node order would otherwise see a different
+    // graph here than in the running element.
+    const snapshots = createMockSnapshotSource(nodes, edges);
 
     // Create mock graph with data manager
     // Using a type assertion because we're creating a minimal mock that only
@@ -145,6 +214,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
             return {
                 nodes,
                 edges,
+                ...snapshots,
                 get graphResults() {
                     return graphResults;
                 },
@@ -160,28 +230,10 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
 }
 
 /**
- * Helper to access graph-level algorithm results safely
- *
- * @param graph - The graph (as returned by createMockGraph)
- * @param namespace - The algorithm namespace (e.g., "graphty")
- * @param algorithm - The algorithm type (e.g., "degree", "pagerank")
- * @param resultKey - The specific result key
- * @returns The result value (any type, may be undefined)
- */
- 
-export function getGraphResult(graph: Graph, namespace: string, algorithm: string, resultKey: string): any {
-    // Access the mock's internal graphResults through getDataManager()
-     
-    const dm = graph.getDataManager() as any;
-    return dm.graphResults?.[namespace]?.[algorithm]?.[resultKey];
-}
-
-/**
- * Helper to get a node from the mock graph and access its algorithm results
- *
+ * Helper to get a node from the mock graph
  * @param graph - The graph (as returned by createMockGraph)
  * @param nodeId - The node ID to look up
- * @returns The node object with algorithmResults (any type)
+ * @returns The node object (any type)
  */
  
 export function getMockNode(graph: Graph, nodeId: string | number): any {
@@ -190,50 +242,7 @@ export function getMockNode(graph: Graph, nodeId: string | number): any {
     return dm.nodes.get(nodeId);
 }
 
-/**
- * Helper to get node algorithm result directly
- *
- * @param graph - The graph
- * @param nodeId - The node ID
- * @param namespace - Algorithm namespace
- * @param algorithm - Algorithm type
- * @param resultKey - Result key
- * @returns The result value (any type, may be undefined)
- */
- 
-export function getNodeResult(
-    graph: Graph,
-    nodeId: string | number,
-    namespace: string,
-    algorithm: string,
-    resultKey: string,
-): any {
-    const node = getMockNode(graph, nodeId);
-    return node?.algorithmResults?.[namespace]?.[algorithm]?.[resultKey];
-}
-
-/**
- * Helper to get edge algorithm result directly
- *
- * @param graph - The graph
- * @param srcId - Source node ID
- * @param dstId - Destination node ID
- * @param namespace - Algorithm namespace
- * @param algorithm - Algorithm type
- * @param resultKey - Result key
- * @returns The result value (any type, may be undefined)
- */
- 
-export function getEdgeResult(
-    graph: Graph,
-    srcId: string | number,
-    dstId: string | number,
-    namespace: string,
-    algorithm: string,
-    resultKey: string,
-): any {
-     
-    const dm = graph.getDataManager() as any;
-    const edge = dm.edges.get(`${srcId}:${dstId}`);
-    return edge?.algorithmResults?.[namespace]?.[algorithm]?.[resultKey];
-}
+// An algorithm's result is no longer scattered onto the render objects; these read it out of what
+// the run published. See ./algorithmResults for the 1.x key vocabulary and what it became.
+export type { ResultCarrier } from "./algorithmResults";
+export { getEdgeResult, getGraphResult, getNodeResult } from "./algorithmResults";

@@ -6,7 +6,7 @@
  * the expensive computation is never executed.
  * @example
  * ```typescript
- * import { lazy } from "graphty-element/logging";
+ * import { lazy } from "@graphty/graphty-element/logging";
  *
  * // Without lazy evaluation - expensive computation always runs
  * logger.debug("Data", { positions: computeExpensivePositions() });

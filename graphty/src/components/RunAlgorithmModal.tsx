@@ -1,41 +1,23 @@
-import { Algorithm } from "@graphty/graphty-element";
 import { Box, Button, Checkbox, Divider, Group, Modal, Select, Stack, Text } from "@mantine/core";
 import { AlertCircle, CheckCircle, Zap } from "lucide-react";
-import { RefObject, useCallback, useEffect, useMemo, useState } from "react";
+import { RefObject, useCallback, useEffect, useState } from "react";
 
 import {
-    ALGORITHM_CATALOG,
     type AlgorithmCategory,
     type AlgorithmInfo,
     CATEGORY_DISPLAY_NAMES,
+    getAlgorithm,
     getAlgorithmsByCategory,
     getCategories,
 } from "./algorithmCatalog";
 import type { GraphtyHandle } from "./Graphty";
-import { OptionsForm, type OptionsSchema } from "./options";
+import { OptionsForm } from "./options";
 
 /** Style layer item for the UI layer list */
-export interface AlgorithmStyleLayer {
-    id: string;
-    name: string;
-    styleLayer: {
-        node?: {
-            selector: string;
-            style: Record<string, unknown>;
-        };
-        edge?: {
-            selector: string;
-            style: Record<string, unknown>;
-        };
-    };
-}
-
 interface RunAlgorithmModalProps {
     opened: boolean;
     onClose: () => void;
     graphtyRef: RefObject<GraphtyHandle | null>;
-    /** Callback to add algorithm style layers to the UI layer list */
-    onAddLayers?: (layers: AlgorithmStyleLayer[]) => void;
 }
 
 /**
@@ -44,10 +26,9 @@ interface RunAlgorithmModalProps {
  * @param root0.opened - Whether the modal is open
  * @param root0.onClose - Callback to close the modal
  * @param root0.graphtyRef - Reference to the Graphty component
- * @param root0.onAddLayers - Callback to add algorithm style layers to the UI
  * @returns The modal component
  */
-export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: RunAlgorithmModalProps): React.JSX.Element {
+export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmModalProps): React.JSX.Element {
     const categories = getCategories();
     const [selectedCategory, setSelectedCategory] = useState<AlgorithmCategory>(categories[0]);
     const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmInfo | null>(null);
@@ -64,31 +45,10 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
     // Get algorithms for the selected category
     const categoryAlgorithms = getAlgorithmsByCategory(selectedCategory);
 
-    // Get the options schema for the selected algorithm
-    const algorithmOptionsSchema: OptionsSchema | null = useMemo(() => {
-        if (!selectedAlgorithm) {
-            return null;
-        }
-
-        const algoClass = Algorithm.getClass(selectedAlgorithm.namespace, selectedAlgorithm.type);
-        if (!algoClass || !algoClass.hasZodOptions()) {
-            return null;
-        }
-
-        // getZodOptionsSchema returns the unified OptionsSchema with metadata
-        const schema = algoClass.getZodOptionsSchema();
-
-        // Filter out source/target options since they're handled separately
-        const filteredSchema: OptionsSchema = {};
-        for (const [key, optionDef] of Object.entries(schema)) {
-            // Skip source/target/sink/startNode as these are handled by node selection
-            if (!["source", "target", "sink", "startNode"].includes(key)) {
-                filteredSchema[key] = optionDef as OptionsSchema[string];
-            }
-        }
-
-        return Object.keys(filteredSchema).length > 0 ? filteredSchema : null;
-    }, [selectedAlgorithm]);
+    // The options the element's catalogue publishes for the selected algorithm. The node
+    // pickers are already off this list -- they are drawn as node selects below -- and so is
+    // the parameter that names which folded engine this entry is.
+    const algorithmOptions = selectedAlgorithm?.options ?? [];
 
     // Fetch graph nodes when modal opens
     useEffect(() => {
@@ -147,14 +107,14 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
 
     const handleCategoryChange = useCallback((value: string | null) => {
         if (value) {
-            setSelectedCategory(value as AlgorithmCategory);
+            setSelectedCategory(value);
             setError(null);
         }
     }, []);
 
     const handleAlgorithmChange = useCallback((value: string | null) => {
         if (value) {
-            const algo = ALGORITHM_CATALOG.find((a) => a.type === value);
+            const algo = getAlgorithm(value);
             setSelectedAlgorithm(algo ?? null);
             setError(null);
         }
@@ -170,19 +130,17 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
         setError(null);
 
         // Build algorithm options: start with form values, then add source/target
-        const algorithmOptions: Record<string, unknown> = { ...optionsValues };
+        const runOptions: Record<string, unknown> = { ...optionsValues };
 
-        if (selectedAlgorithm.requiresSourceNode && selectedSourceNode) {
-            const sourceKey = selectedAlgorithm.sourceOptionKey ?? "source";
-            algorithmOptions[sourceKey] = selectedSourceNode;
+        if (selectedAlgorithm.sourceOption && selectedSourceNode) {
+            runOptions[selectedAlgorithm.sourceOption.name] = selectedSourceNode;
         }
 
-        if (selectedAlgorithm.requiresTargetNode && selectedTargetNode) {
-            const targetKey = selectedAlgorithm.targetOptionKey ?? "target";
-            algorithmOptions[targetKey] = selectedTargetNode;
+        if (selectedAlgorithm.targetOption && selectedTargetNode) {
+            runOptions[selectedAlgorithm.targetOption.name] = selectedTargetNode;
         }
 
-        const hasAlgorithmOptions = Object.keys(algorithmOptions).length > 0;
+        const hasAlgorithmOptions = Object.keys(runOptions).length > 0;
 
         // Access runAlgorithm method on the graph
         const runAlgorithm = graph.runAlgorithm as
@@ -195,80 +153,22 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
             return;
         }
 
-        // Run the algorithm without internal style application - we'll add styles through React
+        /* The element paints what the run suggests, if the reader asked for it.
+
+           It used to be done here: the modal reached for the algorithm CLASS, asked its static
+           `getSuggestedStyles()` for a hand-written block of layers, reshaped each one into the
+           app's own layer type and pushed them into a React list of its own. None of that
+           exists any more. A run derives its encoding from its result shape -- a node metric a
+           sequential colour, a community a categorical one, a route a highlight -- and the
+           session applies it on the run's first completion, scoped to the elements the run
+           actually measured. The layer list then updates itself, because it is read off the
+           session's own stack. */
         runAlgorithm
             .call(graph, selectedAlgorithm.namespace, selectedAlgorithm.type, {
-                applySuggestedStyles: false, // We handle styles through React layer system
-                ...(hasAlgorithmOptions ? { algorithmOptions } : {}),
+                applySuggestedStyles,
+                ...(hasAlgorithmOptions ? { algorithmOptions: runOptions } : {}),
             })
             .then(() => {
-                // If applySuggestedStyles is enabled, get the suggested styles and add them to the UI
-                if (applySuggestedStyles && onAddLayers) {
-                    // Cast to access static methods that aren't included in the basic AlgorithmClass type
-                    const algoClass = Algorithm.getClass(selectedAlgorithm.namespace, selectedAlgorithm.type) as {
-                        hasSuggestedStyles(): boolean;
-                        getSuggestedStyles(): {
-                            layers: Array<{
-                                metadata?: { name?: string };
-                                node?: {
-                                    selector?: string;
-                                    style?: Record<string, unknown>;
-                                    calculatedStyle?: unknown;
-                                };
-                                edge?: {
-                                    selector?: string;
-                                    style?: Record<string, unknown>;
-                                    calculatedStyle?: unknown;
-                                };
-                            }>;
-                        } | null;
-                    } | null;
-
-                    if (algoClass?.hasSuggestedStyles()) {
-                        const suggestedStyles = algoClass.getSuggestedStyles();
-                        if (suggestedStyles?.layers) {
-                            // Convert suggested styles to UI layer format
-                            const uiLayers: AlgorithmStyleLayer[] = suggestedStyles.layers.map((layer, index) => {
-                                const layerId = `algo-${selectedAlgorithm.namespace}-${selectedAlgorithm.type}-${String(index)}-${String(Date.now())}`;
-                                const layerName = layer.metadata?.name ?? `${selectedAlgorithm.type} Style ${String(index + 1)}`;
-
-                                return {
-                                    id: layerId,
-                                    name: layerName,
-                                    styleLayer: {
-                                        node: layer.node
-                                            ? {
-                                                  selector: layer.node.selector ?? "",
-                                                  style: {
-                                                      ...layer.node.style,
-                                                      // Include calculatedStyle for dynamic styling
-                                                      ...(layer.node.calculatedStyle
-                                                          ? { calculatedStyle: layer.node.calculatedStyle }
-                                                          : {}),
-                                                  },
-                                              }
-                                            : undefined,
-                                        edge: layer.edge
-                                            ? {
-                                                  selector: layer.edge.selector ?? "",
-                                                  style: {
-                                                      ...layer.edge.style,
-                                                      ...(layer.edge.calculatedStyle
-                                                          ? { calculatedStyle: layer.edge.calculatedStyle }
-                                                          : {}),
-                                                  },
-                                              }
-                                            : undefined,
-                                    },
-                                };
-                            });
-
-                            // Add layers to the UI
-                            onAddLayers(uiLayers);
-                        }
-                    }
-                }
-
                 // Show success message briefly before closing
                 setSuccess(true);
                 setIsExecuting(false);
@@ -281,7 +181,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
                 setError(message);
                 setIsExecuting(false);
             });
-    }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose, onAddLayers]);
+    }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose]);
 
     const canRun = graphtyRef.current?.graph !== undefined && selectedAlgorithm !== null && !isExecuting && !success;
 
@@ -361,7 +261,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
                 )}
 
                 {/* Node Selection Options */}
-                {selectedAlgorithm?.requiresSourceNode && (
+                {selectedAlgorithm?.sourceOption && (
                     <>
                         <Divider
                             label="Options"
@@ -372,7 +272,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
                         />
 
                         <Select
-                            label="Source Node"
+                            label={selectedAlgorithm.sourceOption.plainName}
                             placeholder="Select a node"
                             value={selectedSourceNode}
                             onChange={setSelectedSourceNode}
@@ -384,9 +284,9 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
                             }}
                         />
 
-                        {selectedAlgorithm.requiresTargetNode && (
+                        {selectedAlgorithm.targetOption && (
                             <Select
-                                label={selectedAlgorithm.targetOptionKey === "sink" ? "Sink Node" : "Target Node"}
+                                label={selectedAlgorithm.targetOption.plainName}
                                 placeholder="Select a node"
                                 value={selectedTargetNode}
                                 onChange={setSelectedTargetNode}
@@ -401,11 +301,11 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
                     </>
                 )}
 
-                {/* Algorithm Options Form (from schema) */}
-                {algorithmOptionsSchema && (
+                {/* Algorithm Options Form (from the element's catalogue) */}
+                {algorithmOptions.length > 0 && (
                     <>
                         {/* Show divider only if not already shown by source node section */}
-                        {!selectedAlgorithm?.requiresSourceNode && (
+                        {!selectedAlgorithm?.sourceOption && (
                             <Divider
                                 label="Options"
                                 labelPosition="center"
@@ -416,7 +316,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: 
                         )}
 
                         <OptionsForm
-                            schema={algorithmOptionsSchema}
+                            options={algorithmOptions}
                             values={optionsValues}
                             onChange={setOptionsValues}
                             showAdvanced={showAdvancedOptions}

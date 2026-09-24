@@ -1,125 +1,32 @@
-type FormatType = "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
+/**
+ * @file The two-argument detection call `Graph` has always made, over the published detector.
+ *
+ * WHAT THIS USED TO BE. A module-private extension table and a hard-coded if-chain over the seven
+ * formats the element ships. A registered format was invisible to both, so a file of that format
+ * dropped on the element found nothing and reported that the element supports "JSON, GraphML,
+ * GEXF, CSV, GML, DOT, Pajek" -- a list with the consumer's own format missing from it. Being
+ * private also meant a consumer who wanted to label a drop target had to reimplement the table,
+ * which `@graphty/graphty` did, in two files.
+ *
+ * WHAT IT IS NOW. The decision lives in `src/catalog/detect.ts`, is driven by the composed
+ * descriptor list and the registry's sniffers, and is published from `./catalog` and `./extend`.
+ * This module is the adapter that keeps the call shape `Graph.loadFromFile` and
+ * `Graph.loadFromUrl` already make -- a file name and a content sample as two positional strings,
+ * either of which may be empty -- so that both of them detect registered formats without either
+ * of them changing. It exists to be deleted once those two call sites take the published
+ * `detectFormat({ filename, sample })` directly.
+ */
 
-interface FormatInfo {
-    name: string;
-    extensions: string[];
-    mimeTypes: string[];
-}
-
-const FORMAT_INFO: Record<FormatType, FormatInfo> = {
-    json: {
-        name: "JSON",
-        extensions: [".json"],
-        mimeTypes: ["application/json"],
-    },
-    graphml: {
-        name: "GraphML",
-        extensions: [".graphml", ".xml"],
-        mimeTypes: ["application/graphml+xml", "application/xml", "text/xml"],
-    },
-    gexf: {
-        name: "GEXF",
-        extensions: [".gexf"],
-        mimeTypes: ["application/gexf+xml", "application/xml", "text/xml"],
-    },
-    csv: {
-        name: "CSV",
-        extensions: [".csv", ".edges", ".edgelist"],
-        mimeTypes: ["text/csv", "text/plain"],
-    },
-    gml: {
-        name: "GML",
-        extensions: [".gml"],
-        mimeTypes: ["text/plain"],
-    },
-    dot: {
-        name: "DOT",
-        extensions: [".dot", ".gv"],
-        mimeTypes: ["text/vnd.graphviz", "text/plain"],
-    },
-    pajek: {
-        name: "Pajek NET",
-        extensions: [".net", ".paj"],
-        mimeTypes: ["text/plain"],
-    },
-};
+import { detectFormat as detectFromInput } from "../catalog/detect";
+import type { FormatId } from "../catalog/types";
 
 /**
- * Detect graph data format from filename and/or content
- * @param filename - File name (can be empty)
- * @param content - File content sample (can be empty)
- * @returns Detected format or null if unknown
+ * Work out which format a file is, from its name, its first bytes, or both.
+ * @param filename - The file name, or "" when there is none.
+ * @param content - The first bytes of the file as text, or "" when they have not been read.
+ * @returns The format's name, or null when neither the element nor any registered format
+ * recognises the file.
  */
-export function detectFormat(filename: string, content: string): FormatType | null {
-    // 1. Try extension first (fast path)
-    if (filename) {
-        const extMatch = /\.[^.]+$/.exec(filename.toLowerCase());
-        const ext = extMatch?.[0];
-        if (ext) {
-            // Check each format's extensions
-            for (const [format, info] of Object.entries(FORMAT_INFO)) {
-                if (info.extensions.includes(ext)) {
-                    // Special case: .xml could be GraphML or GEXF, need content check
-                    if (ext === ".xml" && content) {
-                        const xmlFormat = detectXMLFormat(content);
-                        if (xmlFormat) {
-                            return xmlFormat;
-                        }
-                    }
-
-                    return format as FormatType;
-                }
-            }
-        }
-    }
-
-    // 2. Inspect content
-    if (!content) {
-        return null;
-    }
-
-    const trimmed = content.trim();
-
-    // XML-based formats
-    if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) {
-        return detectXMLFormat(trimmed);
-    }
-
-    // JSON
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-        return "json";
-    }
-
-    // Text-based formats
-    if (/graph\s*\[/i.test(trimmed)) {
-        return "gml";
-    }
-
-    if (/^\*vertices/i.test(trimmed)) {
-        return "pajek";
-    }
-
-    if (/^\s*(strict\s+)?(di)?graph\s+/i.test(trimmed)) {
-        return "dot";
-    }
-
-    // CSV (very generic, check last)
-    if (/^[\w-]+\s*,\s*[\w-]+/m.test(trimmed)) {
-        return "csv";
-    }
-
-    return null;
+export function detectFormat(filename: string, content: string): FormatId | null {
+    return detectFromInput({ filename, sample: content });
 }
-
-function detectXMLFormat(content: string): FormatType | null {
-    if (content.includes('xmlns="http://graphml.graphdrawing.org')) {
-        return "graphml";
-    }
-
-    if (content.includes('xmlns="http://gexf.net')) {
-        return "gexf";
-    }
-
-    return null;
-}
-

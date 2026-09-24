@@ -558,7 +558,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         owner: "dispatcher",
         shipped: false,
         preventDefault: true,
-        note: "In the data table this equals Select all visible: the table keeps no selection of its own. NOT SHIPPED: Needs a multi-node selection, which graphty-element publishes no call for.",
+        note: "In the data table this equals Select all visible: the table keeps no selection of its own. NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.",
     },
     {
         id: "invertSelection",
@@ -567,7 +567,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: Needs a multi-node selection, which graphty-element publishes no call for.",
+        note: "NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.",
         preventDefault: false,
     },
     {
@@ -587,7 +587,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: Needs a multi-node selection, which graphty-element publishes no call for.",
+        note: "NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.",
         preventDefault: false,
     },
     {

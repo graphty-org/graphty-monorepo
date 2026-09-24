@@ -1,7 +1,7 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { LAYOUT_METADATA } from "../data/layoutMetadata";
+import { getLayoutMetadata, LAYOUT_METADATA } from "../data/layoutMetadata";
 import { render, screen } from "../test/test-utils";
 import { RunLayoutsModal } from "./RunLayoutsModal";
 
@@ -59,8 +59,10 @@ describe("RunLayoutsModal", () => {
         it("should show layout description when layout is selected", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // D3 Force is the default, should show its description
-            expect(screen.getByText(/D3 force-directed simulation/i)).toBeInTheDocument();
+            // D3 Force is the default. The description is the element's, not a copy of it.
+            const description = getLayoutMetadata("d3")?.description ?? "";
+            expect(description).not.toBe("");
+            expect(screen.getByText(description)).toBeInTheDocument();
         });
     });
 
@@ -149,7 +151,7 @@ describe("RunLayoutsModal", () => {
             expect(screen.queryByLabelText("Scaling Factor")).not.toBeInTheDocument();
 
             // But other ForceAtlas2 options should be visible
-            expect(screen.getByLabelText("Max Iter")).toBeInTheDocument();
+            expect(screen.getByLabelText("Max Iterations")).toBeInTheDocument();
             expect(screen.getByLabelText("Gravity")).toBeInTheDocument();
         });
 

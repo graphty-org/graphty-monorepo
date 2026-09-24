@@ -7,37 +7,8 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type { StyleSchema } from "../../../src/config";
 import { Graph } from "../../../src/Graph";
-
-function createStyleTemplate(twoD: boolean): StyleSchema {
-    return {
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            addDefaultStyle: true,
-            twoD,
-            layout: "fixed",
-            layoutOptions: { dim: twoD ? 2 : 3 },
-        },
-        layers: [],
-        data: {
-            knownFields: {
-                nodeIdPath: "id",
-                nodeWeightPath: null,
-                nodeTimePath: null,
-                edgeSrcIdPath: "src",
-                edgeDstIdPath: "dst",
-                edgeWeightPath: null,
-                edgeTimePath: null,
-            },
-        },
-        behavior: {
-            layout: { type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
-            node: { pinOnDrag: true },
-        },
-    } as unknown as StyleSchema;
-}
+import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
     { id: "node1", x: 0, y: 0, z: 0 },
@@ -57,7 +28,7 @@ describe("View Mode Transitions", () => {
 
         graph = new Graph(container);
         await graph.init();
-        await graph.setStyleTemplate(createStyleTemplate(false));
+        await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 } });
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
         await graph.operationQueue.waitForCompletion();

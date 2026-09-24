@@ -29,8 +29,8 @@ describe("GMLDataSource", () => {
         assert.equal(chunks[0].edges.length, 1);
         assert.equal(chunks[0].nodes[0].id, 0);
         assert.equal(chunks[0].nodes[1].id, 1);
-        assert.equal(chunks[0].edges[0].src, 0);
-        assert.equal(chunks[0].edges[0].dst, 1);
+        assert.equal(chunks[0].edges[0].source, 0);
+        assert.equal(chunks[0].edges[0].target, 1);
     });
 
     test("parses node and edge attributes", async () => {
@@ -172,8 +172,8 @@ describe("GMLDataSource", () => {
 
         assert.equal(chunks[0].nodes[0].id, "node_a");
         assert.equal(chunks[0].nodes[1].id, "node_b");
-        assert.equal(chunks[0].edges[0].src, "node_a");
-        assert.equal(chunks[0].edges[0].dst, "node_b");
+        assert.equal(chunks[0].edges[0].source, "node_a");
+        assert.equal(chunks[0].edges[0].target, "node_b");
     });
 
     test("handles parsing errors gracefully", async () => {

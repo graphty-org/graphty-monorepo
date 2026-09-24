@@ -73,7 +73,13 @@ export const runAlgorithm: GraphCommand = {
                 };
             }
 
-            // Run the algorithm
+            // Run the algorithm.
+            //
+            // Still the 1.10 address, because this command's schema and the prompt behind it
+            // speak `namespace:type` and enumerate the registry, which is a different vocabulary
+            // from the catalogue keys `graph.run` takes. Moving it belongs with the AI layer's own
+            // migration onto the catalogue.
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
             await graph.runAlgorithm(namespace, type);
 
             return {

@@ -320,4 +320,70 @@ describe("Bellman-Ford Algorithm", () => {
             expect(result.hasNegativeCycle).toBe(true);
         });
     });
+
+    describe("undirected graphs", () => {
+        // An undirected graph reports each edge once, arbitrarily oriented. Relaxing only that
+        // orientation turns every edge one-way, so most of the graph is unreachable from the
+        // source even though it is plainly connected. Every test above builds a DIRECTED graph,
+        // which is how that went unnoticed.
+        it("should traverse an undirected edge in both directions", () => {
+            const graph = new Graph({ directed: false });
+
+            graph.addEdge("a", "b", 1);
+            graph.addEdge("b", "c", 1);
+
+            // "c" is two hops from "a". Reaching it requires traversing at least one edge in
+            // the opposite direction to the one the edge list reports.
+            const fromA = bellmanFord(graph, "a");
+
+            expect(fromA.distances.get("b")).toBe(1);
+            expect(fromA.distances.get("c")).toBe(2);
+
+            // Symmetry is the real property: in an undirected graph, distance is the same
+            // measured from either end.
+            const fromC = bellmanFord(graph, "c");
+
+            expect(fromC.distances.get("b")).toBe(1);
+            expect(fromC.distances.get("a")).toBe(2);
+        });
+
+        it("should reach every node of an undirected path from either end", () => {
+            const graph = new Graph({ directed: false });
+
+            graph.addEdge("a", "b", 2);
+            graph.addEdge("b", "c", 3);
+            graph.addEdge("c", "d", 4);
+
+            const result = bellmanFord(graph, "d");
+
+            expect(result.distances.get("c")).toBe(4);
+            expect(result.distances.get("b")).toBe(7);
+            expect(result.distances.get("a")).toBe(9);
+            for (const node of ["a", "b", "c"]) {
+                expect(result.distances.get(node)).not.toBe(Infinity);
+            }
+        });
+
+        it("should treat a negative undirected edge as a negative cycle", () => {
+            const graph = new Graph({ directed: false });
+
+            graph.addEdge("a", "b", -1);
+
+            // Traversing it back and forth lowers the distance without bound, so a single
+            // negative undirected edge IS a cycle. A directed graph needs a real loop.
+            expect(hasNegativeCycle(graph)).toBe(true);
+        });
+
+        it("should leave a genuinely disconnected node unreachable", () => {
+            const graph = new Graph({ directed: false });
+
+            graph.addEdge("a", "b", 1);
+            graph.addNode("island");
+
+            const result = bellmanFord(graph, "a");
+
+            expect(result.distances.get("b")).toBe(1);
+            expect(result.distances.get("island")).toBe(Infinity);
+        });
+    });
 });

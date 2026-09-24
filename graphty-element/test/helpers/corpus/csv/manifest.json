@@ -8,7 +8,10 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["edge-list", "weighted"]
+            "features": [
+                "edge-list",
+                "weighted"
+            ]
         },
         {
             "path": "gephi-format.csv",
@@ -16,7 +19,12 @@
             "license": "MIT",
             "expectedNodes": 4,
             "expectedEdges": 5,
-            "features": ["gephi", "directed", "weighted", "labels"]
+            "features": [
+                "gephi",
+                "directed",
+                "weighted",
+                "labels"
+            ]
         },
         {
             "path": "dolphins-medium.csv",
@@ -24,7 +32,11 @@
             "license": "Academic",
             "expectedNodes": 31,
             "expectedEdges": 50,
-            "features": ["gephi", "undirected", "medium"]
+            "features": [
+                "gephi",
+                "undirected",
+                "medium"
+            ]
         },
         {
             "path": "got-edges.csv",
@@ -32,7 +44,35 @@
             "license": "CC0",
             "expectedNodes": 107,
             "expectedEdges": 352,
-            "features": ["gephi", "weighted", "social-network"]
+            "features": [
+                "gephi",
+                "weighted",
+                "social-network"
+            ]
+        },
+        {
+            "path": "got-nodes.csv",
+            "source": "https://github.com/melaniewalsh/sample-social-network-datasets",
+            "license": "CC0",
+            "companionOf": "got-edges.csv",
+            "expectedNodes": 107,
+            "expectedEdges": 0,
+            "features": [
+                "gephi",
+                "node-table",
+                "labels"
+            ]
+        },
+        {
+            "path": "unnamed-endpoints.csv",
+            "source": "created",
+            "license": "MIT",
+            "unreadable": "A header row spelled a,b,weight, which is none of the three endpoint pairs the element probes. It exists so that the element's refusal -- E_EDGE_ENDPOINTS_UNRESOLVED, naming the columns the file does carry -- has a CSV fixture as well as a JSON one, because the endpoint defect this release fixes passed on one format and failed on another.",
+            "expectedNodes": 0,
+            "expectedEdges": 0,
+            "features": [
+                "unnamed-endpoints"
+            ]
         }
     ]
 }

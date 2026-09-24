@@ -4,11 +4,9 @@
  * 2. Unused exports have been removed
  * 3. API surface is clean and intentional
  */
-import { describe, it, expect } from "vitest";
-import * as mainExports from "../src/index";
-import * as themeExports from "../src/theme";
+import { describe, expect,it } from "vitest";
+
 import * as constantsExports from "../src/constants";
-import * as utilsExports from "../src/utils";
 import type {
     ActionRowProps,
     ActivationEvent,
@@ -92,6 +90,9 @@ import type {
     UiGlyphName,
     UiGlyphProps,
 } from "../src/index";
+import * as mainExports from "../src/index";
+import * as themeExports from "../src/theme";
+import * as utilsExports from "../src/utils";
 
 /** A row shape for the generic data-table types, which take one type argument. */
 interface SampleRow {

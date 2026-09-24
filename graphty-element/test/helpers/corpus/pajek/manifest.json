@@ -8,7 +8,13 @@
             "license": "MIT",
             "expectedNodes": 5,
             "expectedEdges": 5,
-            "features": ["vertices", "arcs", "edges", "coordinates", "labels"]
+            "features": [
+                "vertices",
+                "arcs",
+                "edges",
+                "coordinates",
+                "labels"
+            ]
         },
         {
             "path": "karate.net",
@@ -16,7 +22,11 @@
             "license": "MIT",
             "expectedNodes": 34,
             "expectedEdges": 78,
-            "features": ["vertices", "edges", "labels"]
+            "features": [
+                "vertices",
+                "edges",
+                "labels"
+            ]
         },
         {
             "path": "dolphins.net",
@@ -24,7 +34,12 @@
             "license": "Academic",
             "expectedNodes": 62,
             "expectedEdges": 159,
-            "features": ["vertices", "edges", "labels", "medium"]
+            "features": [
+                "vertices",
+                "edges",
+                "labels",
+                "medium"
+            ]
         },
         {
             "path": "football.net",
@@ -32,7 +47,25 @@
             "license": "Academic",
             "expectedNodes": 115,
             "expectedEdges": 613,
-            "features": ["vertices", "edges", "labels", "large"]
+            "features": [
+                "vertices",
+                "edges",
+                "labels",
+                "large"
+            ]
+        },
+        {
+            "path": "karate-large.net",
+            "source": "created from karate.net",
+            "license": "Academic",
+            "expectedNodes": 34,
+            "expectedEdges": 78,
+            "features": [
+                "vertices",
+                "edges",
+                "unweighted",
+                "generic-labels"
+            ]
         }
     ]
 }

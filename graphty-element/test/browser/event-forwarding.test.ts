@@ -10,6 +10,7 @@ import "../../src/graphty-element";
 import { assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import type { ImportReport } from "../../session.js";
 
 /**
  * Helper to create a graphty-element and wait for it to initialize
@@ -20,7 +21,7 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     container.style.height = "300px";
     document.body.appendChild(container);
 
-    const graphtyElement = document.createElement("graphty-element") as Graphty;
+    const graphtyElement = document.createElement("graphty-element");
     graphtyElement.style.width = "100%";
     graphtyElement.style.height = "100%";
     graphtyElement.style.display = "block";
@@ -41,6 +42,21 @@ function cleanup(element: HTMLElement): void {
         document.body.removeChild(container);
     }
 }
+
+/**
+ * A stand-in import report for the two load events, which now carry one.
+ *
+ * These tests are about FORWARDING -- that an internal event reaches the DOM with its detail
+ * intact -- so the report's contents do not matter here, only that a well-formed one travels.
+ */
+const FAKE_REPORT: ImportReport = {
+    format: "json",
+    endpoints: { resolvedFrom: "source/target", source: "source", target: "target" },
+    counts: { nodes: 100, edges: 50, nodeRecords: 100, edgeRecords: 50, rejected: 0 },
+    repeated: { seen: 0, kept: 0, dropped: 0, merged: 0 },
+    policy: "keep",
+    weights: { resolvedFrom: "none", attribute: null },
+};
 
 describe("Event Forwarding Regression Tests", () => {
     describe("graph-settled event", () => {
@@ -193,6 +209,7 @@ describe("Event Forwarding Regression Tests", () => {
                 graphtyElement.graph,
                 3, // chunksLoaded
                 "json", // dataSourceType
+                FAKE_REPORT,
             );
 
             assert.equal(loadedCallback.mock.calls.length, 1);
@@ -220,8 +237,13 @@ describe("Event Forwarding Regression Tests", () => {
             assert.equal(event.detail.format, "csv");
             assert.equal(event.detail.bytesProcessed, 1024);
             assert.equal(event.detail.totalBytes, 2048);
-            assert.equal(event.detail.nodesLoaded, 10);
-            assert.equal(event.detail.edgesLoaded, 5);
+            assert.equal(event.detail.nodeRecordsLoaded, 10);
+            assert.equal(event.detail.edgeRecordsLoaded, 5);
+            // The progress event's two counters are named for records because that is what they
+            // count; `data-loading-complete` keeps `nodesLoaded`/`edgesLoaded` for the different
+            // numbers the graph ends up holding.
+            assert.notProperty(event.detail, "nodesLoaded");
+            assert.notProperty(event.detail, "edgesLoaded");
 
             cleanup(graphtyElement);
         });
@@ -240,6 +262,7 @@ describe("Event Forwarding Regression Tests", () => {
                 0, // errors
                 0, // warnings
                 true, // success
+                FAKE_REPORT,
             );
 
             assert.equal(completeCallback.mock.calls.length, 1);

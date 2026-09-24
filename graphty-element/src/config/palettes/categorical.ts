@@ -4,21 +4,37 @@
  */
 
 /**
- * Okabe-Ito palette - R 4.0+ default, universally accessible
- * ✅ Colorblind-safe (all types) ✅ Industry standard
+ * Okabe-Ito palette, as published -- the R 4.0+ default, safe for every form of colour blindness
  * Research: Okabe & Ito (2008) "Color Universal Design"
- * Maximum 8 categories (Tableau recommendation)
+ *
+ * The eight published colours, with one change of ORDER and none of colour. Yellow is moved to
+ * the last slot because it barely shows on the element's light background (1.21:1 against
+ * whitesmoke), so it is only reached when all eight colours are needed. The published black is
+ * kept: an earlier copy replaced it with grey #999999, which sits too close to sky blue for
+ * normal vision and to bluish green under protanopia.
  */
 export const OKABE_ITO_COLORS = [
     "#E69F00", // 0 - Orange
     "#56B4E9", // 1 - Sky Blue
     "#009E73", // 2 - Bluish Green
-    "#F0E442", // 3 - Yellow
-    "#0072B2", // 4 - Blue
-    "#D55E00", // 5 - Vermillion
-    "#CC79A7", // 6 - Reddish Purple
-    "#999999", // 7 - Gray
+    "#0072B2", // 3 - Blue
+    "#D55E00", // 4 - Vermillion
+    "#CC79A7", // 5 - Reddish Purple
+    "#000000", // 6 - Black
+    "#F0E442", // 7 - Yellow (last: faint on a light background)
 ] as const;
+
+/**
+ * The one colour an overflowing group encoding paints every group past the palette's capacity.
+ *
+ * A dark grey, #505050, because it is the lightest grey that is measurably apart from every
+ * Okabe-Ito colour: Delta E 16.5 in OKLab for normal vision (nearest: blue #0072B2) and 15.4 under
+ * protanopia and deuteranopia, at 7.4:1 against the default whitesmoke background. The
+ * conventional light "other" greys fail: #9a9a9a is Delta E 11.8 from reddish purple and 1.9 under
+ * colour-blindness, and #bbbbbb is 13.1 from sky blue. `test/catalog/default-palette-quality.test.ts`
+ * measures it.
+ */
+export const OTHER_GROUP_COLOR = "#505050";
 
 /**
  * Paul Tol Vibrant palette - high saturation, 7 colors

@@ -1,19 +1,19 @@
 {
     "$schema": "https://typedoc.org/schema.json",
     "entryPoints": [
-        "./src/graphty-element.ts",
-        "./src/Graph.ts",
-        "./src/Node.ts",
-        "./src/Edge.ts",
-        "./src/Styles.ts",
-        "./src/config/index.ts",
-        "./src/events.ts",
-        "./src/layout/LayoutEngine.ts",
-        "./src/algorithms/Algorithm.ts",
-        "./src/data/DataSource.ts",
-        "./src/managers/index.ts"
+        "./index.ts",
+        "./session.ts",
+        "./schema.ts",
+        "./catalog.ts",
+        "./commands.ts",
+        "./extend.ts",
+        "./format.ts",
+        "./logging.ts",
+        "./react.ts",
+        "./webgpu.ts",
+        "./ai.ts"
     ],
-    "entryPointStrategy": "expand",
+    "entryPointStrategy": "resolve",
     "out": "./docs/api/generated",
     "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
     "readme": "none",
@@ -26,5 +26,12 @@
     "categorizeByGroup": true,
     "sort": ["alphabetical"],
     "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
-    "docsRoot": "./docs"
+    "docsRoot": "./docs",
+    "validation": {
+        "notExported": true,
+        "invalidLink": true,
+        "rewrittenLink": true,
+        "notDocumented": true,
+        "unusedMergeModuleWith": true
+    }
 }

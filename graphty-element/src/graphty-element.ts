@@ -1,25 +1,45 @@
-// WORKAROUND: Import InstancedMesh side-effect first
-// See: https://github.com/graphty-org/graphty-element/issues/54
-import "@babylonjs/core/Meshes/instancedMesh";
-
+import type { DuplicatePolicy } from "@graphty/graph-format";
 import { LitElement } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
-import type { StyleSchema, ViewMode } from "./config";
+import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
+import type { AlgorithmKey, Scope } from "./catalog/types";
+import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
+import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
+import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph } from "./Graph";
-import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "./logging";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import type { GraphSession } from "./session";
+import type { Run, RunChange, StartOptions } from "./session/runs";
+import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { VisibilityChange } from "./session/visibility";
+
+/**
+ * How often a run's progress may reach a DOM listener, in milliseconds.
+ *
+ * A long run reports progress far more often than anything needs to be redrawn, and a mirror
+ * event is the cheapest place in the element to say so: ten a second is well under a frame and is
+ * what a progress bar and a percentage both need. The three moments that are not progress --
+ * queued, started, finished -- are never dropped, because each is a state change a consumer acts
+ * on rather than a number it displays.
+ */
+const RUN_PROGRESS_INTERVAL_MS = 100;
 
 /**
  * Graphty creates a graph
  */
-@customElement("graphty-element")
 export class Graphty extends LitElement {
     #graph: Graph;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
+    #accelerationPolicy: AccelerationPolicy = "auto";
+    #acceleration: AccelerationController | null = null;
+    #unwatchRuns: (() => void) | null = null;
+    #unwatchSelection: (() => void) | null = null;
+    #unwatchVisibility: (() => void) | null = null;
+    #runProgressAt = new Map<string, number>();
 
     /**
      * Creates a new Graphty element instance.
@@ -32,6 +52,160 @@ export class Graphty extends LitElement {
         // position: relative is needed for absolute positioning of XR UI overlay
         this.#element.setAttribute("style", "width: 100%; height: 100%; display: block; position: relative;");
         this.#graph = new Graph(this.#element);
+    }
+
+    /**
+     * The headless model this element draws.
+     *
+     * Everything about the graph that needs no screen is here: the data, the coordinates, the
+     * statistics, the catalogue, the runs and their results, which elements a piece of work may
+     * look at (`scope`), what is selected (`selection`) and what is visible (`visibility`). The
+     * camera, the canvas and the scene stay on the element, because two synchronised views of one
+     * dataset disagree about those and agree about everything above.
+     *
+     * Read-only for now: a session built elsewhere cannot yet be attached to an element.
+     * @returns The session.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <script type="module">
+     *   const { session } = document.getElementById("g");
+     *   await session.visibility.set({ kind: "degree", min: 3 });
+     *   showing.textContent = `${session.status.counts.visibleNodes} of ${session.status.counts.nodes}`;
+     * </script>
+     * ```
+     */
+    get session(): GraphSession {
+        return this.#graph.getSession();
+    }
+
+    /**
+     * Start an algorithm and get back something a caller can watch, stop and read.
+     *
+     * Forwarded from the session, so the first graph needs no session: a page with a tag and
+     * three lines of script can run an analysis, await the result and read its ranking without
+     * importing a module or learning what a session is.
+     * @param algorithm - Which algorithm to run, by its catalogue key such as "betweenness".
+     * @param params - Its parameters, as the catalogue declares them.
+     * @param options - The scope, the seed, the id, the signal and the progress handler.
+     * @returns The run. Awaiting it gives the result; every encoding helper takes the run itself.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <script type="module">
+     *   const g = document.getElementById("g");
+     *   const run = g.run("betweenness");
+     *   g.addEventListener("graphty-run-change", (e) => bar.value = e.detail.run.status);
+     *   console.log((await run).summary().top);
+     * </script>
+     * ```
+     */
+    run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run {
+        return this.#graph.run(algorithm, params, options);
+    }
+
+    /**
+     * Change what is selected.
+     *
+     * Forwarded from the session, so the first graph needs no session: a page with a tag and two
+     * lines of script can select a list of ids, add to that selection, invert it or take the top
+     * twenty of a finished run, without importing a module.
+     *
+     * One selection per graph, shared by every surface reading it. The five operations are
+     * `"replace"` (the default, and what a click does), `"add"`, `"remove"`, `"toggle"` and
+     * `"intersect"`.
+     * @param target - What to select: ids, a pasted list, a neighbourhood, a scope, a run's top n.
+     * @param op - What to do with it; replaces the selection when absent.
+     * @returns What changed: what joined, what left, and what the selection holds now.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <script type="module">
+     *   const g = document.getElementById("g");
+     *   await g.select({ nodes: [1, 2, 3] });
+     *   g.addEventListener("graphty-selection-change", (e) => count.textContent = e.detail.nodes);
+     * </script>
+     * ```
+     */
+    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+        return this.#graph.select(target, op);
+    }
+
+    /**
+     * Mirror one run notification onto the DOM, so a consumer holding only the tag can follow it.
+     *
+     * The detail carries the run's RECORD rather than the run: a `CustomEvent` detail crosses to
+     * listeners that may structure-clone it, and a live object with a `cancel()` on it cannot go
+     * there. A consumer that wants to cancel looks the run up by `detail.run.id`.
+     * @param change - The run's record, and which moment it reached.
+     */
+    #mirrorRunChange(change: RunChange): void {
+        if (change.phase === "progress") {
+            const now = Date.now();
+            // Per run, not per element: two runs coalesced against one clock would take turns
+            // suppressing each other, and a consumer would see one bar move and the other freeze.
+            const last = this.#runProgressAt.get(change.run.id) ?? 0;
+
+            if (now - last < RUN_PROGRESS_INTERVAL_MS) {
+                return;
+            }
+
+            this.#runProgressAt.set(change.run.id, now);
+        }
+
+        if (change.phase === "end") {
+            this.#runProgressAt.delete(change.run.id);
+        }
+
+        this.dispatchEvent(
+            new CustomEvent("graphty-run-change", {
+                detail: { run: change.run, phase: change.phase },
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    /**
+     * Mirror one selection change onto the DOM.
+     *
+     * The detail carries IDS, never node or edge objects. A `CustomEvent` detail crosses to
+     * listeners that may structure-clone it or post it to a worker, and a render object holding a
+     * mesh, a material and a scene cannot go there -- it would throw on the way out, or, worse,
+     * hand a listener a live handle on something the renderer is about to dispose. A consumer
+     * that wants the record looks the id up.
+     * @param delta - What joined, what left, and what the selection holds now.
+     */
+    #mirrorSelectionChange(delta: SelectionDelta): void {
+        this.dispatchEvent(
+            new CustomEvent("graphty-selection-change", {
+                detail: delta,
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    /**
+     * Mirror one visibility change onto the DOM.
+     *
+     * Four counts, the paths nothing answered and what produced the change: everything "showing
+     * 1,204 of 50,000" needs, and nothing that cannot be serialised. Every producer arrives here
+     * -- a filter, the time window and the context flag -- because a status bar has to update for
+     * all three and must not learn about them in three different ways.
+     * @param change - The counts, the unresolved paths and what produced them.
+     */
+    #mirrorVisibilityChange(change: VisibilityChange): void {
+        this.dispatchEvent(
+            new CustomEvent("graphty-visibility-change", {
+                detail: change,
+                bubbles: true,
+                composed: true,
+            }),
+        );
     }
 
     /**
@@ -50,28 +224,35 @@ export class Graphty extends LitElement {
         });
         this.#resizeObserver.observe(this);
 
-        // Parse URL parameters
-        this.parseURLParams();
-    }
+        // NOTHING IS READ OFF THE PAGE'S QUERY STRING. Mounting the element used to reconfigure
+        // GLOBAL logging and switch on detailed profiling because of parameters in the URL of the
+        // page the element happens to be on -- so an element embedded in a host application
+        // changed that application's logging whenever a reader's link carried the parameter, and
+        // two elements on one page raced to configure it. Logging is configured through
+        // `GraphtyLogger.configure`, and profiling through `enableDetailedProfiling`.
 
-    private parseURLParams(): void {
-        const urlParams = new URLSearchParams(window.location.search);
+        // Look for an accelerator. Nothing is registered unless the consumer imported
+        // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
+        void this.#ensureAcceleration().start();
 
-        // Check for profiling parameter
-        if (urlParams.get("profiling") === "true") {
-            this.enableDetailedProfiling = true;
-        }
+        // Mirror every run onto the DOM, whoever started it. A run started from a console, an
+        // agent or a panel has no `onProgress` this element could have attached, so the session's
+        // own notification is the only thing that sees all of them.
+        const session = this.#graph.getSession();
 
-        // Parse logging params
-        const loggingParams = parseLoggingURLParams();
-        if (loggingParams?.enabled) {
-            void GraphtyLogger.configure({
-                enabled: true,
-                modules: loggingParams.modules,
-                level: loggingParams.level ?? LogLevel.INFO,
-                format: { timestamp: true, module: true, colors: true },
-            });
-        }
+        this.#unwatchRuns ??= session.on("run:changed", (change) => {
+            this.#mirrorRunChange(change);
+        });
+
+        // The same reason as the run mirror: a selection made from a console, an agent, a data
+        // table or a gesture all arrive here, and the session's own notification is the only
+        // thing that sees every one of them.
+        this.#unwatchSelection ??= session.on("selection:changed", (delta) => {
+            this.#mirrorSelectionChange(delta);
+        });
+        this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
+            this.#mirrorVisibilityChange(change);
+        });
     }
 
     /**
@@ -90,13 +271,45 @@ export class Graphty extends LitElement {
      * Performs async initialization tasks for the graph, including event forwarding and graph initialization.
      */
     async asyncFirstUpdated(): Promise<void> {
-        // Forward ALL internal graph events as DOM CustomEvents
+        // Forward internal graph events as DOM CustomEvents
         // This allows external code (e.g., React) to listen for any graph event
         // using standard DOM addEventListener (e.g., "style-changed", "graph-settled", etc.)
+        //
+        // Everything except an element-internal event goes out, so the exclusion is a list rather
+        // than a comparison written here: see INTERNAL_EVENT_TYPES in events.ts for why an event
+        // belongs on it and how to add one.
         this.#graph.eventManager.onGraphEvent.add((event) => {
+            if (!isDomForwardableEvent(event)) {
+                return;
+            }
+
             this.dispatchEvent(
                 new CustomEvent(event.type, {
                     detail: event,
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
+
+        // Node events reach the DOM too, and under a prefixed name with a reduced detail.
+        //
+        // They used to reach nobody at all: the node observable was private, the element forwarded
+        // only the graph observable, and `addListener` had no case for a click, a hover or a drag
+        // -- so four events the guide documents were emitted into a closed room. They cannot be
+        // forwarded verbatim the way graph events are, because the internal event carries a live
+        // `Node`; `nodeEventDetail` reduces each one to ids and numbers a listener can clone.
+        this.#graph.eventManager.onNodeEvent.add((event) => {
+            const name = NODE_EVENT_DOM_NAMES[event.type];
+            const detail = nodeEventDetail(event);
+
+            if (name === undefined || detail === null) {
+                return;
+            }
+
+            this.dispatchEvent(
+                new CustomEvent(name, {
+                    detail,
                     bubbles: true,
                     composed: true,
                 }),
@@ -138,6 +351,18 @@ export class Graphty extends LitElement {
             this.#resizeObserver = null;
         }
 
+        // Release the accelerator's device with the rest of the element's resources. A
+        // re-attached element builds a fresh controller and probes again.
+        this.#acceleration?.dispose();
+        this.#acceleration = null;
+
+        this.#unwatchRuns?.();
+        this.#unwatchRuns = null;
+        this.#unwatchSelection?.();
+        this.#unwatchSelection = null;
+        this.#unwatchVisibility?.();
+        this.#unwatchVisibility = null;
+
         this.#graph.shutdown();
         super.disconnectedCallback();
     }
@@ -150,10 +375,23 @@ export class Graphty extends LitElement {
     #nodeIdPath?: string;
     #edgeSrcIdPath?: string;
     #edgeDstIdPath?: string;
+    #edgeIdPath?: string;
+    #repeatedEdges?: DuplicatePolicy;
+    #nodeLabelPath?: string;
+    #edgeWeightPath?: string;
+    #positionScale?: number;
+    #directed?: boolean | "auto";
     #layout?: string;
     #layoutConfig?: Record<string, unknown>;
     #viewMode?: ViewMode;
-    #styleTemplate?: StyleSchema;
+    #background?: GraphBackgroundConfig;
+    #startingCameraDistance?: number;
+
+    #layoutBehavior?: GraphBehaviorConfig;
+
+    #selectionStyle?: GraphSelectionStyleInput;
+
+    #algorithmsOnLoad?: readonly AlgorithmOnLoad[];
     #runAlgorithmsOnLoad?: boolean;
     #xr?: PartialXRConfig;
 
@@ -184,7 +422,48 @@ export class Graphty extends LitElement {
      * ```
      * @returns Array of node data objects or undefined if not set
      */
-    @property({ attribute: "node-data" })
+    @property({
+        /*
+         * A JSON converter, because the documented HTML form above is a JSON array and Lit's
+         * default converter hands a setter the raw attribute TEXT. Without this the setter
+         * received a string, `Array.isArray` was false, and every row was dropped with no error
+         * -- so the element's own getting-started example drew an empty graph. The same reason
+         * the `background` property below carries one.
+         */
+        attribute: "node-data",
+        converter: {
+            fromAttribute: (value: string | null): Record<string, unknown>[] | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                let parsed: unknown;
+                try {
+                    parsed = JSON.parse(value);
+                } catch {
+                    console.error(
+                        `<graphty-element>: the node-data attribute must be a JSON array, not ` +
+                            `"${value}". Keeping the nodes already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                if (!Array.isArray(parsed)) {
+                    console.error(
+                        `<graphty-element>: the node-data attribute must be a JSON ARRAY of records. ` +
+                            `Keeping the nodes already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                return parsed as Record<string, unknown>[];
+            },
+            toAttribute: (value: Record<string, unknown>[] | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
     get nodeData(): Record<string, unknown>[] | undefined {
         return this.#nodeData;
     }
@@ -197,7 +476,9 @@ export class Graphty extends LitElement {
 
         // Forward to Graph method (which queues operation)
         if (value && Array.isArray(value)) {
-            void this.#graph.addNodes(value);
+            this.#graph.addNodes(value).catch((error: unknown) => {
+                this.#reportLoadFailure(error);
+            });
         }
 
         this.requestUpdate("nodeData", oldValue);
@@ -206,7 +487,7 @@ export class Graphty extends LitElement {
     /**
      * Array of edge data objects defining connections between nodes.
      * @remarks
-     * Setting this property replaces all existing edges. For incremental
+     * Setting this property REPLACES all existing edges. For incremental
      * updates, use the `graph.addEdges()` method instead.
      *
      * Each edge object should have source and target fields (default: "source", "target").
@@ -230,7 +511,48 @@ export class Graphty extends LitElement {
      * ```
      * @returns Array of edge data objects or undefined if not set
      */
-    @property({ attribute: "edge-data" })
+    @property({
+        /*
+         * A JSON converter, because the documented HTML form above is a JSON array and Lit's
+         * default converter hands a setter the raw attribute TEXT. Without this the setter
+         * received a string, `Array.isArray` was false, and every row was dropped with no error
+         * -- so the element's own getting-started example drew an empty graph. The same reason
+         * the `background` property below carries one.
+         */
+        attribute: "edge-data",
+        converter: {
+            fromAttribute: (value: string | null): Record<string, unknown>[] | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                let parsed: unknown;
+                try {
+                    parsed = JSON.parse(value);
+                } catch {
+                    console.error(
+                        `<graphty-element>: the edge-data attribute must be a JSON array, not ` +
+                            `"${value}". Keeping the edges already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                if (!Array.isArray(parsed)) {
+                    console.error(
+                        `<graphty-element>: the edge-data attribute must be a JSON ARRAY of records. ` +
+                            `Keeping the edges already set.`,
+                    );
+
+                    return undefined;
+                }
+
+                return parsed as Record<string, unknown>[];
+            },
+            toAttribute: (value: Record<string, unknown>[] | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
     get edgeData(): Record<string, unknown>[] | undefined {
         return this.#edgeData;
     }
@@ -241,9 +563,12 @@ export class Graphty extends LitElement {
         const oldValue = this.#edgeData;
         this.#edgeData = value;
 
-        // Forward to Graph method (which queues operation)
+        // REPLACE, not append. Two edges between one pair are now two edges, so an additive
+        // setter would double every edge each time a host re-assigned the property.
         if (value && Array.isArray(value)) {
-            void this.#graph.addEdges(value);
+            this.#graph.setEdges(value).catch((error: unknown) => {
+                this.#reportLoadFailure(error);
+            });
         }
 
         this.requestUpdate("edgeData", oldValue);
@@ -322,6 +647,30 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Publish a failure from work that a property or an attribute assignment started.
+     *
+     * Assigning `node-data`, `edge-data` or the data-source pair hands the caller no promise, so a
+     * rejection from the load it starts reaches the page as an UNHANDLED rejection: it trips the
+     * host's global error handler and puts a dev server's error overlay over the whole
+     * application. That is reachable now that a file naming no endpoint column FAILS rather than
+     * quietly loading zero edges, which is the point of this release -- and on the record setters
+     * it used to be the only sign anything had gone wrong at all, because nothing else reported.
+     *
+     * So the element says it on the channel it already publishes loading failures on, and a
+     * consumer has one place to listen whichever way the data arrived. A caller who wants the
+     * throw calls the method -- `addNodes`, `setEdges`, `addDataFromSource` -- and awaits it.
+     * @param error - whatever the load rejected with
+     */
+    #reportLoadFailure(error: unknown): void {
+        this.#graph.eventManager.emitDataLoadingError(
+            error instanceof Error ? error : new Error(String(error)),
+            "validation",
+            "records",
+            { canContinue: false },
+        );
+    }
+
+    /**
      * Helper method to initialize data source only when both properties are set
      */
     #dataSourceInitialized = false;
@@ -331,7 +680,18 @@ export class Graphty extends LitElement {
         // is what stops one assignment of the pair from starting two loads.
         if (!this.#dataSourceInitialized && this.#dataSource && this.#dataSourceConfig) {
             this.#dataSourceInitialized = true;
-            void this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig);
+            // A load started by an attribute or a property assignment hands the caller no promise,
+            // so a rejection here reaches the page as an UNHANDLED rejection: it trips the host's
+            // global error handler, and a Vite dev server puts its error overlay over the whole
+            // application, for a file the element has already reported through its own channel.
+            // That became reachable the moment a file naming no endpoint column started failing
+            // instead of quietly loading zero edges, which is the point of this release.
+            //
+            // The failure is not swallowed. `addDataFromSource` emits `data-loading-error`
+            // carrying the coded error and a `graph-error` beside it, and logs the whole thing,
+            // all before it throws; those are the channels the declarative path publishes on. A
+            // caller who wants the promise calls `element.addDataFromSource` and gets the throw.
+            this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig).catch(() => undefined);
         }
     }
 
@@ -362,7 +722,11 @@ export class Graphty extends LitElement {
     /**
      * Similar to the nodeIdPath property / node-id-path attribute, this is a
      * jmespath that describes where to find the source node identifier for this edge.
-     * Defaults to "src", as in `{src: 42, dst: 31337}`
+     *
+     * Unset by default, which means PROBE: the element reads `source`/`target`, then `src`/`dst`,
+     * then `from`/`to`, deciding once per batch of edge records. Setting this settles the question
+     * and turns the probe off, and a record that does not answer it is then a rejected record
+     * rather than a reason to guess again.
      * @returns JMESPath string or undefined if not set
      */
     @property({ attribute: "edge-src-id-path" })
@@ -385,8 +749,9 @@ export class Graphty extends LitElement {
 
     /**
      * Similar to the nodeIdPath property / node-id-path attribute, this is a
-     * jmespath that describes where to find the desination node identifier for this edge.
-     * Defaults to "dst", as in `{src: 42, dst: 31337}`
+     * jmespath that describes where to find the destination node identifier for this edge.
+     *
+     * Unset by default, which means PROBE; see {@link edgeSrcIdPath}.
      * @returns JMESPath string or undefined if not set
      */
     @property({ attribute: "edge-dst-id-path" })
@@ -405,6 +770,278 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("edgeDstIdPath", oldValue);
+    }
+
+    /**
+     * A JMESPath naming the record key that identifies an edge, for data whose edges carry
+     * genuine identifiers of their own.
+     *
+     * Two records sharing one value are then the SAME edge rather than two edges between the same
+     * pair, and the repeat policy decides what happens to the second. Unset -- the default --
+     * means the records carry no edge identity and a repeat is decided by its ordered endpoint
+     * pair alone.
+     *
+     * This does not name the edge: `Edge.id` is always the element's own counter.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element edge-id-path="edgeId"></graphty-element>
+     * ```
+     * @returns JMESPath string or undefined if not set
+     */
+    @property({ attribute: "edge-id-path" })
+    get edgeIdPath(): string | undefined {
+        return this.#edgeIdPath;
+    }
+    /**
+     * Sets the JMESPath for edge identity. Updates graph configuration.
+     */
+    set edgeIdPath(value: string | undefined) {
+        const oldValue = this.#edgeIdPath;
+        this.#edgeIdPath = value;
+
+        if (value) {
+            setDeep(this.#graph.styles.config, "data.knownFields.edgeIdPath", value);
+        }
+
+        this.requestUpdate("edgeIdPath", oldValue);
+    }
+
+    /**
+     * What happens to a second edge record naming an ordered pair the graph already holds.
+     *
+     * `"keep"` -- the default -- makes it a second edge with its own id, weight and attributes.
+     * `"first"` discards it, `"last"` lets it replace what is there, `"sum"`, `"min"` and `"max"`
+     * fold its weight into the edge already present, and `"error"` throws `E_DUPLICATE_EDGE`
+     * naming both endpoints.
+     *
+     * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms as
+     * `background` and `acceleration`: this setter is reached from `attributeChangedCallback`,
+     * where a throw escapes as an unhandled rejection that reaches nobody.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element repeated-edges="sum"></graphty-element>
+     * ```
+     * @returns The policy, or undefined when none has been set on this element
+     */
+    @property({ attribute: "repeated-edges" })
+    get repeatedEdges(): DuplicatePolicy | undefined {
+        return this.#repeatedEdges;
+    }
+    /**
+     * Sets the repeat policy. Updates graph configuration.
+     */
+    set repeatedEdges(value: DuplicatePolicy | undefined) {
+        const oldValue = this.#repeatedEdges;
+
+        if (value !== undefined && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
+            console.error(
+                `<graphty-element>: repeated-edges must be one of ` +
+                    `${REPEATED_EDGE_POLICIES.join(", ")}, not "${value}". ` +
+                    `Keeping "${oldValue ?? "keep"}". ` +
+                    "See https://graphty.app/docs/graphty-element/attributes#repeated-edges",
+            );
+
+            return;
+        }
+
+        this.#repeatedEdges = value;
+
+        if (value) {
+            setDeep(this.#graph.styles.config, "data.knownFields.repeatedEdges", value);
+        }
+
+        this.requestUpdate("repeatedEdges", oldValue);
+    }
+
+    /**
+     * A jmespath naming what to CALL a node, as distinct from how to address it.
+     *
+     * A result card naming the busiest node, a legend row and a ranked list all want a name a
+     * reader recognises, and an id is only sometimes one -- a GML file keys its nodes by integer
+     * while carrying the name beside it. Unset, every one of those falls back to the printed id.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element node-label-path="name"></graphty-element>
+     * ```
+     * @returns JMESPath string or undefined if not set
+     */
+    @property({ attribute: "node-label-path" })
+    get nodeLabelPath(): string | undefined {
+        return this.#nodeLabelPath;
+    }
+    /**
+     * Sets the JMESPath for a node's display name. Updates graph configuration.
+     */
+    set nodeLabelPath(value: string | undefined) {
+        const oldValue = this.#nodeLabelPath;
+        this.#nodeLabelPath = value;
+
+        if (value) {
+            setDeep(this.#graph.styles.config, "data.knownFields.nodeLabelPath", value);
+        }
+
+        this.requestUpdate("nodeLabelPath", oldValue);
+    }
+
+    /**
+     * A jmespath naming the record key that carries an edge's weight.
+     *
+     * Every weighted algorithm -- shortest path, weighted centrality, flow -- reads the weight
+     * through this. It defaults to `"weight"`, which is what the importers write, with a
+     * fallback to a literal `value` key for the datasets that use that spelling.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element edge-weight-path="cost"></graphty-element>
+     * ```
+     * @returns JMESPath string or undefined if not set
+     */
+    @property({ attribute: "edge-weight-path" })
+    get edgeWeightPath(): string | undefined {
+        return this.#edgeWeightPath;
+    }
+    /**
+     * Sets the JMESPath for an edge's weight. Updates graph configuration.
+     */
+    set edgeWeightPath(value: string | undefined) {
+        const oldValue = this.#edgeWeightPath;
+        this.#edgeWeightPath = value;
+
+        if (value) {
+            setDeep(this.#graph.styles.config, "data.knownFields.edgeWeightPath", value);
+        }
+
+        this.requestUpdate("edgeWeightPath", oldValue);
+    }
+
+    /**
+     * What a record's own coordinates are measured in, as a multiplier into scene units.
+     *
+     * A file that places its nodes -- a GraphML with `x`/`y`, a saved layout -- is read in the
+     * file's units, and this converts them. It must be greater than zero: zero collapses every
+     * placed node onto the origin, which is indistinguishable from "unplaced", and a negative
+     * factor point-reflects the whole layout.
+     *
+     * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
+     * as `background` and `repeated-edges`: this setter is reached from
+     * `attributeChangedCallback`, where a throw escapes as an unhandled rejection that reaches
+     * nobody.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element position-scale="0.01"></graphty-element>
+     * ```
+     * @returns The multiplier, or undefined when none has been set on this element
+     */
+    @property({ attribute: "position-scale", type: Number })
+    get positionScale(): number | undefined {
+        return this.#positionScale;
+    }
+    /**
+     * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
+     */
+    set positionScale(value: number | undefined) {
+        const oldValue = this.#positionScale;
+
+        if (value !== undefined && !(Number.isFinite(value) && value > 0)) {
+            console.error(
+                `<graphty-element>: position-scale must be a number greater than zero, not "${String(value)}". ` +
+                    `Keeping ${String(oldValue ?? 1)}. ` +
+                    "See https://graphty.app/docs/graphty-element/attributes#position-scale",
+            );
+
+            return;
+        }
+
+        this.#positionScale = value;
+
+        if (value !== undefined) {
+            setDeep(this.#graph.styles.config, "data.knownFields.positionScale", value);
+        }
+
+        this.requestUpdate("positionScale", oldValue);
+    }
+
+    /**
+     * Whether the graph is a digraph, overruling whatever a loaded file says.
+     *
+     * `"auto"` -- the default -- lets a file header settle it, which is what a GML, GraphML or
+     * DOT file carries. A boolean settles it here instead and no file can argue: a consumer who
+     * knows their edge list is symmetric says so once, rather than per file.
+     *
+     * A value the schema refuses is reported and dropped rather than thrown.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element directed="true"></graphty-element>
+     * ```
+     * @returns The setting, or undefined when none has been set on this element
+     */
+    @property({
+        attribute: "directed",
+        /*
+         * Three values, one of which is a word, so neither Lit's Boolean converter (which reads
+         * PRESENCE, making `directed="auto"` mean true) nor its String converter (which would
+         * hand the setter "true" and "false" as text) is right on its own.
+         */
+        converter: {
+            fromAttribute: (value: string | null): boolean | "auto" | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                if (value === "auto") {
+                    return "auto";
+                }
+
+                if (value === "true" || value === "") {
+                    return true;
+                }
+
+                if (value === "false") {
+                    return false;
+                }
+
+                console.error(
+                    `<graphty-element>: the directed attribute must be "true", "false" or "auto", ` +
+                        `not "${value}". Keeping the setting already in place.`,
+                );
+
+                return undefined;
+            },
+            toAttribute: (value: boolean | "auto" | undefined): string | null =>
+                value === undefined ? null : String(value),
+        },
+    })
+    get directed(): boolean | "auto" | undefined {
+        return this.#directed;
+    }
+    /**
+     * Sets whether the graph is read as directed. Updates graph configuration.
+     */
+    set directed(value: boolean | "auto" | undefined) {
+        const oldValue = this.#directed;
+
+        if (value !== undefined && value !== "auto" && typeof value !== "boolean") {
+            console.error(
+                `<graphty-element>: directed must be true, false or "auto", not "${String(value)}". ` +
+                    `Keeping "${String(oldValue ?? "auto")}". ` +
+                    "See https://graphty.app/docs/graphty-element/attributes#directed",
+            );
+
+            return;
+        }
+
+        this.#directed = value;
+
+        if (value !== undefined) {
+            setDeep(this.#graph.styles.config, "data.directed", value);
+        }
+
+        this.requestUpdate("directed", oldValue);
     }
 
     /**
@@ -477,6 +1114,144 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("layoutConfig", oldValue);
+    }
+
+    /**
+     * How the element DRIVES the layout, as distinct from what the layout engine is configured
+     * with.
+     * @remarks
+     * `layoutConfig` is the engine's own options; this is the element's handling of it.
+     * `layout.preSteps` runs the simulation that many times before the first frame is drawn,
+     * which is what makes a screenshot of a physics layout the same picture twice -- an
+     * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
+     * the picture was taken. `layout.stepMultiplier`, `layout.minDelta` and
+     * `layout.zoomStepInterval` pace the rest of it, and `node.pinOnDrag` decides whether a node
+     * a reader drags stays where they put it.
+     *
+     * Merged over what is already set, so naming one field leaves the others alone.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.layoutBehavior = { layout: { preSteps: 1000 } };
+     * ```
+     * @returns The behaviour settings, or undefined when none have been set on this element
+     */
+    @property({ attribute: false })
+    get layoutBehavior(): GraphBehaviorConfig | undefined {
+        return this.#layoutBehavior;
+    }
+    /**
+     * Sets how the element drives the layout.
+     *
+     * A value the schema refuses is reported and dropped rather than thrown, on the same terms
+     * as `background` and `acceleration`.
+     */
+    set layoutBehavior(value: GraphBehaviorConfig | undefined) {
+        const oldValue = this.#layoutBehavior;
+
+        if (value !== undefined) {
+            try {
+                this.#graph.setLayoutBehavior(value);
+            } catch (error: unknown) {
+                console.error(
+                    "<graphty-element>: the layout behaviour was refused. Keeping the one already set.",
+                    error,
+                );
+
+                return;
+            }
+        }
+
+        this.#layoutBehavior = value;
+        this.requestUpdate("layoutBehavior", oldValue);
+    }
+
+    /**
+     * What a selected node looks like: the halo's colour, how far it stands out past the node,
+     * and how solid it is.
+     * @remarks
+     * Merged over what is already set, so naming one field leaves the others alone, and it takes
+     * effect on a selection that is already on screen.
+     *
+     * The highlight is deliberately NOT a style layer. A selection is what a reader is pointing
+     * at rather than a property of the data, so a layer drawing it would be reorderable,
+     * persistable and lost at a dataset boundary along with every other layer.
+     *
+     * A value the schema refuses is reported and dropped rather than thrown, on the same terms
+     * as `background` and `layoutBehavior`.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.selectionStyle = { color: "#00BCD4", scale: 1.8 };
+     * ```
+     * @returns The highlight settings, or undefined when none have been set on this element
+     */
+    @property({ attribute: false })
+    get selectionStyle(): GraphSelectionStyleInput | undefined {
+        return this.#selectionStyle;
+    }
+    /**
+     * Sets what a selected node looks like.
+     */
+    set selectionStyle(value: GraphSelectionStyleInput | undefined) {
+        const oldValue = this.#selectionStyle;
+
+        if (value !== undefined) {
+            try {
+                this.#graph.setSelectionStyle(value);
+            } catch (error: unknown) {
+                console.error(
+                    "<graphty-element>: the selection style was refused. Keeping the one already set.",
+                    error,
+                );
+
+                return;
+            }
+        }
+
+        this.#selectionStyle = value;
+        this.requestUpdate("selectionStyle", oldValue);
+    }
+
+    /**
+     * Which algorithms to run once data has finished loading, and how.
+     * @remarks
+     * Run in the order given. Each entry is an algorithm -- a catalogue key such as "pagerank" or
+     * a 1.x address such as "graphty:pagerank" -- or an object carrying the algorithm and the
+     * run options that make sense on load: `{ algorithm, params?, style?, seed?, as? }`, the same
+     * options `session.runs.start` takes. `style: { size: [1, 5] }` colours AND sizes the nodes
+     * by the result, exactly as it does there.
+     *
+     * This is the LIST; `runAlgorithmsOnLoad` is the switch that decides whether the list is
+     * honoured, and a switch with an empty list beside it does nothing.
+     *
+     * A malformed entry is refused with a `GraphtyError` coded `E_BAD_COMMAND` naming the entry
+     * and its index, and the list already set is kept.
+     *
+     * A property only, with no HTML attribute: how markup should declare load-time runs is left
+     * to a declarative child-element design rather than a JSON string in an attribute.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1, 5] } }];
+     * element.runAlgorithmsOnLoad = true;
+     * ```
+     * @returns The entries, or undefined when none have been set on this element
+     */
+    @property({ attribute: false })
+    get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined {
+        return this.#algorithmsOnLoad;
+    }
+    /**
+     * Sets which algorithms run once data has finished loading.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the first malformed entry.
+     */
+    set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined) {
+        const parsed = value === undefined ? undefined : parseAlgorithmsOnLoad(value);
+        const oldValue = this.#algorithmsOnLoad;
+        this.#algorithmsOnLoad = value;
+        this.#graph.styles.config.data.algorithms = parsed;
+        this.requestUpdate("algorithmsOnLoad", oldValue);
     }
 
     /**
@@ -553,55 +1328,126 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Style template configuration for the graph visualization.
+     * What the graph is drawn against: a flat colour, or a photo-dome skybox.
      * @remarks
-     * Style templates define the visual appearance of nodes, edges, and the graph
-     * background. They can include colors, sizes, shapes, labels, and selection styles.
-     *
-     * Templates can be:
-     * - A string name (e.g., "default", "dark")
-     * - A partial configuration object to override defaults
-     * - A complete StyleSchema configuration
-     * @since 1.0.0
-     * @see {@link https://graphty.app/storybook/element/?path=/story/graphstyles--default | Style Examples}
-     * @example
+     * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
+     * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
+     * from an image, given as a URL or a base64 PNG, and the element emits
+     * `graphty-skybox-loaded` once its texture has arrived.
+     * @since 2.0.0
+     * @example JavaScript property
      * ```typescript
-     * // Apply dark theme
-     * element.styleTemplate = 'dark';
-     *
-     * // Custom node colors
-     * element.styleTemplate = {
-     *   node: { color: '#ff6600', size: 1.5 },
-     *   edge: { color: '#cccccc' }
-     * };
+     * element.background = { backgroundType: 'color', color: '#101014' };
+     * element.background = { backgroundType: 'skybox', data: 'https://example.com/sky.jpg' };
      * ```
-     * @returns Style template configuration or undefined if not set
+     * @example HTML attribute (JSON string)
+     * ```html
+     * <graphty-element background='{"backgroundType":"color","color":"black"}'></graphty-element>
+     * ```
+     * @returns The background, or undefined when none has been set on this element
      */
-    @property({ attribute: "style-template" })
-    get styleTemplate(): StyleSchema | undefined {
-        return this.#styleTemplate;
+    @property({
+        /*
+         * A JSON converter, because the documented HTML form above is a JSON object and Lit's
+         * default converter hands a setter the raw attribute TEXT. Without this the attribute
+         * form threw a schema error out of `attributeChangedCallback`, where it escaped as an
+         * unhandled rejection rather than reaching anybody who could act on it -- the element's
+         * own example for this property did not work.
+         */
+        converter: {
+            fromAttribute: (value: string | null): GraphBackgroundConfig | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                try {
+                    return JSON.parse(value) as GraphBackgroundConfig;
+                } catch {
+                    console.error(
+                        `<graphty-element>: the background attribute must be a JSON object, not ` +
+                            `"${value}". Keeping the background already set. ` +
+                            "See https://graphty.app/docs/graphty-element/attributes#background",
+                    );
+
+                    return undefined;
+                }
+            },
+            toAttribute: (value: GraphBackgroundConfig | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
+    get background(): GraphBackgroundConfig | undefined {
+        return this.#background;
     }
     /**
-     * Sets the style template. Applies visual styling to the graph.
+     * Sets the graph background. Applies it to the scene immediately.
+     *
+     * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
+     * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
+     * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
+     * element that never rendered. A wrong colour in markup must not take the graph down.
      */
-    set styleTemplate(value: StyleSchema | undefined) {
-        const oldValue = this.#styleTemplate;
-        this.#styleTemplate = value;
+    set background(value: GraphBackgroundConfig | undefined) {
+        const oldValue = this.#background;
 
-        // Forward to Graph method (which queues operation)
-        if (value) {
-            void this.#graph.setStyleTemplate(value);
+        if (value !== undefined) {
+            try {
+                this.#graph.setBackground(value);
+            } catch (error: unknown) {
+                console.error(
+                    "<graphty-element>: the background was refused. Keeping the one already set.",
+                    error,
+                );
+
+                return;
+            }
         }
 
-        this.requestUpdate("styleTemplate", oldValue);
+        this.#background = value;
+        this.requestUpdate("background", oldValue);
     }
 
     /**
-     * Whether or not to run all algorithims in a style template when the
-     * template is loaded.
+     * How far the camera starts from the graph.
+     * @remarks
+     * It is carried in the element's configuration document. NOTHING READS IT YET -- no camera
+     * is placed from it today, and that was true before this property existed; the property
+     * makes the setting reachable again rather than newly effective. A graph that has settled is
+     * framed by `zoomToFit()`.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.startingCameraDistance = 60;
+     * ```
+     * @returns The distance, or undefined when none has been set on this element
+     */
+    @property({ attribute: "starting-camera-distance", type: Number })
+    get startingCameraDistance(): number | undefined {
+        return this.#startingCameraDistance;
+    }
+    /**
+     * Sets the starting camera distance.
+     */
+    set startingCameraDistance(value: number | undefined) {
+        const oldValue = this.#startingCameraDistance;
+        this.#startingCameraDistance = value;
+
+        if (value !== undefined) {
+            setDeep(this.#graph.styles.config, "graph.startingCameraDistance", value);
+        }
+
+        this.requestUpdate("startingCameraDistance", oldValue);
+    }
+
+    /**
+     * Whether to run the algorithms listed in `algorithmsOnLoad` once data has loaded.
+     * @remarks
+     * A boolean attribute: its presence turns it on, as `hidden` does. It was read as a string,
+     * so `<graphty-element run-algorithms-on-load>` handed the setter "" -- which is false -- and
+     * the documented HTML form ran nothing.
      * @returns Boolean flag or undefined if not set
      */
-    @property({ attribute: "run-algorithms-on-load" })
+    @property({ attribute: "run-algorithms-on-load", type: Boolean })
     get runAlgorithmsOnLoad(): boolean | undefined {
         return this.#runAlgorithmsOnLoad;
     }
@@ -1120,9 +1966,7 @@ export class Graphty extends LitElement {
     /**
      * Add a single edge to the graph.
      * @param edge - Edge data object to add
-     * @param srcIdPath - Path to source node ID (default: "source")
-     * @param dstIdPath - Path to target node ID (default: "target")
-     * @param options - Queue options for operation ordering
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves when edge is added
      * @since 1.5.0
      * @example
@@ -1132,19 +1976,19 @@ export class Graphty extends LitElement {
      */
     async addEdge(
         edge: import("./config").AdHocData,
-        srcIdPath?: string,
-        dstIdPath?: string,
-        options?: import("./utils/queue-migration").QueueableOptions,
+        options?: import("./managers").AddEdgesOptions & import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
-        return this.#graph.addEdge(edge, srcIdPath, dstIdPath, options);
+        return this.#graph.addEdge(edge, options);
     }
 
     /**
      * Add multiple edges to the graph.
+     * @remarks
+     * With no `source` and `target` named, the element reads `source`/`target`, then `src`/`dst`,
+     * then `from`/`to`, deciding once for the whole batch. A batch that answers none of them
+     * throws `E_EDGE_ENDPOINTS_UNRESOLVED` rather than adding a graph with no edges.
      * @param edges - Array of edge data objects to add
-     * @param srcIdPath - Path to source node ID (default: "source")
-     * @param dstIdPath - Path to target node ID (default: "target")
-     * @param options - Queue options for operation ordering
+     * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves when edges are added
      * @since 1.5.0
      * @example
@@ -1157,11 +2001,9 @@ export class Graphty extends LitElement {
      */
     async addEdges(
         edges: import("./config").AdHocData[],
-        srcIdPath?: string,
-        dstIdPath?: string,
-        options?: import("./utils/queue-migration").QueueableOptions,
+        options?: import("./managers").AddEdgesOptions & import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
-        return this.#graph.addEdges(edges, srcIdPath, dstIdPath, options);
+        return this.#graph.addEdges(edges, options);
     }
 
     /**
@@ -1223,8 +2065,9 @@ export class Graphty extends LitElement {
      * @param options - Loading options
      * @param options.format - Data format (e.g., "json", "csv", "graphml")
      * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSrcIdPath - JMESPath for edge source ID field
-     * @param options.edgeDstIdPath - JMESPath for edge destination ID field
+     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
+     *     unset, the element reads `source`, then `src`, then `from`
+     * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @returns Promise that resolves when data is loaded
      * @since 1.5.0
      * @example
@@ -1237,8 +2080,8 @@ export class Graphty extends LitElement {
         options?: {
             format?: string;
             nodeIdPath?: string;
-            edgeSrcIdPath?: string;
-            edgeDstIdPath?: string;
+            edgeSource?: string;
+            edgeTarget?: string;
         },
     ): Promise<void> {
         return this.#graph.loadFromUrl(url, options);
@@ -1250,8 +2093,9 @@ export class Graphty extends LitElement {
      * @param options - Loading options
      * @param options.format - Data format (e.g., "json", "csv", "graphml")
      * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSrcIdPath - JMESPath for edge source ID field
-     * @param options.edgeDstIdPath - JMESPath for edge destination ID field
+     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
+     *     unset, the element reads `source`, then `src`, then `from`
+     * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @returns Promise that resolves when data is loaded
      * @since 1.5.0
      * @example
@@ -1266,11 +2110,78 @@ export class Graphty extends LitElement {
         options?: {
             format?: string;
             nodeIdPath?: string;
-            edgeSrcIdPath?: string;
-            edgeDstIdPath?: string;
+            edgeSource?: string;
+            edgeTarget?: string;
         },
     ): Promise<void> {
         return this.#graph.loadFromFile(file, options);
+    }
+
+    /**
+     * Pin nodes where they are, so no layout moves them again.
+     *
+     * A pin survives a layout change, a 2D/3D switch and a template apply, which is what makes it
+     * worth having a door for: `pinOnDrag` is on by default, so every node a reader has ever
+     * dragged is pinned, and until now the only way back out was through `element.graph`.
+     * @param ids - one node id, or several
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.pin("alice");
+     * element.pin(["bob", "carol"]);
+     * ```
+     */
+    pin(ids: (string | number) | readonly (string | number)[]): void {
+        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
+            this.#graph.getNode(id)?.pin();
+        }
+    }
+
+    /**
+     * Release nodes a reader or a drag pinned, so the layout arranges them again.
+     * @param ids - one node id, or several
+     * @since 2.0.0
+     */
+    unpin(ids: (string | number) | readonly (string | number)[]): void {
+        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
+            this.#graph.getNode(id)?.unpin();
+        }
+    }
+
+    /**
+     * Whether one node is pinned.
+     *
+     * One lookup, for the question a node inspector actually asks. Reading
+     * {@link Graphty.pinnedNodes} to answer it walks every node in the graph, which on a large
+     * one is a full pass per selection change.
+     * @param id - the node id, in either spelling an integer id may be written in
+     * @returns true when that node is pinned, false when it is not or when nothing answers to
+     *     that id
+     * @since 2.0.0
+     */
+    isPinned(id: string | number): boolean {
+        return this.#graph.getNode(id)?.isPinned() ?? false;
+    }
+
+    /**
+     * Which nodes are pinned right now.
+     *
+     * Ids as the graph holds them, which is the form its own data carried: a sample whose file
+     * spelled its ids as integers answers with numbers. {@link Graphty.isPinned} takes either
+     * spelling, so a consumer comparing against an id it has printed should ask that instead of
+     * testing this set for membership.
+     * @returns the pinned node ids
+     * @since 2.0.0
+     */
+    get pinnedNodes(): ReadonlySet<string | number> {
+        const pinned = new Set<string | number>();
+        for (const node of this.#graph.getDataManager().nodes.values()) {
+            if (node.isPinned()) {
+                pinned.add(node.id);
+            }
+        }
+
+        return pinned;
     }
 
     /**
@@ -1335,7 +2246,11 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Select a node by its ID.
+     * Select a node by its ID, replacing whatever was selected before.
+     *
+     * Superseded by {@link Graphty.select}, which takes the same five set operations over every
+     * way of naming elements. This is `select({ nodes: [nodeId] })` with a lookup in front of
+     * it, and it keeps working because it is what a click has always done.
      * @param nodeId - The ID of the node to select
      * @returns True if the node was found and selected, false otherwise
      * @since 1.5.0
@@ -1352,7 +2267,11 @@ export class Graphty extends LitElement {
 
     /**
      * Deselect the currently selected node.
+     *
+     * Superseded by `session.selection.clear()`, which empties both sets. This clears the node
+     * half through the same model and keeps working.
      * @since 1.5.0
+     * @see {@link Graphty.select} for the verb that replaces this one
      * @example
      * ```typescript
      * element.deselectNode();
@@ -1364,8 +2283,13 @@ export class Graphty extends LitElement {
 
     /**
      * Get the currently selected node.
-     * @returns The selected node, or null if no node is selected
+     *
+     * Superseded by `session.selection.nodes`, which is the whole selection rather than the
+     * first node of it: this answers with one render object, and a selection now holds any
+     * number of nodes and edges.
+     * @returns The first selected node, or null if no node is selected
      * @since 1.5.0
+     * @see {@link Graphty.select} for the verb that replaces this one
      * @example
      * ```typescript
      * const selected = element.getSelectedNode();
@@ -1380,6 +2304,9 @@ export class Graphty extends LitElement {
 
     /**
      * Check if a specific node is selected.
+     *
+     * Answered from the selection masks, so it is true for EVERY selected node rather than only
+     * the first one. Superseded by `session.selection.has`, which answers for an edge too.
      * @param nodeId - The ID of the node to check
      * @returns True if the node is selected, false otherwise
      * @since 1.5.0
@@ -1400,11 +2327,17 @@ export class Graphty extends LitElement {
 
     /**
      * Run a graph algorithm.
+     * @deprecated Since 2.0. Use `run()`, which returns a `Run`: the result is on the object the
+     *   call hands back, the work reports progress and can be cancelled, and
+     *   `graphty-run-change` follows it from the DOM. This method still works and is expressed in
+     *   terms of `run`. (An inline link cannot appear in this tag: the custom-elements-manifest
+     *   build serialises a raw compiler node for one and fails on the cycle inside it.)
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "degree", "pagerank")
      * @param options - Algorithm options
      * @returns Promise that resolves when algorithm completes
      * @since 1.5.0
+     * @see {@link Graphty.run} for the verb that replaces this one
      * @example
      * ```typescript
      * await element.runAlgorithm('graphty', 'degree');
@@ -1416,84 +2349,48 @@ export class Graphty extends LitElement {
         type: string,
         options?: import("./utils/queue-migration").RunAlgorithmOptions,
     ): Promise<void> {
+        // A forwarder for a deprecated verb has to call it; both go together.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         return this.#graph.runAlgorithm(namespace, type, options);
     }
 
     /**
-     * Apply suggested styles from an algorithm.
-     * @param algorithmKey - Algorithm key (e.g., "graphty:degree")
-     * @param options - Options for applying styles
-     * @returns True if styles were applied, false otherwise
+     * Paint what an algorithm's finished runs suggest be drawn from them.
+     *
+     * Rarely needed: a run paints itself on its first completion, from the encoding its own
+     * result shape derives. This is the verb for a run started with `{ style: false }`, or for
+     * putting a picture back after a reader cleared it. Applying twice replaces the layer bound
+     * to that run and channel rather than stacking a second one on it.
+     * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
+     *     "graphty:degree", or an array of either.
+     * @returns True if anything was applied, false when no finished run of that algorithm has
+     *     anything per element to paint.
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.runAlgorithm('graphty', 'degree');
-     * element.applySuggestedStyles('graphty:degree');
+     * await element.run('degree', undefined, { style: false });
+     * element.applySuggestedStyles('degree');
      * ```
      */
-    applySuggestedStyles(
-        algorithmKey: string | string[],
-        options?: import("./config").ApplySuggestedStylesOptions,
-    ): boolean {
-        return this.#graph.applySuggestedStyles(algorithmKey, options);
+    applySuggestedStyles(algorithmKey: string | string[]): boolean {
+        return this.#graph.applySuggestedStyles(algorithmKey);
     }
 
     /**
-     * Get suggested styles for an algorithm without applying them.
-     * @param algorithmKey - Algorithm key (e.g., "graphty:degree")
-     * @returns Suggested styles config, or null if none exist
+     * What an algorithm's finished runs suggest be drawn from them, without painting any of it.
+     * @param algorithmKey - A catalogue key such as "degree", or a 1.10 address such as
+     *     "graphty:degree".
+     * @returns One suggestion per channel a run of that algorithm would paint, empty when it has
+     *     finished no run or its result is read rather than painted.
      * @since 1.5.0
      * @example
      * ```typescript
-     * const styles = element.getSuggestedStyles('graphty:degree');
-     * if (styles) {
-     *   console.log('Available style layers:', styles.layers.length);
-     * }
+     * const suggested = element.getSuggestedStyles('degree');
+     * console.log(suggested.map((one) => one.channels).flat());
      * ```
      */
-    getSuggestedStyles(algorithmKey: string): import("./config").SuggestedStylesConfig | null {
+    getSuggestedStyles(algorithmKey: string): readonly import("./session/styles").StyleSuggestion[] {
         return this.#graph.getSuggestedStyles(algorithmKey);
-    }
-
-    // ============================================================================
-    // Phase 7a: High Priority Methods - Style
-    // ============================================================================
-
-    /**
-     * Set the style template.
-     * @param template - Style template configuration
-     * @param options - Queue options
-     * @returns Promise that resolves with the applied styles
-     * @since 1.5.0
-     * @example
-     * ```typescript
-     * await element.setStyleTemplate({
-     *   node: { color: '#ff6600', size: 1.5 }
-     * });
-     * ```
-     */
-    async setStyleTemplate(
-        template: StyleSchema,
-        options?: import("./utils/queue-migration").QueueableOptions,
-    ): Promise<import("./Styles").Styles> {
-        return this.#graph.setStyleTemplate(template, options);
-    }
-
-    /**
-     * Get the style manager for advanced style manipulation.
-     * @returns The style manager instance
-     * @since 1.5.0
-     * @example
-     * ```typescript
-     * const styleManager = element.getStyleManager();
-     * styleManager.addLayer({
-     *   selector: '[?type == "important"]',
-     *   styles: { node: { color: '#ff0000' } }
-     * });
-     * ```
-     */
-    getStyleManager(): import("./managers/StyleManager").StyleManager {
-        return this.#graph.getStyleManager();
     }
 
     // ============================================================================
@@ -1539,7 +2436,11 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Wait for all operations to complete and layout to stabilize.
+     * Wait for every queued operation to finish.
+     *
+     * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
+     * running and the camera may still be moving when this resolves. For a picture that will not
+     * change again, wait for {@link Graphty.waitForStableFrame}.
      * @returns Promise that resolves when all operations are complete
      * @since 1.5.0
      * @example
@@ -1551,6 +2452,44 @@ export class Graphty extends LitElement {
      */
     async waitForSettled(): Promise<void> {
         return this.#graph.waitForSettled();
+    }
+
+    /**
+     * Wait until the picture is final.
+     *
+     * Resolves once every queued operation has run, the layout has converged, the camera has
+     * finished framing what it arrived at, and a frame has been drawn showing that. This is what
+     * a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
+     * event fires one update pass earlier, before the final framing has even been requested, so
+     * a picture taken on that event is a picture of a camera still in motion.
+     *
+     * It rejects, naming what was still moving, rather than handing back a moving picture.
+     * @param options - How the wait is bounded.
+     * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
+     * @returns Promise that resolves once a frame of the finished picture has been drawn.
+     * @throws Error when the picture is still changing when the timeout expires.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * await element.waitForStableFrame();
+     * const shot = await element.captureScreenshot();
+     * ```
+     */
+    async waitForStableFrame(options?: { timeoutMs?: number }): Promise<void> {
+        return this.#graph.waitForStableFrame(options);
+    }
+
+    /**
+     * Whether the picture on screen is the finished one.
+     *
+     * True only when the layout has converged, the camera has finished framing the graph, and a
+     * frame has been drawn in that state. The `graph-frame-stable` event announces the moment it
+     * becomes true.
+     * @returns True when the last frame drawn is the last frame that will change.
+     * @since 2.0.0
+     */
+    get isFrameStable(): boolean {
+        return this.#graph.isFrameStable;
     }
 
     /**
@@ -1680,9 +2619,15 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Resolve a camera preset to a CameraState.
-     * @param preset - Preset name (e.g., "fitToGraph", "topView")
-     * @returns The resolved camera state
+     * Work out where a named camera view would put the viewer, without moving anything.
+     *
+     * The name may be one the element ships, one a third party registered with
+     * `registerCameraView`, or a snapshot saved with `saveCameraPreset`.
+     * @param preset - The view's name, for example "fitToGraph" or "topView".
+     * @param options - What to frame and how to configure the view.
+     * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
+     * @param options.params - The view's own options, filled in from its declared defaults.
+     * @returns The resolved camera state.
      * @since 1.5.0
      * @example
      * ```typescript
@@ -1690,8 +2635,37 @@ export class Graphty extends LitElement {
      * await element.setCameraState(state, { animate: true });
      * ```
      */
-    resolveCameraPreset(preset: string): import("./screenshot/types.js").CameraState {
-        return this.#graph.resolveCameraPreset(preset);
+    resolveCameraPreset(
+        preset: string,
+        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+    ): import("./screenshot/types.js").CameraState {
+        return this.#graph.resolveCameraPreset(preset, options);
+    }
+
+    /**
+     * Put the viewer where a named camera view says they should stand.
+     *
+     * The route that frames a SUBSET: the element measures the box over whatever the scope covers
+     * and hands the smaller box to the view, so a view frames a selection with no code of its own.
+     * @param id - The view's name.
+     * @param options - The scope to frame, the view's own options, and how to get there.
+     * @param options.scope - What to frame. Absent frames the whole graph.
+     * @param options.params - The view's own options, filled in from its declared defaults.
+     * @returns A promise that resolves once the camera has arrived.
+     * @since 1.5.0
+     * @example
+     * ```typescript
+     * await element.applyCameraView('isometric', { scope: 'selection', animate: true });
+     * ```
+     */
+    async applyCameraView(
+        id: string,
+        options?: {
+            scope?: Scope;
+            params?: Readonly<Record<string, unknown>>;
+        } & import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.applyCameraView(id, options);
     }
 
     // ============================================================================
@@ -2092,11 +3066,11 @@ export class Graphty extends LitElement {
      * @since 1.5.0
      * @example
      * ```typescript
-     * const keyManager = Graphty.createApiKeyManager();
+     * const keyManager = await Graphty.createApiKeyManager();
      * await keyManager.setKey('openai', 'your-api-key');
      * ```
      */
-    static createApiKeyManager(): import("./ai/keys/ApiKeyManager").ApiKeyManager {
+    static createApiKeyManager(): Promise<import("./ai/keys/ApiKeyManager").ApiKeyManager> {
         return Graph.createApiKeyManager();
     }
 
@@ -2155,7 +3129,125 @@ export class Graphty extends LitElement {
     isVoiceActive(): boolean {
         return this.#graph.isVoiceActive();
     }
+
+    /**
+     * Whether this graph may use hardware acceleration.
+     *
+     * `"auto"` uses an accelerator when one can be attached and runs on the CPU when one
+     * cannot; `"off"` never looks; `"required"` turns absence into a thrown `E_NO_ACCELERATOR`
+     * rather than a quiet CPU result. Acceleration itself is one import away:
+     * `import "@graphty/graphty-element/webgpu"`, and nothing else.
+     * @remarks
+     * This is a session setting and the element never persists it. Remembering that a reader
+     * switched acceleration off, and restoring the choice on their next visit, is the host
+     * application's storage: an element that wrote to a host page's storage uninvited would be
+     * a surprise the host cannot anticipate, and a restored preference would fight the
+     * attribute the host page wrote in its own markup.
+     * @returns What the consumer asked for. `"auto"` unless it was set.
+     * @since 2.0.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element acceleration="required"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "acceleration", reflect: true })
+    get acceleration(): AccelerationPolicy {
+        return this.#accelerationPolicy;
+    }
+    /**
+     * Sets the acceleration policy and applies it immediately.
+     *
+     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
+     * throw here would abort attribute processing and leave the element unrendered -- a typo
+     * in markup would take the whole graph down. HTML has never behaved that way about an
+     * attribute value, and an embedded component must not be the first thing that does.
+     *
+     * The report is deliberately loud, because the quiet failure is the dangerous one: a page
+     * that meant `required` and wrote `requried` would otherwise run on the CPU and look
+     * healthy.
+     */
+    set acceleration(value: AccelerationPolicy) {
+        if (value !== "auto" && value !== "off" && value !== "required") {
+            console.error(
+                `<graphty-element>: acceleration must be "auto", "off" or "required", not ` +
+                    `"${String(value)}". Keeping "${this.#accelerationPolicy}". ` +
+                    "See https://graphty.app/docs/graphty-element/attributes#acceleration",
+            );
+            return;
+        }
+
+        const oldValue = this.#accelerationPolicy;
+        this.#accelerationPolicy = value;
+        this.#acceleration?.setPolicy(value);
+        this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * The acceleration controller for this element, built on first use.
+     *
+     * Every transition it publishes is mirrored as a `graphty-capabilities-change` DOM event,
+     * so a page with a tag and six lines of script can show whether the GPU is in use, say why
+     * it is not, and update itself when a device is lost -- without importing a module or
+     * naming a single GPU type.
+     * @returns The controller.
+     */
+    #ensureAcceleration(): AccelerationController {
+        if (this.#acceleration === null) {
+            const controller = new AccelerationController({ policy: this.#accelerationPolicy });
+            controller.onChange((status: AccelerationStatus) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-capabilities-change", {
+                        detail: { capabilities: { acceleration: status } },
+                        bubbles: true,
+                        composed: true,
+                    }),
+                );
+            });
+            this.#acceleration = controller;
+        }
+
+        return this.#acceleration;
+    }
 }
 
 // Type alias for easier importing
 export type GraphtyElement = Graphty;
+
+/*
+ * Registration is guarded rather than done by Lit's `@customElement`, which throws when the tag is
+ * taken. A page can evaluate this module twice (two bundles that each carry a copy, or a page that
+ * registered its own element first), and a throw here would abort every script that imported it.
+ * The first definition wins; a different class under the tag is reported, because elements the
+ * second copy creates will not be instances of its own class.
+ */
+const registered = customElements.get("graphty-element");
+if (registered === undefined) {
+    customElements.define("graphty-element", Graphty);
+} else if (registered !== Graphty) {
+    console.warn(
+        "<graphty-element> is already defined by another class, so this copy of " +
+            "@graphty/graphty-element was not registered. Two copies of the package are loaded; " +
+            "make every import resolve to one.",
+    );
+}
+
+/*
+ * The tag, declared to TypeScript.
+ *
+ * `document.createElement("graphty-element")` and `document.querySelector("graphty-element")` are
+ * how a page reaches a custom element, and without this block TypeScript answers both with a bare
+ * `HTMLElement` -- so a consumer who wants `nodeData`, `layout` or `session` has to cast, and the
+ * cast is the thing that goes stale when a property is renamed. The package's own extension
+ * contract says a third party must be able to write against it "without casting or re-declaring a
+ * type the element already has", and this is the declaration that makes the ordinary two lines of
+ * DOM code obey it.
+ *
+ * It lives beside the `customElements.define` call on purpose: the tag name is written twice in this
+ * file and nowhere else, so the two cannot drift apart unnoticed.
+ */
+declare global {
+    interface HTMLElementTagNameMap {
+        "graphty-element": Graphty;
+    }
+}

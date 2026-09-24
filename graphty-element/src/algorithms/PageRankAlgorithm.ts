@@ -1,11 +1,16 @@
-import { type NodeId, pageRank } from "@graphty/algorithms";
+import { type NodeId as AlgorithmNodeId, pageRank } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type InferOptions, parseOptions, type SuggestedStylesConfig } from "../config";
-import { Graph } from "../Graph";
+import type { FieldDescriptor, NodeId } from "../catalog/types";
+import { defineOptions, type InferOptions, parseOptions } from "../config";
+import type { Graph } from "../Graph";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { walkInChunks } from "./metrics/context";
+import { nodeMetricFields } from "./metrics/fields";
+import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for PageRank algorithm (NEW unified system)
@@ -69,18 +74,36 @@ type PageRankSchemaOptions = InferOptions<typeof pageRankOptionsSchema>;
  */
 interface PageRankOptions extends PageRankSchemaOptions, Record<string, unknown> {
     /** Initial PageRank values for nodes (programmatic only, not in schema) */
-    initialRanks?: Map<NodeId, number> | null;
+    initialRanks?: Map<AlgorithmNodeId, number> | null;
     /** Personalization vector for Personalized PageRank (programmatic only, not in schema) */
-    personalization?: Map<NodeId, number> | null;
+    personalization?: Map<AlgorithmNodeId, number> | null;
 }
 
+/** What a PageRank result publishes: the uniform node-metric fields and nothing else. */
+const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
+    plainName: "Influence",
+    technicalName: "PageRank score",
+});
+
 /**
- * PageRank algorithm for measuring node importance
+ * The graph size above which `@graphty/algorithms` switches to its delta method.
  *
- * Computes the PageRank score for each node based on the graph's link structure.
- * Supports weighted edges, personalization, and delta optimization.
+ * Mirroring the implementation's own rule is the only way the element can say honestly which
+ * method produced a number: the package chooses between the two internally and returns no sign of
+ * which it took. The rule lives at `algorithms/src/algorithms/centrality/pagerank.ts:110`, and
+ * this constant goes away when that function reports its own method, iteration count and
+ * convergence instead of returning `converged: true` as a constant at `:147`.
  */
-export class PageRankAlgorithm extends Algorithm<PageRankOptions> {
+const DELTA_METHOD_NODE_THRESHOLD = 100;
+
+/**
+ * PageRank: the influence that flows into a node from the nodes that point at it.
+ *
+ * The published `value` is the raw rank, which sums to 1 across the graph. It is not scaled: the
+ * result carries a graph-level `min` and `max`, so a consumer that wants a 0-to-1 value has the
+ * range to make one with.
+ */
+export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     static namespace = "graphty";
     static type = "pagerank";
 
@@ -158,53 +181,43 @@ export class PageRankAlgorithm extends Algorithm<PageRankOptions> {
         this.zodOptions = parseOptions(pageRankOptionsSchema, options ?? {});
     }
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.pagerank.rankPct"],
-                        output: "style.shape.size",
-                        expr: "{ return StyleHelpers.size.linear(arguments[0], 1, 5) }",
-                    },
-                },
-                metadata: {
-                    name: "PageRank - Node Size",
-                    description: "Size 1-5 based on PageRank importance",
-                },
-            },
-        ],
-        description: "Visualizes node importance through size based on PageRank algorithm",
-        category: "node-metric",
-    });
+    /**
+     * The fields a PageRank result publishes.
+     * @returns The uniform node-metric fields.
+     */
+    protected resultFields(): readonly FieldDescriptor[] {
+        return PAGERANK_FIELDS;
+    }
 
     /**
-     * Executes the PageRank algorithm on the graph
-     *
-     * Computes PageRank scores for all nodes using the power iteration method.
+     * Rank every node by the influence flowing into it.
+     * @param context - Where progress goes and where cancellation arrives.
+     * @param nodeIds - The nodes to measure.
+     * @returns One raw rank per node, unscaled.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
-
-        if (nodes.length === 0) {
-            return;
-        }
-
+    protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
         const { dampingFactor, maxIterations, tolerance, weight, useDelta } = this.zodOptions;
         // Map types are programmatic-only (not in schema) - accessed from legacy options
         const initialRanks = this._schemaOptions.initialRanks ?? undefined;
         const personalization = this._schemaOptions.personalization ?? undefined;
 
-        // Convert to @graphty/algorithms format - PageRank requires directed graph
-        const graphData = toAlgorithmGraph(g, { directed: true, addReverseEdges: false });
+        // Directed: rank flows along out-edges, so the declared direction is the whole model.
+        const graphData = this.algorithmGraph("directed");
+        // The delta method does not report how many passes it took or whether it converged: it
+        // returns `iterations: maxIterations` with the comment "For now, assume we used all
+        // iterations" and `converged: true` as a constant. So which method ran decides whether
+        // this run can answer those two questions at all.
+        const delta = useDelta && graphData.nodeCount > DELTA_METHOD_NODE_THRESHOLD;
 
-        // Run PageRank algorithm with all options
+        context.report({
+            phase: "iterating",
+            completed: 0,
+            total: nodeIds.length,
+            message: `Power iteration, up to ${String(maxIterations)} passes.`,
+        });
+        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
+        // The element's own half -- reading the ranks back out -- is chunked below.
         const result = pageRank(graphData, {
             dampingFactor,
             maxIterations,
@@ -214,25 +227,45 @@ export class PageRankAlgorithm extends Algorithm<PageRankOptions> {
             initialRanks,
             personalization,
         });
+        context.signal.throwIfAborted();
 
-        // Find max rank for normalization
-        let maxRank = 0;
-        for (const rank of Object.values(result.ranks)) {
-            maxRank = Math.max(maxRank, rank);
+        const nodes: ResultElementValues[] = [];
+        await walkInChunks(nodeIds, context, "reading ranks", (nodeId) => {
+            const rank = result.ranks[String(nodeId)];
+            nodes.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });
+        });
+
+        const notes = [
+            `A reader follows a link with probability ${String(dampingFactor)} and jumps to a random node otherwise.`,
+            "The ranks sum to 1 across the graph.",
+        ];
+
+        if (delta) {
+            notes.push(
+                "The delta method ran, and it reports neither how many passes it took nor whether it converged, so this run cannot say.",
+            );
         }
 
-        // Store results
-        for (const nodeId of nodes) {
-            const rank = result.ranks[String(nodeId)] ?? 0;
-            this.addNodeResult(nodeId, "rank", rank);
-            this.addNodeResult(nodeId, "rankPct", maxRank > 0 ? rank / maxRank : 0);
+        if (weight === null) {
+            notes.push("Edge weights are not read.");
         }
 
-        // Store graph-level results
-        this.addGraphResult("iterations", result.iterations);
-        this.addGraphResult("converged", result.converged);
-        this.addGraphResult("dampingFactor", dampingFactor);
-        this.addGraphResult("maxRank", maxRank);
+        return {
+            nodes,
+            // Raw ranks, published as they were computed.
+            normalization: "none",
+            caveats: {
+                exact: true,
+                direction: "directed",
+                weight: weight === null ? null : { attribute: weight, meaning: "strength" },
+                precision: "f64",
+                method: delta ? "delta-pagerank" : "power-iteration",
+                // Present only when the method that ran measured them. Absent is the honest
+                // answer where it did not; a hard-coded `true` was the defect this replaces.
+                ...(delta ? {} : { converged: result.converged, iterations: result.iterations }),
+                notes,
+            },
+        };
     }
 }
 

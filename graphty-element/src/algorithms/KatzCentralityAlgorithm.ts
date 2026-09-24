@@ -1,10 +1,15 @@
 import { katzCentrality } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
-import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import type { FieldDescriptor, NodeId } from "../catalog/types";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { walkInChunks } from "./metrics/context";
+import { nodeMetricFields } from "./metrics/fields";
+import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
+import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Katz Centrality algorithm
@@ -89,18 +94,19 @@ interface KatzCentralityOptions extends Record<string, unknown> {
     endpoints: boolean;
 }
 
+/** What a Katz result publishes: the uniform node-metric fields and nothing else. */
+const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
+    plainName: "Influence at a distance",
+    technicalName: "Katz score",
+});
+
 /**
- * Katz Centrality Algorithm
+ * Katz centrality: every path that reaches a node, with a longer path counting for less.
  *
- * A generalization of eigenvector centrality that gives each node a base amount
- * of influence regardless of its position in the network. Uses an attenuation
- * factor (alpha) to control how much a node's centrality depends on its neighbors.
- *
- * Results stored per node:
- * - score: Raw Katz centrality value
- * - scorePct: Normalized value in [0, 1] range (for visualization)
+ * It generalises eigenvector centrality by giving every node a base amount of influence whatever
+ * its position, which is what keeps a node with no incoming paths from scoring zero.
  */
-export class KatzCentralityAlgorithm extends Algorithm<KatzCentralityOptions> {
+export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptions> {
     static namespace = "graphty";
     static type = "katz";
 
@@ -172,49 +178,35 @@ export class KatzCentralityAlgorithm extends Algorithm<KatzCentralityOptions> {
         },
     };
 
-    static suggestedStyles = (): SuggestedStylesConfig => ({
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        enabled: true,
-                    },
-                    calculatedStyle: {
-                        inputs: ["algorithmResults.graphty.katz.scorePct"],
-                        output: "style.texture.color",
-                        expr: "{ return StyleHelpers.color.sequential.blues(arguments[0]) }",
-                    },
-                },
-                metadata: {
-                    name: "Katz - Blues Gradient",
-                    description: "Light blue (low) → Dark blue (high) - shows attenuated influence",
-                },
-            },
-        ],
-        description: "Visualizes node centrality through color based on Katz centrality (attenuated paths)",
-        category: "node-metric",
-    });
+    /**
+     * The fields a Katz result publishes.
+     * @returns The uniform node-metric fields.
+     */
+    protected resultFields(): readonly FieldDescriptor[] {
+        return KATZ_FIELDS;
+    }
 
     /**
-     * Executes the Katz centrality algorithm on the graph
-     *
-     * Computes Katz centrality scores for all nodes using matrix iteration.
+     * Score every node by the paths that reach it.
+     * @param context - Where progress goes and where cancellation arrives.
+     * @param nodeIds - The nodes to measure.
+     * @returns One score per node, scaled as the options asked for.
      */
-    async run(): Promise<void> {
-        const g = this.graph;
-        const nodes = Array.from(g.getDataManager().nodes.keys());
-
-        if (nodes.length === 0) {
-            return;
-        }
-
-        // Get options from schema
+    protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
 
-        // Convert to @graphty/algorithms format and run
-        const graphData = toAlgorithmGraph(g);
-        const results = katzCentrality(graphData, {
+        // Undirected: every neighbour counts as an influence, whichever way the record declared it.
+        const graphData = this.algorithmGraph("undirected");
+
+        context.report({
+            phase: "iterating",
+            completed: 0,
+            total: nodeIds.length,
+            message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
+        });
+        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
+        // The element's own half -- reading the scores back out -- is chunked below.
+        const scores = katzCentrality(graphData, {
             normalized,
             alpha,
             beta,
@@ -223,23 +215,35 @@ export class KatzCentralityAlgorithm extends Algorithm<KatzCentralityOptions> {
             mode,
             endpoints,
         });
+        context.signal.throwIfAborted();
 
-        // Find min/max for min-max normalization
-        // This ensures values spread across full 0-1 range for better visual differentiation
-        let minScore = Infinity;
-        let maxScore = -Infinity;
-        for (const score of Object.values(results)) {
-            minScore = Math.min(minScore, score);
-            maxScore = Math.max(maxScore, score);
-        }
+        const nodes: ResultElementValues[] = [];
+        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+            const score = scores[String(nodeId)];
+            nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
+        });
 
-        // Store results with min-max normalization
-        const range = maxScore - minScore;
-        for (const nodeId of nodes) {
-            const score = results[String(nodeId)] ?? 0;
-            this.addNodeResult(nodeId, "score", score);
-            this.addNodeResult(nodeId, "scorePct", range > 0 ? (score - minScore) / range : 0);
-        }
+        return {
+            nodes,
+            // With `normalized`, the algorithm rescales so the lowest score is 0 and the highest
+            // is 1. Without it the raw attenuated sums are published.
+            normalization: normalized ? "min-max" : "none",
+            caveats: {
+                exact: true,
+                direction: "undirected",
+                weight: null,
+                precision: "f64",
+                method: "katz-iteration",
+                // `converged` and `iterations` are deliberately absent: the implementation stops
+                // either at its tolerance or at its iteration cap and reports neither.
+                notes: [
+                    `Every node starts with a base influence of ${String(beta)}, and a path of length k contributes ${String(alpha)} to the power k.`,
+                    `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
+                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    "Edge weights are not read.",
+                ],
+            },
+        };
     }
 }
 

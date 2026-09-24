@@ -1,14 +1,14 @@
-import { set as deepSet } from "lodash";
+import type { Graph as AlgorithmGraph } from "@graphty/algorithms";
 
-import {
-    AdHocData,
-    type OptionsSchema as ZodOptionsSchema,
-    SuggestedStylesConfig,
-    SuggestedStylesProvider,
-} from "../config";
-import { Edge } from "../Edge";
+import { publishAlgorithmDescriptor } from "../catalog/registry";
+import type { AlgorithmDescriptor, FieldDescriptor } from "../catalog/types";
+import { type OptionsSchema as ZodOptionsSchema } from "../config";
+import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
+import type { RunResult } from "../session/results";
+import type { AlgorithmRunContext } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
+import { type AlgorithmGraphMode, toAlgorithmGraph } from "./utils/snapshotGraph";
 
 /**
  * Type for algorithm class constructor
@@ -24,14 +24,51 @@ type AlgorithmClass = new (g: Graph, options?: any) => Algorithm;
 export interface AlgorithmStatics {
     type: string;
     namespace: string;
+    /**
+     * What the catalogue publishes about this algorithm, for a plugin that wants to be one.
+     *
+     * DECLARING IT IS WHAT MAKES A PLUGIN A FIRST-CLASS ALGORITHM. Without it a class can be
+     * registered and called, and that is all: the run machinery resolves a key through the
+     * catalogue, so a class the catalogue does not carry cannot be started as a run, and
+     * everything hanging off a run is out of reach -- progress, cancellation, a cost estimate
+     * before the click, a ranking, a histogram, a summary, a plain-language reading, and the
+     * styling the element derives from a result's shape.
+     *
+     * The `shape` is the load-bearing field: field NAMES are fixed by the shape rather than by
+     * the algorithm, which is what lets any consumer read `results.<runId>.value` without
+     * opening the catalogue first. `checkShapeContract` will tell you whether your fields match
+     * the shape you declared.
+     *
+     * Absent, the class stays exactly as capable as it was: registered, callable through the
+     * 1.10 address, and invisible to the catalogue.
+     */
+    descriptor?: AlgorithmDescriptor;
+    /**
+     * A cost model in seconds over a graph of n nodes and m edges.
+     *
+     * HERE RATHER THAN ON THE DESCRIPTOR, because a function is not plain JSON and the composed
+     * catalogue has to survive `JSON.stringify` and a `postMessage` to a worker. The registry
+     * keeps the model beside the class reference, and the estimator reads it from there, so a
+     * plugin supplies real arithmetic for "what would this cost before I click" without a
+     * descriptor ever carrying something unserialisable.
+     *
+     * Absent, the element estimates from the `costClass` the descriptor declares, which is what
+     * every algorithm this package ships does.
+     */
+    cost?: (n: number, m: number) => number;
+    /**
+     * The plugin's own version, recorded on every run this algorithm produces.
+     *
+     * A saved run records the versions of the code that produced its numbers. Without this a run
+     * of a third party's algorithm recorded the element's version and the two sibling packages'
+     * and nothing at all identifying the code that actually did the work.
+     */
+    version?: string;
     optionsSchema: OptionsSchema;
-    suggestedStyles?: SuggestedStylesProvider;
     /** @deprecated Use getZodOptionsSchema() instead */
     getOptionsSchema(): OptionsSchema;
     /** @deprecated Use hasZodOptions() instead */
     hasOptions(): boolean;
-    hasSuggestedStyles(): boolean;
-    getSuggestedStyles(): SuggestedStylesConfig | null;
     /** NEW: Zod-based options schema for unified validation and UI metadata */
     zodOptionsSchema?: ZodOptionsSchema;
     /** Get the Zod-based options schema for this algorithm */
@@ -98,7 +135,6 @@ const algorithmRegistry = new Map<string, AlgorithmClass>();
 export abstract class Algorithm<TOptions extends Record<string, unknown> = Record<string, unknown>> {
     static type: string;
     static namespace: string;
-    static suggestedStyles?: SuggestedStylesProvider;
 
     /**
      * Options schema for this algorithm
@@ -155,6 +191,20 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     }
 
     /**
+     * The `@graphty/algorithms` Graph this run reads, built from the element's graph snapshot.
+     *
+     * This is the ONLY way an algorithm should obtain its input. The `Node` and `Edge` objects the
+     * data manager also holds are render objects -- each `Node` builds a Babylon mesh in its
+     * constructor -- and reading the graph out of them ties every algorithm to a renderer and to
+     * whatever part of a data load the scene has caught up with.
+     * @param mode - the shape this algorithm needs; see {@link AlgorithmGraphMode}
+     * @returns a freshly built Graph for the algorithm package
+     */
+    protected algorithmGraph(mode: AlgorithmGraphMode): AlgorithmGraph {
+        return toAlgorithmGraph(this.graph.getDataManager(), mode);
+    }
+
+    /**
      * Resolves and validates options against the schema
      * @param options - User-provided options (partial)
      * @returns Fully resolved options with defaults applied
@@ -187,86 +237,42 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         return (this.constructor as typeof Algorithm).namespace;
     }
 
-    /**
-     * Gets all algorithm results for nodes, edges, and graph
-     * @returns An object containing node, edge, and graph results
-     */
-    get results(): AdHocData {
-        const algorithmResults = {} as AdHocData;
-
-        // Node results
-        for (const n of this.graph.getDataManager().nodes.values()) {
-            deepSet(algorithmResults, `node.${n.id}`, n.algorithmResults);
-        }
-
-        // Edge results
-        for (const e of this.graph.getDataManager().edges.values()) {
-            const edgeKey = `${e.srcId}:${e.dstId}`;
-            deepSet(algorithmResults, `edge.${edgeKey}`, e.algorithmResults);
-        }
-
-        // Graph results
-        const dm = this.graph.getDataManager();
-        if (dm.graphResults) {
-            algorithmResults.graph = dm.graphResults;
-        }
-
-        return algorithmResults;
-    }
-
     abstract run(g: Graph): Promise<void>;
 
-    #createPath(resultName: string): string[] {
-        const ret: string[] = [];
-
-        ret.push("algorithmResults");
-        ret.push(this.namespace);
-        ret.push(this.type);
-        ret.push(resultName);
-
-        return ret;
-    }
-
     /**
-     * Adds a result value for a specific node
-     * @param nodeId - The ID of the node to add the result to
-     * @param resultName - The name of the result field
-     * @param result - The result value to store
+     * Compute this algorithm and publish what it produced as a result object.
+     *
+     * This is the entry point the run machinery calls, and it is the one that makes an algorithm
+     * startable as a `Run`: it takes a signal it must throw from, a progress channel, a yield, and
+     * the run id the result is published under -- and it RETURNS the result rather than writing it
+     * somewhere a caller has to go looking for. `run()` is the 1.10 entry point beside it, which
+     * returns nothing and can be neither watched nor stopped.
+     *
+     * The default refuses, because an algorithm that has not been migrated genuinely cannot answer
+     * a run: it publishes through side effects under its own names and has no result object to
+     * hand back. Both shipped families -- a metric and a declared algorithm -- override it.
+     * @param _context - A signal, a progress channel and a yield.
+     * @param runId - The id the result is published under.
+     * @param _fields - The catalogue's descriptors for this algorithm's fields, when the caller
+     *   holds them.
+     * @returns The result, or undefined when there was nothing to compute.
+     * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this algorithm has no result to
+     *   publish.
      */
-    addNodeResult(nodeId: number | string, resultName: string, result: unknown): void {
-        const p = this.#createPath(resultName);
-        const n = this.graph.getDataManager().nodes.get(nodeId);
-        if (!n) {
-            throw new Error(`couldn't find nodeId '${nodeId}' while trying to run algorithm '${this.type}'`);
-        }
-
-        deepSet(n, p, result);
-        // XXX: THIS IS WHERE I LEFT OFF
-        // replace algorithmResults with graph.nodes; set result on each node.algorithmResult
-    }
-
-    /**
-     * Adds a result value for a specific edge
-     * @param edge - The edge to add the result to
-     * @param resultName - The name of the result field
-     * @param result - The result value to store
-     */
-    addEdgeResult(edge: Edge, resultName: string, result: unknown): void {
-        const p = this.#createPath(resultName);
-        deepSet(edge, p, result);
-    }
-
-    /**
-     * Adds a result value for the graph
-     * @param resultName - The name of the result field
-     * @param result - The result value to store
-     */
-    addGraphResult(resultName: string, result: unknown): void {
-        const dm = this.graph.getDataManager();
-        dm.graphResults ??= {} as AdHocData;
-
-        const path = [this.namespace, this.type, resultName];
-        deepSet(dm.graphResults, path, result);
+    publishResult(
+        _context: AlgorithmRunContext,
+        runId: string,
+        _fields?: readonly FieldDescriptor[],
+    ): Promise<RunResult | undefined> {
+        return Promise.reject(
+            new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `The "${this.namespace}:${this.type}" algorithm writes its result through side effects and cannot be started as a run.`,
+                source: "run",
+                target: { kind: "run", id: runId },
+                details: { algorithm: `${this.namespace}:${this.type}` },
+            }),
+        );
     }
 
     /**
@@ -275,11 +281,33 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @returns The registered algorithm class
      */
     static register<T extends AlgorithmClass>(cls: T): T {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const t: string = (cls as any).type;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ns: string = (cls as any).namespace;
+        const statics = cls as unknown as Partial<AlgorithmStatics>;
+        const t = String(statics.type);
+        const ns = String(statics.namespace);
+
+        /* THE CATALOGUE IS PUBLISHED BEFORE THE CLASS IS FILED, and the order is the whole
+           point. Filing first meant a registration the catalogue refused -- a descriptor whose
+           key disagrees with `static type`, a key a built-in already holds -- still left a
+           runnable class behind under the address the refusal was about, so `graph.runAlgorithm`
+           reached an algorithm that no catalogue listed and no consumer could have chosen.
+           Published here rather than by the plugin author, so a descriptor and the class it
+           describes cannot be registered separately: a catalogue entry whose class nothing
+           registered is an algorithm a consumer can see, start, and then be told does not
+           exist. */
+        const { descriptor, cost, version } = statics;
+
+        if (descriptor !== undefined) {
+            publishAlgorithmDescriptor({
+                descriptor,
+                namespace: ns,
+                type: t,
+                ...(cost === undefined ? {} : { cost }),
+                ...(version === undefined ? {} : { version }),
+            });
+        }
+
         algorithmRegistry.set(`${ns}:${t}`, cls);
+
         return cls;
     }
 
@@ -308,22 +336,6 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null {
         return (algorithmRegistry.get(`${namespace}:${type}`) as (AlgorithmClass & AlgorithmStatics) | null) ?? null;
-    }
-
-    /**
-     * Check if this algorithm has suggested styles
-     * @returns true if suggested styles are defined
-     */
-    static hasSuggestedStyles(): boolean {
-        return !!this.suggestedStyles;
-    }
-
-    /**
-     * Get suggested styles for this algorithm
-     * @returns The suggested styles configuration, or null if none defined
-     */
-    static getSuggestedStyles(): SuggestedStylesConfig | null {
-        return this.suggestedStyles ? this.suggestedStyles() : null;
     }
 
     /**

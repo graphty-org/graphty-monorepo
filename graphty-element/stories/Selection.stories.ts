@@ -9,9 +9,17 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { type StyleSchema, StyleTemplate, type ViewMode } from "../src/config";
+import type { ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { eventWaitingDecorator, waitForGraphSettled } from "./helpers";
+import {
+    assertDrawnColour,
+    assertGraphLoaded,
+    assertLabelsDrawn,
+    assertSelectionDrawn,
+    drawn,
+    holds,
+} from "./assertions";
+import { eventWaitingDecorator, setLayoutPreSteps, type StoryArgs, waitForGraphSettled } from "./helpers";
 
 // Sample data with named nodes for clarity
 const selectionNodeData = [
@@ -30,47 +38,34 @@ const selectionEdgeData = [
     { src: "delta", dst: "epsilon" },
 ];
 
-// Create a style template with node labels
-const createStyleTemplate = (viewMode: ViewMode): StyleSchema =>
-    StyleTemplate.parse({
-        graphtyTemplate: true,
-        majorVersion: "1",
-        graph: {
-            viewMode,
-            addDefaultStyle: true,
-            startingCameraDistance: 20,
+/**
+ * Set the graph up for the selection demo: blue spheres, each labelled with its own name.
+ *
+ * The label is BOUND to a column rather than written out, which is what `encode` is for: the
+ * words come from each node's own `label` field. The label's font size and colour are the two
+ * fields of `node.labelStyle` this needs; where the label sits relative to the node has no
+ * channel, so it is drawn wherever the renderer puts it by default.
+ * @param element - The element to set up.
+ * @param viewMode - 2D or 3D.
+ */
+const setUpSelectionDemo = (element: Graphty, viewMode: ViewMode): void => {
+    element.viewMode = viewMode;
+    element.startingCameraDistance = 20;
+    setLayoutPreSteps(element, 2000);
+
+    void element.session.styles.add({
+        name: "Selection demo - labelled nodes",
+        target: "node",
+        selector: { match: "everything" },
+        set: {
+            "node.shape": "sphere",
+            "node.size": 1.5,
+            "node.color": "#4A90D9",
+            "node.labelStyle": { sizePx: 14, color: "#FFFFFF" },
         },
-        layers: [
-            {
-                node: {
-                    selector: "",
-                    style: {
-                        shape: {
-                            type: "sphere",
-                            size: 1.5,
-                        },
-                        texture: {
-                            color: "#4A90D9",
-                        },
-                        label: {
-                            enabled: true,
-                            textPath: "label",
-                            fontSize: 14,
-                            textColor: "#FFFFFF",
-                            backgroundColor: "transparent",
-                            location: "top",
-                        },
-                    },
-                },
-            },
-        ],
-        behavior: {
-            layout: {
-                type: "ngraph",
-                preSteps: 2000,
-            },
-        },
+        encode: { "node.label": { by: "data.label", scale: "passthrough" } },
     });
+};
 
 /**
  * Render function that creates a selection demo with status display
@@ -120,7 +115,7 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     graphEl.style.cssText = "flex: 1; display: block; min-height: 0;";
     graphEl.nodeData = selectionNodeData;
     graphEl.edgeData = selectionEdgeData;
-    graphEl.styleTemplate = createStyleTemplate(viewMode);
+    setUpSelectionDemo(graphEl, viewMode);
     graphEl.layoutConfig = { seed: 42 };
     container.appendChild(graphEl);
 
@@ -144,6 +139,38 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     return container;
 };
 
+/**
+ * Settle a selection story, then select a node and check that the picture says so.
+ *
+ * WHAT THESE FOUR STORIES ARE FOR: clicking a node selects it, the element draws a highlight
+ * around it, and the status bar above the canvas names it. Every one of those three is a fact
+ * something can be asked for, and until now none of them was.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ */
+const selects = async (canvasElement: HTMLElement, story: string): Promise<void> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Selection ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 5, edges: 5 });
+    await assertDrawnColour(scene, "#4a90d9");
+    await assertLabelsDrawn(scene);
+    await assertSelectionDrawn(scene, "alpha");
+
+    // The status bar is the story's own chrome, and it is driven by the element's
+    // `selection-changed` event rather than by anything the story polls.
+    const display = canvasElement.querySelector("#selected-node-display");
+
+    await holds(display !== null, `Selection ${story}: the story's status bar is not on the page`);
+
+    await holds(
+        display?.textContent === "Alpha (alpha)",
+        `Selection ${story}: node "alpha" is selected and the status bar reads ` +
+            `"${String(display?.textContent)}" rather than "Alpha (alpha)"`,
+    );
+};
+
 const meta: Meta = {
     title: "Selection",
     component: "graphty-element",
@@ -154,7 +181,7 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty>;
+type Story = StoryObj<StoryArgs>;
 
 /**
  * 2D Mode Selection
@@ -166,7 +193,7 @@ export const Mode2D: Story = {
     name: "2D Mode",
     render: () => renderSelectionDemo("2d"),
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "2D Mode");
     },
 };
 
@@ -180,7 +207,7 @@ export const Mode3D: Story = {
     name: "3D Mode",
     render: () => renderSelectionDemo("3d"),
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "3D Mode");
     },
 };
 
@@ -209,7 +236,7 @@ export const ModeVR: Story = {
         return container;
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "VR Mode");
     },
 };
 
@@ -236,6 +263,6 @@ export const ModeAR: Story = {
         return container;
     },
     play: async ({ canvasElement }) => {
-        await waitForGraphSettled(canvasElement);
+        await selects(canvasElement, "AR Mode");
     },
 };

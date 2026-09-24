@@ -1,5 +1,13 @@
 import type { Graphty } from "../../../src/graphty-element";
-import { algorithmMetaBase, createAlgorithmStory, type Story, templateCreator, waitForGraphSettled } from "../helpers";
+import {
+    assertAlgorithmPainted,
+    assertDistinctPicture,
+    assertDrawnVariety,
+    assertGraphLoaded,
+    drawn,
+    holds,
+} from "../../assertions";
+import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -64,7 +72,7 @@ export const ConnectedComponents: Story = {
         layoutConfig: {
             seed: 42,
         },
-        styleTemplate: templateCreator({
+        setup: storySetup({
             algorithms: ["graphty:connected-components"],
         }),
         runAlgorithmsOnLoad: true,
@@ -86,17 +94,42 @@ export const ConnectedComponents: Story = {
         await graph.runAlgorithmsFromTemplate();
 
         // Apply suggested styles from the algorithm
-        graph.applySuggestedStyles("graphty:connected-components");
+        const applied = graph.applySuggestedStyles("graphty:connected-components");
 
-        // Re-apply styles to existing nodes and edges so they pick up the new style layers
-        graph.getDataManager().applyStylesToExistingNodes();
-        graph.getDataManager().applyStylesToExistingEdges();
+        await holds(
+            applied,
+            "Algorithms/Component ConnectedComponents: applySuggestedStyles returned false, so no finished run " +
+                "had anything to paint and this is a picture of the element's defaults",
+        );
+
+        const scene = await drawn(canvasElement, "Algorithms/Component ConnectedComponents");
+
+        await assertGraphLoaded(scene, { nodes: 13, edges: 13 });
+        await assertAlgorithmPainted(scene, "graphty:connected-components", { paints: "node", atLeast: 13 });
+
+        // The fixture is built as four islands -- five, four, three and a hermit -- and the
+        // session counts them independently of the algorithm, so the picture is held to the
+        // element's own arithmetic rather than to a number written down here.
+        const { components } = scene.session.data.statistics();
+
+        await holds(
+            components.count === 4,
+            `Algorithms/Component ConnectedComponents: the fixture is four separate islands and the session ` +
+                `counts ${String(components.count)}`,
+        );
+
+        await assertDrawnVariety(scene, "hex", 4);
+        await assertDistinctPicture(scene, "Algorithms/Component");
     },
 };
 
 /**
  * Strongly Connected Components - for directed graphs
- * Colors nodes by SCC using Okabe-Ito colorblind-safe palette
  * In a directed graph, an SCC is where every node can reach every other node
+ *
+ * This fixture has ten of them, which is more than any of the element's categorical palettes can
+ * name -- the largest holds nine colours -- so the element falls back to a continuous palette
+ * sampled once per piece rather than wrapping two pieces onto one colour. Every other community
+ * story here is under that ceiling and keeps the eight-colour default.
  */
-export const SCC: Story = createAlgorithmStory("graphty:scc");
+export const SCC: Story = createAlgorithmStory("graphty:scc", { paints: "node", paintsAtLeast: 20 });

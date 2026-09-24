@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_GRADIENT_STOP_COLOR, SWATCH_COLORS, SWATCH_COLORS_HEXA } from "../colors";
+import { SWATCH_COLORS, SWATCH_COLORS_HEXA } from "../colors";
 
 describe("SWATCH_COLORS", () => {
     it("contains valid hex colors", () => {
@@ -41,16 +41,5 @@ describe("SWATCH_COLORS_HEXA", () => {
 
         expect(fullyOpaque.length).toBeGreaterThan(0);
         expect(semiTransparent.length).toBeGreaterThan(0);
-    });
-});
-
-describe("DEFAULT_GRADIENT_STOP_COLOR", () => {
-    it("is a valid hex color", () => {
-        expect(DEFAULT_GRADIENT_STOP_COLOR).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    });
-
-    it("is a neutral gray color", () => {
-        // #888888 is a medium gray
-        expect(DEFAULT_GRADIENT_STOP_COLOR).toBe("#888888");
     });
 });

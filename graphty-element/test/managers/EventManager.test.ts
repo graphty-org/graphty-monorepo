@@ -25,6 +25,23 @@ describe("EventManager", () => {
     });
 
     describe("event listeners", () => {
+        it("delivers zoom-to-fit-complete, which was emitted and could not be subscribed to", () => {
+            // UpdateManager emits this when auto-framing finishes. It was missing from
+            // addListener's switch, so the element sent an event no consumer could ever hear.
+            const callback = vi.fn();
+            const listenerId = eventManager.addListener("zoom-to-fit-complete", callback);
+
+            eventManager.emitGraphEvent("zoom-to-fit-complete", {
+                boundingBoxMin: { x: 0, y: 0, z: 0 },
+                boundingBoxMax: { x: 1, y: 1, z: 1 },
+            });
+
+            assert.equal(callback.mock.calls.length, 1);
+            assert.equal((callback.mock.calls[0][0] as { type: string }).type, "zoom-to-fit-complete");
+
+            eventManager.removeListener(listenerId);
+        });
+
         it("should add and trigger graph settled event listeners", () => {
             const callback = vi.fn();
             const listenerId = eventManager.addListener("graph-settled", callback);
@@ -139,7 +156,14 @@ describe("EventManager", () => {
             const listenerId = eventManager.addListener("data-loaded", callback);
 
             const mockGraph = {} as Graph;
-            eventManager.emitGraphDataLoaded(mockGraph, 5, "json");
+            eventManager.emitGraphDataLoaded(mockGraph, 5, "json", {
+                format: "json",
+                endpoints: { resolvedFrom: "source/target", source: "source", target: "target" },
+                counts: { nodes: 2, edges: 1, nodeRecords: 2, edgeRecords: 1, rejected: 0 },
+                repeated: { seen: 0, kept: 0, dropped: 0, merged: 0 },
+                policy: "keep",
+                weights: { resolvedFrom: "none", attribute: null },
+            });
 
             assert.equal(callback.mock.calls.length, 1);
             const emittedEvent = callback.mock.calls[0][0];

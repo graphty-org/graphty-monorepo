@@ -69,15 +69,23 @@ export function getNeighborCommunities(graph: Graph, nodeId: NodeId, communities
  * Calculate modularity of a partition
  *
  * Modularity measures the quality of a community partition. It compares the
- * number of edges within communities to what would be expected in a random graph.
+ * weight of the edges inside communities to what would be expected in a random graph
+ * with the same degrees.
  *
- * Formula: Q = (1/2m) * Σ[A_ij - γ(k_i * k_j)/(2m)] * δ(c_i, c_j)
+ * Formula: Q = sum over communities c of [ w_in(c)/m - gamma * (K_c / 2m)^2 ]
  * where:
- * - m = total edge weight
- * - A_ij = adjacency matrix entry (edge weight between i and j)
- * - k_i, k_j = degrees of nodes i and j
- * - γ = resolution parameter (higher values favor smaller communities)
- * - δ = Kronecker delta (1 if same community, 0 otherwise)
+ * - m = total edge weight, each undirected edge counted once
+ * - w_in(c) = summed weight of the edges with both endpoints inside community c
+ * - K_c = summed weighted degree of community c's nodes
+ * - gamma = resolution parameter (higher values favor smaller communities)
+ *
+ * This is the per-community form of Q = (1/2m) * sum_ij [A_ij - gamma * k_i * k_j / (2m)] over the
+ * pairs in the same community.
+ * The double sum runs over every PAIR of nodes inside a community, so collecting the null-model
+ * term only where an edge exists leaves the penalty far too small and rewards coarseness: the
+ * single-community partition, whose modularity is 0 by definition, would otherwise outscore every
+ * real split. The form below visits each community once and each edge once, so it counts every
+ * pair exactly once without a pass over the whole adjacency matrix.
  * @param graph - The input graph
  * @param communities - Map from node IDs to community IDs
  * @param resolution - Resolution parameter (default: 1.0)
@@ -89,46 +97,35 @@ export function calculateModularity(graph: Graph, communities: Map<NodeId, numbe
         return 0;
     }
 
-    let modularity = 0;
-
-    // For undirected graphs, we need to be careful not to double-count edges
-    const countedEdges = new Set<string>();
-
-    // Calculate modularity: Q = (1/2m) * Σ[A_ij - γ(k_i * k_j)/(2m)] * δ(c_i, c_j)
-    for (const nodeI of graph.nodes()) {
-        for (const nodeJ of graph.nodes()) {
-            // Skip if already counted this pair in undirected graph
-            if (!graph.isDirected) {
-                const nodeIStr = String(nodeI.id);
-                const nodeJStr = String(nodeJ.id);
-                const edgeKey = nodeIStr <= nodeJStr ? `${nodeIStr}-${nodeJStr}` : `${nodeJStr}-${nodeIStr}`;
-                if (countedEdges.has(edgeKey)) {
-                    continue;
-                }
-
-                countedEdges.add(edgeKey);
-            }
-
-            if (communities.get(nodeI.id) === communities.get(nodeJ.id)) {
-                const edge = graph.getEdge(nodeI.id, nodeJ.id);
-                const reverseEdge = !graph.isDirected ? graph.getEdge(nodeJ.id, nodeI.id) : null;
-
-                let edgeWeight = 0;
-                if (edge) {
-                    edgeWeight += edge.weight ?? 1;
-                }
-
-                if (reverseEdge && nodeI.id !== nodeJ.id) {
-                    edgeWeight += reverseEdge.weight ?? 1;
-                }
-
-                const degreeI = getNodeDegree(graph, nodeI.id);
-                const degreeJ = getNodeDegree(graph, nodeJ.id);
-
-                modularity += edgeWeight - (resolution * degreeI * degreeJ) / (2 * totalEdgeWeight);
-            }
+    // Summed weighted degree of each community's nodes.
+    const degreeSum = new Map<number, number>();
+    for (const node of graph.nodes()) {
+        const community = communities.get(node.id);
+        if (community === undefined) {
+            continue;
         }
+
+        degreeSum.set(community, (degreeSum.get(community) ?? 0) + getNodeDegree(graph, node.id));
     }
 
-    return modularity / (2 * totalEdgeWeight);
+    // Summed weight of the edges that stay inside a community.
+    const internalWeight = new Map<number, number>();
+    for (const edge of graph.edges()) {
+        const communityI = communities.get(edge.source);
+        const communityJ = communities.get(edge.target);
+
+        if (communityI === undefined || communityI !== communityJ) {
+            continue;
+        }
+
+        internalWeight.set(communityI, (internalWeight.get(communityI) ?? 0) + (edge.weight ?? 1));
+    }
+
+    let modularity = 0;
+    for (const [community, degrees] of degreeSum) {
+        const share = degrees / (2 * totalEdgeWeight);
+        modularity += (internalWeight.get(community) ?? 0) / totalEdgeWeight - resolution * share * share;
+    }
+
+    return modularity;
 }

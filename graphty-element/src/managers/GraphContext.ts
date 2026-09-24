@@ -2,13 +2,14 @@ import type { Scene } from "@babylonjs/core";
 
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { LayoutManager } from "./LayoutManager";
 import type { SelectionManager } from "./SelectionManager";
 import type { StatsManager } from "./StatsManager";
-import type { StyleManager } from "./StyleManager";
+import type { StylePainter } from "./StylePainter";
 
 /**
  * GraphContext provides controlled access to graph services
@@ -17,9 +18,22 @@ import type { StyleManager } from "./StyleManager";
  */
 export interface GraphContext {
     /**
-     * Get the StyleManager for style operations
+     * Get the element's configuration document: the id paths, the view mode, the background, the
+     * layout and its options, the run-on-load algorithms and the behaviour settings.
+     *
+     * It carries no style layers. Layers live in `session.styles`, and what one element is
+     * painted is answered by {@link GraphContext.getStylePainter}.
      */
-    getStyleManager(): StyleManager;
+    getStyles(): Styles;
+
+    /**
+     * Get the painter that answers what the session's style stack resolved for one element.
+     *
+     * Optional, because a context can be built without one -- a headless test, or a Node built
+     * outside a graph. Absent, or present with no style pass bound, an element draws itself from
+     * the element's own defaults; see `bootstrapNodePaint` in StylePainter.
+     */
+    getStylePainter?(): StylePainter | undefined;
 
     /**
      * Get the DataManager for node/edge operations
@@ -130,7 +144,8 @@ export interface GraphContextConfig {
 export class DefaultGraphContext implements GraphContext {
     /**
      * Creates an instance of DefaultGraphContext
-     * @param styleManager - StyleManager instance for style operations
+     * @param styles - Reads the element's configuration document. A function rather than the
+     *     instance, so a reader always sees the document the graph holds now.
      * @param dataManager - DataManager instance for node/edge operations
      * @param layoutManager - LayoutManager instance for layout operations
      * @param meshCache - MeshCache instance for mesh creation and caching
@@ -138,9 +153,11 @@ export class DefaultGraphContext implements GraphContext {
      * @param statsManager - StatsManager instance for performance monitoring
      * @param config - Graph-level configuration options
      * @param rayUpdateNeeded - Whether ray updates are needed for edge arrows
+     * @param stylePainter - Painter answering what the session's style stack resolved, when one
+     *     is bound
      */
     constructor(
-        private styleManager: StyleManager,
+        private styles: () => Styles,
         private dataManager: DataManager,
         private layoutManager: LayoutManager,
         private meshCache: MeshCache,
@@ -148,14 +165,23 @@ export class DefaultGraphContext implements GraphContext {
         private statsManager: StatsManager,
         private config: GraphContextConfig,
         private rayUpdateNeeded = true,
+        private stylePainter?: StylePainter,
     ) {}
 
     /**
-     * Get the StyleManager for style operations
-     * @returns StyleManager instance
+     * Get the painter that answers what the session's style stack resolved for one element.
+     * @returns The painter, or undefined when this context was built without one.
      */
-    getStyleManager(): StyleManager {
-        return this.styleManager;
+    getStylePainter(): StylePainter | undefined {
+        return this.stylePainter;
+    }
+
+    /**
+     * Get the element's configuration document.
+     * @returns The document as it stands now.
+     */
+    getStyles(): Styles {
+        return this.styles();
     }
 
     /**
@@ -203,7 +229,7 @@ export class DefaultGraphContext implements GraphContext {
      * @returns True if in 2D mode, false otherwise
      */
     is2D(): boolean {
-        const config = this.styleManager.getStyles().config.graph;
+        const config = this.styles().config.graph;
         // Support both new viewMode and deprecated twoD for backward compatibility
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         return config.viewMode === "2d" || config.twoD;

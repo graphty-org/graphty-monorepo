@@ -18,6 +18,7 @@ import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
+import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
@@ -424,9 +425,8 @@ export class Node {
      * EFFECTS only on the branch that rebuilds the mesh, so an `instance` channel's edit reached
      * the screen only if some unrelated `mesh` channel happened to change in the same repaint.
      * That is why a glow was drawn when its colour was in the stack before the first frame and
-     * ignored when a layer added it afterwards, and why `node.glowStrength` had been declared a
-     * `mesh` channel: minting a source mesh per strength was the only way to force the rebuild
-     * that made the strength visible.
+     * ignored when a layer added it afterwards. (`node.glowStrength` is a `mesh` channel for a
+     * different reason: a glow's strength is set per SOURCE mesh, like its colour.)
      *
      * So this method is everything the `instance` role promises, and `paintFrom` calls it on BOTH
      * of its branches -- once when it has just rebuilt the mesh, because every one of these lives
@@ -1179,7 +1179,10 @@ export class Node {
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
-        return new RichTextLabel(this.mesh.getScene(), labelOptions);
+        const scene = this.mesh.getScene();
+        // Labels that would overlap on screen are thinned out before every frame; see LabelDeclutter.
+        LabelDeclutter.track(scene, this.context.getDataManager(), this);
+        return new RichTextLabel(scene, labelOptions);
     }
 
     private extractLabelText(labelConfig?: Record<string, unknown>): string {

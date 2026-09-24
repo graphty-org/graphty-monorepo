@@ -21,8 +21,6 @@
  *   compile error rather than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
- * - `node.glowStrength` is drawn, but Babylon keeps a glow's intensity on the LAYER rather than
- *   on a mesh, so two glowing styles on screen share whichever strength was applied last.
  * - `node.outline` is a colour and no width, for the same reason in the same shape: the stroke
  *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
  *   screen is one width. This is the sentence the element's natural-language layer reads out
@@ -507,10 +505,6 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         min: 0,
         stylePath: "effect.glow.strength",
         renderable: true,
-        caveat:
-            "Babylon's glow intensity belongs to the glow LAYER rather than to a mesh, so with " +
-            "two glowing styles on screen both are drawn at whichever strength was applied last. " +
-            "The glow's COLOUR is per style. Per-style strength needs one full-screen pass each.",
     },
     "node.wireframe": {
         channel: "node.wireframe",

@@ -148,6 +148,15 @@ A channel is one visual property with one name. These are all of them:
 
 Writing `node.label` or `edge.label` is what switches a label on.
 
+Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
+pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
+on every node, gives up instancing for the glowing nodes.
+
+Node labels that would overlap on screen are not drawn on top of each other. Before each frame
+the element keeps the label of a selected node first, then of the node with more edges, and hides
+any label that would cover one it has already kept. A hidden label comes back as soon as its node
+is clear, for example after the layout moves it. Nothing in the style changes when this happens.
+
 ### A tooltip on a node
 
 A tooltip is drawn when the pointer rests on a node and taken down when it leaves, which is the

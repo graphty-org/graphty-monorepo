@@ -872,8 +872,17 @@ function describe(story) {
     line("verdict", story.verdict);
 
     if (story.verdict === "did not run") {
-        line("before", story.before.ran ? `${(story.before.nodes ?? []).length} nodes drawn` : story.before.why);
-        line("after", story.after.ran ? `${(story.after.nodes ?? []).length} nodes drawn` : story.after.why);
+        const why = (reading) => {
+            if (!reading.ran) {
+                return reading.why;
+            }
+            if (reading.error) {
+                return `it rendered, but the scene could not be read: ${reading.error}`;
+            }
+            return `it rendered and drew ${String((reading.nodes ?? []).length)} nodes`;
+        };
+        line("before", why(story.before));
+        line("after", why(story.after));
         return lines.join("\n");
     }
 

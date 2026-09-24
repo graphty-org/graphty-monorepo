@@ -84,7 +84,11 @@ such a story is a snapshot of something in flight.
 | `identical` | the nodes are arranged the same and the pictures agree to within a noise floor of a thousandth of the frame |
 | `moved but equivalently arranged` | the nodes are in the same arrangement and the picture still changed, which is the camera reframing the same graph |
 | `genuinely different` | the arrangement itself changed: either the node shape moved more than 0.01, or the arrangement figure moved by more than 2 percent |
-| `did not run` | the story threw, never rendered, or drew no nodes at one of the two references |
+| `did not run` | the story threw, never rendered, or drew a graph at one reference and none at the other |
+
+A story that draws no graph at either reference -- a panel, a swatch grid, a control -- is not a
+failure. There is nothing in the scene to read, so it is judged on its picture alone and the
+report says which of the two it did.
 
 The thresholds live at the top of `tools/compare-stories.mjs` under "What counts as a
 difference". Two builds that ran the same layout over the same seed agree to floating-point

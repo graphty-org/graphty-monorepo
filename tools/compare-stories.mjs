@@ -839,8 +839,21 @@ function verdictFor(reading) {
     if (!reading.before.ran || !reading.after.ran) {
         return "did not run";
     }
-    if ((reading.before.nodes ?? []).length === 0 || (reading.after.nodes ?? []).length === 0) {
+
+    const emptyBefore = (reading.before.nodes ?? []).length === 0;
+    const emptyAfter = (reading.after.nodes ?? []).length === 0;
+    const fraction = reading.pixels.total ? reading.pixels.differing / reading.pixels.total : 0;
+
+    // Drew a graph at one reference and none at the other: something stopped working.
+    if (emptyBefore !== emptyAfter) {
         return "did not run";
+    }
+
+    // Drew no graph at EITHER, which is not a failure -- plenty of stories are a panel, a
+    // swatch grid or a control. There is no scene to read, so the picture is all there is,
+    // and the report says so rather than pretending a scene reading happened.
+    if (emptyBefore) {
+        return fraction > NOISE_FRACTION ? "genuinely different" : "identical";
     }
 
     const moved = reading.distance === null || reading.distance > SAME_ARRANGEMENT;
@@ -853,8 +866,6 @@ function verdictFor(reading) {
     if (moved || figureMoved) {
         return "genuinely different";
     }
-
-    const fraction = reading.pixels.total ? reading.pixels.differing / reading.pixels.total : 0;
 
     return fraction > NOISE_FRACTION ? "moved but equivalently arranged" : "identical";
 }
@@ -883,6 +894,20 @@ function describe(story) {
         };
         line("before", why(story.before));
         line("after", why(story.after));
+        return lines.join("\n");
+    }
+
+    if ((story.before.nodes ?? []).length === 0) {
+        line("scene", "this story draws no graph, so only the picture could be compared");
+        line(
+            "pixels",
+            story.pixels.differing === null
+                ? story.pixels.note
+                : `${story.pixels.differing} of ${story.pixels.total} differ ` +
+                  `(${((story.pixels.differing / story.pixels.total) * 100).toFixed(2)}%)`,
+        );
+        line("images", `${story.id}-before.png  ${story.id}-after.png  ${story.id}-diff.png`);
+
         return lines.join("\n");
     }
 
@@ -1018,6 +1043,16 @@ function selfCheck() {
         [reading({ figureAfter: 2.9 }), "genuinely different"],
         [reading({ after: { ran: false, why: "it threw" } }), "did not run"],
         [reading({ after: { ran: true, nodes: [] } }), "did not run"],
+        // A story with no graph at EITHER reference is a panel or a swatch grid, not a failure.
+        [reading({ before: { ran: true, nodes: [] }, after: { ran: true, nodes: [] } }), "identical"],
+        [
+            reading({
+                before: { ran: true, nodes: [] },
+                after: { ran: true, nodes: [] },
+                pixels: { differing: 40000, total: 1000000 },
+            }),
+            "genuinely different",
+        ],
     ];
     for (const [input, expected] of verdicts) {
         const got = verdictFor(input);
@@ -1180,7 +1215,9 @@ async function main() {
                         : { differing: null, total: null, note: "one of the two never rendered" },
             };
 
-            if (frozen && before.ran && after.ran) {
+            // A story that drew no graph has no layout to ask about, and asking costs the seed
+            // pass its full timeout twice: 90 wasted seconds per panel or swatch grid.
+            if (frozen && beforeCloud.size > 0 && afterCloud.size > 0) {
                 // Both sides of this are ENGINE coordinates: a page with no frames has no mesh
                 // anywhere but the origin, and comparing engine against mesh would be comparing
                 // two different spaces.

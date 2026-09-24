@@ -1,0 +1,57 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d7" for="edge" attr.name="weight" attr.type="long" />
+  <key id="d6" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d5" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d4" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d3" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d2" for="node" attr.name="tag" attr.type="string" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="undirected">
+    <node id="node 0">
+      <data key="d0">2.0</data>
+      <data key="d1">1</data>
+      <data key="d2">two words</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="node 1">
+      <data key="d0">2.0</data>
+    </node>
+    <node id="node 2">
+      <data key="d0">1e-07</data>
+      <data key="d2">say "hi"</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="node 3">
+      <data key="d0">-0.0</data>
+      <data key="d1">1</data>
+      <data key="d2">中文</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="node 4">
+      <data key="d0">-79.101828</data>
+      <data key="d1">-7</data>
+      <data key="d2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d3">True</data>
+    </node>
+    <edge source="node 0" target="node 1">
+      <data key="d4">café</data>
+    </edge>
+    <edge source="node 0" target="node 4">
+      <data key="d5">4.4268</data>
+      <data key="d6">654</data>
+    </edge>
+    <edge source="node 1" target="node 2">
+      <data key="d7">10</data>
+    </edge>
+    <edge source="node 2" target="node 3">
+      <data key="d5">-0.0</data>
+      <data key="d4">plain</data>
+      <data key="d6">282</data>
+    </edge>
+    <edge source="node 3" target="node 4">
+      <data key="d4">tab	here</data>
+    </edge>
+  </graph>
+</graphml>

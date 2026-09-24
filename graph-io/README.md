@@ -75,8 +75,27 @@ for await (const chunk of csvExporter.export(snapshot, { dialect: "gephi" })) {
 ```
 
 Inputs may be a `string`, a `Uint8Array`, a `ReadableStream<Uint8Array>` (a `File.stream()`, a fetch
-body) or an async iterable of text or byte chunks. Bytes are decoded as UTF-8 with `fatal: true`, so
-an invalid sequence is a `parse-error`, never a silent U+FFFD.
+body) or an async iterable of text or byte chunks. Bytes are decoded by one shared layer, whatever
+the format. The encoding is, in order: the `encoding` option (any WHATWG label, such as
+`"windows-1252"` or `"utf-16le"`); a byte order mark (UTF-8, UTF-16LE, UTF-16BE); the encoding the
+file declares (the XML prolog of GEXF and GraphML, DOT's `charset` attribute); else UTF-8. Decoding
+is strict, never a silent U+FFFD. Undeclared bytes that are not UTF-8 are read as windows-1252 with
+the warning `W_ENCODING_FALLBACK` (Excel, Pajek and older tools write it); invalid UTF-8 after valid
+non-ASCII UTF-8, or binary data, is the `parse-error` `E_INVALID_UTF8`.
+
+Some files hold several graphs: a DOT file with several `graph { }` blocks, a Pajek project (`.paj`)
+with several networks, a GML file with several `graph [ ]` blocks, a JGF document with a `graphs`
+array. `importGraph()` (and each importer's `import()`) reads the first and records the warning
+`W_MULTIPLE_GRAPHS`, which says how many it skipped. `importAllGraphs()` (and `importer.importAll()`
+where a format can hold several) returns every graph, each frozen on its own:
+
+```ts
+import { importAllGraphs } from "@graphty/graph-io";
+
+for (const { snapshot, report } of await importAllGraphs(bytes, { filename: "project.paj" })) {
+    console.log(snapshot.meta.name, snapshot.nodeCount, report.warningCount);
+}
+```
 
 ### Common import options
 
@@ -95,6 +114,7 @@ an invalid sequence is a `parse-error`, never a silent U+FFFD.
 | `hyperedges`                  | `"skip"`                                                              | GraphML / JGF hyperedges: `"error"`, `"skip"` with a report entry, `"star"` or `"clique"`.                                                                                  |
 | `errorLimit`                  | `100`                                                                 | Recoverable errors tolerated before the importer throws `ImportError` with the partial report.                                                                              |
 | `signal`, `onProgress`        |                                                                       | Cancellation (rejects with the signal's reason) and byte progress (`bytesTotal` known for in-memory input).                                                                 |
+| `encoding`                    | detected                                                              | The encoding of byte input; overrides the byte order mark and the file's declaration. Ignored for text input.                                                               |
 
 On a caller's builder the builder-policy options (`addMissingNodes`, `duplicateEdges`, `selfLoops`,
 `weightDtype`) are read from the sink; an explicit request the sink does not honour is reported once
@@ -169,7 +189,7 @@ losses and format rules, in addition to the table:
 - **DOT**: a Graphviz-faithful parser (grammar violations are fatal, as in Graphviz); clusters are
   container nodes with the `parent` role; ports are kept; HTML strings keep their brackets; `pos`
   maps to the position role. Mixed direction is folded per `onMixedDirection`; a text with a
-  backslash before a quote or at its end cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
+  backslash before a quote or a line break, or at its end, cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
   scanner consumes backslash pairs, so such a text has no quoted spelling).
 - **Pajek**: `*Vertices N` bounds the id space (ids 1..N; a 0-based file is detected and reported;
   a count the sink cannot reserve is fatal); `*Arcs` / `*Edges` sections give per-section
@@ -240,17 +260,19 @@ Issue categories are `parse-error`, `missing-value`, `validation-error`, `unsupp
 (`GEXF_ISSUE`, `GRAPHML_ISSUE`, `GML_ISSUE`, `DOT_ISSUE`, `PAJEK_ISSUE`, `CSV_ISSUE`,
 `JSON_ISSUE`, `NEO4J_ISSUE`) and shared across formats (`SINK_OPTION_CODE`, `ID_MERGED_CODE`,
 `DIRECTION_REFUSED_CODE`, `DIRECTION_FORCED_CODE`, `RENAMED_CODE`, `PRECISION_CODE`,
-`INVALID_UTF8_CODE`, `PARSE_ERROR_CODE`). The builder throws on the first hard error; the importer
+`INVALID_UTF8_CODE`, `INVALID_ENCODING_CODE`, `ENCODING_FALLBACK_CODE`, `UNKNOWN_ENCODING_CODE`,
+`PARSE_ERROR_CODE`). The builder throws on the first hard error; the importer
 catches it per element, records an issue, skips the element and continues until `errorLimit`, then
 throws `ImportError` (`code === "E_IMPORT"`) carrying the partial report. An input that cannot be
-read at all (invalid UTF-8, malformed XML, no recognisable format) is an `ImportError` at once.
+read at all (bytes invalid in the chosen encoding, malformed XML, no recognisable format) is an
+`ImportError` at once.
 
 ## Writing a plugin
 
 `GraphImporter` and `GraphExporter` (design section 12.4) are plain objects; the helpers every
 built-in format is built on are exported for third-party plugins: `ImportReportBuilder` (issues,
-error limit, `warnOnce`, `ImportError`), `textChunks` / `readText` / `LineReader` (streaming UTF-8
-input with cancellation and progress), `tokenizeXml` / `XmlTokenizer` (the streaming XML tokenizer
+error limit, `warnOnce`, `ImportError`), `textChunks` / `readText` / `LineReader` (streaming
+input decoded by the shared encoding rules, with cancellation and progress), `tokenizeXml` / `XmlTokenizer` (the streaming XML tokenizer
 behind GEXF and GraphML), `resolveImportOptions` / `resolveExportOptions` / `reportSinkOptions` /
 `reportUnusedOptions`, `DirectionResolver` (the mixed-direction rules of section 8.4) and
 `pairFolding` (its inverse for exporters), `IdCoercer`, `parseTextCell` and `TextCellWriter` (the

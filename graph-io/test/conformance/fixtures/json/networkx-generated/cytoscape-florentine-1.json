@@ -1,0 +1,313 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 40.637516,
+     "rank": 2147483647,
+     "tag": "a&b",
+     "id": "Acciaiuoli",
+     "value": "Acciaiuoli",
+     "name": "Acciaiuoli"
+    }
+   },
+   {
+    "data": {
+     "tag": "café",
+     "flag": true,
+     "id": "Medici",
+     "value": "Medici",
+     "name": "Medici"
+    }
+   },
+   {
+    "data": {
+     "score": -0.0,
+     "rank": 2147483647,
+     "tag": "it's",
+     "id": "Castellani",
+     "value": "Castellani",
+     "name": "Castellani"
+    }
+   },
+   {
+    "data": {
+     "score": 20.16334,
+     "tag": "tab\there",
+     "flag": false,
+     "id": "Peruzzi",
+     "value": "Peruzzi",
+     "name": "Peruzzi"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "tag": "two words",
+     "id": "Strozzi",
+     "value": "Strozzi",
+     "name": "Strozzi"
+    }
+   },
+   {
+    "data": {
+     "tag": "<tag>",
+     "flag": false,
+     "id": "Barbadori",
+     "value": "Barbadori",
+     "name": "Barbadori"
+    }
+   },
+   {
+    "data": {
+     "tag": "a&b",
+     "flag": true,
+     "id": "Ridolfi",
+     "value": "Ridolfi",
+     "name": "Ridolfi"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "tag": "line\nbreak",
+     "id": "Tornabuoni",
+     "value": "Tornabuoni",
+     "name": "Tornabuoni"
+    }
+   },
+   {
+    "data": {
+     "score": 123456789.125,
+     "rank": 0,
+     "flag": false,
+     "id": "Albizzi",
+     "value": "Albizzi",
+     "name": "Albizzi"
+    }
+   },
+   {
+    "data": {
+     "rank": 2147483647,
+     "tag": "say \"hi\"",
+     "flag": true,
+     "id": "Salviati",
+     "value": "Salviati",
+     "name": "Salviati"
+    }
+   },
+   {
+    "data": {
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "flag": true,
+     "id": "Pazzi",
+     "value": "Pazzi",
+     "name": "Pazzi"
+    }
+   },
+   {
+    "data": {
+     "score": 123456789.125,
+     "rank": 2147483647,
+     "tag": "a&b",
+     "id": "Bischeri",
+     "value": "Bischeri",
+     "name": "Bischeri"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "rank": 42,
+     "flag": true,
+     "id": "Guadagni",
+     "value": "Guadagni",
+     "name": "Guadagni"
+    }
+   },
+   {
+    "data": {
+     "score": 1e+300,
+     "tag": "😀",
+     "flag": false,
+     "id": "Ginori",
+     "value": "Ginori",
+     "name": "Ginori"
+    }
+   },
+   {
+    "data": {
+     "score": 3.141592653589793,
+     "tag": "café",
+     "flag": true,
+     "id": "Lamberteschi",
+     "value": "Lamberteschi",
+     "name": "Lamberteschi"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 0.1601,
+     "rel": " nbsp",
+     "source": "Acciaiuoli",
+     "target": "Medici"
+    }
+   },
+   {
+    "data": {
+     "weight": 6.2206,
+     "rel": "a&b",
+     "cap": 809,
+     "source": "Medici",
+     "target": "Barbadori"
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "line\nbreak",
+     "cap": 825,
+     "source": "Medici",
+     "target": "Ridolfi"
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "cap": 84,
+     "source": "Medici",
+     "target": "Tornabuoni"
+    }
+   },
+   {
+    "data": {
+     "weight": 1e+300,
+     "source": "Medici",
+     "target": "Albizzi"
+    }
+   },
+   {
+    "data": {
+     "weight": 1.0544,
+     "rel": "back\\slash",
+     "source": "Medici",
+     "target": "Salviati"
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "rel": "<tag>",
+     "cap": 619,
+     "source": "Castellani",
+     "target": "Peruzzi"
+    }
+   },
+   {
+    "data": {
+     "weight": 3,
+     "rel": "a&b",
+     "source": "Castellani",
+     "target": "Strozzi"
+    }
+   },
+   {
+    "data": {
+     "weight": 0.0074,
+     "cap": 391,
+     "source": "Castellani",
+     "target": "Barbadori"
+    }
+   },
+   {
+    "data": {
+     "weight": 9.2449,
+     "rel": " nbsp",
+     "source": "Peruzzi",
+     "target": "Strozzi"
+    }
+   },
+   {
+    "data": {
+     "weight": 6.4945,
+     "rel": "two words",
+     "source": "Peruzzi",
+     "target": "Bischeri"
+    }
+   },
+   {
+    "data": {
+     "weight": 1.9171,
+     "cap": 936,
+     "source": "Strozzi",
+     "target": "Ridolfi"
+    }
+   },
+   {
+    "data": {
+     "weight": 1e-300,
+     "source": "Strozzi",
+     "target": "Bischeri"
+    }
+   },
+   {
+    "data": {
+     "weight": 0.3359,
+     "source": "Ridolfi",
+     "target": "Tornabuoni"
+    }
+   },
+   {
+    "data": {
+     "weight": 1e+300,
+     "rel": "中文",
+     "cap": 528,
+     "source": "Tornabuoni",
+     "target": "Guadagni"
+    }
+   },
+   {
+    "data": {
+     "source": "Albizzi",
+     "target": "Ginori"
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "say \"hi\"",
+     "cap": 551,
+     "source": "Albizzi",
+     "target": "Guadagni"
+    }
+   },
+   {
+    "data": {
+     "rel": "back\\slash",
+     "source": "Salviati",
+     "target": "Pazzi"
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "source": "Bischeri",
+     "target": "Guadagni"
+    }
+   },
+   {
+    "data": {
+     "weight": 5.3658,
+     "cap": 143,
+     "source": "Guadagni",
+     "target": "Lamberteschi"
+    }
+   }
+  ]
+ }
+}

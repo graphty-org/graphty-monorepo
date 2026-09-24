@@ -3464,6 +3464,7 @@ export interface CommonImportOptions {
     errorLimit?: number | undefined;
     signal?: AbortSignal | undefined;
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    encoding?: string | undefined;
 }
 export interface GraphImporter<Opts = unknown> {
     readonly format: string;
@@ -3471,6 +3472,11 @@ export interface GraphImporter<Opts = unknown> {
     readonly mimeTypes: readonly string[];
     sniff?(head: Uint8Array): number;
     import(input: ImportInput, sink: GraphSink, options?: Opts & CommonImportOptions): Promise<ImportReport>;
+    importAll?(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: Opts & CommonImportOptions,
+    ): Promise<ImportReport[]>;
 }
 export interface ExportCapabilities {
     readonly mixedDirection: boolean; readonly multiEdges: boolean; readonly selfLoops: boolean;

@@ -13,9 +13,11 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_KEY_CODE,
     DUPLICATE_NODE_CODE,
+    ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
     ID_MERGED_CODE,
     ID_TEXT_TYPE_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
@@ -32,6 +34,7 @@ import {
     STRAY_TEXT_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ELEMENT_CODE,
+    UNKNOWN_ENCODING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
@@ -114,6 +117,12 @@ export const GRAPHML_ISSUE = Object.freeze({
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** Fatal: the input holds invalid UTF-8. */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: the root element is not `<graphml>`. */
     NOT_GRAPHML: "E_NOT_GRAPHML",
     /** Fatal: the document has no `<graph>`. */

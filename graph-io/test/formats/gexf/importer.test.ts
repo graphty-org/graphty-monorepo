@@ -842,7 +842,7 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
             0xff,
             0xfe,
         ]);
-        const error = await expectImportError(bytes);
+        const error = await expectImportError(bytes, { encoding: "utf-8" });
         expect(codes(error.report)).toEqual([INVALID_UTF8_CODE]);
         expect(error.report.issues[0].category).toBe("parse-error");
     });

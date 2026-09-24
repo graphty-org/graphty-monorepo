@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d3" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d2" for="node" attr.name="tag" attr.type="string" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="undirected">
+    <node id="0">
+      <data key="d0">44.95213</data>
+      <data key="d1">42</data>
+      <data key="d2">two words</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="1">
+      <data key="d0">1e-300</data>
+      <data key="d2">a&amp;b</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="2">
+      <data key="d0">1e+300</data>
+      <data key="d1">-2147483648</data>
+      <data key="d2">&lt;tag&gt;</data>
+    </node>
+  </graph>
+</graphml>

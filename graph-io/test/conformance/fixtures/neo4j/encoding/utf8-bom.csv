@@ -1,0 +1,5 @@
+﻿:ID,name
+1,Café
+2,Zürich
+:START_ID,:END_ID,:TYPE
+1,2,R

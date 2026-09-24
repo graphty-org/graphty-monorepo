@@ -1,0 +1,7 @@
+digraph {
+  a
+  node [color=red]
+  b
+  { node [shape=box]; c }
+  d
+}

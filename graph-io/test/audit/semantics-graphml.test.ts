@@ -433,12 +433,16 @@ describe("GraphML quirks from GraphMLDataSource and research note 07", () => {
         expect(report.issues.map((i) => i.code)).toContain("W_GRAPHML_DESC_DROPPED");
     });
 
-    it("rejects a document that is not UTF-8 with an explicit parse error rather than U+FFFD ids", async () => {
+    it("decodes a document in the encoding its prolog declares, never with U+FFFD ids", async () => {
         const latin1 = Uint8Array.from(
             `<?xml version="1.0" encoding="ISO-8859-1"?><graphml ${NS}><graph edgedefault="directed"><node id="caf${String.fromCharCode(0xe9)}"/></graph></graphml>`,
             (c) => c.charCodeAt(0) & 0xff,
         );
-        await expect(importGraph(latin1, { format: "graphml" })).rejects.toMatchObject({
+        const { snapshot, report } = await importGraph(latin1, { format: "graphml" });
+        expect(snapshot.ids.toArray()).toEqual([`caf${String.fromCharCode(0xe9)}`]);
+        expect(report.issues).toEqual([]);
+        // declared UTF-8 but not: strict when the caller says so
+        await expect(importGraph(latin1, { format: "graphml", encoding: "utf-8" })).rejects.toMatchObject({
             code: "E_IMPORT",
             report: { issues: [{ code: "E_INVALID_UTF8", category: "parse-error" }] },
         });

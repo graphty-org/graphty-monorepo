@@ -55,7 +55,11 @@ export const CSV_LOSS = Object.freeze({
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
     /** Ids whose text reads back as the other type under the canonical rule. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** The generic dialect has no direction column; an undirected or mixed graph reads back as directed. */
+    /**
+     * The generic dialect has no direction column; an undirected or mixed graph reads back as
+     * directed. The Gephi dialect loses the direction of an undirected graph without edges (no
+     * row carries a Type cell).
+     */
     DIRECTION_DROPPED: "W_CSV_DIRECTION_DROPPED",
     /** Mutual pairs are written as two directed rows. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
@@ -390,6 +394,13 @@ function planExport(
                 mixed,
             );
         }
+    } else if (csv.table === "edges" && !snapshot.directed && edgeRows.length === 0) {
+        note(
+            CSV_LOSS.DIRECTION_DROPPED,
+            "the direction lives in the Type cell of each edge row; an undirected graph without edges reads back as directed",
+            null,
+            0,
+        );
     }
     if (folding.mutualCount > 0) {
         note(

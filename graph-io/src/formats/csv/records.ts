@@ -760,7 +760,7 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
             input,
             report,
             { delimiter: options.delimiter ?? null, quote: '"', comments: options.comments },
-            { signal: options.signal, onProgress: options.onProgress },
+            { signal: options.signal, onProgress: options.onProgress, encoding: options.encoding },
         );
     }
 

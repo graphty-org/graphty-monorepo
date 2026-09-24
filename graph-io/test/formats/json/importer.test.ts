@@ -1120,7 +1120,7 @@ describe("input handling", () => {
         const b = new GraphBuilder({ directed: true });
         let caught: unknown;
         try {
-            await jsonImporter.import(bytes, b);
+            await jsonImporter.import(bytes, b, { encoding: "utf-8" });
         } catch (err) {
             caught = err;
         }

@@ -1,0 +1,845 @@
+{
+  "format": "neo4j",
+  "description": "neo4j-admin import CSV (header grammar, id spaces, types, encodings), Northwind in import form, and APOC JSON / CSV exports a Neo4j user will try to load",
+  "fixtures": [
+    {
+      "file": "apoc-json/all.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/all.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC default JSON Lines export: 3 nodes, 1 relationship with start/end stubs, point and list properties. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/all_array.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/all_array.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC jsonFormat ARRAY_JSON: one top-level array of node and relationship records. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/all_fields.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/all_fields.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC jsonFormat JSON: {nodes:[...], rels:[...]}. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/all_id_as_keys.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/all_id_as_keys.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC jsonFormat JSON_ID_AS_KEYS: nodes and rels objects keyed by id. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/all_withoutNodeProps_withoutRelProps.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/all_withoutNodeProps_withoutRelProps.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC JSON Lines without any properties. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/multiLabels.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/multiLabels.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC JSON Lines, nodes with several labels, long string properties. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 16,
+        "edges": 4
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/nodes_without_labels.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/nodes_without_labels.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC JSON Lines, a node record without a labels key. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 1,
+        "edges": 0
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/relationship_type_injection.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/relationship_type_injection.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC JSON Lines, a relationship type holding Cypher metacharacters (kept verbatim as data). Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 2,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/importPointValues.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/importPointValues.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC JSON Lines as accepted by apoc.import.json: numeric ids, point maps. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 4,
+        "edges": 0
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/query_nodes.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/query_nodes.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC query export: each line a record {u: node}. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 3,
+        "edges": 0
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/query_nodes_path.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/query_nodes_path.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC query export: records holding a node and a relationship. Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 2,
+        "edges": 1
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-json/MapPath.json",
+      "origin": "https://github.com/neo4j/apoc/blob/dev/core/src/test/resources/exportJSON/MapPath.json",
+      "license": "Apache-2.0",
+      "version": "neo4j/apoc branch dev, retrieved 2026-09-23",
+      "exercises": "APOC query export: a map holding a path (length, rels, nodes). Owner: a future apoc dialect of the json importer (or JSONL sniffing); read here as neo4j bytes it must still yield this graph.",
+      "oracle": "apoc-json-walk",
+      "expected": {
+        "outcome": "pass",
+        "directed": true,
+        "nodes": 4,
+        "edges": 2
+      },
+      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-csv/export-all.csv",
+      "origin": "https://neo4j.com/docs/apoc/current/export/csv/ (graph of init_neo4j_export_csv.cypher, github.com/neo4j/apoc common/src/test/resources)",
+      "license": "Apache-2.0 (APOC test data); layout authored",
+      "version": "APOC docs current, retrieved 2026-09-23",
+      "exercises": "apoc.export.csv.all with quotes:always: node rows then relationship rows in one table",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 1,
+        "directed": true
+      },
+      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-csv/multi-labels.csv",
+      "origin": "https://neo4j.com/docs/apoc/current/export/csv/",
+      "license": "authored from the APOC docs",
+      "version": "APOC docs current, retrieved 2026-09-23",
+      "exercises": "APOC CSV: labels written :A:B, empty property cells (nulls and empty strings identical)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": true
+      },
+      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "apoc-csv/quotes-none.csv",
+      "origin": "https://neo4j.com/docs/apoc/current/export/csv/",
+      "license": "authored from the APOC docs",
+      "version": "APOC docs current, retrieved 2026-09-23",
+      "exercises": "APOC CSV with quotes:none",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+    },
+    {
+      "file": "admin/manual-movies-actors.csv",
+      "exercises": "manual examples 1-2: node and relationship sections in one input, :LABEL with ;, int property",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "tt0234215",
+            "column": "year",
+            "value": 2003
+          },
+          {
+            "id": "keanu",
+            "column": "name",
+            "value": "Keanu Reeves"
+          }
+        ],
+        "nodes": 6,
+        "edges": 9,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/manual-id-spaces.csv",
+      "exercises": "manual example 6: the same ids 1..3 in two ID spaces (Movie-ID, Actor-ID); START_ID/END_ID name the space",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_NEO4J_ID_SPACE_COLLISION"
+        ],
+        "nodes": 6,
+        "edges": 9,
+        "directed": true
+      },
+      "knownFailure": "ID spaces on START_ID/END_ID ignored; the same id in two spaces collides (sources.md 9.4)",
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/manual-types.csv",
+      "exercises": "manual example 3: date, boolean and int property types",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "user03",
+            "column": "active",
+            "value": false
+          },
+          {
+            "id": "user02",
+            "column": "points",
+            "value": 15
+          }
+        ],
+        "nodes": 3,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/manual-point.csv",
+      "exercises": "manual example 4: point with header defaults, quoted map values, UTF-8 name",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "city01",
+            "column": "name",
+            "value": "Malm\u00f6"
+          }
+        ],
+        "nodes": 3,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/manual-datetime.csv",
+      "exercises": "manual example 5: datetime with a header timezone option and zone-id suffixes",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual",
+      "knownFailure": "datetime with a [Region/City] zone id is rejected and its row dropped (sources.md 9.1)"
+    },
+    {
+      "file": "admin/manual-vector.csv",
+      "exercises": "vector{coordinateType,dimensions} property type (2025.10); the header cell itself is quoted",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "vector1",
+            "value": [
+              0.5,
+              1.5,
+              2.5
+            ]
+          }
+        ],
+        "nodes": 2,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual",
+      "knownFailure": "vector{...} property type not parsed as a list of numbers (sources.md 9.4)"
+    },
+    {
+      "file": "admin/manual-composite-id.csv",
+      "exercises": "multiple :ID columns form a composite key (full import); relationships reference it with as many START_ID/END_ID columns",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual",
+      "knownFailure": "several :ID columns (composite key) rejected (sources.md 9.4)"
+    },
+    {
+      "file": "admin/all-property-types.csv",
+      "exercises": "every scalar property type of the header grammar; a long beyond 2^53",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "n1",
+            "column": "i",
+            "value": 1
+          },
+          {
+            "id": "n2",
+            "column": "d",
+            "value": -1000
+          },
+          {
+            "id": "n1",
+            "column": "s",
+            "value": "hello"
+          }
+        ],
+        "warnings": [
+          "W_PRECISION"
+        ],
+        "nodes": 2,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/arrays.csv",
+      "exercises": "T[] array property types split by the ; array delimiter",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "names",
+            "value": [
+              "x",
+              "y",
+              "z"
+            ]
+          },
+          {
+            "id": "a",
+            "column": "nums",
+            "value": [
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "nodes": 2,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/labels-multi.csv",
+      "exercises": ":LABEL cells with several labels, one label, none; a stored id property (id:ID)",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/ignore-column.csv",
+      "exercises": ":IGNORE columns, named and unnamed",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 2,
+            "column": "name",
+            "value": "b"
+          }
+        ],
+        "nodes": 2,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/boolean-strict.csv",
+      "exercises": "boolean cells: Neo4j reads only exactly 'true' as true; 'yes' is outside every accepted set and must warn and leave the cell unset, not drop the row",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "flag",
+            "value": true
+          },
+          {
+            "id": 2,
+            "column": "flag",
+            "value": false
+          }
+        ],
+        "nodes": 5,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual",
+      "knownFailure": "an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4)"
+    },
+    {
+      "file": "admin/empty-vs-quoted.csv",
+      "exercises": "an unquoted empty cell is unset, a quoted empty cell is the empty string; an empty array",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 2,
+            "column": "s",
+            "value": ""
+          },
+          {
+            "id": 3,
+            "column": "arr",
+            "value": [
+              "a",
+              "b"
+            ]
+          }
+        ],
+        "nodes": 3,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/sections-repeated-header.csv",
+      "exercises": "a node table split in two sections, each with its own header row (the single-input form of a header file plus several data files)",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/duplicate-node.csv",
+      "exercises": "a node id declared twice: Neo4j (--skip-duplicate-nodes) keeps the FIRST row; graph-io should do the same with a warning",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "first"
+          }
+        ],
+        "warnings": [
+          "W_DUPLICATE_NODE"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "knownFailure": "Duplicate node: later row wins, Neo4j keeps the first (sources.md 9.4)",
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/dangling-relationship.csv",
+      "exercises": "a relationship to an id no node row declares (Neo4j aborts or skips it with --skip-bad-relationships); graph-io's default addMissingNodes creates the endpoint",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2
+      },
+      "oracle": "spec",
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23"
+    },
+    {
+      "file": "admin/tab-delimited.csv",
+      "exercises": "--delimiter TAB, sniffed from the header row",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/relationship-props.csv",
+      "exercises": "typed relationship properties, an empty weight, parallel relationships",
+      "expected": {
+        "outcome": "pass",
+        "edgeChecks": [
+          {
+            "source": 2,
+            "target": 3,
+            "weight": 0.25
+          }
+        ],
+        "nodes": 3,
+        "edges": 4,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/crlf-multiline.csv",
+      "exercises": "CRLF line ends and a quoted field spanning two lines (--multiline-fields)",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "admin/header-only.csv",
+      "exercises": "a header row with no data rows: an empty graph, no error",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0
+      },
+      "oracle": "spec",
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23"
+    },
+    {
+      "file": "admin/no-header.csv",
+      "exercises": "data without any header row: not a neo4j-admin file",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_NEO4J_HEADER"
+      },
+      "oracle": "spec",
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23"
+    },
+    {
+      "file": "admin/column-count.csv",
+      "exercises": "a row with more cells than its header",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "warnings": [
+          "E_NEO4J_COLUMN_COUNT"
+        ]
+      },
+      "oracle": "spec",
+      "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
+      "license": "authored from the Neo4j operations manual",
+      "version": "Operations Manual 2026.09, retrieved 2026-09-23"
+    },
+    {
+      "file": "encoding/utf8.csv",
+      "exercises": "UTF-8 without a BOM",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "Caf\u00e9"
+          }
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "authored",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "encoding/utf8-bom.csv",
+      "exercises": "UTF-8 with a BOM (the BOM is not part of the first header cell)",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "Caf\u00e9"
+          }
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "authored",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "encoding/utf16le-bom.csv",
+      "exercises": "UTF-16LE with a BOM (Excel 'Unicode text')",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "Caf\u00e9"
+          }
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "authored",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "encoding/utf16be-bom.csv",
+      "exercises": "UTF-16BE with a BOM",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "Caf\u00e9"
+          }
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "authored",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "encoding/windows-1252.csv",
+      "exercises": "windows-1252 bytes without a BOM: not valid UTF-8, read as windows-1252 with a warning",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "Caf\u00e9"
+          }
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      },
+      "origin": "authored",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "encoding/windows-1252-option.csv",
+      "options": {
+        "encoding": "windows-1252"
+      },
+      "exercises": "an explicit encoding option (windows-1252; 0x80 is the euro sign) overrides detection; no fallback warning",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "\u20ac uro"
+          }
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK"
+        ],
+        "nodes": 1,
+        "edges": 0,
+        "directed": true
+      },
+      "origin": "authored",
+      "license": "MIT (authored)",
+      "version": "2026-09-23",
+      "oracle": "neo4j-admin-manual"
+    },
+    {
+      "file": "northwind/products-categories-suppliers.csv",
+      "origin": "https://github.com/neo4j-graph-examples/northwind/tree/main/import",
+      "license": "no LICENSE file (Northwind sample data); test only",
+      "version": "neo4j-graph-examples/northwind main, retrieved 2026-09-23; first 40 products, headers authored",
+      "exercises": "real data in three ID spaces (Product, Category, Supplier) whose integer ids overlap; UTF-8 names",
+      "oracle": "neo4j-admin-manual",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "E_NEO4J_ID_SPACE_COLLISION"
+        ],
+        "nodes": 77,
+        "edges": 80,
+        "directed": true
+      },
+      "knownFailure": "ID spaces on START_ID/END_ID ignored; the same id in two spaces collides (sources.md 9.4)"
+    },
+    {
+      "file": "northwind/orders-customers-employees.csv",
+      "origin": "https://github.com/neo4j-graph-examples/northwind/tree/main/import",
+      "license": "no LICENSE file (Northwind sample data); test only",
+      "version": "neo4j-graph-examples/northwind main, retrieved 2026-09-23; first 60 orders, headers authored",
+      "exercises": "real data: string customer ids, integer order and employee ids in separate spaces (no overlap), localdatetime, a self-referencing relationship table",
+      "oracle": "neo4j-admin-manual",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 108,
+        "edges": 128,
+        "directed": true
+      }
+    }
+  ]
+}

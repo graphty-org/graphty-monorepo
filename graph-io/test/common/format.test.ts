@@ -17,7 +17,8 @@ describe("formatF32 (design 3.7)", () => {
 
     it("handles zeros and non-finite values", () => {
         expect(formatF32(0)).toBe("0");
-        expect(formatF32(-0)).toBe("0");
+        // negative zero keeps its sign: every numeric reader reads "-0" back as -0
+        expect(formatF32(-0)).toBe("-0");
         expect(formatF32(Infinity)).toBe("Infinity");
         expect(formatF32(-Infinity)).toBe("-Infinity");
         expect(formatF32(NaN)).toBe("NaN");
@@ -38,7 +39,7 @@ describe("formatF64 / formatNumber / formatInteger", () => {
     it("writes the shortest JS text", () => {
         expect(formatF64(0.1)).toBe("0.1");
         expect(formatF64(16777217)).toBe("16777217");
-        expect(formatF64(-0)).toBe("0");
+        expect(formatF64(-0)).toBe("-0");
         expect(formatF64(Infinity)).toBe("Infinity");
         expect(formatF64(NaN)).toBe("NaN");
         expect(formatNumber(Math.fround(0.1), "f32")).toBe("0.1");

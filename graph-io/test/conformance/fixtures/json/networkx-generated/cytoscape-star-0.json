@@ -1,0 +1,156 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 34.560473,
+     "tag": "line\nbreak",
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "rank": -2147483648,
+     "flag": true,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": -54.736497,
+     "rank": -7,
+     "tag": "😀",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "rank": -2147483648,
+     "tag": "中文",
+     "flag": false,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": -66.748634,
+     "flag": true,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "rank": 1,
+     "tag": "a&b",
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   },
+   {
+    "data": {
+     "score": -44.011728,
+     "id": "6",
+     "value": 6,
+     "name": "6"
+    }
+   },
+   {
+    "data": {
+     "rank": -2147483648,
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "flag": false,
+     "id": "7",
+     "value": 7,
+     "name": "7"
+    }
+   },
+   {
+    "data": {
+     "score": -91.335862,
+     "rank": -2147483648,
+     "tag": "back\\slash",
+     "id": "8",
+     "value": 8,
+     "name": "8"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 9.8641,
+     "rel": "café",
+     "cap": 693,
+     "source": 0,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "rel": "say \"hi\"",
+     "source": 0,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": 7.235,
+     "cap": 461,
+     "source": 0,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 1.3685,
+     "source": 0,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 1e+300,
+     "source": 0,
+     "target": 5
+    }
+   },
+   {
+    "data": {
+     "weight": 8.0126,
+     "source": 0,
+     "target": 6
+    }
+   },
+   {
+    "data": {
+     "weight": 1,
+     "source": 0,
+     "target": 7
+    }
+   },
+   {
+    "data": {
+     "rel": "a&b",
+     "cap": 586,
+     "source": 0,
+     "target": 8
+    }
+   }
+  ]
+ }
+}

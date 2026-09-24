@@ -1,0 +1,3817 @@
+{
+  "format": "dot",
+  "description": "DOT (Graphviz) conformance corpus: Graphviz tests/graphs, issue reproductions, regression and gallery files (EPL-2.0, test-only), pydot, ts-graphviz and graphlib-dot parser cases (MIT), and authored cases for encodings, comments, multiple graphs and syntax errors. Expectations come from Graphviz 2.43 gvpr (tools/oracle_dot.py) or, where graph-io is meant to differ from Graphviz, from sources.md section 5.4. graph-io models every cluster subgraph as one extra container node (parent column), so the expected node count is Graphviz's node count plus the distinct cluster subgraphs, minus a cluster that shares its name with a node (the two merge); edges are Graphviz's edge count. For a file with several graphs the counts are those of the first graph and 'graphs' is how many importAllGraphs() returns.",
+  "fixtures": [
+    {
+      "file": "graphviz-graphs/abstract.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/abstract.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 47,
+        "edges": 68,
+        "directed": true,
+        "nodeIds": [
+          "S24",
+          "27",
+          "25",
+          "S1",
+          "10"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/alf.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/alf.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 19,
+        "edges": 20,
+        "directed": true,
+        "nodeIds": [
+          "Decl",
+          "Nontype_decl",
+          "Defined_decl",
+          "Data_decl",
+          "Function_decl"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/arrows.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/arrows.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 35,
+        "edges": 34,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "Z",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/b7.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/b7.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "c",
+          "y",
+          "z",
+          "q"
+        ]
+      },
+      "roundTripFailure": "the DOT export writes subgraph members before the other nodes, so node order changes on re-import"
+    },
+    {
+      "file": "graphviz-graphs/b22.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/b22.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "basic statements",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "dc1",
+          "dc10",
+          "dc100",
+          "no_dc"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/b545.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/b545.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "N11",
+          "N11ne"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/b786.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/b786.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 10,
+        "directed": true,
+        "nodeIds": [
+          "n12",
+          "n13",
+          "n18",
+          "n2",
+          "n23"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/b993.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/b993.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "non-ASCII bytes, charset attribute, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/bad.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/bad.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 4,
+        "directed": false,
+        "nodeIds": [
+          "Marden",
+          "hg",
+          "Cannon",
+          "ggt",
+          "Epstein"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/clust.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/clust.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 9,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "x",
+          "y"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/clust4.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/clust4.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "a0",
+          "a1",
+          "a2",
+          "a3",
+          "b0"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/clust5.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/clust5.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 15,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "x0",
+          "y0"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/clusters.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/clusters.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "a0",
+          "a1",
+          "a2",
+          "a3",
+          "b0"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/clustlabel.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/clustlabel.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "c",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/colorscheme.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/colorscheme.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "subgraphs",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "1",
+          "4",
+          "8",
+          "11",
+          "ylgn7"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/compound.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/compound.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 9,
+        "directed": true,
+        "nodeIds": [
+          "a1",
+          "a2",
+          "a3",
+          "c1",
+          "c2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/crazy.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/crazy.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 41,
+        "edges": 49,
+        "directed": true,
+        "nodeIds": [
+          "5th Edition",
+          "6th Edition",
+          "PWB 1.0",
+          "LSX",
+          "1 BSD"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/ctext.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/ctext.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          "xyz",
+          "red",
+          "green",
+          "blue",
+          "cyan"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/dfa.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/dfa.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 20,
+        "directed": true,
+        "nodeIds": [
+          "start",
+          "n1",
+          "n2",
+          "n3",
+          "n4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/dir.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/dir.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/fdp.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/fdp.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 6,
+        "directed": false,
+        "nodeIds": [
+          "e",
+          "a",
+          "b",
+          "C",
+          "D"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/grammar.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/grammar.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 43,
+        "edges": 42,
+        "directed": true,
+        "nodeIds": [
+          "n0",
+          "n1",
+          "n2",
+          "n3",
+          "n4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/hashtable.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/hashtable.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 7,
+        "directed": true,
+        "nodeIds": [
+          "node0",
+          "node1",
+          "node2",
+          "node3",
+          "node4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/Heawood.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/Heawood.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 14,
+        "edges": 21,
+        "directed": false,
+        "nodeIds": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/html.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/html.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "struct1",
+          "struct2",
+          "struct3"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/html2.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/html2.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "subgraphs, HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/japanese.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/japanese.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 8,
+        "directed": true,
+        "nodeIds": [
+          "getas",
+          "new_getas",
+          "getas_in_fine_weather",
+          "black_lacquered_getas",
+          "black_lacquered_getas_made_of_paulownia"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/jcctree.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/jcctree.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 20,
+        "edges": 19,
+        "directed": true,
+        "nodeIds": [
+          "SPEC",
+          "DEF2",
+          "DEF1",
+          "ID1",
+          "SET1"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/Latin1.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/Latin1.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "non-ASCII bytes, charset attribute",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/labelclust-ndd.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/labelclust-ndd.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/layers.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/layers.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "node1",
+          "node2",
+          "node3",
+          "node4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/longflat.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/longflat.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "b",
+          "c",
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/multi.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/multi.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ],
+        "graphs": 2,
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/NaN.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/NaN.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 76,
+        "edges": 121,
+        "directed": true,
+        "nodeIds": [
+          "AbstractMemory",
+          "Memory",
+          "AliasedMemory",
+          "Architecture",
+          "ROOT"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/nestedclust.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/nestedclust.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "e",
+          "f",
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/ordering.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/ordering.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 16,
+        "directed": true,
+        "nodeIds": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "5"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/Petersen.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/Petersen.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "undirected edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 15,
+        "directed": false,
+        "nodeIds": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/pgram.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/pgram.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 59,
+        "edges": 78,
+        "directed": true,
+        "nodeIds": [
+          "A",
+          "C",
+          "E",
+          "G",
+          "I"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/ports.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/ports.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "HTML-like labels, record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 20,
+        "directed": true,
+        "nodeIds": [
+          "TOP",
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/record2.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/record2.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/records.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/records.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 7,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "x",
+          "y"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/russian.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/russian.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 7,
+        "directed": true,
+        "nodeIds": [
+          "\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442\u044b",
+          "\u0411\u0430\u043d\u043a\u043e\u0432\u0441\u043a\u0438\u0435\u0421\u0447\u0435\u0442\u0430",
+          "\u041e\u0440\u0433\u0430\u043d\u0438\u0437\u0430\u0446\u0438\u0438",
+          "\u0412\u043e\u043f\u0440\u043e\u0441\u044b\u0414\u043b\u044f\u0410\u043d\u043a\u0435\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f",
+          "\u0412\u0430\u0440\u0438\u0430\u043d\u0442\u044b\u041e\u0442\u0432\u0435\u0442\u043e\u0432\u041e\u043f\u0440\u043e\u0441\u043e\u0432"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/shapes.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/shapes.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 33,
+        "edges": 28,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/states.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/states.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          "empty",
+          "stolen",
+          "waiting",
+          "full"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/structs.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/structs.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "struct1",
+          "struct2",
+          "struct3"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/train11.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/train11.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 25,
+        "directed": true,
+        "nodeIds": [
+          "st9",
+          "st10",
+          "st8",
+          "st0",
+          "st7"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/trivial.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/trivial.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "basic statements",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/try.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/try.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 8,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "p",
+          "q",
+          "r"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/url.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/url.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "clusters, subgraphs, HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          "lang",
+          "colors",
+          "command",
+          "name",
+          "size"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/val_val.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/val_val.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/world.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/world.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 48,
+        "edges": 69,
+        "directed": true,
+        "nodeIds": [
+          "S8",
+          "S24",
+          "S1",
+          "S35",
+          "S30"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/xlabels.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/xlabels.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          "all",
+          "t1",
+          "t2",
+          "p1",
+          "p2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/inv_inv.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/inv_inv.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/nul_nul.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/nul_nul.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-graphs/root.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/graphs/root.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1054,
+        "edges": 1083,
+        "directed": true,
+        "nodeIds": [
+          "1",
+          "189E",
+          "790E",
+          "2",
+          "191E"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1724.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1724.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1724 reproduction; non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "\u00ff",
+          "0"
+        ],
+        "warnings": [
+          "W_DOT_NUMERAL_AMBIGUITY"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1367.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1367.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "invalid UTF-8 (issue 1367); clusters, subgraphs, non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 23,
+        "edges": 24,
+        "directed": true,
+        "nodeIds": [
+          "routine1",
+          "routine2",
+          "Ie3ffa58211d69e3db000538bf02fa1d0",
+          "Se3ffa4bf11d69e3db000538bf02fa1d0",
+          "Se3ffa7b011d69e3db000538bf02fa1d0"
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1411.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1411.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "newline inside a string followed by a stray backslash; Graphviz reports a syntax error at line 17 (issue 1411); undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphviz-issues/2860.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2860.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2860 reproduction; subgraphs, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2860_1.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2860_1.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2860_1 reproduction; strict, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1845.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1845.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1845 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "fear",
+          "anger"
+        ],
+        "graphs": 2,
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2490.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2490.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "ports; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "foo",
+          "bar"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1865.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1865.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1865 reproduction; clusters, subgraphs, strict",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "Base (FTC) holding"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2564.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2564.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2564 reproduction; strict, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2643.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2643.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2643 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "l_stop",
+          "l_run",
+          "null"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2087.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2087.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2087 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 8,
+        "directed": true,
+        "nodeIds": [
+          "n1",
+          "n2",
+          "n3",
+          "n5",
+          "n4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1425.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1425.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1425 reproduction; HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "n"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2609.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2609.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2609 reproduction; strict, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 6,
+        "directed": false,
+        "nodeIds": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2723.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2723.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "string concatenation with +; undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 14,
+        "edges": 24,
+        "directed": false,
+        "nodeIds": [
+          "407",
+          "1875",
+          "1876",
+          "408",
+          "1877"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1658.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1658.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "# comment lines; undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 21,
+        "edges": 29,
+        "directed": false,
+        "nodeIds": [
+          "3",
+          "2",
+          "1",
+          "0",
+          "Charger"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1408.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1408.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "# comment lines; clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "node1",
+          "node2"
+        ]
+      },
+      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+    },
+    {
+      "file": "graphviz-issues/2801.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2801.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2801 reproduction; strict, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/42.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/42.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 42 reproduction; strict, directed edges, pos attributes, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 25,
+        "edges": 125,
+        "directed": true,
+        "nodeIds": [
+          "0",
+          "1",
+          "3",
+          "7",
+          "12"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1323.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1323.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "backslash-newline continuation; clusters, subgraphs, record shapes, backslash-newline continuation, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 11,
+        "directed": true,
+        "nodeIds": [
+          "namespace1",
+          "vfsmount1",
+          "vfsmount2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1323_1.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1323_1.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1323_1 reproduction; clusters, subgraphs, record shapes, backslash-newline continuation, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "namespace1",
+          "vfsmount1",
+          "vfsmount2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2193.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2193.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2193 reproduction; backslash-newline continuation, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 58,
+        "edges": 64,
+        "directed": true,
+        "nodeIds": [
+          "Prepare DAQ/Pre Set Event",
+          "Check if there is at least\\none active IC headstage",
+          "Check if no TTL channels are active",
+          "All required analysis parameters present?",
+          "Check if all active IC\\n headstages have the same stimset"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2413_2.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2413_2.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2413_2 reproduction; non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 27,
+        "edges": 92,
+        "directed": true,
+        "nodeIds": [
+          "JI-41529",
+          "JI-42130",
+          "JI-42861",
+          "JI-43284",
+          "JO-36021"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/925.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/925.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "UTF-8 Cyrillic in record labels (issue 925); record shapes, non-ASCII bytes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "reclat",
+          "recrus"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2619_1.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2619_1.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2619_1 reproduction; HTML-like labels, non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          "I57",
+          "I19",
+          "I63",
+          "I64",
+          "F7"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1622_3.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1622_3.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1622_3 reproduction; HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "green"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/358.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/358.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 358 reproduction; HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/162.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/162.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 162 reproduction; clusters, subgraphs, strict, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2183.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2183.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2183 reproduction; clusters, subgraphs, strict, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 22,
+        "edges": 21,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/241_0.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/241_0.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 241_0 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 14,
+        "directed": true,
+        "nodeIds": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/700813.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/700813.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 700813 reproduction; subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 7,
+        "directed": true,
+        "nodeIds": [
+          "B",
+          "C",
+          "E",
+          "F",
+          "A"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2437.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2437.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2437 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "AA3",
+          "AA4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2782.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2782.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2782 reproduction; HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "b11",
+          "b23",
+          "a1",
+          "a2",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1855.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1855.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1855 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 32,
+        "edges": 31,
+        "directed": true,
+        "nodeIds": [
+          "2",
+          "1",
+          "3",
+          "4",
+          "5"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1447.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1447.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1447 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 36,
+        "edges": 56,
+        "directed": true,
+        "nodeIds": [
+          "0x00400a70",
+          "0x00400b71",
+          "0x00400ab9",
+          "0x00400b75",
+          "0x00400ae6"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/2082.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/2082.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 2082 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 10,
+        "directed": true,
+        "nodeIds": [
+          "e1fd845a83e841e98a47939a50a5649d",
+          "9ecc9661ac624e31b06a5bd0fdb1d896",
+          "cfabeae2444d467eaf50711080f396f2",
+          "7c6d3e67b21c442397a6f22adf92bde3",
+          "ebab3ee997594b25971b9c8cc5527035"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1898.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1898.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1898 reproduction; HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 24,
+        "edges": 27,
+        "directed": true,
+        "nodeIds": [
+          "N1",
+          "N2",
+          "N12",
+          "N16",
+          "N17"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/1949.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/1949.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 1949 reproduction; clusters, subgraphs, HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 14,
+        "directed": true,
+        "nodeIds": [
+          "structDefaultroot",
+          "structC",
+          "structHell",
+          "structDefaultDunkel",
+          "structNichtsErkannt"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/121.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/121.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 121 reproduction; clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-issues/14.dot",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/14.dot",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "Graphviz issue 14 reproduction; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-regression/cylinder.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/regression_tests/shapes/reference/cylinder.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "regression reference graph; pos attributes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-regression/Mdiamond.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/regression_tests/shapes/reference/Mdiamond.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "regression reference graph; pos attributes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-regression/plaintext.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz/-/blob/c5401be8aa02b41346e60fb7f51d6d240b2b24d0/tests/regression_tests/shapes/reference/plaintext.gv",
+      "license": "EPL-2.0",
+      "version": "graphviz c5401be8aa02b41346e60fb7f51d6d240b2b24d0",
+      "exercises": "regression reference graph; pos attributes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/unix.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/unix.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 41,
+        "edges": 49,
+        "directed": true,
+        "nodeIds": [
+          "5th Edition",
+          "6th Edition",
+          "PWB 1.0",
+          "LSX",
+          "1 BSD"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/crazy.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/crazy.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 41,
+        "edges": 49,
+        "directed": true,
+        "nodeIds": [
+          "5th Edition",
+          "6th Edition",
+          "PWB 1.0",
+          "LSX",
+          "1 BSD"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/world.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/world.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 48,
+        "edges": 69,
+        "directed": true,
+        "nodeIds": [
+          "S8",
+          "S24",
+          "S1",
+          "S35",
+          "S30"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/Linux_kernel_diagram.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/Linux_kernel_diagram.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); subgraphs, non-ASCII bytes, directed edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 65,
+        "edges": 68,
+        "directed": true,
+        "nodeIds": [
+          "system_",
+          "system",
+          "SCI",
+          "sysfs",
+          "DM"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/UML_Class_diagram.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/UML_Class_diagram.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); HTML-like labels, record shapes, non-ASCII bytes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 11,
+        "directed": true,
+        "nodeIds": [
+          "Client",
+          "Interface1",
+          "Interface2",
+          "Class1",
+          "System_1"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/datastruct.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/datastruct.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 13,
+        "edges": 17,
+        "directed": true,
+        "nodeIds": [
+          "node0",
+          "node1",
+          "node2",
+          "node3",
+          "node4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/fsm.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/fsm.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 14,
+        "directed": true,
+        "nodeIds": [
+          "0",
+          "3",
+          "4",
+          "8",
+          "2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/cluster.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/cluster.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "a0",
+          "a1",
+          "a2",
+          "a3",
+          "b0"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/siblings.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/siblings.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 200,
+        "edges": 284,
+        "directed": true,
+        "nodeIds": [
+          "Lori Brede",
+          "Michael Griffith",
+          "Amie Holston",
+          "Casey Carter",
+          "Laura De'Armond"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/pprof.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/pprof.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); clusters, subgraphs, directed edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 22,
+        "edges": 28,
+        "directed": true,
+        "nodeIds": [
+          "File: [stackcollapse]",
+          "N1",
+          "N2",
+          "N3",
+          "N4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/git.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/git.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); HTML-like labels, non-ASCII bytes, directed edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 10,
+        "directed": true,
+        "nodeIds": [
+          "changes",
+          "staging",
+          "HEAD",
+          "stash",
+          "stash_push"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/switch.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/switch.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 64,
+        "edges": 80,
+        "directed": true,
+        "nodeIds": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/kennedyanc.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/kennedyanc.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 14,
+        "edges": 22,
+        "directed": false,
+        "nodeIds": [
+          "I5",
+          "I1",
+          "I6",
+          "I7",
+          "I2"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/psg.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/psg.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); HTML-like labels, record shapes, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 14,
+        "directed": true,
+        "nodeIds": [
+          "state0",
+          "state1",
+          "state2",
+          "state3",
+          "state4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/Genetic_Programming.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/directed/Genetic_Programming.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (directed); clusters, subgraphs, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 51,
+        "edges": 43,
+        "directed": false,
+        "nodeIds": [
+          "n002",
+          "n003",
+          "n004",
+          "n005",
+          "n006"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/softmaint.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/neato/softmaint.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (neato); directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 213,
+        "edges": 269,
+        "directed": true,
+        "nodeIds": [
+          "fcfpr1_1_2t_17",
+          "341411",
+          "fcfpr1_1t_1",
+          "rdlfpr2_0_rdlt_4",
+          "fpfpr1_0_1t_1"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/ER.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/neato/ER.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (neato); undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 12,
+        "edges": 12,
+        "directed": false,
+        "nodeIds": [
+          "course",
+          "institute",
+          "student",
+          "name0",
+          "name1"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/process.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/neato/process.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (neato); undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 13,
+        "directed": false,
+        "nodeIds": [
+          "run",
+          "intr",
+          "runbl",
+          "kernel",
+          "zombie"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/color_wheel.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/neato/color_wheel.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (neato); subgraphs, non-ASCII bytes, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 88,
+        "edges": 127,
+        "directed": false,
+        "nodeIds": [
+          "center",
+          "darkred",
+          "brown",
+          "olive",
+          "darkolivegreen"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/fdpclust.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/undirected/fdpclust.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (undirected); clusters, subgraphs, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 10,
+        "edges": 6,
+        "directed": false,
+        "nodeIds": [
+          "e",
+          "a",
+          "b",
+          "C",
+          "D"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/grid.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/undirected/grid.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (undirected); undirected edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 64,
+        "edges": 126,
+        "directed": false,
+        "nodeIds": [
+          "A0",
+          "B1",
+          "C2",
+          "D3",
+          "E4"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/happiness.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/twopi/happiness.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (twopi); non-ASCII bytes, undirected edges, weights",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 78,
+        "edges": 77,
+        "directed": false,
+        "nodeIds": [
+          "Happiness",
+          "Peace",
+          "Love",
+          "Soul",
+          "Mind"
+        ]
+      }
+    },
+    {
+      "file": "graphviz-gallery/table.gv",
+      "origin": "https://gitlab.com/graphviz/graphviz.gitlab.io/-/blob/f3746614ff9f9ae0f219c94ee20bcfd478cca2f5/content/en/Gallery/gradient/table.gv.txt",
+      "license": "EPL-2.0",
+      "version": "graphviz.gitlab.io f3746614ff9f9ae0f219c94ee20bcfd478cca2f5",
+      "exercises": "gallery (gradient); HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a0"
+        ]
+      }
+    },
+    {
+      "file": "pydot/escaped_newlines.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/my_tests/escaped_newlines.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; backslash-newline continuation, directed edges, pos attributes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "1"
+        ]
+      }
+    },
+    {
+      "file": "pydot/escaped_quoted_label.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/my_tests/escaped_quoted_label.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; basic statements",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "pydot/hash_inside_html.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/my_tests/hash_inside_html.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; HTML-like labels",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "b1",
+          "<b>b2 #rules!</b>",
+          "b4"
+        ]
+      },
+      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4)"
+    },
+    {
+      "file": "pydot/html_labels.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/my_tests/html_labels.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; HTML-like labels, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "abcde",
+          "this <b>is</b> a <i>node</i>",
+          "this tabla <table></table><b>is</b> <i>another</i>",
+          "more <b>html</b>",
+          "<more <b>html</b>>"
+        ]
+      },
+      "knownFailure": "an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4)"
+    },
+    {
+      "file": "pydot/numeric_ids_unicode.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/my_tests/numeric_ids_unicode.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; non-ASCII bytes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "0",
+          "1",
+          "2",
+          "3"
+        ]
+      }
+    },
+    {
+      "file": "pydot/parsing_test.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/my_tests/parsing_test.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; directed edges, pos attributes",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 30,
+        "directed": true,
+        "nodeIds": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      }
+    },
+    {
+      "file": "pydot/from-past-to-future.dot",
+      "origin": "https://github.com/pydot/pydot/blob/6ff96d2303a73e2067167af07e125fcf154e6e36/test/from-past-to-future/from-past-to-future.dot",
+      "license": "MIT",
+      "version": "pydot 6ff96d2303a73e2067167af07e125fcf154e6e36",
+      "exercises": "pydot parser test; clusters, subgraphs, directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 34,
+        "edges": 39,
+        "directed": true,
+        "nodeIds": [
+          "Computers_icon",
+          "Semantic_Web_icon",
+          "Cryptography_icon",
+          "Automata_icon",
+          "AI_icon"
+        ]
+      }
+    },
+    {
+      "file": "ts-graphviz/inet.dot",
+      "origin": "https://github.com/ts-graphviz/ts-graphviz/blob/a6af926d6ff3bf03a3396e98d6239e16b7412dc5/test/dot/inet.dot",
+      "license": "MIT",
+      "version": "ts-graphviz a6af926d6ff3bf03a3396e98d6239e16b7412dc5",
+      "exercises": "ts-graphviz parser test; strict, undirected edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 24,
+        "edges": 41,
+        "directed": false,
+        "nodeIds": [
+          "MH",
+          "ERC",
+          "ALC",
+          "WH1",
+          "HO1"
+        ]
+      }
+    },
+    {
+      "file": "ts-graphviz/issue1147.dot",
+      "origin": "https://github.com/ts-graphviz/ts-graphviz/blob/a6af926d6ff3bf03a3396e98d6239e16b7412dc5/test/dot/issue1147.dot",
+      "license": "MIT",
+      "version": "ts-graphviz a6af926d6ff3bf03a3396e98d6239e16b7412dc5",
+      "exercises": "ts-graphviz parser test; directed edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "P",
+          "C",
+          "Q",
+          "C1",
+          "C2"
+        ]
+      },
+      "knownFailure": "a comma between statements (a, b -> c; {C, Q}) is a syntax error (sources.md 5.4)"
+    },
+    {
+      "file": "graphlib-dot/anonymous-strict.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "strict anonymous empty digraph",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true
+      }
+    },
+    {
+      "file": "graphlib-dot/graph-attr-stmt.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "graph attribute statement ID = ID",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true
+      }
+    },
+    {
+      "file": "graphlib-dot/tab-cr-whitespace.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "tab and bare CR whitespace",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true
+      }
+    },
+    {
+      "file": "graphlib-dot/comments.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "// and /* */ comments",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/attr-list-separators.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "comma, space separated attributes and several attribute lists",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/escaped-quote-id.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "escaped quote inside a quoted id",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "\"a\""
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/unicode-ids.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "quoted and unquoted non-ASCII ids",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "\u2656\u2658",
+          "\u2657\u2655"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/number-letter.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "a numeral followed by a letter splits into two ids (Graphviz warns)",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "123",
+          "a"
+        ],
+        "warnings": [
+          "W_DOT_NUMERAL_AMBIGUITY"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/port-compass.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "ports with compass points, port on a node statement",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/strict-merge-attrs.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "strict merges repeated edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/nonstrict-parallel.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "parallel edges kept without strict",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/subgraph-forms.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "named, anonymous, bare and reused subgraphs",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/subgraph-endpoints.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "subgraphs as edge endpoints expand to 4 edges",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/subgraph-chain.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "a subgraph with edges used as an endpoint",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/node-defaults.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "node defaults scoped to a subgraph",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "graphlib-dot/unterminated-brace.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "missing closing brace",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphlib-dot/attr-missing-close.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "unterminated attribute list",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphlib-dot/attr-missing-key.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "attribute without a key",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphlib-dot/attr-missing-value.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "attribute without a value",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphlib-dot/edge-missing-source.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "edge operator without a source",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphlib-dot/edge-missing-target.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "edge operator without a target",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "graphlib-dot/two-empty-graphs.gv",
+      "origin": "https://github.com/dagrejs/graphlib-dot/blob/8649330a05fd6599929acfc9d5a1cf23f04256bc/test/read-one-test.js (inline case)",
+      "license": "MIT",
+      "version": "graphlib-dot 8649330a05fd6599929acfc9d5a1cf23f04256bc",
+      "exercises": "two graphs on one line",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true,
+        "graphs": 2,
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "authored/multi-graph-3.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "three graphs in one file: import() reads the first and warns, importAllGraphs() returns all three",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "x",
+          "y"
+        ],
+        "graphs": 3
+      }
+    },
+    {
+      "file": "authored/hash-indented.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "indented # comment lines (Graphviz ignores them)",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      },
+      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+    },
+    {
+      "file": "authored/hash-midline.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a mid-line # comment (undocumented; Graphviz ignores to end of line)",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "knownFailure": "a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4)"
+    },
+    {
+      "file": "authored/hash-line-directive.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a # line directive at column 0",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/charset-latin1.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "charset=latin1 with raw Latin-1 bytes: decoded as Latin-1",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "caf\u00e9",
+          "na\u00efve"
+        ]
+      }
+    },
+    {
+      "file": "authored/charset-latin1-attr.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "charset given in a graph attribute list with a quoted ISO-8859-1 label",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/cp1252-no-charset.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "windows-1252 bytes (curly quotes 0x93 0x94) without charset: not UTF-8, decoded as windows-1252 with a warning (Graphviz decodes as Latin-1)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "na\u00efve",
+          "\u201cquoted\u201d"
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-explicit-encoding.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "Latin-1 bytes without charset, read with the encoding option: no fallback warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "caf\u00e9",
+          "b"
+        ],
+        "forbidCodes": [
+          "W_ENCODING_FALLBACK",
+          "W_OPTION_IGNORED"
+        ]
+      },
+      "options": {
+        "encoding": "iso-8859-1"
+      }
+    },
+    {
+      "file": "authored/encoding-option-overrides-charset.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a file that claims charset=latin1 but holds UTF-8, read with encoding utf-8: the option wins",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "caf\u00e9",
+          "b"
+        ]
+      },
+      "options": {
+        "encoding": "utf-8"
+      }
+    },
+    {
+      "file": "authored/utf16le-bom.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16LE with a byte order mark (Graphviz cannot read it; the BOM decides)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "caf\u00e9",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16be-bom.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-16BE with a byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeIds": [
+          "\u00fcber",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf8-bom.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "UTF-8 with a byte order mark: the BOM is skipped (Graphviz 2.43 reports a syntax error; current Graphviz ignores the BOM)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "caf\u00e9",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/crlf.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "CRLF line endings",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "authored/numeral-ids.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "numerals 1, 1.0, 01, -.5, .5 and -1 are six distinct node names",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 0,
+        "directed": false,
+        "nodeIds": [
+          "1",
+          "1.0",
+          "01",
+          "-.5",
+          ".5"
+        ]
+      }
+    },
+    {
+      "file": "authored/comma-node-list.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a comma between statements (outside the documented grammar)",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "knownFailure": "a comma between statements (a, b -> c; {C, Q}) is a syntax error (sources.md 5.4)"
+    },
+    {
+      "file": "authored/attr-no-value.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an attribute without a value is a syntax error in Graphviz",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/unquoted-comma-value.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an unquoted comma-separated attribute value must be a hard error (Graphviz issue 191)",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/strict-merge.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "strict: b--a merges into a--b, the repeated self-loop is kept once",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_DOT_STRICT_MERGED"
+        ],
+        "nodes": 2,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-op-mismatch.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "-- inside a digraph: Graphviz rejects it; graph-io keeps the edge with a warning (sources.md 5.4: lenient is acceptable)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "warnings": [
+          "W_DOT_EDGE_OPERATOR"
+        ]
+      },
+      "roundTripFailure": "a mixed-direction graph is refused by the DOT exporter under the default onMixedDirection \"error\""
+    },
+    {
+      "file": "authored/edge-default-scope.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "edge defaults apply to later edges only, scoped to the subgraph",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      }
+    },
+    {
+      "file": "authored/node-default-scope.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "node defaults apply to nodes created later, inside the scope",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "b",
+            "column": "color",
+            "value": "red"
+          },
+          {
+            "id": "c",
+            "column": "shape",
+            "value": "box"
+          },
+          {
+            "id": "c",
+            "column": "color",
+            "value": "red"
+          },
+          {
+            "id": "d",
+            "column": "color",
+            "value": "red"
+          }
+        ],
+        "nodes": 4,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "authored/empty-file.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an empty file holds no graph",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      }
+    },
+    {
+      "file": "authored/only-comments.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "only comments: no graph",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      }
+    },
+    {
+      "file": "authored/empty-graph.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an empty graph",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": false
+      }
+    },
+    {
+      "file": "authored/missing-brace.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a missing closing brace",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/concat.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "quoted strings joined with +",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "d",
+            "role": "label",
+            "value": "multipart"
+          }
+        ],
+        "nodes": 3,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "ab",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "authored/backslash-newline.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a backslash-newline inside a quoted string joins the lines",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "longname",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/raw-newline-in-string.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a raw newline inside a quoted string is kept",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "role": "label",
+            "value": "two\nlines"
+          }
+        ],
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "authored/mixed-case-keywords.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "keywords in mixed case (Graphviz issue 2481)",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "authored/quoted-keywords.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "quoted keywords are ordinary ids",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "node",
+          "edge",
+          "subgraph",
+          "strict"
+        ]
+      }
+    },
+    {
+      "file": "authored/keyword-as-id.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a bare keyword used as a node id is a syntax error",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/cluster-reuse.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a cluster name reused merges into one cluster",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/nested-clusters.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "nested clusters and an edge chain",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "authored/at-sign.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an @ outside a string is a syntax error",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/unterminated-comment.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an unterminated /* comment",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/html-unbalanced.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an unbalanced < in an HTML string is an error",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    },
+    {
+      "file": "authored/html-vs-quoted.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an HTML label and a quoted string with the same text",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-chain-attrs.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "an edge chain shares one attribute list",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 3
+          },
+          {
+            "source": "c",
+            "target": "d",
+            "weight": 3
+          }
+        ],
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ]
+      }
+    },
+    {
+      "file": "authored/weights.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "edge weights, zero and absent",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "edgeChecks": [
+          {
+            "source": "a",
+            "target": "b",
+            "weight": 2.5
+          },
+          {
+            "source": "b",
+            "target": "c",
+            "weight": 0
+          },
+          {
+            "source": "c",
+            "target": "a",
+            "weight": 1
+          }
+        ],
+        "nodes": 3,
+        "edges": 3,
+        "directed": false,
+        "nodeIds": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "file": "authored/deep-nesting-1100.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "1100 levels of nested braces: beyond graph-io's cap of 1024 (Graphviz parses to about 5000)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_DOT_NESTING"
+      }
+    },
+    {
+      "file": "authored/long-string.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a 200000-character quoted string",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/many-edges-one-line.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "5000 edge statements on one line",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5001,
+        "edges": 5000,
+        "directed": true,
+        "nodeIds": [
+          "n0",
+          "n1",
+          "n2",
+          "n3",
+          "n4"
+        ]
+      }
+    },
+    {
+      "file": "authored/attr-macro.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "graph, node and edge attribute statements and ID = ID",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-key.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "edge key names an edge; the same key merges",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": true,
+        "warnings": [
+          "W_DOT_KEY_MERGED"
+        ]
+      }
+    },
+    {
+      "file": "authored/multi-graph-then-garbage.gv",
+      "origin": "authored",
+      "license": "MIT",
+      "version": "2026-09-23",
+      "exercises": "a stray closing brace after the graph",
+      "oracle": "graphviz-2.43",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      }
+    }
+  ]
+}

@@ -6,10 +6,13 @@ import {
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
     OPTION_IGNORED_CODE,
     SINK_OPTION_CODE,
+    UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import {
@@ -43,6 +46,12 @@ export const CSV_ISSUE = Object.freeze({
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** The header names neither endpoint columns nor an id column (fatal). */
     NO_ENDPOINT_COLUMNS: NO_ENDPOINT_COLUMNS_CODE,
     /** A node table without an id column (fatal). */

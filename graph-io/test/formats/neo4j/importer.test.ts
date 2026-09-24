@@ -732,7 +732,9 @@ describe("neo4jImporter (design 8.4)", () => {
         });
 
         it("aborts on invalid UTF-8", async () => {
-            const err = await importError(new Uint8Array([0x3a, 0x49, 0x44, 0x0a, 0xff, 0xfe, 0x0a]));
+            const err = await importError(new Uint8Array([0x3a, 0x49, 0x44, 0x0a, 0xff, 0xfe, 0x0a]), {
+                encoding: "utf-8",
+            });
             expect(err.report.issues[0].code).toBe(INVALID_UTF8_CODE);
         });
     });

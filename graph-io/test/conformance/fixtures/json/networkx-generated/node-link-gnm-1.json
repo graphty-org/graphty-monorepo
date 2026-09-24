@@ -1,0 +1,186 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": -36.238302,
+   "rank": -7,
+   "flag": true,
+   "id": 0
+  },
+  {
+   "score": 1.880691,
+   "tag": " nbsp",
+   "id": 1
+  },
+  {
+   "score": -52.27427,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": 2
+  },
+  {
+   "score": 1e-07,
+   "rank": -7,
+   "tag": "it's",
+   "id": 3
+  },
+  {
+   "score": -86.557903,
+   "rank": 2147483647,
+   "tag": "it's",
+   "id": 4
+  },
+  {
+   "tag": "line\nbreak",
+   "flag": false,
+   "id": 5
+  },
+  {
+   "score": 82.991688,
+   "tag": "a&b",
+   "id": 6
+  },
+  {
+   "score": 3.141592653589793,
+   "tag": "<tag>",
+   "flag": true,
+   "id": 7
+  },
+  {
+   "score": 1e-07,
+   "rank": 1,
+   "tag": "say \"hi\"",
+   "flag": true,
+   "id": 8
+  },
+  {
+   "score": 53.635709,
+   "rank": 2147483647,
+   "tag": "line\nbreak",
+   "flag": true,
+   "id": 9
+  },
+  {
+   "rank": 1,
+   "tag": "中文",
+   "flag": false,
+   "id": 10
+  },
+  {
+   "score": 0.5,
+   "rank": -7,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": 11
+  }
+ ],
+ "links": [
+  {
+   "cap": 998,
+   "source": 0,
+   "target": 4
+  },
+  {
+   "weight": 1.5919,
+   "source": 0,
+   "target": 3
+  },
+  {
+   "weight": 1.6442,
+   "cap": 839,
+   "source": 0,
+   "target": 10
+  },
+  {
+   "weight": 5.239,
+   "source": 1,
+   "target": 10
+  },
+  {
+   "weight": 1e+300,
+   "cap": 843,
+   "source": 1,
+   "target": 9
+  },
+  {
+   "weight": 10,
+   "rel": "back\\slash",
+   "source": 1,
+   "target": 11
+  },
+  {
+   "weight": 0.5,
+   "cap": 25,
+   "source": 1,
+   "target": 7
+  },
+  {
+   "weight": 1e+300,
+   "cap": 964,
+   "source": 1,
+   "target": 3
+  },
+  {
+   "weight": 2.8134,
+   "source": 2,
+   "target": 5
+  },
+  {
+   "rel": "say \"hi\"",
+   "cap": 538,
+   "source": 3,
+   "target": 4
+  },
+  {
+   "source": 4,
+   "target": 11
+  },
+  {
+   "source": 4,
+   "target": 8
+  },
+  {
+   "weight": 4.2297,
+   "cap": 807,
+   "source": 4,
+   "target": 10
+  },
+  {
+   "weight": 1e-300,
+   "rel": " nbsp",
+   "source": 5,
+   "target": 9
+  },
+  {
+   "weight": 1,
+   "source": 5,
+   "target": 8
+  },
+  {
+   "weight": 3,
+   "source": 6,
+   "target": 9
+  },
+  {
+   "weight": 2.9237,
+   "source": 6,
+   "target": 7
+  },
+  {
+   "source": 8,
+   "target": 11
+  },
+  {
+   "weight": 0.5,
+   "cap": 626,
+   "source": 9,
+   "target": 10
+  },
+  {
+   "weight": 0.5173,
+   "rel": "back\\slash",
+   "source": 10,
+   "target": 11
+  }
+ ]
+}

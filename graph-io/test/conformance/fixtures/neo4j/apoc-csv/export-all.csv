@@ -1,0 +1,7 @@
+"_id","_labels","name","surname","_start","_end","_type","foo"
+"0",":Person","John","Snow",,,,
+"1",":Person","Matt","Jackson",,,,
+"2",":Person","Jenny","White",,,,
+"3",":Person","Susan","Brown",,,,
+"4",":Person","Tom","Taylor",,,,
+,,,,"0","1","KNOWS","1"

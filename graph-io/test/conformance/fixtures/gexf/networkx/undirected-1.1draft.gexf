@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns="http://www.gexf.net/1.1draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.1draft http://www.gexf.net/1.1draft/gexf.xsd" version="1.1">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="2" title="name" type="string" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="n1" label="First">
+        <attvalues>
+          <attvalue for="0" value="1.5" />
+          <attvalue for="1" value="true" />
+        </attvalues>
+      </node>
+      <node id="n2" label="Second">
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="1" value="false" />
+        </attvalues>
+      </node>
+      <node id="n3" label="Third">
+        <attvalues>
+          <attvalue for="0" value="-3.25" />
+          <attvalue for="1" value="true" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="n1" target="n2" id="0" weight="0.5">
+        <attvalues>
+          <attvalue for="2" value="x" />
+        </attvalues>
+      </edge>
+      <edge source="n2" target="n3" id="1" weight="4.0">
+        <attvalues>
+          <attvalue for="2" value="y" />
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

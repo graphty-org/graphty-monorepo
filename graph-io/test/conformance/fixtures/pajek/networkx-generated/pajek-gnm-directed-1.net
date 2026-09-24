@@ -1,0 +1,30 @@
+*vertices 10
+1 0 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+2 1 0.0 0.0 ellipse
+3 2 0.0 0.0 ellipse tag plain
+4 3 0.0 0.0 ellipse tag café
+5 4 0.0 0.0 ellipse tag café
+6 5 0.0 0.0 ellipse
+7 6 0.0 0.0 ellipse
+8 7 0.0 0.0 ellipse tag plain
+9 8 0.0 0.0 ellipse tag café
+10 9 0.0 0.0 ellipse tag "two words"
+*arcs
+1 2 1e+300
+2 10 1.0
+3 8 7.6394 rel semi;colon
+3 5 6.8106 rel semi;colon
+3 1 1.0 rel semi;colon
+4 5 1.0
+5 9 1e+300 rel plain
+5 2 7.8905 rel semi;colon
+6 9 1.6579 rel plain
+6 4 9.3122 rel semi;colon
+6 2 3
+7 10 4.8134 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+7 6 1.0
+7 9 1e+300
+8 10 4.6752
+9 10 -2.25 rel a&b
+9 1 1e+300 rel a&b
+10 4 1.0

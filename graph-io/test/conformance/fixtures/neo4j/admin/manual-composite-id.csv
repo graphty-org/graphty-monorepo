@@ -1,0 +1,5 @@
+:ID,:ID,name
+aa,11,John
+bb,22,Paul
+:START_ID,:START_ID,:END_ID,:END_ID,:TYPE
+aa,11,bb,22,KNOWS

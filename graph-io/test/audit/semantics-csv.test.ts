@@ -360,7 +360,7 @@ describe("CSV quirks from CSVDataSource, csv-variant-detection and research note
         );
     });
 
-    it("refuses a header without endpoint or id columns, an empty input and non-UTF-8 bytes explicitly", async () => {
+    it("refuses a header without endpoint or id columns and an empty input; reads windows-1252 bytes with a warning", async () => {
         await expect(parse("foo,bar\n1,2\n")).rejects.toMatchObject({
             code: "E_IMPORT",
             report: { issues: [{ code: "E_CSV_NO_ENDPOINT_COLUMNS" }] },
@@ -373,7 +373,10 @@ describe("CSV quirks from CSVDataSource, csv-variant-detection and research note
             `source,target\ncaf${String.fromCharCode(0xe9)},b\n`,
             (c) => c.charCodeAt(0) & 0xff,
         );
-        await expect(importGraph(latin1, { format: "csv" })).rejects.toMatchObject({
+        const { snapshot, report } = await importGraph(latin1, { format: "csv" });
+        expect(snapshot.ids.toArray()).toEqual([`caf${String.fromCharCode(0xe9)}`, "b"]);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_ENCODING_FALLBACK"]);
+        await expect(importGraph(latin1, { format: "csv", encoding: "utf-8" })).rejects.toMatchObject({
             report: { issues: [{ code: "E_INVALID_UTF8" }] },
         });
     });

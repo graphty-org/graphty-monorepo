@@ -1,0 +1,30 @@
+{
+ "directed": true,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 46.464814,
+   "rank": 42,
+   "id": 0
+  },
+  {
+   "score": 1e-300,
+   "rank": 2147483647,
+   "tag": "it's",
+   "id": 1
+  },
+  {
+   "score": 1e+300,
+   "flag": false,
+   "id": 2
+  },
+  {
+   "rank": -2147483648,
+   "tag": "line\nbreak",
+   "flag": false,
+   "id": 3
+  }
+ ],
+ "links": []
+}

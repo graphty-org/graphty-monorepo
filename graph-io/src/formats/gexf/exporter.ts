@@ -290,6 +290,14 @@ function planExport(
                 );
             }
         }
+        if (graphExtraText(snapshot, "timestamp") !== null) {
+            note(
+                GEXF_LOSS.TIMESTAMP_AS_INTERVAL,
+                "the graph timestamp is written as a closed interval (start = end); GEXF 1.2 has no timestamp representation",
+                null,
+                null,
+            );
+        }
         if (edgeRoles.kind !== null) {
             note(
                 GEXF_LOSS.KIND_DROPPED,
@@ -1647,16 +1655,39 @@ function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
     if (plan.version === "1.3" && plan.timeRepresentation !== null) {
         attrs += ` timerepresentation="${plan.timeRepresentation}"`;
     }
-    const gexfExtra = meta.extra.gexf;
-    if (typeof gexfExtra === "object" && gexfExtra !== null) {
-        for (const key of ["start", "end", "timestamp"]) {
-            const value = (gexfExtra as Record<string, unknown>)[key];
-            if (typeof value === "string") {
-                attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
-            }
+    const timestamp = graphExtraText(snapshot, "timestamp");
+    const header: Record<string, string | null> = {
+        start: graphExtraText(snapshot, "start"),
+        end: graphExtraText(snapshot, "end"),
+        timestamp,
+    };
+    if (plan.version === "1.2" && timestamp !== null) {
+        // GEXF 1.2 has no timestamp: the graph's becomes a closed interval, as an element's does
+        header.start ??= timestamp;
+        header.end ??= timestamp;
+        header.timestamp = null;
+    }
+    for (const [key, value] of Object.entries(header)) {
+        if (value !== null) {
+            attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
         }
     }
     return `  <graph${attrs}>\n`;
+}
+
+/**
+ * A graph header value the GEXF importer recorded in `meta.extra.gexf` (start, end, timestamp).
+ * @param snapshot - the snapshot
+ * @param key - the attribute name
+ * @returns the text, or null when absent
+ */
+function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
+    const gexfExtra = snapshot.meta.extra.gexf;
+    if (typeof gexfExtra !== "object" || gexfExtra === null) {
+        return null;
+    }
+    const value = (gexfExtra as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : null;
 }
 
 /** The GEXF exporter (design section 8.5); `capabilities` describes the default 1.3 output. */

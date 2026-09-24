@@ -1,0 +1,311 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 79.353484,
+     "rank": 1,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 11.14255,
+     "tag": "back\\slash",
+     "flag": true,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "tag": "tab\there",
+     "flag": true,
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": 1e+300,
+     "tag": "中文",
+     "flag": false,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "score": 1e+300,
+     "flag": false,
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   },
+   {
+    "data": {
+     "score": 2.0,
+     "rank": 0,
+     "id": "6",
+     "value": 6,
+     "name": "6"
+    }
+   },
+   {
+    "data": {
+     "score": -45.385275,
+     "rank": 42,
+     "tag": "a&b",
+     "flag": false,
+     "id": "7",
+     "value": 7,
+     "name": "7"
+    }
+   },
+   {
+    "data": {
+     "score": -0.0,
+     "rank": 42,
+     "tag": "café",
+     "id": "8",
+     "value": 8,
+     "name": "8"
+    }
+   },
+   {
+    "data": {
+     "score": -31.561486,
+     "flag": true,
+     "id": "9",
+     "value": 9,
+     "name": "9"
+    }
+   },
+   {
+    "data": {
+     "score": 46.550934,
+     "rank": 1,
+     "tag": "<tag>",
+     "id": "10",
+     "value": 10,
+     "name": "10"
+    }
+   },
+   {
+    "data": {
+     "score": -90.819964,
+     "rank": 1,
+     "tag": "say \"hi\"",
+     "id": "11",
+     "value": 11,
+     "name": "11"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "rel": "back\\slash",
+     "source": 0,
+     "target": 11
+    }
+   },
+   {
+    "data": {
+     "weight": 3,
+     "source": 0,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "source": 0,
+     "target": 10
+    }
+   },
+   {
+    "data": {
+     "weight": 7.1744,
+     "source": 0,
+     "target": 5
+    }
+   },
+   {
+    "data": {
+     "rel": "plain",
+     "source": 0,
+     "target": 6
+    }
+   },
+   {
+    "data": {
+     "weight": 3.3192,
+     "rel": "tab\there",
+     "cap": 32,
+     "source": 1,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "rel": "😀",
+     "source": 1,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "back\\slash",
+     "cap": 90,
+     "source": 1,
+     "target": 11
+    }
+   },
+   {
+    "data": {
+     "cap": 611,
+     "source": 1,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "weight": 6.8075,
+     "rel": "😀",
+     "source": 1,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 1.2116,
+     "rel": "line\nbreak",
+     "cap": 990,
+     "source": 2,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 1,
+     "rel": "tab\there",
+     "cap": 839,
+     "source": 2,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 9.0886,
+     "source": 2,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 1e-300,
+     "rel": "say \"hi\"",
+     "cap": 620,
+     "source": 3,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 2.7089,
+     "rel": "two words",
+     "source": 3,
+     "target": 5
+    }
+   },
+   {
+    "data": {
+     "source": 3,
+     "target": 6
+    }
+   },
+   {
+    "data": {
+     "rel": "two words",
+     "source": 4,
+     "target": 5
+    }
+   },
+   {
+    "data": {
+     "cap": 388,
+     "source": 4,
+     "target": 6
+    }
+   },
+   {
+    "data": {
+     "weight": 4.8405,
+     "rel": "tab\there",
+     "source": 5,
+     "target": 6
+    }
+   },
+   {
+    "data": {
+     "weight": 3,
+     "rel": "plain",
+     "source": 5,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 1,
+     "source": 5,
+     "target": 7
+    }
+   },
+   {
+    "data": {
+     "cap": 500,
+     "source": 7,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "weight": 9.9618,
+     "rel": " nbsp",
+     "source": 8,
+     "target": 10
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5765,
+     "rel": "😀",
+     "cap": 761,
+     "source": 10,
+     "target": 11
+    }
+   }
+  ]
+ }
+}

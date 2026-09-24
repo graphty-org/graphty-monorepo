@@ -1,0 +1,170 @@
+{
+ "directed": true,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": -38.757259,
+   "tag": "中文",
+   "id": 0
+  },
+  {
+   "score": 82.898099,
+   "rank": -2147483648,
+   "flag": false,
+   "id": 1
+  },
+  {
+   "score": 0.5,
+   "flag": true,
+   "id": 2
+  },
+  {
+   "score": -76.934672,
+   "rank": 1,
+   "tag": "a&b",
+   "id": 3
+  },
+  {
+   "rank": 2147483647,
+   "tag": "plain",
+   "id": 4
+  },
+  {
+   "score": 1e+300,
+   "rank": 1,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": 5
+  },
+  {
+   "score": 1e-300,
+   "rank": -2147483648,
+   "tag": "back\\slash",
+   "id": 6
+  },
+  {
+   "score": 3.810947,
+   "rank": 42,
+   "tag": "say \"hi\"",
+   "flag": false,
+   "id": 7
+  },
+  {
+   "score": 6.096516,
+   "rank": 1,
+   "tag": "tab\there",
+   "id": 8
+  },
+  {
+   "rank": 42,
+   "tag": "line\nbreak",
+   "id": 9
+  }
+ ],
+ "links": [
+  {
+   "weight": 0.2444,
+   "source": 0,
+   "target": 1
+  },
+  {
+   "weight": 0.5,
+   "rel": "😀",
+   "cap": 439,
+   "source": 1,
+   "target": 9
+  },
+  {
+   "weight": 1,
+   "rel": "line\nbreak",
+   "source": 2,
+   "target": 7
+  },
+  {
+   "weight": 5.7958,
+   "rel": "<tag>",
+   "cap": 769,
+   "source": 2,
+   "target": 4
+  },
+  {
+   "cap": 245,
+   "source": 2,
+   "target": 0
+  },
+  {
+   "weight": 3.5377,
+   "rel": "😀",
+   "cap": 162,
+   "source": 3,
+   "target": 4
+  },
+  {
+   "weight": 1e-300,
+   "rel": "😀",
+   "cap": 171,
+   "source": 4,
+   "target": 8
+  },
+  {
+   "weight": 3,
+   "rel": " nbsp",
+   "cap": 863,
+   "source": 4,
+   "target": 1
+  },
+  {
+   "weight": -0.0,
+   "rel": "tab\there",
+   "cap": 998,
+   "source": 5,
+   "target": 8
+  },
+  {
+   "weight": 1e+300,
+   "source": 5,
+   "target": 3
+  },
+  {
+   "weight": 1,
+   "cap": 346,
+   "source": 5,
+   "target": 1
+  },
+  {
+   "weight": 6.3021,
+   "cap": 16,
+   "source": 6,
+   "target": 9
+  },
+  {
+   "weight": 9.0666,
+   "source": 6,
+   "target": 5
+  },
+  {
+   "source": 6,
+   "target": 8
+  },
+  {
+   "source": 7,
+   "target": 9
+  },
+  {
+   "weight": 7.3786,
+   "cap": 891,
+   "source": 8,
+   "target": 9
+  },
+  {
+   "source": 8,
+   "target": 0
+  },
+  {
+   "weight": 0.5,
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": 9,
+   "target": 3
+  }
+ ]
+}

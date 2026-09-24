@@ -1,0 +1,84 @@
+{
+  "format_version": "1.0",
+  "generated_by": "cytoscape-3.10.2",
+  "target_cytoscapejs_version": "~2.1",
+  "data": {
+    "shared_name": "demo",
+    "name": "demo",
+    "SUID": 52,
+    "selected": true
+  },
+  "elements": {
+    "nodes": [
+      {
+        "data": {
+          "id": "104",
+          "shared_name": "A",
+          "name": "A",
+          "SUID": 104,
+          "selected": false
+        },
+        "position": {
+          "x": 10.5,
+          "y": -3.0
+        },
+        "selected": false
+      },
+      {
+        "data": {
+          "id": "106",
+          "shared_name": "B",
+          "name": "B",
+          "SUID": 106,
+          "selected": false
+        },
+        "position": {
+          "x": 80.0,
+          "y": 40.25
+        },
+        "selected": false
+      },
+      {
+        "data": {
+          "id": "108",
+          "shared_name": "C",
+          "name": "C",
+          "SUID": 108,
+          "selected": false
+        },
+        "position": {
+          "x": 5.0,
+          "y": 90.0,
+          "z": 7.5
+        },
+        "selected": false
+      }
+    ],
+    "edges": [
+      {
+        "data": {
+          "id": "110",
+          "source": "104",
+          "target": "106",
+          "shared_name": "A (pp) B",
+          "interaction": "pp",
+          "SUID": 110,
+          "selected": false
+        },
+        "selected": false
+      },
+      {
+        "data": {
+          "id": "112",
+          "source": "106",
+          "target": "108",
+          "shared_name": "B (pp) C",
+          "interaction": "pp",
+          "SUID": 112,
+          "selected": false
+        },
+        "selected": false
+      }
+    ]
+  }
+}

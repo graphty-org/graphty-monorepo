@@ -1,0 +1,213 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": -2.25,
+   "rank": -7,
+   "tag": "<tag>",
+   "id": "Acciaiuoli"
+  },
+  {
+   "score": -82.273088,
+   "rank": 2147483647,
+   "tag": "line\nbreak",
+   "flag": false,
+   "id": "Medici"
+  },
+  {
+   "score": -2.25,
+   "rank": -7,
+   "tag": "it's",
+   "flag": true,
+   "id": "Castellani"
+  },
+  {
+   "score": 98.850176,
+   "id": "Peruzzi"
+  },
+  {
+   "score": 3.141592653589793,
+   "rank": 2147483647,
+   "tag": "back\\slash",
+   "flag": true,
+   "id": "Strozzi"
+  },
+  {
+   "tag": "it's",
+   "flag": false,
+   "id": "Barbadori"
+  },
+  {
+   "score": 123456789.125,
+   "rank": 42,
+   "tag": "中文",
+   "id": "Ridolfi"
+  },
+  {
+   "rank": 2147483647,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": "Tornabuoni"
+  },
+  {
+   "score": 44.668206,
+   "rank": 0,
+   "id": "Albizzi"
+  },
+  {
+   "score": 1e-300,
+   "rank": 42,
+   "tag": "café",
+   "flag": true,
+   "id": "Salviati"
+  },
+  {
+   "score": -2.25,
+   "tag": "back\\slash",
+   "flag": false,
+   "id": "Pazzi"
+  },
+  {
+   "score": 38.19129,
+   "rank": -7,
+   "tag": "two words",
+   "id": "Bischeri"
+  },
+  {
+   "score": -51.072381,
+   "tag": "plain",
+   "id": "Guadagni"
+  },
+  {
+   "score": 1e-300,
+   "flag": true,
+   "id": "Ginori"
+  },
+  {
+   "tag": "plain",
+   "id": "Lamberteschi"
+  }
+ ],
+ "links": [
+  {
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": "Acciaiuoli",
+   "target": "Medici"
+  },
+  {
+   "weight": 8.9365,
+   "source": "Medici",
+   "target": "Barbadori"
+  },
+  {
+   "weight": 1e-300,
+   "cap": 991,
+   "source": "Medici",
+   "target": "Ridolfi"
+  },
+  {
+   "weight": 3,
+   "cap": 506,
+   "source": "Medici",
+   "target": "Tornabuoni"
+  },
+  {
+   "weight": 7.6602,
+   "source": "Medici",
+   "target": "Albizzi"
+  },
+  {
+   "weight": 1e-300,
+   "rel": "tab\there",
+   "cap": 846,
+   "source": "Medici",
+   "target": "Salviati"
+  },
+  {
+   "weight": 1.6257,
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "cap": 605,
+   "source": "Castellani",
+   "target": "Peruzzi"
+  },
+  {
+   "weight": 7.3704,
+   "rel": "say \"hi\"",
+   "cap": 785,
+   "source": "Castellani",
+   "target": "Strozzi"
+  },
+  {
+   "source": "Castellani",
+   "target": "Barbadori"
+  },
+  {
+   "weight": 1,
+   "rel": "<tag>",
+   "cap": 287,
+   "source": "Peruzzi",
+   "target": "Strozzi"
+  },
+  {
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": "Peruzzi",
+   "target": "Bischeri"
+  },
+  {
+   "weight": -2.25,
+   "source": "Strozzi",
+   "target": "Ridolfi"
+  },
+  {
+   "weight": 8.127,
+   "rel": "line\nbreak",
+   "source": "Strozzi",
+   "target": "Bischeri"
+  },
+  {
+   "weight": 3,
+   "cap": 96,
+   "source": "Ridolfi",
+   "target": "Tornabuoni"
+  },
+  {
+   "weight": 0.0663,
+   "rel": "😀",
+   "source": "Tornabuoni",
+   "target": "Guadagni"
+  },
+  {
+   "weight": 6.8721,
+   "rel": "a&b",
+   "cap": 650,
+   "source": "Albizzi",
+   "target": "Ginori"
+  },
+  {
+   "weight": 9.0141,
+   "cap": 219,
+   "source": "Albizzi",
+   "target": "Guadagni"
+  },
+  {
+   "weight": -2.25,
+   "rel": "two words",
+   "cap": 108,
+   "source": "Salviati",
+   "target": "Pazzi"
+  },
+  {
+   "weight": 4.544,
+   "cap": 187,
+   "source": "Bischeri",
+   "target": "Guadagni"
+  },
+  {
+   "weight": 7.4139,
+   "cap": 846,
+   "source": "Guadagni",
+   "target": "Lamberteschi"
+  }
+ ]
+}

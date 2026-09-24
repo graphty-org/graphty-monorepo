@@ -1,0 +1,9 @@
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<graph edgedefault="undirected">
+<node id="a"/><node id="b"/><node id="c"/><node id="d"/>
+<edge source="a" target="b" directed="1"/>
+<edge source="b" target="c" directed="True"/>
+<edge source="c" target="d" directed="0"/>
+<edge source="d" target="a" directed="FALSE"/>
+</graph>
+</graphml>

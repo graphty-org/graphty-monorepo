@@ -13,7 +13,13 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { type AccelerationCapabilities, AccelerationController, type AccelerationPolicy } from "../acceleration";
+import {
+    ACCELERATION_POLICY_DEFAULT,
+    type AccelerationCapabilities,
+    AccelerationController,
+    type AccelerationPolicy,
+    type GraphAccelerator,
+} from "../acceleration";
 import type { EdgeId, NodeId, Path, RunId, Scope, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
@@ -142,10 +148,8 @@ interface SessionParts {
     readonly data: SessionData;
     /** Reads the data configuration, live. */
     readonly readData: () => SessionDataConfig;
-    /** The acceleration half of the configuration, which nothing outside the session changes. */
-    readonly accelerationConfig: SessionConfig["acceleration"];
-    /** The controller whose capabilities this session publishes. */
-    readonly acceleration: AccelerationControllerLike;
+    /** The controller whose capabilities and policy this session publishes. */
+    readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
     readonly ownedAcceleration: AccelerationController | null;
     /** Starting runs, finding them and taking them away, plus the teardown a session owes them. */
@@ -223,14 +227,15 @@ class Session implements ElementSession {
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
     private readonly readData: () => SessionDataConfig;
-    private readonly accelerationConfig: SessionConfig["acceleration"];
     private readonly sessionData: SessionData;
     private readonly store: SessionGraphStore;
-    private readonly acceleration: AccelerationControllerLike;
+    private readonly controller: AccelerationControllerLike;
     /** The store, when this session built it and therefore has to dispose it. */
     private readonly ownedStore: GraphStore | null;
     /** The controller, when this session built it and therefore has to dispose it. */
     private readonly ownedAcceleration: AccelerationController | null;
+    /** Stops the controller subscription `capabilities:changed` is published from. */
+    private readonly unwatchController: () => void;
     private disposed = false;
 
     /**
@@ -245,8 +250,7 @@ class Session implements ElementSession {
         this.data = parts.data;
         this.catalog = parts.catalog;
         this.readData = parts.readData;
-        this.accelerationConfig = parts.accelerationConfig;
-        this.acceleration = parts.acceleration;
+        this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
         this.runs = parts.runs;
@@ -258,6 +262,12 @@ class Session implements ElementSession {
         this.paint = parts.paint;
         this.planning = parts.planning;
         this.watchers = parts.watchers;
+        // Every transition the controller makes is one event on the session, carrying the same
+        // frozen document `capabilities` returns -- so a consumer that cached the last one can
+        // compare it by identity rather than walking it.
+        this.unwatchController = this.controller.onChange(() => {
+            publish(this.watchers, "capabilities:changed", { capabilities: this.controller.capabilities });
+        });
     }
 
     /**
@@ -285,10 +295,21 @@ class Session implements ElementSession {
      * It is read rather than held because the element REPLACES its configuration object when a
      * style template is applied, and a session holding the old one would answer from a setting
      * nobody is running under any more.
+     *
+     * The trade: `config` and the `config.acceleration` inside it are NOT identity-stable, so
+     * `prev === next` is not a staleness test here as it is on `capabilities`. Read the values,
+     * do not cache the object. `config` is not one of the identity-stable structs.
      * @returns the configuration
      */
     get config(): SessionConfig {
-        return Object.freeze({ data: this.readData(), acceleration: this.accelerationConfig });
+        return Object.freeze({
+            data: this.readData(),
+            // Read from the controller, not from a value frozen at construction: the policy and
+            // the threshold are changed at runtime through the accessors below and through the
+            // element's attributes, and a copy taken here would answer from a setting nobody is
+            // running under any more.
+            acceleration: Object.freeze({ policy: this.controller.policy, minNodes: this.controller.minNodes }),
+        });
     }
 
     /**
@@ -342,7 +363,34 @@ class Session implements ElementSession {
             void this.ownedAcceleration?.start().catch(() => undefined);
         }
 
-        return this.acceleration.capabilities;
+        return this.controller.capabilities;
+    }
+
+    /**
+     * What the consumer asks of the hardware.
+     * @returns the policy in force
+     */
+    get acceleration(): AccelerationPolicy {
+        return this.controller.policy;
+    }
+
+    /**
+     * Changes what the consumer asks of the hardware; the change applies at once.
+     * @param policy - use an accelerator when there is one, never look, or refuse without one
+     */
+    set acceleration(policy: AccelerationPolicy) {
+        this.controller.setPolicy(policy);
+    }
+
+    /**
+     * Attach an accelerator the caller built, or detach the current one with `null`.
+     *
+     * An injected accelerator is never replaced by a probed one, and the session does not dispose
+     * it: whoever built it owns its lifetime.
+     * @param accelerator - the accelerator to attach, or null to detach
+     */
+    setAccelerator(accelerator: GraphAccelerator | null): void {
+        this.controller.setAccelerator(accelerator);
     }
 
     /**
@@ -438,6 +486,7 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        this.unwatchController();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
@@ -540,16 +589,16 @@ function resolveAcceleration(
     given: AccelerationControllerLike | undefined,
     policy: AccelerationPolicy,
     minNodes: number,
-): { acceleration: AccelerationControllerLike; owned: AccelerationController | null } {
+): { controller: AccelerationControllerLike; owned: AccelerationController | null } {
     if (given !== undefined) {
-        return { acceleration: given, owned: null };
+        return { controller: given, owned: null };
     }
 
     // Built, not started: probing is deferred to the first read of `session.capabilities`, so a
     // session that nobody asks about the hardware never reaches for it.
     const owned = new AccelerationController({ policy, minNodes });
 
-    return { acceleration: owned, owned };
+    return { controller: owned, owned };
 }
 
 /**
@@ -990,7 +1039,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const readData = resolveDataConfig(options.config?.data);
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
-    const policy = options.acceleration?.policy ?? options.config?.acceleration?.policy ?? "auto";
+    const policy = options.acceleration?.policy ?? options.config?.acceleration?.policy ?? ACCELERATION_POLICY_DEFAULT;
     const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes ?? 0;
     const watchers: Watchers = new Map();
 
@@ -1202,7 +1251,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         data,
         (spec: Scope) => scope.resolveNow(spec),
         defaultScope,
-        acceleration.acceleration,
+        acceleration.controller,
     );
 
     return new Session({
@@ -1218,8 +1267,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             runs: () => runs.list(),
         }),
         readData,
-        accelerationConfig: Object.freeze({ policy, minNodes }),
-        acceleration: acceleration.acceleration,
+        controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         runs,
         results,

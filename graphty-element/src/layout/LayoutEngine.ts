@@ -53,14 +53,14 @@ type RegisterableLayout = LayoutEngineClass & Partial<LayoutEngineStatics>;
  * not take.
  *
  * WHY IT IS SPELLED OUT HERE rather than read from the layout catalogue, which is where the
- * element's editorial answer lives: the catalogue module imports all sixteen engine classes so it
+ * element's editorial answer lives: the catalogue module imports all seventeen engine classes so it
  * can emit their options, and every one of those imports this module in order to extend
  * {@link LayoutEngine}. Importing the catalogue from here would close that loop, and a class
  * evaluated before its own base class is a "Cannot access before initialization" crash at import
  * time rather than a type error. The list is pinned against the catalogue by
  * `test/browser/extensions/layout-extension.test.ts`, so the copy cannot drift in silence.
  *
- * These sixteen are also the one exemption from the descriptor requirement: the arrangements they
+ * These seventeen are also the one exemption from the descriptor requirement: the arrangements they
  * serve are authored centrally in `src/catalog/layouts.ts`, where five engines can sit behind one
  * public arrangement name, which is a judgement the element makes about its own implementations
  * and not a shape a plugin declares.
@@ -82,6 +82,7 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "spectral",
     "spiral",
     "spring",
+    "spring-electrical",
 ]);
 
 const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
@@ -132,15 +133,15 @@ export interface LayoutEngineStatics {
     /**
      * Whether this engine arranges a graph differently when its edges carry weights.
      *
-     * Optional, and false for all but two of the element's own sixteen. It exists so that a
+     * Optional, and false for all but two of the element's own seventeen. It exists so that a
      * picker can tell a reader which arrangements the `weighted` option actually does something
-     * for, instead of offering it on fourteen layouts that ignore it.
+     * for, instead of offering it on fifteen layouts that ignore it.
      */
     honoursWeights?: boolean;
     /**
      * What the catalogue publishes about this layout, so a picker can offer it.
      *
-     * REQUIRED OF A THIRD PARTY'S ENGINE and absent from the element's own sixteen, whose
+     * REQUIRED OF A THIRD PARTY'S ENGINE and absent from the element's own seventeen, whose
      * arrangements are authored in `src/catalog/layouts.ts` instead. `descriptor.id` must equal
      * {@link LayoutEngineStatics.type}: one key, so nothing is named twice and `layoutIdForEngine`
      * can answer a plugin's own id.
@@ -199,7 +200,7 @@ export abstract class LayoutEngine {
      * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honoursWeights}.
      *
      * False here because most layouts have no weight channel at all: of the element's own
-     * sixteen, only Kamada-Kawai and ForceAtlas2 can read one, and the other fourteen would be
+     * seventeen, only Kamada-Kawai and ForceAtlas2 can read one, and the other fifteen would be
      * advertising a control that changes nothing.
      */
     static honoursWeights = false;
@@ -287,7 +288,7 @@ export abstract class LayoutEngine {
      * Take a node out of the layout, before the element disposes the mesh that drew it.
      *
      * Declared here, with a default that does nothing, because it used to be duck-typed by the
-     * element's data manager and implemented by none of the sixteen engines that ship here: an
+     * element's data manager and implemented by none of the seventeen engines that ship here: an
      * author learned it existed by reading the element's source, and got no worked example. An
      * engine that keeps its own node list must override this, or it holds every removed node --
      * and everything that node references -- for as long as the engine lives.
@@ -422,7 +423,7 @@ export abstract class LayoutEngine {
      * freeze counts as placed, which is what makes a file's own coordinates yield to it.
      *
      * A PINNED ROW REFUSES A LAYOUT STEP. This is the whole of "a pin is meaningful under every
-     * arrangement": fourteen of the element's sixteen engines implement `pin()` as a no-op and
+     * arrangement": twelve of the element's seventeen engines implement `pin()` as a no-op and
      * `setNodePosition` as a no-op too, so before this guard a reader who dragged a node under a
      * static layout watched it snap back the next time the layout recomputed. One refusal here
      * covers every engine, including one written by a third party that has never heard of pinning,
@@ -605,7 +606,7 @@ export abstract class LayoutEngine {
      * offered by a picker, described in a reader's language, or found by `layoutIdForEngine`.
      *
      * A third party's class must declare a `static descriptor` whose `id` equals its
-     * `static type`. The element's own sixteen are the one exemption, because their arrangements
+     * `static type`. The element's own seventeen are the one exemption, because their arrangements
      * are authored centrally in the layout catalogue where several engines may sit behind one
      * public name.
      * @param cls - The layout engine class.

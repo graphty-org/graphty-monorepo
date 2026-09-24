@@ -96,6 +96,7 @@ export default defineConfig({
                         { text: "Styling", link: "/graphty-element/guide/styling" },
                         { text: "Style Helpers & Palettes", link: "/graphty-element/guide/style-helpers" },
                         { text: "Layouts", link: "/graphty-element/guide/layouts" },
+                        { text: "Acceleration", link: "/graphty-element/guide/acceleration" },
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },

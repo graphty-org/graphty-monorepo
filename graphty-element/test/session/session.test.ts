@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import { AccelerationController, type GraphAccelerator } from "../../src/acceleration";
 import { DataConfig } from "../../src/config/DataConfig";
 import { createGraphSession } from "../../src/session";
 import { makeSession } from "./helpers";
@@ -198,6 +199,15 @@ describe("what a session publishes without being asked to compute", () => {
             policy: "required" as const,
             minNodes: 5_000,
             disposed: false,
+            setPolicy(): void {
+                // A fixed document: this double publishes one answer and never moves.
+            },
+            setAccelerator(): void {
+                // Likewise.
+            },
+            onChange(): () => void {
+                return (): void => undefined;
+            },
             dispose(): void {
                 this.disposed = true;
             },
@@ -211,4 +221,72 @@ describe("what a session publishes without being asked to compute", () => {
         session.dispose();
         assert.strictEqual(injected.disposed, false, "a controller it did not build is not its to release");
     });
+
+    it("injects a fake through setAccelerator and reports it as idle on capabilities:changed", () => {
+        const session = createGraphSession();
+        const seen: string[] = [];
+
+        session.on("capabilities:changed", (detail) => {
+            seen.push(detail.capabilities.acceleration.state);
+        });
+        session.setAccelerator(fakeAccelerator());
+
+        assert.strictEqual(session.capabilities.acceleration.state, "idle", "attached, with nothing running on it");
+        assert.strictEqual(session.capabilities.acceleration.backend, "webgpu");
+        assert.deepStrictEqual(seen, ["idle"], "one event, for the one transition");
+        session.dispose();
+    });
+
+    it("applies a policy written to session.acceleration at once, and publishes the transition", () => {
+        const session = createGraphSession();
+        let events = 0;
+
+        session.on("capabilities:changed", () => {
+            events += 1;
+        });
+        session.acceleration = "off";
+
+        assert.strictEqual(session.acceleration, "off");
+        assert.strictEqual(session.config.acceleration.policy, "off", "and the configuration says the same");
+        assert.strictEqual(session.capabilities.acceleration.state, "off");
+        assert.strictEqual(events, 1);
+        session.dispose();
+    });
+
+    it("publishes from the controller it was handed, not from a second one it built", () => {
+        const controller = new AccelerationController({ policy: "off" });
+        const session = createGraphSession({ acceleration: controller });
+
+        assert.strictEqual(session.capabilities, controller.capabilities, "one document, not a copy of one");
+
+        session.dispose();
+        controller.dispose();
+    });
+
+    it("carries the document capabilities returns in the event payload", () => {
+        const controller = new AccelerationController({ policy: "off" });
+        const session = createGraphSession({ acceleration: controller });
+        let carried: unknown = null;
+
+        session.on("capabilities:changed", (detail) => {
+            carried = detail.capabilities;
+            assert.strictEqual(detail.capabilities, session.capabilities, "the same object the getter returns");
+        });
+        session.setAccelerator(fakeAccelerator());
+
+        assert.strictEqual(carried, session.capabilities);
+        session.dispose();
+        controller.dispose();
+    });
 });
+
+/** The accelerator these cases inject: a name, a backend and one member, which is all a third party owes. */
+function fakeAccelerator(): GraphAccelerator {
+    return {
+        name: "fake",
+        backend: "webgpu",
+        device: { vendor: "acme", architecture: "gen-1", description: "Acme Fake GPU" },
+        forceAtlas2: (): string => "gpu",
+        dispose: (): void => undefined,
+    };
+}

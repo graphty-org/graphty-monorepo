@@ -44,7 +44,14 @@ describe("Dual mode (HTTP + MCP)", () => {
             const req = http.request(
                 {
                     hostname: "127.0.0.1",
-                    port,
+                    // The port the server bound, not the one this test asked for: findAvailablePort
+                    // moves to the next free port when the requested one is taken, so the requested
+                    // port can belong to another test's server -- one that is shutting down.
+                    port: dualServer.httpPort,
+                    // No pooled sockets. Node's default agent keeps idle connections alive, and when a
+                    // later test draws the same random port the request can go out on the socket an
+                    // earlier test's shutdown destroyed: "socket hang up" (ECONNRESET).
+                    agent: false,
                     path: "/log",
                     method: "POST",
                     headers: {
@@ -81,7 +88,14 @@ describe("Dual mode (HTTP + MCP)", () => {
             const req = http.request(
                 {
                     hostname: "127.0.0.1",
-                    port,
+                    // The port the server bound, not the one this test asked for: findAvailablePort
+                    // moves to the next free port when the requested one is taken, so the requested
+                    // port can belong to another test's server -- one that is shutting down.
+                    port: dualServer.httpPort,
+                    // No pooled sockets. Node's default agent keeps idle connections alive, and when a
+                    // later test draws the same random port the request can go out on the socket an
+                    // earlier test's shutdown destroyed: "socket hang up" (ECONNRESET).
+                    agent: false,
                     path: "/logs",
                     method: "GET",
                 },
@@ -162,7 +176,7 @@ describe("Dual mode (HTTP + MCP)", () => {
         // Endpoint should NOT use 0.0.0.0 - should be a routable address
         expect(status.server?.httpEndpoint).not.toContain("0.0.0.0");
         // Should be a valid URL with the correct port
-        expect(status.server?.httpEndpoint).toMatch(new RegExp(`^http://[^:]+:${port}/log$`));
+        expect(status.server?.httpEndpoint).toMatch(new RegExp(`^http://[^:]+:${dualServer.httpPort}/log$`));
     });
 
     it("HTTP logs appear in MCP queries", async () => {

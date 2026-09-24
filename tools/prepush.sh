@@ -65,6 +65,19 @@ run_step "Lint" "pnpm -r run lint"
 # Run knip for dead code detection (blocks push if issues found)
 run_step "Knip (dead code detection)" "pnpm run lint:knip"
 
+# knip again in production mode: only the entries marked `!` in knip.config.ts (the published
+# source), only each workspace's own dependencies (--strict), and only dependency findings. The
+# pass above counts devDependencies and test files as legitimate users of a package, so it cannot
+# see a runtime dependency that nothing at run time imports. About 9 seconds (2026-09-24).
+run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
+
+# Pack every published package and compare the files it would ship with its package.json: an
+# import nobody declared, a dependency nothing imports, an @graphty range the workspace version
+# no longer satisfies, a test or tool config file in the tarball. Source-level checks cannot see
+# any of these; `pupt` shipped in @graphty/algorithms for six releases, and graphty-element's
+# WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
+run_step "Published dependencies" "pnpm run check:published-deps"
+
 # Run fast tests for each package
 # These run only the 'default' project (happy-dom/jsdom/node tests, no playwright)
 echo -e "${YELLOW}> Fast tests${NC}"

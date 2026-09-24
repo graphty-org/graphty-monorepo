@@ -639,7 +639,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // transition asks for. Clearing it here would resume stepping the simulation that just
         // failed and report the same failure again on its next batch.
         this.#applyPins();
-        this.reheat();
+
+        // NOTHING IS REHEATED AFTER A LOAD, because a load has already lit it: `load()` restarts
+        // the run at iteration zero, not settled, and for Fruchterman-Reingold at full
+        // temperature. A `reheat()` on top of that only ever takes heat AWAY -- that simulation's
+        // iteration counter IS its temperature index, and reheat SETS it to 70% of the budget, so
+        // a graph whose data arrived after its layout was set (a freeze over an untouched
+        // simulation, which is the commonest graph there is) ran fifteen of its fifty iterations,
+        // starting a third of the way down the cooling schedule, and came out a tangle. Measured
+        // on Layout/2D Spring over data3.json, as rms radius over mean edge length: 1.387
+        // reheated against 2.897 not. ForceAtlas2 never showed it because its `reheat()` sets the
+        // counter to zero -- it gives budget back where Fruchterman-Reingold's takes it.
     }
 
     /**
@@ -671,7 +681,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             throw error;
         }
 
-        this.reheat();
+        // No reheat here either, and for the same reason: `#build()` loads the new simulation, and
+        // a load is already a full run from the start of the schedule. See `reload`.
     }
 
     /**

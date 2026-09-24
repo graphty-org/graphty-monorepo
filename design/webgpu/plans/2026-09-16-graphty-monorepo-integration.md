@@ -1,5 +1,17 @@
 # WebGPU Package -> graphty-monorepo Integration Plan
 
+> **Two cells of this plan have been superseded; everything else is still the plan of record.** The Phase M7
+> deliverables cell gives the graphty app a `graphty/src/gpu/accelerator.ts` that imports the GPU package, probes for
+> an adapter, requests a context and constructs the accelerator, and the app's row in the phase overview of section
+> 0.3 says the same in one line. The decision of 2026-09-19 that graphty-element owns WebGPU detection moved all of
+> that inside the element, behind the `@graphty/graphty-element/webgpu` import, and left the app a Settings control
+> and a status chip (`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`; Phase M7 was then re-planned as
+> `2026-09-21-webgpu-m7-graphty-app-v2.md`). The Phase M8a entry criterion -- "the A1 branch merged ... prepared on a
+> branch after A1, merged after F2" -- was superseded by `design/decisions/2026-09-19-a1-lands-inside-m8a.md`, which
+> lands A1 inside M8a itself. Those two cells are deliberately NOT edited, per `design/decisions/README.md`. This
+> note moved the body down by twelve lines, so a line number written before 2026-09-23 names text that now sits twelve
+> lines lower.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in; most run in `/home/apowers/Projects/graphty-monorepo`. NEVER run `git add`, `git commit` or `git push` yourself: the owner commits through the landing script this plan writes (Task M1-T2), exactly as `tools/commit-graph-format-landing.sh` was run for graph-format.
 
 **Goal:** Move `@graphty/webgpu-graph-algorithms` and its entire design corpus out of the staging repository `graphty-org/webgpu-graph-algorithms` into the pnpm/Nx monorepo `graphty-org/graphty-monorepo` with its git history, make it a first-class workspace member (build, lint, knip, coverage, pre-push, CI shards, release), port the three GitHub Actions lanes (software adapters, the label-gated NVIDIA T4 lane, the informational macOS/Windows host matrix), and then integrate the GPU layout into `@graphty/layout` first and the other packages after, so every later WebGPU phase (P4+, P7+) continues inside the monorepo.

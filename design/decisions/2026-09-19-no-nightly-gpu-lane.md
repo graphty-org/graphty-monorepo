@@ -65,3 +65,56 @@ requiring it green. `bench:compare` keeps its rule of SKIPPING rather than faili
 
 The P0 plan documents under `design/webgpu/plans/` still describe the three-job lane. They
 are historical records of what was built in September 2026 and are deliberately left alone.
+
+## Amendment 2026-09-23: the rest of the places the nightly is written into the design
+
+The Changes line at the top of this record names design 12.6, T-13, the trigger row of 12.1 and
+the cost model. Indexing the design's superseded passages on 2026-09-23
+(`design/webgpu/superseded-parts-of-the-design.md`) turned up seven more places in the same
+document that still rest on a nightly run. Nothing below is a new decision; it completes the list
+this record should have carried, and none of these passages is edited either.
+
+The line numbers below are the design as it stands on 2026-09-23. A note added at the top of that
+file the same day pushed its body down by eight lines, so these numbers are eight higher than the
+ones in the Changes line above.
+
+- **12.3, the `gpu.yml` listing (lines 3949-4027).** The workflow is printed in full and still
+  contains `schedule: [{ cron: "17 6 * * *" }]`, the `changed` cost-guard job and the
+  `gpu-nightly-report` job -- the three things this record removed. It is the one place in the
+  design a reader could copy the dead lane verbatim.
+- **12.2 (lines 3840-3844).** Two of the cost and security controls listed there are the nightly
+  skip on a quiet master and the separate `ubuntu-latest` job with `issues: write` that opens the
+  tracking issue. Neither exists. Every other control in that paragraph -- the same-repo clause,
+  the `gpu` label, the $50 spending limit, `concurrency: gpu-lane`, the 45-minute timeout,
+  read-only workflow permissions, no secrets in the GPU job -- is unchanged.
+- **14.1, risk row R-6 (line 4273)** offers "nightly skipped on quiet days" as one of its
+  mitigations for the lane becoming unavailable or expensive. Its other mitigations -- the lane in
+  its own workflow, the label and same-repo gating, the spending limit, fork PRs never reaching it
+  -- stand.
+- **14.1, risk row R-25 (line 4292)** offers "an issue only after two consecutive nightly
+  failures" as one of its mitigations for shared-tenant benchmark noise. Its others -- medians of
+  5 runs, the 3x threshold against the T4's own baseline, `gpu-report.js` recording clocks and
+  utilisation, the T-table targets measured by hand on the dev box -- stand.
+- **The Review log's applied-findings table, row VERIFY-14 (line 4615)** records the
+  `gpu-nightly-report` job with `issues: write` as the change that closed the finding, and **row
+  VERIFY-20 (line 4621)** records "two nightly failures before an issue" as part of its. Neither
+  is buildable now. VERIFY-20's other two items, the utilisation sample and the skip on a busy
+  GPU, stand.
+
+### The 1M comparison now has nowhere to run
+
+This part is not bookkeeping, and it is why the amendment was worth writing.
+
+Target T-12 (line 3425) keeps the default CI lane inside its 15-minute budget by excluding the
+1M-node, 200-iteration exact-versus-grid comparison of 11.4 from it, and sends that run to "the
+nightly benchmark job". Risk row R-5 (line 4272) gives the same exclusion as its mitigation for
+lavapipe being slow, and the Review log's applied-findings table records the split at row PERF-10
+(line 4516) as "nightly for 1M". With no nightly there is no such job. The measurement is required
+by the plan, is deliberately excluded from the lane that still runs, and currently executes
+nowhere -- so the largest size the grid tier is designed for goes unmeasured, and nothing anywhere
+fails or reports to say so.
+
+Where that run should happen instead is a decision, and this amendment does not make it. It is
+recorded as open in `design/webgpu/superseded-parts-of-the-design.md`, beside the other thing this
+decision left open: what replaces "nightly GPU lane green for a week" in gate G12 of the phase
+table (line 4227), which for the same reason cannot be satisfied by anyone as written.

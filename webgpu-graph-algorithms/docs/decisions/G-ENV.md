@@ -13,17 +13,20 @@ dropped.
 
 GATE STATUS: **OPEN, and blocked on the owner.** The phase's code changes are landed and green at their
 pre-bump state; the phase's *environment* changes cannot be made from inside the container, and the `webgpu`
-0.6.1 bump this record carries is UNRUNNABLE on both of the machines this project tests on until they move to
-Ubuntu 24.04. Section 3 states exactly what the owner must do. No item of section 2 is marked met on the
-strength of an argument.
+0.6.1 bump this record carries is UNRUNNABLE on the dev container until it moves to Ubuntu 24.04. The GPU
+lane no longer needs its host moved -- `gpu.yml` now runs the job in an `ubuntu:24.04` container on the same
+runner (section 3 item 2) -- but that route is unverified until its first dispatch. Section 3 states exactly
+what the owner must do. No item of section 2 is marked met on the strength of an argument.
 
 The repository's own pre-push gate says the same thing independently, and it is worth stating because it
 decides what can be done with this branch: `tools/prepush.sh` runs the package's node projects with
 `GRAPHTY_GPU_REQUIRE=any`, deliberately, so that a machine with no adapter fails the push rather than
 skipping quietly. On a 22.04 box with `webgpu` at 0.6.1 there is no adapter, because Dawn does not load, so
-**the branch cannot pass its own pre-push gate here and was not pushed.** Build, bundle, lint and knip all
-pass; only the GPU suites fail, and they fail for the one reason this record is about. Pushing it needs
-either the container move of section 3 item 1, or a deliberate `--no-verify` accepting the known-red state.
+**the branch cannot pass its own pre-push gate here.** Build, bundle, lint and knip all pass; only the GPU
+suites fail, and they fail for the one reason this record is about. It was therefore pushed with
+`--no-verify`, deliberately and on the record: nothing about the new environment can be tested until the
+branch is on the remote, and the gate's refusal is the phase working rather than a defect to route around
+quietly. The gate itself is unchanged.
 
 ## 0. What this phase is, and why it is being recorded three phases late
 
@@ -103,7 +106,7 @@ and is not known.
 | NVIDIA RTX 4070 SUPER driver 580.173.02, Dawn, `webgpu` 0.4.0 | `node` + `node-limits` | `nvidia-lovelace-driver580` | 122 files, 2267 passed, 3 skipped of 2270, exit 0 |
 | NVIDIA RTX 4070 SUPER driver 580.173.02, Dawn, `webgpu` 0.4.0 | `node-device-errors` | `nvidia-lovelace-driver580` | 11 files, 151 passed of 151, exit 0 |
 | Mesa lavapipe 25.2.8 (LLVM 20.1.2) on `ubuntu-24.04`, Dawn, `webgpu` 0.6.1 | `node`, `node-device-errors` | -- | {{OPEN: `gh workflow run ci.yml --ref chore/webgpu-environment-move`, then the `webgpu-graph-algorithms-node` shard}} |
-| NVIDIA T4, Dawn, `webgpu` 0.6.1 | `node`, `node-limits`, `node-device-errors` | `gpu-linux-t4` | {{OPEN: blocked -- the T4 image is Ubuntu 22.04.5; see section 3 item 2}} |
+| NVIDIA T4 in `ubuntu:24.04`, Dawn, `webgpu` 0.6.1 | `node`, `node-limits`, `node-device-errors` | `gpu-linux-t4` | {{OPEN: `gh workflow run gpu.yml --ref chore/webgpu-environment-move` -- `gpu.yml` now runs the job in a container so the 22.04 host stops mattering; unverified until that dispatch, see section 3 item 2}} |
 
 The lavapipe commands are the default lane's, run from `webgpu-graph-algorithms/`:
 
@@ -133,7 +136,7 @@ the new driver / Mesa versions; benchmark baselines re-recorded for the new runn
 | # | Item (design 13 row P-ENV) | Status | Evidence, or what would close it |
 | --- | --- | --- | --- |
 | 1 | The dev container moves to Ubuntu 24.04 (glibc 2.39, Mesa 25.x lavapipe, `libegl1` present) | **OPEN** | The container is the owner's and cannot be rebuilt from inside itself. Measured now: `PRETTY_NAME="Ubuntu 22.04.5 LTS"`, `ldd (Ubuntu GLIBC 2.35-0ubuntu3.13)`, `mesa-vulkan-drivers 23.2.1-1ubuntu3.1~22.04.3`, `dpkg-query -W libegl1` -> "no packages found". Closed by section 3 item 1. |
-| 2 | The runner image moves to Ubuntu 24.04 | **PARTLY MET, and the rest OPEN** | MET for the default lane, and now explicit rather than inherited: `ci.yml` names `ubuntu-24.04` on all ten jobs instead of `ubuntu-latest`, and a new step records the image, glibc and Mesa versions into the job log. OPEN for the GPU lane: the machine.dev T4 measured Ubuntu 22.04.5 / glibc 2.35 in gpu.yml run 35922927676 (job 107391041798). Closed by section 3 item 2. |
+| 2 | The runner image moves to Ubuntu 24.04 | **MET for the default lane; DONE but UNVERIFIED for the GPU lane** | Default lane: `ci.yml` names `ubuntu-24.04` on all ten jobs instead of `ubuntu-latest`, and a new step records the image, glibc and Mesa versions into the job log -- explicit rather than inherited. GPU lane: its host is Ubuntu 22.04.5 / glibc 2.35 (gpu.yml run 35922927676, job 107391041798) and machine.dev offers no way to change that, so `gpu.yml` now runs the whole job in an `ubuntu:24.04` container with the card passed through. Verified by its first dispatch, not before: section 3 item 2. |
 | 3 | `webgpu` 0.4.0 -> the current 0.6.x in graph-format's devDependencies | **MET (declared), UNVERIFIED (run)** | `graph-format/package.json` devDependency is `"webgpu": "^0.6.1"`. It cannot be exercised here: see item 6. |
 | 4 | `webgpu` 0.4.0 -> the current 0.6.x in this package's devDependency | **MET (declared), UNVERIFIED (run)** | `webgpu-graph-algorithms/package.json` devDependency is `"webgpu": "0.6.1"`. The peer range `">=0.4.0 <1.0.0"` already admitted it and is unchanged (design 2.5). |
 | 5 | The `E_NO_WEBGPU` install hint re-pinned with it | **MET** | `src/node/index.ts` `INSTALL_HINT` is now "install the optional peer dependency webgpu@0.6.1"; `test/device/acquire.test.ts` asserts the same string and passes in the lavapipe run of section 1. |
@@ -141,8 +144,8 @@ the new driver / Mesa versions; benchmark baselines re-recorded for the new runn
 | 7 | The `LD_LIBRARY_PATH` workaround removed | **OPEN** | The workaround exists because the container has no `libegl1`, so Dawn's NVIDIA ICD cannot `dlopen("libEGL.so.1")` and silently lists only llvmpipe (`docs/HEADLESS_GPU_REPORT.md` appendix D). It is still required today and every card invocation in section 1 still carries it. Ubuntu 24.04 ships `libegl1`, so the container move removes the need; the workaround is deleted from `CLAUDE.md` and `README.md` only once the card run passes without it. Closed by section 3 item 3. |
 | 8 | The 0.6.x unmap-on-destroy behaviour noted as redundant with `Readback`'s own unmap | **MET** | Noted in the file comment of `src/memory/readback.ts`, naming the upstream commit (dawn-gpu/node-webgpu `402a7ea1`, "unmap a device's buffers when the device is destroyed", released in 0.6.1) and stating precisely how far the redundancy goes: it covers the unmap half of `destroyAll()`, NOT the pending-map deferral, which guards a different defect (the double-settle SIGSEGV of `AsyncRunner::Reject`) that no commit between 0.4.0 and 0.6.1 claims to fix. Nothing was deleted. |
 | 9 | G1, G2 and G3 re-run green on BOTH lanes on the new image | **OPEN** | Neither lane can run 0.6.1 today (items 1, 2, 6). Closed by: after section 3 items 1 and 2, `node scripts/run-node-shard.js --project=node --project=node-limits` and `--project=node-device-errors` on the card and on lavapipe in the rebuilt container, and a `gpu.yml` run on a `gpu`-labelled pull request. |
-| 10 | `gpu-report.json` shows the new driver / Mesa versions | **OPEN** | `scripts/gpu-report.js` runs as a step of `gpu.yml` and uploads to the run artifact; it needs the moved T4 image. Closed with item 9. |
-| 11 | Benchmark baselines re-recorded for the new runner class | **OPEN** | `benchmarks/results/<runner-class>.json` and `benchmarks/results/noise-floor.json` all carry the Mesa 23.2.1 / LLVM 15.0.7 software adapter. Closed by `pnpm run bench` on the moved container and a `gpu.yml` run on the moved T4, per section 3 item 5. This record does NOT re-record them: the numbers would be the old rasteriser's. |
+| 10 | `gpu-report.json` shows the new driver / Mesa versions | **OPEN** | `scripts/gpu-report.js` runs as a step of `gpu.yml` and uploads to the run artifact; it needs a green `gpu.yml` dispatch on the containerised lane. Closed with item 9. |
+| 11 | Benchmark baselines re-recorded for the new runner class | **OPEN** | `benchmarks/results/<runner-class>.json` and `benchmarks/results/noise-floor.json` all carry the Mesa 23.2.1 / LLVM 15.0.7 software adapter. Closed by `pnpm run bench` on the rebuilt dev container and a `gpu.yml` run on the containerised T4 lane, per section 3 item 5. This record does NOT re-record them: the numbers would be the old rasteriser's. |
 
 Nothing in this table is marked met because it is likely to be met.
 
@@ -162,13 +165,31 @@ evidence.
    ls /usr/share/vulkan/icd.d                        # the lavapipe ICD is lvp_icd.json on 24.04, not lvp_icd.x86_64.json
    nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
    ```
-2. **Move the GPU lane's T4 image to Ubuntu 24.04.** This is the blocker nobody had measured: the machine.dev
-   on-demand T4 that `gpu.yml` selects by the label
-   `machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand` runs Ubuntu 22.04.5 with glibc 2.35 (measured in run
-   35922927676). With `webgpu` at 0.6.1 that lane cannot load Dawn at all, and `release.yml` requires the lane
-   green before it publishes. Either select a 24.04 image from the provider (the label is the image selector;
-   the workflow's `runner` dispatch input is where a new label goes) or move the lane to a runner class that
-   offers one. Until this is done, **do not merge this branch to master.**
+2. **The GPU lane's operating system -- DONE in `gpu.yml`, and pending its first dispatch.** The machine.dev
+   on-demand T4 that `gpu.yml` selects by the label `machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand` runs Ubuntu
+   22.04.5 with glibc 2.35 (measured in run 35922927676). At `webgpu` 0.6.1 that lane cannot load Dawn at all,
+   and `release.yml` requires it green before it publishes.
+
+   **The host cannot be moved, and no label moves it.** machine.dev has no image or operating-system selector of
+   any kind. Their label grammar is documented and closed -- `machine`, then one of `cpu=` or `gpu=`, then
+   `architecture`, `cpu`, `ram`, `tenancy`, `regions`, `disk_size`, `disk_iops`, `disk_throughput`, `metrics`,
+   `metrics_interval`, `id` -- and contains no image key. Their FAQ states that all of their runners are Ubuntu
+   22.04, with no plan qualifier, and their configuration page puts the job's environment down to the runner
+   image rather than to anything the caller chooses. So there is no label to write here, and anyone who goes
+   looking for one will spend a round of dispatches proving that.
+
+   **What was done instead: the job takes its own userspace.** Their GPU image preinstalls Docker and the NVIDIA
+   Container Toolkit alongside the driver and CUDA, so the job now runs in a `container: ubuntu:24.04` with the
+   card passed through -- same runner, same label, same price, glibc 2.39. The host stays 22.04 and stops
+   mattering.
+
+   **This is UNVERIFIED.** machine.dev's documentation never mentions container jobs, so nothing promises that
+   their image exposes the Docker socket to the runner, or that the toolkit is registered as a Docker runtime
+   rather than only usable through `nerdctl` or a raw CLI. The first dispatch is the experiment:
+   `gh workflow run gpu.yml --ref chore/webgpu-environment-move`. The three things that would fail, in the order
+   a log would show them: container creation, if `--gpus all` finds no NVIDIA runtime; the floor step's ICD
+   assertion, if `NVIDIA_DRIVER_CAPABILITIES=all` does not bring the Vulkan ICD through; then Dawn itself.
+   Until this is done, **do not merge this branch to master.**
 3. **After step 1 only:** confirm the card is reachable with no `LD_LIBRARY_PATH`:
    ```bash
    cd webgpu-graph-algorithms
@@ -207,6 +228,31 @@ evidence.
    added a `windows-11-arm` build, so the macOS and Windows legs of `hosts.yml` get new binaries too and this
    branch does not exercise them (`hosts.yml` runs on pushes to master and on pull requests; there is no pull
    request for this branch by instruction). `gh workflow run hosts.yml --ref chore/webgpu-environment-move`.
+
+### 3.1 The three alternatives to the container, and why each was rejected
+
+Someone will propose each of these, so they are written down with what rules them out.
+
+**The hosted `gpu-linux-t4` runner, already an option in the workflow's dispatch input.** Rejected, and not even
+worth a dispatch yet. GitHub does not publish that image's Ubuntu version anywhere, so it may be 22.04 too and
+buy nothing; it costs about three times the machine.dev price ($0.052/min against $0.018/min on-demand); and
+this repository's own record of it is two attempts that produced no job at all -- one refused on billing, one
+queued seventeen minutes with no runner (`gpu.yml` header, 2026-09-18). Do not spend a dispatch on it until
+somebody can state its Ubuntu version from documentation.
+
+**Upgrading the C library in place on the 22.04 host.** Not merely hard -- impossible. The two missing symbols
+are not the same kind of thing. `GLIBCXX_3.4.32` lives in libstdc++ and could in principle be supplied, by a
+newer `libstdc++6` or by shipping the library beside the binary. `GLIBC_2.38` is the dynamic loader and the C
+library itself, which is not replaceable under a running distribution and exists in no 22.04 archive at any
+version. Replacing it is replacing the operating system, which is where this started.
+
+**Pinning `webgpu` 0.4.0 for the GPU lane alone.** This is the tempting one, because it makes the release gate
+green today, and it is the worst of the three. It guts the lane: the only machine in this project with a real
+GPU would be testing a binary that no consumer on a current distribution installs, while the README this branch
+ships tells those consumers the symbol rule and points them at 0.6.x. The lane would be green about software we
+do not ship. And it collides with section 4 head-on: every worker death on record was observed with the OLD
+binary running against a newer C library than it was built for. Pinning the old binary on the one lane that
+could answer whether that matters keeps the question open permanently, on purpose.
 
 ## 4. The intermittent abort: what is known, what is not
 
@@ -302,7 +348,7 @@ worker rather than mistaken for a test failure; that reporting should stay whate
 | File | Change |
 | --- | --- |
 | `.github/workflows/ci.yml` | Ten jobs move from `ubuntu-latest` to `ubuntu-24.04`; a header comment says why; a new "Record the image, glibc and rasteriser versions" step on the lavapipe lane prints `PRETTY_NAME`, `ldd --version` and the installed `mesa-vulkan-drivers` / `libvulkan1` / `libegl1` versions into the job log. A no-op today -- `ubuntu-latest` IS 24.04 -- and the point is that it stays one until someone edits this file. |
-| `.github/workflows/gpu.yml` | The runner comment now carries the measured T4 image facts and states that its Ubuntu 22.04 is what blocks the 0.6.x bump on this lane. |
+| `.github/workflows/gpu.yml` | The whole job moves into a `container: ubuntu:24.04` with `--gpus all --ipc=host` and `NVIDIA_DRIVER_CAPABILITIES=all`, because the host is Ubuntu 22.04 and machine.dev offers no way to change that. A bootstrap step before checkout installs git (without it checkout silently falls back to a REST tarball), the Vulkan loader and libEGL; the modprobe step is gone (a container cannot load host modules, and the host already has them up) and is replaced by a floor report that fails loudly if the card or the Vulkan ICD did not come through; the Playwright cache key gains the image so a 22.04 browser build is not restored into 24.04; the timeout rises 75 -> 85 minutes for the pull and the bootstrap. |
 | `webgpu-graph-algorithms/package.json` | devDependency `webgpu` 0.4.0 -> 0.6.1. The peer range is untouched. |
 | `graph-format/package.json` | devDependency `webgpu` ^0.4.0 -> ^0.6.1. |
 | `webgpu-graph-algorithms/src/node/index.ts` | `INSTALL_HINT` re-pinned to 0.6.1; the stale "P-ENV re-pins ..." comment now points at this record. |
@@ -315,7 +361,7 @@ worker rather than mistaken for a test failure; that reporting should stay whate
 | Id | Finding | Proposed disposition |
 | --- | --- | --- |
 | ENV-F1 | The phase was skipped with no record, and three later gates were signed off on the environment it was meant to replace. | This record is the missing one. No re-gating of P4, P5 or P7 is proposed: their measurements are valid for the adapter they name, and section 2 item 11 re-records the baselines once the move lands. |
-| ENV-F2 | The GPU lane's T4 image is Ubuntu 22.04.5. Nothing recorded this, and it makes the bump a two-machine move rather than the one the design describes. | Owner decision needed: which provider image or runner class serves the T4 lane on 24.04 (section 3 item 2). This is the gating item for merging the branch. |
+| ENV-F2 | The GPU lane's T4 host is Ubuntu 22.04.5 and machine.dev provides no image selector at any price or plan, so no label fixes it. Nothing recorded this, and it made the bump look like a two-machine move with one machine unreachable. | Resolved in `gpu.yml` rather than by a decision: the job now runs in an `ubuntu:24.04` container on the same runner, using the Docker and NVIDIA Container Toolkit their GPU image preinstalls. Same label, same price, glibc 2.39. UNVERIFIED until the first dispatch; section 3.1 records the three alternatives and why each was rejected. |
 | ENV-F3 | `ubuntu-latest` moved the default lane to 24.04 with no commit, and will move it to Ubuntu 26 on 2026-10-19. | Fixed here by naming the image. Re-pinning to 26 is then a reviewed change with a gate record, which is what this phase exists to make true. |
 | ENV-F4 | The lavapipe ICD file is named `lvp_icd.x86_64.json` on 22.04 and `lvp_icd.json` on 24.04. `ci.yml` already discovers it with `find`; the invocations documented in `CLAUDE.md` hard-code the 22.04 spelling. | Update `CLAUDE.md` at section 3 step 3, together with the `LD_LIBRARY_PATH` deletion, so both container-shaped facts change in one commit. |
 | ENV-F6 | The branch cannot pass `tools/prepush.sh` on a 22.04 box: the gate requires an adapter and 0.6.1 gives none. Build, bundle, lint and knip pass; the package's node projects fail up front. | Expected and correct -- the gate is behaving as designed, and it is the cheapest independent confirmation that the bump needs the container move first. No change to the gate is proposed: weakening it to let this branch through would remove the check that caught it. Push after section 3 item 1, or with `--no-verify` if the red state is understood. |

@@ -203,11 +203,13 @@ tasks run inside, the T4 image is provisioned by a hosted provider, and the owne
 
 - [ ] Rebuild the dev container on Ubuntu 24.04 with glibc >= 2.38, `GLIBCXX_3.4.32`, `mesa-vulkan-drivers` 25.x,
       `libvulkan1`, `vulkan-tools` and `libegl1`.
-- [ ] Move the GPU lane's T4 to a 24.04 image, or to a runner class that offers one. The label
-      `machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand` in `gpu.yml` is the image selector; the workflow's `runner`
-      dispatch input is where a replacement label goes.
-- [ ] **Do not merge this branch to master until the second item is done**: `release.yml` requires `gpu.yml`
-      green, and the lane cannot load Dawn 0.6.1 on 22.04.
+- [x] The GPU lane's operating system -- done in `gpu.yml` WITHOUT the owner, because it turned out not to need
+      them: machine.dev has no image selector (their label grammar is closed and carries no image key, and their
+      FAQ says every runner is Ubuntu 22.04), so the job now runs in an `ubuntu:24.04` container on the same
+      runner, over the Docker and NVIDIA Container Toolkit their GPU image preinstalls.
+- [ ] Dispatch it once and read the result: `gh workflow run gpu.yml --ref chore/webgpu-environment-move`.
+      Their documentation never mentions container jobs, so this is unverified rather than known-good.
+- [ ] **Do not merge this branch to master until that dispatch is green**: `release.yml` requires `gpu.yml`.
 
 The commands and the checks are written out as a numbered list in `webgpu-graph-algorithms/docs/decisions/G-ENV.md`
 section 3, which is the copy to follow.
@@ -288,8 +290,10 @@ docs(webgpu-graph-algorithms): record the environment move and its gate
 - **Is any gate item relaxed?** No. Seven of the eleven G-ENV items are OPEN, each with the command that closes
   it. The temptation here is item 9 -- "G1-G3 re-run green on both lanes" -- where a green run on the OLD pin
   could be passed off as the gate. It is recorded as the BEFORE half instead.
-- **What would make this plan wrong?** If the machine.dev provider offers no 24.04 T4 image, ENV-T5's second item
-  has no answer as written and the GPU lane needs a different runner class -- a larger change than this phase,
-  and the reason ENV-F2 is an owner decision rather than a task.
+- **What would make this plan wrong?** The first draft assumed a 24.04 T4 image could be selected by label. It
+  cannot: machine.dev has no image selector at all. The lane now takes its own userspace in a container on the
+  same host, which is unverified until its first dispatch -- and if their image does not expose Docker to the
+  runner, or does not register the NVIDIA runtime, the lane needs a different provider, which is a larger change
+  than this phase.
 - **What is still unknown after this plan?** Whether the bump fixes the intermittent futex abort. Section 4 of the
   gate record refuses to guess and states the experiment that settles it.

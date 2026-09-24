@@ -61,7 +61,29 @@ jobs:
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
-        timeout-minutes: 75 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); this leaves room for a slower machine without waiting on a hung one
+        # The whole job runs in a container because the HOST cannot be moved off Ubuntu 22.04 and `webgpu` 0.6.x
+        # needs glibc 2.38. machine.dev has no image or operating-system selector: their label grammar is closed
+        # (machine, then cpu= or gpu=, then architecture / cpu / ram / tenancy / regions / disk_size / disk_iops /
+        # disk_throughput / metrics / metrics_interval / id) and their FAQ says every runner they provide is
+        # Ubuntu 22.04, with no plan qualifier. What their GPU image DOES preinstall is Docker and the NVIDIA
+        # Container Toolkit beside the driver, so the job can take its own userspace and still reach the card:
+        # same runner, same label, same price, glibc 2.39. See webgpu-graph-algorithms/docs/decisions/G-ENV.md
+        # section 3 item 2 for the alternatives that were rejected.
+        # --gpus all needs the toolkit; it fails at "Initialize containers" if the driver is not up, which is the
+        # loud failure we want. The host already has the modules loaded before any step runs (run 35922927676:
+        # "modprobe exit=0 nvidia modules before=4 after=4"), which is what makes the dropped modprobe safe --
+        # a container cannot load host kernel modules and must not need to.
+        # NVIDIA_DRIVER_CAPABILITIES=all is load-bearing: the toolkit's default (utility,compute) injects CUDA but
+        # NOT the Vulkan ICD or the EGL vendor json, and without those Dawn has no adapter at all.
+        # --ipc=host gives Chromium a real /dev/shm; the 64 MB default crashes the browser smoke.
+        container:
+            image: ubuntu:24.04
+            options: --gpus all --ipc=host
+            env:
+                NVIDIA_VISIBLE_DEVICES: all
+                NVIDIA_DRIVER_CAPABILITIES: all
+                DEBIAN_FRONTEND: noninteractive
+        timeout-minutes: 85 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); 10 more than before for the container pull and the bootstrap apt, and still room for a slower machine without waiting on a hung one
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -69,9 +91,39 @@ jobs:
             XDG_RUNTIME_DIR: /tmp
         defaults: { run: { working-directory: webgpu-graph-algorithms, shell: bash } }
         steps:
+            # Bootstrap, and it must come BEFORE checkout: a bare ubuntu:24.04 has no git, so actions/checkout
+            # would silently fall back to downloading a repository tarball over the REST API. working-directory is
+            # `/` because the job default points at a package directory that does not exist until checkout runs.
+            # What each package is for: git for checkout; ca-certificates, curl and xz-utils for the Node tarball
+            # actions/setup-node fetches (the runner's own node runs the actions, but the toolchain is installed
+            # INSIDE the container, not reused from the host); libvulkan1 is the Khronos loader, which the NVIDIA
+            # Container Toolkit does NOT inject -- it injects the driver's ICD beside it, and a loader-less
+            # container reports no adapter; libegl1 because Dawn's NVIDIA ICD dlopen()s libEGL.so.1; sudo because
+            # `playwright install --with-deps` shells out to it when it is present and apt otherwise.
+            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn)
+              working-directory: /
+              run: |
+                  apt-get update
+                  apt-get install -y --no-install-recommends \
+                      ca-certificates curl git gnupg sudo xz-utils \
+                      libvulkan1 libegl1 libgl1
             - uses: actions/checkout@v4
-            - name: Driver up (the partner image may need the modules loaded; G0 records whether this step is a no-op)
-              run: before=$(lsmod | grep -c '^nvidia' || true); sudo modprobe nvidia nvidia_uvm && rc=0 || rc=$?; echo "modprobe exit=$rc nvidia modules before=$before after=$(lsmod | grep -c '^nvidia' || true)"; nvidia-smi; { cat /etc/os-release | head -2; ldd --version | head -1; uname -r; dpkg-query -W libegl1 mesa-vulkan-drivers libvulkan1 xvfb 2>&1 | head -5; ls /usr/share/vulkan/icd.d 2>&1 | head -12; echo DISPLAY=${DISPLAY:-unset}; } || true # the image facts of G0 rows F1-F3, F5, F6, F7, F9; the group never fails the step (under bash -eo pipefail a missing package, or head closing the pipe on ldd, would)
+            # No modprobe: a container cannot load host kernel modules, and it does not need to -- the host has
+            # them up before the job starts (run 35922927676: "modprobe exit=0 nvidia modules before=4 after=4"),
+            # and --gpus all fails at container creation if the driver is not there. This step records the
+            # container's own floor instead, which is the whole point of the move, and fails LOUDLY if the card
+            # or the Vulkan ICD did not make it through: a silent fall through to no adapter is what the lane
+            # exists to prevent, and GRAPHTY_GPU_REQUIRE=nvidia would catch it later and less clearly.
+            - name: Container floor and driver passthrough (the image facts of G0 rows F1-F3, F5, F6, F7, F9)
+              run: |
+                  { grep PRETTY_NAME /etc/os-release; ldd --version | head -1; uname -r
+                    dpkg-query -W -f '${Package} ${Version}\n' libvulkan1 libegl1 libgl1
+                    ls -1 /usr/share/vulkan/icd.d /etc/vulkan/icd.d 2>&1 | head -12
+                    ls -1 /usr/share/glvnd/egl_vendor.d 2>&1 | head -5
+                    echo "DISPLAY=${DISPLAY:-unset}"; } || true
+                  nvidia-smi
+                  test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
+                    || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
               with: { node-version: 22.x, cache: pnpm }
@@ -101,13 +153,17 @@ jobs:
             # where a missing-subgroup code path is most likely to behave differently.
             - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node
             - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
+            # The key carries the container image, not just runner.os. Playwright downloads a browser build
+            # matched to the distribution it detects, and every other lane keys on `Linux` alone -- so without
+            # this the 22.04 build another job saved would be restored into a 24.04 container and run against the
+            # wrong shared libraries. HOME is the container's, so the path is consistent within the job.
             - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4
               with:
                   {
                       path: ~/.cache/ms-playwright,
-                      key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}",
+                      key: "playwright-${{ runner.os }}-ubuntu2404-${{ hashFiles('pnpm-lock.yaml') }}",
                   }
             - if: steps.pw.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps # a fresh VM each job

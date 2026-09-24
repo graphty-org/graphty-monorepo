@@ -12,7 +12,7 @@ This directory contains design documents, implementation plans, research, and co
 | [`code-reviews/`](code-reviews/) | Code review findings and implementation plans (prefixed by package name) | 14 |
 | [`compact-mantine/`](compact-mantine/) | @graphty/compact-mantine - the shared compact Mantine theme: design, refactor, code reviews | 6 |
 | [`data/`](data/) | Data handling - formats, loading, sources, validation | 4 |
-| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 22 |
+| [`decisions/`](decisions/) | Decision records: one decision per file, never edited after it lands | 23 |
 | [`designloom/`](designloom/) | The UI requirements base - personas, workflows, views, components, capabilities, interactions, tokens (7 subdirectories) | 181 |
 | [`element-api/`](element-api/) | graphty-element's public API - the design, the 2.0 migration, the documentation plan | 3 |
 | [`graph-format/`](graph-format/) | The shared frozen CSR graph format: design, landing status, conformance record | 3 |

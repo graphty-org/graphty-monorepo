@@ -1,0 +1,6 @@
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<graph edgedefault="directed">
+<node id="a" labels=":Person:Actor" color="red"/><node id="b"/>
+<edge source="a" target="b" label="KNOWS"/>
+</graph>
+</graphml>

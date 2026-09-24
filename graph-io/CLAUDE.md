@@ -41,7 +41,7 @@ graph-io/
 |   +-- common/                   # shared by every format (see the module map in STATUS.md)
 |   |   +-- codes.ts              # the one definition of every shared issue / loss code (E_MISSING_ID, W_ROLE_DROPPED, ...)
 |   |   +-- report.ts             # ImportReportBuilder: issues, error limit, warnOnce, fail() -> ImportError
-|   |   +-- input.ts              # textChunks / readText / LineReader: streaming fatal UTF-8, BOM, abort, progress
+|   |   +-- input.ts              # textChunks / readText / LineReader: the one byte decoder (option, BOM, declaration, UTF-8, windows-1252 fallback), abort, progress
 |   |   +-- options.ts            # resolveImportOptions / resolveExportOptions / reportSinkOptions / reportUnusedOptions
 |   |   +-- direction.ts          # DirectionResolver (8.4 rules), pairFolding() for exporters (3.6 pairs, mutual marks)
 |   |   +-- ids.ts                # canonical / string / number coercion, IdCoercer (W_ID_MERGED)
@@ -64,6 +64,7 @@ graph-io/
 |   +-- formats/<format>/*.test.ts
 |   +-- registry.test.ts  sniff.test.ts  children.test.ts  index.test.ts  build-output.test.ts
 |   +-- types/*.test-d.ts         # compile-only, run under tsconfig.json and tsconfig.strict-consumer.json
+|   +-- conformance/              # the format conformance suite (see "Conformance suite" below)
 +-- benchmarks/                   # run.ts, run with tsx; ignored by eslint and coverage
 ```
 
@@ -106,7 +107,7 @@ the two correctly.
   back as string), not only what the file cannot hold.
 - Issue and loss codes: one code per concept, defined once. A concept shared by several formats
   has an unprefixed code in `src/common/codes.ts` (`E_MISSING_ID`, `W_DUPLICATE_NODE`,
-  `W_ROLE_DROPPED`, ...); a format-specific one carries the format prefix (`E_GML_SECOND_GRAPH`,
+  `W_ROLE_DROPPED`, ...); a format-specific one carries the format prefix (`E_GML_MISSING_LABEL`,
   `W_PAJEK_KEY_DROPPED`). Every subpath exports `<FMT>_ISSUE` and `<FMT>_LOSS`, whose keys are the
   code without its `E_` / `W_` and `<FMT>_` prefixes, and every code an importer records is a
   member of its table.
@@ -121,7 +122,13 @@ the two correctly.
   `"error"`: an exporter never renames a node silently.
 - Declares `@graphty/graph-format` in BOTH `dependencies` (`workspace:^`, which pnpm publishes as
   a caret range; `workspace:*` would publish an exact pin) and `peerDependencies` (`^1.0.0`).
-- Invalid UTF-8 is a `parse-error`, never a silent U+FFFD (`new TextDecoder("utf-8", { fatal: true })`).
+- Bytes are decoded once, in `common/input.ts`, for every importer: the `encoding` option, else a
+  BOM, else the file's declaration (the importer passes `declaredEncoding`: the XML prolog, DOT's
+  `charset`), else UTF-8. Decoding is strict (`fatal: true`), never a silent U+FFFD; undeclared
+  bytes that are not UTF-8 while everything before them was ASCII are read as windows-1252 with
+  `W_ENCODING_FALLBACK`. Never decode bytes anywhere else.
+- A format that can hold several graphs (DOT, Pajek `.paj`, GML, JGF) implements `importAll()`;
+  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped.
 
 ## Adding a format
 
@@ -157,6 +164,43 @@ the two correctly.
    export -> re-import equality (`expectSameSnapshot`), every LossNote path and every malformed
    file (`ImportError` with a report).
 7. Document the format in README.md (the matrix and the known losses) and STATUS.md.
+
+## Conformance suite
+
+`test/conformance/` runs every fixture under `fixtures/<format>/` through `importGraph()` as bytes and
+checks it against the expected-result record in that format's `manifest.json` (origin, licence,
+version, what it exercises, which oracle produced the expectation). `tools/oracle.py` regenerates the
+oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json and csv modules;
+`oracle_<format>.py` per format): `python3 test/conformance/tools/oracle.py [format ...]`.
+
+- An expectation states the RIGHT behaviour. Where graph-io misses it, the fixture carries
+  `knownFailure` (or `roundTripFailure`): the cause and its section in the research notes. The
+  test then runs as an expected failure, so a fix turns it red until the marker is removed. Remove
+  the marker in the same change as the fix; never weaken an expectation to make it pass.
+- `CONFORMANCE_REPORT=1 pnpm exec vitest run test/conformance` regenerates `test/conformance/REPORT.md`
+  (the known failures grouped by cause: the work list).
+- Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licences are test-only: `test/` is not in the
+  package's `files`, so they are never published.
+- Three generative layers run in the same file (`conformance.test.ts`):
+  - `generative.ts`: fast-check graphs (ids with Unicode, quotes, delimiters, XML / DOT / GML
+    specials, empty and long strings; self-loops, parallel edges, isolated nodes; weights and cells
+    with -0, 1e-300, 1e300, the infinities, NaN) through every exporter configuration (`TARGETS`)
+    and back from bytes. A difference is allowed only when a check() note announced it
+    (`NOTE_RELAX`: note code -> the difference it documents); an export may throw only when check()
+    returned an E_ note. `GRAPH_IO_PROPERTY_RUNS` / `GRAPH_IO_PROPERTY_SEED` size and seed it
+    (default 300 per configuration). A bug found becomes its shrunk graph in
+    `fixtures/generative/cases.json` (with `knownFailure` while open) and, while open, a
+    `KNOWN_FAILURES` predicate that keeps such graphs out of the property.
+  - `tools/differential.py` writes seeded networkx graphs with networkx's own writers into
+    `fixtures/<format>/networkx-generated/` with manifest entries (`"oracle": "networkx-differential"`,
+    networkx's read-back as the expectation; `networkxDisagrees` where the spec overrules networkx).
+    Rerun it after changing it; oracle.py leaves those entries alone.
+  - `schemas.ts` + `tools/validate_exports.py`: every GraphML, GEXF and JGF export against the
+    official XSDs / JSON Schema in `schemas/` (unmodified copies), and every DOT export through
+    Graphviz's gvpr. Needs Python with lxml and jsonschema (`GRAPH_IO_SCHEMA_PYTHON`, default
+    python3; skipped without them, required under `GRAPH_IO_REQUIRE_SCHEMAS`). An error is a
+    documented `SCHEMA_DEVIATIONS` entry (the schema contradicts the spec's own examples) or a
+    `SCHEMA_KNOWN_FAILURES` entry (an open graph-io bug, run as an expected failure).
 
 ## House Style
 

@@ -57,6 +57,9 @@ describe("extensionOf / normalizeMimeType / headBytes", () => {
         const long = new Uint8Array(SNIFF_HEAD_BYTES * 2);
         expect(headBytes(long).byteLength).toBe(SNIFF_HEAD_BYTES);
         expect(headBytes("x".repeat(SNIFF_HEAD_BYTES * 2)).byteLength).toBe(SNIFF_HEAD_BYTES);
+        // a UTF-16 head with a BOM is transcoded to UTF-8 for the sniffers
+        expect(Array.from(headBytes(new Uint8Array([0xff, 0xfe, 0x61, 0x00, 0x62, 0x00])))).toEqual([0x61, 0x62]);
+        expect(Array.from(headBytes(new Uint8Array([0xfe, 0xff, 0x00, 0x61])))).toEqual([0x61]);
         const short = new Uint8Array(3);
         expect(headBytes(short)).toBe(short);
     });

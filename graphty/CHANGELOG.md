@@ -1,3 +1,18 @@
+## 0.8.1 (2026-09-24)
+
+### 🩹 Fixes
+
+- **graphty-element:** install only the dependencies the published build imports ([ddebbcfb](https://github.com/graphty-org/graphty-monorepo/commit/ddebbcfb))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.8.4
+- Updated graphty-element to 2.0.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.0 (2026-09-24)
 
 ### 🚀 Features

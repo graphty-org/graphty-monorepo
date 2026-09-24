@@ -1,0 +1,6 @@
+digraph {
+  a -> b
+  edge [color=red]
+  { edge [style=dashed]; c -> d }
+  e -> f
+}

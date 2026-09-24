@@ -1,0 +1,4 @@
+digraph {
+  a -> b # a mid-line hash comment
+  b -> c
+}

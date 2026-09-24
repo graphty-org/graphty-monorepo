@@ -1,0 +1,25 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 67.955981,
+   "tag": "it's",
+   "flag": false,
+   "id": 0
+  },
+  {
+   "score": 83.24383,
+   "rank": 42,
+   "tag": "tab\there",
+   "flag": false,
+   "id": 1
+  },
+  {
+   "score": -0.0,
+   "id": 2
+  }
+ ],
+ "links": []
+}

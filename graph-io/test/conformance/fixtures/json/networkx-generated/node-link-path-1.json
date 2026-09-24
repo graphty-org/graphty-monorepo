@@ -1,0 +1,74 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "rank": 1,
+   "tag": "café",
+   "id": 0
+  },
+  {
+   "score": -17.775102,
+   "rank": 1,
+   "flag": true,
+   "id": 1
+  },
+  {
+   "score": -23.692986,
+   "rank": -2147483648,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": 2
+  },
+  {
+   "score": -0.0,
+   "tag": "中文",
+   "flag": false,
+   "id": 3
+  },
+  {
+   "rank": 0,
+   "tag": "it's",
+   "id": 4
+  },
+  {
+   "score": 1e+300,
+   "rank": -7,
+   "tag": "say \"hi\"",
+   "flag": false,
+   "id": 5
+  }
+ ],
+ "links": [
+  {
+   "cap": 569,
+   "source": 0,
+   "target": 1
+  },
+  {
+   "weight": 0.5,
+   "cap": 449,
+   "source": 1,
+   "target": 2
+  },
+  {
+   "weight": 5.5504,
+   "cap": 173,
+   "source": 2,
+   "target": 3
+  },
+  {
+   "weight": 1e-300,
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": 3,
+   "target": 4
+  },
+  {
+   "weight": 7.9463,
+   "rel": "two words",
+   "cap": 610,
+   "source": 4,
+   "target": 5
+  }
+ ]
+}

@@ -39,6 +39,7 @@ import {
     DUPLICATE_NODE_CODE as SHARED_DUPLICATE_NODE_CODE,
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
+    MULTIPLE_GRAPHS_CODE,
     NO_GRAPH_CODE as SHARED_NO_GRAPH_CODE,
     PRECISION_CODE as SHARED_PRECISION_CODE,
     ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
@@ -87,8 +88,8 @@ export interface GmlImportOptions {
 
 /** Issue code: the text holds no `graph [ ... ]` block. */
 export const NO_GRAPH_CODE = SHARED_NO_GRAPH_CODE;
-/** Issue code: the text holds more than one `graph [ ... ]` block (fatal; one network per file). */
-export const SECOND_GRAPH_CODE = "E_GML_SECOND_GRAPH";
+/** Issue code: the text holds more than one `graph [ ... ]` block; import() reads the first, importAll() every one. */
+export const SECOND_GRAPH_CODE = MULTIPLE_GRAPHS_CODE;
 /** Issue code: a node block has no `id` key. */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 /** Issue code: a node block has no `label` key under `nodeIdFrom: "label"`. */
@@ -248,6 +249,9 @@ class GmlImport {
 
     private tokens: GmlTokens | null = null;
 
+    /** How many `graph [ ... ]` blocks the text holds (known after the scan). */
+    graphCount = 0;
+
     private resolver: DirectionResolver | null = null;
 
     private readonly nodeSchema = new Map<string, KeySchema>();
@@ -315,12 +319,14 @@ class GmlImport {
      * @param report - the report
      * @param options - the resolved common options
      * @param format - the format-specific options
+     * @param which - which `graph [ ... ]` block to read (0: the first)
      */
     constructor(
         sink: GraphSink,
         report: ImportReportBuilder,
         options: ResolvedImportOptions,
         format: GmlImportOptions | undefined,
+        private readonly which = 0,
     ) {
         this.sink = sink;
         this.report = report;
@@ -331,19 +337,11 @@ class GmlImport {
     }
 
     /**
-     * Run the import over a text.
-     * @param text - the whole GML text
+     * Run the import over the tokens of a text.
+     * @param tokens - the whole text, tokenized (tokenize())
      */
-    run(text: string): void {
-        const { report } = this;
-        try {
-            this.tokens = tokenizeGml(text);
-        } catch (err) {
-            if (err instanceof GmlSyntaxError) {
-                report.fail(err.code, err.message, { line: err.line });
-            }
-            throw err;
-        }
+    run(tokens: GmlTokens): void {
+        this.tokens = tokens;
         this.scan();
         this.push();
     }
@@ -361,13 +359,10 @@ class GmlImport {
             const v = p + 1;
             const record = t.kind[v] === TOKEN_OPEN;
             if (key === "graph" && record) {
-                if (this.graphOpen >= 0) {
-                    this.report.fail(SECOND_GRAPH_CODE, "the input contains more than one graph", {
-                        line: t.line[p],
-                    });
+                if (this.graphCount++ === this.which) {
+                    this.graphOpen = v;
+                    this.scanGraph(v);
                 }
-                this.graphOpen = v;
-                this.scanGraph(v);
             } else if (key === "Creator" && !record && this.creatorToken < 0) {
                 this.creatorToken = v;
             } else if (key === "Version" && !record && this.versionToken < 0) {
@@ -1581,11 +1576,69 @@ export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
         const report = new ImportReportBuilder("gml", resolved.errorLimit);
         reportSinkOptions(sink, options, report);
         reportUnusedOptions(options, report, USED_OPTIONS);
-        const text = await readText(input, report, resolved);
+        const tokens = tokenize(await readText(input, report, resolved), report);
         throwIfAborted(resolved.signal);
-        new GmlImport(sink, report, resolved, options).run(text);
+        const gml = new GmlImport(sink, report, resolved, options);
+        gml.run(tokens);
+        if (gml.graphCount > 1) {
+            report.warning(
+                "unsupported",
+                SECOND_GRAPH_CODE,
+                `the input holds ${gml.graphCount - 1} more graph block(s) after the first; import() reads the first, importAll() reads every one`,
+            );
+        }
         // an abort raised during the last few elements (after the last periodic check) still rejects
         throwIfAborted(resolved.signal);
         return report.finish();
     },
+
+    /**
+     * Read every `graph [ ... ]` block of a GML text, each into its own sink; the top-level keys
+     * (Creator, Version, ...) apply to each.
+     * @param input - the text, bytes or stream
+     * @param sinkFor - the sink of the graph with this index, called before its first push
+     * @param options - format-specific and common options
+     * @returns one report per graph block
+     */
+    async importAll(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: GmlImportOptions & CommonImportOptions,
+    ): Promise<ImportReport[]> {
+        const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
+        const first = new ImportReportBuilder("gml", resolved.errorLimit);
+        reportUnusedOptions(options, first, USED_OPTIONS);
+        const tokens = tokenize(await readText(input, first, resolved), first);
+        const reports: ImportReport[] = [];
+        let count = 1;
+        for (let i = 0; i < count; i++) {
+            throwIfAborted(resolved.signal);
+            const report = i === 0 ? first : new ImportReportBuilder("gml", resolved.errorLimit);
+            const sink = sinkFor(i);
+            reportSinkOptions(sink, options, report);
+            const gml = new GmlImport(sink, report, resolved, options, i);
+            gml.run(tokens);
+            count = gml.graphCount;
+            reports.push(report.finish());
+        }
+        throwIfAborted(resolved.signal);
+        return reports;
+    },
 });
+
+/**
+ * Tokenize a GML text; a syntax error is fatal.
+ * @param text - the whole text
+ * @param report - where the syntax error is recorded
+ * @returns the tokens
+ */
+function tokenize(text: string, report: ImportReportBuilder): GmlTokens {
+    try {
+        return tokenizeGml(text);
+    } catch (err) {
+        if (err instanceof GmlSyntaxError) {
+            report.fail(err.code, err.message, { line: err.line });
+        }
+        throw err;
+    }
+}

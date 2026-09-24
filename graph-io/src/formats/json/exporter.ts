@@ -22,7 +22,7 @@ import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX, type 
 
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
-import { formatF32 } from "../../common/format.js";
+import { formatF32, formatF64 } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -283,7 +283,8 @@ function numberText(value: number, f32: boolean, nonfinite: Counter): string {
     if (f32) {
         return formatF32(value);
     }
-    return Object.is(value, -0) ? "0" : String(value);
+    // -0 is a JSON number too ("-0"); JSON.parse reads it back as -0
+    return formatF64(value);
 }
 
 /**
@@ -776,7 +777,7 @@ function planSlot(ctx: PlanContext, column: Column, domain: Domain): ColumnPlan 
  * What the importer's inference (design section 5.1: JSON numbers are i32 when integral, else
  * f64; strings are strings; arrays and objects are json) changes about a written attribute
  * column beyond what checkCapabilities() already reported for its dtype: an f64 column whose set
- * values are all integers reads back as i32.
+ * finite values are all integers reads back as i32 (its non-finite values are written as null).
  * @param ctx - the plan context
  * @param column - the column
  * @param domain - its domain
@@ -787,10 +788,18 @@ function inferenceNotes(ctx: PlanContext, column: Column, domain: Domain, setRow
         return;
     }
     const { data } = column;
+    let finite = 0;
     for (let r = 0; r < column.length; r++) {
-        if (column.isSet(r) && !Number.isInteger(data[r])) {
-            return;
+        // a non-finite value is written as null and reads back unset, so it does not keep the column f64
+        if (column.isSet(r) && Number.isFinite(data[r])) {
+            if (!Number.isInteger(data[r])) {
+                return;
+            }
+            finite++;
         }
+    }
+    if (finite === 0) {
+        return;
     }
     ctx.note(
         LOSS.INTEGRAL_F64,

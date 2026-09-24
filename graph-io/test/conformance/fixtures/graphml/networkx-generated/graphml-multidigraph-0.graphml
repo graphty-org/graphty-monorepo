@@ -1,0 +1,92 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d7" for="edge" attr.name="weight" attr.type="long" />
+  <key id="d6" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d5" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d4" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d3" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d2" for="node" attr.name="tag" attr.type="string" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="directed">
+    <node id="0">
+      <data key="d0">-75.69002</data>
+      <data key="d1">-2147483648</data>
+    </node>
+    <node id="1">
+      <data key="d0">0.392541</data>
+      <data key="d1">2147483647</data>
+      <data key="d2">say "hi"</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="2">
+      <data key="d0">2.0</data>
+    </node>
+    <node id="3">
+      <data key="d0">-80.633996</data>
+      <data key="d1">42</data>
+      <data key="d2">&lt;tag&gt;</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="4">
+      <data key="d0">1e-07</data>
+      <data key="d1">1</data>
+      <data key="d2">中文</data>
+    </node>
+    <node id="5">
+      <data key="d0">-2.25</data>
+      <data key="d1">-7</data>
+      <data key="d3">False</data>
+    </node>
+    <edge source="0" target="5" id="0">
+      <data key="d4">2.1095</data>
+      <data key="d5">plain</data>
+      <data key="d6">249</data>
+    </edge>
+    <edge source="0" target="4" id="0">
+      <data key="d5">a&amp;b</data>
+    </edge>
+    <edge source="0" target="1" id="0">
+      <data key="d4">5.2283</data>
+      <data key="d5">&lt;tag&gt;</data>
+    </edge>
+    <edge source="0" target="1" id="1">
+      <data key="d4">-2.25</data>
+      <data key="d5">say "hi"</data>
+      <data key="d6">243</data>
+    </edge>
+    <edge source="1" target="5" id="0">
+      <data key="d4">1.2481</data>
+    </edge>
+    <edge source="1" target="3" id="0">
+      <data key="d4">3.2698</data>
+      <data key="d6">684</data>
+    </edge>
+    <edge source="1" target="0" id="0">
+      <data key="d4">-2.25</data>
+      <data key="d5">中文</data>
+      <data key="d6">311</data>
+    </edge>
+    <edge source="2" target="3" id="0">
+      <data key="d4">8.6543</data>
+      <data key="d6">175</data>
+    </edge>
+    <edge source="2" target="2" id="0">
+      <data key="d4">3.1261</data>
+      <data key="d5">&lt;tag&gt;</data>
+      <data key="d6">124</data>
+    </edge>
+    <edge source="3" target="1" id="0">
+      <data key="d7">1</data>
+    </edge>
+    <edge source="3" target="0" id="0">
+      <data key="d4">0.314</data>
+      <data key="d5">plain</data>
+      <data key="d6">826</data>
+    </edge>
+    <edge source="5" target="0" id="0">
+      <data key="d7">1</data>
+      <data key="d5">&lt;tag&gt;</data>
+    </edge>
+  </graph>
+</graphml>

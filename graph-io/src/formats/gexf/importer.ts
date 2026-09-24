@@ -74,7 +74,14 @@ import {
 import { ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { parseTimeText, type TemporalValue, type TimeFormat, timeTextCompanion } from "../../common/temporal.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
-import { isWhitespace, localName, tokenizeXml, type XmlHandler, XmlSyntaxError } from "../../common/xml.js";
+import {
+    isWhitespace,
+    localName,
+    tokenizeXml,
+    xmlDeclaredEncoding,
+    type XmlHandler,
+    XmlSyntaxError,
+} from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EDGE_DECLS,
@@ -2318,7 +2325,10 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
         reportUnusedOptions(options, report, USED_OPTIONS);
         const reader = new GexfReader(sink, report, resolved, viz);
         try {
-            await tokenizeXml(textChunks(input, report, resolved), reader);
+            await tokenizeXml(
+                textChunks(input, report, { ...resolved, declaredEncoding: xmlDeclaredEncoding }),
+                reader,
+            );
         } catch (err) {
             if (err instanceof XmlSyntaxError) {
                 report.fail(XML_SYNTAX_CODE, err.message, { line: err.line });

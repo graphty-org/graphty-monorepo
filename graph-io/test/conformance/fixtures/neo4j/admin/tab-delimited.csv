@@ -1,0 +1,5 @@
+:ID	name	:LABEL
+1	Ann	P
+2	Bob	P
+:START_ID	:END_ID	:TYPE	w:double
+1	2	KNOWS	0.5

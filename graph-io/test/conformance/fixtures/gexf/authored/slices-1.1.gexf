@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://www.gexf.net/1.1draft" version="1.1">
+<graph mode="dynamic" defaultedgetype="undirected" timetype="float">
+<nodes>
+<node id="a"><slices><slice start="1" end="2"/><slice start="4" end="5"/></slices></node>
+<node id="b"/>
+</nodes>
+<edges>
+<edge id="0" source="a" target="b"><slices><slice start="1" end="2"/></slices></edge>
+</edges>
+</graph>
+</gexf>

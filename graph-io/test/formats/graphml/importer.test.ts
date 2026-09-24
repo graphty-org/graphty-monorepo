@@ -282,7 +282,7 @@ describe("graphmlImporter malformed corpus", () => {
 
     it("rejects invalid UTF-8 as a parse error", async () => {
         const bytes = new Uint8Array([...new TextEncoder().encode(doc('<node id="n1"/>').slice(0, 60)), 0xff, 0xfe]);
-        const err = await importError(bytes);
+        const err = await importError(bytes, { encoding: "utf-8" });
         expect(codes(err.report)).toContain(INVALID_UTF8_CODE);
     });
 

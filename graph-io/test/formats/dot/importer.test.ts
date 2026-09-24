@@ -327,7 +327,9 @@ describe("dot importer: malformed corpus", () => {
     });
 
     it("rejects invalid UTF-8 as a fatal parse error", async () => {
-        const err = await failure(new Uint8Array([0x64, 0x69, 0x67, 0x72, 0x61, 0x70, 0x68, 0x20, 0xff, 0x7b, 0x7d]));
+        const err = await failure(new Uint8Array([0x64, 0x69, 0x67, 0x72, 0x61, 0x70, 0x68, 0x20, 0xff, 0x7b, 0x7d]), {
+            encoding: "utf-8",
+        });
         expect(err.report.issues[0].code).toBe(INVALID_UTF8_CODE);
     });
 });

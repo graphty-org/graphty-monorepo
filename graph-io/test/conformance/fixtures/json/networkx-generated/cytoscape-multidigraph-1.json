@@ -1,0 +1,167 @@
+{
+ "data": [],
+ "directed": true,
+ "multigraph": true,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": -2.25,
+     "rank": 42,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 2.0,
+     "rank": -7,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": -46.638584,
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": 1e+300,
+     "rank": 42,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 13.879937,
+     "tag": "tab\there",
+     "flag": false,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "score": 1e-07,
+     "rank": 1,
+     "flag": false,
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 1.4194,
+     "source": 0,
+     "target": 5,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "source": 0,
+     "target": 4,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "source": 0,
+     "target": 1,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 1e+300,
+     "source": 0,
+     "target": 1,
+     "key": 1
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "two words",
+     "source": 1,
+     "target": 5,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 7.31,
+     "cap": 209,
+     "source": 1,
+     "target": 3,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "source": 1,
+     "target": 0,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "cap": 834,
+     "source": 2,
+     "target": 3,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "rel": "two words",
+     "source": 2,
+     "target": 2,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "cap": 911,
+     "source": 3,
+     "target": 1,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 2.8562,
+     "rel": "café",
+     "source": 3,
+     "target": 0,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 5.9594,
+     "cap": 31,
+     "source": 5,
+     "target": 0,
+     "key": 0
+    }
+   }
+  ]
+ }
+}

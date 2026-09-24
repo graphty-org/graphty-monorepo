@@ -1,0 +1,178 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d7" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d6" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d5" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d4" for="edge" attr.name="weight" attr.type="long" />
+  <key id="d3" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d2" for="node" attr.name="tag" attr.type="string" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="undirected">
+    <node id="0">
+      <data key="d0">98.44529</data>
+      <data key="d1">-2147483648</data>
+      <data key="d2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+    </node>
+    <node id="1">
+      <data key="d0">-76.587042</data>
+      <data key="d1">2147483647</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="2">
+      <data key="d2">it's</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="3">
+      <data key="d1">1</data>
+      <data key="d2">two words</data>
+    </node>
+    <node id="4">
+      <data key="d0">-66.467737</data>
+      <data key="d2">tab	here</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="5">
+      <data key="d3">True</data>
+    </node>
+    <node id="6">
+      <data key="d0">38.717606</data>
+      <data key="d1">-2147483648</data>
+      <data key="d2">it's</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="7">
+      <data key="d0">123456789.125</data>
+      <data key="d1">1</data>
+      <data key="d2">it's</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="8">
+      <data key="d0">2.0</data>
+      <data key="d1">0</data>
+      <data key="d2">say "hi"</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="9">
+      <data key="d1">0</data>
+    </node>
+    <node id="10">
+      <data key="d0">2.0</data>
+      <data key="d2">it's</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="11">
+      <data key="d0">1e+300</data>
+      <data key="d1">-2147483648</data>
+    </node>
+    <node id="12">
+      <data key="d2">two words</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="13">
+      <data key="d0">-77.245996</data>
+      <data key="d1">-7</data>
+      <data key="d2">tab	here</data>
+    </node>
+    <node id="14">
+      <data key="d0">-77.177393</data>
+      <data key="d2">café</data>
+    </node>
+    <edge source="0" target="1">
+      <data key="d4">1</data>
+      <data key="d5">tab	here</data>
+    </edge>
+    <edge source="0" target="2">
+      <data key="d6">-0.0</data>
+      <data key="d5">a&amp;b</data>
+      <data key="d7">775</data>
+    </edge>
+    <edge source="0" target="4">
+      <data key="d4">1</data>
+    </edge>
+    <edge source="0" target="5">
+      <data key="d5">café</data>
+    </edge>
+    <edge source="0" target="6">
+      <data key="d4">3</data>
+    </edge>
+    <edge source="0" target="11">
+      <data key="d6">8.1984</data>
+      <data key="d7">550</data>
+    </edge>
+    <edge source="1" target="3">
+      <data key="d6">8.5465</data>
+      <data key="d7">921</data>
+    </edge>
+    <edge source="1" target="8">
+      <data key="d5">plain</data>
+    </edge>
+    <edge source="1" target="13">
+      <data key="d6">-2.25</data>
+      <data key="d5">say "hi"</data>
+    </edge>
+    <edge source="2" target="3">
+      <data key="d6">0.5</data>
+    </edge>
+    <edge source="2" target="4">
+      <data key="d6">-0.0</data>
+      <data key="d7">630</data>
+    </edge>
+    <edge source="2" target="9">
+      <data key="d5">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d7">46</data>
+    </edge>
+    <edge source="2" target="11">
+      <data key="d7">927</data>
+    </edge>
+    <edge source="3" target="7">
+      <data key="d6">1e+300</data>
+      <data key="d5">a&amp;b</data>
+    </edge>
+    <edge source="3" target="10">
+      <data key="d4">10</data>
+      <data key="d5">a&amp;b</data>
+    </edge>
+    <edge source="3" target="12">
+      <data key="d7">113</data>
+    </edge>
+    <edge source="3" target="13">
+      <data key="d6">-0.0</data>
+      <data key="d5">a&amp;b</data>
+    </edge>
+    <edge source="3" target="14">
+      <data key="d4">10</data>
+      <data key="d7">931</data>
+    </edge>
+    <edge source="4" target="5">
+      <data key="d6">6.3504</data>
+      <data key="d7">640</data>
+    </edge>
+    <edge source="4" target="6">
+      <data key="d4">10</data>
+      <data key="d5">tab	here</data>
+      <data key="d7">288</data>
+    </edge>
+    <edge source="5" target="7">
+      <data key="d6">6.4576</data>
+      <data key="d5">it's</data>
+    </edge>
+    <edge source="5" target="8">
+      <data key="d6">0.5</data>
+      <data key="d5">it's</data>
+      <data key="d7">384</data>
+    </edge>
+    <edge source="5" target="9">
+      <data key="d6">8.1185</data>
+      <data key="d7">748</data>
+    </edge>
+    <edge source="5" target="10" />
+    <edge source="5" target="12">
+      <data key="d5">two words</data>
+      <data key="d7">902</data>
+    </edge>
+    <edge source="7" target="14">
+      <data key="d6">4.1586</data>
+    </edge>
+  </graph>
+</graphml>

@@ -1,0 +1,12 @@
+*vertices 5
+1 "node 0" 0.0 0.0 ellipse tag plain
+2 "node 1" 0.0 0.0 ellipse tag 中文
+3 "node 2" 0.0 0.0 ellipse
+4 "node 3" 0.0 0.0 ellipse tag 中文
+5 "node 4" 0.0 0.0 ellipse tag café
+*edges
+1 2 1.0
+1 5 -2.25
+2 3 1.0 rel "two words"
+3 4 9.9631
+4 5 7.2161

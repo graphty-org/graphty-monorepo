@@ -7,12 +7,15 @@ import {
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
     OPTION_IGNORED_CODE,
     SINK_OPTION_CODE,
     SYNTAX_CODE,
+    UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import {
     GRAPHICS_CONFLICT_CODE,
@@ -57,10 +60,16 @@ export const GML_ISSUE = Object.freeze({
     SYNTAX: SYNTAX_CODE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** No `graph [` block (fatal). */
     NO_GRAPH: NO_GRAPH_CODE,
     /** More than one `graph` block (fatal). */
-    SECOND_GRAPH: SECOND_GRAPH_CODE,
+    MULTIPLE_GRAPHS: SECOND_GRAPH_CODE,
     /** A node without an `id`. */
     MISSING_ID: MISSING_ID_CODE,
     /** A node without a `label` under nodeIdFrom "label". */

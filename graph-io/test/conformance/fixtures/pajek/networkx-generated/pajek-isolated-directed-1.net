@@ -1,0 +1,6 @@
+*vertices 4
+1 0 0.0 0.0 ellipse tag 中文
+2 1 0.0 0.0 ellipse tag semi;colon
+3 2 0.0 0.0 ellipse tag "two words"
+4 3 0.0 0.0 ellipse tag café
+*arcs

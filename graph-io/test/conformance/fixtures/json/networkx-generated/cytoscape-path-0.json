@@ -1,0 +1,109 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "rank": -2147483648,
+     "tag": "😀",
+     "flag": true,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 17.963382,
+     "tag": "line\nbreak",
+     "flag": false,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": 95.987754,
+     "rank": 0,
+     "tag": "café",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "rank": 42,
+     "tag": "café",
+     "flag": true,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 79.707193,
+     "tag": "plain",
+     "flag": false,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "score": 123456789.125,
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "rel": "plain",
+     "cap": 990,
+     "source": 0,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "rel": "tab\there",
+     "source": 1,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "rel": "tab\there",
+     "cap": 466,
+     "source": 2,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 2.4128,
+     "cap": 827,
+     "source": 3,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "rel": "it's",
+     "source": 4,
+     "target": 5
+    }
+   }
+  ]
+ }
+}

@@ -321,7 +321,7 @@ describe("Pajek quirks from PajekDataSource, NetworkX pajek.py and research note
         expect(snapshot.ids.toArray()).toEqual([1, 2]);
         expect(snapshot.edgeCount).toBe(1);
         expect(report.issues.filter((i) => i.code === "E_PAJEK_UNSUPPORTED_SECTION")).toHaveLength(2);
-        expect(report.issues.map((i) => i.code)).not.toContain("E_PAJEK_MULTIPLE_NETWORKS");
+        expect(report.issues.map((i) => i.code)).not.toContain("W_MULTIPLE_GRAPHS");
     });
 
     it("reports a vertex count mismatch, an endpoint outside 1..N and a bad weight token, each explicitly", async () => {
@@ -357,11 +357,9 @@ describe("Pajek quirks from PajekDataSource, NetworkX pajek.py and research note
         expect(onlyVertices.report.issues.map((i) => i.code)).toContain("W_PAJEK_NO_LINES");
     });
 
-    it("refuses a line section before *Vertices and a truly second network with explicit errors", async () => {
+    it("refuses a line section before *Vertices and warns about a second network", async () => {
         await expect(parse("*Edges\n1 2\n")).rejects.toMatchObject({ code: "E_IMPORT" });
-        await expect(parse('*Vertices 1\n1 "a"\n*Edges\n*Network other\n*Vertices 1\n1 "b"\n')).rejects.toMatchObject({
-            code: "E_IMPORT",
-            report: { issues: [{ code: "E_PAJEK_MULTIPLE_NETWORKS" }] },
-        });
+        const second = await parse('*Vertices 1\n1 "a"\n*Edges\n*Network other\n*Vertices 1\n1 "b"\n');
+        expect(second.report.issues.map((i) => i.code)).toContain("W_MULTIPLE_GRAPHS");
     });
 });

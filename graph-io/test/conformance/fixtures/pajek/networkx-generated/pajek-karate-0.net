@@ -1,0 +1,114 @@
+*vertices 34
+1 0 0.0 0.0 ellipse tag a&b
+2 1 0.0 0.0 ellipse
+3 2 0.0 0.0 ellipse
+4 3 0.0 0.0 ellipse tag a&b
+5 4 0.0 0.0 ellipse
+6 5 0.0 0.0 ellipse tag a&b
+7 6 0.0 0.0 ellipse
+8 7 0.0 0.0 ellipse tag plain
+9 8 0.0 0.0 ellipse tag "two words"
+10 9 0.0 0.0 ellipse tag café
+11 10 0.0 0.0 ellipse tag a&b
+12 11 0.0 0.0 ellipse
+13 12 0.0 0.0 ellipse tag semi;colon
+14 13 0.0 0.0 ellipse tag "two words"
+15 14 0.0 0.0 ellipse tag semi;colon
+16 15 0.0 0.0 ellipse tag a&b
+17 16 0.0 0.0 ellipse tag 中文
+18 17 0.0 0.0 ellipse tag café
+19 18 0.0 0.0 ellipse tag "two words"
+20 19 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+21 20 0.0 0.0 ellipse tag a&b
+22 21 0.0 0.0 ellipse tag 中文
+23 22 0.0 0.0 ellipse tag plain
+24 23 0.0 0.0 ellipse tag plain
+25 24 0.0 0.0 ellipse tag 中文
+26 25 0.0 0.0 ellipse
+27 26 0.0 0.0 ellipse tag plain
+28 27 0.0 0.0 ellipse
+29 28 0.0 0.0 ellipse
+30 29 0.0 0.0 ellipse tag 中文
+31 30 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+32 31 0.0 0.0 ellipse tag "two words"
+33 32 0.0 0.0 ellipse tag a&b
+34 33 0.0 0.0 ellipse tag café
+*edges
+1 2 3.8497 rel "two words"
+1 3 4.0388 rel "two words"
+1 4 0.5 rel plain
+1 5 1 rel "two words"
+1 6 1
+1 7 1e-300 rel 中文
+1 8 1e-300 rel plain
+1 9 0.5 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+1 11 1e-300
+1 12 3 rel 中文
+1 13 4.6025 rel "two words"
+1 14 -0.0
+1 18 1.0
+1 20 1
+1 22 0.4474 rel semi;colon
+1 32 1e+300 rel a&b
+2 3 -2.25
+2 4 6.2273
+2 8 6.6612
+2 14 0.3472 rel semi;colon
+2 18 10 rel plain
+2 20 2.7587
+2 22 1.0 rel plain
+2 31 1.0
+3 4 1.0
+3 8 0.1602 rel plain
+3 9 5.1448
+3 10 1.0088
+3 14 0.5 rel a&b
+3 28 -0.0 rel café
+3 29 1.0 rel 中文
+3 33 3 rel semi;colon
+4 8 3 rel "two words"
+4 13 0.5
+4 14 1 rel "two words"
+5 7 2.2569
+5 11 0.1931 rel "two words"
+6 7 0.5
+6 11 1.6812 rel café
+6 17 3
+7 17 5.3225 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+9 31 1.1279
+9 33 1.0 rel café
+9 34 0.832 rel semi;colon
+10 34 1.0
+14 34 3.1874 rel café
+15 33 3
+15 34 1.0 rel a&b
+16 33 1.0
+16 34 1.0 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+19 33 8.2082 rel plain
+19 34 -2.25 rel 中文
+20 34 10 rel "two words"
+21 33 0.2561 rel 中文
+21 34 1e-300
+23 33 1.0
+23 34 10 rel a&b
+24 26 1e+300
+24 28 3 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+24 30 9.5377
+24 33 7.77 rel semi;colon
+24 34 1.0 rel café
+25 26 4.6149
+25 28 1.1529 rel plain
+25 32 1e-300
+26 32 9.0034 rel 中文
+27 30 10
+27 34 1.1751 rel semi;colon
+28 34 3.0332 rel café
+29 32 3.37
+29 34 2.4951
+30 33 8.1231 rel plain
+30 34 3
+31 33 1.0 rel plain
+31 34 -0.0
+32 33 -0.0 rel café
+32 34 2.2255
+33 34 0.5 rel semi;colon

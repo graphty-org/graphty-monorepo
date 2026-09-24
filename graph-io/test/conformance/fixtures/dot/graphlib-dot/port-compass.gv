@@ -1,0 +1,1 @@
+digraph { a:port:ne -> b:sw; c:n }

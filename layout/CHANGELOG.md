@@ -1,3 +1,17 @@
+## 1.8.2 (2026-09-24)
+
+### 🩹 Fixes
+
+- **deps:** stop publishing build caches and test configuration ([b7537fef](https://github.com/graphty-org/graphty-monorepo/commit/b7537fef))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.8.1 (2026-09-24)
 
 ### 🩹 Fixes

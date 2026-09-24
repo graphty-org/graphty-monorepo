@@ -7,3 +7,8 @@ graphty-element/test/helpers/corpus/** -text
 *.gsnp binary
 *.png binary
 *.zip binary
+
+# Conformance fixtures are test inputs: store their bytes exactly (line endings, encodings, BOMs).
+graph-io/test/conformance/fixtures/** -text -diff
+# The official schemas the exports are validated against are unmodified copies (xlink.xsd is CRLF).
+graph-io/test/conformance/schemas/** -text -diff

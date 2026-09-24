@@ -1,0 +1,5 @@
+"_id","_labels","name","age","_start","_end","_type","since"
+"10",":User:Admin","Adam","42",,,,
+"11",":User","Jim","",,,,
+,,,,"10","11","KNOWS","1993"
+,,,,"11","10","KNOWS",""

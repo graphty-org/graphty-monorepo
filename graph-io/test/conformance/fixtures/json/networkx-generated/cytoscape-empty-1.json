@@ -1,0 +1,40 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 2.0,
+     "tag": "café",
+     "flag": true,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": -50.095084,
+     "tag": "😀",
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": 13.243403,
+     "rank": 1,
+     "tag": "tab\there",
+     "flag": false,
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   }
+  ],
+  "edges": []
+ }
+}

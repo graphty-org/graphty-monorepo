@@ -467,7 +467,7 @@ class Neo4jImportSession {
     async run(inputs: readonly ImportInput[]): Promise<void> {
         const progress = new ProgressTracker(this.common.onProgress, inputs);
         for (const input of inputs) {
-            await this.readInput(input, progress.optionsFor(this.common.signal));
+            await this.readInput(input, { ...progress.optionsFor(this.common.signal), encoding: this.common.encoding });
             progress.finishInput();
         }
         if (this.ignoredColumns > 0) {

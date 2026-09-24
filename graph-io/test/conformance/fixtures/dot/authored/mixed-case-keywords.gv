@@ -1,0 +1,6 @@
+DiGraph {
+  NODE [shape=box]
+  EDGE [color=blue]
+  a -> b
+  SubGraph cluster_x { c }
+}

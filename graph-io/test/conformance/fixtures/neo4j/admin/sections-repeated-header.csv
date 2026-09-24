@@ -1,0 +1,9 @@
+personId:ID,name
+p1,Ann
+p2,Bob
+personId:ID,name
+p3,Cid
+:START_ID,:END_ID,:TYPE
+p1,p2,KNOWS
+p2,p3,KNOWS
+p3,p1,KNOWS

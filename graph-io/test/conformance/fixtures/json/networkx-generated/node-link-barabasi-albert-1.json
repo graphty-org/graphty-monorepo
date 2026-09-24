@@ -1,0 +1,250 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": -46.202168,
+   "rank": 42,
+   "tag": "it's",
+   "id": 0
+  },
+  {
+   "score": -49.46671,
+   "rank": 2147483647,
+   "tag": "😀",
+   "flag": false,
+   "id": 1
+  },
+  {
+   "rank": -2147483648,
+   "tag": "say \"hi\"",
+   "id": 2
+  },
+  {
+   "score": 89.377594,
+   "id": 3
+  },
+  {
+   "score": 89.204955,
+   "rank": 42,
+   "tag": "café",
+   "flag": false,
+   "id": 4
+  },
+  {
+   "tag": "中文",
+   "id": 5
+  },
+  {
+   "score": 3.141592653589793,
+   "rank": -7,
+   "tag": " nbsp",
+   "id": 6
+  },
+  {
+   "score": 0.5,
+   "tag": " nbsp",
+   "flag": true,
+   "id": 7
+  },
+  {
+   "score": -98.216674,
+   "rank": 1,
+   "tag": "line\nbreak",
+   "flag": false,
+   "id": 8
+  },
+  {
+   "tag": "back\\slash",
+   "id": 9
+  },
+  {
+   "rank": 2147483647,
+   "tag": "a&b",
+   "flag": false,
+   "id": 10
+  },
+  {
+   "score": 1e+300,
+   "tag": "<tag>",
+   "flag": false,
+   "id": 11
+  },
+  {
+   "score": -2.25,
+   "rank": -7,
+   "tag": "line\nbreak",
+   "flag": false,
+   "id": 12
+  },
+  {
+   "score": -53.497095,
+   "rank": -7,
+   "tag": "line\nbreak",
+   "id": 13
+  },
+  {
+   "score": 5.316942,
+   "tag": "line\nbreak",
+   "id": 14
+  }
+ ],
+ "links": [
+  {
+   "rel": "it's",
+   "source": 0,
+   "target": 1
+  },
+  {
+   "rel": "back\\slash",
+   "cap": 577,
+   "source": 0,
+   "target": 2
+  },
+  {
+   "rel": "two words",
+   "source": 0,
+   "target": 4
+  },
+  {
+   "weight": 0.5,
+   "rel": "line\nbreak",
+   "cap": 709,
+   "source": 0,
+   "target": 5
+  },
+  {
+   "weight": 3,
+   "rel": "it's",
+   "cap": 315,
+   "source": 0,
+   "target": 6
+  },
+  {
+   "weight": 5.2688,
+   "source": 0,
+   "target": 11
+  },
+  {
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": 1,
+   "target": 3
+  },
+  {
+   "weight": 8.0333,
+   "rel": "line\nbreak",
+   "cap": 423,
+   "source": 1,
+   "target": 8
+  },
+  {
+   "weight": 1e+300,
+   "rel": "plain",
+   "source": 1,
+   "target": 13
+  },
+  {
+   "weight": 1,
+   "rel": "café",
+   "source": 2,
+   "target": 3
+  },
+  {
+   "source": 2,
+   "target": 4
+  },
+  {
+   "weight": 1,
+   "rel": "😀",
+   "source": 2,
+   "target": 9
+  },
+  {
+   "weight": 4.6203,
+   "cap": 543,
+   "source": 2,
+   "target": 11
+  },
+  {
+   "weight": 1,
+   "cap": 695,
+   "source": 3,
+   "target": 7
+  },
+  {
+   "cap": 426,
+   "source": 3,
+   "target": 10
+  },
+  {
+   "weight": -0.0,
+   "rel": "plain",
+   "source": 3,
+   "target": 12
+  },
+  {
+   "weight": 1,
+   "rel": "中文",
+   "cap": 561,
+   "source": 3,
+   "target": 13
+  },
+  {
+   "weight": 3.4577,
+   "cap": 109,
+   "source": 3,
+   "target": 14
+  },
+  {
+   "weight": -0.0,
+   "rel": " nbsp",
+   "cap": 457,
+   "source": 4,
+   "target": 5
+  },
+  {
+   "weight": 1e-300,
+   "source": 4,
+   "target": 6
+  },
+  {
+   "weight": -2.25,
+   "source": 5,
+   "target": 7
+  },
+  {
+   "weight": 10,
+   "rel": " nbsp",
+   "cap": 267,
+   "source": 5,
+   "target": 8
+  },
+  {
+   "weight": 7.9415,
+   "rel": "中文",
+   "source": 5,
+   "target": 9
+  },
+  {
+   "weight": 0.5,
+   "rel": "back\\slash",
+   "cap": 346,
+   "source": 5,
+   "target": 10
+  },
+  {
+   "weight": 5.8869,
+   "rel": " nbsp",
+   "cap": 158,
+   "source": 5,
+   "target": 12
+  },
+  {
+   "weight": 1,
+   "rel": "<tag>",
+   "source": 7,
+   "target": 14
+  }
+ ]
+}

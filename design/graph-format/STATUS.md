@@ -841,8 +841,9 @@ Pajek:
   spells role; a mutual pair is written as one undirected edge (`W_MUTUAL_AS_UNDIRECTED`); a vertex
   line whose parameters force a label gets its id text there (`W_PAJEK_LABEL_GAINED`).
 - The `*Vertices` count is validated through `sink.reserve()` before any vertex exists (fatal
-  `E_PAJEK_VERTICES_COUNT`). A second `*Vertices` / `*Network` is `E_PAJEK_MULTIPLE_NETWORKS`
-  (abort); `*Matrix` is read as arcs; `*Partition` / `*Vector` sections are unsupported errors
+  `E_PAJEK_VERTICES_COUNT`). A second network of a `.paj` project (a `*Network`, or a
+  `*Vertices` outside a `*Partition` / `*Vector` section) ends the first: `import()` reads the first
+  and warns `W_MULTIPLE_GRAPHS` with the count, `importAll()` reads each; `*Matrix` is read as arcs; `*Partition` / `*Vector` sections are unsupported errors
   skipped together with the `*Vertices` line each of them carries in a `.paj` project file.
 - Open: unknown shape values and the `value` parameter are untested against Pajek itself.
 

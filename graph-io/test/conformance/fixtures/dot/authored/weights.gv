@@ -1,0 +1,5 @@
+graph {
+  a -- b [weight=2.5]
+  b -- c [weight=0]
+  c -- a
+}

@@ -1,0 +1,7 @@
+*Vertices 3
+1 "two words"
+2 unquoted
+3 "line\nbreak"
+*Edges
+1 2
+2 3

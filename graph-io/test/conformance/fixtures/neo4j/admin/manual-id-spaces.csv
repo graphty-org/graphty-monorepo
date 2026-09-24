@@ -1,0 +1,18 @@
+movieId:ID(Movie-ID),title,year:int,:LABEL
+1,"The Matrix",1999,Movie
+2,"The Matrix Reloaded",2003,Movie;Sequel
+3,"The Matrix Revolutions",2003,Movie;Sequel
+personId:ID(Actor-ID),name,:LABEL
+1,"Keanu Reeves",Actor
+2,"Laurence Fishburne",Actor
+3,"Carrie-Anne Moss",Actor
+:START_ID(Actor-ID),role,:END_ID(Movie-ID),:TYPE
+1,"Neo",1,ACTED_IN
+1,"Neo",2,ACTED_IN
+1,"Neo",3,ACTED_IN
+2,"Morpheus",1,ACTED_IN
+2,"Morpheus",2,ACTED_IN
+2,"Morpheus",3,ACTED_IN
+3,"Trinity",1,ACTED_IN
+3,"Trinity",2,ACTED_IN
+3,"Trinity",3,ACTED_IN

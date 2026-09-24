@@ -359,9 +359,26 @@ describe("gmlImporter: structure and flags", () => {
         expect(strict.report.counts.skippedEdges).toBe(1);
     });
 
-    it("refuses more than one graph block", async () => {
-        const error = await importError("graph [ ] graph [ ]");
-        expect(error.report.issues[0].code).toBe(SECOND_GRAPH_CODE);
+    it("reads the first of several graph blocks and warns how many it skipped", async () => {
+        const { report, snapshot } = await importGml('Creator "t" graph [ node [ id 1 ] ] graph [ ] graph [ ]');
+        expect(codes(report)).toEqual([SECOND_GRAPH_CODE]);
+        expect(report.issues[0].message).toContain("2 more graph block(s)");
+        expect(snapshot.nodeCount).toBe(1);
+    });
+
+    it("importAll reads every graph block into its own sink", async () => {
+        const sinks: GraphBuilder[] = [];
+        const reports = await gmlImporter.importAll?.(
+            "graph [ node [ id 1 ] ] graph [ directed 1 node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]",
+            () => {
+                sinks.push(new GraphBuilder({ directed: false }));
+                return sinks[sinks.length - 1];
+            },
+        );
+        expect(reports?.map((r) => r.issues.length)).toEqual([0, 0]);
+        const [first, second] = sinks.map((b) => b.freeze());
+        expect([first.nodeCount, first.edgeCount]).toEqual([1, 0]);
+        expect([second.nodeCount, second.edgeCount, second.directed]).toEqual([2, 1, true]);
     });
 
     it("reports node and edge keys whose value is not a block", async () => {
@@ -902,7 +919,7 @@ describe("gmlImporter: limits, cancellation and input handling", () => {
         const builder = new GraphBuilder({ directed: false, weightDtype: "f64" });
         let error: ImportError | null = null;
         try {
-            await gmlImporter.import(new Uint8Array([0x67, 0x72, 0xff, 0xfe]), builder);
+            await gmlImporter.import(new Uint8Array([0x67, 0x72, 0xff, 0xfe]), builder, { encoding: "utf-8" });
         } catch (err) {
             error = err as ImportError;
         }

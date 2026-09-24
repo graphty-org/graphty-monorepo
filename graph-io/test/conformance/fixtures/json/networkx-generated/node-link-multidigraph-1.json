@@ -1,0 +1,131 @@
+{
+ "directed": true,
+ "multigraph": true,
+ "graph": {},
+ "nodes": [
+  {
+   "score": -65.463861,
+   "tag": "two words",
+   "flag": false,
+   "id": 0
+  },
+  {
+   "rank": 1,
+   "tag": "back\\slash",
+   "flag": false,
+   "id": 1
+  },
+  {
+   "score": 1e-300,
+   "tag": "a&b",
+   "id": 2
+  },
+  {
+   "rank": 1,
+   "tag": "it's",
+   "flag": true,
+   "id": 3
+  },
+  {
+   "score": 1e-07,
+   "rank": -7,
+   "tag": " nbsp",
+   "flag": false,
+   "id": 4
+  },
+  {
+   "score": -81.683551,
+   "rank": 0,
+   "flag": false,
+   "id": 5
+  }
+ ],
+ "links": [
+  {
+   "weight": 10,
+   "rel": " nbsp",
+   "source": 0,
+   "target": 5,
+   "key": 0
+  },
+  {
+   "weight": 7.039,
+   "rel": "a&b",
+   "source": 0,
+   "target": 4,
+   "key": 0
+  },
+  {
+   "weight": -2.25,
+   "rel": " nbsp",
+   "source": 0,
+   "target": 1,
+   "key": 0
+  },
+  {
+   "weight": 6.3217,
+   "source": 0,
+   "target": 1,
+   "key": 1
+  },
+  {
+   "weight": 3.2135,
+   "rel": " nbsp",
+   "source": 1,
+   "target": 5,
+   "key": 0
+  },
+  {
+   "weight": 8.491,
+   "cap": 831,
+   "source": 1,
+   "target": 3,
+   "key": 0
+  },
+  {
+   "weight": 0.5,
+   "rel": "a&b",
+   "cap": 872,
+   "source": 1,
+   "target": 0,
+   "key": 0
+  },
+  {
+   "weight": 3,
+   "rel": "it's",
+   "source": 2,
+   "target": 3,
+   "key": 0
+  },
+  {
+   "weight": 6.4311,
+   "rel": "café",
+   "cap": 935,
+   "source": 2,
+   "target": 2,
+   "key": 0
+  },
+  {
+   "weight": 3,
+   "rel": "中文",
+   "cap": 109,
+   "source": 3,
+   "target": 1,
+   "key": 0
+  },
+  {
+   "weight": 7.7422,
+   "rel": "say \"hi\"",
+   "source": 3,
+   "target": 0,
+   "key": 0
+  },
+  {
+   "weight": 1,
+   "rel": "a&b",
+   "source": 5,
+   "target": 0,
+   "key": 0
+  }
+ ]
+}

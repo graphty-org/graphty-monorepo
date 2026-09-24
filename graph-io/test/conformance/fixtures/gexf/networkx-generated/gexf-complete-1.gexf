@@ -1,0 +1,106 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="rel" type="string" />
+      <attribute id="5" title="cap" type="long" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="tag" type="string" />
+      <attribute id="2" title="rank" type="long" />
+      <attribute id="3" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="0" label="0">
+        <viz:color r="231" g="47" b="190" a="1.0" />
+        <viz:size value="7.37" />
+        <viz:position x="49.443" y="-21.125" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e-300" />
+          <attvalue for="1" value="it's" />
+        </attvalues>
+      </node>
+      <node id="1" label="1">
+        <viz:color r="147" g="66" b="252" a="1.0" />
+        <viz:size value="7.33" />
+        <viz:position x="36.112" y="-30.471" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-0.0" />
+          <attvalue for="1" value="a&amp;b" />
+        </attvalues>
+      </node>
+      <node id="2" label="2">
+        <viz:color r="171" g="67" b="223" a="1.0" />
+        <viz:size value="6.75" />
+        <viz:position x="-4.988" y="-48.828" z="0.0" />
+        <attvalues>
+          <attvalue for="2" value="-2147483648" />
+          <attvalue for="1" value="two words" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="3" label="3">
+        <viz:color r="218" g="8" b="129" a="1.0" />
+        <viz:size value="7.37" />
+        <viz:position x="11.908" y="23.281" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-0.0" />
+          <attvalue for="2" value="42" />
+          <attvalue for="1" value="plain" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="4" label="4">
+        <viz:color r="64" g="123" b="247" a="1.0" />
+        <viz:size value="1.63" />
+        <viz:position x="29.041" y="15.192" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="52.454203" />
+          <attvalue for="1" value="two words" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="0" target="1" id="0">
+        <attvalues>
+          <attvalue for="4" value="tab&#09;here" />
+          <attvalue for="5" value="604" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="2" id="1">
+        <attvalues>
+          <attvalue for="5" value="868" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="3" id="2" weight="5.7726">
+        <attvalues>
+          <attvalue for="5" value="919" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="4" id="3" weight="0.4932">
+        <attvalues>
+          <attvalue for="4" value="say &quot;hi&quot;" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="2" id="4" />
+      <edge source="1" target="3" id="5" />
+      <edge source="1" target="4" id="6" weight="4.4927">
+        <attvalues>
+          <attvalue for="4" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <attvalue for="5" value="67" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="3" id="7">
+        <attvalues>
+          <attvalue for="4" value="tab&#09;here" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="4" id="8" weight="1e+300" />
+      <edge source="3" target="4" id="9" />
+    </edges>
+  </graph>
+</gexf>

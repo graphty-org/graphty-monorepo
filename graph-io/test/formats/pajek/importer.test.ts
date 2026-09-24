@@ -636,13 +636,32 @@ describe("pajekImporter: structure errors and the error limit", () => {
         expect(err.report.issues[0].line).toBe(1);
     });
 
-    it("refuses a second network in one file, keeping the report so far", async () => {
-        const err = await fails("*Vertices 1\n1 a\n*Arcs\n*Vertices 2\n1 b\n2 c\n");
-        expect(codes(err.report)).toEqual([PAJEK_ISSUE.MULTIPLE_NETWORKS]);
-        expect(err.report.issues[0]).toMatchObject({ category: "unsupported", severity: "error", line: 4 });
-        expect(err.report.counts.nodes).toBe(1);
-        const network = await fails("*Network a\n*Vertices 1\n1 a\n*Network b\n");
-        expect(codes(network.report)).toEqual([PAJEK_ISSUE.MULTIPLE_NETWORKS]);
+    it("reads the first network of a project file and warns how many it skipped", async () => {
+        const project = "*Vertices 1\n1 a\n*Arcs\n*Vertices 2\n1 b\n2 c\n*Partition p\n*Vertices 2\n1\n2\n*Network n\n";
+        const { snapshot, report } = await load(project);
+        expect(snapshot.nodeCount).toBe(1);
+        expect(codes(report)).toEqual([PAJEK_ISSUE.MULTIPLE_GRAPHS]);
+        expect(report.issues[0]).toMatchObject({ category: "unsupported", severity: "warning", line: 4 });
+        expect(report.issues[0].message).toContain("2 more network(s)");
+    });
+
+    it("importAll reads every network of a project file into its own sink", async () => {
+        const project =
+            '*Network a\n*Vertices 1\n1 "x"\n*Partition p\n*Vertices 1\n1\n*Network b\n*Vertices 2\n1 "y"\n2 "z"\n*Edges\n1 2\n';
+        const sinks: GraphBuilder[] = [];
+        const reports = await pajekImporter.importAll?.(project, (index) => {
+            expect(index).toBe(sinks.length);
+            sinks.push(new GraphBuilder({ directed: true }));
+            return sinks[index];
+        });
+        expect(reports?.length).toBe(2);
+        const [first, second] = sinks.map((b) => b.freeze());
+        expect(first.nodeCount).toBe(1);
+        expect(first.meta.name).toBe("a");
+        expect(second.nodeCount).toBe(2);
+        expect(second.edgeCount).toBe(1);
+        expect(second.directed).toBe(false);
+        expect(second.meta.name).toBe("b");
     });
 
     it("reports an unsupported section once and skips its lines", async () => {
@@ -680,7 +699,7 @@ describe("pajekImporter: structure errors and the error limit", () => {
         const bytes = new Uint8Array([
             0x2a, 0x56, 0x65, 0x72, 0x74, 0x69, 0x63, 0x65, 0x73, 0x20, 0x31, 0x0a, 0xff, 0x0a,
         ]);
-        const err = await fails(bytes);
+        const err = await fails(bytes, { encoding: "utf-8" });
         expect(codes(err.report)).toEqual(["E_INVALID_UTF8"]);
     });
 

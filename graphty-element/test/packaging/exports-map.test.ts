@@ -249,7 +249,13 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
-        assert.match(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], /^>=0\.6\.0 </);
+        // A workspace reference, like the graph-format peer above: pnpm rewrites it on publish to a
+        // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
+        // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
+        // an older range would crash when the element attached an accelerator. The explicit
+        // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
+        // every time the requirement moved.
+        assert.strictEqual(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], "workspace:^");
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {

@@ -392,6 +392,57 @@ describe("the simulation layout bridge", () => {
         assert.lengthOf(reported, 1, "one rejection, one report");
     });
 
+    it("pays every pre-step owed by a layout set up over an empty graph, instead of coalescing all but the first couple away", async () => {
+        // THE OWED COUNT IS PAID FROM INSIDE THE FRAME LOOP. A layout set up before the data
+        // arrived -- which is every element whose `nodeData` is assigned, or that is pointed at a
+        // URL -- cannot spend its pre-steps when it is built, so they are owed and spent on the
+        // first frame that has a node to move. An accelerated step is a batch that is submitted
+        // and not waited for, and a simulation already holding a couple of them returns the
+        // oldest rather than submitting another, so a thousand of them in a tight synchronous
+        // loop are two batches of work and nine hundred and ninety-eight dropped on the floor --
+        // silently, because a coalesced batch is not an error and the graph is simply drawn less
+        // arranged than the consumer asked for.
+        //
+        // MEASURED IN BATCHES THE FAKE ACTUALLY SAW, not in distance moved: the bridge rescales
+        // what it publishes and re-adopts the arrangement at a freeze, so a coordinate is not a
+        // step counter. The fake counts a SUBMISSION, so a call that landed on a batch already in
+        // flight is not counted -- which is exactly the difference under test.
+        const chunk = 256; // The element's own MAX_ITERATIONS_PER_STEP_CHUNK.
+        const chunks = 4;
+        const owed = chunks * chunk;
+        const graph = await pathGraph(0);
+
+        // Far more landed batches than this case produces, so nothing reports itself settled
+        // before the owed count has been spent.
+        const fake = createFakeAccelerator({ settleAfter: 100 });
+        graph.acceleration.setAccelerator(fake);
+        graph.styles.config.behavior.layout.preSteps = owed;
+
+        const rig = await bridge(graph);
+        assert.isTrue(rig.engine.isAccelerated, "the fake is running the layout");
+        assert.strictEqual(fake.calls.step, 0, "an empty graph has nothing to step, so the count is still owed");
+
+        await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+
+        // The frame at which there is finally something to move. The render loop is stopped, so
+        // this is the only frame there is, and every batch below is one this line asked for.
+        graph.getLayoutManager().step();
+
+        // A chunk is submitted only once the one before it has landed, so waiting for whatever is
+        // in flight right now would return in the middle of the run.
+        for (let attempt = 0; attempt < 200 && fake.calls.resolved < chunks; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+
+        assert.isAtLeast(
+            fake.calls.resolved,
+            chunks,
+            `the layout was configured with ${String(owed)} pre-steps and could not spend them over an empty ` +
+                `graph, so it owed them to the first frame that had something to move. That frame computed ` +
+                `${String(fake.calls.resolved)} of the ${String(chunks)} batches the count comes to`,
+        );
+    });
+
     it("device loss: the error is reported with E_DEVICE_LOST, the controller reaches error, and that transition puts the running layout on the CPU", async () => {
         const graph = await pathGraph(5);
         let loseDevice: (loss: { reason: string }) => void = () => undefined;

@@ -602,20 +602,8 @@ export class LayoutManager implements Manager {
             // are owed to the first frame that has something. See `preStepsOwed`.
             if (nodeArray.length === 0) {
                 this.preStepsOwed = true;
-            } else if (engine instanceof SimulationLayoutEngine) {
-                // An accelerated simulation's step is a batch that has to land before the next
-                // one is worth submitting, so the pre-steps are awaited in chunks rather than
-                // fired one per loop turn; the chunk is the largest batch the GPU package takes.
-                const { preSteps } = this.styles.config.behavior.layout;
-
-                this.preStepsOwed = false;
-                for (let remaining = preSteps; remaining > 0 && !engine.isSettled; ) {
-                    const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
-                    await engine.stepAsync(chunk);
-                    remaining -= chunk;
-                }
             } else {
-                this.spendPreSteps(engine);
+                await this.spendPreSteps(engine);
             }
 
             // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach `session.positions`
@@ -757,21 +745,49 @@ export class LayoutManager implements Manager {
      * `preSteps` is what makes a screenshot of a physics layout the same picture twice: an
      * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
      * the picture was taken.
+     *
+     * A SIMULATION CANNOT BE STEPPED IN A TIGHT SYNCHRONOUS LOOP, which is why this is
+     * asynchronous and why both the path that spends the pre-steps when a layout is built and the
+     * path that pays owed ones later come through here rather than each writing their own loop. A
+     * simulation's step is a BATCH: an accelerated one is fire-and-forget, and a simulation that
+     * already has a few batches in flight returns the oldest of them instead of submitting
+     * another, so a loop that calls `step()` a thousand times without waiting has all but the
+     * first couple coalesced away and draws a graph the consumer asked to be far more arranged
+     * than it is -- silently, because a coalesced batch is not an error. So a simulation is
+     * awaited one chunk at a time, the chunk being the largest batch the GPU package takes, and
+     * every other engine keeps the plain loop, whose `step()` returns having done the work.
      * @param engine - the engine to settle.
+     * @returns A promise that resolves once every pre-step has been taken and published.
      */
-    private spendPreSteps(engine: LayoutEngine): void {
+    private async spendPreSteps(engine: LayoutEngine): Promise<void> {
         const { preSteps } = this.styles.config.behavior.layout;
 
+        // Cleared before the first await, so a frame that arrives while the chunks are still in
+        // flight does not order the same count a second time.
         this.preStepsOwed = false;
 
-        for (let i = 0; i < preSteps; i++) {
-            // Stop if layout has settled
-            if (engine.isSettled) {
-                return;
+        if (engine instanceof SimulationLayoutEngine) {
+            for (let remaining = preSteps; remaining > 0 && !engine.isSettled; ) {
+                const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
+                await engine.stepAsync(chunk);
+                remaining -= chunk;
             }
+        } else {
+            for (let i = 0; i < preSteps; i++) {
+                // Stop if layout has settled
+                if (engine.isSettled) {
+                    break;
+                }
 
-            engine.step();
+                engine.step();
+            }
         }
+
+        // Published HERE rather than by each caller, because this is the only place that knows
+        // when the steps have actually landed: a caller that published after the call would
+        // publish the arrangement of the frame before for an accelerated simulation, and one that
+        // published in a `then` would publish a frame late for every other engine.
+        engine.publishPositions();
     }
 
     /**
@@ -787,12 +803,16 @@ export class LayoutManager implements Manager {
      *
      * So the count is owed rather than spent, and paid here: on the first frame at which there is
      * a node to move. This runs inside the render loop's update, which is called before
-     * `scene.render()`, so the steps really are taken before the frame is drawn -- and because it
-     * waits for a node rather than for a particular call, it does not matter whether the data
-     * arrived in one batch, in ten, or from a fetch that finished a second later.
+     * `scene.render()`, so an engine that steps on the spot really is stepped before the frame is
+     * drawn -- and because it waits for a node rather than for a particular call, it does not
+     * matter whether the data arrived in one batch, in ten, or from a fetch that finished a
+     * second later. A simulation's batches land over the next few frames instead, because no
+     * caller inside a render loop can wait for a device; what {@link LayoutManager.spendPreSteps}
+     * guarantees for one is that every owed iteration is computed rather than coalesced away.
      */
     private runPreStepsOnceThereIsSomethingToStep(): void {
-        if (!this.preStepsOwed || !this.layoutEngine) {
+        const engine = this.layoutEngine;
+        if (!this.preStepsOwed || !engine) {
             return;
         }
 
@@ -803,8 +823,11 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        this.spendPreSteps(this.layoutEngine);
-        this.layoutEngine.publishPositions();
+        void this.spendPreSteps(engine).catch((error: unknown) => {
+            // A rejected batch has to be reported from here: nothing awaits this call, and an
+            // unhandled rejection is the one failure shape a consumer cannot see.
+            this.reportLayoutFailure(engine.type, error, "stepped");
+        });
     }
 
     /**

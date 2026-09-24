@@ -14,6 +14,7 @@ import { RandomLayout } from "./RandomLayoutEngine";
 import { ShellLayout } from "./ShellLayoutEngine";
 import { SpectralLayout } from "./SpectralLayoutEngine";
 import { SpiralLayout } from "./SpiralLayoutEngine";
+import { SpringElectricalLayout } from "./SpringElectricalLayoutEngine";
 import { SpringLayout } from "./SpringLayoutEngine";
 
 LayoutEngine.register(D3GraphEngine);
@@ -23,6 +24,7 @@ LayoutEngine.register(CircularLayout);
 LayoutEngine.register(ShellLayout);
 LayoutEngine.register(RandomLayout);
 LayoutEngine.register(SpringLayout);
+LayoutEngine.register(SpringElectricalLayout);
 LayoutEngine.register(PlanarLayout);
 LayoutEngine.register(KamadaKawaiLayout);
 LayoutEngine.register(ForceAtlas2Layout);

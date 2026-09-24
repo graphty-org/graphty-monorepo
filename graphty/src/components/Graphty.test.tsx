@@ -1,7 +1,8 @@
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { render } from "../test/test-utils";
-import { Graphty } from "./Graphty";
+import { Graphty, type GraphtyHandle } from "./Graphty";
 
 // Mock the graphty-element module
 vi.mock("@graphty/graphty-element", () => {
@@ -61,10 +62,37 @@ describe("Graphty", () => {
         });
     });
 
+    it("writes the acceleration policy on the tag", async () => {
+        const { container } = render(<Graphty layers={[]} acceleration="off" />);
+        const graphtyElement = container.querySelector("graphty-element") as unknown as MockGraphtyElement;
+
+        await vi.waitFor(() => {
+            /* The mock defines no `acceleration` accessor, so React writes the attribute;
+               the real element defines one and takes the property. Either is the policy
+               reaching the element, which is what this board is about. */
+            const hasProperty = (graphtyElement as unknown as { acceleration?: string }).acceleration === "off";
+            const hasAttribute = graphtyElement.getAttribute("acceleration") === "off";
+            expect(hasProperty || hasAttribute).toBe(true);
+        });
+    });
+
+    it("exposes the element's session through the handle, null until the element has one", () => {
+        const ref = createRef<GraphtyHandle>();
+        const { container } = render(<Graphty ref={ref} layers={[]} />);
+
+        expect(ref.current?.session).toBeNull();
+
+        const element = container.querySelector("graphty-element");
+        const session = { styles: {} };
+        Object.defineProperty(element, "session", { configurable: true, value: session });
+
+        expect(ref.current?.session).toBe(session);
+    });
+
     it("has proper styling", () => {
         const { container } = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector<HTMLElement>("graphty-element");
-        expect(graphtyElement?.style.width).toBe("100%");
-        expect(graphtyElement?.style.height).toBe("100%");
+        // The element fills its parent on its own (:host); the app only lifts its 400px floor.
+        expect(graphtyElement?.style.minHeight).toBe("0px");
     });
 });

@@ -1,5 +1,3 @@
-import { connectedComponents } from "@graphty/algorithms";
-
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
 import {
@@ -35,21 +33,18 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
         }
 
         // Undirected: a component is reached across an edge whichever way the record declared it.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("connectedComponents", "undirected");
+        const { ids } = snapshot;
 
         context.report({ phase: "Finding pieces", total: null });
-        const components = connectedComponents(graphData);
-
-        const groupOf = new Map<number | string, number>();
-        for (let index = 0; index < components.length; index++) {
-            for (const nodeId of components[index]) {
-                groupOf.set(nodeId, index);
-            }
-        }
+        const { value, precision } = await run((dispatch, s) => dispatch.connectedComponents(s));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+            // `labels` is one dense label per node row, so the group a node is in is a lookup
+            // rather than a search through a list of components.
+            const index = ids.indexOf(nodeId);
+            nodes.push({ id: nodeId, values: { group: value.labels[index] ?? 0 } });
         });
 
         return {
@@ -60,6 +55,7 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
                 method: "connected-components",
                 direction: "undirected",
                 weight: null,
+                precision,
                 notes: ["Strength: weak. An edge joins its two nodes whichever way it was declared."],
             }),
         };

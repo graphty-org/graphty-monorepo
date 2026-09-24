@@ -1,4 +1,5 @@
 import { breadthFirstSearch } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -114,12 +115,84 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
             return null;
         }
 
-        // Get source from legacy options, schema options, or use first node as default
-        // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const targetNode = this._schemaOptions.targetNode ?? undefined;
+        const declared = this.graph.getDataManager().getSnapshot();
+
+        if (declared.nodeCount === 0) {
+            return null;
+        }
+
+        /* Get source from legacy options, schema options, or use the graph's first node. The
+           DEFAULT comes from the snapshot rather than from the render objects, because the
+           snapshot is what the walk is over: a record the scene has not built a mesh for is in it
+           already, and a record with an id the graph could not store is not. The undirected view
+           renumbers edges, never nodes, so the first node is the same one on either route. */
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? declared.ids.idOf(0);
+
+        /* A run that stops early at a target visits a different set of nodes, and no index-based
+           port has an early stop, so this one keeps the reference implementation and says so in
+           its notes. The decision is taken before the undirected view is derived, so a walk that
+           never reaches the accelerator does not pay for the trip. */
+        if (targetNode !== undefined) {
+            return this.legacyWalk(context, nodeIds, source, targetNode);
+        }
 
         // Undirected: the traversal follows an edge in either direction.
+        const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected");
+        const sourceIndex = this.nodeIndex(snapshot, "source", source);
+
+        context.report({ phase: "Walking outwards", total: null });
+        const { value, precision } = await run((dispatch, s) => dispatch.breadthFirstSearch(s, sourceIndex));
+
+        // `order` holds the visited rows in visit order, so the position a node was reached in is
+        // its place in that array.
+        const orderOf = new Map<number, number>();
+        for (let position = 0; position < value.visitedCount; position++) {
+            orderOf.set(value.order[position], position);
+        }
+
+        const nodes: ResultElementValues[] = [];
+        await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
+            const index = snapshot.ids.indexOf(nodeId);
+            const level = index === INVALID_INDEX ? INVALID_INDEX : value.depth[index];
+
+            // INVALID_INDEX is the port's "never reached", and a node the walk never reached
+            // carries nothing at all -- it is not on level 0.
+            if (level === INVALID_INDEX) {
+                return;
+            }
+
+            nodes.push({ id: nodeId, values: { level, order: orderOf.get(index) } });
+        });
+
+        return {
+            shape: "layered-grouping",
+            fields: [...LAYERED_GROUPING_FIELD_SPECS, { name: "order", kind: "node", type: "integer" }],
+            nodes,
+            caveats: declaredCaveats({
+                method: "bfs",
+                direction: "undirected",
+                weight: null,
+                precision,
+                notes: [`Walked outwards from ${String(source)}, which is level 0.`],
+            }),
+        };
+    }
+
+    /**
+     * Walk with an early stop at a target, on the CPU reference implementation.
+     * @param context - What the element gave the run.
+     * @param nodeIds - The nodes to publish for.
+     * @param source - Where the walk starts.
+     * @param targetNode - Where it stops.
+     * @returns The layered result, or null when the source is not in the graph.
+     */
+    private async legacyWalk(
+        context: AlgorithmRunContext,
+        nodeIds: readonly (number | string)[],
+        source: number | string,
+        targetNode: number | string,
+    ): Promise<AlgorithmOutput | null> {
         const graphData = this.algorithmGraph("undirected");
 
         if (!graphData.hasNode(source)) {
@@ -128,7 +201,6 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
 
         const levelOf = new Map<number | string, number>();
         const orderOf = new Map<number | string, number>();
-        let deepest = 0;
         let targetFound = false;
 
         context.report({ phase: "Walking outwards", total: null });
@@ -137,9 +209,8 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
             visitCallback: (node, level) => {
                 levelOf.set(node, level);
                 orderOf.set(node, orderOf.size);
-                deepest = Math.max(deepest, level);
 
-                if (targetNode !== undefined && node === targetNode) {
+                if (node === targetNode) {
                     targetFound = true;
                 }
             },
@@ -159,22 +230,22 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         const fields: ResultFieldSpec[] = [
             ...LAYERED_GROUPING_FIELD_SPECS,
             { name: "order", kind: "node", type: "integer" },
+            { name: "targetFound", kind: "graph", type: "boolean" },
         ];
-
-        if (targetNode !== undefined) {
-            fields.push({ name: "targetFound", kind: "graph", type: "boolean" });
-        }
 
         return {
             shape: "layered-grouping",
             fields,
             nodes,
-            graph: targetNode === undefined ? undefined : { targetFound },
+            graph: { targetFound },
             caveats: declaredCaveats({
                 method: "bfs",
                 direction: "undirected",
                 weight: null,
-                notes: [`Walked outwards from ${String(source)}, which is level 0.`],
+                notes: [
+                    `Walked outwards from ${String(source)}, which is level 0.`,
+                    `Computed on the CPU reference implementation: the walk stops early at ${String(targetNode)}, and no accelerated implementation has an early stop.`,
+                ],
             }),
         };
     }

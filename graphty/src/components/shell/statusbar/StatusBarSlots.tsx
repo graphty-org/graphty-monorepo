@@ -17,7 +17,6 @@ import React from "react";
 import type {
     StatusBarAi,
     StatusBarCounts,
-    StatusBarIssues,
     StatusBarSelection,
     StatusBarViewing,
     StatusBarXr,
@@ -26,7 +25,7 @@ import type {
 import { CANCEL_LABEL, LOAD_CANCEL_DISABLED_TITLE, RUN_CANCEL_DISABLED_TITLE } from "./loadingPhases";
 import { StatusBarChip } from "./StatusBarChip";
 import { STATUS_BAR_GEOMETRY } from "./statusBarGeometry";
-import type { StatusBarLayoutModel, StatusBarLoading, StatusBarRunningModel } from "./statusBarModel";
+import type { StatusBarIssuesModel, StatusBarLayoutModel, StatusBarLoading, StatusBarRunningModel } from "./statusBarModel";
 
 /**
  * `Exit`, the XR mode chip's own control (spec 02 section 4.2 slot 3). The one home for the
@@ -307,17 +306,22 @@ export function StatusBarViewingSlot({ viewing }: { viewing: StatusBarViewing })
 /**
  * Slot 7, the issues slot. Never drops, and neither does the Performance mode chip.
  *
- * Up to three chips in this order: the validation issues chip, which names kinds
+ * Up to four chips in this order: the validation issues chip, which names kinds
  * first and the instance total in parentheses and opens the validation report; the
- * notes chip, which opens Explore with the Notes section expanded; and the
+ * notes chip, which opens Explore with the Notes section expanded; the
  * Performance mode chip, which names the label cap only and opens Settings >
- * Performance with the whole rule list in its tooltip.
+ * Performance with the whole rule list in its tooltip; and the acceleration chip,
+ * which says whether the element is using a GPU and which one.
+ *
+ * The two a dataset produced come first, the two a machine produced last. The
+ * acceleration chip takes a dot rather than a second bolt: two bolts side by side
+ * would read as two warnings.
  * @param props - Component props.
  * @param props.issues - The issues model.
  * @returns The issues slot.
  */
-export function StatusBarIssuesSlot({ issues }: { issues: StatusBarIssues }): React.JSX.Element {
-    const { validation, notes, performance } = issues;
+export function StatusBarIssuesSlot({ issues }: { issues: StatusBarIssuesModel }): React.JSX.Element {
+    const { validation, notes, performance, acceleration } = issues;
 
     return (
         <span style={SLOT_STYLE}>
@@ -341,6 +345,20 @@ export function StatusBarIssuesSlot({ issues }: { issues: StatusBarIssues }): Re
             {performance === undefined ? null : (
                 <StatusBarChip leading={<PerformanceBolt />} onClick={performance.onClick} title={performance.title}>
                     {performance.label}
+                </StatusBarChip>
+            )}
+            {acceleration === undefined ? null : (
+                <StatusBarChip
+                    leading={
+                        <StatusDot
+                            color={acceleration.active ? PANEL_INK.SUCCESS : PANEL_INK.CHROME}
+                            size={STATUS_BAR_GEOMETRY.AI_DOT}
+                        />
+                    }
+                    onClick={acceleration.onClick}
+                    title={acceleration.title}
+                >
+                    {acceleration.label}
                 </StatusBarChip>
             )}
         </span>

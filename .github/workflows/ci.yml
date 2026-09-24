@@ -14,12 +14,18 @@ on:
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
 
+# Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
+# 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
+# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
+# again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
+# that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 jobs:
     # Lint PR titles with commitlint
     lint-pr:
         name: Lint PR Title
         if: github.event_name == 'pull_request'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -42,7 +48,7 @@ jobs:
     # Build job - runs once, shares artifacts with test shards
     build:
         name: Build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -106,10 +112,19 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t lint --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # Master: Build then lint (build first for type dependencies)
-            # graphty build needs Sentry env vars for error tracking
-            - name: Build all (master)
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            # Master and every manual dispatch: build then lint (build first for type dependencies).
+            # graphty build needs Sentry env vars for error tracking.
+            #
+            # The dispatch clause stands on its own rather than sitting inside the master test, because each
+            # trigger has to reach exactly one build: a pull request builds in the steps above, a push to master
+            # builds here, and a dispatch builds here whatever ref it names. The earlier shape, master AND (push
+            # OR dispatch), left a dispatch against a BRANCH matching neither group -- nothing was built, the
+            # uploads below found no files to attach, and all twenty test shards failed at their first artifact
+            # download (run 35943267536, this branch). A branch dispatch cannot take the pull request's
+            # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
+            # this one and builds every project -- which is what the shards need from it anyway.
+            - name: Build all (master or a manual dispatch)
+              if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
@@ -119,8 +134,8 @@ jobs:
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-            - name: Lint all (master)
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            - name: Lint all (master or a manual dispatch)
+              if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
               run: pnpm exec nx run-many -t lint --parallel=3
 
             - name: Build Storybook (graphty-element)
@@ -279,7 +294,7 @@ jobs:
     test:
         name: Test (${{ matrix.shard }})
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         strategy:
             fail-fast: false
             matrix:
@@ -531,6 +546,18 @@ jobs:
               if: matrix.needs-lavapipe
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
 
+            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
+            # Print the image, the C library and the installed Mesa version so a lane's environment is readable
+            # from its own log instead of inferred from the runner label. Never fails the step.
+            - name: Record the image, glibc and rasteriser versions
+              if: matrix.needs-lavapipe
+              run: |
+                  { grep PRETTY_NAME /etc/os-release
+                    ldd --version | head -1
+                    dpkg-query -W -f '${Package} ${Version}\n' mesa-vulkan-drivers libvulkan1 libegl1
+                  } || true
+
             - name: Locate the lavapipe ICD and export the lane's environment
               if: matrix.needs-lavapipe
               run: |
@@ -609,7 +636,7 @@ jobs:
     chromatic-element:
         name: Chromatic (graphty-element)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -647,7 +674,7 @@ jobs:
     chromatic-app:
         name: Chromatic (graphty)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -685,7 +712,7 @@ jobs:
     chromatic-compact-mantine:
         name: Chromatic (compact-mantine)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -723,7 +750,7 @@ jobs:
     chromatic-algorithms:
         name: Chromatic (algorithms)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -761,7 +788,7 @@ jobs:
     chromatic-layout:
         name: Chromatic (layout)
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -800,7 +827,7 @@ jobs:
         name: Performance Tests
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -849,7 +876,7 @@ jobs:
         name: All Checks Pass
         needs: [test, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
         if: always()
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - name: Check all jobs passed
               run: |

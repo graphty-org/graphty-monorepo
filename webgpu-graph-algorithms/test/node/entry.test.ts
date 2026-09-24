@@ -60,6 +60,13 @@ describe("dawnFlags", () => {
             "enable-dawn-features=allow_unsafe_apis,dump_shaders",
         ]);
         expect(dawnFlags({ dawnFeatures: [] })).toEqual([]);
+        expect(dawnFlags({ dawnDisableFeatures: ["timestamp_quantization"] })).toEqual([
+            "disable-dawn-features=timestamp_quantization",
+        ]);
+        expect(dawnFlags({ dawnDisableFeatures: [] })).toEqual([]);
+        expect(
+            dawnFlags({ dawnFeatures: ["allow_unsafe_apis"], dawnDisableFeatures: ["timestamp_quantization"] }),
+        ).toEqual(["enable-dawn-features=allow_unsafe_apis", "disable-dawn-features=timestamp_quantization"]);
         expect(dawnFlags({ software: true })).toEqual(["adapter=llvmpipe"]);
         expect(dawnFlags({ software: false })).toEqual([]);
         expect(dawnFlags({ software: true, adapter: "4070" })).toEqual(["adapter=4070"]);
@@ -126,14 +133,14 @@ describe("createNodeGpu", () => {
                 createNodeGpu({ loadModule: () => Promise.reject(new Error("Cannot find module 'webgpu'")) }),
             ),
             "E_NO_WEBGPU",
-            { hint: "install the optional peer dependency webgpu@0.4.0" },
+            { hint: "install the optional peer dependency webgpu@0.6.1" },
         );
         expect(String(failing.details.reason)).toContain("Cannot find module 'webgpu'");
         expect(failing.message).toContain("Cannot find module 'webgpu'");
         const shapeless = expectCode(
             await rejection(createNodeGpu({ loadModule: () => Promise.resolve({ globals: {} }) })),
             "E_NO_WEBGPU",
-            { hint: "install the optional peer dependency webgpu@0.4.0" },
+            { hint: "install the optional peer dependency webgpu@0.6.1" },
         );
         expect(String(shapeless.details.reason)).toContain("create");
         const throwingCreate = expectCode(
@@ -149,10 +156,10 @@ describe("createNodeGpu", () => {
                 }),
             ),
             "E_NO_WEBGPU",
-            { hint: "install the optional peer dependency webgpu@0.4.0" },
+            { hint: "install the optional peer dependency webgpu@0.6.1" },
         );
         expect(String(throwingCreate.details.reason)).toContain("unrecognised backend 'bogus'");
-        expect(throwingCreate.message).toContain("install the optional peer dependency webgpu@0.4.0");
+        expect(throwingCreate.message).toContain("install the optional peer dependency webgpu@0.6.1");
     });
 });
 

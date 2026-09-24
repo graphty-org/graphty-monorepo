@@ -21,6 +21,12 @@ export interface NodeGpuOptions extends Omit<GpuContextOptions, "gpu" | "adapter
     readonly backend?: "vulkan" | "d3d12" | "d3d11" | "metal" | "opengl" | "opengles" | "null" | undefined;
     /** Dawn toggles, emitted as `enable-dawn-features=a,b`. */
     readonly dawnFeatures?: readonly string[] | undefined;
+    /**
+     * Dawn toggles to turn OFF, emitted as `disable-dawn-features=a,b`: the counterpart of `dawnFeatures`, for a
+     * toggle Dawn enables by default. `timestamp_quantization` is the one this package needs -- Dawn 0.6.x rounds
+     * every timestamp-query result to a 65,536 ns grid unless it is disabled, which is coarser than most kernels.
+     */
+    readonly dawnDisableFeatures?: readonly string[] | undefined;
     /** Shorthand for `adapter=llvmpipe` (Linux / Mesa specific, spec 2.3); ignored when `adapter` is given. */
     readonly software?: boolean | undefined;
     /** Install dawn.globals on globalThis (default true; spec 2.1 rule 2) so user code sees GPUBufferUsage and friends. */
@@ -40,8 +46,8 @@ export interface NodeGpuHandle {
     dispose(): void;
 }
 
-/** The install hint of E_NO_WEBGPU (spec 2.5 item 4); P-ENV re-pins the version together with the devDependency. */
-const INSTALL_HINT = "install the optional peer dependency webgpu@0.4.0";
+/** The install hint of E_NO_WEBGPU (spec 2.5 item 4); re-pinned with the devDependency by the environment move (docs/decisions/G-ENV.md). */
+const INSTALL_HINT = "install the optional peer dependency webgpu@0.6.1";
 
 /** The shape of the `webgpu` module (its types.d.ts: create(options: string[]): GPU; globals: Object). */
 interface DawnModule {
@@ -100,10 +106,10 @@ class DawnHandle implements NodeGpuHandle {
 
 /**
  * The Dawn flag list a NodeGpuOptions maps to (exported for the tests and scripts/gpu-report.js):
- * adapter=<s>, backend=<s>, enable-dawn-features=a,b, and software -> adapter=llvmpipe; an explicit non-empty
- * `adapter` wins over `software`; an empty feature list emits nothing.
+ * adapter=<s>, backend=<s>, enable-dawn-features=a,b, disable-dawn-features=a,b, and software -> adapter=llvmpipe;
+ * an explicit non-empty `adapter` wins over `software`; an empty feature list emits nothing.
  * @param options - the Node options, or undefined for no flags
- * @returns the strings for dawn.create(), in the order adapter, backend, features
+ * @returns the strings for dawn.create(), in the order adapter, backend, enabled features, disabled features
  */
 export function dawnFlags(options: NodeGpuOptions | undefined): string[] {
     const flags: string[] = [];
@@ -120,6 +126,9 @@ export function dawnFlags(options: NodeGpuOptions | undefined): string[] {
     }
     if (options.dawnFeatures !== undefined && options.dawnFeatures.length > 0) {
         flags.push(`enable-dawn-features=${options.dawnFeatures.join(",")}`);
+    }
+    if (options.dawnDisableFeatures !== undefined && options.dawnDisableFeatures.length > 0) {
+        flags.push(`disable-dawn-features=${options.dawnDisableFeatures.join(",")}`);
     }
     return flags;
 }

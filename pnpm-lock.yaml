@@ -413,8 +413,8 @@ importers:
         specifier: ^3.2.6
         version: 3.2.7(@types/node@20.19.27)(@vitest/browser@3.2.7)(@vitest/ui@3.2.4)(happy-dom@20.14.3)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
       webgpu:
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.6.1
+        version: 0.6.1
 
   graph-io:
     dependencies:
@@ -557,7 +557,7 @@ importers:
         version: link:../remote-logger
       '@graphty/webgpu-graph-algorithms':
         specifier: ^0.2.0
-        version: 0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)
+        version: 0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.6.1)
       '@jsonhero/schema-infer':
         specifier: ^0.1.5
         version: 0.1.5
@@ -857,8 +857,8 @@ importers:
         specifier: ^3.2.6
         version: 3.2.7(@types/node@20.19.27)(@vitest/browser@3.2.7)(@vitest/ui@3.2.4)(happy-dom@20.14.3)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
       webgpu:
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.6.1
+        version: 0.6.1
 
 packages:
 
@@ -10124,8 +10124,8 @@ packages:
   web-worker@1.2.0:
     resolution: {integrity: sha512-PgF341avzqyx60neE9DD+XS26MMNMoUQRz9NOZwW32nPQrF6p77f1htcnjBSEV8BGMKZ16choqUG4hyI0Hx7mA==}
 
-  webgpu@0.4.0:
-    resolution: {integrity: sha512-F5pimn3Aoi0zWjuRdiVs5TnrUwSzD2lESBohsIUsqyitWkGRQlXU2fhV6ycXlQTa1bvAf3sjqiUpBEpmSQ5ptA==}
+  webgpu@0.6.1:
+    resolution: {integrity: sha512-T+B65/j2jhyFjbWHsVZ4TJw0nk0RVT27lG+nL3V5IIYMsvuVYKYOUli/yJhMpwvXAwqVPZehakWvTjxk+mK8LQ==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -11932,14 +11932,14 @@ snapshots:
 
   '@github/catalyst@1.7.0': {}
 
-  '@graphty/webgpu-graph-algorithms@0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)':
+  '@graphty/webgpu-graph-algorithms@0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.6.1)':
     dependencies:
       '@graphty/graph-format': link:graph-format
       '@webgpu/types': 0.1.72
     optionalDependencies:
       '@graphty/algorithms': link:algorithms
       '@graphty/layout': link:layout
-      webgpu: 0.4.0
+      webgpu: 0.6.1
 
   '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:
@@ -21680,7 +21680,7 @@ snapshots:
 
   web-worker@1.2.0: {}
 
-  webgpu@0.4.0:
+  webgpu@0.6.1:
     dependencies:
       '@webgpu/types': 0.1.72
       debug: 4.4.3(supports-color@7.2.0)

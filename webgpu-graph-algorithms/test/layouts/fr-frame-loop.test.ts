@@ -325,8 +325,14 @@ describe("frame loop on the GPU Fruchterman-Reingold simulation (spec 7.19, 7.20
     it("pause: exactly the in-flight batches land, flush() resolves, no submission for 100 ticks, the temperature trace continues from the landed value", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
-        const { snapshot, k } = await calibrateFlight(ctx, gpuScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", gpuScale());
         const n = snapshot.nodeCount;
+        // No calibrated batch length and no measured tick rate: what this case pins is a COUNT and an ORDER --
+        // exactly the batches in flight land, nothing is submitted while the caller is paused, and the run
+        // resumes where it stopped. runFrameLoop fills the flight at the pause tick instead of waiting for a
+        // tick that happens to start saturated, so none of that depends on a batch outlasting a tick gap.
+        const k = 4;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
         const options = {
             seed: 7,
             iterations: NEVER,
@@ -355,22 +361,22 @@ describe("frame loop on the GPU Fruchterman-Reingold simulation (spec 7.19, 7.20
                 }
             },
         });
-        expect(report.errors).toEqual([]);
+        expect(report.errors.map(String)).toEqual([]);
         expect(report.submissionsDuringPause).toBe(0);
         expect(report.settledAtTick).toBeNull();
         expect(report.maxObservedInFlight).toBe(2);
-        const pauseStart = inFlightByTick.findIndex((v, i) => i >= pauseAt && v === 2);
+        const [pauseStart, pauseEnd] = [report.pauseStartTick ?? -1, report.pauseEndTick ?? -1];
         expect(pauseStart).toBeGreaterThanOrEqual(pauseAt);
-        expect(pauseStart + PAUSE).toBeLessThan(600);
+        expect(pauseEnd).toBeGreaterThanOrEqual(pauseStart + PAUSE); // the window's floor; longer if the box stalled
         const atPause = report.iterationsDoneByTick[pauseStart];
-        const afterPause = report.iterationsDoneByTick[pauseStart + PAUSE];
+        const afterPause = report.iterationsDoneByTick[pauseEnd];
         expect(afterPause - atPause).toBe(2 * k); // exactly the two in-flight batches landed inside the window
-        expect(inFlightByTick[pauseStart + PAUSE]).toBe(0);
-        for (let i = pauseStart + 1; i <= pauseStart + PAUSE; i++) {
+        expect(inFlightByTick[pauseEnd]).toBe(0);
+        for (let i = pauseStart + 1; i <= pauseEnd; i++) {
             expect(report.iterationsDoneByTick[i]).toBeLessThanOrEqual(afterPause);
         }
         expectMonotone(report.iterationsDoneByTick); // no reheat anywhere: the pause is not a reset (7.19)
-        expect(report.iterationsDoneByTick[599]).toBeGreaterThan(afterPause);
+        expect(report.iterationsDoneByTick.at(-1)).toBeGreaterThan(afterPause);
         await sim.flush();
         expect(sim.iterationsDone).toBe(report.submissions * k);
         // the temperature trace is continuous across the pause: every sampled (iteration -> temperature,

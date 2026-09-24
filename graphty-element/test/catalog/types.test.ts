@@ -1,6 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import * as catalog from "../../src/catalog/index";
+import { LAYOUT_CATALOG, type LayoutImplementation } from "../../src/catalog/layouts";
 import {
     type AlgorithmDescriptor,
     type AlgorithmKey,
@@ -207,6 +208,43 @@ describe("catalogue descriptors", () => {
         assert.isTrue(catalog.isResultShape("community"));
         assert.isTrue(catalog.isAttributeType("category"));
         assert.isTrue(catalog.isOptionBound({ from: "graph.nodeCount" }));
+    });
+});
+
+describe("what a layout engine needs before it can run", () => {
+    /** Every engine of every arrangement, with the arrangement it serves. */
+    const engines: readonly { layout: string; implementation: LayoutImplementation }[] = LAYOUT_CATALOG.flatMap(
+        (arrangement) =>
+            arrangement.implementations.map((implementation) => ({
+                layout: String(arrangement.descriptor.id),
+                implementation,
+            })),
+    );
+
+    it("says that spring-electrical needs an accelerator, and says it of nothing else", () => {
+        // A picker reads this beside `capabilities.acceleration.state` and greys the entry out.
+        // Without it the only way to learn that an engine cannot run here is to ask for it and
+        // catch the refusal -- which is the detection a consumer must never have to write.
+        const needing = engines.filter((each) => each.implementation.requires?.accelerator === true);
+
+        assert.deepEqual(
+            needing.map((each) => [each.layout, each.implementation.engine]),
+            [["force", "spring-electrical"]],
+        );
+    });
+
+    it("calls ForceAtlas2 and Spring live layouts, because that is what they now are", () => {
+        // Both were one-shot passes that ran a fixed number of iterations and stopped. They are
+        // steppable simulations now: they keep running until the arrangement settles and reheat on
+        // a drag or a pin, and a reader choosing between engines is told which is which.
+        const kinds = engines
+            .filter((each) => ["forceatlas2", "spring"].includes(each.implementation.engine))
+            .map((each) => [each.implementation.engine, each.implementation.kind]);
+
+        assert.deepEqual(kinds, [
+            ["forceatlas2", "live"],
+            ["spring", "live"],
+        ]);
     });
 });
 

@@ -2,7 +2,7 @@
  * @file The layout catalogue: the arrangements the element offers, and the engines behind them.
  *
  * A public layout name says what the arrangement IS -- "force", "hierarchical", "circular" --
- * and never which library draws it. The element registers sixteen engines whose registered
+ * and never which library draws it. The element registers seventeen engines whose registered
  * names ARE their implementations ("ngraph", "d3", "forceatlas2"), and freezing those into the
  * public API makes swapping an implementation a rename every consumer can see. So the engine is
  * data on the descriptor instead: `LayoutDescriptor.engine` names the implementation the element
@@ -39,6 +39,7 @@ import { RandomLayout } from "../layout/RandomLayoutEngine";
 import { ShellLayout } from "../layout/ShellLayoutEngine";
 import { SpectralLayout } from "../layout/SpectralLayoutEngine";
 import { SpiralLayout } from "../layout/SpiralLayoutEngine";
+import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
@@ -71,6 +72,16 @@ export interface LayoutImplementation {
      * catalogue cannot claim a weight channel an engine does not have.
      */
     honoursWeights: boolean;
+    /**
+     * What has to be true before this engine can run at all, in the same shape an algorithm
+     * declares it.
+     *
+     * `accelerator: true` means the engine is computed on hardware and has no processor
+     * implementation, so a picker greys the entry out when `capabilities.acceleration.state` says
+     * nothing is attached. It belongs to the ENGINE rather than to the arrangement: `force` is
+     * drawn by six engines, five of which need nothing.
+     */
+    requires?: { accelerator?: boolean };
 }
 
 /** An implementation as it is authored here. Which one is the default is decided by position. */
@@ -176,11 +187,11 @@ const forceAtlas2: LayoutImplementationSpec = {
     engine: "forceatlas2",
     plainName: "ForceAtlas2",
     technicalName: "ForceAtlas2 (Gephi)",
-    kind: "batch",
+    kind: "live",
     maxDimensions: 3,
     reason:
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
-        "It runs a fixed number of iterations and stops rather than staying live.",
+        "It keeps running until the layout settles and reheats on a drag or a pin.",
     options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ForceAtlas2Layout.honoursWeights,
 };
@@ -189,13 +200,27 @@ const spring: LayoutImplementationSpec = {
     engine: "spring",
     plainName: "Spring",
     technicalName: "Fruchterman-Reingold",
-    kind: "batch",
+    kind: "live",
     maxDimensions: 3,
     reason:
-        "Choose it when the arrangement must be reproducible from a seed: a fixed number of " +
-        "iterations from a seeded start, then done.",
+        "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
+        "the same settled shape.",
     options: engineOptions(SpringLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringLayout.honoursWeights,
+};
+
+const springElectrical: LayoutImplementationSpec = {
+    engine: "spring-electrical",
+    plainName: "Spring Electrical",
+    technicalName: "ngraph.forcelayout (spring-electrical)",
+    kind: "live",
+    maxDimensions: 3,
+    reason:
+        "Choose it for ngraph's look at a size ngraph cannot reach; it needs a hardware " +
+        "accelerator and says so when there is none.",
+    options: engineOptions(SpringElectricalLayout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: SpringElectricalLayout.honoursWeights,
+    requires: { accelerator: true },
 };
 
 const kamadaKawai: LayoutImplementationSpec = {
@@ -357,7 +382,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         ngraph,
-        [d3, forceAtlas2, spring, kamadaKawai],
+        [d3, forceAtlas2, spring, kamadaKawai, springElectrical],
     ),
     entry(
         {

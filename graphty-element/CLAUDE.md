@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (41 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (44 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure
@@ -273,6 +273,14 @@ and emits `graphty-capabilities-change` on every transition. A consumer writes n
 construction and no device-loss code -- that is the point. Nothing here names a GPU type; WebGPU
 arrives only through the `./webgpu` entry point.
 
+What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
+run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
+accelerator when the controller planned one and the CPU simulation when it did not; five
+algorithm adapters (PageRank, Dijkstra, BFS, connected components, Kruskal) route through
+`@graphty/algorithms`' `accelerated()` and label the result's `caveats.precision` with the
+arithmetic that produced it. `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
+frame-count-independent, and it is shared by the tests and the stories -- write no second one.
+
 ### Test Projects
 
 | Project | Environment | Purpose |
@@ -282,6 +290,12 @@ arrives only through the `./webgpu` entry point.
 | `storybook` | Playwright | Component tests via stories |
 | `interactions` | Playwright | User interaction tests |
 | `llm-regression` | Node | AI/LLM regression tests |
+
+`GRAPHTY_BROWSER_GPU` picks the Chromium flag set the `browser` project launches with --
+`swiftshader` for a workstation or a plain runner, `nvidia` for the GPU lane's card (add
+`GRAPHTY_EGL_LIB_DIR` when the driver's libEGL is not where Chromium looks). Unset, Chromium
+launches with no flags and sees no WebGPU at all, which is what the five CI shards do and why
+`test/browser/webgpu-layout.test.ts` skips itself there.
 
 ## Common Pitfalls
 

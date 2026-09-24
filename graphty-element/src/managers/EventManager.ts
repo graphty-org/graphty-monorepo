@@ -19,6 +19,7 @@ import type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphSnapshotDroppedEvent,
     GraphSnapshotReplacedEvent,
     NodeEvent,
     SelectionChangedEvent,
@@ -234,6 +235,17 @@ export class EventManager implements Manager {
             next,
             report,
         };
+        this.graphObservable.notifyObservers(event);
+    }
+
+    /**
+     * Emit `snapshot-dropped`: the store was discarded and every snapshot it froze is gone.
+     *
+     * ELEMENT-INTERNAL, for the same reason `snapshot-replaced` is. Emitted while the outgoing
+     * store is still alive, so a listener releasing a snapshot can still derive from it.
+     */
+    emitSnapshotDropped(): void {
+        const event: GraphSnapshotDroppedEvent = { type: "snapshot-dropped" };
         this.graphObservable.notifyObservers(event);
     }
 

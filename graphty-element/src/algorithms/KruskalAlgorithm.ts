@@ -6,7 +6,7 @@
  * publishes what the tree costs in total.
  */
 
-import { kruskalMST } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
@@ -19,7 +19,6 @@ import {
     forEachChunked,
     setFieldSpecs,
 } from "./results";
-import { edgePairKey } from "./utils/graphUtils";
 
 /**
  *
@@ -44,36 +43,35 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
             return null;
         }
 
-        // Undirected: a spanning tree is a set of unordered pairs, and kruskalMST refuses a directed input.
-        const graphData = this.algorithmGraph("undirected");
+        // Undirected: a spanning tree is a set of unordered pairs, and the tree is chosen over the
+        // undirected view, whose edge space merged every reciprocal pair into one edge.
+        const { edgeRemap, run } = this.accelerated("minimumSpanningTree", "undirected");
 
         context.report({ phase: "Choosing edges", total: null });
-        const tree = kruskalMST(graphData);
+        const { value, precision } = await run((dispatch, s) => dispatch.minimumSpanningTree(s));
 
-        // Both directions, because the element's edge carries the direction it was declared in
-        // and the tree's does not.
-        const chosen = new Set<string>();
-        for (const edge of tree.edges) {
-            chosen.add(edgePairKey(edge.source, edge.target));
-            chosen.add(edgePairKey(edge.target, edge.source));
-        }
+        // The chosen edges are indices into the UNDIRECTED view. Reading the remap in the other
+        // direction -- from the edge the reader declared to the edge the tree chose -- is what
+        // flags BOTH halves of a reciprocal pair that merged into one.
+        const chosen = new Set<number>(value.edges);
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
-            // The pair key looks the tree's answer up; the element's own id is what is published.
-            edges.push({ id: edge.id, values: { in: chosen.has(edgePairKey(edge.srcId, edge.dstId)) } });
+            const merged = edgeRemap === null ? edge.index : (edgeRemap[edge.index] ?? INVALID_INDEX);
+            edges.push({ id: edge.id, values: { in: chosen.has(merged) } });
         });
 
         return {
             shape: "edge-set",
             fields: setFieldSpecs("edge", { name: "totalWeight", type: "number" }),
             edges,
-            graph: { totalWeight: tree.totalWeight },
+            graph: { totalWeight: value.totalWeight },
             caveats: declaredCaveats({
                 method: "kruskal",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
-                notes: [`The tree joins the graph with ${String(tree.edges.length)} edges.`],
+                precision,
+                notes: [`The tree joins the graph with ${String(value.edges.length)} edges.`],
             }),
         };
     }

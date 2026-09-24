@@ -4,12 +4,13 @@ import { fireEvent, render, screen } from "../../../../test/test-utils";
 import type { AiProviderSettingsProps } from "../../../ai/AiProviderSettings";
 import { SHELL_KEY_BINDINGS } from "../../bindings";
 import { OVERLAY_INSET } from "../../constants";
+import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../../defaults/accelerationSettings";
 import {
     LABEL_SETTINGS_STORAGE_KEY,
     readPersistedLabelSettings,
     writePersistedLabelSettings,
 } from "../../defaults/loadDefaults";
-import { SETTINGS_SECTIONS, SettingsOverlay } from "../SettingsOverlay";
+import { SETTINGS_SECTIONS, SettingsOverlay, type SettingsOverlayProps } from "../SettingsOverlay";
 
 /**
  * The key store Settings is handed by the shell, stubbed: the AI pane is a real pane
@@ -36,11 +37,12 @@ describe("SettingsOverlay", () => {
        starts from a store that remembers nothing about it. */
     beforeEach(() => {
         window.localStorage.removeItem(LABEL_SETTINGS_STORAGE_KEY);
+        window.localStorage.removeItem(ACCELERATION_SETTINGS_STORAGE_KEY);
     });
 
     describe("when closed", () => {
         it("draws nothing at all", () => {
-            render(<SettingsOverlay opened={false} onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened={false} onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.queryByTestId("settings-overlay")).not.toBeInTheDocument();
         });
@@ -48,25 +50,25 @@ describe("SettingsOverlay", () => {
 
     describe("chrome", () => {
         it("is a full-panel overlay inset 12 on all four sides", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByTestId("settings-overlay")).toHaveStyle({ padding: `${OVERLAY_INSET}px` });
         });
 
         it("is a dialog named for itself", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
         });
 
         it("says what Close will do before it does it", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByText("Changes save automatically")).toBeInTheDocument();
         });
 
         it("titles the close control with its binding and names it without one", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             const close = screen.getByTestId("settings-close");
             expect(close).toHaveAttribute("title", "Close (Esc)");
@@ -76,7 +78,7 @@ describe("SettingsOverlay", () => {
         it("closes", () => {
             const onClose = vi.fn();
 
-            render(<SettingsOverlay opened onClose={onClose} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={onClose} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByTestId("settings-close"));
 
@@ -86,7 +88,7 @@ describe("SettingsOverlay", () => {
 
     describe("the seven sections", () => {
         it("draws them in the frozen order", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             const tabs = screen.getAllByRole("tab");
             expect(tabs.map((tab) => tab.textContent)).toEqual([
@@ -105,13 +107,13 @@ describe("SettingsOverlay", () => {
         });
 
         it("rests on Appearance", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByRole("tab", { name: "Appearance" })).toHaveAttribute("aria-selected", "true");
         });
 
         it("keeps the fuller name of a shortened row in its title", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByRole("tab", { name: "AI providers" })).toHaveAttribute(
                 "title",
@@ -120,7 +122,7 @@ describe("SettingsOverlay", () => {
         });
 
         it("moves between panes", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
 
@@ -130,7 +132,7 @@ describe("SettingsOverlay", () => {
 
     describe("Appearance", () => {
         it("re-homes the app's own colour scheme control", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
             expect(screen.getByRole("button", { name: /^Switch to/ })).toBeInTheDocument();
@@ -139,13 +141,13 @@ describe("SettingsOverlay", () => {
 
     describe("the section a caller asks for", () => {
         it("opens on it rather than on the section the overlay was last left on", () => {
-            render(<SettingsOverlay opened section="ai" onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened section="ai" onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByRole("tabpanel", { name: "AI providers" })).toBeInTheDocument();
         });
 
         it("still lets the user go somewhere else once they are there", () => {
-            render(<SettingsOverlay opened section="ai" onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened section="ai" onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
 
@@ -153,7 +155,7 @@ describe("SettingsOverlay", () => {
         });
 
         it("opens where it was left when no caller asks for a section", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
         });
@@ -161,7 +163,7 @@ describe("SettingsOverlay", () => {
 
     describe("AI providers", () => {
         it("draws the provider list rather than a Coming tag", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "AI providers" }));
 
@@ -170,7 +172,7 @@ describe("SettingsOverlay", () => {
         });
 
         it("opens a key field a user can actually type into", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "AI providers" }));
 
@@ -178,7 +180,7 @@ describe("SettingsOverlay", () => {
         });
 
         it("keeps the pane's teaching sentence behind the heading's info circle", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "AI providers" }));
 
@@ -191,7 +193,7 @@ describe("SettingsOverlay", () => {
 
     describe("the three panes that are still stubs", () => {
         it.each(["Defaults", "Data management", "Extensions"])("tags %s", (label) => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: label }));
 
@@ -204,11 +206,78 @@ describe("SettingsOverlay", () => {
        feature". These boards are what stops the pane going back to a Coming tag, and what
        stops the controls going back to values nothing remembers. */
     describe("Performance", () => {
-        /** Opens Settings on the Performance pane, which is on screen when this returns. */
-        function openPerformance(): void {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+        /**
+         * Opens Settings on the Performance pane, which is on screen when this returns.
+         * @param props - anything a board needs to differ from the defaults, spread over them.
+         */
+        function openPerformance(props: Partial<SettingsOverlayProps> = {}): void {
+            render(
+                <SettingsOverlay
+                    opened
+                    onClose={vi.fn()}
+                    aiProviders={emptyKeyStore()}
+                    accelerationPolicy="auto"
+                    onAccelerationPolicyChange={vi.fn()}
+                    {...props}
+                />,
+            );
             fireEvent.click(screen.getByRole("tab", { name: "Performance" }));
         }
+
+        it("draws the acceleration control above the label controls", () => {
+            openPerformance();
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+
+            for (const name of ["Automatic", "Off", "Required"]) {
+                expect(screen.getByRole("radio", { name })).toBeInTheDocument();
+            }
+
+            /* Above, because the machine-level setting comes before the per-load one. */
+            const acceleration = screen.getByTestId("settings-acceleration");
+            const labels = screen.getByTestId("settings-labels");
+
+            expect(acceleration.compareDocumentPosition(labels) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
+        /* A segmented control is a radiogroup, and a radiogroup with no name is announced as
+           three unexplained words. Mantine's Input.Wrapper cannot name this one on its own --
+           SegmentedControl never takes the wrapper's input id -- so the association is made by
+           hand, and this board is what keeps it made. */
+        it("names the acceleration control and carries its explanation", () => {
+            openPerformance();
+
+            expect(
+                screen.getByRole("radiogroup", {
+                    name: "GPU acceleration",
+                    description: /^Automatic uses the GPU/,
+                }),
+            ).toBeInTheDocument();
+        });
+
+        it("shows the policy it is handed", () => {
+            openPerformance({ accelerationPolicy: "off" });
+
+            expect(screen.getByRole("radio", { name: "Off" })).toBeChecked();
+        });
+
+        it("reports a change and writes nothing itself", () => {
+            const onChange = vi.fn();
+
+            openPerformance({ onAccelerationPolicyChange: onChange });
+
+            fireEvent.click(screen.getByRole("radio", { name: "Required" }));
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange).toHaveBeenCalledWith("required");
+            expect(window.localStorage.getItem(ACCELERATION_SETTINGS_STORAGE_KEY)).toBeNull();
+        });
+
+        it("says the change applies at once, because it does", () => {
+            openPerformance();
+
+            expect(screen.getByText("Applies at once.")).toBeInTheDocument();
+        });
 
         it("draws the label controls rather than a Coming tag", () => {
             openPerformance();
@@ -324,7 +393,7 @@ describe("SettingsOverlay", () => {
 
     describe("Keyboard shortcuts", () => {
         it("renders the whole table, unshipped rows included", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
 
@@ -333,7 +402,7 @@ describe("SettingsOverlay", () => {
         });
 
         it("tags an unshipped row and gives it no key chip", () => {
-            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} />);
+            render(<SettingsOverlay opened onClose={vi.fn()} aiProviders={emptyKeyStore()} accelerationPolicy="auto" onAccelerationPolicyChange={vi.fn()} />);
 
             fireEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
 

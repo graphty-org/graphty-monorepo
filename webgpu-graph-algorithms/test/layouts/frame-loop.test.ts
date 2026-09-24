@@ -223,6 +223,8 @@ describe("runFrameLoop: the element's bridge logic on a scripted simulation (spe
             errors: [],
             positionHolds: [],
             submissionsDuringPause: 0,
+            pauseStartTick: null,
+            pauseEndTick: null,
         });
         expect(fake.inFlight).toBe(2); // b3 and b4 never landed: the helper never awaits step()
         expect(fake.coalesced).toBe(4);
@@ -254,6 +256,8 @@ describe("runFrameLoop: the element's bridge logic on a scripted simulation (spe
             errors: [],
             positionHolds: [{ tick: 2, index: 1, held: true }],
             submissionsDuringPause: 0,
+            pauseStartTick: null,
+            pauseEndTick: null,
         });
         expect(Array.from(fake.positions.subarray(3, 6))).toEqual([11, 20, 0]); // b3 carried the write forward
     });
@@ -302,10 +306,12 @@ describe("runFrameLoop: the element's bridge logic on a scripted simulation (spe
             errors: [],
             positionHolds: [],
             submissionsDuringPause: 0,
+            pauseStartTick: null,
+            pauseEndTick: null,
         });
     });
 
-    it("D: the pause starts at the first tick >= pauseAt with inFlight === maxInFlight, flush() resolves inside it, stepping resumes", async () => {
+    it("D: the pause starts at the first tick >= pauseAt, flush() resolves inside it, stepping resumes after it", async () => {
         const fake = new FakeSimulation(4, 2, 1_000_000, true);
         const report = await runFrameLoop(fake, fake.positions, {
             ticks: 12,
@@ -319,8 +325,9 @@ describe("runFrameLoop: the element's bridge logic on a scripted simulation (spe
                 }
             },
         });
-        // 0: submit b1 | 1: submit b2 | 2: inFlight 2 === maxInFlight and 2 >= pauseAt -> pause [2, 5), flush() called
-        // 3: paused; b1 lands | 4: paused; b2 lands -> flush() resolves before tick 5 | 5: pause over, submit b3
+        // 0: submit b1 | 1: submit b2 | 2: 2 >= pauseAt -> the pause fills the flight (already 2, so no step()
+        // is issued) and calls flush() | 3: paused; b1 lands | 4: paused; b2 lands -> flush() resolves before
+        // tick 5 | 5: the window's floor is reached and flush() has resolved -> the pause closes, submit b3
         // 6: submit b4 | 7..11: coalesce (5 ticks).  No submission was observed inside the window.
         expect(report).toEqual({
             submissions: 4,
@@ -331,10 +338,12 @@ describe("runFrameLoop: the element's bridge logic on a scripted simulation (spe
             errors: [],
             positionHolds: [],
             submissionsDuringPause: 0,
+            pauseStartTick: 2,
+            pauseEndTick: 5,
         });
     });
 
-    it("E: a pause that can never start (batches always land before the next tick) is reported in errors", async () => {
+    it("E: a simulation whose every batch lands before the next tick still pauses with maxInFlight in flight", async () => {
         const fake = new FakeSimulation(4, 2, 1_000_000, true);
         const report = await runFrameLoop(fake, fake.positions, {
             ticks: 4,
@@ -348,15 +357,19 @@ describe("runFrameLoop: the element's bridge logic on a scripted simulation (spe
                 }
             },
         });
-        // every tick starts with inFlight 1 at most (0 at tick 0), so inFlight === 2 is never observed:
-        // 0: submit b1 | 1: land b1, submit b2 | 2: land b2, submit b3 | 3: land b3, submit b4.
+        // No tick here ever STARTS saturated -- a batch never survives the gap to the next tick -- which is the
+        // shape a fast adapter, a stalled event loop or a mis-sized iterationsPerStep produces on real hardware.
+        // The pause fills the flight instead of waiting for it, so it happens anyway:
+        // 0: the pause fills the flight (b1, b2) and calls flush(); land b1 | 1: paused, land b2, flush() resolves
+        // 2: the floor is reached and flush() has resolved -> the pause closes, submit b3 | 3: land b3, submit b4.
         expect(report.submissions).toBe(4);
         expect(report.coalesced).toBe(0);
-        expect(report.maxObservedInFlight).toBe(1);
-        expect(report.iterationsDoneByTick).toEqual([0, 0, 1, 2]);
+        expect(report.maxObservedInFlight).toBe(2);
+        expect(report.iterationsDoneByTick).toEqual([0, 1, 2, 2]);
         expect(report.submissionsDuringPause).toBe(0);
-        expect(report.errors).toHaveLength(1);
-        expect(String(report.errors[0])).toMatch(/pause never started/);
+        expect(report.errors).toEqual([]);
+        expect(report.pauseStartTick).toBe(0);
+        expect(report.pauseEndTick).toBe(2);
     });
 
     it("F: runFrameLoopUntilSettled runs further rounds until a round reports the settle, one flush between rounds, and stops at maxRounds", async () => {
@@ -820,8 +833,14 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
     it("pause: exactly the in-flight batches land, flush() resolves, no submission for 100 ticks, a later step() continues", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
-        const { snapshot, k } = await calibrateFlight(ctx, gpuScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", gpuScale());
         const n = snapshot.nodeCount;
+        // No calibrated batch length and no measured tick rate: what this case pins is a COUNT and an ORDER --
+        // exactly the batches in flight land, nothing is submitted while the caller is paused, and the run
+        // resumes where it stopped. runFrameLoop fills the flight at the pause tick instead of waiting for a
+        // tick that happens to start saturated, so none of that depends on a batch outlasting a tick gap.
+        const k = 4;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
         const options = {
             seed: 7,
             maxIter: 1_000_000,
@@ -850,22 +869,22 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
                 }
             },
         });
-        expect(report.errors).toEqual([]);
+        expect(report.errors.map(String)).toEqual([]);
         expect(report.submissionsDuringPause).toBe(0);
         expect(report.settledAtTick).toBeNull();
         expect(report.maxObservedInFlight).toBe(2);
-        const pauseStart = inFlightByTick.findIndex((v, i) => i >= pauseAt && v === 2);
+        const [pauseStart, pauseEnd] = [report.pauseStartTick ?? -1, report.pauseEndTick ?? -1];
         expect(pauseStart).toBeGreaterThanOrEqual(pauseAt);
-        expect(pauseStart + PAUSE).toBeLessThan(600);
+        expect(pauseEnd).toBeGreaterThanOrEqual(pauseStart + PAUSE); // the window's floor; longer if the box stalled
         const atPause = report.iterationsDoneByTick[pauseStart];
-        const afterPause = report.iterationsDoneByTick[pauseStart + PAUSE];
+        const afterPause = report.iterationsDoneByTick[pauseEnd];
         expect(afterPause - atPause).toBe(2 * k); // exactly the two in-flight batches landed inside the window
-        expect(inFlightByTick[pauseStart + PAUSE]).toBe(0); // flush() had nothing left to wait for
-        for (let i = pauseStart + 1; i <= pauseStart + PAUSE; i++) {
+        expect(inFlightByTick[pauseEnd]).toBe(0); // flush() had nothing left to wait for
+        for (let i = pauseStart + 1; i <= pauseEnd; i++) {
             expect(report.iterationsDoneByTick[i]).toBeLessThanOrEqual(afterPause);
         }
         expectMonotone(report.iterationsDoneByTick); // no reheat anywhere: the pause is not a reset (7.19)
-        expect(report.iterationsDoneByTick[599]).toBeGreaterThan(afterPause); // the later step() continued
+        expect(report.iterationsDoneByTick.at(-1)).toBeGreaterThan(afterPause); // the later step() continued
         await sim.flush();
         expect(sim.iterationsDone).toBe(report.submissions * k);
         // the controller trace is continuous across the pause: every sampled (iteration -> speed, swing, traction,

@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d6" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d5" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d4" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d3" for="node" attr.name="rank" attr.type="long" />
+  <key id="d2" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d1" for="node" attr.name="tag" attr.type="string" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="undirected">
+    <node id="Acciaiuoli">
+      <data key="d0">1e+300</data>
+      <data key="d1">it's</data>
+      <data key="d2">False</data>
+    </node>
+    <node id="Medici">
+      <data key="d0">86.296394</data>
+      <data key="d3">1</data>
+      <data key="d1">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d2">True</data>
+    </node>
+    <node id="Castellani">
+      <data key="d0">123456789.125</data>
+      <data key="d1">say "hi"</data>
+      <data key="d2">False</data>
+    </node>
+    <node id="Peruzzi">
+      <data key="d0">62.959017</data>
+      <data key="d3">-2147483648</data>
+    </node>
+    <node id="Strozzi">
+      <data key="d0">-37.62027</data>
+    </node>
+    <node id="Barbadori">
+      <data key="d0">-53.584453</data>
+      <data key="d3">1</data>
+      <data key="d1">plain</data>
+      <data key="d2">False</data>
+    </node>
+    <node id="Ridolfi">
+      <data key="d0">123456789.125</data>
+      <data key="d3">1</data>
+    </node>
+    <node id="Tornabuoni">
+      <data key="d0">123456789.125</data>
+      <data key="d1">café</data>
+      <data key="d2">False</data>
+    </node>
+    <node id="Albizzi">
+      <data key="d1">a&amp;b</data>
+    </node>
+    <node id="Salviati">
+      <data key="d0">70.790935</data>
+      <data key="d1">it's</data>
+    </node>
+    <node id="Pazzi">
+      <data key="d3">2147483647</data>
+      <data key="d1">&lt;tag&gt;</data>
+    </node>
+    <node id="Bischeri">
+      <data key="d0">-70.543289</data>
+      <data key="d3">42</data>
+      <data key="d1">tab	here</data>
+      <data key="d2">False</data>
+    </node>
+    <node id="Guadagni">
+      <data key="d0">123456789.125</data>
+      <data key="d3">1</data>
+      <data key="d1">中文</data>
+    </node>
+    <node id="Ginori">
+      <data key="d0">45.127252</data>
+      <data key="d1">plain</data>
+    </node>
+    <node id="Lamberteschi">
+      <data key="d0">-73.881782</data>
+      <data key="d1">a&amp;b</data>
+      <data key="d2">False</data>
+    </node>
+    <edge source="Acciaiuoli" target="Medici">
+      <data key="d4">10</data>
+      <data key="d5">中文</data>
+    </edge>
+    <edge source="Medici" target="Barbadori">
+      <data key="d4">4.1337</data>
+      <data key="d5">café</data>
+      <data key="d6">613</data>
+    </edge>
+    <edge source="Medici" target="Ridolfi">
+      <data key="d4">1</data>
+      <data key="d5">中文</data>
+    </edge>
+    <edge source="Medici" target="Tornabuoni">
+      <data key="d4">1</data>
+      <data key="d5">it's</data>
+    </edge>
+    <edge source="Medici" target="Albizzi">
+      <data key="d4">5.5462</data>
+      <data key="d5">&lt;tag&gt;</data>
+    </edge>
+    <edge source="Medici" target="Salviati" />
+    <edge source="Castellani" target="Peruzzi">
+      <data key="d4">4.0942</data>
+    </edge>
+    <edge source="Castellani" target="Strozzi">
+      <data key="d4">3.3367</data>
+      <data key="d6">192</data>
+    </edge>
+    <edge source="Castellani" target="Barbadori">
+      <data key="d6">673</data>
+    </edge>
+    <edge source="Peruzzi" target="Strozzi">
+      <data key="d4">3</data>
+      <data key="d5">tab	here</data>
+    </edge>
+    <edge source="Peruzzi" target="Bischeri">
+      <data key="d4">8.7245</data>
+      <data key="d6">113</data>
+    </edge>
+    <edge source="Strozzi" target="Ridolfi">
+      <data key="d4">2.1492</data>
+      <data key="d6">488</data>
+    </edge>
+    <edge source="Strozzi" target="Bischeri">
+      <data key="d4">8.3112</data>
+    </edge>
+    <edge source="Ridolfi" target="Tornabuoni">
+      <data key="d4">1</data>
+      <data key="d5">&lt;tag&gt;</data>
+    </edge>
+    <edge source="Tornabuoni" target="Guadagni">
+      <data key="d4">3</data>
+      <data key="d6">290</data>
+    </edge>
+    <edge source="Albizzi" target="Ginori">
+      <data key="d4">3.8745</data>
+    </edge>
+    <edge source="Albizzi" target="Guadagni">
+      <data key="d4">1.5033</data>
+      <data key="d6">226</data>
+    </edge>
+    <edge source="Salviati" target="Pazzi">
+      <data key="d4">2.8726</data>
+      <data key="d5">&lt;tag&gt;</data>
+    </edge>
+    <edge source="Bischeri" target="Guadagni">
+      <data key="d5">tab	here</data>
+    </edge>
+    <edge source="Guadagni" target="Lamberteschi">
+      <data key="d4">1.7245</data>
+    </edge>
+  </graph>
+</graphml>

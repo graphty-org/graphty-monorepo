@@ -1,0 +1,84 @@
+{
+ "directed": true,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 30.642565,
+   "rank": -7,
+   "tag": "中文",
+   "id": 0
+  },
+  {
+   "tag": "line\nbreak",
+   "flag": true,
+   "id": 1
+  },
+  {
+   "rank": 42,
+   "tag": "back\\slash",
+   "id": 2
+  },
+  {
+   "score": 0.5,
+   "id": 3
+  },
+  {
+   "score": -99.400562,
+   "rank": 0,
+   "tag": "back\\slash",
+   "flag": true,
+   "id": 4
+  },
+  {
+   "rank": 42,
+   "id": 5
+  },
+  {
+   "score": -37.89535,
+   "rank": 1,
+   "tag": "中文",
+   "flag": true,
+   "id": 6
+  }
+ ],
+ "links": [
+  {
+   "weight": 1e+300,
+   "source": 0,
+   "target": 1
+  },
+  {
+   "weight": 10,
+   "source": 1,
+   "target": 2
+  },
+  {
+   "weight": 9.1817,
+   "source": 2,
+   "target": 3
+  },
+  {
+   "weight": 9.0009,
+   "cap": 36,
+   "source": 3,
+   "target": 4
+  },
+  {
+   "cap": 950,
+   "source": 4,
+   "target": 5
+  },
+  {
+   "weight": 2.0441,
+   "source": 5,
+   "target": 6
+  },
+  {
+   "weight": 4.7648,
+   "rel": "café",
+   "source": 6,
+   "target": 0
+  }
+ ]
+}

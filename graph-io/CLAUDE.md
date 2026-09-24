@@ -181,6 +181,26 @@ oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json a
   (the known failures grouped by cause: the work list).
 - Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licences are test-only: `test/` is not in the
   package's `files`, so they are never published.
+- Three generative layers run in the same file (`conformance.test.ts`):
+  - `generative.ts`: fast-check graphs (ids with Unicode, quotes, delimiters, XML / DOT / GML
+    specials, empty and long strings; self-loops, parallel edges, isolated nodes; weights and cells
+    with -0, 1e-300, 1e300, the infinities, NaN) through every exporter configuration (`TARGETS`)
+    and back from bytes. A difference is allowed only when a check() note announced it
+    (`NOTE_RELAX`: note code -> the difference it documents); an export may throw only when check()
+    returned an E_ note. `GRAPH_IO_PROPERTY_RUNS` / `GRAPH_IO_PROPERTY_SEED` size and seed it
+    (default 300 per configuration). A bug found becomes its shrunk graph in
+    `fixtures/generative/cases.json` (with `knownFailure` while open) and, while open, a
+    `KNOWN_FAILURES` predicate that keeps such graphs out of the property.
+  - `tools/differential.py` writes seeded networkx graphs with networkx's own writers into
+    `fixtures/<format>/networkx-generated/` with manifest entries (`"oracle": "networkx-differential"`,
+    networkx's read-back as the expectation; `networkxDisagrees` where the spec overrules networkx).
+    Rerun it after changing it; oracle.py leaves those entries alone.
+  - `schemas.ts` + `tools/validate_exports.py`: every GraphML, GEXF and JGF export against the
+    official XSDs / JSON Schema in `schemas/` (unmodified copies), and every DOT export through
+    Graphviz's gvpr. Needs Python with lxml and jsonschema (`GRAPH_IO_SCHEMA_PYTHON`, default
+    python3; skipped without them, required under `GRAPH_IO_REQUIRE_SCHEMAS`). An error is a
+    documented `SCHEMA_DEVIATIONS` entry (the schema contradicts the spec's own examples) or a
+    `SCHEMA_KNOWN_FAILURES` entry (an open graph-io bug, run as an expected failure).
 
 ## House Style
 

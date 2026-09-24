@@ -1,0 +1,261 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="rel" type="string" />
+      <attribute id="5" title="cap" type="long" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="tag" type="string" />
+      <attribute id="2" title="rank" type="long" />
+      <attribute id="3" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="Acciaiuoli" label="Acciaiuoli">
+        <viz:color r="75" g="205" b="142" a="1.0" />
+        <viz:size value="4.44" />
+        <viz:position x="-30.807" y="25.778" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-26.396441" />
+          <attvalue for="1" value="café" />
+        </attvalues>
+      </node>
+      <node id="Medici" label="Medici">
+        <viz:color r="118" g="214" b="34" a="1.0" />
+        <viz:size value="4.54" />
+        <viz:position x="-8.353" y="42.111" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="0.5" />
+          <attvalue for="2" value="42" />
+          <attvalue for="1" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </node>
+      <node id="Castellani" label="Castellani">
+        <viz:color r="230" g="127" b="182" a="1.0" />
+        <viz:size value="4.36" />
+        <viz:position x="2.806" y="25.845" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-33.393854" />
+          <attvalue for="2" value="0" />
+          <attvalue for="1" value="it's" />
+        </attvalues>
+      </node>
+      <node id="Peruzzi" label="Peruzzi">
+        <viz:color r="19" g="119" b="3" a="1.0" />
+        <viz:size value="9.17" />
+        <viz:position x="-14.262" y="-11.256" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="tab&#09;here" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="Strozzi" label="Strozzi">
+        <viz:color r="238" g="154" b="7" a="1.0" />
+        <viz:size value="4.81" />
+        <viz:position x="26.217" y="45.247" z="0.0" />
+        <attvalues>
+          <attvalue for="2" value="0" />
+          <attvalue for="1" value="中文" />
+        </attvalues>
+      </node>
+      <node id="Barbadori" label="Barbadori">
+        <viz:color r="197" g="128" b="254" a="1.0" />
+        <viz:size value="7.87" />
+        <viz:position x="-48.316" y="-23.961" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-42.465089" />
+          <attvalue for="2" value="-7" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Ridolfi" label="Ridolfi">
+        <viz:color r="234" g="107" b="212" a="1.0" />
+        <viz:size value="9.99" />
+        <viz:position x="15.307" y="2.736" z="0.0" />
+        <attvalues>
+          <attvalue for="2" value="42" />
+          <attvalue for="1" value="中文" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="Tornabuoni" label="Tornabuoni">
+        <viz:color r="59" g="5" b="179" a="1.0" />
+        <viz:size value="7.86" />
+        <viz:position x="-49.983" y="-10.039" z="0.0" />
+        <attvalues>
+          <attvalue for="2" value="2147483647" />
+          <attvalue for="1" value="plain" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Albizzi" label="Albizzi">
+        <viz:color r="127" g="38" b="226" a="1.0" />
+        <viz:size value="1.67" />
+        <viz:position x="13.896" y="44.28" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-19.481745" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="Salviati" label="Salviati">
+        <viz:color r="216" g="231" b="128" a="1.0" />
+        <viz:size value="7.1" />
+        <viz:position x="-42.448" y="-1.985" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="6.507997" />
+          <attvalue for="2" value="-7" />
+          <attvalue for="1" value="say &quot;hi&quot;" />
+        </attvalues>
+      </node>
+      <node id="Pazzi" label="Pazzi">
+        <viz:color r="221" g="87" b="232" a="1.0" />
+        <viz:size value="6.76" />
+        <viz:position x="-18.32" y="-9.966" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="10.890978" />
+          <attvalue for="2" value="-2147483648" />
+        </attvalues>
+      </node>
+      <node id="Bischeri" label="Bischeri">
+        <viz:color r="211" g="209" b="209" a="1.0" />
+        <viz:size value="3.99" />
+        <viz:position x="-11.092" y="29.801" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e-07" />
+          <attvalue for="1" value="tab&#09;here" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="Guadagni" label="Guadagni">
+        <viz:color r="225" g="127" b="122" a="1.0" />
+        <viz:size value="3.85" />
+        <viz:position x="-36.188" y="-44.011" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-95.817762" />
+          <attvalue for="1" value="tab&#09;here" />
+        </attvalues>
+      </node>
+      <node id="Ginori" label="Ginori">
+        <viz:color r="194" g="222" b="95" a="1.0" />
+        <viz:size value="7.48" />
+        <viz:position x="26.908" y="41.484" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="3.141592653589793" />
+          <attvalue for="2" value="2147483647" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Lamberteschi" label="Lamberteschi">
+        <viz:color r="217" g="113" b="82" a="1.0" />
+        <viz:size value="3.45" />
+        <viz:position x="30.877" y="7.294" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-93.867856" />
+          <attvalue for="2" value="42" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="Acciaiuoli" target="Medici" id="0" weight="6.9216">
+        <attvalues>
+          <attvalue for="4" value="plain" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Barbadori" id="1">
+        <attvalues>
+          <attvalue for="4" value="it's" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Ridolfi" id="2" weight="9.6773" />
+      <edge source="Medici" target="Tornabuoni" id="3" weight="10">
+        <attvalues>
+          <attvalue for="4" value="café" />
+          <attvalue for="5" value="410" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Albizzi" id="4" weight="-0.0">
+        <attvalues>
+          <attvalue for="5" value="615" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Salviati" id="5" weight="1">
+        <attvalues>
+          <attvalue for="4" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="Castellani" target="Peruzzi" id="6" weight="9.405">
+        <attvalues>
+          <attvalue for="4" value="it's" />
+          <attvalue for="5" value="596" />
+        </attvalues>
+      </edge>
+      <edge source="Castellani" target="Strozzi" id="7" weight="7.7502" />
+      <edge source="Castellani" target="Barbadori" id="8" weight="10">
+        <attvalues>
+          <attvalue for="4" value="two words" />
+        </attvalues>
+      </edge>
+      <edge source="Peruzzi" target="Strozzi" id="9">
+        <attvalues>
+          <attvalue for="5" value="587" />
+        </attvalues>
+      </edge>
+      <edge source="Peruzzi" target="Bischeri" id="10" weight="6.1473">
+        <attvalues>
+          <attvalue for="4" value="two words" />
+          <attvalue for="5" value="367" />
+        </attvalues>
+      </edge>
+      <edge source="Strozzi" target="Ridolfi" id="11" weight="3.1208">
+        <attvalues>
+          <attvalue for="4" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="Strozzi" target="Bischeri" id="12">
+        <attvalues>
+          <attvalue for="5" value="222" />
+        </attvalues>
+      </edge>
+      <edge source="Ridolfi" target="Tornabuoni" id="13" weight="-0.0">
+        <attvalues>
+          <attvalue for="4" value="two words" />
+        </attvalues>
+      </edge>
+      <edge source="Tornabuoni" target="Guadagni" id="14" weight="9.8338">
+        <attvalues>
+          <attvalue for="5" value="302" />
+        </attvalues>
+      </edge>
+      <edge source="Albizzi" target="Ginori" id="15" weight="4.4377">
+        <attvalues>
+          <attvalue for="4" value="café" />
+        </attvalues>
+      </edge>
+      <edge source="Albizzi" target="Guadagni" id="16" weight="3.9478">
+        <attvalues>
+          <attvalue for="4" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </edge>
+      <edge source="Salviati" target="Pazzi" id="17" weight="-0.0">
+        <attvalues>
+          <attvalue for="4" value="it's" />
+        </attvalues>
+      </edge>
+      <edge source="Bischeri" target="Guadagni" id="18" weight="0.5">
+        <attvalues>
+          <attvalue for="4" value="say &quot;hi&quot;" />
+          <attvalue for="5" value="540" />
+        </attvalues>
+      </edge>
+      <edge source="Guadagni" target="Lamberteschi" id="19" weight="8.975">
+        <attvalues>
+          <attvalue for="4" value="&lt;tag&gt;" />
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

@@ -1,0 +1,101 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 96.234076,
+   "rank": 2147483647,
+   "tag": "中文",
+   "id": 0
+  },
+  {
+   "score": 0.5,
+   "tag": "<tag>",
+   "flag": false,
+   "id": 1
+  },
+  {
+   "score": 1e+300,
+   "rank": 2147483647,
+   "tag": "中文",
+   "id": 2
+  },
+  {
+   "score": -79.098938,
+   "rank": -2147483648,
+   "tag": "line\nbreak",
+   "id": 3
+  },
+  {
+   "score": 0.5,
+   "rank": -7,
+   "tag": " nbsp",
+   "flag": false,
+   "id": 4
+  }
+ ],
+ "links": [
+  {
+   "weight": -2.25,
+   "rel": "café",
+   "cap": 30,
+   "source": 0,
+   "target": 1
+  },
+  {
+   "weight": 9.3764,
+   "source": 0,
+   "target": 2
+  },
+  {
+   "weight": 2.9271,
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": 0,
+   "target": 3
+  },
+  {
+   "weight": 0.5,
+   "cap": 583,
+   "source": 0,
+   "target": 4
+  },
+  {
+   "rel": "back\\slash",
+   "cap": 857,
+   "source": 1,
+   "target": 2
+  },
+  {
+   "weight": 4.3178,
+   "rel": "line\nbreak",
+   "cap": 317,
+   "source": 1,
+   "target": 3
+  },
+  {
+   "weight": 1.4676,
+   "rel": "a&b",
+   "source": 1,
+   "target": 4
+  },
+  {
+   "rel": " nbsp",
+   "source": 2,
+   "target": 3
+  },
+  {
+   "weight": 1,
+   "cap": 948,
+   "source": 2,
+   "target": 4
+  },
+  {
+   "weight": 1e+300,
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "cap": 102,
+   "source": 3,
+   "target": 4
+  }
+ ]
+}

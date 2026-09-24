@@ -30,3 +30,4 @@ gh-pages/
 # Conformance fixtures are byte-exact test data; the report is generated
 graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
+graph-io/test/conformance/schemas/

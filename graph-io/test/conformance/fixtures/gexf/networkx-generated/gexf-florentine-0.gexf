@@ -1,0 +1,194 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="cap" type="long" />
+      <attribute id="5" title="rel" type="string" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="rank" type="long" />
+      <attribute id="2" title="tag" type="string" />
+      <attribute id="3" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="Acciaiuoli" label="Acciaiuoli">
+        <attvalues>
+          <attvalue for="0" value="89.478004" />
+          <attvalue for="1" value="-2147483648" />
+          <attvalue for="2" value="say &quot;hi&quot;" />
+        </attvalues>
+      </node>
+      <node id="Medici" label="Medici">
+        <attvalues>
+          <attvalue for="0" value="3.141592653589793" />
+          <attvalue for="1" value="-7" />
+          <attvalue for="2" value="say &quot;hi&quot;" />
+        </attvalues>
+      </node>
+      <node id="Castellani" label="Castellani">
+        <attvalues>
+          <attvalue for="0" value="1e-07" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Peruzzi" label="Peruzzi">
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+        </attvalues>
+      </node>
+      <node id="Strozzi" label="Strozzi">
+        <attvalues>
+          <attvalue for="0" value="-52.451392" />
+          <attvalue for="2" value="say &quot;hi&quot;" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Barbadori" label="Barbadori">
+        <attvalues>
+          <attvalue for="0" value="65.251892" />
+          <attvalue for="2" value="&lt;tag&gt;" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Ridolfi" label="Ridolfi">
+        <attvalues>
+          <attvalue for="0" value="-83.966697" />
+          <attvalue for="1" value="-2147483648" />
+        </attvalues>
+      </node>
+      <node id="Tornabuoni" label="Tornabuoni">
+        <attvalues>
+          <attvalue for="0" value="1e-07" />
+          <attvalue for="2" value="two words" />
+        </attvalues>
+      </node>
+      <node id="Albizzi" label="Albizzi">
+        <attvalues>
+          <attvalue for="0" value="15.600848" />
+          <attvalue for="1" value="1" />
+        </attvalues>
+      </node>
+      <node id="Salviati" label="Salviati">
+        <attvalues>
+          <attvalue for="0" value="22.318311" />
+          <attvalue for="1" value="1" />
+          <attvalue for="2" value="a&amp;b" />
+        </attvalues>
+      </node>
+      <node id="Pazzi" label="Pazzi">
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="1" value="0" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="Bischeri" label="Bischeri">
+        <attvalues>
+          <attvalue for="0" value="1e-300" />
+          <attvalue for="1" value="42" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="Guadagni" label="Guadagni">
+        <attvalues>
+          <attvalue for="0" value="1e-300" />
+          <attvalue for="2" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="Ginori" label="Ginori">
+        <attvalues>
+          <attvalue for="1" value="1" />
+          <attvalue for="2" value="中文" />
+        </attvalues>
+      </node>
+      <node id="Lamberteschi" label="Lamberteschi">
+        <attvalues>
+          <attvalue for="0" value="82.207005" />
+          <attvalue for="1" value="-7" />
+          <attvalue for="2" value="a&amp;b" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="Acciaiuoli" target="Medici" id="0" weight="0.3775">
+        <attvalues>
+          <attvalue for="4" value="763" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Barbadori" id="1" weight="0.5">
+        <attvalues>
+          <attvalue for="5" value="plain" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Ridolfi" id="2" weight="0.5">
+        <attvalues>
+          <attvalue for="5" value="&lt;tag&gt;" />
+        </attvalues>
+      </edge>
+      <edge source="Medici" target="Tornabuoni" id="3" weight="6.1035" />
+      <edge source="Medici" target="Albizzi" id="4" weight="4.7735" />
+      <edge source="Medici" target="Salviati" id="5" weight="5.2863" />
+      <edge source="Castellani" target="Peruzzi" id="6">
+        <attvalues>
+          <attvalue for="4" value="501" />
+        </attvalues>
+      </edge>
+      <edge source="Castellani" target="Strozzi" id="7" weight="-0.0">
+        <attvalues>
+          <attvalue for="5" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <attvalue for="4" value="942" />
+        </attvalues>
+      </edge>
+      <edge source="Castellani" target="Barbadori" id="8" weight="7.3711" />
+      <edge source="Peruzzi" target="Strozzi" id="9" />
+      <edge source="Peruzzi" target="Bischeri" id="10" weight="1.0328">
+        <attvalues>
+          <attvalue for="5" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="Strozzi" target="Ridolfi" id="11">
+        <attvalues>
+          <attvalue for="4" value="529" />
+        </attvalues>
+      </edge>
+      <edge source="Strozzi" target="Bischeri" id="12">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+        </attvalues>
+      </edge>
+      <edge source="Ridolfi" target="Tornabuoni" id="13" weight="7.5675">
+        <attvalues>
+          <attvalue for="5" value="café" />
+        </attvalues>
+      </edge>
+      <edge source="Tornabuoni" target="Guadagni" id="14" weight="-2.25">
+        <attvalues>
+          <attvalue for="4" value="655" />
+        </attvalues>
+      </edge>
+      <edge source="Albizzi" target="Ginori" id="15" weight="-2.25" />
+      <edge source="Albizzi" target="Guadagni" id="16" weight="7.8988">
+        <attvalues>
+          <attvalue for="4" value="719" />
+        </attvalues>
+      </edge>
+      <edge source="Salviati" target="Pazzi" id="17" weight="8.3415">
+        <attvalues>
+          <attvalue for="4" value="633" />
+        </attvalues>
+      </edge>
+      <edge source="Bischeri" target="Guadagni" id="18">
+        <attvalues>
+          <attvalue for="4" value="214" />
+        </attvalues>
+      </edge>
+      <edge source="Guadagni" target="Lamberteschi" id="19" weight="1e-300" />
+    </edges>
+  </graph>
+</gexf>

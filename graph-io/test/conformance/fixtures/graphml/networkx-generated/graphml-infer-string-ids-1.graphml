@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d6" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d5" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d4" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d3" for="node" attr.name="tag" attr.type="string" />
+  <key id="d2" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="undirected">
+    <node id="node 0">
+      <data key="d0">1e-07</data>
+      <data key="d1">42</data>
+      <data key="d2">False</data>
+    </node>
+    <node id="node 1">
+      <data key="d0">17.858153</data>
+      <data key="d1">2147483647</data>
+      <data key="d3">a&amp;b</data>
+      <data key="d2">True</data>
+    </node>
+    <node id="node 2">
+      <data key="d0">12.604699</data>
+      <data key="d1">2147483647</data>
+      <data key="d3">two words</data>
+    </node>
+    <node id="node 3">
+      <data key="d3">&lt;tag&gt;</data>
+    </node>
+    <node id="node 4">
+      <data key="d3">two words</data>
+    </node>
+    <edge source="node 0" target="node 1">
+      <data key="d4">6.6789</data>
+    </edge>
+    <edge source="node 0" target="node 4">
+      <data key="d4">1</data>
+      <data key="d5">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d6">369</data>
+    </edge>
+    <edge source="node 1" target="node 2">
+      <data key="d6">517</data>
+    </edge>
+    <edge source="node 2" target="node 3" />
+    <edge source="node 3" target="node 4">
+      <data key="d4">6.5231</data>
+      <data key="d6">697</data>
+    </edge>
+  </graph>
+</graphml>

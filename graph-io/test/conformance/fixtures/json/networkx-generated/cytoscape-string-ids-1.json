@@ -1,0 +1,97 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 0.5,
+     "rank": 1,
+     "tag": "back\\slash",
+     "flag": false,
+     "id": "node 0",
+     "value": "node 0",
+     "name": "node 0"
+    }
+   },
+   {
+    "data": {
+     "id": "node 1",
+     "value": "node 1",
+     "name": "node 1"
+    }
+   },
+   {
+    "data": {
+     "rank": 2147483647,
+     "tag": "café",
+     "id": "node 2",
+     "value": "node 2",
+     "name": "node 2"
+    }
+   },
+   {
+    "data": {
+     "score": 39.366159,
+     "rank": 42,
+     "tag": "<tag>",
+     "flag": false,
+     "id": "node 3",
+     "value": "node 3",
+     "name": "node 3"
+    }
+   },
+   {
+    "data": {
+     "score": 1e-300,
+     "rank": 2147483647,
+     "id": "node 4",
+     "value": "node 4",
+     "name": "node 4"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": -2.25,
+     "cap": 914,
+     "source": "node 0",
+     "target": "node 1"
+    }
+   },
+   {
+    "data": {
+     "rel": "café",
+     "source": "node 0",
+     "target": "node 4"
+    }
+   },
+   {
+    "data": {
+     "weight": 3.2372,
+     "rel": "it's",
+     "source": "node 1",
+     "target": "node 2"
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "café",
+     "source": "node 2",
+     "target": "node 3"
+    }
+   },
+   {
+    "data": {
+     "weight": 4.1028,
+     "cap": 609,
+     "source": "node 3",
+     "target": "node 4"
+    }
+   }
+  ]
+ }
+}

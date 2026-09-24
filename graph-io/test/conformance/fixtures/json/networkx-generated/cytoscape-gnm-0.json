@@ -1,0 +1,284 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 47.681319,
+     "rank": -7,
+     "tag": "line\nbreak",
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "tag": " nbsp",
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "rank": -7,
+     "tag": "plain",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": -0.0,
+     "rank": 1,
+     "tag": "back\\slash",
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "rank": -7,
+     "tag": " nbsp",
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "score": 34.397055,
+     "rank": 0,
+     "tag": "back\\slash",
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   },
+   {
+    "data": {
+     "score": 89.781784,
+     "rank": 42,
+     "flag": true,
+     "id": "6",
+     "value": 6,
+     "name": "6"
+    }
+   },
+   {
+    "data": {
+     "rank": -2147483648,
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "id": "7",
+     "value": 7,
+     "name": "7"
+    }
+   },
+   {
+    "data": {
+     "score": -9.829964,
+     "rank": -7,
+     "id": "8",
+     "value": 8,
+     "name": "8"
+    }
+   },
+   {
+    "data": {
+     "score": -0.0,
+     "rank": 2147483647,
+     "tag": "<tag>",
+     "flag": false,
+     "id": "9",
+     "value": 9,
+     "name": "9"
+    }
+   },
+   {
+    "data": {
+     "score": -55.05805,
+     "rank": -7,
+     "flag": true,
+     "id": "10",
+     "value": 10,
+     "name": "10"
+    }
+   },
+   {
+    "data": {
+     "id": "11",
+     "value": 11,
+     "name": "11"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 2.8574,
+     "source": 0,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "rel": "tab\there",
+     "source": 0,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 6.5498,
+     "rel": "say \"hi\"",
+     "source": 0,
+     "target": 10
+    }
+   },
+   {
+    "data": {
+     "weight": 8.0896,
+     "rel": "say \"hi\"",
+     "cap": 942,
+     "source": 1,
+     "target": 10
+    }
+   },
+   {
+    "data": {
+     "weight": 5.5405,
+     "cap": 94,
+     "source": 1,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 7.5285,
+     "rel": "it's",
+     "cap": 330,
+     "source": 1,
+     "target": 11
+    }
+   },
+   {
+    "data": {
+     "weight": 7.7298,
+     "rel": "a&b",
+     "source": 1,
+     "target": 7
+    }
+   },
+   {
+    "data": {
+     "source": 1,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 9.0457,
+     "rel": "plain",
+     "cap": 665,
+     "source": 2,
+     "target": 5
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "source": 3,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 5.6443,
+     "cap": 859,
+     "source": 4,
+     "target": 11
+    }
+   },
+   {
+    "data": {
+     "weight": 2.3401,
+     "rel": "it's",
+     "cap": 479,
+     "source": 4,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "source": 4,
+     "target": 10
+    }
+   },
+   {
+    "data": {
+     "weight": 4.369,
+     "rel": "plain",
+     "source": 5,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 1e-300,
+     "cap": 84,
+     "source": 5,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "weight": 6.0368,
+     "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "source": 6,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "plain",
+     "cap": 16,
+     "source": 6,
+     "target": 7
+    }
+   },
+   {
+    "data": {
+     "weight": 4.3391,
+     "rel": "back\\slash",
+     "cap": 349,
+     "source": 8,
+     "target": 11
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "source": 9,
+     "target": 10
+    }
+   },
+   {
+    "data": {
+     "weight": 0.7095,
+     "rel": "back\\slash",
+     "source": 10,
+     "target": 11
+    }
+   }
+  ]
+ }
+}

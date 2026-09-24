@@ -44,6 +44,18 @@ interface EdgeCheck {
     readonly weight?: number;
 }
 
+/** An edge attribute check: the edge between two node ids has this value in the named column. */
+interface EdgeAttrCheck {
+    /** The source id. */
+    readonly source: NodeId;
+    /** The target id. */
+    readonly target: NodeId;
+    /** The column name; "weight" falls back to the weight role and the arc weights. */
+    readonly column: string;
+    /** The expected value, compared as in AttrCheck. */
+    readonly value: unknown;
+}
+
 /** The expected result of importing one fixture. */
 interface Expected {
     /** "pass": imports; "fail": throws ImportError; "any": either, but never a crash. */
@@ -68,6 +80,8 @@ interface Expected {
     readonly nodeAttrs?: readonly AttrCheck[];
     /** Edge spot checks. */
     readonly edgeChecks?: readonly EdgeCheck[];
+    /** Edge attribute checks. */
+    readonly edgeAttrs?: readonly EdgeAttrCheck[];
     /** Warning (or error) codes the report must contain. */
     readonly warnings?: readonly string[];
 }
@@ -94,6 +108,8 @@ export interface Fixture {
     readonly knownFailure?: string;
     /** Set when the import -> export -> import round trip does not hold today: the cause. */
     readonly roundTripFailure?: string;
+    /** networkx-differential only: where networkx's own read-back departs from the spec, and why the expectation does not follow it. */
+    readonly networkxDisagrees?: string;
 }
 
 /** A format's manifest.json. */
@@ -251,31 +267,73 @@ function checkResult(expected: Expected, result: ImportGraphResult, problems: st
     }
     for (const check of expected.edgeChecks ?? []) {
         const name = `edge ${JSON.stringify(check.source)}->${JSON.stringify(check.target)}`;
-        const u = nodeIndex(snapshot, check.source);
-        const v = nodeIndex(snapshot, check.target);
-        let arc = u < 0 || v < 0 ? INVALID_INDEX : snapshot.findArc(u, v);
-        if (arc === INVALID_INDEX && u >= 0 && v >= 0) {
-            // an undirected edge of an expanded mixed graph may be stored the other way round
-            arc = snapshot.findArc(v, u);
-        }
+        const arc = arcOf(snapshot, check.source, check.target);
         if (arc === INVALID_INDEX) {
             problems.push(`${name} missing`);
             continue;
         }
         if (check.weight !== undefined) {
-            const e = snapshot.arcToEdge[arc];
-            const column = snapshot.edges.byRole("weight");
-            let weight = 1;
-            if (column?.isSet(e) === true) {
-                weight = Number(column.value(e));
-            } else if (snapshot.weights !== null) {
-                weight = snapshot.weights[arc];
-            }
+            const weight = weightOf(snapshot, arc);
             if (!agrees(check.weight, weight)) {
                 problems.push(`${name} weight: expected ${check.weight}, got ${weight}`);
             }
         }
     }
+    for (const check of expected.edgeAttrs ?? []) {
+        const name = `edge ${JSON.stringify(check.source)}->${JSON.stringify(check.target)} ${check.column}`;
+        const arc = arcOf(snapshot, check.source, check.target);
+        if (arc === INVALID_INDEX) {
+            problems.push(`${name}: no such edge`);
+            continue;
+        }
+        const e = snapshot.arcToEdge[arc];
+        const column = snapshot.edges.get(check.column);
+        let actual: unknown;
+        if (column !== null) {
+            actual = column.isSet(e) ? column.value(e) : undefined;
+        } else if (check.column === "weight") {
+            actual = weightOf(snapshot, arc);
+        } else {
+            problems.push(`${name}: no such column`);
+            continue;
+        }
+        if (!agrees(check.value, actual)) {
+            problems.push(`${name}: expected ${JSON.stringify(check.value)}, got ${JSON.stringify(plain(actual))}`);
+        }
+    }
+}
+
+/**
+ * The arc of an edge between two node ids, either orientation.
+ * @param snapshot - the snapshot
+ * @param source - the source id as the oracle spells it
+ * @param target - the target id
+ * @returns the arc, or INVALID_INDEX
+ */
+function arcOf(snapshot: GraphSnapshot, source: NodeId, target: NodeId): number {
+    const u = nodeIndex(snapshot, source);
+    const v = nodeIndex(snapshot, target);
+    if (u < 0 || v < 0) {
+        return INVALID_INDEX;
+    }
+    const arc = snapshot.findArc(u, v);
+    // an undirected edge of an expanded mixed graph may be stored the other way round
+    return arc === INVALID_INDEX ? snapshot.findArc(v, u) : arc;
+}
+
+/**
+ * The weight of an arc: the weight role column's value, else the arc weight, else 1.
+ * @param snapshot - the snapshot
+ * @param arc - the arc
+ * @returns the weight
+ */
+function weightOf(snapshot: GraphSnapshot, arc: number): number {
+    const e = snapshot.arcToEdge[arc];
+    const column = snapshot.edges.byRole("weight");
+    if (column?.isSet(e) === true) {
+        return Number(column.value(e));
+    }
+    return snapshot.weights === null ? 1 : snapshot.weights[arc];
 }
 
 /**

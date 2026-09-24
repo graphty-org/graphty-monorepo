@@ -4,7 +4,7 @@
 Usage (from graph-io/):  python3 test/conformance/tools/oracle.py [format ...]
 
 For every fixture of fixtures/<format>/manifest.json whose "oracle" is not "spec" (hand-written
-from the specification), the module oracle_<format>.py next to this script is asked for the
+from the specification) or "networkx-differential" (written by differential.py), the module oracle_<format>.py next to this script is asked for the
 expected values: compute(path, fixture) returns a dict of Expected fields ("outcome", "nodes",
 "edges", "directed", "nodeIds", "labels", "nodeAttrs", "edgeChecks", "graphs", ...) or None to
 leave the fixture alone. The returned keys replace the ones in "expected"; every other key
@@ -34,8 +34,8 @@ def regenerate(fmt):
         return
     changed = 0
     for fixture in manifest["fixtures"]:
-        if fixture.get("oracle") == "spec":
-            continue
+        if fixture.get("oracle") in ("spec", "networkx-differential"):
+            continue  # hand-written, or owned by differential.py
         path = os.path.join(FIXTURES, fmt, fixture["file"])
         computed = oracle.compute(path, fixture)
         if computed is None:

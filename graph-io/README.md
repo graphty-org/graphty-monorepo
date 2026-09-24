@@ -189,7 +189,7 @@ losses and format rules, in addition to the table:
 - **DOT**: a Graphviz-faithful parser (grammar violations are fatal, as in Graphviz); clusters are
   container nodes with the `parent` role; ports are kept; HTML strings keep their brackets; `pos`
   maps to the position role. Mixed direction is folded per `onMixedDirection`; a text with a
-  backslash before a quote or at its end cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
+  backslash before a quote or a line break, or at its end, cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
   scanner consumes backslash pairs, so such a text has no quoted spelling).
 - **Pajek**: `*Vertices N` bounds the id space (ids 1..N; a 0-based file is detected and reported;
   a count the sink cannot reserve is fatal); `*Arcs` / `*Edges` sections give per-section

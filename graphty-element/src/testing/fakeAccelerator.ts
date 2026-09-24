@@ -8,29 +8,40 @@
  * the device: it implements the seams, it moves nodes by an exact amount per landed batch, and
  * it counts what it was asked to do.
  *
- * Two properties make it usable from a visual story as well as from a unit test. Movement is on
- * the x axis only and is `moveBy * iterations` per landed batch, so a node's coordinate after a
- * settle is an exact multiple of `moveBy` whatever the frame rate. And settling is counted in
- * landed batches, not in elapsed time, so the picture a screenshot catches after the layout has
- * settled is the same picture on a fast machine and on a slow one.
+ * What a landed batch COMPUTES is a choice, because a unit test and a story want opposite things
+ * of it. A test wants an answer it can assert on to the digit, so by default a batch moves every
+ * unfixed node `moveBy * iterations` along x and settling is counted in landed batches rather
+ * than in elapsed time: a node's coordinate after a settle is an exact multiple of `moveBy`
+ * whatever the frame rate.
+ *
+ * A STORY WANTS A PICTURE, AND THAT UNIFORM TRANSLATION HAS NONE. Every unfixed node moves the
+ * same distance in the same direction, and the element frames the camera on whatever it is
+ * given, so the arrangement on screen is the seed scatter no matter how many batches land --
+ * which makes a story named after a layout draw a hairball and a baseline of it mean nothing.
+ * `computes: "layout"` is for that case: the batch runs the CPU simulation of the layout that was
+ * asked for, so the picture is that layout's own arrangement, reached through the accelerator
+ * seam and deterministic under the layout's seed.
  *
  * Everything a test observes lives on the ACCELERATOR, aggregated over every simulation it
  * created ({@link FakeAccelerator.calls}), so a test never has to reach for the simulation to
  * find out what happened; `simulations` is there for the rare case that needs identity.
  *
- * This module is reachable from no entry point: it imports the seam TYPES and the error model
- * and nothing else, and it ships in the package the way the tests do.
+ * This module is reachable from no entry point: it imports the seam, the CPU simulations it can
+ * stand a device in front of, and the error model, and it ships in the package the way the tests
+ * do.
  * @module testing/fakeAccelerator
  */
 
 import type { IndexedPageRankOptions, LabelResultLike, PageRankResultLike } from "@graphty/algorithms";
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
-import type {
-    ForceAtlas2Options,
-    FruchtermanReingoldOptions,
-    LayoutSimulation,
-    SimulationOptions,
-    SpringElectricalOptions,
+import {
+    createSimulation,
+    type ForceAtlas2Options,
+    type FruchtermanReingoldOptions,
+    type LayoutSimulation,
+    type SimulationOptions,
+    type SimulationType,
+    type SpringElectricalOptions,
 } from "@graphty/layout";
 
 import type { AccelerationPrecision, GraphAccelerator } from "../acceleration/types";
@@ -104,6 +115,16 @@ interface FakeAcceleratorOptions {
     readonly moveBy?: number;
     /** Batches a simulation accepts before coalescing onto the oldest. Default 2. */
     readonly maxInFlight?: number;
+    /**
+     * What a landed batch computes: the exact translation, or the layout that was asked for.
+     *
+     * `"translation"` is the default and is what every assertion in this package is written
+     * against. `"layout"` runs the CPU simulation of the layout the caller built -- ForceAtlas2
+     * for `forceAtlas2()`, Fruchterman-Reingold for `fruchtermanReingold()` -- so the arrangement
+     * is that layout's own and a story drawing it draws the thing its name promises. `moveBy` and
+     * `settleAfter` do not apply to it: the simulation settles on its own terms.
+     */
+    readonly computes?: "translation" | "layout";
     /** A device-loss promise, for the recovery paths. Absent means this backend cannot lose one. */
     readonly lost?: Promise<{ reason: string }>;
     /**
@@ -170,8 +191,11 @@ function disposedError(what: string): GraphtyError {
  * returns the OLDEST pending promise instead of submitting another, which is how a real GPU
  * simulation keeps a frame loop from queueing work faster than the device retires it.
  *
- * What it computes is not a layout: a landed batch adds `moveBy * iterations` to the x
- * coordinate of every node that is neither fixed nor being dragged, and leaves y and z alone.
+ * What it computes depends on `computes`. By default a landed batch adds `moveBy * iterations`
+ * to the x coordinate of every node that is neither fixed nor being dragged and leaves y and z
+ * alone, which is exact and assertable and, on screen, invisible. Under `computes: "layout"` a
+ * batch runs the CPU simulation of the layout this one was built for instead, and every call this
+ * class takes -- `load`, `setFixed`, `setPosition`, `reheat`, `settled` -- is that simulation's.
  */
 export class FakeSimulation implements LayoutSimulation {
     /** The options this simulation was created with. */
@@ -184,6 +208,15 @@ export class FakeSimulation implements LayoutSimulation {
     readonly #iterationsPerStep: number;
     readonly #inFlight: Promise<void>[] = [];
     readonly #overrides = new Set<number>();
+    readonly #computes: "translation" | "layout";
+    readonly #type: SimulationType;
+    /**
+     * The CPU simulation a `computes: "layout"` batch runs; null until the first `load()`.
+     *
+     * `reheat()` is not on `LayoutSimulation` -- the element feature-tests for it the same way --
+     * so it is declared here as the optional member it is.
+     */
+    #inner: (LayoutSimulation & { reheat?: () => void }) | null = null;
     #snapshot: GraphSnapshot | null = null;
     #positions: F32 | null = null;
     #fixed: NodeMask | null = null;
@@ -198,14 +231,24 @@ export class FakeSimulation implements LayoutSimulation {
      * @param defaults.moveBy - Scene units a landed batch moves one unfixed node, per iteration.
      * @param defaults.settleAfter - Landed batches after which the simulation reports `settled`.
      * @param defaults.maxInFlight - Batches accepted before a step coalesces onto the oldest.
+     * @param defaults.computes - Whether a batch translates the nodes or runs the real layout.
+     * @param type - Which layout this simulation is, which is what `computes: "layout"` runs.
      * @param options - The simulation options the caller passed to the layout member.
      */
     constructor(
         calls: FakeAcceleratorCalls,
-        defaults: { moveBy: number; settleAfter: number; maxInFlight: number },
+        defaults: {
+            moveBy: number;
+            settleAfter: number;
+            maxInFlight: number;
+            computes: "translation" | "layout";
+        },
+        type: SimulationType,
         options: SimulationOptions = {},
     ) {
         this.options = options;
+        this.#computes = defaults.computes;
+        this.#type = type;
         this.#calls = calls;
         this.#moveBy = defaults.moveBy;
         this.#settleAfter = defaults.settleAfter;
@@ -242,7 +285,7 @@ export class FakeSimulation implements LayoutSimulation {
      * @returns Whether it has settled.
      */
     get settled(): boolean {
-        return this.#iterationsDone >= this.#settleAfter;
+        return this.#inner === null ? this.#iterationsDone >= this.#settleAfter : this.#inner.settled;
     }
 
     /**
@@ -277,6 +320,15 @@ export class FakeSimulation implements LayoutSimulation {
         this.#snapshot = snapshot;
         this.#positions = positions;
         this.#calls.load += 1;
+
+        if (this.#computes === "layout") {
+            // The CPU simulation seeds its own unplaced rows, in the range its own forces are
+            // written for, so the origin-seeding below is skipped rather than fought with.
+            this.#inner?.dispose();
+            this.#inner = createSimulation(this.#type, this.options);
+            this.#inner.load(snapshot, positions);
+            return;
+        }
 
         const slots = Math.min(snapshot.nodeCount * 3, positions.length);
         for (let slot = 0; slot < slots; slot += 1) {
@@ -315,6 +367,7 @@ export class FakeSimulation implements LayoutSimulation {
     setFixed(mask: NodeMask): void {
         this.#assertLive("setFixed");
         this.#fixed = mask.slice();
+        this.#inner?.setFixed(mask);
     }
 
     /**
@@ -330,6 +383,7 @@ export class FakeSimulation implements LayoutSimulation {
      */
     setPosition(index: number, x: number, y: number, z: number): void {
         this.#assertLive("setPosition");
+        this.#inner?.setPosition(index, x, y, z);
         const positions = this.#positions;
         if (positions !== null && 3 * index + 2 < positions.length) {
             positions[3 * index] = x;
@@ -345,6 +399,10 @@ export class FakeSimulation implements LayoutSimulation {
         this.#assertLive("reheat");
         this.#iterationsDone = 0;
         this.#calls.reheat += 1;
+
+        if (typeof this.#inner?.reheat === "function") {
+            this.#inner.reheat();
+        }
     }
 
     /**
@@ -368,6 +426,8 @@ export class FakeSimulation implements LayoutSimulation {
     /** Releases it. Every later call throws `E_DISPOSED`. */
     dispose(): void {
         this.#disposed = true;
+        this.#inner?.dispose();
+        this.#inner = null;
     }
 
     /**
@@ -388,7 +448,7 @@ export class FakeSimulation implements LayoutSimulation {
                 });
             }
 
-            this.#advance(iterations);
+            await this.#advance(iterations);
             this.#iterationsDone += 1;
             this.#calls.resolved += 1;
         } finally {
@@ -398,12 +458,21 @@ export class FakeSimulation implements LayoutSimulation {
 
     /**
      * Moves every node that is neither fixed nor overridden by a drag.
+     *
+     * Awaited rather than called, because a `computes: "layout"` batch runs whatever
+     * `createSimulation` handed back and the seam allows that to be asynchronous.
      * @param iterations - Iterations the batch computed.
      */
-    #advance(iterations: number): void {
+    async #advance(iterations: number): Promise<void> {
         const positions = this.#positions;
         const snapshot = this.#snapshot;
         if (positions === null || snapshot === null) {
+            return;
+        }
+
+        if (this.#inner !== null) {
+            await this.#inner.step(iterations);
+            this.#overrides.clear();
             return;
         }
 
@@ -546,11 +615,12 @@ export function createFakeAccelerator(options: FakeAcceleratorOptions = {}): Fak
         moveBy: options.moveBy ?? DEFAULT_MOVE_BY,
         settleAfter: options.settleAfter ?? DEFAULT_SETTLE_AFTER,
         maxInFlight: options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT,
+        computes: options.computes ?? "translation",
     };
     const simulations: FakeSimulation[] = [];
 
-    const build = (simulationOptions: SimulationOptions | undefined): FakeSimulation => {
-        const simulation = new FakeSimulation(calls, defaults, simulationOptions);
+    const build = (type: SimulationType, simulationOptions: SimulationOptions | undefined): FakeSimulation => {
+        const simulation = new FakeSimulation(calls, defaults, type, simulationOptions);
         simulations.push(simulation);
         return simulation;
     };
@@ -570,15 +640,15 @@ export function createFakeAccelerator(options: FakeAcceleratorOptions = {}): Fak
         },
         forceAtlas2(simulationOptions?: ForceAtlas2Options): FakeSimulation {
             calls.forceAtlas2 += 1;
-            return build(simulationOptions);
+            return build("forceatlas2", simulationOptions);
         },
         fruchtermanReingold(simulationOptions?: FruchtermanReingoldOptions): FakeSimulation {
             calls.fruchtermanReingold += 1;
-            return build(simulationOptions);
+            return build("fruchtermanReingold", simulationOptions);
         },
         springElectrical(simulationOptions?: SpringElectricalOptions): FakeSimulation {
             calls.springElectrical += 1;
-            return build(simulationOptions);
+            return build("spring-electrical", simulationOptions);
         },
         pageRank(snapshot: GraphSnapshot): Promise<PageRankResultLike> {
             calls.pageRank += 1;

@@ -27,6 +27,49 @@ function codeOf(error: unknown): string | undefined {
 }
 
 describe("the fake accelerator's simulation", () => {
+    it("computes: layout lays the graph out instead of translating it", async () => {
+        // The default batch moves every row the same distance in the same direction, which is
+        // the one thing a camera that frames the graph cannot show. Under `computes: "layout"`
+        // the batch runs the layout's own simulation, so connected rows end up near one another
+        // and the shape of the answer is the layout's rather than the shape it started in.
+        const builder = new GraphBuilder({ directed: false, addMissingNodes: true });
+        for (let i = 0; i < 12; i += 1) {
+            builder.addEdge(String(i), String((i + 1) % 12));
+        }
+
+        const ring = builder.freeze({ label: "fake-accelerator-layout-test" });
+        const fake = createFakeAccelerator({ computes: "layout" });
+        const simulation = fake.fruchtermanReingold({ dim: 2, seed: 7, iterations: 200 });
+        const positions = unplaced(12);
+
+        simulation.load(ring, positions);
+        await simulation.step(200);
+
+        assert.isTrue(simulation.settled, "the layout ran to its own iteration budget");
+        assert.strictEqual(fake.calls.resolved, 1, "the batch landed on the accelerator");
+
+        // A ring drawn by a force layout is a ring: every neighbour is nearer than the average
+        // pair, which a translated seed scatter has no reason to be.
+        const at = (i: number): [number, number] => [positions[3 * i], positions[3 * i + 1]];
+        const gap = (i: number, j: number): number => Math.hypot(at(i)[0] - at(j)[0], at(i)[1] - at(j)[1]);
+        let neighbours = 0;
+        let pairs = 0;
+        let pairCount = 0;
+        for (let i = 0; i < 12; i += 1) {
+            neighbours += gap(i, (i + 1) % 12);
+            for (let j = i + 1; j < 12; j += 1) {
+                pairs += gap(i, j);
+                pairCount += 1;
+            }
+        }
+
+        assert.isBelow(
+            neighbours / 12,
+            (pairs / pairCount) * 0.75,
+            "a ring laid out by the layout draws its neighbours closer than its average pair",
+        );
+    });
+
     it("step moves unmasked rows by moveBy * k and leaves fixed rows", async () => {
         const fake = createFakeAccelerator({ moveBy: 2 });
         const simulation = fake.forceAtlas2();

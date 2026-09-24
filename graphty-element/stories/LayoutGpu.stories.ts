@@ -131,25 +131,24 @@ function acceleratedStory(configure: (element: Graphty) => void): Decorator {
 const fakes = new WeakMap<Graphty, FakeAccelerator>();
 
 /**
- * Attaches the fake accelerator.
+ * Attaches the fake accelerator, set to compute the layout rather than to translate the graph.
  *
- * `settleAfter` counts landed batches rather than seconds, and `moveBy` is exact, so the picture
- * a snapshot catches is the same one on a fast machine and on a slow one.
+ * `computes: "layout"` IS WHAT MAKES THESE TWO STORIES SHOW ANYTHING. The fake's default batch
+ * moves every unfixed node the same distance in the same direction, which is exact and is what
+ * the unit tests assert on -- and is invisible here, because the element frames the camera on
+ * whatever it is handed and a translated graph is the same picture in the same place. These
+ * stories drew the seed scatter under a caption naming a layout, at any settle count, and the
+ * distance everything moved was the one thing a reader could not see. Told to compute the layout
+ * instead, the fake runs that layout's own simulation behind the accelerator seam, so the
+ * arrangement on screen is ForceAtlas2's and Spring's, deterministic under the seed each story
+ * names, and the batches the accelerator counted are the ones that produced it.
  *
- * IT IS ALSO A FRAME BUDGET, WHICH IS WHY IT IS SMALL. A batch lands one microtask after it is
- * submitted, and the element submits one per RENDERED frame -- so a simulation that reports
- * itself settled only after N batches has asked for N frames to be drawn first, whatever the
- * machine costs to draw them. This story's graph is the 150-node, 250-edge one, which a browser
- * with no GPU draws at about ten frames a second on a busy machine and slower on a small one,
- * and `waitForGraphSettled` gives up at fifteen seconds. At thirty batches the two fake stories
- * spent that whole budget on the frame clock and errored in the visual-regression service --
- * Chromatic builds 693 and 698 -- while every other story in the package settled in under seven
- * seconds on the same hardware. The pre-step count each story names lands the first batch before
- * the first frame is drawn; the few below it are the live accelerated path a reader watches.
+ * The arrangement is spent as PRE-STEPS, off the frame clock, which is why the stories finish
+ * quickly whatever the machine draws at: see the count each one names.
  * @param element - The element to inject into.
  */
 function attachFake(element: Graphty): void {
-    const fake = createFakeAccelerator({ settleAfter: 5, moveBy: 0.05 });
+    const fake = createFakeAccelerator({ computes: "layout" });
 
     element.session.setAccelerator(fake);
     fakes.set(element, fake);
@@ -241,9 +240,12 @@ type Story = StoryObj<StoryArgs>;
 
 /**
  * ForceAtlas2 driven by the fake accelerator: the accelerated path, without a device in the
- * answer. The caption reads `active` while the layout is stepping and `idle` once it has settled,
- * which is where a screenshot catches it: both words mean an accelerator is attached, and the
- * story's `play` asks the fake itself whether the layout ran on it.
+ * answer. The picture is ForceAtlas2's own arrangement of this graph, computed inside the
+ * accelerator rather than beside it, so what a reader compares against the CPU stories is the
+ * same layout reached the other way. The caption reads `active` while the layout is stepping and
+ * `idle` once it has settled, which is where a screenshot catches it: both words mean an
+ * accelerator is attached, and the story's `play` asks the fake itself whether the layout ran on
+ * it.
  */
 export const ForceAtlas2Fake: Story = {
     name: "ForceAtlas2 (fake accelerator)",

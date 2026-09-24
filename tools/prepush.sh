@@ -129,13 +129,12 @@ echo "  Testing layout..."
 echo "  Testing graphty-element (default + mesh + contract + xr)..."
 (cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }
 
-# The cost-estimate stopwatch test (COST_GUARD=1), whose rates were fitted on this reference
-# machine and do not hold on CI's runners (see test/session/cost/estimate-against-measured-runs.test.ts).
-# It runs on its own, after the batch above, because the batch saturates every CPU: with the
-# hyperthread sibling of the guard's core busy, memory-bound work such as the degree row runs
-# 2-2.7x slower while the calibration probe slows 1.5x, and the estimate reads optimistic.
-echo "  Testing graphty-element cost estimates against a stopwatch..."
-(cd graphty-element && COST_GUARD=1 npx vitest run --project=default test/session/cost/estimate-against-measured-runs.test.ts) || { FAILED=1; TESTS_FAILED=1; }
+# The cost-estimate stopwatch test is NOT part of this gate: run it by hand on a quiet machine with
+# `pnpm --filter @graphty/graphty-element run test:cost`. Its rates were fitted on this reference
+# machine, and even timed on running time and pinned to the P-cores it cannot be made immune to a
+# busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
+# calibration probe slows 1.5x -- and a gate cannot promise an idle machine
+# (see test/session/cost/estimate-against-measured-runs.test.ts).
 
 # graphty is NOT run here -- it has no 'default' project to run. Its whole suite is
 # playwright-backed, so it gets its own step (and its own flag) after this block.

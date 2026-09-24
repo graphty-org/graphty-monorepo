@@ -521,10 +521,11 @@ function seconds(work: () => unknown): number {
  */
 function fastestCoreCpus(): string | undefined {
     const root = "/sys/devices/system/cpu";
-    const topClock = (cpu: string): number =>
-        Number(readFileSync(`${root}/${cpu}/cpufreq/cpuinfo_max_freq`, "utf8"));
+    const topClock = (cpu: string): number => Number(readFileSync(`${root}/${cpu}/cpufreq/cpuinfo_max_freq`, "utf8"));
     const cpus = existsSync(root)
-        ? readdirSync(root).filter((name) => /^cpu\d+$/.test(name) && existsSync(`${root}/${name}/cpufreq/cpuinfo_max_freq`))
+        ? readdirSync(root).filter(
+              (name) => /^cpu\d+$/.test(name) && existsSync(`${root}/${name}/cpufreq/cpuinfo_max_freq`),
+          )
         : [];
     const slowest = Math.min(...cpus.map(topClock));
     const fast = cpus.filter((cpu) => topClock(cpu) > slowest).map((cpu) => cpu.slice(3));
@@ -588,7 +589,9 @@ let affinity: string | undefined;
 beforeAll(async () => {
     const cpus = process.env.COST_GUARD === "1" ? fastestCoreCpus() : undefined;
     if (cpus !== undefined) {
-        affinity = execFileSync("taskset", ["-p", "-c", String(process.pid)], { encoding: "utf8" }).split(": ")[1].trim();
+        affinity = execFileSync("taskset", ["-p", "-c", String(process.pid)], { encoding: "utf8" })
+            .split(": ")[1]
+            .trim();
         execFileSync("taskset", ["-a", "-p", "-c", cpus, String(process.pid)]);
     }
 
@@ -603,9 +606,9 @@ afterAll(() => {
 
 // A stopwatch test. Its rates were fitted on the reference machine the pre-push gate runs on, and
 // the calibration probe did not carry them to CI's runners: there, degree, pagerank, betweenness
-// and closeness read 9 to 17 times pessimistic while the same rows pass here. So it runs where
-// the rates were measured -- tools/prepush.sh sets COST_GUARD=1 -- and nowhere else, until the
-// calibration is shown to transfer.
+// and closeness read 9 to 17 times pessimistic while the same rows pass here. So it runs only
+// where the rates were measured, by hand on a quiet machine -- `npm run test:cost` sets
+// COST_GUARD=1; it is not in the pre-push gate -- until the calibration is shown to transfer.
 describe.runIf(process.env.COST_GUARD === "1")(
     "the cost estimate, against real runs of the algorithm the element runs",
     () => {

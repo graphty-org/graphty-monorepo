@@ -127,9 +127,14 @@ echo "  Testing layout..."
 # five and four shards absorb them. The contract lane is the cheap substitute: same class of defect,
 # a twentieth of the time.
 echo "  Testing graphty-element (default + mesh + contract + xr)..."
-# COST_GUARD=1 runs the cost-estimate stopwatch test, whose rates were fitted on this reference
-# machine and do not hold on CI's runners (see test/session/cost/estimate-against-measured-runs.test.ts).
-(cd graphty-element && COST_GUARD=1 npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }
+(cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }
+
+# The cost-estimate stopwatch test is NOT part of this gate: run it by hand on a quiet machine with
+# `pnpm --filter @graphty/graphty-element run test:cost`. Its rates were fitted on this reference
+# machine, and even timed on running time and pinned to the P-cores it cannot be made immune to a
+# busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
+# calibration probe slows 1.5x -- and a gate cannot promise an idle machine
+# (see test/session/cost/estimate-against-measured-runs.test.ts).
 
 # graphty is NOT run here -- it has no 'default' project to run. Its whole suite is
 # playwright-backed, so it gets its own step (and its own flag) after this block.

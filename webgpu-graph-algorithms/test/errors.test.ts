@@ -22,6 +22,7 @@ const CODES: readonly WebGpuGraphErrorCode[] = [
     "E_NO_DEVICE",
     "E_SOFTWARE_ONLY",
     "E_DEVICE_LOST",
+    "E_DEVICE_INCORRECT",
     "E_DISPOSED",
     "E_VALIDATION",
     "E_SHADER_COMPILE",
@@ -48,7 +49,7 @@ describe("WebGpuGraphError (contract 3.1)", () => {
     });
 
     it("accepts every code of the closed union exactly once", () => {
-        expect(new Set(CODES).size).toBe(16);
+        expect(new Set(CODES).size).toBe(17);
         for (const code of CODES) {
             expect(new WebGpuGraphError(code, code).code).toBe(code);
         }

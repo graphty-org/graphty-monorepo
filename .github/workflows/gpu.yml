@@ -4,6 +4,21 @@
 # decision, 2026-09-18). The lane runs on every master push, and on a pull request of this repository labelled
 # `gpu`; there is NO nightly cron (owner decision, 2026-09-19 -- the gate already runs it on everything that
 # reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner).
+# The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
+# is terminated at that mark -- "free plan runners are limited to 30 minutes", the message that killed run
+# 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master -- and by 2026-09-21 the package's own
+# suites no longer fit: 18 minutes for the node and node-limits projects, 11.5 for the no-subgroups twins, a minute
+# for the browser smoke, then the benchmarks, against 18 minutes for all of it a phase earlier. The growth is
+# cumulative across P3, P5 and P4 rather than any one of them, and the million-node limits file alone, which runs
+# nowhere else, is nine of those minutes. Splitting the work across matrix legs was tried and does not work on this
+# provider: three legs at once are refused with "concurrent runner limit reached", and sequential legs never get a
+# second machine, which suggests a run holds its runner until the whole run ends. The plan is therefore what had to
+# change (owner decision, 2026-09-22); the timeout below is this job's own, inside whatever the plan now allows.
+# A one-off credit bundle does NOT lift the cap: run 35748654167 (2026-09-22, bought credits on the account) ran
+# every test step green on the T4 -- node and node-limits 17 minutes, the no-subgroups twins 11.5, the browser
+# smoke 1 -- and was then shut down 32 minutes in, a minute into the benchmarks, with "The runner has received a
+# shutdown signal". The cap goes with the PLAN, and a subscription lifts it: on the very next run, 35775999450,
+# the same job ran 33m40s and finished every step green, benchmarks and the regression comparison included.
 # design/webgpu/webgpu-acceleration-plan.md sections 12.1-12.6; the staging lane ported with three
 # changes: paths without the packages/ prefix, its own install and nx build on the runner (no artifact download,
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).
@@ -42,7 +57,7 @@ jobs:
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
-        timeout-minutes: 45
+        timeout-minutes: 75 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); this leaves room for a slower machine without waiting on a hung one
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -67,8 +82,21 @@ jobs:
             - name: graph-format GPU audit on NVIDIA (canary)
               working-directory: graph-format
               run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
-            - run: pnpm exec vitest run --project=node --project=node-limits
-            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node # the whole node project on the twins
+            # both node projects through scripts/run-node-shard.js: it forwards every argument, exits with vitest's
+            # own code, and on a non-zero exit or 90 seconds of silence prints the test files that started but never
+            # reported, the process table and a Node diagnostic report per surviving process (G4-F14)
+            - run: node scripts/run-node-shard.js --project=node --project=node-limits
+            # The files that break a device on purpose, in an invocation of their own so a worker they kill takes
+            # eleven files with it instead of the whole lane. Its own invocation is also what makes it run one file
+            # at a time: vitest reads fileParallelism from the ROOT config, so a run that selects this project
+            # together with another would serialise that one too.
+            - run: node scripts/run-node-shard.js --project=node-device-errors
+            # The twin pass, in two invocations because the device-error files are their own project now.
+            # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
+            # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
+            # where a missing-subgroup code path is most likely to behave differently.
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
             - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4

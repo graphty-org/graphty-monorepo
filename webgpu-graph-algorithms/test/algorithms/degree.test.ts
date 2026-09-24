@@ -9,15 +9,20 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+
 import { degree } from "../../src/algorithms/degree.js";
 import { WebGpuGraphError } from "../../src/errors.js";
+import { type GraphResidency } from "../../src/memory/residency.js";
 import { type GpuCaps } from "../../src/types/context.js";
 import {
     type ArcWindowSpec,
+    degreeFakedLimitRun,
     type DegreeRun,
     degreeRun,
     degreeWindowedRun,
     windowsOf,
+    withResidency,
 } from "../helpers/degree-check.js";
 import { csrSnapshotOf, fixture, FIXTURE_NAMES, KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
@@ -32,7 +37,7 @@ import {
 } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { outDegreeOracle } from "../oracle/degree.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const KARATE_UNDIRECTED = [
     16, 9, 10, 6, 3, 4, 4, 4, 5, 2, 3, 1, 2, 5, 2, 2, 2, 2, 2, 3, 2, 2, 2, 5, 3, 3, 2, 4, 3, 4, 4, 6, 12, 17,
@@ -40,6 +45,34 @@ const KARATE_UNDIRECTED = [
 const KARATE_DIRECTED = [
     16, 8, 8, 3, 2, 3, 1, 0, 3, 1, 0, 0, 0, 1, 2, 2, 0, 0, 2, 1, 2, 0, 2, 5, 3, 1, 2, 1, 2, 2, 2, 2, 1, 0,
 ];
+
+/**
+ * A seeded G(n, m) with parallels and self-loops (an LCG over typed arrays: 10n edges at n = 2^20 must not go through
+ * a tuple list) plus one star of `leaves` leaves on node 0, undirected: the hub row is node 0.
+ * @param n - the node count
+ * @param m - the random edge count
+ * @param leaves - the star's leaves (nodes 1..leaves)
+ * @param seed - the generator seed
+ * @returns the snapshot
+ */
+function hubbedRandom(n: number, m: number, leaves: number, seed: number): GraphSnapshot {
+    const src = new Uint32Array(m + leaves);
+    const dst = new Uint32Array(m + leaves);
+    let state = seed >>> 0;
+    const next = (): number => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state;
+    };
+    for (let e = 0; e < m; e++) {
+        src[e] = next() % n;
+        dst[e] = next() % n;
+    }
+    for (let i = 0; i < leaves; i++) {
+        src[m + i] = 0;
+        dst[m + i] = 1 + (i % (n - 1));
+    }
+    return fromEdgeArrays({ directed: false, nodeCount: n, src, dst }, { label: `hubbed-random-${n}` });
+}
 
 describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
     it("equals outDegreeOracle bitwise on every named fixture, twice, and release() leaves no buffers", async (t) => {
@@ -159,43 +192,48 @@ describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
         }
     });
 
-    it("a windowed plan from the residency is re-thrown as E_TOO_LARGE { path: windowed, algorithm: degree }; other errors pass through", async (t) => {
+    it("the G4 item: windowed degree at a faked 1 MiB binding limit (>= 8 windows) with a hub row longer than a window equals outDegree() bitwise, twice", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
         try {
-            // residency.core() (contract 3.8) throws the windowed E_TOO_LARGE with algorithm: null before it would
-            // ever return a windowed CoreBinding; a snapshot large enough to reach that on a real device needs
-            // faked caps (P4), so the residency is substituted through a Proxy that leaves every other member of
-            // the real context (assertReady, caps, pool, ...) bound to it.
+            const scale = gpuScale();
+            const limit = Math.max(256, 256 * Math.round((2 ** 20 * scale) / 256));
+            // the planner needs rowPtr inside the binding too: the largest row count whose rowPtr fits (262,143 at 1 MiB)
+            const n = limit / 4 - 1;
+            const leaves = Math.ceil(300_000 * scale);
+            const s = hubbedRandom(n, 10 * n, leaves, 20);
+            expect(s.nodeCount).toBe(n);
+            const first = await degreeFakedLimitRun(ctx, s, limit, "degree-faked-limit");
+            expect(first.windows.length).toBeGreaterThanOrEqual(8);
+            const hubWindows = first.windows.filter((w) => w.rowFirst <= 0 && w.rowLast >= 0);
+            expect(hubWindows.length).toBeGreaterThanOrEqual(2);
+            expect(first.run.expected[0]).toBeGreaterThan(limit / 4);
+            const second = await degreeFakedLimitRun(ctx, s, limit, "degree-faked-limit-again");
+            expectBitwiseEqual(second.run.result, first.run.result, "windowed degree twice");
+            assertCheckPasses(first.run.report);
+            expectBitwiseEqual(first.run.result, first.run.expected, "windowed degree vs outDegree()");
+            expectBitwiseEqual(first.run.result, s.outDegree(), "windowed degree vs snapshot.outDegree()");
+            expect(ctx.residency.stats().snapshots).toBe(0);
+            // the faked residency destroyed its window buffers; what remains live is the pool's idle scratch
+            ctx.pool.trim();
+            expect(ctx.allocator.liveBuffers).toBe(0);
+        } finally {
+            ctx.dispose();
+        }
+    });
+
+    it("an error thrown by the residency passes through untouched (E_RELEASED)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire();
+        try {
             const s = snapshotOf(KARATE_EDGES);
-            const windowed = new WebGpuGraphError("E_TOO_LARGE", "snapshot 1: an arc array needs arc windows", {
-                needed: 8,
-                limit: 4,
-                path: "windowed",
-                algorithm: null,
-            });
             const released = new WebGpuGraphError("E_RELEASED", "snapshot 1 was released", { serial: 1 });
-            let thrown: WebGpuGraphError = windowed;
             const fakeResidency = {
                 core: (): never => {
-                    throw thrown;
+                    throw released;
                 },
             };
-            const proxied = new Proxy(ctx, {
-                get(target, key, receiver): unknown {
-                    if (key === "residency") {
-                        return fakeResidency;
-                    }
-                    const value: unknown = Reflect.get(target, key, receiver);
-                    return typeof value === "function" ? value.bind(target) : value;
-                },
-            });
-            await expect(degree(proxied, s)).rejects.toMatchObject({
-                name: "WebGpuGraphError",
-                code: "E_TOO_LARGE",
-                details: { needed: 8, limit: 4, path: "windowed", algorithm: "degree" },
-            });
-            thrown = released;
+            const proxied = withResidency(ctx, fakeResidency as unknown as GraphResidency);
             await expect(degree(proxied, s)).rejects.toBe(released);
             expect(ctx.residency.stats().snapshots).toBe(0);
         } finally {

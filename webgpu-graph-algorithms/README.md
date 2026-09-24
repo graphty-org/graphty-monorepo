@@ -5,17 +5,18 @@ WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format`
 
 | Entry                                      | Import        | What it gives you                                                                                                                                                                                                                                       |
 | ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@graphty/webgpu-graph-algorithms`         | the core      | `createForceAtlas2`, `createAccelerator`, `GpuContext`, `degree`, `seedPositions`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
+| `@graphty/webgpu-graph-algorithms`         | the core      | `createForceAtlas2`, `createAccelerator`, `GpuContext`, `degree`, `seedPositions`, `verifyDevice`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
 | `@graphty/webgpu-graph-algorithms/node`    | Node only     | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`                                                                                                                                                                          |
 | `@graphty/webgpu-graph-algorithms/browser` | browsers only | `probeBrowserWebGpu`, `requestGpuContext`                                                                                                                                                                                                               |
 
-**Status: phase P3 (ForceAtlas2, exact tier).** The GPU ForceAtlas2 is usable from Node (`run()`) and from a
-browser frame loop (`step()` once per frame) up to `exactMaxNodes` = 32768 nodes with the default
-`repulsion: "auto"`, and at any size with `repulsion: "exact"` (all pairs, O(n^2) per iteration: 18.971 ms per
-iteration at 100k nodes / 1M edges on an RTX 4070 SUPER). The grid tier for 10^5-10^6 nodes (P4),
-Fruchterman-Reingold (P5) and the algorithms (P7+) follow the phase plan of `design/webgpu/webgpu-acceleration-plan.md` (monorepo root)
-section 13 and the interface contract `design/webgpu/plans/2026-09-14-webgpu-p0-p3-interfaces.md`; the gate
-record of this phase is `docs/decisions/G3.md`. There is no CPU fallback anywhere in this package: when no
+**Status: phase P4 (ForceAtlas2, exact and grid tiers).** The GPU ForceAtlas2 is usable from Node (`run()`) and
+from a browser frame loop (`step()` once per frame) at any size: the default `repulsion: "auto"` runs the exact
+tier up to `exactMaxNodes` = 32768 nodes (owner decision G4-D1 in `docs/decisions/G4.md`) and the grid tier above
+it; `repulsion: "exact"` forces all pairs at any size (O(n^2) per iteration: 18.971 ms per iteration at 100k
+nodes / 1M edges on an RTX 4070 SUPER) and `repulsion: "grid"` forces the grid tier. The phases follow the phase
+plan of `design/webgpu/webgpu-acceleration-plan.md` (monorepo root) section 13 and the interface contract
+`design/webgpu/plans/2026-09-14-webgpu-p0-p3-interfaces.md`; the gate record of this phase is
+`docs/decisions/G4.md` (the exact tier's is `G3.md`, Fruchterman-Reingold's `G5.md`). There is no CPU fallback anywhere in this package: when no
 adapter or device exists it throws `WebGpuGraphError`.
 
 ## Install
@@ -61,8 +62,8 @@ ctx.release(snapshot); // destroys the snapshot's buffers (nothing is freed by G
 ctx.dispose(); // destroys the device and lets the process exit
 ```
 
-Sizes above `exactMaxNodes` need `repulsion: "exact"` until the grid tier lands (P4); with the default
-`"auto"` the simulation rejects `load()` with `E_UNSUPPORTED { feature: "repulsion.grid" }`. The same run
+Above `exactMaxNodes` the default `"auto"` picks the grid tier (spec 7.8: by n alone); `repulsion: "exact"`
+keeps the all-pairs tier at any size and `repulsion: "grid"` picks the grid tier at any size. The same run
 from the command line, with a verification of the result:
 
 ```bash
@@ -85,7 +86,7 @@ if (!probe.ok) {
     throw new Error(`${probe.code}: ${probe.reason ?? ""}`); // E_NO_WEBGPU, E_NO_ADAPTER or E_SOFTWARE_ONLY
 }
 const ctx = await requestGpuContext({ adapter: probe.adapter ?? undefined });
-const acc = createAccelerator(ctx, { layout: { exactMaxNodes: 32768 } }); // the tuning every simulation inherits
+const acc = createAccelerator(ctx, { layout: { exactMaxNodes: 4096 } }); // the tuning every simulation inherits
 const sim = acc.forceAtlas2({ seed: 1, iterationsPerStep: 1, maxInFlight: 2 });
 sim.load(snapshot, positions); // positions: your stride-3 Float32Array; NaN rows are seeded
 
@@ -146,13 +147,13 @@ names and defaults as the CPU port in `@graphty/layout`) plus the GPU tuning:
 GPU tuning (`GpuLayoutTuning`; also the `layout` field of `createAccelerator`'s options, inherited by every
 simulation the accelerator creates):
 
-| Option                                              | Default                 | Meaning                                                                                                                                    |
-| --------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `repulsion`                                         | `"auto"`                | `"exact"` at any n; `"auto"` = exact iff n <= `exactMaxNodes`; `"grid"` is `E_UNSUPPORTED` until P4                                        |
-| `exactMaxNodes`                                     | `32768`                 | the crossover, measured on the RTX 4070 SUPER (`docs/decisions/G3.md`); pass your own for another GPU (P4's `calibrateLayout` measures it) |
-| `deterministic`                                     | `true`                  | fixed summation order (the exact tier is always deterministic)                                                                             |
-| `compat`                                            | `"paper"`               | `"networkx"` reproduces NetworkX 3.4's `forceatlas2_layout` (gravity toward the origin, its accumulated swing / traction)                  |
-| `nearMax`, `gridMax2D`, `gridMax3D`, `extentFactor` | `64`, `512`, `128`, `6` | stored for the grid tier (P4)                                                                                                              |
+| Option                                              | Default                 | Meaning                                                                                                                                                                                                                    |
+| --------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repulsion`                                         | `"auto"`                | `"exact"` at any n; `"auto"` = exact iff n <= `exactMaxNodes`, else grid; `"grid"` at any n                                                                                                                                |
+| `exactMaxNodes`                                     | `32768`                 | the G3 value, kept by owner decision G4-D1 while the accuracy work G4-F1 leaves is open (`docs/decisions/G4.md`; the section 7.8 rule computes 1024 on the RTX 4070 SUPER); pass your own (`calibrateLayout` measures it). |
+| `deterministic`                                     | `true`                  | fixed summation order (the exact tier is always deterministic)                                                                                                                                                             |
+| `compat`                                            | `"paper"`               | `"networkx"` reproduces NetworkX 3.4's `forceatlas2_layout` (gravity toward the origin, its accumulated swing / traction)                                                                                                  |
+| `nearMax`, `gridMax2D`, `gridMax3D`, `extentFactor` | `64`, `512`, `128`, `6` | stored for the grid tier (P4)                                                                                                                                                                                              |
 
 Every range error is `E_INVALID_ARGUMENT` (`gravity < 0`, `scalingRatio <= 0`, `jitterTolerance <= 0`,
 `maxIter < 1`, `settleWindow < 1`, `maxInFlight < 1`, `iterationsPerStep < 1`, `dim` not 2 or 3,
@@ -246,7 +247,7 @@ requestGpuContext();` replace the first import and line; the rest is identical.
 ## Errors
 
 Every condition the package detects itself is a `WebGpuGraphError` with a stable `code`
-(`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_NO_DEVICE`, `E_SOFTWARE_ONLY`, `E_DEVICE_LOST`, `E_DISPOSED`,
+(`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_NO_DEVICE`, `E_SOFTWARE_ONLY`, `E_DEVICE_LOST`, `E_DEVICE_INCORRECT`, `E_DISPOSED`,
 `E_VALIDATION`, `E_SHADER_COMPILE`, `E_OUT_OF_MEMORY`, `E_TOO_LARGE`, `E_UNSUPPORTED`,
 `E_INVALID_ARGUMENT`, `E_SNAPSHOT`, `E_RELEASED`, `E_NOT_LOADED`, `E_ABORTED`) and frozen `details`.
 `isWebGpuGraphError(x)` and `hasErrorCode(x, code)` are structural brand checks, so they survive two copies
@@ -254,6 +255,38 @@ of the package. The graph-format codes `E_GPU_INELIGIBLE`, `E_UNKNOWN_NODE`, `E_
 `E_COLUMN_LENGTH` pass through unchanged (`PASSTHROUGH_FORMAT_CODES`). A simulation whose snapshot was
 released rejects its next `step()` with `E_RELEASED`; a lost device disposes every simulation and rejects
 every pending `step()` with `E_DEVICE_LOST` (create a new context from a fresh adapter and `load()` again).
+
+## The device self-check
+
+Some GPU drivers return wrong answers rather than failing. On Windows over the Microsoft Basic Render Driver,
+compute shaders that synchronise across a workgroup produce silently incorrect results, which would make every
+number this package computes there unreliable with no error anywhere.
+
+So the first algorithm or layout you run on a context asks the device for an answer this package already knows --
+an exclusive scan across 33 workgroups of known numbers (8,193 words on a 256-lane device), verified word by word
+on the host -- and refuses a device that gets it wrong with `E_DEVICE_INCORRECT`, naming the first wrong word,
+what belonged there and the adapter's description string. It runs once per device and is remembered: 14-20 ms
+the first time, nearly all of it compiling the two scan pipelines that any scan-using algorithm would compile
+anyway, and 0.6-1.0 ms of work under that (measured on Dawn over lavapipe and over an RTX 4070 SUPER). It cannot be switched off: a flag for it would be off in
+somebody's production build, which is the silent wrong answers walking back in.
+
+Choosing the processor instead is your decision, not the package's, so nothing falls back. To ask before you
+commit work to a device, call it yourself:
+
+```ts
+import { verifyDevice } from "@graphty/webgpu-graph-algorithms";
+
+const check = await verifyDevice(ctx); // memoised: the algorithms below reuse this result
+if (!check.ok) {
+    // check.mismatch names the first wrong word; check.description is the adapter string that identifies the driver
+    runOnTheCpuInstead();
+}
+```
+
+It checks one property -- that values crossing a workgroup barrier, and block totals crossing dispatches of one
+compute pass, survive. A device that gets that right and gets atomics or float rounding wrong still passes. It is
+a refusal mechanism, not a certificate of correctness; `docs/decisions/device-self-check.md` records what it
+covers, what it does not, and why the package refuses such a device rather than computing around it.
 
 ## Benchmarks
 
@@ -277,10 +310,15 @@ the profiler reports; every rung starts with an untimed clock warm-up burst, bec
 SM clock at its idle 210 MHz under sparse sub-millisecond dispatches and the kernels then measure 4-15x slower),
 `pagerank` (T-8), `wcc` (T-9), `layout-fr` (T-14: `step(1)` of `createFruchtermanReingold` and `createSpringElectrical`
 at 10k and at 100k with `repulsion: "exact"`, the same two rows per model and rung as `layout-exact`, tagged `fr` /
-`se`). The Chromium number of T-5 comes from the `bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node
-scripts/run-browser-project.js`), which appends its session through the Vitest commands bridge. `exactMaxNodes` is
-re-fixed from the ladder by the rule of plan section 7.8 (the largest rung under 4 ms per iteration, rounded down to a
-power of two; `benchmarks/layout-exact.bench.ts` `exactMaxNodesFromLadder`).
+`se`), `layout-grid` (T-6 and T-7: `step(1)` of the grid tier on the grid ladder 32k / 65k / 100k / 262k / 1M in 2D
+and in 3D, the same two rows per rung tagged `grid` with the dimension, plus the `fa2-attraction` pass of the 1M 2D
+iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check). The Chromium numbers of T-5 (10k on the exact tier, 100k on the grid tier) come from the
+`bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node scripts/run-browser-project.js`), which appends its
+session through the Vitest commands bridge. `exactMaxNodes` is re-fixed from the ladder by the rule of plan section 7.8
+(the largest rung under 4 ms per iteration and not slower than the grid tier at the same n -- the `layout-grid` 2D rows,
+which the group also records at the exact ladder's 1k / 4k / 8k / 16k rungs so the clause has a row at every rung --
+rounded down to a power of two; `benchmarks/layout-exact.bench.ts` `exactMaxNodesFromLadder`); `calibrateLayout(ctx)`
+measures the same crossover on a consumer's own device.
 
 ## Performance
 
@@ -291,18 +329,21 @@ are the T-table of plan section 10.4. A missed target is re-fixed by a recorded 
 
 ### The dev box (nvidia-lovelace-driver580)
 
-Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 2026-09-20T01:06:48.656Z, medians of 5 runs; Chromium: nvidia / lovelace (nvidia-lovelace-driver0, the description is redacted by Chromium), session 2026-09-16T02:18:11.896Z.
+Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 2026-09-20T01:06:48.656Z, medians of 5 runs; Chromium: nvidia / lovelace (nvidia-lovelace-driver0, the description is redacted by Chromium), session 2026-09-16T02:18:11.896Z. The T-5 (100k), T-6 and T-7 rows are from the later session 2026-09-21T06:15:17.027Z (the file's last session, the current baseline, the one the crossover re-check reads; its Chromium session 2026-09-21T05:48:14.190Z), whose other rows are within 1.25x of this table's.
 
-| Id   | What                                                                                                                                     | Target              | Measured               |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- |
-| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms | 5.980 ms; 125.738 ms   |
-| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms             | 0.870 ms               |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms           | 0.181 ms               |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms    | 0.586 ms; 1.053 ms     |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms             | 2.400 ms (0.726 ms)    |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s | 17.204 ms; 198.645 ms  |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms           | 145.970 ms (12.613 ms) |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded            | 0.617 ms; 16.367 ms    |
+| Id   | What                                                                                                                                     | Target                        | Measured                     |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------- |
+| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms           | 5.980 ms; 125.738 ms         |
+| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms                       | 0.870 ms                     |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms                     | 0.181 ms                     |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms              | 0.586 ms; 1.053 ms           |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms                       | 2.400 ms (0.726 ms)          |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium (Node in brackets)                           | <= 12 ms                      | 3.700 ms (2.087 ms)          |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D; at 1M 2D; at 100k 3D                                                | <= 10 ms; <= 100 ms; <= 20 ms | 0.634 ms; 5.414 ms; 1.306 ms |
+| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                            | <= 15 ms                      | 1.493 ms                     |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s           | 17.204 ms; 198.645 ms        |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms                     | 145.970 ms (12.613 ms)       |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded                      | 0.617 ms; 16.367 ms          |
 
 Three rows miss their target in this session: the 1M / 10M upload (125.7 ms against 100 ms, the open owner decision of
 `docs/decisions/G1.md` section 7), the empty-submit round trip (0.181 ms against 0.1 ms: the row is measured after the
@@ -336,23 +377,28 @@ GPU time per iteration in the last batch).
 
 The first run of the GPU lane (`gpu.yml`, graphty-monorepo run 35316416067, 2026-09-18) on a machine.dev T4 -- one Tesla
 T4 (16 GB), 4 vCPU of a Xeon Platinum 8259CL, driver 580.126.20 -- wrote this baseline; `scripts/bench-compare.js` fails
-a later run of the lane whose median exceeds 3x these figures. The T-table targets were set on the dev box; the T4 meets
-T-4 and T-5 and misses T-1 (both uploads), T-2 and T-3, which is the class difference of a datacentre card behind a
-cloud vCPU (host-side copies and submit latency), not a regression: the exact tier's `ms / iteration` is 1.7x the
-RTX 4070 SUPER's at 10k and 3.0x at 65k.
+a later run of the lane whose median AND minimum both exceed 1.35x the best figures this file has ever held, by at
+least 2.5 ms. The T-table targets were set on the dev box; the T4 meets
+T-4, T-5 and T-6 and misses T-1 (both uploads), T-2, T-3 and T-7 (the 1M attraction pass of the grid tier, 18.165 ms
+against 15 ms), which is the class difference of a datacentre card behind a cloud vCPU (host-side copies and submit
+latency), not a regression: the exact tier's `ms / iteration` is 1.7x the RTX 4070 SUPER's at 10k and 3.0x at 65k, and
+the grid tier's is 2.8x at 100k 2D and 5.7x at 1M 2D while the attraction pass alone is 12.2x.
 
-Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-20T02:29:33.210Z (run 35483512705), medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-20T02:28:10.676Z.
+Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-20T02:29:33.210Z (run 35483512705), medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-20T02:28:10.676Z. The T-5 (100k), T-6 and T-7 rows are from the later session 2026-09-22T20:21:53.814Z (GPU lane run 35775999450 on commit 1d2d4dcf, the file's last session and the current baseline of this class; its Chromium session 2026-09-22T20:19:30.117Z).
 
-| Id   | What                                                                                                                                     | Target              | Measured                                                                                                                                       |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms | 14.338 ms; 256.418 ms                                                                                                                          |
-| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms             | 2.957 ms                                                                                                                                       |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms           | 1.296 ms                                                                                                                                       |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms    | 0.972 ms; 1.953 ms                                                                                                                             |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms             | 2.600 ms (1.359 ms)                                                                                                                            |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s | 45.461 ms; 1092.799 ms                                                                                                                         |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms           | 293.079 ms (28.544 ms)                                                                                                                         |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded            | 0.942 ms; 54.232 ms (the spring preset 1.051 ms; 60.706 ms)                                                                                    |
+| Id   | What                                                                                                                                     | Target                        | Measured                                                                                                         |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms           | 14.338 ms; 256.418 ms                                                                                            |
+| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms                       | 2.957 ms                                                                                                         |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms                     | 1.296 ms                                                                                                         |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms              | 0.972 ms; 1.953 ms                                                                                               |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms                       | 2.600 ms (1.359 ms)                                                                                              |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium (Node in brackets)                           | <= 12 ms                      | 8.100 ms (5.314 ms)                                                                                              |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D; at 1M 2D; at 100k 3D                                                | <= 10 ms; <= 100 ms; <= 20 ms | 1.790 ms; 31.057 ms; 3.954 ms                                                                                    |
+| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                            | <= 15 ms                      | 18.165 ms -- MISSED: 21 % over the target on this card (1.493 ms on the dev box; G4-F16 of docs/decisions/G4.md) |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s           | 45.461 ms; 1092.799 ms                                                                                           |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms                     | 293.079 ms (28.544 ms)                                                                                           |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded                      | 0.942 ms; 54.232 ms (the spring preset 1.051 ms; 60.706 ms)                                                      |
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 

@@ -19,7 +19,11 @@ import {
     FA2_FLAG_FIRST,
     FR_COOLING_PATIENCE,
     FR_COOLING_STEP,
+    GRID_BBOX_MARGIN,
+    GRID_EXTENT_FLOOR,
+    GRID_HUB_CELL,
     MAX_WORKGROUPS_PER_DIM,
+    RADIX_BINS,
     U32_MAX,
     WORKGROUP_SIZE,
 } from "../constants.js";
@@ -55,6 +59,11 @@ const FA2_FLAG_FIRST: u32 = ${FA2_FLAG_FIRST}u;
 const FA2_FLAG_ADAPTIVE: u32 = ${FA2_FLAG_ADAPTIVE}u;
 const FR_COOLING_STEP: f32 = ${wgslF32Literal(FR_COOLING_STEP)};
 const FR_COOLING_PATIENCE: u32 = ${FR_COOLING_PATIENCE}u;
+const GRID_HUB_CELL: u32 = ${GRID_HUB_CELL}u;
+const GRID_EXTENT_FLOOR: f32 = ${wgslF32Literal(GRID_EXTENT_FLOOR)};
+const GRID_BBOX_MARGIN: f32 = ${wgslF32Literal(GRID_BBOX_MARGIN)};
+const RADIX_BINS: u32 = ${RADIX_BINS}u;
+const RADIX_DIGIT_MASK: u32 = ${RADIX_BINS - 1}u;
 const F32_MAX: f32 = 0x1.fffffep+127;
 override WG: u32 = ${WORKGROUP_SIZE}u;
 override USE_PERM: bool = false;

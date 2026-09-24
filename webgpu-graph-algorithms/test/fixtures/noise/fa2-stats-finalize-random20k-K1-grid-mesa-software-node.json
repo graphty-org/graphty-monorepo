@@ -1,0 +1,10 @@
+{
+    "kernel": "fa2-stats-finalize",
+    "fixture": "random20k-K1-grid",
+    "adapterClass": "mesa-software-node",
+    "dtype": "f32",
+    "values": [
+        -769.44384765625, -768.1148681640625, -768.2313232421875, 3.000903606414795, 0.33323296904563904,
+        0.7502259016036987, 0, 4
+    ]
+}

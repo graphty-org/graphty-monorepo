@@ -42,6 +42,13 @@ version of the code.
 | [2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md](2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md) | A Fruchterman-Reingold reheat restarts the temperature at 70% of the budget, not the iteration count |
 | [2026-09-20-spring-electrical-integrates-like-ngraph.md](2026-09-20-spring-electrical-integrates-like-ngraph.md) | The spring-electrical preset integrates like ngraph: semi-implicit Euler with a unit speed clamp |
 | [2026-09-20-spring-electrical-settles-by-the-shared-rule.md](2026-09-20-spring-electrical-settles-by-the-shared-rule.md) | The spring-electrical preset settles by the shared rule, not by ngraph's absolute one |
+| [2026-09-20-compact-lands-with-the-frontier-phase.md](2026-09-20-compact-lands-with-the-frontier-phase.md) | `compact` and `dedupe` land with the frontier phase, not with the grid |
+| [2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md](2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md) | Windowed execution covers `degree` and `segmentedReduce`; the layout and the pull keep their refusal |
+| [2026-09-20-sort-scratch-is-model-owned.md](2026-09-20-sort-scratch-is-model-owned.md) | The grid's sort scratch is model-owned, not a pool lease per batch |
+| [2026-09-20-scan-has-no-subgroup-variant.md](2026-09-20-scan-has-no-subgroup-variant.md) | `exclusiveScan` has no subgroup variant |
+| [2026-09-20-far-field-levels-are-a-uniform.md](2026-09-20-far-field-levels-are-a-uniform.md) | The far field's level count is a uniform, not an override |
+| [2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md](2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md) | The cell histogram is zeroed by a `fill` dispatch, not by `clearBuffer` |
+| [2026-09-20-workgroup-row-tiers-fold-without-kahan.md](2026-09-20-workgroup-row-tiers-fold-without-kahan.md) | The workgroup-per-row tiers fold plainly, without Kahan compensation |
 | [2026-09-21-m6-bridge-is-a-layout-engine.md](2026-09-21-m6-bridge-is-a-layout-engine.md) | The accelerated layout is a `LayoutEngine` subclass, not a layout factory |
 | [2026-09-21-node-mass-is-resolved-per-load.md](2026-09-21-node-mass-is-resolved-per-load.md) | A reader's `nodeMass` record is resolved to an array at every load; `nodeSize` is not offered |
 | [2026-09-21-spring-electrical-fails-loudly-on-set.md](2026-09-21-spring-electrical-fails-loudly-on-set.md) | `spring-electrical` is always offered and fails loudly without an accelerator |

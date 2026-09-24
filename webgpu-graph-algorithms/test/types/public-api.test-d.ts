@@ -10,6 +10,8 @@ import {
     type BellmanFordResultLike,
     type BetweennessAcceleratorOptions,
     type BfsResultLike,
+    calibrateLayout,
+    type CalibrateOptions,
     type CommonLayoutOptions,
     type CommunityResultLike,
     type ComponentsOptions,
@@ -33,6 +35,7 @@ import {
     type FruchtermanReingoldStats,
     type FruchtermanReingoldTraceRecord,
     type GpuAccelerator,
+    type GpuCalibration,
     type GpuCaps,
     GpuContext,
     type GpuContextOptions,
@@ -149,6 +152,7 @@ expectTypeOf<WebGpuGraphErrorCode>().toEqualTypeOf<
     | "E_NO_DEVICE"
     | "E_SOFTWARE_ONLY"
     | "E_DEVICE_LOST"
+    | "E_DEVICE_INCORRECT"
     | "E_DISPOSED"
     | "E_VALIDATION"
     | "E_SHADER_COMPILE"
@@ -341,6 +345,16 @@ expectTypeOf<LayoutStatsBase["outsideGrid"]>().toEqualTypeOf<number | null>();
 expectTypeOf<LayoutStatsBase["msPerIteration"]>().toEqualTypeOf<number | null>();
 expectTypeOf<RunOptions["signal"]>().toEqualTypeOf<AbortSignal | undefined>();
 expectTypeOf<GpuLayoutTuning["exactMaxNodes"]>().toEqualTypeOf<number | undefined>();
+// P4 (spec 2.2, 3.3 line 776): the calibration function and its two records
+expectTypeOf(calibrateLayout).parameter(0).toEqualTypeOf<GpuContext>();
+expectTypeOf(calibrateLayout).parameter(1).toEqualTypeOf<CalibrateOptions | undefined>();
+expectTypeOf(calibrateLayout).returns.toEqualTypeOf<Promise<GpuCalibration>>();
+expectTypeOf<CalibrateOptions["sizes"]>().toEqualTypeOf<readonly number[] | undefined>();
+expectTypeOf<keyof GpuCalibration>().toEqualTypeOf<
+    "pairsPerSecond" | "exactMsPerIter" | "gridMsPerIter" | "suggestedExactMaxNodes" | "firstCallMs"
+>();
+expectTypeOf<GpuCalibration["exactMsPerIter"]>().toEqualTypeOf<Readonly<Record<number, number>>>();
+expectTypeOf<GpuCalibration["suggestedExactMaxNodes"]>().toBeNumber();
 
 // ---- the accelerator (P3; contract 3.14) and the CPU packages' re-exported declarations (spec 9.2, 9.3; W1b)
 expectTypeOf(createAccelerator).parameter(0).toEqualTypeOf<GpuContext>();

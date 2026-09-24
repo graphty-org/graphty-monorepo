@@ -57,9 +57,24 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("degree")).toBe(5);
         expect(counts.get("reduce")).toBe(19);
         expect(counts.get("fill")).toBe(1);
-        expect(counts.get("segmented-reduce")).toBe(52);
+        expect(counts.get("segmented-reduce")).toBe(148);
+        expect(counts.get("fa2-attraction")).toBe(145);
+        expect(counts.get("spmv-pull")).toBe(49);
         expect(counts.get("fa2-repulsion-exact")).toBe(25);
         expect(counts.get("fa2-speed-finalize")).toBe(3);
+        expect(counts.get("indirect-finalize")).toBe(1);
+        expect(counts.get("scan-block")).toBe(1);
+        expect(counts.get("scan-add")).toBe(1);
+        expect(counts.get("histogram")).toBe(1);
+        expect(counts.get("counting-scatter")).toBe(1);
+        expect(counts.get("radix-hist")).toBe(1);
+        expect(counts.get("radix-scatter")).toBe(1);
+        expect(counts.get("grid-cell-key")).toBe(1);
+        expect(counts.get("grid-centroid")).toBe(1);
+        expect(counts.get("grid-centroid-hub")).toBe(1);
+        expect(counts.get("grid-downsample")).toBe(1);
+        expect(counts.get("grid-far-field")).toBe(4);
+        expect(counts.get("grid-near-field")).toBe(25);
     });
 
     it("every case names a registry entry, uses only its declared overrides plus the standard pair (graph kernels only), carries snippets iff the entry has slots, matches the twin axis, and is unique", () => {

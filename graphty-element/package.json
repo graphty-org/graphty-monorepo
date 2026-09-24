@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "1.10.4",
+    "version": "1.10.5",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -108,6 +108,7 @@
         "test:shard:default": "npm run test:shard:default:run",
         "test:shard:default:run": "vitest run --project=default --project=mesh",
         "test:prepush": "vitest run --project=default --project=mesh --project=contract --project=xr",
+        "test:cost": "COST_GUARD=1 vitest run --project=default test/session/cost/estimate-against-measured-runs.test.ts",
         "test:shard:browser": "npm run test:shard:browser:run",
         "test:shard:browser:run": "vitest run --project=browser --project=interactions --project=xr",
         "test:shard:storybook": "npm run test:shard:storybook:run",

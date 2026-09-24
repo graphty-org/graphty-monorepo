@@ -4,6 +4,7 @@
  * package eslint config). P0-T3 wrote AdapterInfoLike and AdapterSummary; P1-T1 completes the file.
  */
 
+import type { GpuContext } from "../context.js";
 import type { WebGpuGraphError } from "../errors.js";
 
 /** The limits `"raise"` takes from the adapter (spec 2.2); maxComputeWorkgroupsPerDimension is deliberately absent. */
@@ -132,4 +133,59 @@ export interface PlanCaps {
 /** Mutable test-build flags on a context (@internal; set by test/setup/gpu.ts from GRAPHTY_GPU_INSPECT, spec 11.9 item 2). */
 export interface GpuDebugFlags {
     inspect: boolean;
+}
+
+/**
+ * The context the device self-check runs on. `src/primitives/**` may not name GpuContext (the layer rule of
+ * spec 3.2), and this file may, so the alias is how src/primitives/verify.ts types its argument. It is
+ * GpuContext and nothing else: pass the context you were going to compute on.
+ */
+export type CheckedContext = GpuContext;
+
+/**
+ * The first word a device got wrong in the self-check. `poison` is true when the word still held the
+ * 0xdeadbeef the check wrote before the dispatch, which means NOTHING wrote it -- a different failure from a
+ * word written with the wrong value, and the distinction that made the Windows diagnosis possible.
+ */
+export interface DeviceCheckMismatch {
+    /** Where it was found: `out[<index>]`, or `total`. */
+    readonly where: string;
+    /** The value arithmetic requires there. */
+    readonly expected: number;
+    /** The value the device returned. */
+    readonly actual: number;
+    /** True when `actual` is the poison word the check wrote beforehand: nothing wrote this word. */
+    readonly poison: boolean;
+}
+
+/**
+ * What one device self-check found (spec 3.3): the capability record a caller may read BEFORE it commits work
+ * to a device, through `verifyDevice`. `mismatch === null` (equivalently `ok`) means every one of `count`
+ * output words and the total matched the arithmetic answer; a non-null `mismatch` is the device returning
+ * wrong numbers, which every compute entry point of this package turns into E_DEVICE_INCORRECT.
+ *
+ * It reports one property -- that values crossing a workgroup barrier and block totals crossing dispatches of
+ * one compute pass survive -- and is therefore a refusal mechanism, not a certificate of correctness.
+ */
+export interface DeviceCheck {
+    /** The check that ran; one today, named so a second can be added without changing the shape. */
+    readonly check: "exclusive-scan";
+    /** True when nothing disagreed. */
+    readonly ok: boolean;
+    /** The device's workgroup size (spec 5.1). */
+    readonly workgroupSize: number;
+    /** The words scanned: `blocks * workgroupSize + 1`, so the last workgroup is a partial one. */
+    readonly count: number;
+    /** The full workgroups of the scan (one partial one follows). */
+    readonly blocks: number;
+    /** Wall time of this check in milliseconds, pipeline compile included on the first call. */
+    readonly ms: number;
+    /** caps.vendor of the device that ran it. */
+    readonly vendor: string;
+    /** caps.architecture of the device that ran it. */
+    readonly architecture: string;
+    /** caps.description: the string that separates a broken driver from a fixed one. */
+    readonly description: string;
+    /** The first disagreement, or null when there was none. */
+    readonly mismatch: DeviceCheckMismatch | null;
 }

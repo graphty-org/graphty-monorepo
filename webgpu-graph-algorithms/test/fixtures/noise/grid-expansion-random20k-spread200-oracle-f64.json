@@ -1,0 +1,7 @@
+{
+    "kernel": "grid-expansion",
+    "fixture": "random20k-spread200",
+    "adapterClass": "oracle-f64",
+    "dtype": "f32",
+    "values": [3224.4935302734375, 3351.0833740234375]
+}

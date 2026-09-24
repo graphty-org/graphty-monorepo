@@ -8,6 +8,8 @@
  *    colIdx slice followed by POISON_TAIL words of INVALID_INDEX, so a read past the window (the "rebase-ignored"
  *    mutation reads `colIdx[arc]` instead of `colIdx[arc - P.arcBase]`) hits a target >= n that the bounds check
  *    refuses to count; on the real kernel the tail is never read. Rows split across windows accumulate.
+ * 3. `degreeFakedLimitRun`: the public `degree` over a GraphResidency whose binding limit is FAKED small (P4-T7), so
+ *    the residency plans and executes real arc windows; the context is proxied so only its residency differs.
  */
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
@@ -17,8 +19,10 @@ import { type GpuContext } from "../../src/context.js";
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { plan1d } from "../../src/kernel/dispatch.js";
 import { kernelSpec, RANGE_PARAMS } from "../../src/kernels.js";
-import { type Binding } from "../../src/types/memory.js";
+import { GraphResidency } from "../../src/memory/residency.js";
+import { type ArcWindow, type Binding } from "../../src/types/memory.js";
 import { outDegreeOracle } from "../oracle/degree.js";
+import { fakeCaps } from "./caps-tables.js";
 import { bindingOf, readU32, scratchBuffer, uploadBuffer } from "./device.js";
 import { fixture } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
@@ -188,6 +192,53 @@ export async function degreeWindowedRun(
         }
         rowPtrBuf.destroy();
         out.destroy();
+    }
+}
+
+/**
+ * The context with its residency replaced and every other member bound to the real one (the Proxy idiom of
+ * test/algorithms/degree.test.ts).
+ * @param ctx - the real context
+ * @param residency - the residency to substitute
+ * @returns the proxied context
+ */
+export function withResidency(ctx: GpuContext, residency: GraphResidency): GpuContext {
+    return new Proxy(ctx, {
+        get(target, key, receiver): unknown {
+            if (key === "residency") {
+                return residency;
+            }
+            const value: unknown = Reflect.get(target, key, receiver);
+            return typeof value === "function" ? value.bind(target) : value;
+        },
+    });
+}
+
+/**
+ * The faked-limit leg: `degree(ctx, s)` through a GraphResidency over `fakeCaps(ctx.caps, { maxStorageBufferBindingSize:
+ * bindingLimit })`, so the core is uploaded and executed as arc windows (P4-T7); the residency is destroyed after
+ * the run.
+ * @param ctx - the context
+ * @param s - the snapshot
+ * @param bindingLimit - the faked binding limit in bytes
+ * @param label - the report label
+ * @returns the run and the windows the residency executed
+ */
+export async function degreeFakedLimitRun(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    bindingLimit: number,
+    label: string,
+): Promise<{ readonly run: DegreeRun; readonly windows: readonly ArcWindow[] }> {
+    const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: bindingLimit });
+    const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+    try {
+        const result = await degree(withResidency(ctx, residency), s);
+        const expected = outDegreeOracle(s);
+        const windows = residency.core(s).windows ?? [];
+        return { run: { result, expected, report: bitwiseReport(result, expected, label) }, windows };
+    } finally {
+        residency.destroyAll();
     }
 }
 

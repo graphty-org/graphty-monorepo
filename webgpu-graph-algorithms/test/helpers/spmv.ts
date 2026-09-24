@@ -14,7 +14,7 @@ import { eigenvectorCentrality } from "../../src/algorithms/spectral.js";
 import { type GpuContext } from "../../src/context.js";
 import { PR_PARTIAL } from "../../src/kernels.js";
 import { type CoreBinding } from "../../src/memory/residency.js";
-import { coreOfView } from "../../src/primitives/core-shape.js";
+import { coreOfView, degreeTiersOf } from "../../src/primitives/core-shape.js";
 import {
     prepareSpmvPull,
     type SpmvCoefficients,
@@ -70,17 +70,19 @@ export interface SpmvRunOptions {
     readonly weights?: Binding | null | undefined;
     /** The reverse core to pull over (default: reverseCore(ctx, s)). */
     readonly rev?: CoreBinding | undefined;
+    /** "auto": the in-degree tiers of the snapshot's reverseDegreeOrder view (degreeTiersOf); omitted: tiers null (one grid-stride dispatch). */
+    readonly tiers?: "auto" | undefined;
 }
 
 /**
- * Uploads the reverse view, prepares the pull planner, records ONE dispatch into a fresh encoder, submits and reads
- * rankOut[0..n) back. rankOut starts as SPMV_SENTINEL so an unwritten row is visible. The snapshot stays resident
- * (the caller releases it).
+ * Uploads the reverse view, prepares the pull planner (grid-stride, or the in-degree tiers under `tiers: "auto"`),
+ * records its dispatches into a fresh encoder, submits and reads rankOut[0..n) back. rankOut starts as
+ * SPMV_SENTINEL so an unwritten row is visible. The snapshot stays resident (the caller releases it).
  * @param ctx - the context
  * @param s - the snapshot
  * @param xNorm - the pre-scaled input vector (n values)
  * @param coefficients - alpha, beta, uniformP
- * @param options - personalization / dangling / weights / rev
+ * @param options - personalization / dangling / weights / rev / tiers
  * @returns the n results and the dispatch count of the record
  */
 export async function runSpmvPull(
@@ -111,11 +113,13 @@ export async function runSpmvPull(
         const header = new ArrayBuffer(PR_PARTIAL.byteLength);
         PR_PARTIAL.write(new DataView(header), { danglingMass: options?.dangling ?? 0 });
         ctx.device.queue.writeBuffer(partials, 0, header);
+        const tiers =
+            options?.tiers === "auto" && n > 0 ? degreeTiersOf(ctx.residency.view(s, "reverseDegreeOrder")) : null;
         const planner: SpmvPullPlanner = await prepareSpmvPull(scope, rev, {
             personalization: options?.personalization !== undefined,
             dangling: options?.dangling !== undefined,
             weights: options?.weights,
-            tiers: null,
+            tiers,
         });
         const encoder = ctx.device.createCommandEncoder({ label: "spmv/test" });
         const pass = encoder.beginComputePass({ label: "spmv/test" });
@@ -240,6 +244,21 @@ export function spmvChecks(): readonly SpmvCheck[] {
 }
 
 /**
+ * One pull's error factor: maxRelError(actual, expected, absFloor) (test/helpers/matchers.ts) over spmvTolerance(s).
+ * The 1e-12 floor on the tolerance is segmented-reduce's SR_FACTOR_FLOOR analogue: a tolerance of 0 would make
+ * every factor Infinity; a NaN anywhere in the result is Infinity.
+ * @param result - the kernel's output
+ * @param expected - the f64 oracle
+ * @param s - the snapshot the tolerance is documented for
+ * @returns the factor (1 is "exactly at tolerance")
+ */
+function spmvFactorOf(result: F32, expected: Float64Array, s: GraphSnapshot): number {
+    const err = maxRelError(result, expected, 1e-6);
+    const tolerance = Math.max(spmvTolerance(s), 1e-12);
+    return Number.isNaN(err) ? Number.POSITIVE_INFINITY : err / tolerance;
+}
+
+/**
  * The worst error factor over the checks: max relative error against the f64 oracle, divided by the tolerance the
  * package documents for the pull at that in-degree (spmvTolerance). A factor of 1 is "exactly at tolerance";
  * minFactor 10 therefore means "ten times the tolerance" -- the same meaning it has in segmented-reduce's set. A
@@ -260,16 +279,29 @@ export async function spmvWorstFactor(ctx: GpuContext, checks: readonly SpmvChec
             { dangling: dangling === 0 ? undefined : dangling },
         );
         const expected = spmvPullOracle(check.snapshot, Float64Array.from(check.xNorm), check.coefficients);
-        // maxRelError(actual, expected, absFloor) -- test/helpers/matchers.ts; the 1e-12 floor on the tolerance is
-        // the SR_FACTOR_FLOOR analogue: a tolerance of 0 would make every factor Infinity.
-        const err = maxRelError(result, expected, 1e-6);
-        const tolerance = Math.max(spmvTolerance(check.snapshot), 1e-12);
-        worst = Math.max(worst, Number.isNaN(err) ? Number.POSITIVE_INFINITY : err / tolerance);
+        worst = Math.max(worst, spmvFactorOf(result, expected, check.snapshot));
     }
     for (const check of checks) {
         ctx.release(check.snapshot);
     }
     return worst;
+}
+
+/**
+ * The tier check of test/primitives/tiers.test.ts and test/sabotage/tiers.test.ts: the PageRank-shaped pull over
+ * the snapshot's in-degree tiers (`tiers: "auto"`) against the f64 oracle, as an error / tolerance factor (the real
+ * kernel is below 1, a tier mutant must reach its minFactor). The snapshot stays resident (the caller releases it).
+ * @param ctx - the context
+ * @param s - the snapshot (a directed rmat14 in both suites: every in-degree tier populated)
+ * @returns maxRelError / spmvTolerance, Infinity for a NaN
+ */
+export async function tieredSpmvWorstFactor(ctx: GpuContext, s: GraphSnapshot): Promise<number> {
+    const n = s.nodeCount;
+    const x = seededVector(n, 1000 + n);
+    const c: SpmvCoefficients = { alpha: 0.85, beta: 0.15, uniformP: n === 0 ? 0 : 1 / n };
+    const { result } = await runSpmvPull(ctx, s, x, c, { tiers: "auto" });
+    const expected = spmvPullOracle(s, Float64Array.from(x), { ...c, dangling: 0 });
+    return spmvFactorOf(result, expected, s);
 }
 
 /** The defaults of pageRank, spelled for the oracle (test/algorithms/pagerank.test.ts OPTS). */

@@ -19,6 +19,12 @@
  *   other jobs) only ever adds time, so the minimum is the steadiest reading of the work itself.
  *   Sizes are chosen so one run takes roughly 0.05 to 1 s here: long enough that timer noise is
  *   small, short enough that the whole file stays near 40 s on the reference machine.
+ * - Time is read on a clock that stops while this thread waits for a CPU (`runningMs`), and the
+ *   probe is timed on the same clock. On the wall clock a busy machine made the runs 3 to 4.5x
+ *   slower while the probe, a few milliseconds per sample and keeping its fastest of eighteen,
+ *   still found a moment with a CPU to itself -- so the estimate read as much as 4.5x optimistic.
+ * - The process is pinned to the machine's fastest core type for the whole file
+ *   (`fastestCoreCpus`), so the probe and the runs cannot land on different kinds of core.
  * - CI machines are slower, and the default rates are absolute. So the estimate is made with the
  *   element's own calibration (`calibrateCost`): a fixed synthetic workload timed in this process,
  *   divided by what that workload does on the machine the defaults were fitted on, scales every
@@ -35,6 +41,9 @@
  * the result back out, which is O(n) and small beside everything measured here.
  */
 
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+
 import {
     betweennessCentrality,
     closenessCentrality,
@@ -45,7 +54,7 @@ import {
     pageRank,
 } from "@graphty/algorithms";
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
-import { assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { toAlgorithmGraph } from "../../../src/algorithms/utils/snapshotGraph";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
@@ -460,16 +469,68 @@ function statistics(nodeCount: number, edgeCount: number, maxDegree: number): Gr
     };
 }
 
+/** The wall clock, kept before `machineSpeed` swaps `performance.now` for {@link runningMs}. */
+const wallMs = performance.now.bind(performance);
+
+/** Whether the kernel reports per-thread run-queue time (Linux). */
+const HAS_SCHEDSTAT = existsSync("/proc/thread-self/schedstat");
+
 /**
- * Seconds one call takes.
+ * Milliseconds this thread has spent RUNNING: the wall clock minus the time it sat runnable in
+ * the kernel's run queue waiting for a CPU (the second field of `/proc/thread-self/schedstat`,
+ * updated each time the thread gets a CPU back). Everything else on the machine competes for
+ * CPUs by making this thread wait, so this clock reads what an idle machine would, however many
+ * other processes run. Unlike process CPU time it counts only this thread, as the idle wall clock
+ * the rates were fitted on does, and not the garbage collector's helper threads.
+ * @returns The running time, in milliseconds from an arbitrary origin.
+ */
+function runningMs(): number {
+    // Linux only; elsewhere the wall clock, which is what this test read before.
+    if (!HAS_SCHEDSTAT) {
+        return wallMs();
+    }
+
+    return wallMs() - Number(readFileSync("/proc/thread-self/schedstat", "utf8").split(" ")[1]) / 1e6;
+}
+
+/**
+ * Seconds one call takes, on the {@link runningMs} clock.
  * @param work - The call.
- * @returns Wall-clock seconds.
+ * @returns Running seconds.
  */
 function seconds(work: () => unknown): number {
-    const started = performance.now();
+    const started = runningMs();
     work();
 
-    return (performance.now() - started) / 1000;
+    return (runningMs() - started) / 1000;
+}
+
+/**
+ * The logical CPUs of the machine's fastest core type, as a `taskset` list, or undefined when
+ * every CPU is of one type (or the machine does not say).
+ *
+ * The probe and the runs are timed separately, so they must run on the same kind of core. On the
+ * hybrid reference machine (an i9-14900KF) they do not by default: the kernel moves a thread
+ * between its P-cores (CPUs 0-15, 5.7-6 GHz) and E-cores (16-31, 4.4 GHz) from one second to the
+ * next, and the E-cores run the probe about 1.8x slower but the algorithms' Map-heavy code only
+ * 1.0 to 1.4x slower -- so a probe on one and a run on the other read as a model up to 2x wrong
+ * in either direction. Pinned to the E-cores the speed factor is steady but the ratios move 1.3
+ * to 2x towards pessimistic, past the bound; the rates were fitted on the P-cores, so it pins there.
+ * Cores are told apart by their top clock, which is all a 5.15 kernel exposes about them.
+ * @returns The CPU list.
+ */
+function fastestCoreCpus(): string | undefined {
+    const root = "/sys/devices/system/cpu";
+    const topClock = (cpu: string): number => Number(readFileSync(`${root}/${cpu}/cpufreq/cpuinfo_max_freq`, "utf8"));
+    const cpus = existsSync(root)
+        ? readdirSync(root).filter(
+              (name) => /^cpu\d+$/.test(name) && existsSync(`${root}/${name}/cpufreq/cpuinfo_max_freq`),
+          )
+        : [];
+    const slowest = Math.min(...cpus.map(topClock));
+    const fast = cpus.filter((cpu) => topClock(cpu) > slowest).map((cpu) => cpu.slice(3));
+
+    return fast.length === 0 ? undefined : fast.join(",");
 }
 
 /** Probes per calibration. Each is a few milliseconds, so many are cheap. */
@@ -487,8 +548,14 @@ const PROBES = 9;
  */
 async function machineSpeed(): Promise<number> {
     const probes: MachineCalibration[] = [];
-    for (let probe = 0; probe < PROBES; probe++) {
-        probes.push(await calibrateCost({ budgetMs: 250 }));
+    // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
+    const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
+    try {
+        for (let probe = 0; probe < PROBES; probe++) {
+            probes.push(await calibrateCost({ budgetMs: 250 }));
+        }
+    } finally {
+        clock.mockRestore();
     }
 
     assert.isTrue(
@@ -516,15 +583,32 @@ function calibrationAt(speed: number): MachineCalibration {
     return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe" };
 }
 
+/** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
+let affinity: string | undefined;
+
 beforeAll(async () => {
+    const cpus = process.env.COST_GUARD === "1" ? fastestCoreCpus() : undefined;
+    if (cpus !== undefined) {
+        affinity = execFileSync("taskset", ["-p", "-c", String(process.pid)], { encoding: "utf8" })
+            .split(": ")[1]
+            .trim();
+        execFileSync("taskset", ["-a", "-p", "-c", cpus, String(process.pid)]);
+    }
+
     await machineSpeed(); // warm the probe's JIT; its first answers are low
 }, 30_000);
 
+afterAll(() => {
+    if (affinity !== undefined) {
+        execFileSync("taskset", ["-a", "-p", "-c", affinity, String(process.pid)]);
+    }
+});
+
 // A stopwatch test. Its rates were fitted on the reference machine the pre-push gate runs on, and
 // the calibration probe did not carry them to CI's runners: there, degree, pagerank, betweenness
-// and closeness read 9 to 17 times pessimistic while the same rows pass here. So it runs where
-// the rates were measured -- tools/prepush.sh sets COST_GUARD=1 -- and nowhere else, until the
-// calibration is shown to transfer.
+// and closeness read 9 to 17 times pessimistic while the same rows pass here. So it runs only
+// where the rates were measured, by hand on a quiet machine -- `npm run test:cost` sets
+// COST_GUARD=1; it is not in the pre-push gate -- until the calibration is shown to transfer.
 describe.runIf(process.env.COST_GUARD === "1")(
     "the cost estimate, against real runs of the algorithm the element runs",
     () => {

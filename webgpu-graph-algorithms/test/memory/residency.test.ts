@@ -5,7 +5,8 @@
  * columns through column(); identity permutations never materialised (a getter spy plus byteLength({ views: true }));
  * the same array object uploads once; a column version bump re-uploads in place; ctx.release destroys every buffer
  * and trims the pool; E_RELEASED / isReleased; release idempotent and safe on an unknown snapshot; withColumns
- * siblings share one record; the once-only warning; views, ad hoc arrays, the windowed E_TOO_LARGE at P1, a detached
+ * siblings share one record; the once-only warning; views, ad hoc arrays, the windowed plan's shape (executed since
+ * P4-T7; test/memory/windowed.test.ts is its contract), a detached
  * snapshot, clearOnLoss / destroyAll. Where gpu-upload.test.ts summed rows in a kernel, this file reads the bound
  * ranges back and compares bytes (the kernel path is P1-T5's degree test); "no uncaptured error" is the setup's
  * afterEach hook. Every test runs in a fresh context so the buffer counts are exact.
@@ -729,19 +730,29 @@ describe("GraphResidency: the upload contract (spec 11.3, gpu-upload.test.ts lin
         });
     });
 
-    it("a windowed plan is E_TOO_LARGE { path: 'windowed' } until P4 executes windows (PLAN DECISION 2)", async (t: TestContext) => {
+    it("a windowed plan is executed: core() returns plan 'windowed' with its windows (the full contract is test/memory/windowed.test.ts)", async (t: TestContext) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {
             // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not
             const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
             const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
             const s = snapshotOf(KARATE_EDGES);
-            const err = caught(() => residency.core(s));
-            expect(err.code).toBe("E_TOO_LARGE");
-            expect(err.details).toEqual({ needed: 624, limit: 256, path: "windowed", algorithm: null });
-            expect(residency.stats()).toEqual({ buffers: 0, bytes: 0, snapshots: 0, perSnapshot: [] });
-            expect(ctx.allocator.liveBuffers).toBe(0);
+            const core = residency.core(s);
+            expect(core.plan).toBe("windowed");
+            expect(core.windows?.length).toBeGreaterThanOrEqual(3);
+            expect(core.arcBuffers?.colIdx.length).toBe(1);
+            expect(residency.stats()).toMatchObject({ buffers: 2, snapshots: 1 });
+            // the undirected reverse view IS the core: a view is never windowed, so it is refused rather than window 0
+            const rev = caught(() => residency.view(s, "reverse"));
+            expect(rev.code).toBe("E_TOO_LARGE");
+            expect(rev.details).toMatchObject({
+                path: "windowed",
+                algorithm: null,
+                needed: 4 * s.arcCount,
+                limit: 256,
+            });
             residency.destroyAll();
+            expect(ctx.allocator.liveBuffers).toBe(0);
             await ctx.allocator.check();
         });
     });

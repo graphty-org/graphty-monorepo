@@ -135,10 +135,21 @@ const fakes = new WeakMap<Graphty, FakeAccelerator>();
  *
  * `settleAfter` counts landed batches rather than seconds, and `moveBy` is exact, so the picture
  * a snapshot catches is the same one on a fast machine and on a slow one.
+ *
+ * IT IS ALSO A FRAME BUDGET, WHICH IS WHY IT IS SMALL. A batch lands one microtask after it is
+ * submitted, and the element submits one per RENDERED frame -- so a simulation that reports
+ * itself settled only after N batches has asked for N frames to be drawn first, whatever the
+ * machine costs to draw them. This story's graph is the 150-node, 250-edge one, which a browser
+ * with no GPU draws at about ten frames a second on a busy machine and slower on a small one,
+ * and `waitForGraphSettled` gives up at fifteen seconds. At thirty batches the two fake stories
+ * spent that whole budget on the frame clock and errored in the visual-regression service --
+ * Chromatic builds 693 and 698 -- while every other story in the package settled in under seven
+ * seconds on the same hardware. The pre-step count each story names lands the first batch before
+ * the first frame is drawn; the few below it are the live accelerated path a reader watches.
  * @param element - The element to inject into.
  */
 function attachFake(element: Graphty): void {
-    const fake = createFakeAccelerator({ settleAfter: 30, moveBy: 0.05 });
+    const fake = createFakeAccelerator({ settleAfter: 5, moveBy: 0.05 });
 
     element.session.setAccelerator(fake);
     fakes.set(element, fake);

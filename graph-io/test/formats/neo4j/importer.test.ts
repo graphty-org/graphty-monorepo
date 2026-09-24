@@ -14,6 +14,7 @@ import { SINK_OPTION_CODE } from "../../../src/common/options.js";
 import {
     COLUMN_COUNT_CODE,
     DUPLICATE_NODE_CODE,
+    ENDPOINT_SPACE_CODE,
     HEADER_CODE,
     HEADER_OPTION_CODE,
     ID_MERGED_CODE,
@@ -172,6 +173,34 @@ describe("neo4jImporter (design 8.4)", () => {
                 line: 4,
                 element: "1",
             });
+        });
+
+        it("reports an endpoint whose id belongs to a node of another id space and skips the row", async () => {
+            const text = ":ID(P),name\n1,alice\n:ID(C),name\n2,acme\n:START_ID(P),:END_ID(C),:TYPE\n1,1,WORKS\n";
+            for (const addMissingNodes of [true, false]) {
+                const { snapshot, report } = await importText(text, undefined, { addMissingNodes });
+                expect(snapshot.nodeCount).toBe(2);
+                expect(snapshot.edgeCount).toBe(0);
+                expect(report.counts.skippedEdges).toBe(1);
+                expect(report.issues).toHaveLength(1);
+                expect(report.issues[0]).toMatchObject({
+                    category: "missing-value",
+                    severity: "error",
+                    code: ENDPOINT_SPACE_CODE,
+                    line: 6,
+                    element: "1->1",
+                });
+            }
+        });
+
+        it("resolves relationship endpoints inside their declared id spaces", async () => {
+            const text = ":ID(P),name\n1,alice\n:ID(C),name\n2,acme\n:START_ID(P),:END_ID(C),:TYPE\n1,2,WORKS\n";
+            const { snapshot, report } = await importText(text);
+            expect(report.issues).toEqual([]);
+            expect(snapshot.edgeCount).toBe(1);
+            const list = snapshot.edgeList();
+            expect(snapshot.nodes.value("name", list.src[0])).toBe("alice");
+            expect(snapshot.nodes.value("name", list.dst[0])).toBe("acme");
         });
 
         it("warns on a duplicate node and lets the later properties win", async () => {

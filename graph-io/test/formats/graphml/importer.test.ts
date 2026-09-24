@@ -473,6 +473,29 @@ describe("graphmlImporter keys and data", () => {
     });
 });
 
+describe("graphmlImporter unread XML attributes", () => {
+    it("reports parse hints and unknown attributes on graph, node and edge once per name", async () => {
+        const text = `<?xml version="1.0"?>\n<graphml ${NS}><graph edgedefault="directed" parse.nodeids="canonical" parse.order="nodesfirst" foo="1"><node id="1" bar="2"/><node id="2" bar="3"/><edge source="1" target="2" baz="3" sourceport="p"/></graph></graphml>`;
+        const { snapshot, report } = await load(text);
+        expect(snapshot.nodeCount).toBe(2);
+        expect(snapshot.edgeCount).toBe(1);
+        expect(report.issues.map((i) => [i.code, i.severity, i.element])).toEqual([
+            [GRAPHML_ISSUE.PARSE_HINT_IGNORED, "warning", "parse.nodeids"],
+            [GRAPHML_ISSUE.PARSE_HINT_IGNORED, "warning", "parse.order"],
+            [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "foo"],
+            [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "bar"],
+            [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "baz"],
+        ]);
+    });
+
+    it("reports nothing for the attributes it reads and for namespace declarations", async () => {
+        const text = `<?xml version="1.0"?>\n<graphml ${NS}><graph id="G" edgedefault="undirected" parse.nodes="2" parse.edges="1" xmlns:y="urn:y" xml:lang="en"><node id="1"/><node id="2"/><edge id="e" source="1" target="2" directed="true" sourceport="a" targetport="b"/></graph></graphml>`;
+        const { report } = await load(text);
+        expect(codes(report)).not.toContain(GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE);
+        expect(codes(report)).not.toContain(GRAPHML_ISSUE.PARSE_HINT_IGNORED);
+    });
+});
+
 describe("graphmlImporter ids and endpoints", () => {
     it("coerces canonical integer text to numbers and keeps other text as strings", async () => {
         const body = `<node id="1"/><node id="01"/><node id="-0"/><node id="2"/><node id="x"/><edge source="1" target="2"/>`;

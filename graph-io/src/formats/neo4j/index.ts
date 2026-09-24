@@ -32,6 +32,7 @@ import {
 import {
     COLUMN_COUNT_CODE,
     DUPLICATE_NODE_CODE,
+    ENDPOINT_SPACE_CODE,
     HEADER_CODE,
     HEADER_OPTION_CODE,
     ID_MERGED_CODE,
@@ -75,6 +76,8 @@ export const NEO4J_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** A node id declared in two id spaces. */
     ID_SPACE_COLLISION: ID_SPACE_COLLISION_CODE,
+    /** A relationship endpoint whose id belongs to a node of another id space; the row is skipped. */
+    ENDPOINT_SPACE: ENDPOINT_SPACE_CODE,
     /** Two id texts merged into one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
     /** A header brace option the importer does not apply. */

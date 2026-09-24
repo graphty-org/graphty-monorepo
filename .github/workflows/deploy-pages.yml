@@ -91,6 +91,33 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            # graph-samples' hosted datasets. scripts/build-hosted.mjs needs only Node and graph-format's
+            # build; it records every source's URL and SHA-256, so its hash keys the download cache
+            # and an older cache still serves the sources that did not change.
+            - name: Download graph-format build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-format
+                  path: ./graph-format/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Cache graph-samples dataset sources
+              uses: actions/cache@v4
+              with:
+                  path: tmp/graph-samples-sources
+                  key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs') }}
+                  restore-keys: graph-samples-sources-
+
+            # Fails the deploy rather than publishing a site without the data fetchDataset() loads
+            - name: Build graph-samples hosted datasets
+              run: node graph-samples/scripts/build-hosted.mjs
+
             # Assemble the unified GitHub Pages site
             # URL Structure:
             #   / = graphty app (React app - graphty.app)
@@ -105,6 +132,7 @@ jobs:
             #   /storybook/layout/ = layout Storybook
             #   /algorithms/ = algorithms gh-pages (examples + benchmarks)
             #   /layout/ = layout gh-pages (examples)
+            #   /data/graph-samples/v1/ = graph-samples hosted datasets (<name>.gsnp.gz, index.json)
             - name: Assemble GitHub Pages site
               run: |
                   mkdir -p ./public
@@ -219,6 +247,11 @@ jobs:
                   else
                     echo "⚠️ layout gh-pages not found"
                   fi
+
+                  # graph-samples hosted datasets (/data/graph-samples/v1/)
+                  mkdir -p ./public/data/graph-samples/v1
+                  cp ./graph-samples/public-data/v1/* ./public/data/graph-samples/v1/
+                  echo "Copied graph-samples hosted datasets to /data/graph-samples/v1/"
 
                   echo ""
                   echo "📁 Site structure:"

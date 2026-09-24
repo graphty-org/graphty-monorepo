@@ -110,6 +110,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -123,6 +124,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-format` | `graph-format/` | 1.0.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
 | `@graphty/graph-io` | `graph-io/` | 0.2.1 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.2.0 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | 0.1.0 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
 | `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
 | `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
 | `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -135,8 +137,9 @@ graphty-monorepo/
 ├── graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
 ├── graph-io/             # @graphty/graph-io package (depends on graph-format)
 ├── webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
+|-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
 ├── algorithms/           # @graphty/algorithms package
-├── layout/               # @graphty/layout package
+├── layout/               # @graphty/layout package (depends on graph-format, graph-samples)
 ├── graphty-element/      # @graphty/graphty-element package
 ├── graphty/              # @graphty/graphty React app
 ├── tools/                # Build scripts
@@ -218,6 +221,7 @@ pnpm run coverage:preview:graphty
 pnpm run coverage:preview:graph-format
 pnpm run coverage:preview:graph-io
 pnpm run coverage:preview:webgpu-graph-algorithms
+pnpm run coverage:preview:graph-samples
 ```
 
 Each package also has its own `npm run coverage:preview`.
@@ -301,6 +305,9 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **graph-io:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
+**graph-samples:**
+- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+
 **webgpu-graph-algorithms:**
 - `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
 - `node-limits` - the GPU lane only (real device limits)
@@ -338,7 +345,7 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (20 parallel jobs) |
+| `ci.yml` | Push/PR | Build, lint, sharded tests (21 parallel jobs) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
@@ -347,10 +354,11 @@ All packages: 80% lines/functions/statements, 75% branches
 
 ### CI Test Shards
 
-The CI runs 20 parallel test jobs:
+The CI runs 21 parallel test jobs:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
+- `graph-samples`
 - `algorithms-default`, `algorithms-browser`
 - `layout`
 - `graphty`
@@ -431,6 +439,7 @@ AlgorithmRegistry.register("custom-algo", customAlgorithm);
 Each package has its own CLAUDE.md with package-specific guidance:
 - `graph-format/CLAUDE.md` - Snapshot invariants, freeze pipeline, adding a view / a dtype
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
+- `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
 - `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
 - `algorithms/CLAUDE.md` - Algorithm-specific notes (e.g., floyd-warshall hang)
 - `layout/CLAUDE.md` - Layout testing patterns
@@ -455,7 +464,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
   - `tsconfig.base.json` provides shared compiler options
   - Each package extends base config and sets `composite: true`
   - Dependent packages declare `references` array pointing to dependencies
-  - Build order enforced by TypeScript: `graph-format` → `graph-io` → `webgpu-graph-algorithms` → `algorithms` → `layout` → `graphty-element` → `graphty`
+  - Build order enforced by TypeScript: `graph-format` -> `graph-io` -> `webgpu-graph-algorithms` -> `graph-samples` -> `algorithms` -> `layout` -> `graphty-element` -> `graphty`
 
 ### UI Components
 
@@ -551,6 +560,7 @@ The `design/` directory contains architecture documentation:
 - `eslint-config.md` - Linting configuration
 - `ci-parity-plan.md` - CI/CD alignment plan
 - `graph-format/graph-format-design.md` - The shared graph data format and the consumer migration
+- `graph-samples/graph-samples-design.md` - The generators and datasets package: API, the seed determinism contract, dataset hosting and licensing, roadmap
 - `webgpu/webgpu-acceleration-plan.md` - WebGPU acceleration: the design, `webgpu/plans/` the contract, the phase plans and the monorepo integration plan
 
 ## Debugging Tips

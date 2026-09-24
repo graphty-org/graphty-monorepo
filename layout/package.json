@@ -80,7 +80,8 @@
         }
     },
     "dependencies": {
-        "@graphty/graph-format": "workspace:^"
+        "@graphty/graph-format": "workspace:^",
+        "@graphty/graph-samples": "workspace:^"
     },
     "peerDependencies": {
         "@graphty/graph-format": "^1.0.0"

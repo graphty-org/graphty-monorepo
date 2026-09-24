@@ -85,6 +85,16 @@ WebGPU-accelerated graph algorithms and force-directed layouts over the graph-fo
 
 ---
 
+### @graphty/graph-samples
+
+[![npm version](https://img.shields.io/npm/v/@graphty/graph-samples.svg)](https://www.npmjs.com/package/@graphty/graph-samples)
+
+Graphs to try things on, as typed arrays the graph-format snapshot loads in one call: seeded random-graph generators (Erdos-Renyi, Barabasi-Albert with Holme-Kim triads, Watts-Strogatz, stochastic block models, random bipartite, trees and layered DAGs) that give the same graph for the same seed on every platform, the classic deterministic families, and classic small datasets with their ground truth (karate club, Florentine families, Davis Southern Women, Les Miserables, college football, political books, dolphins), one subpath each.
+
+[View package](./graph-samples)
+
+---
+
 ### @graphty/remote-logger
 
 [![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)

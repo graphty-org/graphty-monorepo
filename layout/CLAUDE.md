@@ -20,7 +20,7 @@ layout/
 │   ├── algorithms/           # Supporting algorithms
 │   │   ├── planarity/        # Planarity testing (LR algorithm)
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
-│   ├── generators/           # Graph generators (random, grid, scale-free, bipartite)
+│   ├── generators/           # Deprecated aliases of @graphty/graph-samples/generators (see below)
 │   ├── types/                # TypeScript interfaces
 │   └── utils/                # NumPy-like utilities, rescaling
 ├── test/                     # Vitest tests
@@ -53,6 +53,18 @@ npm run examples         # Build and serve HTML examples
 npm run docs:dev         # Start docs dev server
 npm run docs:build       # Build documentation
 ```
+
+## Generators
+
+`src/generators/` keeps the public `completeGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `gridGraph`,
+`randomGraph`, `scaleFreeGraph` and `bipartiteGraph` only as `@deprecated` aliases of
+`@graphty/graph-samples/generators` (removed in layout's next major). `sample.ts` adapts a `SampleGraph` to the
+layout `Graph` shape and maps old inputs: an omitted seed draws one from `Math.random` (a new graph per call), any
+other seed becomes `|trunc(seed)| mod 2^53` (non-finite -> 0), counts truncate to non-negative integers, and `p` clamps
+to [0, 1]. Inputs graph-samples rejects (cycle below 3 nodes, wheel below 4, empty star or grid, `m = 0`) keep their
+old output in the alias. graph-samples is a dependency and a peer, like graph-format, so the bundle leaves it external
+and Nx builds it first. layout's `tsconfig.json` uses node10 resolution, which ignores package `exports`; the
+`/generators` subpath resolves through the `typesVersions` map in graph-samples' package.json.
 
 ## Layout Function Interface
 

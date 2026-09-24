@@ -14,9 +14,17 @@
 # list is world-readable on this machine.
 #
 # Usage:
-#   ./tools/chromatic-api.sh build <number> [package]   one build's status and totals
-#   ./tools/chromatic-api.sh tests <number> [package]   every story, its status and result
-#   ./tools/chromatic-api.sh raw   <file>   [package]   send a GraphQL document from a file
+#   ./tools/chromatic-api.sh build    <number> [package]   one build's status and totals
+#   ./tools/chromatic-api.sh baseline <number> [package]   the commit it was compared against
+#   ./tools/chromatic-api.sh tests    <number> [package]   every story, its status and result
+#   ./tools/chromatic-api.sh raw      <file>   [package]   send a GraphQL document from a file
+#
+# WHAT A PROJECT TOKEN CAN AND CANNOT SEE. `build` and `baseline` work. `tests` does not: it
+# answers "Cannot access those build fields when authenticating with app code", and so do
+# `branch` and `baselineBuilds`. So the COUNT of changed stories is readable and the LIST of
+# them is not -- which is why tools/compare-stories.mjs renders the stories itself instead of
+# asking. The command line never names the baseline either; it prints "found 1 parent build"
+# and stops, which is what `baseline` below is for.
 #
 # package defaults to graphty-element. See .env.example for the token names.
 
@@ -75,6 +83,16 @@ case "$CMD" in
                 number status(legacy: false) webUrl storybookUrl
                 createdAt completedAt
                 testCount changeCount specCount componentCount
+              } } }' "{\"n\": ${ARG}}"
+        ;;
+    baseline)
+        # `ancestorBuilds` is the chain this build was compared against, newest first, so the
+        # first entry is its baseline. This is the one build field about the comparison that a
+        # project token is allowed to read.
+        [ -n "$ARG" ] || die "baseline needs a build number"
+        send 'query A($n: Int!) { app { build(number: $n) {
+                number commit changeCount committedAt webUrl
+                ancestorBuilds { number commit }
               } } }' "{\"n\": ${ARG}}"
         ;;
     tests)

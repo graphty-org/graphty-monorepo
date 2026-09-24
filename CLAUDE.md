@@ -144,6 +144,7 @@ graphty-monorepo/
 │   ├── run-tests.sh      # Unified test runner
 │   ├── prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
 │   ├── commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
+│   ├── compare-stories.mjs   # What changed between two versions of a story
 │   └── validate-outputs.cjs  # Build output validation
 ├── design/               # Architecture and design documents
 ├── .github/workflows/    # CI/CD workflows
@@ -244,6 +245,7 @@ The `tools/` directory contains build scripts:
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
+| `compare-stories.mjs` | Renders the same stories at two git references and says what changed: the two pictures and a difference image, a reading of the Babylon scene that the camera cannot affect, and a verdict per story. Needs no visual-regression credentials. See `tools/compare-stories.md` |
 
 ### Starting Servers
 

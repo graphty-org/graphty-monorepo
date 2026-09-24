@@ -55,7 +55,17 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
  * "which switches make headless Chromium hand back an adapter": `nvidia` reaches the card through
  * ANGLE's Vulkan backend, `swiftshader` names the software adapter explicitly because the two
- * ANGLE switches alone left `requestAdapter()` null on one host.
+ * ANGLE switches alone left `requestAdapter()` null on one host, and `metal` and `warp` are the
+ * macOS and Windows legs of the host-matrix workflow.
+ *
+ * This table must know EVERY value any workflow puts in GRAPHTY_BROWSER_GPU, whether or not that
+ * job runs the element's tests. `.github/workflows/hosts.yml` sets the variable for the whole job
+ * -- `metal` on macOS, `warp` on Windows -- and Nx loads every project's config to build its
+ * project graph, so an unknown value threw here and took down `nx run-many -t build` for two
+ * packages that have nothing to do with this one (pull request #21, run 35966670855: "failed to
+ * load config from ...graphty-element/vitest.config.ts", then "Failed to process project graph",
+ * on macOS and Windows only). `test/config/vitest-config-loads-with-ci-gpu-values.test.ts` loads
+ * this file under each of those values so the next one is caught on Linux.
  *
  * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
@@ -69,7 +79,23 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--enable-unsafe-swiftshader",
         "--use-webgpu-adapter=swiftshader",
     ],
+    // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
+    // device with the blocklist ignored, SwiftShader otherwise.
+    metal: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--use-angle=metal"],
+    // The host matrix on Windows: Dawn's D3D12 backend on WARP, Microsoft's software rasterizer.
+    // An ANGLE override hides WARP even in the full Chromium build, so this set names none.
+    warp: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist"],
 };
+
+/**
+ * Flag sets that need a Playwright channel rather than its default headless shell.
+ *
+ * Measured in `webgpu-graph-algorithms/vitest.config.ts`: on windows-latest the headless shell
+ * hands back no adapter under the `warp` flags, and the full Chromium build is the only one that
+ * grants WARP. Without this the `browser` project would launch, see no WebGPU, and fail
+ * `test/browser/webgpu-layout.test.ts` -- which runs whenever the variable is set at all.
+ */
+const BROWSER_GPU_CHANNEL: Readonly<Record<string, string>> = { warp: "chromium" };
 
 /** Which flag set was asked for, or "" for none -- also what the test file reads to skip itself. */
 const browserGpu = process.env.GRAPHTY_BROWSER_GPU ?? "";
@@ -102,11 +128,26 @@ function browserLaunchEnv(): Record<string, string> | undefined {
     return env;
 }
 
+/** One Playwright Chromium entry for a browser project's `instances`. */
+interface ChromiumInstance {
+    /** The browser to launch. */
+    browser: "chromium";
+    /** Playwright's launch options: the switches, the build to use, and the child's environment. */
+    launch?: {
+        /** The Chromium switches. */
+        args?: string[];
+        /** The Playwright channel, when the default headless shell will not do. */
+        channel?: string;
+        /** The child's environment, when it needs one of its own. */
+        env?: Record<string, string>;
+    };
+}
+
 /**
  * The `browser` project's Chromium instance, with the requested flag set when there is one.
  * @returns The single instance entry.
  */
-function browserInstance(): Record<string, unknown> {
+function browserInstance(): ChromiumInstance {
     if (browserGpu === "") {
         return { browser: "chromium" };
     }
@@ -121,9 +162,10 @@ function browserInstance(): Record<string, unknown> {
         );
     }
 
-    const env = browserLaunchEnv();
-
-    return { browser: "chromium", launch: env === undefined ? { args: [...args] } : { args: [...args], env } };
+    return {
+        browser: "chromium",
+        launch: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+    };
 }
 
 /**
@@ -150,11 +192,15 @@ export default defineConfig({
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
-                    // with: npx vitest run --project=bench
+                    // with: npx vitest run --project=bench.
+                    //
+                    // What keeps them uninstrumented is that no coverage script names this
+                    // project -- every one of them lists --project=default --project=mesh. A
+                    // `coverage: { enabled: false }` used to sit here saying so, but coverage is a
+                    // root-only option: vitest ignored it at run time and its types rejected it.
                     name: "bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
-                    coverage: { enabled: false },
                 },
             },
             {

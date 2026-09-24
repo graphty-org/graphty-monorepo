@@ -48,14 +48,26 @@ const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string
 const SIDE_EFFECTFUL = ["./dist/graphty.js", "./dist/graphty.bundle.js", "./dist/webgpu.js", "./dist/chunks/*.js"];
 
 /**
- * The source modules that register the built-in layouts, data sources and algorithms.
+ * The source modules that register the built-in layouts, data sources and algorithms, and the
+ * accelerator entry point that registers the WebGPU factory.
  *
  * They are named here for this package's own build, not for a consumer's: a module the build is
  * told is pure can be dropped whole, and dropping one of these produces an element that renders
  * a graph and then knows no layout to arrange it with, no format to read it from and no
  * algorithm to run on it -- with nothing failing anywhere to say so.
+ *
+ * `./webgpu.ts` is here for the same reason and was found the same way: a story that imports it
+ * by source path lost the whole module to the tree-shaker in the built Storybook, and the only
+ * symptom was an element reporting that no accelerator was registered on a machine that has a
+ * GPU. `./dist/webgpu.js` covers a consumer of the published package; this covers every build
+ * made inside this repository -- the stories and the tests that import the entry by path.
  */
-const REGISTRATION_MODULES = ["./src/algorithms/index.ts", "./src/data/index.ts", "./src/layout/index.ts"];
+const REGISTRATION_MODULES = [
+    "./webgpu.ts",
+    "./src/algorithms/index.ts",
+    "./src/data/index.ts",
+    "./src/layout/index.ts",
+];
 
 /**
  * The source of the root entry and the module that defines `<graphty-element>`.
@@ -237,6 +249,13 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
+        // A workspace reference, like the graph-format peer above: pnpm rewrites it on publish to a
+        // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
+        // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
+        // an older range would crash when the element attached an accelerator. The explicit
+        // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
+        // every time the requirement moved.
+        assert.strictEqual(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], "workspace:^");
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {

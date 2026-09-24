@@ -523,6 +523,9 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
     const session = {
         styles,
+        /* What a host reads before the element has spoken; a board that wants another state
+           dispatches the event. */
+        capabilities: { acceleration: { state: "probing" } },
         data: {
             statistics: statisticsNow,
         },

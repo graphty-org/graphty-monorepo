@@ -1523,6 +1523,13 @@ export class DataManager implements Manager {
         this.nodeCache.clear();
         this.edgeCache.clear();
 
+        // The dataset boundary, announced BEFORE the store goes: clearing freezes no replacement,
+        // so `snapshot-replaced` never fires and a holder of per-snapshot resources -- an
+        // accelerator's device buffers, which no garbage collector can reach -- would keep them for
+        // a graph that no longer exists. Emitted while the outgoing store still answers, because a
+        // listener releasing a snapshot may need a derived view of it that only that store has.
+        this.eventManager.emitSnapshotDropped();
+
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
 

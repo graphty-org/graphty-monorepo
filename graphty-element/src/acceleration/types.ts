@@ -54,6 +54,25 @@ export type AccelerationState = "probing" | "active" | "idle" | "unavailable" | 
  */
 export type AccelerationPolicy = "auto" | "off" | "required";
 
+/** The three values, in the order a control offers them. */
+export const ACCELERATION_POLICIES: readonly AccelerationPolicy[] = ["auto", "off", "required"];
+
+/** What the element does when nothing was asked: `auto`. */
+export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy = "auto";
+
+/**
+ * Whether a value is one of the three acceleration policies.
+ *
+ * A host that offers the choice gets the value back from storage, a query string or a change
+ * handler, where it is an unknown string. This is the check the element itself runs on the
+ * `acceleration` attribute, so a host cannot accept a value the element would refuse.
+ * @param value - Anything at all.
+ * @returns True when `value` is `"auto"`, `"off"` or `"required"`.
+ */
+export function isAccelerationPolicy(value: unknown): value is AccelerationPolicy {
+    return typeof value === "string" && (ACCELERATION_POLICIES as readonly string[]).includes(value);
+}
+
 /**
  * The arithmetic that produced a set of numbers.
  *
@@ -81,13 +100,21 @@ export const DEFAULT_ACCELERATOR_PRECISION: AccelerationPrecision = "f32";
  *
  * Three plain strings, so a status chip can render "NVIDIA, ampere" without importing a GPU
  * type or parsing a renderer string.
+ *
+ * This side is ALWAYS PRESENT, MAY BE EMPTY: an accelerator fills in what its driver told it and
+ * `""` for what it did not, so an implementer never has to choose between `""` and `undefined`.
+ * {@link AccelerationStatus}, what a consumer reads, is the opposite -- a field is there only
+ * when the backend reported one -- and `AccelerationController` is the single place that
+ * converts between the two, dropping every empty string on the way out. Keep it that way: a
+ * browser masks the device and the description for an ordinary origin, so empty is the common
+ * case and a consumer must never be handed `""` to render.
  */
 export interface AcceleratorDeviceInfo {
-    /** The hardware vendor, as the driver reports it: `"nvidia"`, `"apple"`, `"intel"`. */
+    /** The hardware vendor, as the driver reports it: `"nvidia"`, `"apple"`, `""` when unknown. */
     readonly vendor: string;
     /** The device family, as the driver reports it: `"ampere"`, `"rdna-3"`, `""` when unknown. */
     readonly architecture: string;
-    /** A human-readable description of the device. May be empty; never undefined. */
+    /** A human-readable description of the device, `""` when unknown. Never undefined. */
     readonly description: string;
 }
 
@@ -121,9 +148,42 @@ export interface GraphAccelerator {
     readonly lost?: Promise<{ reason: string }>;
     /** The arithmetic this accelerator computes in. Absent means {@link DEFAULT_ACCELERATOR_PRECISION}. */
     readonly precision?: AccelerationPrecision;
+    /**
+     * Proves this accelerator computes correctly, before any of the element's work is planned
+     * onto it.
+     *
+     * Hardware that answers is not the same thing as hardware that answers correctly. The
+     * software renderer that ships with Windows miscomputes shaders that pass a value across a
+     * workgroup barrier: it builds, it runs, it returns plausible numbers, and every prefix sum,
+     * sort and grid layout over one of them is wrong. Nothing errors. A backend that can tell
+     * the difference implements this; one that cannot omits it, and the element attaches it on
+     * the strength of the probe as before.
+     *
+     * Resolve when the hardware is trustworthy. Reject with a `GraphtyError` carrying
+     * `E_DEVICE_INCORRECT` when it is not, and the element reports acceleration unavailable with
+     * that code and runs the CPU path -- the same place a missing adapter reaches, because a
+     * device that lies is no more usable than a device that is not there.
+     *
+     * The element calls it once, on an accelerator it built from a registered factory, before
+     * attaching it. An accelerator handed over already built through `setAccelerator` is not
+     * asked -- the element did not construct it and does not own its lifetime, and whoever did
+     * both vouched for it by handing it over.
+     *
+     * It is NOT a way to report a failure part-way through a run: work that has already started
+     * on the accelerator and then fails is that work's failure and throws.
+     * @returns Resolves when the accelerator is fit to be given work.
+     */
+    verify?(): Promise<void>;
     /** Releases the hardware resources. Called by the element when it detaches this accelerator. */
     dispose?(): void;
-    /** An accelerated algorithm or layout, looked up by name and feature-tested before use. */
+    /**
+     * An accelerated algorithm or layout, looked up by name and feature-tested before use.
+     *
+     * `release(snapshot)` is one of these rather than a declared member: an accelerator that keeps
+     * device buffers for a snapshot implements it, and the element calls it when that snapshot
+     * stops being the graph, while an accelerator with no residency to free simply has no such
+     * member. Both are feature-tested the same way, so neither has to pretend to be the other.
+     */
     [algorithmOrLayout: string]: unknown;
 }
 
@@ -138,6 +198,14 @@ export interface AcceleratorFactoryOptions {
      * that does not care ignores the parameter.
      */
     readonly exactMaxNodes?: number;
+    /**
+     * Whether a software adapter (SwiftShader, llvmpipe) is acceptable.
+     *
+     * Under `"auto"` it is not: a software rasteriser is slower than the element's own CPU
+     * path, and attaching it would make the graph slower while reporting "active". Under
+     * `"required"` it is: the consumer said "no CPU path", and a software device is a device.
+     */
+    readonly acceptSoftware?: boolean;
 }
 
 /**
@@ -170,11 +238,18 @@ export interface AccelerationStatus {
     readonly state: AccelerationState;
     /** The attached accelerator's backend, when one is attached. */
     readonly backend?: "webgpu" | (string & {});
-    /** The hardware vendor, when the backend reported one. */
+    /**
+     * The hardware vendor, when the backend reported one. Absent otherwise, never `""`.
+     *
+     * The three device facts arrive from an accelerator as {@link AcceleratorDeviceInfo}, where
+     * they are always present and an unknown one is `""`. They are published here the other way
+     * round, so a consumer can test one with `??` or `!== undefined` and never render an empty
+     * string. `AccelerationController` is what converts.
+     */
     readonly vendor?: string;
-    /** The device family, when the backend reported one. */
+    /** The device family, when the backend reported one. Absent otherwise, never `""`. */
     readonly architecture?: string;
-    /** The device description, when the backend reported one. */
+    /** The device description, when the backend reported one. Absent otherwise, never `""`. */
     readonly device?: string;
     /** Why acceleration is unavailable or has stopped, in a sentence a person can read. */
     readonly reason?: string;
@@ -296,6 +371,17 @@ export const ACCELERATION_MIN_NODES_KEY = "acceleration.minNodes";
  *
  * Raise it when a graph is small enough that uploading it costs more than computing it. There
  * is no defensible non-zero default, because the crossover has to be measured on the machine
- * the graph is drawn on.
+ * the graph is drawn on -- and this zero is a measurement, not a guess. On the dev box
+ * (RTX 4070 SUPER, headless Chromium, 2026-09-22) the accelerated layout's frame time was at or
+ * below the CPU simulation's at every size measured, starting with the smallest: 50.0 against
+ * 50.0 ms at 500 nodes, 116.7 against 116.7 at 1,000 and 183.3 against 216.6 at 2,000, three runs
+ * of sixty working frames per arm, all at average degree 10. A fourth size, 5,000 nodes, read
+ * 466.6 against 566.7 -- but from ONE run of five frames, so read it as indicative and not as what
+ * the default rests on. The crossover is therefore below the smallest graph worth accelerating,
+ * and the default stays 0.
+ *
+ * `scripts/measure-min-nodes.mjs` is the measurement, protocol in its header; the table and what
+ * it does not cover are in section 3 of `graphty-element/docs/decisions/G6.md` IN THE REPOSITORY,
+ * which is not part of the published documentation site.
  */
 export const ACCELERATION_MIN_NODES_DEFAULT = 0;

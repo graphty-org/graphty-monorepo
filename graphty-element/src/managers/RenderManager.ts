@@ -245,7 +245,7 @@ export class RenderManager implements Manager {
             pinchZoomSensitivity: 10,
             twistYawSensitivity: 1.5,
             minZoomDistance: 2,
-            maxZoomDistance: 2000, // Increased to handle large spring layouts
+            maxZoomDistance: 2000, // The zoom-out ceiling for a small graph; a fit of a larger one raises it
             inertiaDamping: 0.9,
         });
         const orbitInput = new OrbitInputController(this.canvas, orbitCamera);

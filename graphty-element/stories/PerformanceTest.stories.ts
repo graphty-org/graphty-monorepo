@@ -3,61 +3,13 @@ import "../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import { storyGraph } from "../test/helpers/story-graph";
 import { assertDrawnColour, assertDrawnShape, assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
-interface EdgeData {
-    src: string;
-    dst: string;
-}
-
-/**
- * Generate random edges between nodes using seeded random.
- * Ensures every node has at least one edge.
- */
-function generateEdges(nodeCount: number, edgeCount: number): EdgeData[] {
-    const edges: EdgeData[] = [];
-    let seed = 42;
-    const random = (): number => {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        return seed / 0x7fffffff;
-    };
-
-    const edgeSet = new Set<string>();
-
-    // First, ensure every node has at least one edge
-    for (let i = 0; i < nodeCount; i++) {
-        let dst = Math.floor(random() * nodeCount);
-        while (dst === i) {
-            dst = Math.floor(random() * nodeCount);
-        }
-        const key = `${i}-${dst}`;
-        if (!edgeSet.has(key)) {
-            edgeSet.add(key);
-            edges.push({ src: `node-${i}`, dst: `node-${dst}` });
-        }
-    }
-
-    // Then add remaining random edges
-    while (edges.length < edgeCount) {
-        const src = Math.floor(random() * nodeCount);
-        const dst = Math.floor(random() * nodeCount);
-
-        if (src !== dst) {
-            const key = `${src}-${dst}`;
-            if (!edgeSet.has(key)) {
-                edgeSet.add(key);
-                edges.push({ src: `node-${src}`, dst: `node-${dst}` });
-            }
-        }
-    }
-
-    return edges;
-}
-
-// Generate 250 edges with 150 nodes (no positions for physics layout)
-const nodes150 = Array.from({ length: 150 }, (_, i) => ({ id: `node-${i}` }));
-const edges250 = generateEdges(150, 250);
+// The same 150 / 250 graph the real-GPU browser test lays out, so what a reader watches here and
+// what the accelerator is measured on are one graph rather than two that look alike.
+const { nodes: nodes150, edges: edges250 } = storyGraph(150, 250);
 
 const meta: Meta = {
     title: "Performance/Large Graph",

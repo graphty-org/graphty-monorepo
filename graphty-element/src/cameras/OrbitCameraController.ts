@@ -15,6 +15,12 @@ export interface OrbitConfig {
 }
 
 /**
+ * Babylon's own default far plane. The derived far plane never goes below it, so a
+ * small graph keeps exactly the picture and the depth precision it had before.
+ */
+const DEFAULT_FAR_PLANE = 10000;
+
+/**
  * Controls a 3D orbit camera with pivot-based rotation and distance-based zoom.
  * Provides trackball-style rotation and keyboard/touch controls.
  */
@@ -25,6 +31,9 @@ export class OrbitCameraController {
     public config: OrbitConfig;
 
     private pivotController: PivotController;
+
+    /** Half the diagonal of the last bounding box fitted by zoomToBoundingBox. */
+    #sceneRadius = 0;
 
     /**
      * Expose pivot TransformNode for compatibility with existing code.
@@ -92,11 +101,10 @@ export class OrbitCameraController {
      * @param delta - Distance delta to adjust camera by
      */
     public zoom(delta: number): void {
-        this.cameraDistance = Scalar.Clamp(
-            this.cameraDistance + delta,
-            this.config.minZoomDistance,
-            this.config.maxZoomDistance,
-        );
+        // The configured ceiling suits a small graph. A fitted large graph already sits
+        // beyond it, so the ceiling follows the graph and a reader can still pull back.
+        const ceiling = Math.max(this.config.maxZoomDistance, this.cameraDistance + this.#sceneRadius * 2);
+        this.cameraDistance = Scalar.Clamp(this.cameraDistance + delta, this.config.minZoomDistance, ceiling);
     }
 
     /**
@@ -112,6 +120,11 @@ export class OrbitCameraController {
 
         // Reset camera rotation - when parented, the camera inherits the pivot's rotation
         this.camera.rotation.set(0, 0, 0);
+
+        // Every writer of cameraDistance passes through here, so this is the one place the
+        // far plane has to follow the graph. A layout that settles tens of thousands of units
+        // across would otherwise be clipped away by Babylon's default 10000.
+        this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2);
     }
 
     /**
@@ -123,6 +136,8 @@ export class OrbitCameraController {
     public zoomToBoundingBox(min: Vector3, max: Vector3): void {
         const center = min.add(max).scale(0.5);
         const size = max.subtract(min);
+
+        this.#sceneRadius = size.length() / 2;
 
         // Position pivot at center of bounding box
         this.pivot.position.copyFrom(center);
@@ -199,8 +214,9 @@ export class OrbitCameraController {
         const PADDING_PERCENT = 5; // 5% padding
         const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
-        // Clamp to configured limits
-        this.cameraDistance = Scalar.Clamp(targetDistance, this.config.minZoomDistance, this.config.maxZoomDistance);
+        // Only the floor applies: a fit that the configured ceiling cut short would put the
+        // camera inside the graph. The ceiling stays a zoom-out limit, not a framing limit.
+        this.cameraDistance = Math.max(targetDistance, this.config.minZoomDistance);
 
         // Apply the new camera position immediately
         this.updateCameraPosition();

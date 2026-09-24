@@ -215,6 +215,14 @@ const config: KnipConfig = {
             project: ["src/**/*.{ts,tsx}!"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
+                // Installed on graphty-element's behalf: its optional peer, activated by
+                // `import "@graphty/graphty-element/webgpu"` in src/main.tsx and imported by
+                // nothing in this app. knip hints "Remove from ignoreDependencies" -- do not:
+                // it only resolves the package today because the app's tsconfig alias sends it
+                // into graphty-element's SOURCE webgpu.ts and it counts that file's import as
+                // the app's. A consumer reading the element's built dist has no such path and
+                // would see an unused dependency here.
+                "@graphty/webgpu-graph-algorithms",
                 // Testing
                 "jsdom",
                 // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
@@ -268,6 +276,17 @@ const config: KnipConfig = {
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
+
+    // `StatusBarAccelerationMode`, in the app's status-bar model, is referenced only by the
+    // `acceleration?: StatusBarAccelerationMode` member of `StatusBarIssuesModel` declared beside it in
+    // the same file, which is why knip reports it unused. It exists to NAME a published signature: drop
+    // the export and that member has a type no caller can write down. The per-symbol mechanism above is
+    // `@public` at the declaration, and this entry is a stand-in for it -- delete this entry when the tag
+    // lands. Until then the ignore covers that one file and unused TYPES alone, so a dead value export in
+    // it is still reported.
+    ignoreIssues: {
+        "graphty/src/components/shell/statusbar/statusBarModel.ts": ["types"],
+    },
 
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types

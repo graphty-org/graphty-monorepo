@@ -44,6 +44,17 @@ The Web Component exposes these properties for declarative configuration:
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
 See the [styling guide](/guide/styling).
 
+### Acceleration Properties
+
+| Property               | Attribute                | Type                            | Description                                                                    |
+| ---------------------- | ------------------------ | ------------------------------- | ------------------------------------------------------------------------------ |
+| `acceleration`         | `acceleration`           | `'auto' \| 'off' \| 'required'` | Whether to use a hardware accelerator; `required` refuses the CPU path          |
+| `accelerationMinNodes` | `acceleration-min-nodes` | `number`                        | Node count at or above which accelerated work uses the accelerator (default 0) |
+
+Where the work actually ran is `element.session.capabilities.acceleration`, and every transition
+of it is mirrored as a `graphty-capabilities-change` DOM event. See the
+[acceleration guide](/guide/acceleration).
+
 ### Data Source Properties
 
 | Property           | Attribute            | Type     | Description               |

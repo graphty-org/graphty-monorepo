@@ -100,13 +100,21 @@ export const DEFAULT_ACCELERATOR_PRECISION: AccelerationPrecision = "f32";
  *
  * Three plain strings, so a status chip can render "NVIDIA, ampere" without importing a GPU
  * type or parsing a renderer string.
+ *
+ * This side is ALWAYS PRESENT, MAY BE EMPTY: an accelerator fills in what its driver told it and
+ * `""` for what it did not, so an implementer never has to choose between `""` and `undefined`.
+ * {@link AccelerationStatus}, what a consumer reads, is the opposite -- a field is there only
+ * when the backend reported one -- and `AccelerationController` is the single place that
+ * converts between the two, dropping every empty string on the way out. Keep it that way: a
+ * browser masks the device and the description for an ordinary origin, so empty is the common
+ * case and a consumer must never be handed `""` to render.
  */
 export interface AcceleratorDeviceInfo {
-    /** The hardware vendor, as the driver reports it: `"nvidia"`, `"apple"`, `"intel"`. */
+    /** The hardware vendor, as the driver reports it: `"nvidia"`, `"apple"`, `""` when unknown. */
     readonly vendor: string;
     /** The device family, as the driver reports it: `"ampere"`, `"rdna-3"`, `""` when unknown. */
     readonly architecture: string;
-    /** A human-readable description of the device. May be empty; never undefined. */
+    /** A human-readable description of the device, `""` when unknown. Never undefined. */
     readonly description: string;
 }
 
@@ -230,11 +238,18 @@ export interface AccelerationStatus {
     readonly state: AccelerationState;
     /** The attached accelerator's backend, when one is attached. */
     readonly backend?: "webgpu" | (string & {});
-    /** The hardware vendor, when the backend reported one. */
+    /**
+     * The hardware vendor, when the backend reported one. Absent otherwise, never `""`.
+     *
+     * The three device facts arrive from an accelerator as {@link AcceleratorDeviceInfo}, where
+     * they are always present and an unknown one is `""`. They are published here the other way
+     * round, so a consumer can test one with `??` or `!== undefined` and never render an empty
+     * string. `AccelerationController` is what converts.
+     */
     readonly vendor?: string;
-    /** The device family, when the backend reported one. */
+    /** The device family, when the backend reported one. Absent otherwise, never `""`. */
     readonly architecture?: string;
-    /** The device description, when the backend reported one. */
+    /** The device description, when the backend reported one. Absent otherwise, never `""`. */
     readonly device?: string;
     /** Why acceleration is unavailable or has stopped, in a sentence a person can read. */
     readonly reason?: string;

@@ -1025,9 +1025,28 @@ export class AccelerationController {
         }
 
         if (this.#device !== undefined) {
-            status.vendor = this.#device.vendor;
-            status.architecture = this.#device.architecture;
-            status.device = this.#device.description;
+            /* An accelerator hands over three strings that are always present, with `""` for
+               what its driver did not name; this status publishes each one only when the backend
+               named it. This is the one place that converts between the two shapes, so an empty
+               string is dropped here rather than published.
+
+               It used to be copied straight through, and every consumer that tested the field
+               the way {@link AccelerationStatus} promises -- `status.device ?? status.backend` -- got the
+               empty string instead of its fallback. The graphty app's chip tooltip read
+               ". Layouts and algorithms with a GPU path run on it." on every browser that masks
+               the device string, which is most of them, and its chip label would have read
+               "on (nvidia )" wherever the architecture was the masked one. */
+            if (this.#device.vendor !== "") {
+                status.vendor = this.#device.vendor;
+            }
+
+            if (this.#device.architecture !== "") {
+                status.architecture = this.#device.architecture;
+            }
+
+            if (this.#device.description !== "") {
+                status.device = this.#device.description;
+            }
         }
 
         if (this.#reason !== undefined) {

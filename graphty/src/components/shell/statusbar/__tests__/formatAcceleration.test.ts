@@ -35,6 +35,22 @@ describe("formatAcceleration", () => {
         });
     });
 
+    it("reads as a sentence when the backend named no device description", () => {
+        /* What graphty-element publishes on a browser that masks the device string: the vendor
+           and the family, and no `device` key at all. It used to publish `device: ""`, and `??`
+           does not catch an empty string, so this tooltip came out as ". Layouts and algorithms
+           with a GPU path run on it." -- read off the running app on 2026-09-23. The fix is the
+           element's, and the test that fails without it is the element's own
+           `test/acceleration/AccelerationController.test.ts`; this pins what the chip then says. */
+        expect(
+            formatAcceleration({ state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "lovelace" }),
+        ).toEqual({
+            label: `${ACCELERATION_CHIP_PREFIX}: on (nvidia lovelace)`,
+            title: "webgpu. Layouts and algorithms with a GPU path run on it.",
+            active: true,
+        });
+    });
+
     it("says where the reader switched it off, and diagnoses nothing", () => {
         expect(formatAcceleration({ state: "off" })).toEqual({
             label: `${ACCELERATION_CHIP_PREFIX}: off`,

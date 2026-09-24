@@ -120,6 +120,27 @@ describe("AccelerationController: probing", () => {
         controller.dispose();
     });
 
+    it("omits a device fact the backend did not name, rather than publishing an empty string", async () => {
+        /* A browser masks the device and the description for an ordinary origin, so an
+           accelerator whose driver named a vendor and nothing else is the common case rather
+           than a corner. `AcceleratorDeviceInfo` is always-present-may-be-empty and
+           `AccelerationStatus` is present-only-when-named; this is where the two meet. Publishing
+           the empty string handed a bare "" to every consumer that tests for `undefined`. */
+        const masked = createFakeAccelerator({
+            members: { device: { vendor: "nvidia", architecture: "", description: "" } },
+        });
+        const controller = new AccelerationController({ registry: registryWith(masked) });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "idle");
+        assert.strictEqual(status.backend, "webgpu");
+        assert.strictEqual(status.vendor, "nvidia");
+        assert.isFalse("architecture" in status, "an unnamed architecture must not be a key at all");
+        assert.isFalse("device" in status, "an unnamed description must not be a key at all");
+        controller.dispose();
+    });
+
     it("publishes the code and the sentence a factory threw, so a chip can say why", async () => {
         const registry = new AcceleratorRegistry();
         registry.register({

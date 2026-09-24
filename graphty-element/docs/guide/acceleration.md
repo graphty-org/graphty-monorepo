@@ -73,6 +73,11 @@ Read it:
 const { state, reason, device } = element.session.capabilities.acceleration;
 ```
 
+`vendor`, `architecture` and `device` are present only when the backend named them, and a browser
+masks the device string for an ordinary origin -- so absent is the ordinary answer, not a rare one.
+Write them as `device ?? backend` and let the fallback do its job: the element omits a fact it was
+not given rather than publishing an empty string in its place.
+
 Or listen for it. `graphty-capabilities-change` fires on every transition and carries the same
 document the property returns:
 

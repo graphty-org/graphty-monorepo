@@ -795,10 +795,14 @@ describe("the simulation layout bridge", () => {
         assert.strictEqual(fake.calls.springElectrical, 1, "on the accelerator's own spring-electrical simulation");
         assert.strictEqual(fake.calls.load, 1, "which was handed the graph once");
 
-        const before = rig.x(0);
+        // Read off the SIMULATION, for the reason rawX is written down: the fake's movement is a
+        // rigid translation and the refit takes a rigid translation back out again, so the
+        // published array answers "did a batch move the graph" only by the rounding it happens to
+        // land on -- which made this one case fail about one run in seven.
+        const before = rawX(fake.simulations[0], 0);
         rig.step();
         await drain(fake);
-        assert.notStrictEqual(rig.x(0), before, "and it arranges the graph");
+        assert.notStrictEqual(rawX(fake.simulations[0], 0), before, "and it arranges the graph");
     });
 
     it("setLayout('spring-electrical') refuses an attached accelerator that does not implement it", async () => {

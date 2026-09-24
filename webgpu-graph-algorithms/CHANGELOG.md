@@ -1,3 +1,20 @@
+## 0.6.1 (2026-09-24)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** accept @graphty/algorithms 2.x as a peer ([bdb6ece8](https://github.com/graphty-org/graphty-monorepo/commit/bdb6ece8))
+- **webgpu-graph-algorithms:** keep the Dawn handles referenced until the test worker exits ([d362cac4](https://github.com/graphty-org/graphty-monorepo/commit/d362cac4))
+- **webgpu-graph-algorithms:** export springSizeFactor again for the grid-law helper ([67624f21](https://github.com/graphty-org/graphty-monorepo/commit/67624f21))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 2.0.0
+- Updated layout to 1.8.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.0 (2026-09-23)
 
 ### 🚀 Features

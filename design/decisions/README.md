@@ -3,6 +3,12 @@
 One decision per file, named `YYYY-MM-DD-<slug>.md`, never edited after it lands.
 A later decision that changes an earlier one gets its own file and links back.
 
+One exception, and only this one: a record is amended in place to complete ITS OWN list, when
+the decision turns out to reach a place its author did not enumerate. The amendment is a dated
+section at the end that says what it adds and changes nothing that was decided. Anything that
+changes the decision itself still gets its own file. Two records carry such a section, both
+dated 2026-09-23.
+
 ## Why these are separate files
 
 The design documents in this directory tree are plans of record: they say what was

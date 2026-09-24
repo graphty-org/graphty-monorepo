@@ -1,3 +1,11 @@
+> **Parts of this design have been superseded.** Forty-four passages -- in sections 2.4, 4.6, 6,
+> 7, 8, 9, 10, 12, 13, 14 and the Review log -- describe decisions that a later record reversed,
+> two of them leaving a gate nobody could meet and a measurement with nowhere to run, both
+> settled on 2026-09-23. The body below is deliberately NOT edited; `design/decisions/README.md`
+> explains why a record names the lines it overrules instead. Which passages, what is true
+> instead and which record decided it: `design/webgpu/superseded-parts-of-the-design.md`. This
+> note moved the body down by eight lines, so a number written earlier names text eight lower.
+
 # @graphty/webgpu-graph-algorithms -- implementation plan for WebGPU-accelerated algorithms and layouts
 
 Status: Approved by the owner on 2026-09-14 (plan of record; later changes

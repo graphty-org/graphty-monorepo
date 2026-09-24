@@ -61,7 +61,7 @@ GitHub has announced the same move again: `ubuntu-latest` becomes Ubuntu 26 from
 (`actions/runner-images#14748`, which the job's own annotations carry). Left alone it would happen the same
 silent way a second time.
 
-### 0.2 The intermittent worker abort
+### 0.2 The node shard keeps losing a vitest worker
 
 In run 35923105007, job 107393562579, attempt 1, the `webgpu-graph-algorithms-node` shard failed with
 
@@ -81,7 +81,10 @@ synchronisation object was freed, unmapped or reused while a thread was still bl
 lifetime bug, inside a worker, aborting the process. It is a C library abort, not a test failure, which is why
 no test is named.
 
-Section 4 is the investigation and states plainly what is and is not known.
+This is not a one-off. Five of the last 33 runs of this shard lost a worker the same way, on two
+different branches; the abort message appeared in one of them and the other four closed the channel
+with no explanation at all. Section 4 is the investigation, with the table, and states plainly what is
+and is not known.
 
 ## 1. Adapters and lanes exercised for this record
 
@@ -199,10 +202,28 @@ evidence.
 
 ## 4. The intermittent abort: what is known, what is not
 
-**Observed frequency.** One occurrence. Across the `webgpu-graph-algorithms-node` shard jobs of the last 30
-CI runs, seven failed; exactly one carried the futex abort (run 35923105007, job 107393562579). The other six
-were unrelated -- four were `Artifact not found for name: build-graphty` and two were ordinary test failures on
-another branch. So: real, reproduced zero times on demand, seen once in the wild.
+**Observed frequency, and it is not once.** The abort is one visible face of a failure that is recurring. Across
+the 33 `webgpu-graph-algorithms-node` shard jobs of the last 30 CI runs, seven failed. Two were unrelated
+infrastructure (`Artifact not found for name: build-graphty`). The other **five all died the same way: a vitest
+worker process disappeared and the run ended in `Error: Channel closed` / `ERR_IPC_CHANNEL_CLOSED`**, with no
+test having failed.
+
+| Job | Run | Branch | How the worker went |
+| --- | --- | --- | --- |
+| 107393562579 | 35923105007 | `plan/webgpu-frontier-and-guides` | `The futex facility returned an unexpected error code.`; 2 of 90 files never reported (`test/kernel/compile.test.ts`, `test/sabotage/tiers.test.ts`) |
+| 106951862823 | 35788215777 | `feat/gpu-p4` | hung: no output for 90 s, the hang reporter fired and signalled 6 processes |
+| 106937614985 | 35783732328 | `feat/gpu-p4` | hung the same way |
+| 106911279262 | 35775999618 | `feat/gpu-p4` | channel closed, no further diagnostic |
+| 106819129890 | 35748654148 | `feat/gpu-p4` | channel closed, no further diagnostic |
+
+So: **five worker deaths in 33 shard runs, about 15%**, on two different branches, which rules out a single
+branch's code as the cause. One of the five printed the C library abort; the other four left no message that
+names a cause. Every one of them passed on a re-run.
+
+One negative result worth stating, because it looks like evidence and is not: the hang reporter's process
+snapshot shows a surviving worker with `futex_do_wait` in its `WCHAN` column. That is what ANY blocked thread
+looks like to `ps` and is not a symptom of anything. The abort message is the only futex signal here that means
+something.
 
 **Mechanism, established.** The message comes from glibc, not from Node, vitest or this package. It is raised
 by `futex_fatal_error()` when the `futex` syscall returns `EFAULT`, `EINVAL`, `ENOSYS` or `ETIMEDOUT` to
@@ -240,21 +261,33 @@ running the 0.4.0 binary -- built against glibc <= 2.34 -- on glibc 2.39. That d
 and normally fine, so it is not an explanation on its own; but it has never been a *tested* combination here,
 because the phase that was supposed to retire it never ran. The bump ends the mismatch either way.
 
-**What would settle it.** After the owner's steps 1 and 2, run the node project in a loop on the 24.04 image at
-both versions and count aborts:
+**What would settle it.** Count WORKER DEATHS, not aborts. Four of the five losses printed no abort at all, so
+an experiment that greps for the futex message would score four of them as clean runs and reach the wrong
+answer. The symptom to count is the lost worker, whatever message accompanies it. At a 15% rate, 30 runs give
+about five expected failures at 0.4.0 -- enough to tell a fix from noise, and cheap, because the shard takes
+about nine minutes:
 
 ```bash
-# on an ubuntu-24.04 runner or the rebuilt container, once per version
+# on the rebuilt container or an ubuntu-24.04 runner, once per webgpu version
+deaths=0
 for i in $(seq 1 30); do
-  node scripts/run-node-shard.js --project=node 2>&1 | grep -c "futex facility"
+  out=$(node scripts/run-node-shard.js --project=node 2>&1)
+  if grep -qE "ERR_IPC_CHANNEL_CLOSED|futex facility|missing-files\] .* missing [1-9]" <<<"$out"; then
+    deaths=$((deaths + 1)); printf '%s\n' "$out" > "death-$i.log"
+  fi
 done
+echo "worker deaths: $deaths / 30"
 ```
 
-Thirty green runs at 0.6.1 against a reproduction at 0.4.0 settles it as fixed; aborts at both settles it as
-unrelated to the version and points at Dawn's teardown generally, which is then an upstream bug report with
-`test/kernel/compile.test.ts` as the reproducer. Until one of those runs, this section stays UNKNOWN, and the
-shard's existing missing-file and hang reporting (`scripts/run-node-shard.js`) is what keeps a recurrence from
-being mistaken for a test failure.
+Zero deaths in 30 at 0.6.1 against a reproduction at 0.4.0 settles it as fixed. Deaths at both settles it as
+independent of the version, which points at Dawn's teardown generally and makes it an upstream bug report --
+`test/kernel/compile.test.ts` and `test/sabotage/tiers.test.ts` are the files to hand them, both being heavy
+creators and destroyers of devices and pipelines. Until one of those runs, this section stays UNKNOWN.
+
+**Do not close this on a quiet week.** A 15% per-run failure has a 1-in-16 chance of sitting out four
+consecutive runs, so "we ran it a few times and it was fine" is not evidence of anything. The shard's existing
+missing-file and hang reporting (`scripts/run-node-shard.js`) is what keeps each recurrence visible as a lost
+worker rather than mistaken for a test failure; that reporting should stay whatever the outcome.
 
 ## 5. What this branch changed
 
@@ -277,4 +310,4 @@ being mistaken for a test failure.
 | ENV-F2 | The GPU lane's T4 image is Ubuntu 22.04.5. Nothing recorded this, and it makes the bump a two-machine move rather than the one the design describes. | Owner decision needed: which provider image or runner class serves the T4 lane on 24.04 (section 3 item 2). This is the gating item for merging the branch. |
 | ENV-F3 | `ubuntu-latest` moved the default lane to 24.04 with no commit, and will move it to Ubuntu 26 on 2026-10-19. | Fixed here by naming the image. Re-pinning to 26 is then a reviewed change with a gate record, which is what this phase exists to make true. |
 | ENV-F4 | The lavapipe ICD file is named `lvp_icd.x86_64.json` on 22.04 and `lvp_icd.json` on 24.04. `ci.yml` already discovers it with `find`; the invocations documented in `CLAUDE.md` hard-code the 22.04 spelling. | Update `CLAUDE.md` at section 3 step 3, together with the `LD_LIBRARY_PATH` deletion, so both container-shaped facts change in one commit. |
-| ENV-F5 | The futex abort is unexplained and the bump's effect on it is unknown. | Section 4 states the experiment. Do not close G-ENV as green on a run that simply did not abort once. |
+| ENV-F5 | The node shard loses a vitest worker in about 15% of its CI runs (five of the last 33, two branches). One of the five printed a glibc futex abort; four printed nothing. The cause is unexplained and the bump's effect on it is unknown. | Section 4 states the experiment, which counts lost workers rather than abort messages -- grepping for the abort would have scored four of the five as clean. Do not close G-ENV green because a handful of runs happened not to fail: at 15% a quiet stretch of four runs is a 1-in-16 coincidence. |

@@ -62,7 +62,7 @@ fileInput.addEventListener("change", async (e) => {
 | GEXF    | `.gexf`    | Gephi exchange format                 |
 | GML     | `.gml`     | Graph Modeling Language               |
 | DOT     | `.dot`     | Graphviz format                       |
-| CSV     | `.csv`     | Comma-separated adjacency             |
+| CSV     | `.csv`, `.tsv`, `.tab` | Delimited edge or node list       |
 | Pajek   | `.net`     | Pajek network format                  |
 
 ## Directed or Undirected
@@ -139,6 +139,9 @@ a,b,1.0
 b,c,2.0
 c,a,1.5
 ```
+
+The column separator is worked out from the first line -- comma, tab, semicolon or pipe -- so a
+tab-separated or semicolon-separated file loads with no options. Pass `delimiter` to override it.
 
 ## Custom ID Paths
 

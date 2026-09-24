@@ -170,7 +170,14 @@ function literalsIn(file: string, name: string): string[] {
  * @returns The entry file names, without a leading `./`, sorted.
  */
 function entryFiles(values: readonly string[]): string[] {
-    return [...new Set(values.map((value) => value.replace(/^\.\//, "")).filter((value) => /^[a-z-]+\.ts$/.test(value)))].sort();
+    // A trailing `!` is knip's mark for a production entry (`index.ts!`); the file is the same.
+    return [
+        ...new Set(
+            values
+                .map((value) => value.replace(/^\.\//, "").replace(/!$/, ""))
+                .filter((value) => /^[a-z-]+\.ts$/.test(value)),
+        ),
+    ].sort();
 }
 
 /**
@@ -286,24 +293,38 @@ describe("the ./logging entry point", () => {
             readFileSync(file, "utf8")
                 .split("\n")
                 .forEach((line, index) => {
-                    const match = /^\s*import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"@graphty\/graphty-element"/.exec(line);
+                    const match = /^\s*import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"@graphty\/graphty-element"/.exec(
+                        line,
+                    );
                     if (match === null) {
                         return;
                     }
 
                     const named = match[1]
                         .split(",")
-                        .map((name) => name.replace(/\btype\b/, "").trim().split(/\s+as\s+/)[0].trim())
+                        .map((name) =>
+                            name
+                                .replace(/\btype\b/, "")
+                                .trim()
+                                .split(/\s+as\s+/)[0]
+                                .trim(),
+                        )
                         .filter((name) => name.length > 0);
                     const fromLogging = named.filter((name) => (LOGGING_NAMES as readonly string[]).includes(name));
 
                     if (fromLogging.length > 0) {
-                        offenders.push(`${file.replace(PACKAGE_ROOT, "")}:${index + 1} imports ${fromLogging.join(", ")}`);
+                        offenders.push(
+                            `${file.replace(PACKAGE_ROOT, "")}:${index + 1} imports ${fromLogging.join(", ")}`,
+                        );
                     }
                 });
         }
 
-        assert.deepEqual(offenders, [], "these lines import a logging name from the root barrel, which no longer publishes any");
+        assert.deepEqual(
+            offenders,
+            [],
+            "these lines import a logging name from the root barrel, which no longer publishes any",
+        );
     });
 
     it("is in the exports map, with a types condition beside the import condition", () => {
@@ -323,11 +344,20 @@ describe("the lists that decide what a subpath actually ships", () => {
     it("names the same entry files in the build, the type emit, the docs and the dead-code analysis", () => {
         assert.deepEqual(types, build, "tsconfig.build.json's include disagrees with vite.config.ts's entries");
         assert.deepEqual(docs, build, "typedoc.json's entryPoints disagrees with vite.config.ts's entries");
-        assert.deepEqual(knip, build, "knip.config.ts's graphty-element entry list disagrees with vite.config.ts's entries");
+        assert.deepEqual(
+            knip,
+            build,
+            "knip.config.ts's graphty-element entry list disagrees with vite.config.ts's entries",
+        );
     });
 
     it("names logging.ts in all four, because a subpath with no .d.ts fails in a consumer's editor", () => {
-        for (const [what, list] of [["build", build], ["types", types], ["docs", docs], ["knip", knip]] as const) {
+        for (const [what, list] of [
+            ["build", build],
+            ["types", types],
+            ["docs", docs],
+            ["knip", knip],
+        ] as const) {
             assert.include(list, "logging.ts", `logging.ts is missing from the ${what} list`);
         }
     });

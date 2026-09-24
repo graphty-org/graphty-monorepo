@@ -1,5 +1,5 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import { LitElement } from "lit";
+import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
@@ -28,9 +28,41 @@ import type { VisibilityChange } from "./session/visibility";
 const RUN_PROGRESS_INTERVAL_MS = 100;
 
 /**
+ * The properties that take an object or an array, and so cannot survive being written as an
+ * attribute. React 19 writes a prop as an attribute when the element is not yet defined at commit
+ * time, which turns `nodeData={[...]}` into `nodedata="[object Object]"`.
+ */
+const RICH_PROPERTIES = [
+    "nodeData",
+    "edgeData",
+    "dataSourceConfig",
+    "layoutConfig",
+    "layoutBehavior",
+    "selectionStyle",
+    "algorithmsOnLoad",
+    "background",
+    "xr",
+] as const;
+
+/**
  * Graphty creates a graph
  */
 export class Graphty extends LitElement {
+    /**
+     * The host is a block that fills its parent and is never shorter than 400px, so a bare tag
+     * draws a usable graph and a height given to the tag or its parent is honoured. Every rule
+     * here can be overridden from the page, `min-height` included.
+     */
+    static styles = css`
+        :host {
+            display: block;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+        }
+    `;
+
     #graph: Graph;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
@@ -40,6 +72,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
+    #reportedStrayAttributes = false;
 
     /**
      * Creates a new Graphty element instance.
@@ -48,9 +81,10 @@ export class Graphty extends LitElement {
         super();
 
         this.#element = document.createElement("div");
-        // Ensure the container div fills the graphty-element
-        // position: relative is needed for absolute positioning of XR UI overlay
-        this.#element.setAttribute("style", "width: 100%; height: 100%; display: block; position: relative;");
+        // The container fills the host exactly. It is absolutely positioned so its size comes from
+        // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
+        // anchors the absolutely positioned XR UI overlay.
+        this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
         this.#graph = new Graph(this.#element);
     }
 
@@ -209,11 +243,40 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Reports rich props that reached the element as "[object Object]" attributes.
+     *
+     * React 19 sets a custom-element prop as a property only when the element is already defined;
+     * otherwise it writes `String(value)` as an attribute and never retries. When this module is
+     * loaded lazily, `nodeData={[...]}` arrives as `nodedata="[object Object]"` and the graph comes
+     * up empty. The value is gone, so the element cannot recover it, but it can say why.
+     */
+    #reportStrayObjectAttributes(): void {
+        if (this.#reportedStrayAttributes) {
+            return;
+        }
+
+        this.#reportedStrayAttributes = true;
+        for (const name of RICH_PROPERTIES) {
+            // HTML attribute names are case-insensitive, so this also finds `nodedata`.
+            if (this.getAttribute(name) === "[object Object]") {
+                console.error(
+                    `<graphty-element> received ${name} as the attribute ${name.toLowerCase()}="[object Object]", ` +
+                        "so the value was lost. This happens when a framework renders the tag before " +
+                        "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
+                        'customElements.whenDefined("graphty-element"). See ' +
+                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                );
+            }
+        }
+    }
+
+    /**
      * Called when the element is added to the DOM. Sets up the graph container and resize observer.
      */
     connectedCallback(): void {
         super.connectedCallback();
         this.renderRoot.appendChild(this.#element);
+        this.#reportStrayObjectAttributes();
 
         // Watch for container size changes and resize the canvas accordingly
         this.#resizeObserver = new ResizeObserver(() => {

@@ -540,11 +540,9 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         >
             <graphty-element
                 ref={graphtyRef}
-                style={{
-                    display: "block",
-                    width: "100%",
-                    height: "100%",
-                }}
+                // The element fills its parent by default; the app's panel decides the height,
+                // even when that is below the element's default 400px floor.
+                style={{ minHeight: 0 }}
             />
         </Box>
     );

@@ -55,9 +55,35 @@ function GraphVisualization({ nodes, edges }) {
         <graphty-element
             node-data={JSON.stringify(nodes)}
             edge-data={JSON.stringify(edges)}
-            style={{ width: "100%", height: "500px", display: "block" }}
+            style={{ height: "500px" }}
         />
     );
+}
+```
+
+#### Loading the element lazily
+
+React 19 sets a prop on a custom element as a property only if the element is already defined
+when React renders it. If `@graphty/graphty-element` is loaded lazily (a dynamic `import()`, a
+code-split route), React can render the tag first and then writes every prop as an attribute:
+`nodeData={nodes}` becomes `nodedata="[object Object]"`, the data is lost, and the graph comes up
+empty. The element reports this on the console when it sees it.
+
+Make sure the element is defined before React renders it. Either import it statically, as above,
+or wait for the definition before rendering the tag:
+
+```tsx
+import { useEffect, useState } from "react";
+
+function LazyGraph({ nodes }) {
+    const [ready, setReady] = useState(false);
+
+    useEffect(() => {
+        void import("@graphty/graphty-element");
+        void customElements.whenDefined("graphty-element").then(() => setReady(true));
+    }, []);
+
+    return ready ? <graphty-element nodeData={nodes} /> : null;
 }
 ```
 
@@ -228,11 +254,12 @@ Graphty bundles Babylon.js core, which adds to bundle size. For production:
 
 ### Component Not Rendering
 
-Ensure the element has explicit dimensions:
+The element fills its parent and is at least 400px tall. If it is still not visible, check that
+the parent is not hiding it (`display: none`, `overflow: hidden` with no size), or give the
+element a size directly:
 
 ```css
 graphty-element {
-    display: block;
     width: 800px;
     height: 600px;
 }

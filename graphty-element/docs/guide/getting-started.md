@@ -47,11 +47,27 @@ Let's build a simple social network visualization step by step.
 
 ### Step 1: Set Up the Component
 
-First, include the Graphty element and give it dimensions:
+First, include the Graphty element:
 
 ```html
-<graphty-element style="width: 100%; height: 500px; display: block;"> </graphty-element>
+<graphty-element> </graphty-element>
 ```
+
+The element is a block that fills its parent (`width: 100%; height: 100%`) and is never shorter
+than 400px, so a bare tag in an unsized page draws a full-width graph 400px tall. To choose the
+size yourself, size the element or its parent with ordinary CSS:
+
+```html
+<graphty-element style="height: 600px"></graphty-element>
+
+<!-- or fill a fixed-size parent -->
+<div style="width: 800px; height: 600px">
+    <graphty-element></graphty-element>
+</div>
+```
+
+The 400px floor is a `min-height` on the element, so to make it smaller than that, lower it too:
+`style="height: 250px; min-height: 0"`.
 
 ### Step 2: Add Nodes
 

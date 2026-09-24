@@ -557,7 +557,7 @@ importers:
         version: link:../remote-logger
       '@graphty/webgpu-graph-algorithms':
         specifier: ^0.2.0
-        version: 0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)
+        version: 0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.6.1)
       '@jsonhero/schema-infer':
         specifier: ^0.1.5
         version: 0.1.5
@@ -11932,14 +11932,14 @@ snapshots:
 
   '@github/catalyst@1.7.0': {}
 
-  '@graphty/webgpu-graph-algorithms@0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.4.0)':
+  '@graphty/webgpu-graph-algorithms@0.2.1(@graphty/algorithms@algorithms)(@graphty/graph-format@graph-format)(@graphty/layout@layout)(webgpu@0.6.1)':
     dependencies:
       '@graphty/graph-format': link:graph-format
       '@webgpu/types': 0.1.72
     optionalDependencies:
       '@graphty/algorithms': link:algorithms
       '@graphty/layout': link:layout
-      webgpu: 0.4.0
+      webgpu: 0.6.1
 
   '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:

@@ -1,5 +1,6 @@
 import type { Scene } from "@babylonjs/core";
 
+import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
 import type { Styles } from "../Styles";
@@ -109,6 +110,12 @@ export interface GraphContext {
      * @since 1.5.0
      */
     getEventManager?(): EventManager | undefined;
+
+    /**
+     * The acceleration controller the graph owns; absent on a context built without a graph.
+     * @since 2.0.0
+     */
+    getAcceleration?(): AccelerationController;
 }
 
 /**

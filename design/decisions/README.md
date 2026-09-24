@@ -55,3 +55,10 @@ version of the code.
 | [2026-09-20-far-field-levels-are-a-uniform.md](2026-09-20-far-field-levels-are-a-uniform.md) | The far field's level count is a uniform, not an override |
 | [2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md](2026-09-20-cell-histogram-is-zeroed-by-a-fill-dispatch.md) | The cell histogram is zeroed by a `fill` dispatch, not by `clearBuffer` |
 | [2026-09-20-workgroup-row-tiers-fold-without-kahan.md](2026-09-20-workgroup-row-tiers-fold-without-kahan.md) | The workgroup-per-row tiers fold plainly, without Kahan compensation |
+| [2026-09-21-m6-bridge-is-a-layout-engine.md](2026-09-21-m6-bridge-is-a-layout-engine.md) | The accelerated layout is a `LayoutEngine` subclass, not a layout factory |
+| [2026-09-21-node-mass-is-resolved-per-load.md](2026-09-21-node-mass-is-resolved-per-load.md) | A reader's `nodeMass` record is resolved to an array at every load; `nodeSize` is not offered |
+| [2026-09-21-spring-electrical-fails-loudly-on-set.md](2026-09-21-spring-electrical-fails-loudly-on-set.md) | `spring-electrical` is always offered and fails loudly without an accelerator |
+| [2026-09-21-power-iteration-family-waits-for-its-ports.md](2026-09-21-power-iteration-family-waits-for-its-ports.md) | HITS, eigenvector, Katz and personalized PageRank wait for their CPU ports |
+| [2026-09-21-acceleration-knobs-and-their-homes.md](2026-09-21-acceleration-knobs-and-their-homes.md) | The two layout knobs live on `behavior.layout`; the threshold keeps one spelling |
+| [2026-09-21-g12-without-the-nightly-clause.md](2026-09-21-g12-without-the-nightly-clause.md) | G12 is gated on the GPU lane green on master, not on a nightly week |
+| [2026-09-21-app-stories-draw-the-chip-not-the-gpu.md](2026-09-21-app-stories-draw-the-chip-not-the-gpu.md) | The app's acceleration stories draw the chip from a fixed status; the real GPU is the element's story |

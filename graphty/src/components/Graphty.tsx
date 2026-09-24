@@ -1,5 +1,5 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { AccelerationPolicy, GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
@@ -24,11 +24,14 @@ interface GraphEdge {
  * used whole: `Graph.dataManager` is private on it and {@link GraphtyHandle.getData} reads the
  * node and edge maps through it, which is the element gap recorded on `getData` itself.
  *
- * The pin verbs are NOT written out. They are picked off the element's own class, so their
- * signatures are the element's and a rename over there is a type error here rather than a
- * method that quietly stops existing.
+ * The pin verbs and `session` are NOT written out. They are picked off the element's own class,
+ * so their signatures are the element's and a rename over there is a type error here rather than
+ * a method that quietly stops existing. That is how every member reaches this interface from now
+ * on: the ten below are a duck-type of the element (root CLAUDE.md, "duck-typing or re-declaring
+ * the element's types") that the element's exported `GraphtyElement` makes unnecessary, and they
+ * survive only because replacing them wholesale touches every effect in this file.
  */
-interface GraphtyElementType extends HTMLElement, Pick<GraphtyElement, "pin" | "unpin" | "pinnedNodes"> {
+interface GraphtyElementType extends HTMLElement, Pick<GraphtyElement, "pin" | "unpin" | "pinnedNodes" | "session"> {
     nodeData?: { id: number | string; [key: string]: unknown }[];
     edgeData?: { source: number | string; target: number | string; [key: string]: unknown }[];
     layout?: string;
@@ -83,6 +86,8 @@ export interface StylesChangedDetail {
 
 interface GraphtyProps {
     layers: LayerItem[];
+    /** The element's acceleration policy, written on the tag so it is in force before the probe starts. */
+    acceleration?: AccelerationPolicy;
     /** @deprecated Use viewMode instead */
     layout2d?: boolean;
     /** View mode: "2d", "3d", "vr", or "ar" */
@@ -228,16 +233,12 @@ export interface GraphtyHandle {
     pinnedNodes: ReadonlySet<string | number>;
     /** Access to the underlying Graph instance for advanced operations (e.g., AI integration) */
     graph: Graph | null;
-}
-
-declare module "react" {
-    interface IntrinsicElements {
-        "graphty-element": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-    }
+    /** The element's session, or null before the element upgraded. The element publishes its capabilities here. */
+    session: GraphSession | null;
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    { layers: _layers, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, ...rest },
+    { layers: _layers, acceleration, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, ...rest },
     ref,
 ): React.JSX.Element {
     // Resolve viewMode from props, with backward compatibility for deprecated layout2d prop
@@ -381,6 +382,9 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
             },
             get graph() {
                 return graphtyRef.current?.graph ?? null;
+            },
+            get session() {
+                return graphtyRef.current?.session ?? null;
             },
         }),
         [],
@@ -540,6 +544,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         >
             <graphty-element
                 ref={graphtyRef}
+                acceleration={acceleration}
                 style={{
                     display: "block",
                     width: "100%",

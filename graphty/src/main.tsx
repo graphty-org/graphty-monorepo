@@ -3,6 +3,10 @@ import "@mantine/core/styles.css";
 // Defines <graphty-element>. The element declares its entry files as side effects, so a bare
 // import survives tree-shaking.
 import "@graphty/graphty-element";
+// The element's optional GPU peer, switched on. This is the whole integration: the element
+// probes, constructs, attaches, applies its threshold and recovers, and reports through
+// `capabilities.acceleration`. Nothing in this application touches WebGPU.
+import "@graphty/graphty-element/webgpu";
 
 import { MantineProvider } from "@mantine/core";
 import React from "react";

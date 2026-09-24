@@ -216,7 +216,10 @@ describe("csvExporter: the written text", () => {
         const s = new GraphBuilder({ directed: false }).freeze();
         expect(await csvExporter.exportToString(s)).toBe("Source,Target,Type\n");
         expect(await csvExporter.exportToString(s, { table: "nodes" })).toBe("Id\n");
-        expect(csvExporter.check(s)).toEqual([]);
+        // no edge row carries a Type cell, so the direction of an undirected graph is lost
+        expect(csvExporter.check(s).map((n) => n.code)).toEqual([CSV_LOSS.DIRECTION_DROPPED]);
+        expect(csvExporter.check(s, { table: "nodes" })).toEqual([]);
+        expect(csvExporter.check(new GraphBuilder({ directed: true }).freeze())).toEqual([]);
     });
 });
 

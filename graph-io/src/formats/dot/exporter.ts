@@ -50,7 +50,7 @@ export interface DotExportOptions {
 
 /** The LossNote codes of the DOT exporter; the shared ones are LOSS's. */
 export const DOT_LOSS = Object.freeze({
-    /** An id, name or text with a backslash before a quote or at its end cannot be written as a DOT quoted string; export() throws. */
+    /** An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT quoted string; export() throws. */
     TRAILING_BACKSLASH: "E_DOT_TRAILING_BACKSLASH",
     /** A non-finite f32 / f64 cell has no numeric DOT spelling and reads back as text. */
     NON_FINITE: "W_DOT_NON_FINITE",
@@ -448,7 +448,7 @@ class ExportPlan {
         if (unwritable > 0) {
             note(
                 DOT_LOSS.TRAILING_BACKSLASH,
-                `${unwritable} id(s), name(s) or text value(s) hold a backslash before a quote or at the end, which a DOT quoted string cannot carry; export() will throw`,
+                `${unwritable} id(s), name(s) or text value(s) hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; export() will throw`,
                 null,
                 unwritable,
             );
@@ -576,7 +576,7 @@ class ExportPlan {
         if (first !== null) {
             throw new GraphFormatError(
                 first.kind === "id" ? "E_INVALID_ID" : "E_COLUMN_TYPE",
-                `${first.kind} ${JSON.stringify(first.text)} ends in a backslash, which a DOT quoted string cannot carry`,
+                `${first.kind} ${JSON.stringify(first.text)} holds a backslash before a quote or a line break, or at its end, which a DOT quoted string cannot carry`,
                 { reason: "trailing backslash", kind: first.kind, value: first.text },
             );
         }

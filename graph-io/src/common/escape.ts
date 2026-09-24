@@ -148,15 +148,16 @@ function isDotIdentifier(text: string): boolean {
 
 /**
  * Whether a text can be written as a DOT ID at all. Graphviz's scanner consumes a backslash pair
- * `\\` as one unit and `\"` as an escaped quote, left to right, so a backslash that precedes a
- * double quote or ends the text cannot be written: the written `\\"` reads as a pair and a closing
- * quote, and a trailing backslash escapes the closing quote. Every other text is writable;
- * quoteDotId() writes it.
+ * `\\` as one unit, `\"` as an escaped quote and a backslash before a line break as a line
+ * continuation (both removed), left to right, so a backslash that precedes a double quote or a
+ * line break, or ends the text, cannot be written: the written `\\"` reads as a pair and a closing
+ * quote, a backslash before a line break vanishes with the break, and a trailing backslash escapes
+ * the closing quote. Every other text is writable; quoteDotId() writes it.
  * @param text - the id, name or value text
  * @returns true when quoteDotId(text) reads back as `text`
  */
 export function isWritableDotText(text: string): boolean {
-    return !text.endsWith("\\") && !text.includes('\\"');
+    return !text.endsWith("\\") && !text.includes('\\"') && !/\\[\r\n]/.test(text);
 }
 
 /**

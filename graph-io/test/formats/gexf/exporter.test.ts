@@ -195,6 +195,18 @@ describe("gexfExporter: the 1.3 dynamic document", () => {
 });
 
 describe("gexfExporter: the 1.2 document", () => {
+    it("writes a 1.3 graph timestamp as a closed interval (1.2 has no timestamp)", async () => {
+        const snapshot = await imported(
+            '<gexf xmlns="http://gexf.net/1.3" version="1.3"><graph defaultedgetype="directed" timeformat="integer" timestamp="2007">' +
+                '<nodes><node id="a"/></nodes><edges/></graph></gexf>',
+        );
+        expect(noteCodes(gexfExporter.check(snapshot, { version: "1.2" }))).toContain(GEXF_LOSS.TIMESTAMP_AS_INTERVAL);
+        const text = await gexfExporter.exportToString(snapshot, { version: "1.2" });
+        expect(text).toContain('start="2007" end="2007"');
+        expect(text).not.toContain("timestamp=");
+        expect(await gexfExporter.exportToString(snapshot)).toContain('timestamp="2007"');
+    });
+
     it("round-trips exactly as 1.2 and reports open intervals as 1.3", async () => {
         const snapshot = await imported(OPEN_1_2);
         expect(gexfExporter.check(snapshot, { version: "1.2" })).toEqual([

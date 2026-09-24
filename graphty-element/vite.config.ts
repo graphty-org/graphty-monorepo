@@ -45,8 +45,17 @@ const entries = {
  * in the one place they exist for. Copying the few functions in is the packaging-side answer;
  * the source-side answer is for `src/algorithms/Algorithm.ts` to import `lodash/set.js`
  * directly, after which this entry can go.
+ *
+ * `@graphty/remote-logger` is copied in because the element uses only its `RemoteLogClient`,
+ * which has no dependencies of its own, while the package as a whole carries a log server and an
+ * MCP server. Declaring it as a dependency made every consumer install that server tree (about
+ * 130 packages, among them `@modelcontextprotocol/sdk`, `http-proxy` and `selfsigned`). No
+ * published `.d.ts` names a remote-logger type, so copying it changes no public type.
+ *
+ * Because they are copied in, both are devDependencies: a consumer never resolves them. This set
+ * stays so that declaring either as a dependency again cannot quietly externalise it.
  */
-const bundledDependencies = new Set(["lodash"]);
+const bundledDependencies = new Set(["lodash", "@graphty/remote-logger"]);
 
 /**
  * Every declared dependency and peer dependency, as a specifier matcher.

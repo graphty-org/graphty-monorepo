@@ -108,7 +108,7 @@ describe("package.json (contract 2.1)", () => {
             import: "./dist/node.js",
             default: "./dist/node.js",
         });
-        expect(packageJson.files).toEqual(["dist/", "src/", "README.md", "LICENSE"]);
+        expect(packageJson.files).toEqual(["dist/", "!dist/*.tsbuildinfo", "src/", "README.md", "LICENSE"]);
         expect(packageJson.publishConfig).toEqual({ access: "public", provenance: true });
         expect(packageJson.engines.node).toBe(">=18.19.0");
         expect(packageJson.repository.directory).toBe("webgpu-graph-algorithms");

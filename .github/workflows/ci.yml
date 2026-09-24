@@ -21,30 +21,6 @@ on:
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 jobs:
-    # Lint PR titles with commitlint
-    lint-pr:
-        name: Lint PR Title
-        if: github.event_name == 'pull_request'
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Lint PR title
-              run: echo "${{ github.event.pull_request.title }}" | pnpm exec commitlint
-
     # Build job - runs once, shares artifacts with test shards
     build:
         name: Build
@@ -137,6 +113,19 @@ jobs:
             - name: Lint all (master or a manual dispatch)
               if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
               run: pnpm exec nx run-many -t lint --parallel=3
+
+            # Every package is built by now on both paths (PR builds the rest above). knip reads
+            # source; the production pass counts only published entry points. The published-deps
+            # check packs each package and compares what it ships with what it declares, so it
+            # must run after the build. The same three steps run in tools/prepush.sh.
+            - name: Knip (dead code detection)
+              run: pnpm run lint:knip
+
+            - name: Knip (production dependencies)
+              run: pnpm run lint:knip:prod
+
+            - name: Published dependencies
+              run: pnpm run check:published-deps
 
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook

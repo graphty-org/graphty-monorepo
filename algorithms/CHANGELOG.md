@@ -1,3 +1,31 @@
+# 2.0.0 (2026-09-24)
+
+### 🚀 Features
+
+- ⚠️  **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
+
+### 🩹 Fixes
+
+- **algorithms:** eigenvector centrality converges on bipartite graphs ([61516e15](https://github.com/graphty-org/graphty-monorepo/commit/61516e15))
+- **algorithms:** optimised louvain finds communities on graphs over 50 nodes ([7f66c545](https://github.com/graphty-org/graphty-monorepo/commit/7f66c545))
+- **algorithms:** let leiden revisit the original nodes before it stops ([66eea3ca](https://github.com/graphty-org/graphty-monorepo/commit/66eea3ca))
+- **algorithms:** correct girvan-newman modularity and settle leiden ([21f4cbd7](https://github.com/graphty-org/graphty-monorepo/commit/21f4cbd7))
+- **algorithms:** restore the doc comment orphaned from bellmanFord ([71a5b0ac](https://github.com/graphty-org/graphty-monorepo/commit/71a5b0ac))
+- **algorithms:** relax an undirected edge in both directions in Bellman-Ford ([08f83553](https://github.com/graphty-org/graphty-monorepo/commit/08f83553))
+
+### ⚠️  Breaking Changes
+
+- **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge  ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
+  callers that relied on eigenvectorCentrality returning
+  unconverged scores at maxIterations now get a ConvergenceError. Long paths and
+  large grids need more than the default 100 passes (networkx fails on the same
+  graphs); catch ConvergenceError, or pass a higher maxIterations or a looser
+  tolerance.
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.8.1 (2026-09-21)
 
 ### 🧱 Updated Dependencies

@@ -1,3 +1,14 @@
+## 1.8.1 (2026-09-24)
+
+### 🩹 Fixes
+
+- **layout:** correct the sign in the L-BFGS two-loop recursion ([19fc929e](https://github.com/graphty-org/graphty-monorepo/commit/19fc929e))
+- **layout:** stop the kamada-kawai solver stepping uphill ([0f3bd547](https://github.com/graphty-org/graphty-monorepo/commit/0f3bd547))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.8.0 (2026-09-21)
 
 ### 🚀 Features

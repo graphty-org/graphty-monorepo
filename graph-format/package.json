@@ -16,6 +16,7 @@
     "sideEffects": false,
     "files": [
         "dist/",
+        "!dist/*.tsbuildinfo",
         "src/",
         "README.md",
         "LICENSE"

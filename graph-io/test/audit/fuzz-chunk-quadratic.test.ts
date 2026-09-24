@@ -20,9 +20,36 @@
  * CSV or Neo4j header, or a JSON node with 100k keys, takes 50-130 s; every importer that
  * declares columns from the input reaches it.
  *
- * The ungated tests pin the complexity with size ratios (doubling a token must at most triple
- * the time) and shape ratios (16 KB chunks against one chunk) at 4-8 MB, taking a few seconds
- * in total; the absolute 50 MB / 10 s checks of the task run under IO_BENCH=1.
+ * The ungated tests pin the complexity with size ratios (16x the token may cost at most 64x the
+ * time) and shape ratios (16 KB chunks against one chunk, at most 8x) at 1-16 MB, taking a few
+ * seconds in total; the absolute 50 MB / 10 s checks of the task run under IO_BENCH=1.
+ *
+ * The two sizes of a size ratio are 16x apart, not 2x, because the two measurements can run on
+ * cores of different speed. The development host is a hybrid Intel part (P-cores 0-15, E-cores
+ * 16-31) and the kernel moves a vitest worker between them freely; an E-core runs this code up
+ * to 2.2x slower. Pinned with taskset, the CSV header import is linear on either core type (5k ->
+ * 10k columns costs 1.8-2.2x) but 5k on a P-core and 10k on an E-core measured 3.9-4.1x -- the
+ * pre-push failure read 3.8x against the old bound of 3. With 2x apart, the gap between linear (2)
+ * and quadratic (4) is narrower than one core-speed swing. At 16x apart, with the defects put back
+ * in a scratch copy (a carry re-joined and re-scanned per chunk, a column name resolved by a
+ * linear scan):
+ *
+ * - LineReader, CsvRecordReader, XmlTokenizer, 1 MB -> 16 MB: linear 12-26x on one core type and
+ *   at most 46x small-on-P / large-on-E without the noise floor, 4.5x with it (the 1 MB run is
+ *   under 20 ms); the quadratic readers take 3.2-5.1 s at 16 MB and read 154-168x even with the
+ *   swing working against them. The Neo4j reader (the linear control) reads 11-13x, 3.6x floored.
+ * - GraphBuilder columns, 1.25k -> 20k: linear 17x on one core type, 37x across (5.5x floored);
+ *   the by-name scan takes 2.8-3.2 s at 20k and reads at least 138x.
+ * - CSV header, 2.5k -> 40k columns: linear 13-16x on one core type, 31x across; the by-name scan
+ *   takes 15 s at 40k and reads at least 206x (at 1.25k -> 20k it only reached 98x: at small
+ *   widths the header parse, not the scan, dominates).
+ *
+ * A size ratio divides by at least 20 ms, since timings of a few ms are dominated by GC and JIT
+ * noise; that only lowers a linear reading. 64 then sits at least 2x above every linear reading
+ * the tests take (the floored ones and the 31x header) and at least 2x below every quadratic one. Each
+ * ratio takes a warm-up run, then three rounds that interleave the sizes so both minima usually
+ * come from the same kind of core. The shape ratios compare one size on both sides and need no
+ * gap: an E-core chunked run against a P-core whole run reads at most 1.6x against their bound of 8.
  */
 
 import { GraphBuilder } from "@graphty/graph-format";
@@ -40,8 +67,10 @@ const CHUNK = 16 * 1024;
 const BENCH = process.env.IO_BENCH === "1";
 const LONG = { timeout: 600_000 };
 
-/** Doubling the token may at most triple the time and still count as linear (2x plus noise). */
-const DOUBLING_BOUND = 3;
+/** The most multiplying the size by 16 may multiply the time by and still count as linear. */
+const SIXTEENFOLD_BOUND = 64;
+/** The least a size ratio divides by, in ms: shorter timings are dominated by GC and JIT noise. */
+const FLOOR_MS = 20;
 /** Chunking a token into 16 KB pieces may cost at most this much more than one piece. */
 const SHAPE_BOUND = 8;
 
@@ -78,6 +107,27 @@ async function best(runs: number, body: () => Promise<number>): Promise<number> 
         result = Math.min(result, await body());
     }
     return result;
+}
+
+/**
+ * Time `run` at a small and a large size: a warm-up at the small size, then the fastest of three
+ * rounds per size with the sizes interleaved, so both minima usually come from the same kind of core.
+ */
+async function scaling(
+    run: (size: number) => number | Promise<number>,
+    small: number,
+    large: number,
+): Promise<{ smallMs: number; largeMs: number; ratio: number; text: string }> {
+    await run(small);
+    let smallMs = Infinity;
+    let largeMs = Infinity;
+    for (let round = 0; round < 3; round++) {
+        smallMs = Math.min(smallMs, await run(small));
+        largeMs = Math.min(largeMs, await run(large));
+    }
+    const ratio = largeMs / Math.max(smallMs, FLOOR_MS);
+    const text = `${small} -> ${large}: ${smallMs.toFixed(1)} ms, ${largeMs.toFixed(0)} ms (${ratio.toFixed(1)}x floored)`;
+    return { smallMs, largeMs, ratio, text };
 }
 
 async function timeLines(input: AsyncIterable<string>): Promise<number> {
@@ -142,16 +192,12 @@ function xmlAttribute(mb: number): string {
 
 describe("fuzz audit: a token spanning many chunks costs linear time", () => {
     it(
-        "LineReader: doubling a line that spans 16 KB chunks at most triples the time (PINS a defect)",
+        "LineReader: 16x a line that spans 16 KB chunks costs at most 64x the time (PINS a defect)",
         async () => {
             // FAILS: observed 4 MB 179 ms, 8 MB 774 ms (4.3x), 50 MB 34.6 s in 16 KB chunks (0 ms whole).
-            const four = await best(2, () => timeLines(pieces(line(4), CHUNK)));
-            const eight = await best(2, () => timeLines(pieces(line(8), CHUNK)));
-            console.log(
-                `LineReader one line, 16 KB chunks: 4 MB ${four.toFixed(0)} ms, 8 MB ${eight.toFixed(0)} ms (${(eight / four).toFixed(1)}x)`,
-            );
-            // a 20 ms noise floor: timings of a few ms are dominated by GC and JIT noise
-            expect(eight / Math.max(four, 20)).toBeLessThan(DOUBLING_BOUND);
+            const { ratio, text } = await scaling((mb) => timeLines(pieces(line(mb), CHUNK)), 1, 16);
+            console.log(`LineReader one line in 16 KB chunks, MB ${text}`);
+            expect(ratio, text).toBeLessThan(SIXTEENFOLD_BOUND);
         },
         LONG,
     );
@@ -170,16 +216,12 @@ describe("fuzz audit: a token spanning many chunks costs linear time", () => {
     );
 
     it(
-        "CsvRecordReader: doubling a quoted cell that spans 16 KB chunks at most triples the time (PINS a defect)",
+        "CsvRecordReader: 16x a quoted cell that spans 16 KB chunks costs at most 64x the time (PINS a defect)",
         async () => {
             // FAILS: observed 4 MB 194 ms, 8 MB 803 ms (4.1x), 50 MB 37.7 s in 16 KB chunks (1 ms whole).
-            const four = await best(2, () => timeCsv(pieces(csvCell(4), CHUNK)));
-            const eight = await best(2, () => timeCsv(pieces(csvCell(8), CHUNK)));
-            console.log(
-                `CsvRecordReader one quoted cell, 16 KB chunks: 4 MB ${four.toFixed(0)} ms, 8 MB ${eight.toFixed(0)} ms (${(eight / four).toFixed(1)}x)`,
-            );
-            // a 20 ms noise floor: timings of a few ms are dominated by GC and JIT noise
-            expect(eight / Math.max(four, 20)).toBeLessThan(DOUBLING_BOUND);
+            const { ratio, text } = await scaling((mb) => timeCsv(pieces(csvCell(mb), CHUNK)), 1, 16);
+            console.log(`CsvRecordReader one quoted cell in 16 KB chunks, MB ${text}`);
+            expect(ratio, text).toBeLessThan(SIXTEENFOLD_BOUND);
         },
         LONG,
     );
@@ -198,19 +240,13 @@ describe("fuzz audit: a token spanning many chunks costs linear time", () => {
     );
 
     it(
-        "XmlTokenizer: doubling an attribute value that spans 16 KB chunks at most triples the time (PINS a defect)",
-        () => {
+        "XmlTokenizer: 16x an attribute value that spans 16 KB chunks costs at most 64x the time (PINS a defect)",
+        async () => {
             // FAILS: observed 4 MB 172 ms, 8 MB 750 ms (4.4x), 50 MB 33.8 s in 16 KB chunks (4 ms whole);
             // a 50 MB comment takes 31 s the same way and a 50 MB element name did not finish in 9 min.
-            let four = timeXml(xmlAttribute(4), CHUNK);
-            four = Math.min(four, timeXml(xmlAttribute(4), CHUNK));
-            let eight = timeXml(xmlAttribute(8), CHUNK);
-            eight = Math.min(eight, timeXml(xmlAttribute(8), CHUNK));
-            console.log(
-                `XmlTokenizer one attribute, 16 KB chunks: 4 MB ${four.toFixed(0)} ms, 8 MB ${eight.toFixed(0)} ms (${(eight / four).toFixed(1)}x)`,
-            );
-            // a 20 ms noise floor: timings of a few ms are dominated by GC and JIT noise
-            expect(eight / Math.max(four, 20)).toBeLessThan(DOUBLING_BOUND);
+            const { ratio, text } = await scaling((mb) => timeXml(xmlAttribute(mb), CHUNK), 1, 16);
+            console.log(`XmlTokenizer one attribute in 16 KB chunks, MB ${text}`);
+            expect(ratio, text).toBeLessThan(SIXTEENFOLD_BOUND);
         },
         LONG,
     );
@@ -233,14 +269,11 @@ describe("fuzz audit: a token spanning many chunks costs linear time", () => {
         "Neo4jRecordReader (control): a quoted cell spanning 16 KB chunks is linear and shape-independent",
         async () => {
             const cell = (mb: number): string => `:ID,name,:LABEL\n1,"${"x".repeat(mb * MB)}",P\n2,b,P\n`;
-            const eight = await best(3, () => timeNeo4j(pieces(cell(8), CHUNK)));
-            const sixteen = await best(3, () => timeNeo4j(pieces(cell(16), CHUNK)));
+            const { largeMs, ratio, text } = await scaling((mb) => timeNeo4j(pieces(cell(mb), CHUNK)), 1, 16);
             const whole = await best(3, () => timeNeo4j(onePiece(cell(16))));
-            console.log(
-                `Neo4jRecordReader 16 MB cell: 16 KB chunks ${sixteen.toFixed(0)} ms, one chunk ${whole.toFixed(0)} ms; 8 MB ${eight.toFixed(0)} ms`,
-            );
-            expect(sixteen / Math.max(eight, 20)).toBeLessThan(DOUBLING_BOUND);
-            expect(sixteen).toBeLessThan(Math.max(whole, 20) * SHAPE_BOUND);
+            console.log(`Neo4jRecordReader one quoted cell in 16 KB chunks, MB ${text}; 16 MB whole ${whole.toFixed(0)} ms`);
+            expect(ratio, text).toBeLessThan(SIXTEENFOLD_BOUND);
+            expect(largeMs).toBeLessThan(Math.max(whole, FLOOR_MS) * SHAPE_BOUND);
         },
         LONG,
     );
@@ -261,26 +294,21 @@ describe("fuzz audit: the number of declared columns", () => {
     }
 
     it(
-        "GraphBuilder: declaring and resolving 40k columns costs at most three times 20k (PINS a core defect)",
-        () => {
+        "GraphBuilder: declaring and resolving 20k columns costs at most 64x 1.25k (PINS a core defect)",
+        async () => {
             // FAILS: observed 5k 196 ms, 10k 813 ms, 20k 3302 ms (4x per doubling): handleOf() and
             // checkDeclaration() scan the staging column array by name (graph-format
             // src/builder/graph-builder.ts). Reached from every importer through declareOn() /
-            // setNodeValue(name) / nodeColumn(name). With the name index the 20k / 40k pair runs
-            // in tens of ms (5k is under 10 ms, too close to GC and JIT noise for a ratio).
-            timeColumns(2000); // warm the JIT so the two timings compare like with like
-            const twenty = Math.min(timeColumns(20_000), timeColumns(20_000), timeColumns(20_000));
-            const forty = Math.min(timeColumns(40_000), timeColumns(40_000), timeColumns(40_000));
-            console.log(
-                `GraphBuilder columns: 20k ${twenty.toFixed(0)} ms, 40k ${forty.toFixed(0)} ms (${(forty / twenty).toFixed(1)}x)`,
-            );
-            expect(forty / Math.max(twenty, 20)).toBeLessThan(DOUBLING_BOUND);
+            // setNodeValue(name) / nodeColumn(name). With the name index 20k runs in tens of ms.
+            const { ratio, text } = await scaling(timeColumns, 1250, 20_000);
+            console.log(`GraphBuilder columns ${text}`);
+            expect(ratio, text).toBeLessThan(SIXTEENFOLD_BOUND);
         },
         LONG,
     );
 
     it(
-        "CSV: a 10k-column header costs at most three times a 5k-column header (PINS the same defect)",
+        "CSV: a 40k-column header costs at most 64x a 2.5k-column header (PINS the same defect)",
         async () => {
             // FAILS: observed 100k columns 97 s (600 KB of input); 20k GraphML keys 4 s; 100k JSON keys 64 s.
             const timeHeader = async (columns: number): Promise<number> => {
@@ -291,12 +319,9 @@ describe("fuzz audit: the number of declared columns", () => {
                 await registry.importer("csv").import(text, sink, {});
                 return performance.now() - t0;
             };
-            const five = await best(2, () => timeHeader(5000));
-            const ten = await best(2, () => timeHeader(10_000));
-            console.log(
-                `CSV header columns: 5k ${five.toFixed(0)} ms, 10k ${ten.toFixed(0)} ms (${(ten / five).toFixed(1)}x)`,
-            );
-            expect(ten / five).toBeLessThan(DOUBLING_BOUND);
+            const { ratio, text } = await scaling(timeHeader, 2500, 40_000);
+            console.log(`CSV header columns ${text}`);
+            expect(ratio, text).toBeLessThan(SIXTEENFOLD_BOUND);
         },
         LONG,
     );

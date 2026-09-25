@@ -76,6 +76,10 @@ const LineStyle = z.strictObject({
      * thousands and the frame rate collapses. Set this to cap it: the elements are then
      * spread evenly over the edge whatever its length or width.
      *
+     * It applies to the discrete patterns only (dot, star, box, dash, diamond, dash-dot).
+     * Zigzag and sinewave are drawn as fixed-length connected segments that always tile the
+     * whole edge, so they ignore it.
+     *
      * This is a USER choice, deliberately. The renderer does not silently impose a ceiling,
      * because that would change how a graph looks to buy performance the caller never asked
      * for -- the same reason an algorithm's style layer never mutes another layer.

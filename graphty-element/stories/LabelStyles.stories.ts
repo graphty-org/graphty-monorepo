@@ -2,6 +2,7 @@ import "../src/data/index.ts"; // Ensure all data sources are registered
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
+import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import isChromatic from "chromatic/isChromatic";
 
@@ -1495,6 +1496,88 @@ export const UnicodeText: Story = {
         // of tofu, is the failure this is for: tofu boxes cover far less of the canvas than
         // filled glyphs do.
         await assertLabelInkAtLeast(scene, 2000);
+        await assertDistinctPicture(scene, "Styles/Label");
+    },
+};
+
+/**
+ * Labels that would land on top of each other are not all drawn, when the element is asked.
+ *
+ * Every cat is labelled at 128px, so several labels' words cross on screen. With the element's
+ * `labels.declutter` behaviour turned on, it keeps the label of the better-connected node (then
+ * the node id, so the choice is stable) and hides any label whose words would cover the words of
+ * one already kept. Nothing about the style changes: a hidden label is still built, and comes
+ * back when its node moves clear. Every other story leaves the behaviour at its default, off.
+ */
+export const Declutter: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: { "node.labelStyle": { sizePx: 128 } },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+            declutterLabels: true,
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "Declutter");
+        const { graph } = scene;
+        const camera = graph.scene.activeCamera;
+        const engine = graph.scene.getEngine();
+
+        await holds(camera !== null, "Styles/Label Declutter: the scene has no camera");
+        if (camera === null) {
+            return;
+        }
+
+        const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+        const shown: { id: string; left: number; right: number; top: number; bottom: number }[] = [];
+        let hidden = 0;
+
+        for (const node of graph.getNodes()) {
+            const plane = node.label?.labelMesh;
+            if (!plane || plane.isDisposed() || !plane.isEnabled()) {
+                continue;
+            }
+
+            if (!plane.isVisible) {
+                hidden++;
+                continue;
+            }
+
+            const xs: number[] = [];
+            const ys: number[] = [];
+            for (const corner of plane.getBoundingInfo().boundingBox.vectorsWorld) {
+                const p = Vector3.Project(corner, Matrix.Identity(), graph.scene.getTransformMatrix(), viewport);
+                xs.push(p.x);
+                ys.push(p.y);
+            }
+
+            // The words, not the padded plane: two planes may overlap in their margins while the
+            // words drawn on them do not, and it is the words the pass keeps apart.
+            const left = Math.min(...xs);
+            const top = Math.min(...ys);
+            const width = Math.max(...xs) - left;
+            const height = Math.max(...ys) - top;
+            const words = node.label?.textBounds ?? { left: 0, right: 1, top: 0, bottom: 1 };
+            shown.push({
+                id: String(node.id),
+                left: left + words.left * width,
+                right: left + words.right * width,
+                top: top + words.top * height,
+                bottom: top + words.bottom * height,
+            });
+        }
+
+        const crossing = shown.flatMap((a, i) =>
+            shown
+                .slice(i + 1)
+                .filter((b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top)
+                .map((b) => `${a.id} / ${b.id}`),
+        );
+
+        await holds(crossing.length === 0, `Styles/Label Declutter: the words of drawn labels overlap: ${crossing.join(", ")}`);
+        await holds(hidden > 0, "Styles/Label Declutter: 128-pixel labels on twenty cats hid none");
+        await holds(shown.length > 1, `Styles/Label Declutter: only ${String(shown.length)} label is drawn`);
         await assertDistinctPicture(scene, "Styles/Label");
     },
 };

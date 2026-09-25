@@ -1,8 +1,8 @@
 /**
  * XR Controller Gestures Tests
  *
- * These tests verify that XR controller gestures (trigger press, two-hand gestures)
- * produce the expected scene transformations and node interactions.
+ * These tests drive the element's real XRInputHandler with tracked hands and verify that
+ * two-hand gestures produce the expected scene transformations.
  *
  * Tests cover:
  * - Single trigger picks node
@@ -15,9 +15,11 @@ import { Quaternion, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { PivotController } from "../../../src/cameras/PivotController";
+import { twoHandGestureDelta } from "../../../src/cameras/InputUtils";
+import type { PivotController } from "../../../src/cameras/PivotController";
 import type { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
+import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
  * Helper to get pivot rotation as Euler angles
@@ -35,119 +37,23 @@ function getPivotScale(pivot: PivotController): number {
     return pivot.pivot.scaling.x;
 }
 
-/**
- * Mock hand state for gesture testing
- */
-interface MockHandState {
-    position: Vector3;
-    rotation: Quaternion;
-    isPinching: boolean;
-    pinchStrength: number;
-}
-
-/**
- * Mock two-hand gesture processor
- *
- * This simulates the gesture processing logic from XRInputHandler
- * for two-hand zoom and rotation gestures.
- */
-class MockGestureProcessor {
-    private pivotController: PivotController;
-
-    // Hand states
-    public leftHand: MockHandState | null = null;
-    public rightHand: MockHandState | null = null;
-
-    // Previous frame state for gesture tracking
-    private previousDistance: number | null = null;
-    private previousDirection: Vector3 | null = null;
-
-    // Sensitivity (matching XRInputHandler)
-    private readonly GESTURE_ZOOM_SENSITIVITY = 2.0;
-
-    constructor(pivotController: PivotController) {
-        this.pivotController = pivotController;
-    }
-
-    /**
-     * Process two-hand gestures for zoom and rotation
-     * Mirrors XRInputHandler.processHandGesturesInternal()
-     */
-    processGestures(): void {
-        // Need both hands pinching for gestures
-        if (!this.leftHand?.isPinching || !this.rightHand?.isPinching) {
-            // Reset state when not both pinching
-            this.resetGestureState();
-
-            return;
-        }
-
-        const leftPos = this.leftHand.position;
-        const rightPos = this.rightHand.position;
-        const currentDistance = Vector3.Distance(leftPos, rightPos);
-        const direction = rightPos.subtract(leftPos);
-        const currentDirection = direction.normalize();
-
-        if (this.previousDistance === null || this.previousDirection === null) {
-            this.previousDistance = currentDistance;
-            this.previousDirection = currentDirection.clone();
-            return;
-        }
-
-        // Zoom from distance change
-        const distanceDelta = currentDistance - this.previousDistance;
-        const zoomFactor = 1.0 + distanceDelta * this.GESTURE_ZOOM_SENSITIVITY;
-        // Invert: hands apart (positive delta) = zoom out = scale down
-        this.pivotController.zoom(2.0 - Math.max(0.9, Math.min(1.1, zoomFactor)));
-
-        // Rotation from direction change
-        const rotationAxis = Vector3.Cross(this.previousDirection, currentDirection);
-        const axisLength = rotationAxis.length();
-        if (axisLength > 0.0001) {
-            const dot = Vector3.Dot(this.previousDirection, currentDirection);
-            const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
-            rotationAxis.scaleInPlace(1 / axisLength);
-            // Negate for world-mode rotation
-            this.pivotController.rotateAroundAxis(rotationAxis, -angle);
-        }
-
-        this.previousDistance = currentDistance;
-        this.previousDirection = currentDirection.clone();
-    }
-
-    /**
-     * Reset gesture tracking state
-     */
-    resetGestureState(): void {
-        this.previousDistance = null;
-        this.previousDirection = null;
-    }
-
-    /**
-     * Create hand at specified position
-     */
-    createHand(position: Vector3, isPinching: boolean): MockHandState {
-        return {
-            position: position.clone(),
-            rotation: Quaternion.Identity(),
-            isPinching,
-            pinchStrength: isPinching ? 1.0 : 0,
-        };
-    }
-}
+/** Thumb-to-index distances, in metres, for a hand that is clearly pinching or clearly open. */
+const PINCHED = 0.02;
+const OPEN = 0.08;
 
 describe("XR Controller Gestures", () => {
     let graph: Graph;
     let pivotController: PivotController;
-    let processor: MockGestureProcessor;
+    let driver: XRInputDriver;
 
     beforeEach(async () => {
         graph = await createTestGraph();
-        pivotController = new PivotController(graph.scene);
-        processor = new MockGestureProcessor(pivotController);
+        driver = createXRInputDriver(graph.scene);
+        pivotController = driver.pivot;
     });
 
     afterEach(() => {
+        driver.dispose();
         vi.restoreAllMocks();
         cleanupTestGraph(graph);
     });
@@ -155,15 +61,15 @@ describe("XR Controller Gestures", () => {
     describe("Single Trigger Interactions", () => {
         test("single trigger does not trigger two-hand gestures", () => {
             // Only left hand pinching (single trigger)
-            processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), false);
+            driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.3, 1.0, -0.5), OPEN);
 
             const initialScale = getPivotScale(pivotController);
             const initialEuler = getPivotEuler(pivotController);
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                processor.processGestures();
+                driver.frame();
             }
 
             const finalScale = getPivotScale(pivotController);
@@ -179,21 +85,21 @@ describe("XR Controller Gestures", () => {
         test("two-hand pinch zooms scene", () => {
             // Start with both hands pinching at initial distance
             const startDistance = 0.4;
-            processor.leftHand = processor.createHand(new Vector3(-startDistance / 2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(startDistance / 2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-startDistance / 2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(startDistance / 2, 1.0, -0.5), PINCHED);
 
             // Initialize gesture tracking
-            processor.processGestures();
+            driver.frame();
 
             const initialScale = getPivotScale(pivotController);
 
             // Move hands closer together (pinch in = zoom out)
             const endDistance = 0.2;
-            processor.leftHand = processor.createHand(new Vector3(-endDistance / 2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(endDistance / 2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-endDistance / 2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(endDistance / 2, 1.0, -0.5), PINCHED);
 
             // Process the gesture
-            processor.processGestures();
+            driver.frame();
 
             const finalScale = getPivotScale(pivotController);
 
@@ -205,21 +111,21 @@ describe("XR Controller Gestures", () => {
         test("hands apart zooms scene in opposite direction", () => {
             // Start with both hands pinching close together
             const startDistance = 0.2;
-            processor.leftHand = processor.createHand(new Vector3(-startDistance / 2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(startDistance / 2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-startDistance / 2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(startDistance / 2, 1.0, -0.5), PINCHED);
 
             // Initialize gesture tracking
-            processor.processGestures();
+            driver.frame();
 
             const initialScale = getPivotScale(pivotController);
 
             // Move hands further apart (spread = zoom in)
             const endDistance = 0.6;
-            processor.leftHand = processor.createHand(new Vector3(-endDistance / 2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(endDistance / 2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-endDistance / 2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(endDistance / 2, 1.0, -0.5), PINCHED);
 
             // Process the gesture
-            processor.processGestures();
+            driver.frame();
 
             const finalScale = getPivotScale(pivotController);
 
@@ -229,21 +135,21 @@ describe("XR Controller Gestures", () => {
 
         test("releasing one hand stops zoom gesture", () => {
             // Start with both hands pinching
-            processor.leftHand = processor.createHand(new Vector3(-0.2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.2, 1.0, -0.5), PINCHED);
 
             // Initialize gesture tracking
-            processor.processGestures();
+            driver.frame();
 
             // Release right hand
-            processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), false);
+            driver.setHand("right", new Vector3(0.3, 1.0, -0.5), OPEN);
 
             const initialScale = getPivotScale(pivotController);
 
             // Move remaining hand
-            processor.leftHand = processor.createHand(new Vector3(-0.5, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.5, 1.0, -0.5), PINCHED);
 
-            processor.processGestures();
+            driver.frame();
 
             const finalScale = getPivotScale(pivotController);
 
@@ -255,20 +161,20 @@ describe("XR Controller Gestures", () => {
     describe("Two-Hand Rotation", () => {
         test("two-hand rotation rotates scene", () => {
             // Start with hands aligned horizontally
-            processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.3, 1.0, -0.5), PINCHED);
 
             // Initialize gesture tracking
-            processor.processGestures();
+            driver.frame();
 
             const initialEuler = getPivotEuler(pivotController);
 
             // Rotate hands: move left hand up, right hand down (rotate around Z)
-            processor.leftHand = processor.createHand(new Vector3(-0.2, 1.2, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.2, 0.8, -0.5), true);
+            driver.setHand("left", new Vector3(-0.2, 1.2, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.2, 0.8, -0.5), PINCHED);
 
             // Process the gesture
-            processor.processGestures();
+            driver.frame();
 
             const finalEuler = getPivotEuler(pivotController);
 
@@ -284,19 +190,19 @@ describe("XR Controller Gestures", () => {
 
         test("rotating hands around Y axis produces yaw rotation", () => {
             // Start with hands at same height, horizontally aligned
-            processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.3, 1.0, -0.5), PINCHED);
 
             // Initialize
-            processor.processGestures();
+            driver.frame();
 
             // Rotate hands around vertical axis (Y) by moving one forward, one back
-            processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.3), true);
-            processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.7), true);
+            driver.setHand("left", new Vector3(-0.3, 1.0, -0.3), PINCHED);
+            driver.setHand("right", new Vector3(0.3, 1.0, -0.7), PINCHED);
 
             const initialEuler = getPivotEuler(pivotController);
 
-            processor.processGestures();
+            driver.frame();
 
             const finalEuler = getPivotEuler(pivotController);
 
@@ -307,25 +213,28 @@ describe("XR Controller Gestures", () => {
                 Math.abs(finalEuler.z - initialEuler.z);
 
             assert.isAbove(totalChange, 0.0001, "Hands rotating around Y should change rotation");
+            // The right hand swung away (-Z) and the left toward the user; the graph turns with the
+            // hands, which is a negative yaw.
+            assert.isBelow(finalEuler.y, initialEuler.y, "The graph should turn with the hands");
         });
 
         test("releasing one hand stops rotation gesture", () => {
             // Start with both hands pinching
-            processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.3, 1.0, -0.5), PINCHED);
 
             // Initialize
-            processor.processGestures();
+            driver.frame();
 
             // Release left hand
-            processor.leftHand = processor.createHand(new Vector3(-0.3, 1.2, -0.5), false);
+            driver.setHand("left", new Vector3(-0.3, 1.2, -0.5), OPEN);
 
             const initialEuler = getPivotEuler(pivotController);
 
             // Move remaining hand (should not rotate)
-            processor.rightHand = processor.createHand(new Vector3(0.3, 0.8, -0.5), true);
+            driver.setHand("right", new Vector3(0.3, 0.8, -0.5), PINCHED);
 
-            processor.processGestures();
+            driver.frame();
 
             const finalEuler = getPivotEuler(pivotController);
 
@@ -339,21 +248,21 @@ describe("XR Controller Gestures", () => {
     describe("Combined Gestures", () => {
         test("simultaneous zoom and rotation produces both effects", () => {
             // Start position
-            processor.leftHand = processor.createHand(new Vector3(-0.2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.2, 1.0, -0.5), PINCHED);
 
             // Initialize
-            processor.processGestures();
+            driver.frame();
 
             const initialScale = getPivotScale(pivotController);
             const initialEuler = getPivotEuler(pivotController);
 
             // Move hands: increase distance AND rotate
             // This simulates pulling hands apart while also tilting them
-            processor.leftHand = processor.createHand(new Vector3(-0.4, 1.2, -0.4), true);
-            processor.rightHand = processor.createHand(new Vector3(0.4, 0.8, -0.6), true);
+            driver.setHand("left", new Vector3(-0.4, 1.2, -0.4), PINCHED);
+            driver.setHand("right", new Vector3(0.4, 0.8, -0.6), PINCHED);
 
-            processor.processGestures();
+            driver.frame();
 
             const finalScale = getPivotScale(pivotController);
             const finalEuler = getPivotEuler(pivotController);
@@ -371,11 +280,11 @@ describe("XR Controller Gestures", () => {
 
         test("continuous gesture accumulates changes", () => {
             // Start position
-            processor.leftHand = processor.createHand(new Vector3(-0.2, 1.0, -0.5), true);
-            processor.rightHand = processor.createHand(new Vector3(0.2, 1.0, -0.5), true);
+            driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), PINCHED);
+            driver.setHand("right", new Vector3(0.2, 1.0, -0.5), PINCHED);
 
             // Initialize
-            processor.processGestures();
+            driver.frame();
 
             const initialScale = getPivotScale(pivotController);
 
@@ -383,9 +292,9 @@ describe("XR Controller Gestures", () => {
             const steps = 5;
             for (let i = 1; i <= steps; i++) {
                 const distance = 0.2 + i * 0.05;
-                processor.leftHand = processor.createHand(new Vector3(-distance, 1.0, -0.5), true);
-                processor.rightHand = processor.createHand(new Vector3(distance, 1.0, -0.5), true);
-                processor.processGestures();
+                driver.setHand("left", new Vector3(-distance, 1.0, -0.5), PINCHED);
+                driver.setHand("right", new Vector3(distance, 1.0, -0.5), PINCHED);
+                driver.frame();
             }
 
             const finalScale = getPivotScale(pivotController);
@@ -400,46 +309,47 @@ describe("XR Controller Gestures", () => {
 describe("XR Gesture State Management", () => {
     let graph: Graph;
     let pivotController: PivotController;
-    let processor: MockGestureProcessor;
+    let driver: XRInputDriver;
 
     beforeEach(async () => {
         graph = await createTestGraph();
-        pivotController = new PivotController(graph.scene);
-        processor = new MockGestureProcessor(pivotController);
+        driver = createXRInputDriver(graph.scene);
+        pivotController = driver.pivot;
     });
 
     afterEach(() => {
+        driver.dispose();
         vi.restoreAllMocks();
         cleanupTestGraph(graph);
     });
 
     test("gesture state resets when hands stop pinching", () => {
         // Start gesture
-        processor.leftHand = processor.createHand(new Vector3(-0.2, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.2, 1.0, -0.5), true);
-        processor.processGestures();
+        driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.2, 1.0, -0.5), PINCHED);
+        driver.frame();
 
         // Continue gesture to set previous state
-        processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), true);
-        processor.processGestures();
+        driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.3, 1.0, -0.5), PINCHED);
+        driver.frame();
 
         const scaleAfterFirstGesture = getPivotScale(pivotController);
 
         // Release and re-grab at new positions
-        processor.leftHand = processor.createHand(new Vector3(-0.5, 1.0, -0.5), false);
-        processor.rightHand = processor.createHand(new Vector3(0.5, 1.0, -0.5), false);
-        processor.processGestures(); // This should reset state
+        driver.setHand("left", new Vector3(-0.5, 1.0, -0.5), OPEN);
+        driver.setHand("right", new Vector3(0.5, 1.0, -0.5), OPEN);
+        driver.frame(); // This should reset state
 
         // Re-pinch at current positions
-        processor.leftHand = processor.createHand(new Vector3(-0.5, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.5, 1.0, -0.5), true);
-        processor.processGestures(); // This should initialize new gesture
+        driver.setHand("left", new Vector3(-0.5, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.5, 1.0, -0.5), PINCHED);
+        driver.frame(); // This should initialize new gesture
 
         // Move slightly - should not cause large change since we're starting fresh
-        processor.leftHand = processor.createHand(new Vector3(-0.51, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.51, 1.0, -0.5), true);
-        processor.processGestures();
+        driver.setHand("left", new Vector3(-0.51, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.51, 1.0, -0.5), PINCHED);
+        driver.frame();
 
         const scaleAfterRegrab = getPivotScale(pivotController);
 
@@ -450,27 +360,53 @@ describe("XR Gesture State Management", () => {
 
     test("alternating hands maintains gesture state", () => {
         // This tests that as long as both hands stay pinching, state is maintained
-        processor.leftHand = processor.createHand(new Vector3(-0.2, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.2, 1.0, -0.5), true);
+        driver.setHand("left", new Vector3(-0.2, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.2, 1.0, -0.5), PINCHED);
 
         // Initialize
-        processor.processGestures();
+        driver.frame();
 
         // Both hands move in same frame
-        processor.leftHand = processor.createHand(new Vector3(-0.3, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.3, 1.0, -0.5), true);
-        processor.processGestures();
+        driver.setHand("left", new Vector3(-0.3, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.3, 1.0, -0.5), PINCHED);
+        driver.frame();
 
         const scaleAfterMove = getPivotScale(pivotController);
 
         // Move again - should accumulate
-        processor.leftHand = processor.createHand(new Vector3(-0.4, 1.0, -0.5), true);
-        processor.rightHand = processor.createHand(new Vector3(0.4, 1.0, -0.5), true);
-        processor.processGestures();
+        driver.setHand("left", new Vector3(-0.4, 1.0, -0.5), PINCHED);
+        driver.setHand("right", new Vector3(0.4, 1.0, -0.5), PINCHED);
+        driver.frame();
 
         const scaleAfterSecondMove = getPivotScale(pivotController);
 
         // Scale should continue changing in same direction
         assert.notEqual(scaleAfterSecondMove, scaleAfterMove, "Continuous movement should continue affecting scale");
+    });
+});
+
+describe("Two-hand gesture maths", () => {
+    const right = new Vector3(1, 0, 0);
+
+    test("hands 1cm further apart zoom out by 2%", () => {
+        assert.closeTo(twoHandGestureDelta(0.4, right, 0.41, right).zoom, 0.98, 1e-12);
+        assert.closeTo(twoHandGestureDelta(0.4, right, 0.39, right).zoom, 1.02, 1e-12);
+    });
+
+    test("zoom is clamped to 10% a frame", () => {
+        assert.closeTo(twoHandGestureDelta(0.2, right, 1.2, right).zoom, 0.9, 1e-12);
+        assert.closeTo(twoHandGestureDelta(1.2, right, 0.2, right).zoom, 1.1, 1e-12);
+    });
+
+    test("turning the hands a quarter turn about +Y rotates the graph a quarter turn with them", () => {
+        const { axis, angle } = twoHandGestureDelta(0.4, right, 0.4, new Vector3(0, 0, -1));
+
+        assert.exists(axis);
+        assert.closeTo(axis?.y ?? 0, 1, 1e-12);
+        assert.closeTo(angle, -Math.PI / 2, 1e-12);
+    });
+
+    test("hands that keep their direction do not rotate", () => {
+        assert.isNull(twoHandGestureDelta(0.4, right, 0.5, right).axis);
     });
 });

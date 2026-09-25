@@ -157,6 +157,8 @@ export const JSON_ISSUE = Object.freeze({
     HYPEREDGE_SHAPE: "E_HYPEREDGE_SHAPE",
     /** The nodes have no id key at all; array positions became the ids. */
     POSITIONAL_NODES: "W_POSITIONAL_NODES",
+    /** A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. */
+    UNREAD_KEY: "W_JSON_UNREAD_KEY",
     /** A builder-policy option (addMissingNodes, duplicateEdges, selfLoops, weightDtype) differs from the sink's (the shared W_SINK_OPTION). */
     SINK_OPTION: SINK_OPTION_CODE,
     /** A common option the dialect has no use for (nodeIdFrom outside node-link, long, restoreMangledIds). */
@@ -1120,6 +1122,17 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: JsonDiale
     const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
     ctx.setHeader(directed);
     ctx.writeGraphDict(root.graph, "graph");
+    for (const key of Object.keys(root)) {
+        if (key !== "nodes" && key !== edgesKey && key !== "directed" && key !== "multigraph" && key !== "graph") {
+            const value = root[key];
+            const what = Array.isArray(value)
+                ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
+                : describe(value);
+            report.warning("unsupported", JSON_ISSUE.UNREAD_KEY, `top-level key ${key} (${what}) is not read; dropped`, {
+                element: key,
+            });
+        }
+    }
 
     const nodeList = nodes ?? [];
     const edgeList = edges ?? [];

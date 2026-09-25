@@ -1837,6 +1837,133 @@ describe("AppShell", () => {
 
             expect(screen.getByTestId("explore-search-scope")).toHaveTextContent("Visible nodes");
         });
+
+        /**
+         * Loads the sample, stands a session on the element whose selection records what the
+         * shell asks of it, and opens Explore.
+         * @param refuse - the sentence the element refuses every query with, if any.
+         * @returns the container and the selection's two recorded verbs.
+         */
+        async function searchableShell(refuse?: string) {
+            const { container } = await renderMeasuredShell();
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+            await screen.findByRole("region", { name: "Explore" });
+
+            const fake = installGraph(container, []);
+            const apply = vi.fn(() => (refuse === undefined ? Promise.resolve({}) : Promise.reject(new Error(refuse))));
+            const clear = vi.fn();
+
+            Object.assign(fake.session, { selection: { apply, clear } });
+
+            return { container, apply, clear };
+        }
+
+        /**
+         * Fires the element's own selection change, as a click, a search or a command does.
+         * @param container - the render result's container.
+         * @param nodes - how many nodes the selection holds now.
+         * @param edges - how many edges it holds now.
+         * @param cause - who asked.
+         */
+        function reportSelectionChange(container: HTMLElement, nodes: number, edges: number, cause: string) {
+            act(() => {
+                container.querySelector("graphty-element")?.dispatchEvent(
+                    new CustomEvent("graphty-selection-change", {
+                        detail: { added: [], removed: [], nodes, edges, truncated: false, unresolvedPaths: [], cause },
+                        bubbles: true,
+                        composed: true,
+                    }),
+                );
+            });
+        }
+
+        const field = (): HTMLElement => screen.getByRole("textbox", { name: "Search nodes and edges" });
+
+        it("sends what is typed to the element's selection, over the scope picked", async () => {
+            const { apply } = await searchableShell();
+
+            fireEvent.change(field(), { target: { value: "acct" } });
+            await waitFor(() => {
+                expect(apply).toHaveBeenLastCalledWith({ text: "acct", scope: "graph" });
+            });
+
+            fireEvent.click(screen.getByTestId("explore-search-scope"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
+            await waitFor(() => {
+                expect(apply).toHaveBeenLastCalledWith({ text: "acct", scope: "visible" });
+            });
+        });
+
+        it("runs the query still in the field again when a new dataset loads", async () => {
+            const { container, apply } = await searchableShell();
+
+            fireEvent.change(field(), { target: { value: "acct" } });
+            await waitFor(() => {
+                expect(apply).toHaveBeenCalledTimes(1);
+            });
+
+            await reportLoadComplete(container);
+            await waitFor(() => {
+                expect(apply).toHaveBeenCalledTimes(2);
+            });
+        });
+
+        it("shows the element's refusal under the field", async () => {
+            await searchableShell("E_BAD_SELECTOR: the expression does not parse");
+
+            fireEvent.change(field(), { target: { value: "=data.type ==" } });
+
+            expect(await screen.findByTestId("explore-search-error")).toHaveTextContent(
+                "E_BAD_SELECTOR: the expression does not parse",
+            );
+        });
+
+        it("clears what the search selected when the field is emptied", async () => {
+            const { apply, clear } = await searchableShell();
+
+            fireEvent.change(field(), { target: { value: "acct" } });
+            await waitFor(() => {
+                expect(apply).toHaveBeenCalled();
+            });
+
+            fireEvent.change(field(), { target: { value: "" } });
+            await waitFor(() => {
+                expect(clear).toHaveBeenCalledTimes(1);
+            });
+        });
+
+        it("leaves a clicked selection alone when the field is emptied after it", async () => {
+            const { container, apply, clear } = await searchableShell();
+
+            fireEvent.change(field(), { target: { value: "acct" } });
+            await waitFor(() => {
+                expect(apply).toHaveBeenCalled();
+            });
+
+            reportSelectionChange(container, 1, 0, "user");
+            fireEvent.change(field(), { target: { value: "" } });
+            await act(async () => {
+                await new Promise<void>((resolve) => {
+                    setTimeout(resolve, 400);
+                });
+            });
+
+            expect(clear).not.toHaveBeenCalled();
+        });
+
+        it("counts the element's selection in the status bar, and shows nothing once it is empty", async () => {
+            const { container } = await searchableShell();
+
+            // A clicked node the shell still remembers must not outlive the element's own count.
+            reportSelection(container, "n1");
+            reportSelectionChange(container, 3, 1, "api");
+            expect(screen.getByText("4 selected")).toBeInTheDocument();
+
+            reportSelectionChange(container, 0, 0, "api");
+            expect(screen.queryByText(/selected$/)).toBeNull();
+        });
     });
 
     describe("the style layers list", () => {

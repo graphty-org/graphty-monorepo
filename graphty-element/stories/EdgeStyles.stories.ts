@@ -80,16 +80,9 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 /*
- * WHY EVERY EDGE IN THE TWO GRID STORIES CARRIES A `kind` COLUMN THAT REPEATS ITS OWN SOURCE ID.
- *
- * These layers used to select on `data.src == 'normal-src'`, and all forty-six of them painted
- * nothing. A layer selects with a JMESPath expression over `data.*`, and `data.*` reaches the
- * attribute columns the importer kept -- which are the record's own fields MINUS its two
- * endpoints: `src` and `dst` are consumed as structure and published as nothing. `data.src`,
- * `data.source` and `has data.source` all match zero edges, and the style stack reports no
- * problem while they do it, so all four grids rendered fourteen identical default edges and
- * their tests passed. The column exists so the layers have something they are allowed to read.
- * See the handover note: a style layer cannot select an edge by either of its endpoints.
+ * The grid layers select each edge by its source node, `data.source == '<name>-src'`. An edge's
+ * endpoints are read from the graph itself, so this works whichever keys the edge record used for
+ * them (`src`/`dst` here).
  */
 
 /** The arrow caps the two arrow-grid stories draw, one edge each, in the order they are laid out. */
@@ -181,7 +174,7 @@ const assertGridPainted = async (scene: Drawn, kinds: readonly string[], arrowCa
     await assertGraphLoaded(scene, { nodes: kinds.length * 2, edges: kinds.length });
 
     for (const kind of kinds) {
-        await assertLayerPainted(scene, `edges where data.kind == '${kind}'`, { edges: 1 });
+        await assertLayerPainted(scene, `edges where data.source == '${kind}-src'`, { edges: 1 });
     }
 
     await assertArrowCaptionsDrawn(
@@ -663,9 +656,9 @@ export const TwoDAllArrows: Story = {
             startingCameraDistance: 54,
             layers: [
                 {
-                    name: "edges where data.kind == 'normal'",
+                    name: "edges where data.source == 'normal-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'normal'" },
+                    selector: { match: "expression", where: "data.source == 'normal-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "normal",
@@ -680,9 +673,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'inverted'",
+                    name: "edges where data.source == 'inverted-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'inverted'" },
+                    selector: { match: "expression", where: "data.source == 'inverted-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "inverted",
@@ -697,9 +690,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dot'",
+                    name: "edges where data.source == 'dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dot'" },
+                    selector: { match: "expression", where: "data.source == 'dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "dot",
@@ -714,9 +707,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'sphere-dot'",
+                    name: "edges where data.source == 'sphere-dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'sphere-dot'" },
+                    selector: { match: "expression", where: "data.source == 'sphere-dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "sphere-dot",
@@ -731,9 +724,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'open-dot'",
+                    name: "edges where data.source == 'open-dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'open-dot'" },
+                    selector: { match: "expression", where: "data.source == 'open-dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "open-dot",
@@ -748,9 +741,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'tee'",
+                    name: "edges where data.source == 'tee-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'tee'" },
+                    selector: { match: "expression", where: "data.source == 'tee-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "tee",
@@ -765,9 +758,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'open-normal'",
+                    name: "edges where data.source == 'open-normal-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'open-normal'" },
+                    selector: { match: "expression", where: "data.source == 'open-normal-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "open-normal",
@@ -782,9 +775,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'diamond'",
+                    name: "edges where data.source == 'diamond-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'diamond'" },
+                    selector: { match: "expression", where: "data.source == 'diamond-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "diamond",
@@ -799,9 +792,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'open-diamond'",
+                    name: "edges where data.source == 'open-diamond-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'open-diamond'" },
+                    selector: { match: "expression", where: "data.source == 'open-diamond-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "open-diamond",
@@ -816,9 +809,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'crow'",
+                    name: "edges where data.source == 'crow-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'crow'" },
+                    selector: { match: "expression", where: "data.source == 'crow-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "crow",
@@ -833,9 +826,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'box'",
+                    name: "edges where data.source == 'box-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'box'" },
+                    selector: { match: "expression", where: "data.source == 'box-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "box",
@@ -850,9 +843,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'half-open'",
+                    name: "edges where data.source == 'half-open-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'half-open'" },
+                    selector: { match: "expression", where: "data.source == 'half-open-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "half-open",
@@ -867,9 +860,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'vee'",
+                    name: "edges where data.source == 'vee-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'vee'" },
+                    selector: { match: "expression", where: "data.source == 'vee-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "vee",
@@ -884,9 +877,9 @@ export const TwoDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'none'",
+                    name: "edges where data.source == 'none-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'none'" },
+                    selector: { match: "expression", where: "data.source == 'none-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "none",
@@ -939,23 +932,23 @@ export const TwoDAllArrows: Story = {
         ],
         edgeData: [
             // Row 1
-            { src: "normal-src", dst: "normal-dst", kind: "normal" },
-            { src: "inverted-src", dst: "inverted-dst", kind: "inverted" },
-            { src: "dot-src", dst: "dot-dst", kind: "dot" },
-            { src: "sphere-dot-src", dst: "sphere-dot-dst", kind: "sphere-dot" },
+            { src: "normal-src", dst: "normal-dst" },
+            { src: "inverted-src", dst: "inverted-dst" },
+            { src: "dot-src", dst: "dot-dst" },
+            { src: "sphere-dot-src", dst: "sphere-dot-dst" },
             // Row 2
-            { src: "open-dot-src", dst: "open-dot-dst", kind: "open-dot" },
-            { src: "tee-src", dst: "tee-dst", kind: "tee" },
-            { src: "open-normal-src", dst: "open-normal-dst", kind: "open-normal" },
-            { src: "diamond-src", dst: "diamond-dst", kind: "diamond" },
+            { src: "open-dot-src", dst: "open-dot-dst" },
+            { src: "tee-src", dst: "tee-dst" },
+            { src: "open-normal-src", dst: "open-normal-dst" },
+            { src: "diamond-src", dst: "diamond-dst" },
             // Row 3
-            { src: "open-diamond-src", dst: "open-diamond-dst", kind: "open-diamond" },
-            { src: "crow-src", dst: "crow-dst", kind: "crow" },
-            { src: "box-src", dst: "box-dst", kind: "box" },
-            { src: "half-open-src", dst: "half-open-dst", kind: "half-open" },
+            { src: "open-diamond-src", dst: "open-diamond-dst" },
+            { src: "crow-src", dst: "crow-dst" },
+            { src: "box-src", dst: "box-dst" },
+            { src: "half-open-src", dst: "half-open-dst" },
             // Row 4
-            { src: "vee-src", dst: "vee-dst", kind: "vee" },
-            { src: "none-src", dst: "none-dst", kind: "none" },
+            { src: "vee-src", dst: "vee-dst" },
+            { src: "none-src", dst: "none-dst" },
         ],
         layout: "fixed",
     },
@@ -981,9 +974,9 @@ export const ThreeDAllArrows: Story = {
             viewMode: "3d",
             layers: [
                 {
-                    name: "edges where data.kind == 'normal'",
+                    name: "edges where data.source == 'normal-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'normal'" },
+                    selector: { match: "expression", where: "data.source == 'normal-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "normal",
@@ -998,9 +991,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'inverted'",
+                    name: "edges where data.source == 'inverted-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'inverted'" },
+                    selector: { match: "expression", where: "data.source == 'inverted-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "inverted",
@@ -1015,9 +1008,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dot'",
+                    name: "edges where data.source == 'dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dot'" },
+                    selector: { match: "expression", where: "data.source == 'dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "dot",
@@ -1032,9 +1025,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'sphere-dot'",
+                    name: "edges where data.source == 'sphere-dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'sphere-dot'" },
+                    selector: { match: "expression", where: "data.source == 'sphere-dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "sphere-dot",
@@ -1049,9 +1042,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'open-dot'",
+                    name: "edges where data.source == 'open-dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'open-dot'" },
+                    selector: { match: "expression", where: "data.source == 'open-dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "open-dot",
@@ -1066,9 +1059,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'tee'",
+                    name: "edges where data.source == 'tee-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'tee'" },
+                    selector: { match: "expression", where: "data.source == 'tee-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "tee",
@@ -1083,9 +1076,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'open-normal'",
+                    name: "edges where data.source == 'open-normal-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'open-normal'" },
+                    selector: { match: "expression", where: "data.source == 'open-normal-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "open-normal",
@@ -1100,9 +1093,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'diamond'",
+                    name: "edges where data.source == 'diamond-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'diamond'" },
+                    selector: { match: "expression", where: "data.source == 'diamond-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "diamond",
@@ -1117,9 +1110,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'open-diamond'",
+                    name: "edges where data.source == 'open-diamond-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'open-diamond'" },
+                    selector: { match: "expression", where: "data.source == 'open-diamond-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "open-diamond",
@@ -1134,9 +1127,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'crow'",
+                    name: "edges where data.source == 'crow-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'crow'" },
+                    selector: { match: "expression", where: "data.source == 'crow-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "crow",
@@ -1151,9 +1144,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'box'",
+                    name: "edges where data.source == 'box-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'box'" },
+                    selector: { match: "expression", where: "data.source == 'box-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "box",
@@ -1168,9 +1161,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'half-open'",
+                    name: "edges where data.source == 'half-open-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'half-open'" },
+                    selector: { match: "expression", where: "data.source == 'half-open-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "half-open",
@@ -1185,9 +1178,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'vee'",
+                    name: "edges where data.source == 'vee-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'vee'" },
+                    selector: { match: "expression", where: "data.source == 'vee-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "vee",
@@ -1202,9 +1195,9 @@ export const ThreeDAllArrows: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'none'",
+                    name: "edges where data.source == 'none-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'none'" },
+                    selector: { match: "expression", where: "data.source == 'none-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.arrowHead": "none",
@@ -1257,23 +1250,23 @@ export const ThreeDAllArrows: Story = {
         ],
         edgeData: [
             // Row 1
-            { src: "normal-src", dst: "normal-dst", kind: "normal" },
-            { src: "inverted-src", dst: "inverted-dst", kind: "inverted" },
-            { src: "dot-src", dst: "dot-dst", kind: "dot" },
-            { src: "sphere-dot-src", dst: "sphere-dot-dst", kind: "sphere-dot" },
+            { src: "normal-src", dst: "normal-dst" },
+            { src: "inverted-src", dst: "inverted-dst" },
+            { src: "dot-src", dst: "dot-dst" },
+            { src: "sphere-dot-src", dst: "sphere-dot-dst" },
             // Row 2
-            { src: "open-dot-src", dst: "open-dot-dst", kind: "open-dot" },
-            { src: "tee-src", dst: "tee-dst", kind: "tee" },
-            { src: "open-normal-src", dst: "open-normal-dst", kind: "open-normal" },
-            { src: "diamond-src", dst: "diamond-dst", kind: "diamond" },
+            { src: "open-dot-src", dst: "open-dot-dst" },
+            { src: "tee-src", dst: "tee-dst" },
+            { src: "open-normal-src", dst: "open-normal-dst" },
+            { src: "diamond-src", dst: "diamond-dst" },
             // Row 3
-            { src: "open-diamond-src", dst: "open-diamond-dst", kind: "open-diamond" },
-            { src: "crow-src", dst: "crow-dst", kind: "crow" },
-            { src: "box-src", dst: "box-dst", kind: "box" },
-            { src: "half-open-src", dst: "half-open-dst", kind: "half-open" },
+            { src: "open-diamond-src", dst: "open-diamond-dst" },
+            { src: "crow-src", dst: "crow-dst" },
+            { src: "box-src", dst: "box-dst" },
+            { src: "half-open-src", dst: "half-open-dst" },
             // Row 4
-            { src: "vee-src", dst: "vee-dst", kind: "vee" },
-            { src: "none-src", dst: "none-dst", kind: "none" },
+            { src: "vee-src", dst: "vee-dst" },
+            { src: "none-src", dst: "none-dst" },
         ],
         layout: "fixed",
     },
@@ -1305,9 +1298,9 @@ export const ThreeDAllLines: Story = {
             viewMode: "3d",
             layers: [
                 {
-                    name: "edges where data.kind == 'solid'",
+                    name: "edges where data.source == 'solid-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'solid'" },
+                    selector: { match: "expression", where: "data.source == 'solid-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "solid",
@@ -1324,9 +1317,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dot'",
+                    name: "edges where data.source == 'dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dot'" },
+                    selector: { match: "expression", where: "data.source == 'dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "dot",
@@ -1343,9 +1336,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'star'",
+                    name: "edges where data.source == 'star-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'star'" },
+                    selector: { match: "expression", where: "data.source == 'star-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "star",
@@ -1362,9 +1355,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'box'",
+                    name: "edges where data.source == 'box-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'box'" },
+                    selector: { match: "expression", where: "data.source == 'box-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "box",
@@ -1381,9 +1374,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dash'",
+                    name: "edges where data.source == 'dash-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dash'" },
+                    selector: { match: "expression", where: "data.source == 'dash-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "dash",
@@ -1400,9 +1393,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'diamond'",
+                    name: "edges where data.source == 'diamond-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'diamond'" },
+                    selector: { match: "expression", where: "data.source == 'diamond-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "diamond",
@@ -1419,9 +1412,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dash-dot'",
+                    name: "edges where data.source == 'dash-dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dash-dot'" },
+                    selector: { match: "expression", where: "data.source == 'dash-dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "dash-dot",
@@ -1438,9 +1431,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'sinewave'",
+                    name: "edges where data.source == 'sinewave-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'sinewave'" },
+                    selector: { match: "expression", where: "data.source == 'sinewave-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "sinewave",
@@ -1457,9 +1450,9 @@ export const ThreeDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'zigzag'",
+                    name: "edges where data.source == 'zigzag-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'zigzag'" },
+                    selector: { match: "expression", where: "data.source == 'zigzag-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "zigzag",
@@ -1503,17 +1496,17 @@ export const ThreeDAllLines: Story = {
         ],
         edgeData: [
             // Row 1
-            { src: "solid-src", dst: "solid-dst", kind: "solid" },
-            { src: "dot-src", dst: "dot-dst", kind: "dot" },
-            { src: "star-src", dst: "star-dst", kind: "star" },
+            { src: "solid-src", dst: "solid-dst" },
+            { src: "dot-src", dst: "dot-dst" },
+            { src: "star-src", dst: "star-dst" },
             // Row 2
-            { src: "box-src", dst: "box-dst", kind: "box" },
-            { src: "dash-src", dst: "dash-dst", kind: "dash" },
-            { src: "diamond-src", dst: "diamond-dst", kind: "diamond" },
+            { src: "box-src", dst: "box-dst" },
+            { src: "dash-src", dst: "dash-dst" },
+            { src: "diamond-src", dst: "diamond-dst" },
             // Row 3
-            { src: "dash-dot-src", dst: "dash-dot-dst", kind: "dash-dot" },
-            { src: "sinewave-src", dst: "sinewave-dst", kind: "sinewave" },
-            { src: "zigzag-src", dst: "zigzag-dst", kind: "zigzag" },
+            { src: "dash-dot-src", dst: "dash-dot-dst" },
+            { src: "sinewave-src", dst: "sinewave-dst" },
+            { src: "zigzag-src", dst: "zigzag-dst" },
         ],
         layout: "fixed",
     },
@@ -1542,9 +1535,9 @@ export const TwoDAllLines: Story = {
             viewMode: "2d",
             layers: [
                 {
-                    name: "edges where data.kind == 'solid'",
+                    name: "edges where data.source == 'solid-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'solid'" },
+                    selector: { match: "expression", where: "data.source == 'solid-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "solid",
@@ -1561,9 +1554,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dot'",
+                    name: "edges where data.source == 'dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dot'" },
+                    selector: { match: "expression", where: "data.source == 'dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "dot",
@@ -1580,9 +1573,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'star'",
+                    name: "edges where data.source == 'star-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'star'" },
+                    selector: { match: "expression", where: "data.source == 'star-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "star",
@@ -1599,9 +1592,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'box'",
+                    name: "edges where data.source == 'box-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'box'" },
+                    selector: { match: "expression", where: "data.source == 'box-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "box",
@@ -1618,9 +1611,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dash'",
+                    name: "edges where data.source == 'dash-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dash'" },
+                    selector: { match: "expression", where: "data.source == 'dash-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "dash",
@@ -1637,9 +1630,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'diamond'",
+                    name: "edges where data.source == 'diamond-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'diamond'" },
+                    selector: { match: "expression", where: "data.source == 'diamond-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "diamond",
@@ -1656,9 +1649,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'dash-dot'",
+                    name: "edges where data.source == 'dash-dot-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'dash-dot'" },
+                    selector: { match: "expression", where: "data.source == 'dash-dot-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "dash-dot",
@@ -1675,9 +1668,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'sinewave'",
+                    name: "edges where data.source == 'sinewave-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'sinewave'" },
+                    selector: { match: "expression", where: "data.source == 'sinewave-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "sinewave",
@@ -1694,9 +1687,9 @@ export const TwoDAllLines: Story = {
                     },
                 },
                 {
-                    name: "edges where data.kind == 'zigzag'",
+                    name: "edges where data.source == 'zigzag-src'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.kind == 'zigzag'" },
+                    selector: { match: "expression", where: "data.source == 'zigzag-src'" },
                     set: {
                         "edge.color": "darkgrey",
                         "edge.style": "zigzag",
@@ -1740,17 +1733,17 @@ export const TwoDAllLines: Story = {
         ],
         edgeData: [
             // Row 1
-            { src: "solid-src", dst: "solid-dst", kind: "solid" },
-            { src: "dot-src", dst: "dot-dst", kind: "dot" },
-            { src: "star-src", dst: "star-dst", kind: "star" },
+            { src: "solid-src", dst: "solid-dst" },
+            { src: "dot-src", dst: "dot-dst" },
+            { src: "star-src", dst: "star-dst" },
             // Row 2
-            { src: "box-src", dst: "box-dst", kind: "box" },
-            { src: "dash-src", dst: "dash-dst", kind: "dash" },
-            { src: "diamond-src", dst: "diamond-dst", kind: "diamond" },
+            { src: "box-src", dst: "box-dst" },
+            { src: "dash-src", dst: "dash-dst" },
+            { src: "diamond-src", dst: "diamond-dst" },
             // Row 3
-            { src: "dash-dot-src", dst: "dash-dot-dst", kind: "dash-dot" },
-            { src: "sinewave-src", dst: "sinewave-dst", kind: "sinewave" },
-            { src: "zigzag-src", dst: "zigzag-dst", kind: "zigzag" },
+            { src: "dash-dot-src", dst: "dash-dot-dst" },
+            { src: "sinewave-src", dst: "sinewave-dst" },
+            { src: "zigzag-src", dst: "zigzag-dst" },
         ],
         layout: "fixed",
     },

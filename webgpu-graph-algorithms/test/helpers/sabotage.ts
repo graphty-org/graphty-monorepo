@@ -13,7 +13,9 @@
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
  * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts,
- * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts, P8-T6 the three bfs-contract and four
+ * sssp-pred rows measured by test/sabotage/bfs.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its
+ * rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -52,6 +54,7 @@ const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
+const BFS_TEST = "test/algorithms/bfs.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1027,6 +1030,68 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "atomicAdd(&counters[9], 0u);",
             minFactor: 10,
             test: ADVANCE_TEST,
+        },
+    ]),
+    // P8-T6: every row is measured by bfsReport (test/helpers/bfs.ts) through the BFS test
+    "bfs-contract": Object.freeze([
+        {
+            // the claim is an exchange, not a min: a later level overwrites a smaller depth (a depth miss)
+            name: "claim-not-a-min",
+            find: "let old = atomicMin(&depth[v], claim);",
+            replace: "let old = atomicExchange(&depth[v], claim);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // every same-level claimant appends: duplicates in the next frontier (visitedCount and order miss)
+            name: "same-level-claimants-append",
+            find: "won = select(0u, 1u, old == INVALID_INDEX);",
+            replace: "won = select(0u, 1u, old >= claim);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the claim writes the level itself: every depth from level 1 on is one too small
+            name: "claim-is-the-level",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;",
+            replace: "let claim = atomicLoad(&counters[11]);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "sssp-pred": Object.freeze([
+        {
+            // a same-depth neighbour attains: level consistency breaks (parent miss against the host rule)
+            name: "same-depth-attains",
+            find: "tight = (du + 1u) == dv;",
+            replace: "tight = du == dv;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the largest predecessor wins: the grid's interior nodes have two (parent miss)
+            name: "largest-predecessor",
+            find: "atomicMin(&pred[v], select(a, u, P.predKind == 1u));",
+            replace: "atomicMax(&pred[v], select(a, u, P.predKind == 1u));",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the last row is never visited: from the LAST index of the path its one child keeps INVALID_INDEX
+            name: "last-row-skipped",
+            find: "for (var u = first; u < P.n; u = u + P.stride) {",
+            replace: "for (var u = first; u + 1u < P.n; u = u + P.stride) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the per-invocation form: every traversal under the dispatch cap passes, so the one-workgroup case of
+            // the BFS test is what catches it (rows 256 and up keep INVALID_INDEX)
+            name: "stride-dropped",
+            find: "for (var u = first; u < P.n; u = u + P.stride) {",
+            replace: "for (var u = first; u < P.n; u = P.n) {",
+            minFactor: 10,
+            test: BFS_TEST,
         },
     ]),
 });

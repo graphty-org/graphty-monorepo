@@ -10,7 +10,8 @@
  * wcc-link-edges, wcc-compress and wcc-sample. P4-T1 adds indirect-finalize; the other P4 entries follow, one task
  * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
- * P8-T5 adds advance-expand. This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
+ * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred. This file is the only importer of src/wgsl/**
+ * (spec 3.2; test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -20,6 +21,7 @@ import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kern
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
+import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
 import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
@@ -50,6 +52,7 @@ import { scanAddWgsl } from "./wgsl/scan-add.wgsl.js";
 import { scanBlockWgsl } from "./wgsl/scan-block.wgsl.js";
 import { segmentedReduceWgsl } from "./wgsl/segmented-reduce.wgsl.js";
 import { spmvPullWgsl } from "./wgsl/spmv-pull.wgsl.js";
+import { ssspPredWgsl } from "./wgsl/sssp-pred.wgsl.js";
 import { wccCompressWgsl } from "./wgsl/wcc-compress.wgsl.js";
 import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
@@ -91,7 +94,9 @@ export type KernelId =
     | "dedupe-claim"
     | "dedupe-filter"
     | "frontier-finalize"
-    | "advance-expand";
+    | "advance-expand"
+    | "bfs-contract"
+    | "sssp-pred";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -1106,6 +1111,42 @@ const ADVANCE_EXPAND: KernelEntry = {
     phase: "P8",
 };
 
+/** `bfs-contract` (design 8.4, 8.10 "BFS contract"; P8-T6, PD-6): the contraction of the edge queue -- `atomicMin(&depth[v], level + 1)` with the invocation that observes `INVALID_INDEX` the unique winner, packed into the output vertex queue by a workgroup scan and one `atomicAdd` per workgroup on `nextFrontierCount`; 4 storage bindings (no `owner`: the claim already dedupes, DEP-P8-B; no `parent`: the post-pass writes it, PD-24; both counts are words of `counters`). */
+const BFS_CONTRACT: KernelEntry = {
+    id: "bfs-contract",
+    body: bfsContractWgsl,
+    entryPoint: "bfs_contract",
+    bindings: [
+        decl(1, 0, "edgeQueue", "storage-ro", "array<u32>"),
+        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "depth", "storage", "array<atomic<u32>>"),
+        decl(1, 3, "frontierOut", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `sssp-pred` (design 8.10 "SSSP predecessor pass"; P8-T6 / P8-T9, PD-24 / PD-27): the one post-pass over the settled distances, grid-striding every row -- `MODE 1` reads u32 depths and writes BFS `parent`, `MODE 0` reads f32 bit patterns and writes `predArc` under PD-27's key, `P.predKind` choosing the node or the arc index; 6 storage bindings (the four graph slots, `dist` bound plain across dispatches, `pred` as `array<atomic<u32>>`, which in `MODE 0` also carries the hop counts and the two flag words in its upper regions). */
+const SSSP_PRED: KernelEntry = {
+    id: "sssp-pred",
+    body: ssspPredWgsl,
+    entryPoint: "sssp_pred",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "dist", "storage-ro", "array<u32>"),
+        decl(1, 1, "pred", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ),
+    overrideDecls: [{ name: "MODE", type: "u32", default: 0 }],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1113,8 +1154,8 @@ const ADVANCE_EXPAND: KernelEntry = {
  * `entryOf` is the E_INVALID_ARGUMENT the contract documents for a JS caller's unknown id. P1-T4 landed the five
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
- * dedupe entries, P8-T4 `"frontier-finalize"` and P8-T5 `"advance-expand"`, so every member of `KernelId` is present
- * and the assertion is exact.
+ * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"` and P8-T6 `"bfs-contract"` and `"sssp-pred"`,
+ * so every member of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1152,6 +1193,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "dedupe-filter": DEDUPE_FILTER,
     "frontier-finalize": FRONTIER_FINALIZE,
     "advance-expand": ADVANCE_EXPAND,
+    "bfs-contract": BFS_CONTRACT,
+    "sssp-pred": SSSP_PRED,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

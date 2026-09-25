@@ -638,6 +638,36 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P8",
         storageCount: 7,
     },
+    "bfs-contract": {
+        entryPoint: "bfs_contract",
+        bindings: [
+            [1, 0, "edgeQueue", "storage-ro", "array<u32>"],
+            [1, 1, "counters", "storage", "array<atomic<u32>>"],
+            [1, 2, "depth", "storage", "array<atomic<u32>>"],
+            [1, 3, "frontierOut", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 4,
+    },
+    "sssp-pred": {
+        entryPoint: "sssp_pred",
+        bindings: withGraph([
+            [1, 0, "dist", "storage-ro", "array<u32>"],
+            [1, 1, "pred", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ]),
+        overrideDecls: [["MODE", "u32", 0]],
+        uniforms: [FRONTIER_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 6,
+    },
 };
 
 const P1_IDS: readonly KernelId[] = ["degree", "reduce", "fill", "fa2-repulsion-exact", "fa2-speed-finalize"];

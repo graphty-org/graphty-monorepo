@@ -52,6 +52,8 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "dedupe-filter": 4,
     "frontier-finalize": 2,
     "advance-expand": 7,
+    "bfs-contract": 4,
+    "sssp-pred": 6,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

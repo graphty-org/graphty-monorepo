@@ -302,6 +302,8 @@ export interface SnapshotOptions {
     readonly weighted?: boolean | undefined;
     readonly arena?: boolean | undefined;
     readonly label?: string | undefined;
+    /** Record the FNV-1a checksums so `s.validate({ checksum: true })` can prove the arrays unchanged after a run. */
+    readonly checksum?: boolean | undefined;
 }
 
 /**
@@ -362,6 +364,7 @@ export function snapshotOf(edges: readonly EdgeSpec[], options?: SnapshotOptions
             weighted: parts.weights === undefined ? undefined : true,
             arena: resolved.arena ?? true,
             label: resolved.label,
+            checksum: resolved.checksum,
         },
     );
 }

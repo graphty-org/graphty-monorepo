@@ -2,7 +2,7 @@
 
 `webgpu-acceleration-plan.md` in this directory is the accepted design for
 `@graphty/webgpu-graph-algorithms`, approved on 2026-09-14. Since then, decision records under
-`design/decisions/` have reversed forty-four passages of it. None of those passages were
+`design/decisions/` have reversed fifty-three passages of it. None of those passages were
 edited: the convention in this repository is that a decision record names the lines it
 overrules and the design keeps its original text, because deleting the argument that was
 rejected is how a decision gets quietly reversed a year later. `design/decisions/README.md`
@@ -26,9 +26,9 @@ top of it on 2026-09-23 pushed the body down by eight lines, so a line number qu
 decision record -- all of which were written earlier -- is eight lower than the line that text
 sits on now.
 
-Sections with superseded text, in order: 1.4 (D16), 2.4, 4.6, 6, 7.3, 7.7, 7.19, 7.20, 8.2, 8.8,
-8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12 and T-13), 12.1, 12.2, 12.3, 12.6, 13 (the phase
-table), 14.1 (the risk register) and the Review log's applied-findings table.
+Sections with superseded text, in order: 1.4 (D16), 2.4, 3.3, 4.6, 5.4, 6, 7.3, 7.7, 7.19, 7.20, 8.2,
+8.4, 8.8, 8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12 and T-13), 12.1, 12.2, 12.3, 12.6, 13 (the
+phase table), 14.1 (the risk register), 16.2 and the Review log's applied-findings table.
 
 **Two things here were open and are now decided**, both by
 `design/decisions/2026-09-23-what-stands-in-for-the-nightly-lane.md`. Both fell out of one
@@ -86,6 +86,23 @@ the rule gets no signal that its first and last rows are gone.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
 
+## Section 3.3, the `bellmanFord` and `closenessCentrality` signatures (lines 809-810)
+
+**The design says:** `bellmanFord` takes `BellmanFordOptions & GpuRunOptions` and
+`closenessCentrality` takes `ClosenessOptions & GpuRunOptions`; section 9.2's accelerator
+interface (lines 2954-2955) repeats the two names. The design defines neither type.
+
+**What is true instead:** `bellmanFord` takes `SsspOptions` (`cutoff`, `weights`), the same type
+as `sssp`, and `closenessCentrality` takes `HitsOptionsLike` (`maxIterations`, `tolerance`,
+`weighted`), because those are the types the published seam in `@graphty/algorithms` declares
+and the GPU member must be assignable to it. `maxIterations` and `tolerance` are refused with
+`E_UNSUPPORTED { option }` when defined, never silently dropped; `weighted` is honoured. The
+`breadthFirstSearch` and `sssp` signatures on lines 807-808 stand, with one value decided
+against the CPU port: `cutoff: NaN` is `E_INVALID_ARGUMENT { argument: "cutoff" }` on the GPU,
+where the CPU port returns the source alone. The result types on lines 830-832 stand.
+
+**Decided by:** [2026-09-24-frontier-members-conform-to-the-seam.md](../decisions/2026-09-24-frontier-members-conform-to-the-seam.md)
+
 ## Section 4.6, the per-row gather row of the dispatch-limits table (line 1298)
 
 **The design says:** the row covers the family "attraction, SpMV, segmented reduce, degree" and
@@ -99,6 +116,44 @@ section 4.2 -- per-array buffers, the `ArcWindow` list, the rebase uniform -- is
 still applies to all four.
 
 **Decided by:** [2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md](../decisions/2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md)
+
+## Section 4.6, the frontier row of the dispatch-limits table (line 1301) and the paragraph above the table (lines 1176-1180)
+
+**The design says:** the "frontier advance / compaction" row gives "Windowed bindings (arc
+ranges): no (v1: `E_TOO_LARGE`)" because the advance "needs the whole `colIdx` bound", and the
+paragraph above the table says "the frontier family and sort-based algorithms throw
+`E_TOO_LARGE` with `{ path: "windowed", algorithm }` until they are extended". Risk R-9 of
+section 14.1 (line 4321) repeats it.
+
+**What is true instead:** `advance-expand`, both `bfs-fused` dispatches, `bfs-bottom-up` and
+`sssp-pred` execute a windowed core, one dispatch per window over the window's owned arc range
+(`coreWindows`, an exact partition of the overlapping P4 windows), so `breadthFirstSearch` runs
+above the binding limit; the row's own note, "window-aware advance lands with P8", is what
+happened. `sssp-relax`, `bf-relax` and `closeness-sweep` keep the refusal, so weighted `sssp`,
+`bellmanFord` and `closenessCentrality` still throw, and so does `sssp`'s unit-weight route.
+One limit remains inside BFS: the reverse view is never windowed (section 4.3), so a DIRECTED
+snapshot whose reverse adjacency exceeds one binding is refused with `E_TOO_LARGE { path:
+"windowed", algorithm: "breadthFirstSearch" }`; an undirected one runs, because its reverse is
+the forward core.
+
+**Decided by:** [2026-09-24-advance-is-window-aware.md](../decisions/2026-09-24-advance-is-window-aware.md)
+
+## Section 5.4, the selector paragraph (lines 1483-1493)
+
+**The design says:** when a round has several candidate pipelines, every candidate is recorded
+for every round, one `INDIRECT | STORAGE | COPY_DST` buffer holds one 16-byte slot per (round,
+candidate), and the finalize kernel writes real args into exactly one slot per round and
+`(0, 0, 1)` into the others, so the unchosen candidates dispatch nothing.
+
+**What is true instead:** the selector still chooses on the device, but it writes the choice
+into a `path` word of the counters block, and every candidate kernel is a DIRECT grid-stride
+dispatch that reads that word and loops to its count. An indirect dispatch costs about 0.4 ms of
+device time under Dawn's validation whether or not it dispatches anything, in Node and Chromium
+alike, and seven of them per recorded level were 97 % of a traversal's wall time. The slots are
+still written and read back by the selector's tests; nothing dispatches from them. The grid
+pyramid's hub dispatch (`indirect-finalize`, once per iteration) is unchanged.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
 ## Section 6, row 3, `segmentedReduce` (line 1578)
 
@@ -125,6 +180,44 @@ signatures, same two-dispatch ownership trick -- only their first consumer moved
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
 and [2026-09-20-compact-lands-with-the-frontier-phase.md](../decisions/2026-09-20-compact-lands-with-the-frontier-phase.md)
+
+## Section 6, rows 4, 7 and 8, the API spellings of `compact` / `dedupe`, `Frontier` and `advance` (lines 1579, 1583, 1584)
+
+**The design says:** the primitives are free functions over a batch: `compact(batch, flags,
+count, out, outCount)`, `dedupe(batch, queue, count, owner, out, outCount)`, `advance(batch,
+graph, frontier, functor: { visit, filter }, tiers?)`; `Frontier` carries two four-byte `count`
+bindings and `reset(batch, seed: number[])`.
+
+**What is true instead:** each is an async planner over a scope with a synchronous `record`,
+the shape every primitive since the design has used: `prepareCompact(scope)` returning
+`record` / `recordDedupe` / `recordDedupeIndirect`, `prepareFrontier(scope, n, arcCount,
+edgeCapacity?)` returning the `Frontier` and `recordFinalize`, and `prepareAdvance(scope,
+core)` returning `record(pass, frontier, level)` over its windows. `Frontier` keeps its name and
+its two vertex queues, but its counters are one 24-word block and `reset` takes named words.
+`advance` takes no functor: it expands into the edge queue and the claim is a separate kernel.
+The rows' "How", cost and oracle cells stand.
+
+**Decided by:** [2026-09-24-frontier-primitives-are-planners.md](../decisions/2026-09-24-frontier-primitives-are-planners.md)
+
+## Section 6, row 7, the overflow rule of the edge frontier (line 1583)
+
+**The design says:** when the unclamped append total exceeds the capacity, `finalizeArgs`
+"records `chunkStart` on the device and re-dispatches `expand` for the remaining source range
+(one indirect slot per chunk, at most `ceil(A / capacity)` chunks per level, all recorded in the
+batch)". Section 8.4 (lines 2670-2675) calls the queue "chunked with the overflow rule of 6 row
+7", section 8.10's BFS expand row (line 2851) binds a `chunk` word for it, and design 13 row P8's
+gate clause reads "(the chunked overflow rule)".
+
+**What is true instead:** the detection is the design's -- `advance-expand` clamps its writes
+and adds the unclamped aggregate into `edgeCountUnclamped`, and `frontier-finalize` compares
+that word with the capacity -- but the recovery is a FUSED RETRY: the selector zeroes the
+contract slot, sizes the fused-kernel slot from the vertex frontier, and adds one to
+`overflowLevels`; the fused kernel claims the whole level from the frontier and the partial edge
+queue is never read. There is no `chunkStart` and no `chunk` binding, because the workgroup-
+granular reservation does not fill the queue in frontier order, so "the remaining source range"
+is not a range. The faked-capacity gate test stands and passes.
+
+**Decided by:** [2026-09-24-edge-queue-overflow-is-a-fused-retry.md](../decisions/2026-09-24-edge-queue-overflow-is-a-fused-retry.md)
 
 ## Section 6, row 9, how `spmvPull` is built (line 1584)
 
@@ -202,7 +295,7 @@ kernel's traversal -- the 3x3 exclusion, the 6x6 block per level, the outside ps
 
 ## Section 7.19, the `onReheat` comment in the `ForceModel` interface (line 2331)
 
-**The design says:** the trailing comment reads "FR: iteration = floor(0.7 * iterations)".
+**The design says:** the trailing comment reads "FR: iteration = floor(0.7 \* iterations)".
 
 **What is true instead:** a Fruchterman-Reingold reheat restarts the TEMPERATURE index at
 `floor(0.7 * iterations)` and the iteration BUDGET at 0. The two were one number in the design
@@ -262,6 +355,39 @@ on the same snapshot recomputes it. `GraphResidency.array()` keeps its signature
 
 **Decided by:** [2026-09-19-outweightsum-is-call-scratch.md](../decisions/2026-09-19-outweightsum-is-call-scratch.md)
 
+## Section 8.4, the BFS dedupe sentence (lines 2647-2648), and section 16.2 (lines 5027-5044)
+
+**The design says:** BFS uses "Davidson's ownership dedupe (6 row 4: `atomicStore` in one
+dispatch, `atomicLoad` in the next) as the exact safety net behind any workgroup hash culling";
+section 8.8 row 4 (line 2801) lists `dedupe` among BFS's primitives; section 8.10's BFS contract
+row (line 2852) binds `owner (atomic)`; and section 16.2 has the contract phase switch on the
+device between "the existing ownership dedupe" below `n / 8` emitted entries and a bitmap
+compaction above it.
+
+**What is true instead:** the BFS contract is one path with no dedupe of any kind: the
+`atomicMin` claim on `depth` admits exactly one winner per vertex per level, so the next vertex
+frontier is duplicate-free by construction and an ownership pass would remove nothing. No hash
+culling runs on the edge queue, `bfs-contract` binds four storage buffers with no `owner`, and
+no density threshold exists. `dedupe` ships in this phase for the near-far queue of the weighted
+shortest-path driver, which is its one caller. The bitmap and `compact` that this phase does
+build serve the direction-optimizing path's unvisited list, not the contraction. The rest of
+8.4 stands.
+
+**Decided by:** [2026-09-24-bfs-claims-instead-of-culling.md](../decisions/2026-09-24-bfs-claims-instead-of-culling.md)
+
+## Section 8.4, the BFS host loop (line 2667) and the near-empty SSSP test (line 2689)
+
+**The design says:** "Host loop: 32 levels per submit with indirect args (5.4), one 4-byte
+readback", and for the near-far loop "the near-empty test is a device flag turned into a zero
+indirect dispatch so extra queued rounds are no-ops".
+
+**What is true instead:** 32 levels (rounds) per submit and one 4-byte readback stand; the
+kernels of a level are direct dispatches gated by the block's `path` word, and a queued round
+past the end is a no-op because the word is 0 and every count word it would read is 0, not
+because a zero-workgroup indirect dispatch runs.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
+
 ## Section 8.8, row 1, PageRank's new primitive (line 2797)
 
 **The design says:** the primitive is "`spmvPull` (tiered segmented reduce by in-degree)".
@@ -283,6 +409,16 @@ then link rounds over the remaining edges. The edge map with compare-and-swap, t
 the histogram sample stay in the cell.
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
+
+## Section 8.8, row 4, BFS's primitive list (line 2801)
+
+**The design says:** the row lists "`Frontier`, `advance`, `dedupe`, bitset, indirect dispatch"
+among what BFS builds on.
+
+**What is true instead:** `dedupe` is not in the list (the entry for section 8.4's dedupe
+sentence, above) and neither is indirect dispatch: BFS dispatches directly.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
 ## Section 8.10, the ping-pong sentence (line 2841)
 
@@ -524,6 +660,23 @@ has no host-side prerequisite left, but the tiers themselves belong to the phase
 degree tiers.
 
 **Decided by:** [2026-09-19-spmv-tier-zero-only.md](../decisions/2026-09-19-spmv-tier-zero-only.md)
+
+## Section 13, the phase table, row P8, the closeness deliverable (line 4268)
+
+**The design says:** the deliverables cell lists "closeness / harmonic / eccentricity", and
+section 8.4's closeness paragraph (lines 2695-2698) reduces "(sum, sum of 1/d, max)" per source
+on the device.
+
+**What is true instead:** closeness alone. `closeness-reduce` accumulates the distance sum and
+the reached count per source and nothing else; no harmonic score, no eccentricity, no source
+list and no Wasserman-Faust switch ships, because neither the seam nor the element's capability
+list can call them. The score is the legacy default the element already publishes as
+`normalization: "none"`: `1 / sumOfDistances`, `0` when nothing is reached. The rest of the
+row -- the frontier machinery, BFS in its three forms, SSSP, Bellman-Ford, window-aware
+advance, the oracles, the benchmarks -- stands, with the overflow rule and the dedupe read
+through the two entries above.
+
+**Decided by:** [2026-09-24-frontier-members-conform-to-the-seam.md](../decisions/2026-09-24-frontier-members-conform-to-the-seam.md)
 
 ## Section 13, the phase table, row P12, the deliverables cell (line 4227)
 

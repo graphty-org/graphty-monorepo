@@ -142,6 +142,38 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
         }
     });
 
+    it("converging on the last allowed iteration reports converged: a cap at the first converged iteration is converged, one lower is not", async (t) => {
+        const ctx = await context(t);
+        const { snapshot } = fixture("karate", gpuScale());
+        const first = pageRankOracle(snapshot, OPTS).iterations;
+        const atCap = await pageRank(ctx, snapshot, { maxIterations: first });
+        expect(pageRankOracle(snapshot, { ...OPTS, maxIterations: first })).toMatchObject({
+            iterations: first,
+            converged: true,
+        });
+        expect({ iterations: atCap.iterations, converged: atCap.converged }).toEqual({
+            iterations: first,
+            converged: true,
+        });
+        // the scores are still x(first): the extra convergence check does not advance them
+        expectAllClose(atCap.scores, pageRankOracleTo(snapshot, OPTS, first), PARITY, "scores at the cap");
+        const below = await pageRank(ctx, snapshot, { maxIterations: first - 1 });
+        expect(pageRankOracle(snapshot, { ...OPTS, maxIterations: first - 1 }).converged).toBe(false);
+        expect({ iterations: below.iterations, converged: below.converged }).toEqual({
+            iterations: first - 1,
+            converged: false,
+        });
+        ctx.release(snapshot);
+        // at a cap the dangling mass is still the one the last iteration folded in, as the oracle reports it
+        const sink = directedWithSink();
+        for (const cap of [3, 5, 8, 9]) {
+            const capped = await pageRank(ctx, sink, { maxIterations: cap });
+            const expected = pageRankOracle(sink, { ...OPTS, maxIterations: cap });
+            expect(Math.abs(capped.danglingMass - expected.danglingMass), `danglingMass at ${cap}`).toBeLessThan(1e-6);
+        }
+        ctx.release(sink);
+    });
+
     it("the top-10 rank order is identical on karate, random1k and hub10k", async (t) => {
         const ctx = await context(t);
         for (const name of ["karate", "random1k", "hub10k"]) {

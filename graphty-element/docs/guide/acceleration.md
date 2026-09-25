@@ -60,7 +60,12 @@ element.acceleration = "required";
 `auto` turns down a software rasteriser (SwiftShader, llvmpipe), because it is slower than the
 element's own CPU path and using it would make your graph worse while reporting success. Under
 `required` a software device is accepted: you have said there is to be no CPU path, and a software
-device is a device.
+device is a device. Switch back from `required` to `auto` and the element lets go of a software
+device again, reporting `unavailable` with `E_SOFTWARE_ONLY`; hardware stays attached.
+
+The attribute, the property and `element.session.acceleration` are one setting. Whichever you
+write, the attribute reflects it and `graphty-capabilities-change` fires once, carrying the new
+policy as `capabilities.acceleration.policy`.
 
 The element never remembers the policy for you. Storing a reader's choice and re-applying it on
 their next visit is your application's storage, not the element's.
@@ -78,8 +83,10 @@ masks the device string for an ordinary origin -- so absent is the ordinary answ
 Write them as `device ?? backend` and let the fallback do its job: the element omits a fact it was
 not given rather than publishing an empty string in its place.
 
-Or listen for it. `graphty-capabilities-change` fires on every transition and carries the same
-document the property returns:
+`policy` is always there: it is the policy in force, however it was set.
+
+Or listen for it. `graphty-capabilities-change` fires on every transition -- a change of state, of
+device, of reason, or of policy -- and carries the same document the property returns:
 
 ```javascript
 element.addEventListener("graphty-capabilities-change", (event) => {

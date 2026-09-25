@@ -3279,6 +3279,9 @@ export class Graphty extends LitElement {
 
         if (!this.#capabilitiesMirrored) {
             controller.onChange(() => {
+                // The status carries the policy, so a policy written through
+                // `element.session.acceleration` lands here too, and the attribute reflects it.
+                this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
                         detail: { capabilities: controller.capabilities },

@@ -10,6 +10,9 @@ import {
     type GraphAccelerator,
 } from "../../src/acceleration/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
+import { GraphtyLogger } from "../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
+import { LogLevel, type LogRecord } from "../../src/logging/types.js";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 
 /** A promise the test resolves when it wants to, for device loss and for work in flight. */
@@ -68,6 +71,25 @@ function registryWith(accelerator: GraphAccelerator): AcceleratorRegistry {
     const registry = new AcceleratorRegistry();
     registry.register({ name: "fake", backend: "webgpu", factory: () => Promise.resolve(accelerator) });
     return registry;
+}
+
+/**
+ * A factory on a host whose only adapter is a software renderer: it refuses with
+ * `E_SOFTWARE_ONLY` unless software is acceptable, the way the `./webgpu` entry does.
+ */
+function softwareOnlyFactory(
+    onDispose?: () => void,
+): (options?: { acceptSoftware?: boolean }) => Promise<GraphAccelerator> {
+    return (options) =>
+        options?.acceptSoftware === true
+            ? Promise.resolve(fakeAccelerator({ name: "software", onDispose }))
+            : Promise.reject(
+                  new GraphtyError({
+                      code: "E_SOFTWARE_ONLY",
+                      message: "the only adapter here is a software renderer",
+                      source: "acceleration",
+                  }),
+              );
 }
 
 const LAYOUT: AcceleratedWork = { capability: "forceAtlas2", nodeCount: 10_000 };
@@ -207,19 +229,21 @@ describe("AccelerationController: probing", () => {
         const autoFactory = vi.fn(() => Promise.resolve(fakeAccelerator()));
         auto.register({ name: "fake", factory: autoFactory });
         const required = new AcceleratorRegistry();
-        const requiredFactory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        const requiredFactory = vi.fn(softwareOnlyFactory());
         required.register({ name: "fake", factory: requiredFactory });
         const underAuto = new AccelerationController({ registry: auto });
         const underRequired = new AccelerationController({ policy: "required", registry: required });
 
         await Promise.all([underAuto.start(), underRequired.start()]);
 
-        assert.deepEqual(autoFactory.mock.calls[0] as unknown[], [
-            { exactMaxNodes: undefined, acceptSoftware: false },
+        assert.deepEqual(autoFactory.mock.calls as unknown[], [[{ exactMaxNodes: undefined, acceptSoftware: false }]]);
+        // Hardware first, and software only once the factory said software is all there is: that
+        // refusal is how the controller knows the attachment is software.
+        assert.deepEqual(requiredFactory.mock.calls as unknown[], [
+            [{ exactMaxNodes: undefined, acceptSoftware: false }],
+            [{ exactMaxNodes: undefined, acceptSoftware: true }],
         ]);
-        assert.deepEqual(requiredFactory.mock.calls[0] as unknown[], [
-            { exactMaxNodes: undefined, acceptSoftware: true },
-        ]);
+        assert.strictEqual(underRequired.state, "idle");
         underAuto.dispose();
         underRequired.dispose();
     });
@@ -972,5 +996,184 @@ describe("AccelerationController: a device that computes the wrong answer", () =
         const next = controller.plan(LAYOUT);
         assert.isFalse(next.accelerated);
         controller.dispose();
+    });
+});
+
+describe("AccelerationController: a software adapter outlives only the policy that accepted it", () => {
+    it("lets go of a software accelerator when required relaxes to auto, and says why", async () => {
+        const disposed = vi.fn();
+        const registry = new AcceleratorRegistry();
+        registry.register({ name: "fake", factory: softwareOnlyFactory(disposed) });
+        const controller = new AccelerationController({ policy: "required", registry });
+        assert.strictEqual((await controller.start()).state, "idle");
+        assert.strictEqual(controller.accelerator?.name, "software");
+
+        controller.setPolicy("auto");
+        await until(() => controller.state === "unavailable", "the re-probe under auto");
+
+        assert.isNull(controller.accelerator);
+        assert.strictEqual(controller.status.code, "E_SOFTWARE_ONLY");
+        assert.strictEqual(disposed.mock.calls.length, 1);
+        controller.dispose();
+    });
+
+    it("keeps a hardware accelerator attached through the same change, having built it once", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = vi.fn(() => Promise.resolve(fakeAccelerator({ name: "hardware" })));
+        registry.register({ name: "fake", factory });
+        const controller = new AccelerationController({ policy: "required", registry });
+        await controller.start();
+
+        controller.setPolicy("auto");
+        await new Promise((resolve) => setTimeout(resolve, 1));
+
+        assert.strictEqual(controller.state, "idle");
+        assert.strictEqual(controller.accelerator?.name, "hardware");
+        assert.strictEqual(factory.mock.calls.length, 1);
+        controller.dispose();
+    });
+
+    it("leaves an injected accelerator alone, because only a probe knows what it found", () => {
+        const controller = new AccelerationController({ policy: "required", registry: new AcceleratorRegistry() });
+        controller.setAccelerator(fakeAccelerator({ name: "injected" }));
+
+        controller.setPolicy("auto");
+
+        assert.strictEqual(controller.accelerator?.name, "injected");
+        controller.dispose();
+    });
+});
+
+describe("AccelerationController: a policy set after dispose", () => {
+    it("is ignored, and never reaches a factory", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        registry.register({ name: "fake", factory });
+        const controller = new AccelerationController({ policy: "off", registry });
+        await controller.start();
+        controller.dispose();
+
+        assert.doesNotThrow(() => {
+            controller.setPolicy("required");
+        });
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        assert.strictEqual(factory.mock.calls.length, 0);
+        assert.strictEqual(controller.policy, "off");
+        assert.strictEqual(controller.state, "off");
+    });
+});
+
+describe("AccelerationController: the policy is part of the published status", () => {
+    it("carries the policy, so a consumer reading capabilities sees what was asked for", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+
+        assert.strictEqual(controller.status.policy, "auto");
+        await controller.start();
+        assert.strictEqual(controller.capabilities.acceleration.policy, "auto");
+        controller.dispose();
+    });
+
+    it("announces a change of policy exactly once even when the state does not move", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const seen: AccelerationStatus[] = [];
+        controller.onChange((status) => seen.push(status));
+
+        controller.setPolicy("required");
+
+        assert.deepStrictEqual(
+            seen.map((status) => [status.policy, status.state]),
+            [["required", "idle"]],
+        );
+        assert.strictEqual(controller.status.policy, "required");
+        controller.dispose();
+    });
+
+    it("reports a throwing listener through the element's logger and still tells the others", async () => {
+        resetLoggingConfig();
+        await GraphtyLogger.configure({ enabled: true, level: LogLevel.ERROR, modules: ["acceleration"] });
+        const records: LogRecord[] = [];
+        GraphtyLogger.addSink({ name: "acceleration-test", write: (record) => records.push(record) });
+        const silence = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const controller = new AccelerationController({ registry: new AcceleratorRegistry() });
+        const heard = vi.fn();
+        controller.onChange(() => {
+            throw new Error("the chip broke");
+        });
+        controller.onChange(heard);
+
+        try {
+            await controller.start();
+
+            assert.strictEqual(heard.mock.calls.length, 1);
+            const logged = records.find((record) => record.message.includes("listener threw"));
+            assert.isDefined(logged);
+            assert.strictEqual(logged?.level, LogLevel.ERROR);
+            assert.deepStrictEqual(logged?.category, ["graphty", "acceleration"]);
+            assert.strictEqual(logged?.error?.message, "the chip broke");
+        } finally {
+            GraphtyLogger.removeSink("acceleration-test");
+            silence.mockRestore();
+            resetLoggingConfig();
+            controller.dispose();
+        }
+    });
+});
+
+describe("AccelerationController: beginWork, the span a simulation opens", () => {
+    it("moves idle to active and back when the span ends", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+
+        const end = controller.beginWork();
+        assert.strictEqual(controller.state, "active");
+        end();
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    it("counts out once however many times the span is ended", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const first = controller.beginWork();
+        const second = controller.beginWork();
+
+        first();
+        first();
+
+        assert.strictEqual(controller.state, "active", "the second span is still open");
+        second();
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    it("stays active until the last of two overlapping spans ends", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const seen: string[] = [];
+        controller.onChange((status) => seen.push(status.state));
+
+        const layout = controller.beginWork();
+        const algorithm = controller.beginWork();
+        layout();
+        assert.strictEqual(controller.state, "active");
+        algorithm();
+
+        assert.deepStrictEqual(seen, ["active", "idle"]);
+        controller.dispose();
+    });
+
+    it("is a no-op after dispose: it neither throws nor publishes", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const listener = vi.fn();
+        controller.onChange(listener);
+        controller.dispose();
+
+        const end = controller.beginWork();
+        end();
+
+        assert.strictEqual(listener.mock.calls.length, 0);
     });
 });

@@ -20,7 +20,11 @@
  * and SwiftShader is a device -- which is what lets the same file run the real kernels on a
  * machine that has no graphics card.
  *
- * The last case is the one worth reading. A GPU layout is not the CPU layout to the bit: single
+ * The policy cases at the end pin the other half through the same real entry point: `auto`
+ * refuses SwiftShader with `E_SOFTWARE_ONLY` and attaches real hardware, and an element that
+ * attached SwiftShader under `required` lets go of it when the policy relaxes to `auto`.
+ *
+ * The comparison case is the one worth reading. A GPU layout is not the CPU layout to the bit: single
  * precision, a different iteration order and a different settle point all move nodes. What must
  * hold is that it is the same PICTURE, so the case settles the same graph twice, once with
  * `acceleration="off"` and once on the device, and compares the distribution of edge lengths.
@@ -99,7 +103,7 @@ async function until(predicate: () => boolean, what: string, budgetMs = SETTLE_M
  * @param acceleration - The policy the element starts under.
  * @returns The connected element.
  */
-async function mount(acceleration: "required" | "off"): Promise<Graphty> {
+async function mount(acceleration: "required" | "auto" | "off"): Promise<Graphty> {
     const container = document.createElement("div");
 
     container.style.width = "800px";
@@ -378,4 +382,53 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
             );
         }
     });
+});
+
+describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the policy accepts", () => {
+    /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
+    const SOFTWARE = ADAPTER === "swiftshader";
+
+    it(
+        SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",
+        { timeout: 200_000 },
+        async () => {
+            const auto = await mount("auto");
+            await until(() => status(auto).state !== "probing", "the probe under auto to settle", 30_000);
+            const found = status(auto);
+
+            console.log(`[webgpu-layout] adapter=${ADAPTER} policy=auto status=${JSON.stringify(found)}`);
+
+            if (SOFTWARE) {
+                assert.equal(found.state, "unavailable");
+                assert.equal(found.code, "E_SOFTWARE_ONLY", found.reason ?? "no reason given");
+                assert.isUndefined(found.backend, "nothing is attached");
+            } else {
+                assert.equal(found.backend, "webgpu", found.reason ?? "no reason given");
+            }
+        },
+    );
+
+    it(
+        SOFTWARE
+            ? "lets go of the software adapter required attached once the policy relaxes to auto"
+            : "keeps the hardware adapter when the policy relaxes from required to auto",
+        { timeout: 60_000 },
+        async () => {
+            assert.equal(status(gpu).backend, "webgpu", "required attached an adapter to begin with");
+
+            gpu.acceleration = "auto";
+            await until(() => status(gpu).state !== "probing", "the policy change to settle", 30_000);
+            const found = status(gpu);
+
+            assert.equal(found.policy, "auto");
+
+            if (SOFTWARE) {
+                assert.equal(found.state, "unavailable");
+                assert.equal(found.code, "E_SOFTWARE_ONLY", found.reason ?? "no reason given");
+                assert.isUndefined(found.backend, "the software adapter was released");
+            } else {
+                assert.equal(found.backend, "webgpu");
+            }
+        },
+    );
 });

@@ -24,6 +24,37 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
     ["from", "to"],
 ];
 
+/** The column separators a delimited file is sniffed for, a comma first so it wins a tie. */
+const DELIMITERS = [",", "\t", ";", "|"] as const;
+
+/**
+ * Work out a delimited file's column separator from its first line.
+ *
+ * Papaparse's own guess is not used because it guesses from the rows it previews, and the one-row
+ * preview that reads the header row sees too little to tell a tab from a comma: it answers "," and
+ * the header `source<TAB>target` comes back as one column.
+ * @param content - The file, or at least its first line.
+ * @returns Whichever of comma, tab, semicolon and pipe appears most often outside quotes on the
+ * first line, or a comma when none does.
+ */
+export function sniffDelimiter(content: string): string {
+    const counts = new Map<string, number>();
+    let quoted = false;
+    for (const char of content) {
+        if (char === '"') {
+            quoted = !quoted;
+        } else if (!quoted && (char === "\n" || char === "\r")) {
+            break;
+        } else if (!quoted && (DELIMITERS as readonly string[]).includes(char)) {
+            counts.set(char, (counts.get(char) ?? 0) + 1);
+        }
+    }
+
+    return DELIMITERS.reduce((best, candidate) =>
+        (counts.get(candidate) ?? 0) > (counts.get(best) ?? 0) ? candidate : best,
+    );
+}
+
 /**
  * Detect CSV variant from headers and sample data
  * @param headers - Array of column header names

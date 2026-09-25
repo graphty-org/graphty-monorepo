@@ -149,6 +149,33 @@ export interface SessionSelectorSource extends SelectorSource {
 /** The prefix an attribute path carries in front of the key the record actually holds. */
 const ATTRIBUTE_PREFIX = "data.";
 
+/**
+ * The id of the node at one end of an edge, for the attribute keys that name an endpoint.
+ *
+ * An edge's endpoints are graph structure, so the importer removes the keys they arrived under
+ * (`src`/`dst`, or whatever the id paths name) from the record a selector reads, to keep the data
+ * table from showing them twice. Without this, `data.source == 'A'` matched no edge at all and
+ * said nothing -- the empty answer looked exactly like a correct zero. So `source` and `target`
+ * are read from the snapshot for an edge whose record holds nothing under that key; an edge that
+ * really carries a `source` attribute (a provenance field, with its endpoints under `src`/`dst`)
+ * keeps it.
+ * @param graph - The snapshot the index addresses.
+ * @param index - The dense (logical) edge index, already bounded by the caller.
+ * @param key - The attribute key, without the `data.` prefix.
+ * @returns The endpoint's node id, or undefined when the key names no endpoint.
+ */
+export function edgeEndpointOf(graph: GraphSnapshot, index: number, key: string): NodeId | undefined {
+    if (key === "source") {
+        return graph.ids.idOf(graph.edgeSource(index));
+    }
+
+    if (key === "target") {
+        return graph.ids.idOf(graph.edgeTarget(index));
+    }
+
+    return undefined;
+}
+
 /** The prefix a result path carries in front of the run id. */
 const RESULT_PREFIX = `${RESULT_ROOT}.`;
 
@@ -489,6 +516,28 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
      * @returns The value, or undefined when the element carries none.
      */
     const attributeOf = (held: Frame, target: SelectorTarget, index: number, key: string): unknown => {
+        if (target === "edge") {
+            if (index < 0 || index >= held.edgeCount) {
+                return undefined;
+            }
+
+            // An attribute the edge really carries under `source` / `target` wins; the snapshot's
+            // endpoint answers only when the record has nothing under that key.
+            return storedAttributeOf(held, target, index, key) ?? edgeEndpointOf(held.graph, index, key);
+        }
+
+        return storedAttributeOf(held, target, index, key);
+    };
+
+    /**
+     * The attribute one element arrived with, from its column or its record.
+     * @param held - The frame.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index, already bounded for an edge.
+     * @param key - The attribute key.
+     * @returns The value, or undefined when the element carries none.
+     */
+    const storedAttributeOf = (held: Frame, target: SelectorTarget, index: number, key: string): unknown => {
         const column = columnFor(held, target, key);
 
         if (column !== null) {
@@ -500,7 +549,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         }
 
         if (target === "edge") {
-            return index >= 0 && index < held.edgeCount ? records.edgeAttributes(index)?.[key] : undefined;
+            return records.edgeAttributes(index)?.[key];
         }
 
         if (index < 0 || index >= held.nodeCount) {
@@ -551,6 +600,11 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         if (entry.kind === "result") {
             return isPresent(recordOf(held, target, index, entry.runId)?.[entry.field]);
+        }
+
+        // An endpoint key is answered by the value reader, which falls back to the snapshot.
+        if (target === "edge" && (entry.key === "source" || entry.key === "target")) {
+            return isPresent(attributeOf(held, target, index, entry.key));
         }
 
         const column = columnFor(held, target, entry.key);

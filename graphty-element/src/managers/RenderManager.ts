@@ -47,6 +47,17 @@ export class RenderManager implements Manager {
     private resizeHandler: () => void;
 
     /**
+     * Stands in for Babylon's own pointer handling, which calls preventDefault and then
+     * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
+     * canvas. This one does the same thing without scrolling.
+     * @param evt - The pointer down or up event on the canvas
+     */
+    private focusOnPointer = (evt: PointerEvent): void => {
+        evt.preventDefault();
+        this.canvas.focus({ preventScroll: true });
+    };
+
+    /**
      * Creates a new render manager for Babylon.js scene and rendering
      * @param canvas - HTML canvas element for rendering
      * @param eventManager - Event manager for emitting render events
@@ -71,6 +82,10 @@ export class RenderManager implements Manager {
 
         // Create scene
         this.scene = new Scene(this.engine);
+        this.scene.preventDefaultOnPointerDown = false;
+        this.scene.preventDefaultOnPointerUp = false;
+        this.canvas.addEventListener("pointerdown", this.focusOnPointer);
+        this.canvas.addEventListener("pointerup", this.focusOnPointer);
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -141,6 +156,8 @@ export class RenderManager implements Manager {
 
         // Remove resize listener
         window.removeEventListener("resize", this.resizeHandler);
+        this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
+        this.canvas.removeEventListener("pointerup", this.focusOnPointer);
 
         // Dispose camera system
         this.camera.dispose();

@@ -15,7 +15,6 @@ const ZOOM_NAMES = ["Zoom out", "Zoom in", "Zoom to fit", "Zoom to selection"];
 
 function views(overrides: Partial<CanvasToolbarViewsProps> = {}): CanvasToolbarViewsProps {
     return {
-        minimapShown: true,
         legendShown: true,
         toolbarShown: true,
         vrSupported: false,
@@ -23,7 +22,6 @@ function views(overrides: Partial<CanvasToolbarViewsProps> = {}): CanvasToolbarV
         visibleNodeCount: 20,
         onResetView: vi.fn(),
         onViewPreset: vi.fn(),
-        onToggleMinimap: vi.fn(),
         onToggleToolbar: vi.fn(),
         onToggleLegend: vi.fn(),
         onEnterVr: vi.fn(),

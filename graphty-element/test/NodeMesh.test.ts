@@ -2,7 +2,7 @@ import { InstancedMesh, Mesh, NullEngine, Scene, StandardMaterial } from "@babyl
 import { assert, beforeEach, describe, test } from "vitest";
 import type { z } from "zod/v4";
 
-import { NodeShapes } from "../src/config/NodeStyle";
+import { NodeShapes, NodeStyle } from "../src/config/NodeStyle";
 import { PolyhedronType } from "../src/constants/meshConstants";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { NodeMesh } from "../src/meshes/NodeMesh";
@@ -111,6 +111,31 @@ describe("NodeMesh", () => {
             );
 
             assert.equal(mesh.name, "box");
+        });
+    });
+
+    // Issue #117: Babylon's MeshBuilder reads a size of 0 as "not set" and draws a 1-unit mesh,
+    // so a 0 node drew 100 times larger than a 0.01 node. Size must stay monotonic.
+    describe("size 0 is the smallest node", () => {
+        test.each(["sphere", "box", "icosahedron"] as const)("%s grows strictly with size from 0", (type) => {
+            const widths = [0, 0.01, 1].map((size) => {
+                const mesh = NodeMesh.createMeshWithoutCache(
+                    { styleId: "test", is2D: false, size: 1 },
+                    { shape: { type, size } },
+                );
+                mesh.refreshBoundingInfo();
+                const box = mesh.getBoundingInfo().boundingBox;
+                return box.maximum.x - box.minimum.x;
+            });
+
+            assert.isAbove(widths[0], 0, `size 0 must stay visible, got ${widths.join(", ")}`);
+            assert.isBelow(widths[0], widths[1], `size 0 must be smaller than 0.01, got ${widths.join(", ")}`);
+            assert.isBelow(widths[1], widths[2], `size 0.01 must be smaller than 1, got ${widths.join(", ")}`);
+        });
+
+        test("the node style schema accepts size 0", () => {
+            assert.isTrue(NodeStyle.safeParse({ shape: { size: 0 } }).success);
+            assert.isFalse(NodeStyle.safeParse({ shape: { size: -1 } }).success);
         });
     });
 

@@ -29,8 +29,8 @@
  * already been run here. So a session's catalogue is the shared tables with its own `metrics()`
  * closed over its own graph.
  *
- * The rest of the graph-dependent half -- resolved option bounds, expression validation -- still
- * waits on the query engine.
+ * The rest of the graph-dependent half -- resolved option bounds, expression validation -- is not
+ * wired to the session's query engine yet.
  */
 
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";

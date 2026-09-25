@@ -3,6 +3,17 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
+import { detachedRunContext } from "../../../src/algorithms/results";
+import { GraphtyError } from "../../../src/errors";
+import { createMockGraph } from "../../helpers/mockGraph";
+
+const PATH = {
+    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
+    edges: [
+        { srcId: "A", dstId: "B" },
+        { srcId: "C", dstId: "B" },
+    ],
+};
 
 describe("MinCutAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -35,4 +46,29 @@ describe("MinCutAlgorithm", () => {
         });
     });
 
+    describe("Source and sink", () => {
+        for (const option of ["source", "sink"] as const) {
+            it(`rejects a ${option} that is not in the graph with E_OPTION_RANGE`, async () => {
+                const graph = await createMockGraph(PATH);
+                const algo = new MinCutAlgorithm(graph, { source: "A", sink: "C", [option]: "nope" });
+
+                const error = await algo.compute(detachedRunContext()).then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+
+                assert.instanceOf(error, GraphtyError);
+                assert.strictEqual(error.code, "E_OPTION_RANGE");
+                assert.strictEqual(error.details.option, option);
+            });
+        }
+
+        it("says when one end was chosen automatically", async () => {
+            const graph = await createMockGraph(PATH);
+            const output = await new MinCutAlgorithm(graph, { source: "A" }).compute(detachedRunContext());
+
+            assert.ok(output);
+            assert.match(output.caveats.notes.join("\n"), /chosen automatically/);
+        });
+    });
 });

@@ -51,7 +51,15 @@ const EMPTY_STRINGS: readonly string[] = Object.freeze([]);
 /** The frozen empty list every arm that cannot produce an unresolved path answers with. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
-/** How a text target decides whether an element matched. */
+/**
+ * How a text target decides whether an element matched.
+ *
+ * - `substring`: the id or an attribute value contains the text, ignoring case.
+ * - `exact`: the id or an attribute value is the text, exactly.
+ * - `regex`: the id or an attribute value matches the text as a regular expression.
+ * - `attribute`: the text is `key:value`, and the node's `key` (or its id, for `id`) is the value,
+ *   ignoring case. A key no node carries is searched as plain substring text.
+ */
 export type SelectionTextMode = "substring" | "exact" | "regex" | "attribute";
 
 /** Which way a neighbourhood target follows an edge. */
@@ -99,10 +107,17 @@ export interface NeighborhoodTarget {
 export type SelectionTarget =
     | ElementIdTarget
     | NeighborhoodTarget
-    /** Every element a predicate matches. */
-    | { readonly where: Query }
-    /** Every element a text search finds. */
-    | { readonly text: string; readonly mode?: SelectionTextMode }
+    /** Every element a predicate matches, narrowed to a scope when one is named. */
+    | { readonly where: Query; readonly scope?: Scope }
+    /**
+     * Every node a text search finds, narrowed to a scope when one is named.
+     *
+     * With no `mode`, the text may carry one as a prefix: `exact:`, `regex:`, or `<attribute>:`
+     * (`id:a17`, `type:person`), and anything else is a case-insensitive substring search over
+     * the node's id and its attribute values. See {@link SelectionTextMode}. A leading `=` makes
+     * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
+     */
+    | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: Scope }
     /** A pasted list of ids, which may name nodes, edges, or nothing at all. */
     | { readonly ids: readonly string[] }
     /** Everything a scope covers. */
@@ -273,6 +288,60 @@ function addIds<TId>(mask: ElementMask<TId>, ids: Iterable<TId>): void {
             mask.add(index);
         }
     }
+}
+
+/**
+ * Keep only the members a scope covers, when a target names one.
+ * @param context - What the resolution reads.
+ * @param scope - The scope, or undefined for the whole graph.
+ * @param nodes - The node mask to narrow.
+ * @param edges - The edge mask to narrow.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached.
+ */
+function narrowToScope(
+    context: TargetContext,
+    scope: Scope | undefined,
+    nodes: ElementMask<NodeId>,
+    edges: ElementMask<EdgeId>,
+): void {
+    if (scope === undefined) {
+        return;
+    }
+
+    if (context.scope === undefined) {
+        throw unsupported("a scope", "a scope resolver");
+    }
+
+    const resolved = context.scope.resolveNow(scope);
+    const inScope = emptyMasks(context);
+    addIds(inScope.nodes, resolved.nodes);
+    addIds(inScope.edges, resolved.edges);
+    nodes.intersect(inScope.nodes);
+    edges.intersect(inScope.edges);
+}
+
+/**
+ * Read the mode a search box's text carries as a prefix.
+ *
+ * `exact:` and `regex:` name a mode; any other `word:` prefix is an attribute search, which the
+ * search index answers as plain text when no node carries that attribute.
+ * @param text - What was typed.
+ * @returns The text to search for and how.
+ */
+function searchOf(text: string): { text: string; mode: SelectionTextMode } {
+    const prefix = /^([A-Za-z_][\w.]*):/.exec(text);
+
+    if (prefix === null) {
+        return { text, mode: "substring" };
+    }
+
+    const [whole, word] = prefix;
+
+    if (word === "exact" || word === "regex") {
+        return { text: text.slice(whole.length), mode: word };
+    }
+
+    return { text, mode: "attribute" };
 }
 
 /**
@@ -574,6 +643,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
         const matched = context.match(target.where);
         addIds(nodes, matched.nodes ?? []);
         addIds(edges, matched.edges ?? []);
+        narrowToScope(context, target.scope, nodes, edges);
 
         return {
             nodes,
@@ -584,13 +654,22 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("text" in target) {
+        // A search box's `=` prefix: the rest is an expression, so a single text field can offer
+        // both without its host parsing anything.
+        if (target.mode === undefined && target.text.startsWith("=")) {
+            const where = target.text.slice(1);
+
+            return resolveTarget(target.scope === undefined ? { where } : { where, scope: target.scope }, context);
+        }
+
         if (context.find === undefined) {
             throw unsupported("a text search", "a search index");
         }
 
         const { nodes, edges } = emptyMasks(context);
+        const search = target.mode === undefined ? searchOf(target.text) : { text: target.text, mode: target.mode };
 
-        for (const hit of context.find(target.text, target.mode ?? "substring")) {
+        for (const hit of context.find(search.text, search.mode)) {
             if (hit.kind === "edge") {
                 const index = edges.indexOf(String(hit.id));
 
@@ -605,6 +684,8 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
                 }
             }
         }
+
+        narrowToScope(context, target.scope, nodes, edges);
 
         return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
     }

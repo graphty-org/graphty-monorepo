@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 
 import { AdHocData } from "../config";
-import { type CSVVariant, type CSVVariantInfo, detectCSVVariant } from "./csv-variant-detection.js";
+import { type CSVVariant, type CSVVariantInfo, detectCSVVariant, sniffDelimiter } from "./csv-variant-detection.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 /**
@@ -71,6 +71,7 @@ function namesNoEndpointColumn(row: Record<string, unknown>, sourceColName: stri
 }
 
 interface CSVDataSourceConfig extends BaseDataSourceConfig {
+    /** The column separator. Worked out from the first line (comma, tab, semicolon or pipe) when unset. */
     delimiter?: string;
     variant?: CSVVariant; // Allow explicit variant override
     /**
@@ -108,7 +109,6 @@ export class CSVDataSource extends DataSource {
     constructor(config: CSVDataSourceConfig) {
         super(config.errorLimit ?? 100, config.chunkSize);
         this.config = {
-            delimiter: ",",
             chunkSize: 1000,
             errorLimit: 100,
             ...config,
@@ -133,12 +133,13 @@ export class CSVDataSource extends DataSource {
 
         // Get CSV content
         const csvContent = await this.getContent();
+        const delimiter = this.config.delimiter ?? sniffDelimiter(csvContent);
 
         // Parse headers to detect variant
         const previewResult = Papa.parse(csvContent, {
             header: true,
             preview: 1,
-            delimiter: this.config.delimiter,
+            delimiter,
             dynamicTyping: true,
             transformHeader: (header) => header.trim(),
         });
@@ -182,7 +183,7 @@ export class CSVDataSource extends DataSource {
             variantInfo = {
                 variant: this.config.variant,
                 hasHeaders: defaults.hasHeaders ?? true,
-                delimiter: this.config.delimiter ?? ",",
+                delimiter,
                 // Use user config or variant defaults
                 sourceColumn: this.config.edgeSource ?? defaults.sourceColumn,
                 targetColumn: this.config.edgeTarget ?? defaults.targetColumn,
@@ -195,8 +196,7 @@ export class CSVDataSource extends DataSource {
             // Auto-detect variant
             variantInfo = {
                 ...detectCSVVariant(headers),
-                // Preserve user-specified delimiter if provided
-                delimiter: this.config.delimiter ?? detectCSVVariant(headers).delimiter,
+                delimiter,
             };
         }
 
@@ -691,6 +691,7 @@ export class CSVDataSource extends DataSource {
 
             const nodeParse = Papa.parse(nodeContent, {
                 header: true,
+                delimiter: this.config.delimiter ?? sniffDelimiter(nodeContent),
                 dynamicTyping: true,
                 skipEmptyLines: true,
                 transformHeader: (header) => header.trim(),
@@ -713,6 +714,7 @@ export class CSVDataSource extends DataSource {
 
             const edgeParse = Papa.parse(edgeContent, {
                 header: true,
+                delimiter: this.config.delimiter ?? sniffDelimiter(edgeContent),
                 dynamicTyping: true,
                 skipEmptyLines: true,
                 transformHeader: (header) => header.trim(),

@@ -122,6 +122,12 @@ export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 /** Issue code: a node id was declared in two id spaces; the core has one id space and the later row is skipped. */
 export const ID_SPACE_COLLISION_CODE = "E_NEO4J_ID_SPACE_COLLISION";
 
+/**
+ * Issue code: a `:START_ID(Space)` / `:END_ID(Space)` id names a node a node row declared in another
+ * id space; the core has one id space, so the endpoint does not exist in its space and the row is skipped.
+ */
+export const ENDPOINT_SPACE_CODE = "E_NEO4J_ENDPOINT_SPACE";
+
 /** Issue code: two different id cells became one id under `ids: "number"`. */
 export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
 
@@ -225,6 +231,9 @@ interface RelationshipSection {
     readonly width: number;
     readonly startCell: number;
     readonly endCell: number;
+    /** The id space of `:START_ID` / `:END_ID` as a registry code, or 0 when the header declares none. */
+    readonly startSpaceCode: number;
+    readonly endSpaceCode: number;
     /** The `:TYPE` cell, or -1. */
     readonly typeCell: number;
     /** The cell of the property named by `weightFrom`, or -1. */
@@ -339,6 +348,15 @@ class NodeRegistry {
             return "new";
         }
         return previous === code ? "duplicate" : "collision";
+    }
+
+    /**
+     * The space code a node row declared a node in.
+     * @param index - the node index
+     * @returns the code, or 0 when no node row declared the node
+     */
+    codeAt(index: number): number {
+        return index < this.codes.length ? this.codes[index] : 0;
     }
 }
 
@@ -675,7 +693,19 @@ class Neo4jImportSession {
             weightCell = fields.findIndex((field) => field.kind === "PROPERTY" && field.name === weightFrom);
         }
         const properties = this.declareProperties("edge", fields, line, weightCell);
-        return { kind: "relationship", width: fields.length, startCell, endCell, typeCell, weightCell, properties };
+        const { space: startSpace } = fields[startCell];
+        const { space: endSpace } = fields[endCell];
+        return {
+            kind: "relationship",
+            width: fields.length,
+            startCell,
+            endCell,
+            startSpaceCode: startSpace === null ? 0 : this.registry.codeOf(startSpace),
+            endSpaceCode: endSpace === null ? 0 : this.registry.codeOf(endSpace),
+            typeCell,
+            weightCell,
+            properties,
+        };
     }
 
     /**
@@ -944,6 +974,22 @@ class Neo4jImportSession {
             report.counts.skippedEdges++;
             return;
         }
+        let wrongSpace: string | null = null;
+        if (this.wrongSpace(source, section.startSpaceCode)) {
+            wrongSpace = startText;
+        } else if (this.wrongSpace(target, section.endSpaceCode)) {
+            wrongSpace = endText;
+        }
+        if (wrongSpace !== null) {
+            report.error(
+                "missing-value",
+                ENDPOINT_SPACE_CODE,
+                `endpoint ${wrongSpace} is not a node of its declared id space (a node of another id space has that id); the row is skipped`,
+                { line, element },
+            );
+            report.counts.skippedEdges++;
+            return;
+        }
         let weight: number | undefined;
         if (section.weightCell >= 0) {
             try {
@@ -975,6 +1021,26 @@ class Neo4jImportSession {
         this.writeProperties("edge", section.properties, edge);
         this.reportPrecision(line, element);
         report.counts.edges++;
+    }
+
+    /**
+     * Whether an endpoint id belongs to a node a node row declared in another id space than the
+     * endpoint's header declares. An endpoint without a declared space, or a node no row declared
+     * yet, is looked up by id alone.
+     * @param id - the endpoint id
+     * @param spaceCode - the endpoint's space code, 0 for none
+     * @returns true when the endpoint resolves to a node of another space
+     */
+    private wrongSpace(id: NodeId, spaceCode: number): boolean {
+        if (spaceCode === 0) {
+            return false;
+        }
+        const index = this.sink.indexOf(id);
+        if (index < 0) {
+            return false;
+        }
+        const declared = this.registry.codeAt(index);
+        return declared !== 0 && declared !== spaceCode;
     }
 
     /**

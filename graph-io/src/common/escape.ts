@@ -88,16 +88,40 @@ export function quoteGmlString(text: string): string {
     return `"${escaped}"`;
 }
 
-const GML_ENTITY = /&(#[0-9]+|#x[0-9a-fA-F]+|amp|quot|lt|gt|apos);/g;
-const GML_NAMED: Readonly<Record<string, string>> = { amp: "&", quot: '"', lt: "<", gt: ">", apos: "'" };
+const GML_ENTITY = /&(#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
+
+/** The XML entities and the ISO-8859-1 HTML entities (U+00A0..U+00FF), which GML uses for characters above 127. */
+const GML_NAMED: ReadonlyMap<string, string> = (() => {
+    const table = new Map<string, string>([
+        ["amp", "&"],
+        ["quot", '"'],
+        ["lt", "<"],
+        ["gt", ">"],
+        ["apos", "'"],
+    ]);
+    const latin1 = (
+        "nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr deg plusmn sup2 " +
+        "sup3 acute micro para middot cedil sup1 ordm raquo frac14 frac12 frac34 iquest Agrave Aacute Acirc " +
+        "Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc Iuml ETH Ntilde Ograve " +
+        "Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig agrave aacute " +
+        "acirc atilde auml aring aelig ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde " +
+        "ograve oacute ocirc otilde ouml divide oslash ugrave uacute ucirc uuml yacute thorn yuml"
+    ).split(" ");
+    latin1.forEach((name, i) => {
+        table.set(name, String.fromCharCode(0xa0 + i));
+    });
+    return table;
+})();
 
 /**
  * Decode the character entities of a GML string body (the inverse of quoteGmlString on the text
- * between the quotes). An unknown entity is left as written.
+ * between the quotes): numeric references, the XML entities and the ISO-8859-1 HTML entities. An
+ * unknown named entity is left as written and handed to `onUnknown`.
  * @param body - the text between the quotes
+ * @param onUnknown - called with each unknown named entity (`&name;`), when given
  * @returns the decoded text
  */
-export function decodeGmlString(body: string): string {
+export function decodeGmlString(body: string, onUnknown?: (entity: string) => void): string {
     return body.replace(GML_ENTITY, (whole, entity: string) => {
         if (entity.startsWith("#x")) {
             return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
@@ -105,7 +129,12 @@ export function decodeGmlString(body: string): string {
         if (entity.startsWith("#")) {
             return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
         }
-        return GML_NAMED[entity] ?? whole;
+        const known = GML_NAMED.get(entity);
+        if (known === undefined) {
+            onUnknown?.(whole);
+            return whole;
+        }
+        return known;
     });
 }
 

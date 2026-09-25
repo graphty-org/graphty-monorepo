@@ -14,7 +14,7 @@ the expectation today; the reference points into
 | csv | 83 | 69 | 14 | 67 | 1 |
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
-| gml | 109 | 96 | 13 | 86 | 3 |
+| gml | 109 | 97 | 12 | 87 | 3 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
 | json | 410 | 378 | 32 | 60 | 0 |
 | neo4j | 45 | 23 | 22 | 22 | 0 |
@@ -177,10 +177,6 @@ Where networkx is overruled:
 
 - `authored/codepoint-out-of-range.gml`: crashed instead of an ImportError: RangeError: Invalid code point 99999999
 
-### HTML named entities are left verbatim (sources.md 4.4) (1)
-
-- `authored/html-named-entities.gml`: label "Café Mädchen" missing
-
 ### multi-line strings are a fatal syntax error (sources.md 4.4) (1)
 
 - `authored/multiline-string.gml`: failed: E_SYNTAX: unclosed string at line 2
@@ -263,7 +259,7 @@ Where networkx is overruled:
 
 - `sigma/clique3.json`: node "6" label: no such column; node "9" label: no such column
 
-### links silently dropped when edges is also present (sources.md 8.4 node-link) (1)
+### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (1)
 
 - `authored/links-and-edges.json`: edges: expected 2, got 1; edge "a"->"b" missing
 
@@ -303,10 +299,10 @@ Where networkx is overruled:
 - `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
 - `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
 
-### ID spaces on START_ID/END_ID ignored; the same id in two spaces collides (sources.md 9.4) (2)
+### the same id in two ID spaces collides: the core has one id space (sources.md 9.4) (2)
 
-- `admin/manual-id-spaces.csv`: nodes: expected 6, got 3; issue E_NEO4J_ID_SPACE_COLLISION present
-- `northwind/products-categories-suppliers.csv`: nodes: expected 77, got 40; issue E_NEO4J_ID_SPACE_COLLISION present
+- `admin/manual-id-spaces.csv`: nodes: expected 6, got 3; edges: expected 9, got 0
+- `northwind/products-categories-suppliers.csv`: failed: E_NEO4J_ID_SPACE_COLLISION, E_NEO4J_ENDPOINT_SPACE: error limit of 100 exceeded: endpoint 10 is not a node of its declared id space (a node of another id space has that id); the row is skipped; issue E_NEO4J_ID_SPACE_COLLISION present
 
 ### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (1)
 

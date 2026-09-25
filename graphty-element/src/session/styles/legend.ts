@@ -194,6 +194,15 @@ export interface LegendSources {
      * @returns The words, or undefined when nothing in the session names that path.
      */
     readonly field?: (path: Path, target: SelectorTarget) => FieldWords | undefined;
+    /**
+     * Whether a layer above selects every element a layer below it selects.
+     *
+     * Absent, only a layer that selects everything is known to cover one below it.
+     * @param above - The higher layer.
+     * @param below - The lower layer.
+     * @returns True only when every element `below` selects is also selected by `above`.
+     */
+    readonly covers?: (above: Layer, below: Layer) => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -564,22 +573,29 @@ function domainOf(prepared: PreparedBinding, rule: Extract<Binding, { by: Path }
 /**
  * Whether a layer above this one paints the same channel over every element it can reach.
  *
- * `{match:"everything"}` is the only selector that can be known to cover an element without
- * asking about one: an expression or an id list may or may not, and claiming it does would put a
+ * `{match:"everything"}` covers without asking about any element. Any other selector covers only
+ * when {@link LegendSources.covers} can show it selects every element this layer does -- which is
+ * how one run's colours are found hidden under another run's, since both are scoped
+ * `{match:"has"}` to what their run measured. Claiming a cover nobody checked would put a
  * departure on a block that is perfectly visible.
  * @param layers - The stack, bottom first.
  * @param at - Where the block's layer sits in it.
  * @param channel - The channel the block describes.
+ * @param sources - Where the cover test for a narrower selector comes from.
  * @returns The name of the layer that covers it, or null when nothing does.
  */
-function coveredBy(layers: readonly Layer[], at: number, channel: Channel): string | null {
+function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sources: LegendSources): string | null {
     const mine = layers[at];
 
     for (let above = at + 1; above < layers.length; above++) {
         const layer = layers[above];
         const paints = layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined;
 
-        if (layer.enabled && layer.target === mine.target && layer.selector.match === "everything" && paints) {
+        if (!layer.enabled || layer.target !== mine.target || !paints) {
+            continue;
+        }
+
+        if (layer.selector.match === "everything" || sources.covers?.(layer, mine) === true) {
             return layer.name;
         }
     }
@@ -592,10 +608,16 @@ function coveredBy(layers: readonly Layer[], at: number, channel: Channel): stri
  * @param prepared - The prepared binding, which counted most of them while settling its domain.
  * @param layers - The stack, bottom first.
  * @param at - Where the block's layer sits in it.
+ * @param sources - Where the cover test for a narrower selector comes from.
  * @returns The sentences, in the order a legend prints them.
  */
-function departuresOf(prepared: PreparedBinding, layers: readonly Layer[], at: number): readonly string[] {
-    const covering = coveredBy(layers, at, prepared.channel);
+function departuresOf(
+    prepared: PreparedBinding,
+    layers: readonly Layer[],
+    at: number,
+    sources: LegendSources,
+): readonly string[] {
+    const covering = coveredBy(layers, at, prepared.channel, sources);
 
     if (covering === null) {
         return prepared.departures;
@@ -642,7 +664,7 @@ function buildBlock(
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
         swatches: Object.freeze(swatches.slice(0, SWATCH_CAP)),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
-        departures: Object.freeze([...departuresOf(prepared, layers, at)]),
+        departures: Object.freeze([...departuresOf(prepared, layers, at, sources)]),
     };
 }
 

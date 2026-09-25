@@ -1,3 +1,11 @@
+## 0.6.3 (2026-09-24)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.4
+- Updated algorithms to 2.0.2
+- Updated layout to 1.9.0
+
 ## 0.6.2 (2026-09-24)
 
 ### 🩹 Fixes

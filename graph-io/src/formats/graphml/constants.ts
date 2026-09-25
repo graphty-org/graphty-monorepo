@@ -173,6 +173,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_ENDPOINT: "E_GRAPHML_HYPEREDGE_ENDPOINT",
     /** `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. */
     PORT_DECLARATION: "W_GRAPHML_PORT_DECLARATION",
+    /** A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). */
+    PARSE_HINT_IGNORED: "W_GRAPHML_PARSE_HINT_IGNORED",
+    /** An XML attribute GraphML does not define on `<graph>`, `<node>` or `<edge>`; it is not kept. */
+    UNKNOWN_XML_ATTRIBUTE: "W_GRAPHML_UNKNOWN_XML_ATTRIBUTE",
     /** A `<locator>` element. */
     LOCATOR_DROPPED: "W_GRAPHML_LOCATOR_DROPPED",
     /** A `<desc>` of a node, an edge or a hyperedge. */

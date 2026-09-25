@@ -24,7 +24,7 @@ interface GraphEdge {
  * used whole: `Graph.dataManager` is private on it and {@link GraphtyHandle.getData} reads the
  * node and edge maps through it, which is the element gap recorded on `getData` itself.
  *
- * The pin verbs and `session` are NOT written out. They are picked off the element's own class,
+ * The pin verbs, `session` and `layoutBehavior` are NOT written out. They are picked off the element's own class,
  * so their signatures are the element's and a rename over there is a type error here rather than
  * a method that quietly stops existing. That is how every member reaches this interface from now
  * on: the ten below are a duck-type of the element (root CLAUDE.md, "duck-typing or re-declaring
@@ -33,7 +33,7 @@ interface GraphEdge {
  */
 interface GraphtyElementType
     extends HTMLElement,
-        Pick<GraphtyElement, "captureScreenshot" | "pin" | "unpin" | "pinnedNodes" | "session"> {
+        Pick<GraphtyElement, "captureScreenshot" | "pin" | "unpin" | "pinnedNodes" | "session" | "layoutBehavior"> {
     nodeData?: { id: number | string; [key: string]: unknown }[];
     edgeData?: { source: number | string; target: number | string; [key: string]: unknown }[];
     layout?: string;
@@ -430,6 +430,14 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
         prevDataSourceRef.current = { dataSource, dataSourceConfig };
     }, [dataSource, dataSourceConfig, replaceExisting]);
+
+    // The app thins out node labels that would be drawn over each other. The element does the
+    // work; its default is off so that every other consumer keeps the picture it had.
+    useEffect(() => {
+        if (graphtyRef.current) {
+            graphtyRef.current.layoutBehavior = { labels: { declutter: true } };
+        }
+    }, []);
 
     // Handle layout changes
     useEffect(() => {

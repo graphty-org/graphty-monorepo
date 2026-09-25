@@ -157,6 +157,7 @@ import {
     writeNoiseFixture,
 } from "./helpers/noise-floor.js";
 import { SE_KARATE_FIXTURES, SE_NOISE_FIXTURES, SE_TOLERANCE_CAPS } from "./helpers/se-parity.js";
+import { SSSP_TOLERANCE_CAPS } from "./helpers/sssp.js";
 import { componentsOracle } from "./oracle/components.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
@@ -998,6 +999,7 @@ const TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly b
     ...P5_TOLERANCE_CAPS,
     ...SE_TOLERANCE_CAPS,
     ...P4_TOLERANCE_CAPS,
+    ...SSSP_TOLERANCE_CAPS,
 };
 
 interface NoiseAdapter {

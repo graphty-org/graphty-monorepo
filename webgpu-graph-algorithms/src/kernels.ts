@@ -58,6 +58,7 @@ import { scanBlockWgsl } from "./wgsl/scan-block.wgsl.js";
 import { segmentedReduceWgsl } from "./wgsl/segmented-reduce.wgsl.js";
 import { spmvPullWgsl } from "./wgsl/spmv-pull.wgsl.js";
 import { ssspPredWgsl } from "./wgsl/sssp-pred.wgsl.js";
+import { ssspRelaxWgsl } from "./wgsl/sssp-relax.wgsl.js";
 import { wccCompressWgsl } from "./wgsl/wcc-compress.wgsl.js";
 import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
@@ -105,7 +106,8 @@ export type KernelId =
     | "bfs-fused"
     | "bfs-bottom-up"
     | "bfs-bitset-build"
-    | "bfs-unvisited-flags";
+    | "bfs-unvisited-flags"
+    | "sssp-relax";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -1232,6 +1234,25 @@ const BFS_UNVISITED_FLAGS: KernelEntry = {
     phase: "P8",
 };
 
+/** `sssp-relax` (design 8.4 "Davidson's near-far", 8.10 "SSSP near-far relax"; P8-T9, PD-9 / PD-20 / DEP-P8-E): one round of the near-far loop -- role 0 relaxes the deduped near pile's whole rows with `atomicMin` on the f32 bit patterns of `dist` and appends each improved vertex to the raw near or far half of `queueOut` (the two halves of ONE buffer at word 0 and word `P.edgeCapacity`), role 1 re-buckets the deduped far pile; 8 storage bindings (the four graph slots with the run's weights bound in the weights slot, `dist` and the counters block as `array<atomic<u32>>`, `queueIn` read-only, `queueOut`) -- exactly at the budget, which is why no `pred` lives here (PD-11) and why the piles' counts, the threshold and the delta are words of the block. */
+const SSSP_RELAX: KernelEntry = {
+    id: "sssp-relax",
+    body: ssspRelaxWgsl,
+    entryPoint: "sssp_relax",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "dist", "storage", "array<atomic<u32>>"),
+        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "queueIn", "storage-ro", "array<u32>"),
+        decl(1, 3, "queueOut", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ),
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1240,8 +1261,8 @@ const BFS_UNVISITED_FLAGS: KernelEntry = {
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
- * P8-T7 `"bfs-fused"` and P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, so every member
- * of `KernelId` is present and the assertion is exact.
+ * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"` and P8-T9
+ * `"sssp-relax"`, so every member of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1285,6 +1306,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-bottom-up": BFS_BOTTOM_UP,
     "bfs-bitset-build": BFS_BITSET_BUILD,
     "bfs-unvisited-flags": BFS_UNVISITED_FLAGS,
+    "sssp-relax": SSSP_RELAX,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

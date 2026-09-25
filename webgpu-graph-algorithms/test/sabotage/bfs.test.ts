@@ -15,7 +15,8 @@
  * every traversal is the source alone) and `fused-slot-per-invocation` (a fused level expands only its first
  * ceil(next / wg) entries), P8-T7's `fused-threshold-inverted`, which leaves every depth right and is caught only
  * by the exact `fusedLevels` / `twoPhaseLevels` counts, and P8-T8's `growing-test-inverted`, caught only by the
- * direction model.
+ * direction model. The `sssp-pred` rows measured here are the four of its depth mode; P8-T9's three f32-mode rows
+ * name the SSSP test and are measured by test/sabotage/sssp.test.ts alone.
  */
 
 import { existsSync } from "node:fs";
@@ -29,6 +30,9 @@ import { acquire, requireGpu } from "../setup/gpu.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const BFS_TEST = "test/algorithms/bfs.test.ts";
+const SSSP_TEST = "test/algorithms/sssp.test.ts";
+/** P8-T9's f32-mode rows of `sssp-pred`: named here so the name list below stays exact, measured by the SSSP suite. */
+const F32_MODE_ROWS: readonly string[] = ["attains-is-ge", "plateau-step-ignored", "roots-unseeded"];
 
 /** The selector rows this suite measures beside the frontier suite (rotation, fused slot) or alone (the threshold, the growing test). */
 const SELECTOR_ROWS: readonly string[] = [
@@ -48,9 +52,9 @@ const BFS_KERNELS = [
     "bfs-unvisited-flags",
 ] as const;
 
-/** The rows this suite measures: the six BFS kernels' own, and the selector rows by name. */
+/** The rows this suite measures: the six BFS kernels' own that name the BFS test (sssp-pred's f32-mode rows name the SSSP test), and the selector rows by name. */
 const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutation[] }[] = [
-    ...BFS_KERNELS.map((id) => ({ id, rows: SABOTAGE[id] ?? [] })),
+    ...BFS_KERNELS.map((id) => ({ id, rows: (SABOTAGE[id] ?? []).filter((m) => m.test === BFS_TEST) })),
     {
         id: "frontier-finalize",
         rows: (SABOTAGE["frontier-finalize"] ?? []).filter((m) => SELECTOR_ROWS.includes(m.name)),
@@ -58,7 +62,7 @@ const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutati
 ];
 
 describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitset-build and bfs-unvisited-flags (spec 11.9 item 1; P8-T6, P8-T7, P8-T8)", () => {
-    it("has three contract rows, four predecessor rows, three fused rows, three bottom-up rows, three bitset rows and three unvisited rows naming the BFS test, and measures four selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has three contract rows, four depth-mode predecessor rows (plus P8-T9's three f32-mode rows naming the SSSP test), three fused rows, three bottom-up rows, three bitset rows and three unvisited rows naming the BFS test, and measures four selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect((SABOTAGE["bfs-contract"] ?? []).map((m) => m.name)).toEqual([
             "claim-not-a-min",
             "same-level-claimants-append",
@@ -69,6 +73,9 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
             "largest-predecessor",
             "last-row-skipped",
             "stride-dropped",
+            "attains-is-ge",
+            "plateau-step-ignored",
+            "roots-unseeded",
         ]);
         expect((SABOTAGE["bfs-fused"] ?? []).map((m) => m.name)).toEqual([
             "claim-outside-the-guard",
@@ -109,7 +116,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
                 expect(body.indexOf(m.find, first + m.find.length), `${id}/${m.name}: find string not unique`).toBe(-1);
                 expect(m.replace).not.toBe(m.find);
                 expect(m.minFactor).toBeGreaterThanOrEqual(10);
-                expect(m.test).toBe(BFS_TEST);
+                expect(m.test).toBe(id === "sssp-pred" && F32_MODE_ROWS.includes(m.name) ? SSSP_TEST : BFS_TEST);
                 expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${m.test} does not exist`).toBe(true);
                 const mutated = sabotagedBody(id, m);
                 expect(mutated).not.toBe(body);

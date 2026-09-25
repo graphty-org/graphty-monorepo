@@ -182,16 +182,18 @@ function checkCompactArguments(r: CompactRecord): void {
 }
 
 /**
- * The argument checks of recordDedupe() and recordDedupeIndirect(): the count, the two entry buffers, the output
- * word, and -- with a device count -- a count word that is inside `counters`, is not the output word (the filter's
- * atomicAdd would corrupt the count other workgroups of the same dispatch still read) and lives in the block
- * `outCount` names (the two kernels read it through their own binding).
+ * The argument checks of recordDedupe() and recordDedupeIndirect(): the count, the two entry buffers (`out` holds at
+ * most one entry per owner word, so it is checked against `min(count, owner words)`: the SSSP piles of P8-T9 dedupe
+ * a raw half of `arcCount` capacity into an `n`-word pile), the output word, and -- with a device count -- a count
+ * word that is inside `counters`, is not the output word (the filter's atomicAdd would corrupt the count other
+ * workgroups of the same dispatch still read) and lives in the block `outCount` names (the two kernels read it
+ * through their own binding).
  * @param r - the record
  */
 function checkDedupeArguments(r: DedupeRecord): void {
     checkCount("dedupe", r.count);
     checkWords("dedupe", "queue", r.queue, r.count);
-    checkWords("dedupe", "out", r.out, r.count);
+    checkWords("dedupe", "out", r.out, Math.min(r.count, Math.floor(r.owner.size / 4)));
     checkWordIndex("dedupe", "outIndex", r.outIndex, r.outCount);
     if (r.countIndex === U32_MAX) {
         return;

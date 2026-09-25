@@ -732,6 +732,22 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P8",
         storageCount: 5,
     },
+    "sssp-relax": {
+        entryPoint: "sssp_relax",
+        bindings: withGraph([
+            [1, 0, "dist", "storage", "array<atomic<u32>>"],
+            [1, 1, "counters", "storage", "array<atomic<u32>>"],
+            [1, 2, "queueIn", "storage-ro", "array<u32>"],
+            [1, 3, "queueOut", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 8,
+    },
 };
 
 const P1_IDS: readonly KernelId[] = ["degree", "reduce", "fill", "fa2-repulsion-exact", "fa2-speed-finalize"];

@@ -1647,6 +1647,17 @@
             "maxRelError": 0.023782891422166212,
             "maxAbsError": 2026633.942312479,
             "samples": 15000
+        },
+        {
+            "id": "sssp-relax.f32-vs-f64",
+            "kernel": "sssp-relax",
+            "fixture": "p8-t9-fixtures",
+            "comparison": "oracle-f64",
+            "a": "oracle-f32",
+            "b": "oracle-f64",
+            "maxRelError": 6.422317386040102e-7,
+            "maxAbsError": 7,
+            "samples": 76447
         }
     ],
     "tolerances": {
@@ -2218,6 +2229,11 @@
         "grid-unbiased.cross": {
             "value": 5.960464477539062e-7,
             "basis": "grid-unbiased.cross",
+            "factor": 10
+        },
+        "sssp-relax.f32-vs-f64": {
+            "value": 0.000006422317386040102,
+            "basis": "sssp-relax.f32-vs-f64",
             "factor": 10
         }
     }

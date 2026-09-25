@@ -56,6 +56,7 @@ const COMPACT_TEST = "test/primitives/compact.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
+const SSSP_TEST = "test/algorithms/sssp.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1114,6 +1115,33 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             minFactor: 10,
             test: BFS_TEST,
         },
+        {
+            // P8-T9: every arc from a reached node into a reached node is "tight" (du + w >= dv always holds on a
+            // settled dist, so <= would be a no-op; >= admits every non-tight arc): predArc names a non-tight arc
+            name: "attains-is-ge",
+            find: "tight = (dv != F32_INF_BITS) && (bitcast<u32>(bitcast<f32>(du) + w) == dv);",
+            replace: "tight = (dv != F32_INF_BITS) && (bitcast<u32>(bitcast<f32>(du) + w) >= dv);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // P8-T9: the 2026-09-23 rule brought back inside a plateau -- any equal-distance tight arc is admitted,
+            // so zeroPlateau walks j -> j - 1 into the 0 <-> 1 cycle (the chain check fails at its bound)
+            name: "plateau-step-ignored",
+            find: "admit = (du == dv) && (hu + 1u == hv);",
+            replace: "admit = (du == dv);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // P8-T9: no root but the source, so every node above distance 0 keeps hops INVALID_INDEX and the orphan
+            // word is non-zero: the driver refuses the result as E_VALIDATION
+            name: "roots-unseeded",
+            find: "if (P.mode == 0u && below) { atomicMin(&pred[hb + v], 0u); }",
+            replace: "if (false) { atomicMin(&pred[hb + v], 0u); }",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
     ]),
     // P8-T7: every row is measured by bfsReport's always-fused runs (fusedMax U32_MAX) through the BFS test
     "bfs-fused": Object.freeze([
@@ -1228,6 +1256,41 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "select(0u, inDegree[v], unv)",
             minFactor: 10,
             test: BFS_TEST,
+        },
+    ]),
+    "sssp-relax": Object.freeze([
+        {
+            // the claim is an exchange, not a min: a later larger candidate overwrites a smaller distance (dist miss)
+            name: "min-is-a-store",
+            find: "let old = atomicMin(&dist[v], bits);",
+            replace: "let old = atomicExchange(&dist[v], bits);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // the weight is ignored: dist is the hop count (dist miss on every non-unit fixture)
+            name: "hop-counts",
+            find: "let nd = du + select(1.0, weights[a], HAS_WEIGHTS);",
+            replace: "let nd = du + 1.0;",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // the cutoff excludes the node that attains it exactly (the <= case of the integer-cutoff fixture)
+            name: "cutoff-exclusive",
+            find: "if (nd > cutoff) { continue; }",
+            replace: "if (nd >= cutoff) { continue; }",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // the pass-through never returns a far entry to the near pile: on the weight-2 path only the first
+            // bucket is reached and 48 nodes stay at +Inf (dist miss; no round-count timing needed)
+            name: "far-never-returns",
+            find: "if (du < threshold) {\n                let q = atomicAdd(&counters[1], 1u);",
+            replace: "if (false) {\n                let q = atomicAdd(&counters[1], 1u);",
+            minFactor: 10,
+            test: SSSP_TEST,
         },
     ]),
 });

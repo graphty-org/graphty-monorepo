@@ -14,6 +14,19 @@
  * `bfs-fused`; slots 3, 4 and 5 (the bits fill over `ceil(n / 32)` words, the bitset build over the frontier, the sweep
  * over the unvisited list) are the bottom-up level's.
  *
+ * Roles 2 and 3 are the SSSP round boundary of the near-far loop (P8-T9, PD-20), over the same block read in its
+ * SSSP sense (word 1 the raw near half's appends, 21 the raw far half's, 0 and 20 the deduped pile counts, 22 the
+ * threshold, 23 the delta, 4 the previous threshold, 14 the round's mode) and the same seven slots: role 2 finds a
+ * non-empty raw near half and sizes the near dedupe (slots 0 and 1, count word 1, output word 0) in mode 0; finds it
+ * empty and the far half not, raises the threshold by the delta (one f32 add; an add that returns the threshold
+ * unchanged sets `done 3`, the host's E_UNSUPPORTED), remembers the previous threshold in word 4 and sizes the far
+ * dedupe (slots 3 and 4, count word 21, output word 20) in mode 1; finds both empty and sets `done 1`; and finds a
+ * raw half above the capacity and sets `done 2` (the host's E_TOO_LARGE). It counts a round in `level` when it
+ * picks a mode and NOT at the done boundary, so `level` at the end is the number of relax rounds dispatched; a
+ * boundary that finds `done` set obeys rule 1. Role 3 runs once the dedupe has landed: mode 0 sizes slot 2 (the
+ * relax over nearIn) from word 0 and restarts the raw near half (word 1 to 0); mode 1 sizes slot 5 (the pass-through
+ * over farIn) from word 20 and restarts the raw far half (word 21 to 0).
+ *
  * Beamer's test (P8-T8, PD-21), evaluated at every boundary BEFORE the `done` branch (so a switch can be counted at
  * the done boundary too, which the host model of the tests mirrors): top-down switches to bottom-up when
  * `frontierDegreeSum > unvisitedDegreeSum / alpha` (u32 division; alpha the host's `max(1, floor(arcCount / n))`
@@ -122,6 +135,53 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         } else {
             write_slot(1u, clamped); zero_slot(6u);
             atomicStore(&counters[18], atomicLoad(&counters[18]) + 1u);   // twoPhaseLevels counts the CHOICE role 0 made, even for zero edges (P8-T7 Step 4's invariant)
+        }
+    } else if (P.role == 2u) {                                         // the SSSP round boundary (P8-T9, PD-20): which pile this round relaxes
+        if (atomicLoad(&counters[15]) != 0u) {                         // done already: a no-op round the host recorded past the end (rule 1)
+            for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
+            return;
+        }
+        let nearRaw = atomicLoad(&counters[1]);                        // the raw near half's appends, unclamped
+        let farRaw = atomicLoad(&counters[21]);                        // the raw far half's appends, unclamped
+        if (nearRaw > P.edgeCapacity || farRaw > P.edgeCapacity) {     // a pile overflowed its half: the host raises E_TOO_LARGE
+            atomicStore(&counters[15], 2u);
+            for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
+            return;
+        }
+        zero_slot(2u); zero_slot(5u); zero_slot(6u);                   // role 3 sizes the relax slots once the piles are deduped
+        if (nearRaw != 0u) {                                           // a near round: dedupe the near half into nearIn
+            atomicStore(&counters[0], 0u);                             // the deduped near count, accumulated by dedupe-filter
+            atomicStore(&counters[14], 0u);                            // mode 0
+            write_slot(0u, nearRaw); write_slot(1u, nearRaw);          // dedupe-claim, dedupe-filter over the near half
+            zero_slot(3u); zero_slot(4u);
+            atomicStore(&counters[11], atomicLoad(&counters[11]) + 1u);   // rounds dispatched (the done boundary is not counted)
+        } else if (farRaw != 0u) {                                     // the near pile is empty: raise the threshold and re-bucket the far pile
+            let threshold = bitcast<f32>(atomicLoad(&counters[22]));
+            let raised = threshold + bitcast<f32>(atomicLoad(&counters[23]));   // ONE f32 add on the bit patterns (PD-9)
+            if (raised == threshold) {                                 // the delta is below the threshold's ulp: the host raises E_UNSUPPORTED
+                atomicStore(&counters[15], 3u);
+                for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
+                return;
+            }
+            atomicStore(&counters[4], atomicLoad(&counters[22]));      // prevThresholdBits: what the pass-through drops below
+            atomicStore(&counters[22], bitcast<u32>(raised));
+            atomicStore(&counters[20], 0u);                            // the deduped far count, accumulated by dedupe-filter
+            atomicStore(&counters[14], 1u);                            // mode 1
+            zero_slot(0u); zero_slot(1u);
+            write_slot(3u, farRaw); write_slot(4u, farRaw);            // dedupe-claim, dedupe-filter over the far half
+            atomicStore(&counters[11], atomicLoad(&counters[11]) + 1u);
+        } else {                                                       // both piles empty: finished
+            atomicStore(&counters[15], 1u);
+            for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
+        }
+    } else if (P.role == 3u) {                                         // the piles are deduped: size the relax
+        if (atomicLoad(&counters[15]) != 0u) { return; }               // role 2 zeroed every slot of the round
+        if (atomicLoad(&counters[14]) == 0u) {
+            write_slot(2u, atomicLoad(&counters[0]));                  // the near round over nearIn
+            atomicStore(&counters[1], 0u);                             // the raw near half restarts
+        } else {
+            write_slot(5u, atomicLoad(&counters[20]));                 // the pass-through over farIn
+            atomicStore(&counters[21], 0u);                            // the raw far half restarts (the pass-through re-appends what stays far)
         }
     }
 }

@@ -50,7 +50,9 @@ function arcSourceIn(rowPtr: U32, arc: number): number {
 }
 
 /**
- * The weight of arc `a` under an optional override: 1 on an unweighted snapshot.
+ * The weight of arc `a` under an optional override, AS THE KERNEL READS IT: 1 on an unweighted snapshot, else the
+ * value rounded to f32 (the driver narrows an `F64` / `U32` / `I32` override to a `Float32Array` before the upload,
+ * P8-T9 Step 3; a no-op on the snapshot's own `F32` column).
  * @param s - the snapshot
  * @param weights - a per-arc override, `arcCount` long
  * @returns the weight lookup
@@ -63,7 +65,7 @@ function weightOf(s: GraphSnapshot, weights: NumericVector | undefined): (a: num
     if (column.length !== s.arcCount) {
         throw new Error(`weights has ${column.length} entries, arcCount is ${s.arcCount}`);
     }
-    return (a) => column[a];
+    return (a) => Math.fround(column[a]);
 }
 
 /**
@@ -199,13 +201,21 @@ export function expectOrderGroupedByLevel(result: OrderResult): void {
 
 /**
  * Design 11.3's invariant: over every arc `(u, v, w)` with a finite `dist[u]`, `dist[v] <= fround(dist[u] + w)`.
- * Catches a relaxation the kernel dropped without needing an oracle at all.
+ * Catches a relaxation the kernel dropped without needing an oracle at all. Under a `cutoff` (the CPU port's
+ * `dv <= cutoff` guard) an arc whose bound exceeds it was never a relaxation, so it is skipped.
  * @param dist - the distances (`+Infinity` = unreached)
  * @param s - the snapshot
  * @param weights - a per-arc override, `arcCount` long
+ * @param cutoff - the run's cutoff, when it had one
  */
-export function expectTriangleInequality(dist: ArrayLike<number>, s: GraphSnapshot, weights?: NumericVector): void {
+export function expectTriangleInequality(
+    dist: ArrayLike<number>,
+    s: GraphSnapshot,
+    weights?: NumericVector,
+    cutoff?: number,
+): void {
     const w = weightOf(s, weights);
+    const cap = cutoff ?? Infinity;
     for (let u = 0; u < s.nodeCount; u++) {
         const du = dist[u];
         if (du === Infinity) {
@@ -214,6 +224,9 @@ export function expectTriangleInequality(dist: ArrayLike<number>, s: GraphSnapsh
         for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
             const v = s.colIdx[a];
             const bound = Math.fround(du + w(a));
+            if (bound > cap) {
+                continue;
+            }
             if (!(dist[v] <= bound)) {
                 throw new Error(
                     `arc ${a} (${u} -> ${v}, w ${w(a)}) violates dist[${v}] = ${dist[v]} <= fround(${du} + w) = ${bound}`,
@@ -270,7 +283,7 @@ export function expectPredChainReachesSource(
  * @param weights - a per-arc override, `arcCount` long
  * @returns the expected `predArc`
  */
-function predArcByRule(
+export function predArcByRule(
     dist: ArrayLike<number>,
     s: GraphSnapshot,
     source: number,

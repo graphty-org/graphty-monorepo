@@ -192,7 +192,7 @@ export function completeEdges(n: number): EdgeSpec[] {
  * @param seed - the seed
  * @returns a function returning uniform numbers in [0, 1)
  */
-function xorshift(seed: number): () => number {
+export function xorshift(seed: number): () => number {
     let state = seed >>> 0 || 1;
     return () => {
         state ^= state << 13;

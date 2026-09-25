@@ -123,7 +123,7 @@ const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
         "unclosed-quote.csv": { shouldRecover: true, description: "Unclosed quote should recover" },
         "garbage-content.csv": { shouldRecover: true, description: "Garbage should create nodes from values" },
         "empty-values.csv": { shouldRecover: true, description: "Empty values should be handled" },
-        "wrong-delimiter.csv": { shouldRecover: true, description: "Wrong delimiter should create single-column rows" },
+        "wrong-delimiter.csv": { shouldRecover: true, description: "A semicolon delimiter is detected" },
         "binary-content.csv": { shouldRecover: true, description: "Binary content should be handled" },
     },
     pajek: {

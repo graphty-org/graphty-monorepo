@@ -1,5 +1,6 @@
 import { assert, describe, test } from "vitest";
 
+import { formatDescriptor } from "../../src/catalog/formats.js";
 import { detectFormat } from "../../src/data/format-detection.js";
 
 describe("detectFormat", () => {
@@ -70,5 +71,17 @@ describe("detectFormat", () => {
         const xml = '<?xml version="1.0"?>\n<doc>graph [ x ]</doc>';
 
         assert.strictEqual(detectFormat("", xml), null);
+    });
+
+    test("detects CSV from the tab-separated extensions and MIME type", () => {
+        assert.strictEqual(detectFormat("edges.tsv", ""), "csv");
+        assert.strictEqual(detectFormat("edges.tab", ""), "csv");
+        assert.include(formatDescriptor("csv")?.mimeTypes ?? [], "text/tab-separated-values");
+    });
+
+    test("detects unnamed tab, semicolon and pipe separated content as CSV", () => {
+        assert.strictEqual(detectFormat("", "source\ttarget\na\tb\n"), "csv");
+        assert.strictEqual(detectFormat("", "source;target\na;b\n"), "csv");
+        assert.strictEqual(detectFormat("", "source|target\na|b\n"), "csv");
     });
 });

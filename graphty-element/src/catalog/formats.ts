@@ -42,8 +42,8 @@ const csvOptions: readonly OptionDescriptor[] = [
         plainName: "Column Separator",
         technicalName: "delimiter",
         type: "string",
-        default: ",",
-        description: "The character between one column and the next.",
+        description:
+            "The character between one column and the next. Worked out from the first line (comma, tab, semicolon or pipe) when it is not set.",
     },
     {
         name: "variant",
@@ -116,8 +116,8 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
     {
         id: "csv",
         plainName: "CSV",
-        extensions: [".csv", ".edges", ".edgelist"],
-        mimeTypes: ["text/csv", "text/plain"],
+        extensions: [".csv", ".tsv", ".tab", ".edges", ".edgelist"],
+        mimeTypes: ["text/csv", "text/tab-separated-values", "text/plain"],
         canImport: true,
         canExport: false,
         options: [...csvOptions, ...endpointOptions],

@@ -10,7 +10,7 @@ import {
 import { ActionIcon, Box, Menu } from "@mantine/core";
 import React, { useState } from "react";
 
-import { type LayerItem, LeftSidebar } from "../../layout/LeftSidebar";
+import { AddLayerMenu, type LayerItem, type LayerTarget, LeftSidebar } from "../../layout/LeftSidebar";
 import { RunLayoutsModal } from "../../RunLayoutsModal";
 import { keyChipFor } from "../bindings";
 import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
@@ -105,8 +105,12 @@ export interface StylePanelProps {
     readonly onLayersChange: (layers: LayerItem[]) => void;
     /** Selects a layer, which is what fills the inspector's Style layer surface. */
     readonly onLayerSelect: (layerId: string) => void;
-    /** Adds a layer. */
-    readonly onAddLayer: () => void;
+    /** Adds a layer that paints the chosen target. */
+    readonly onAddLayer: (target: LayerTarget) => void;
+    /** Switches a layer on or off. No toggle is drawn on the rows without it. */
+    readonly onToggleLayer?: (layerId: string, enabled: boolean) => void;
+    /** Removes a layer. No remove action is drawn on the rows without it. */
+    readonly onRemoveLayer?: (layerId: string) => void;
     /** The layout quick picks. */
     readonly layoutPicks?: readonly LayoutQuickPick[];
     /** The layout in force. */
@@ -168,6 +172,8 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
         onLayersChange,
         onLayerSelect,
         onAddLayer,
+        onToggleLayer,
+        onRemoveLayer,
         layoutPicks = DEFAULT_LAYOUT_PICKS,
         layout,
         onApplyLayout,
@@ -216,11 +222,9 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                     defaultOpen
                     empty={layers.length === 0}
                     actions={
-                        <SectionAddButton
-                            tooltip={ADD_STYLE_LAYER_LABEL}
-                            label={ADD_STYLE_LAYER_LABEL}
-                            onClick={onAddLayer}
-                        />
+                        <AddLayerMenu onAddLayer={onAddLayer}>
+                            <SectionAddButton tooltip={ADD_STYLE_LAYER_LABEL} label={ADD_STYLE_LAYER_LABEL} />
+                        </AddLayerMenu>
                     }
                 >
                     <LeftSidebar
@@ -230,6 +234,8 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                         onLayersChange={onLayersChange}
                         onLayerSelect={onLayerSelect}
                         onAddLayer={onAddLayer}
+                        onToggleLayer={onToggleLayer}
+                        onRemoveLayer={onRemoveLayer}
                         style={{ width: "100%", minWidth: 0, height: "auto" }}
                     />
                 </PanelSection>

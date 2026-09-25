@@ -46,7 +46,8 @@ export const COMING_GROUP_SENTENCE = "Dimmed rows are not built yet.";
  * Props of {@link SectionAddButton}.
  * @public
  */
-export interface SectionAddButtonProps {
+export interface SectionAddButtonProps
+    extends Omit<React.ComponentPropsWithRef<"button">, "title" | "aria-label" | "disabled" | "onClick"> {
     /**
      * The tooltip: the saved-thing verb, and, where the control cannot act, the
      * reason after it -- "Save as filter... Build a filter first" (floor item 4).
@@ -56,8 +57,12 @@ export interface SectionAddButtonProps {
     readonly label: string;
     /** Whether the control cannot act. Its reason stays in the tooltip. */
     readonly disabled?: boolean;
-    /** What the plus does. It commits to a sensible default rather than asking. */
-    readonly onClick?: () => void;
+    /**
+     * What the plus does. It commits to a sensible default rather than asking -- or,
+     * when the plus is a `Menu.Target`, opens the menu. The ref and the ARIA props a
+     * menu target hands down pass straight through to the button.
+     */
+    readonly onClick?: React.MouseEventHandler<HTMLButtonElement>;
 }
 
 /**
@@ -76,10 +81,11 @@ export interface SectionAddButtonProps {
  * @returns the 24px library plus.
  */
 export function SectionAddButton(props: SectionAddButtonProps): React.JSX.Element {
-    const { tooltip, label, disabled = false, onClick } = props;
+    const { tooltip, label, disabled = false, onClick, ...rest } = props;
 
     return (
         <ActionIcon
+            {...rest}
             type="button"
             variant="subtle"
             size={PANEL_GRID.CONTROL_HEIGHT}
@@ -96,12 +102,12 @@ export function SectionAddButton(props: SectionAddButtonProps): React.JSX.Elemen
             data-disabled={disabled || undefined}
             data-testid="section-add"
             style={disabled ? { background: "transparent" } : undefined}
-            onClick={() => {
+            onClick={(event) => {
                 if (disabled) {
                     return;
                 }
 
-                onClick?.();
+                onClick?.(event);
             }}
         >
             <UiGlyph name="plus" size={PANEL_GRID.GLYPH} />

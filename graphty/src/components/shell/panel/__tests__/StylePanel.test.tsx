@@ -1,4 +1,5 @@
 import { PANEL_GRID } from "@graphty/compact-mantine";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
@@ -89,6 +90,67 @@ describe("StylePanel", () => {
             // content rows and no empty-state sentence.
             expect(sectionNamed("Layers")).toHaveAttribute("data-empty", "true");
             expect(screen.queryByText(/click the \+ button to add layers/i)).toBeNull();
+        });
+
+        it("offers a node layer and an edge layer from the header's plus", async () => {
+            const onAddLayer = vi.fn();
+            renderPanel({ onAddLayer });
+
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            const items = await screen.findAllByRole("menuitem");
+            expect(items.map((item) => item.textContent)).toEqual(["Node layer", "Edge layer"]);
+
+            fireEvent.click(screen.getByRole("menuitem", { name: "Edge layer" }));
+            expect(onAddLayer).toHaveBeenCalledWith("edge");
+
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Node layer" }));
+            expect(onAddLayer).toHaveBeenLastCalledWith("node");
+        });
+
+        it("tells assistive technology that the header's plus opens a menu, and whether it is open", async () => {
+            renderPanel();
+
+            const plus = screen.getByRole("button", { name: "Add a style layer" });
+            expect(plus).toHaveAttribute("aria-haspopup", "menu");
+            expect(plus).toHaveAttribute("aria-expanded", "false");
+
+            fireEvent.click(plus);
+            await screen.findAllByRole("menuitem");
+
+            expect(plus).toHaveAttribute("aria-expanded", "true");
+        });
+
+        it("adds an edge layer from the keyboard alone", async () => {
+            const user = userEvent.setup();
+            const onAddLayer = vi.fn();
+            renderPanel({ onAddLayer });
+
+            screen.getByRole("button", { name: "Add a style layer" }).focus();
+            await user.keyboard("{Enter}");
+            await screen.findAllByRole("menuitem");
+            // Opening by Enter focuses the dropdown, not a row: the first ArrowDown reaches
+            // "Node layer" and the second "Edge layer".
+            await user.keyboard("{ArrowDown}");
+            expect(screen.getByRole("menuitem", { name: "Node layer" })).toHaveFocus();
+            await user.keyboard("{ArrowDown}");
+            expect(screen.getByRole("menuitem", { name: "Edge layer" })).toHaveFocus();
+            await user.keyboard("{Enter}");
+
+            expect(onAddLayer).toHaveBeenCalledTimes(1);
+            expect(onAddLayer).toHaveBeenCalledWith("edge");
+        });
+
+        it("hands the row actions to the list", () => {
+            const onToggleLayer = vi.fn();
+            const onRemoveLayer = vi.fn();
+            renderPanel({ onToggleLayer, onRemoveLayer });
+
+            fireEvent.click(screen.getByRole("button", { name: "Show Base layer" }));
+            fireEvent.click(screen.getByRole("button", { name: "Remove Base layer" }));
+
+            expect(onToggleLayer).toHaveBeenCalledWith("base", false);
+            expect(onRemoveLayer).toHaveBeenCalledWith("base");
         });
 
         it("draws the layers it is given", () => {

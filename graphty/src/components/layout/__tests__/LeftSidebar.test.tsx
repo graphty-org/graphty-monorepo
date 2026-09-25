@@ -124,14 +124,85 @@ describe("LeftSidebar", () => {
     });
 
     describe("add layer", () => {
-        it("calls onAddLayer when add button is clicked", () => {
+        it("offers a node layer and an edge layer, and passes the one chosen", async () => {
             const onAddLayer = vi.fn();
             render(<LeftSidebar {...defaultProps} onAddLayer={onAddLayer} />);
 
-            const addButton = screen.getByRole("button", { name: /add layer/i });
-            fireEvent.click(addButton);
+            fireEvent.click(screen.getByRole("button", { name: /add layer/i }));
+            const items = await screen.findAllByRole("menuitem");
+            expect(items.map((item) => item.textContent)).toEqual(["Node layer", "Edge layer"]);
 
-            expect(onAddLayer).toHaveBeenCalledTimes(1);
+            fireEvent.click(screen.getByRole("menuitem", { name: "Edge layer" }));
+            expect(onAddLayer).toHaveBeenCalledWith("edge");
+
+            fireEvent.click(screen.getByRole("button", { name: /add layer/i }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Node layer" }));
+            expect(onAddLayer).toHaveBeenLastCalledWith("node");
+            expect(onAddLayer).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe("row actions", () => {
+        it("draws neither the visibility toggle nor remove without a handler", () => {
+            render(<LeftSidebar {...defaultProps} layers={[createLayer("1", "Layer 1")]} />);
+
+            expect(screen.queryByRole("button", { name: "Show Layer 1" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Remove Layer 1" })).toBeNull();
+        });
+
+        it("switches a shown layer off, and reports its state as pressed", () => {
+            const onToggleLayer = vi.fn();
+            const onLayerSelect = vi.fn();
+            render(
+                <LeftSidebar
+                    {...defaultProps}
+                    layers={[createLayer("1", "Layer 1")]}
+                    onToggleLayer={onToggleLayer}
+                    onLayerSelect={onLayerSelect}
+                />,
+            );
+
+            const toggle = screen.getByRole("button", { name: "Show Layer 1" });
+            expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+            fireEvent.click(toggle);
+
+            expect(onToggleLayer).toHaveBeenCalledWith("1", false);
+            // The action is not a row click: it must not also select the layer.
+            expect(onLayerSelect).not.toHaveBeenCalled();
+        });
+
+        it("switches a hidden layer back on", () => {
+            const onToggleLayer = vi.fn();
+            const hidden: LayerItem = { ...createLayer("1", "Layer 1"), enabled: false };
+            render(<LeftSidebar {...defaultProps} layers={[hidden]} onToggleLayer={onToggleLayer} />);
+
+            const toggle = screen.getByRole("button", { name: "Show Layer 1" });
+            expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+            fireEvent.click(toggle);
+
+            expect(onToggleLayer).toHaveBeenCalledWith("1", true);
+        });
+
+        it("removes the layer it is drawn on", () => {
+            const onRemoveLayer = vi.fn();
+            const onLayerSelect = vi.fn();
+            render(
+                <LeftSidebar
+                    {...defaultProps}
+                    layers={[createLayer("1", "First"), createLayer("2", "Second")]}
+                    onRemoveLayer={onRemoveLayer}
+                    onLayerSelect={onLayerSelect}
+                />,
+            );
+
+            // The layer's name is in the action's name, so a screen reader says which row it acts on.
+            fireEvent.click(screen.getByRole("button", { name: "Remove Second" }));
+
+            expect(onRemoveLayer).toHaveBeenCalledWith("2");
+            expect(onRemoveLayer).toHaveBeenCalledTimes(1);
+            expect(onLayerSelect).not.toHaveBeenCalled();
         });
     });
 

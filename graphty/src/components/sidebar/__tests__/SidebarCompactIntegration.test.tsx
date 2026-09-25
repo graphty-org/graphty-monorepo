@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { makeLayer } from "../../../test/layerFixture";
 import { render, screen, within } from "../../../test/test-utils";
-import type { LayerItem } from "../../layout/LeftSidebar";
+import { type LayerItem, LeftSidebar } from "../../layout/LeftSidebar";
 import { ShellProvider } from "../../shell/ShellContext";
 import { StyleLayerPropertiesPanel } from "../panels/StyleLayerPropertiesPanel";
 
@@ -94,5 +94,28 @@ describe("the style inspector is drawn with library controls only", () => {
         expect(document.querySelector(".mantine-NativeSelect-input")).toBeNull();
         expect(document.querySelector(".mantine-ColorInput-input")).toBeNull();
         expect(document.querySelector(".mantine-Slider-root")).toBeNull();
+    });
+});
+
+describe("the layer list's row actions are drawn with library controls only", () => {
+    it("draws the visibility toggle and remove as action icons carrying compact-mantine glyphs", () => {
+        render(
+            <LeftSidebar
+                embedded
+                layers={[layer]}
+                selectedLayerId={null}
+                onLayersChange={() => undefined}
+                onLayerSelect={() => undefined}
+                onAddLayer={() => undefined}
+                onToggleLayer={() => undefined}
+                onRemoveLayer={() => undefined}
+            />,
+        );
+
+        for (const name of [/^Show /, /^Remove /]) {
+            const button = screen.getByRole("button", { name });
+            expect(button).toHaveClass("mantine-ActionIcon-root");
+            expect(button.querySelector("svg[data-glyph]")).not.toBeNull();
+        }
     });
 });

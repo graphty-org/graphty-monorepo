@@ -1,8 +1,9 @@
 import { closestCenter, DndContext, DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import type { Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, Group, Text, TextInput } from "@mantine/core";
+import { ActionIcon, Box, Group, Menu, Text, TextInput } from "@mantine/core";
 import { Layers, Plus } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -22,7 +23,54 @@ interface LeftSidebarProps {
     selectedLayerId: string | null;
     onLayersChange: (layers: LayerItem[]) => void;
     onLayerSelect: (layerId: string) => void;
-    onAddLayer: () => void;
+    onAddLayer: (target: LayerTarget) => void;
+    /** Switches a layer on or off. The row draws no visibility toggle without it. */
+    onToggleLayer?: (layerId: string, enabled: boolean) => void;
+    /** Removes a layer. The row draws no remove action without it. */
+    onRemoveLayer?: (layerId: string) => void;
+}
+
+/** What a new layer paints. A layer never paints both, so the add verb asks which. */
+export type LayerTarget = Layer["target"];
+
+/** The add menu's rows, in the order they are drawn. */
+const ADD_LAYER_TARGETS: readonly { readonly target: LayerTarget; readonly label: string }[] = [
+    { target: "node", label: "Node layer" },
+    { target: "edge", label: "Edge layer" },
+];
+
+/**
+ * The menu behind a Layers `+`: one row per target. The caller draws the `+` itself, so
+ * the legacy header and the panel's section header each keep their own button.
+ * @param root0 - Component props
+ * @param root0.children - The `+` that opens the menu; it must accept a ref
+ * @param root0.onAddLayer - Called with the target the reader chose
+ * @returns the menu.
+ */
+export function AddLayerMenu({
+    children,
+    onAddLayer,
+}: {
+    readonly children: React.ReactElement;
+    readonly onAddLayer: (target: LayerTarget) => void;
+}): React.JSX.Element {
+    return (
+        <Menu position="bottom-end" withinPortal shadow="md">
+            <Menu.Target>{children}</Menu.Target>
+            <Menu.Dropdown>
+                {ADD_LAYER_TARGETS.map(({ target, label }) => (
+                    <Menu.Item
+                        key={target}
+                        onClick={() => {
+                            onAddLayer(target);
+                        }}
+                    >
+                        {label}
+                    </Menu.Item>
+                ))}
+            </Menu.Dropdown>
+        </Menu>
+    );
 }
 
 /**
@@ -42,6 +90,53 @@ interface SortableLayerItemProps {
     isSelected: boolean;
     onSelect: (layerId: string) => void;
     onNameChange: (layerId: string, newName: string) => void;
+    onToggle?: (layerId: string, enabled: boolean) => void;
+    onRemove?: (layerId: string) => void;
+}
+
+
+/**
+ * One 24px row action. It stops the click and the double-click so acting on a layer
+ * neither selects it nor opens its rename box.
+ * @param root0 - Component props
+ * @param root0.label - The accessible name and title
+ * @param root0.glyph - The compact-mantine glyph drawn in it
+ * @param root0.pressed - For a toggle, whether it is on
+ * @param root0.onClick - What it does
+ * @returns the action.
+ */
+function RowAction({
+    label,
+    glyph,
+    pressed,
+    onClick,
+}: {
+    readonly label: string;
+    readonly glyph: "eye" | "close";
+    readonly pressed?: boolean;
+    readonly onClick: () => void;
+}): React.JSX.Element {
+    return (
+        <ActionIcon
+            type="button"
+            variant="subtle"
+            size={PANEL_GRID.CONTROL_HEIGHT}
+            radius="sm"
+            c={pressed === false ? PANEL_INK.DISABLED : PANEL_INK.CHROME}
+            title={label}
+            aria-label={label}
+            aria-pressed={pressed}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+            }}
+            onDoubleClick={(e) => {
+                e.stopPropagation();
+            }}
+        >
+            <UiGlyph name={glyph} size={PANEL_GRID.GLYPH} />
+        </ActionIcon>
+    );
 }
 
 
@@ -82,7 +177,14 @@ function DragHandleGlyph(): React.JSX.Element {
     );
 }
 
-function SortableLayerItem({ layer, isSelected, onSelect, onNameChange }: SortableLayerItemProps): React.JSX.Element {
+function SortableLayerItem({
+    layer,
+    isSelected,
+    onSelect,
+    onNameChange,
+    onToggle,
+    onRemove,
+}: SortableLayerItemProps): React.JSX.Element {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
 
     const [isEditing, setIsEditing] = useState(false);
@@ -191,8 +293,31 @@ function SortableLayerItem({ layer, isSelected, onSelect, onNameChange }: Sortab
                     }}
                 />
             ) : (
-                <Group gap="xs" justify="space-between">
-                    <Text size="sm">{layer.name}</Text>
+                <Group gap="xs" justify="space-between" wrap="nowrap">
+                    <Text size="sm" c={layer.enabled ? undefined : "dimmed"} style={{ flex: 1, minWidth: 0 }}>
+                        {layer.name}
+                    </Text>
+                    {onToggle !== undefined && (
+                        <RowAction
+                            // The layer's name says which row this acts on; the state stays in
+                            // `aria-pressed`, never in the name.
+                            label={`Show ${layer.name}`}
+                            glyph="eye"
+                            pressed={layer.enabled}
+                            onClick={() => {
+                                onToggle(layer.id, !layer.enabled);
+                            }}
+                        />
+                    )}
+                    {onRemove !== undefined && (
+                        <RowAction
+                            label={`Remove ${layer.name}`}
+                            glyph="close"
+                            onClick={() => {
+                                onRemove(layer.id);
+                            }}
+                        />
+                    )}
                     <Box
                         {...attributes}
                         {...listeners}
@@ -218,7 +343,9 @@ function SortableLayerItem({ layer, isSelected, onSelect, onNameChange }: Sortab
  * @param root0.selectedLayerId - ID of the currently selected layer
  * @param root0.onLayersChange - Called when layers are reordered
  * @param root0.onLayerSelect - Called when a layer is selected
- * @param root0.onAddLayer - Called when add layer button is clicked
+ * @param root0.onAddLayer - Called with the target chosen from the add menu
+ * @param root0.onToggleLayer - Switches a layer on or off; no toggle is drawn without it
+ * @param root0.onRemoveLayer - Removes a layer; no remove action is drawn without it
  * @returns The left sidebar component
  */
 export function LeftSidebar({
@@ -230,6 +357,8 @@ export function LeftSidebar({
     onLayersChange,
     onLayerSelect,
     onAddLayer,
+    onToggleLayer,
+    onRemoveLayer,
 }: LeftSidebarProps): React.JSX.Element {
     // The UI displays layers in reverse order (top = highest precedence),
     // but graphty-element stores them in order (last = highest precedence).
@@ -314,9 +443,11 @@ export function LeftSidebar({
                             Layers
                         </Text>
                     </Group>
-                    <ActionIcon variant="subtle" color="gray" size="sm" onClick={onAddLayer} aria-label="Add layer">
-                        <Plus size={16} />
-                    </ActionIcon>
+                    <AddLayerMenu onAddLayer={onAddLayer}>
+                        <ActionIcon variant="subtle" color="gray" size="sm" aria-label="Add layer">
+                            <Plus size={16} />
+                        </ActionIcon>
+                    </AddLayerMenu>
                 </Box>
             )}
 
@@ -343,6 +474,8 @@ export function LeftSidebar({
                                         isSelected={layer.id === selectedLayerId}
                                         onSelect={onLayerSelect}
                                         onNameChange={handleNameChange}
+                                        onToggle={onToggleLayer}
+                                        onRemove={onRemoveLayer}
                                     />
                                 ))}
                             </Box>

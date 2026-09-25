@@ -31,7 +31,9 @@ interface GraphEdge {
  * the element's types") that the element's exported `GraphtyElement` makes unnecessary, and they
  * survive only because replacing them wholesale touches every effect in this file.
  */
-interface GraphtyElementType extends HTMLElement, Pick<GraphtyElement, "pin" | "unpin" | "pinnedNodes" | "session"> {
+interface GraphtyElementType
+    extends HTMLElement,
+        Pick<GraphtyElement, "captureScreenshot" | "pin" | "unpin" | "pinnedNodes" | "session"> {
     nodeData?: { id: number | string; [key: string]: unknown }[];
     edgeData?: { source: number | string; target: number | string; [key: string]: unknown }[];
     layout?: string;
@@ -231,6 +233,8 @@ export interface GraphtyHandle {
     unpin: (ids: (string | number) | readonly (string | number)[]) => void;
     /** Which nodes are pinned right now, by the element's own ids; empty before the element is up. */
     pinnedNodes: ReadonlySet<string | number>;
+    /** Captures the canvas as an image, forwarded to the element's own verb. */
+    captureScreenshot: GraphtyElement["captureScreenshot"];
     /** Access to the underlying Graph instance for advanced operations (e.g., AI integration) */
     graph: Graph | null;
     /** The element's session, or null before the element upgraded. The element publishes its capabilities here. */
@@ -372,6 +376,13 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
             },
             get pinnedNodes() {
                 return graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES;
+            },
+            captureScreenshot: (options) => {
+                if (!graphtyRef.current) {
+                    return Promise.reject(new Error("Graph element not initialized"));
+                }
+
+                return graphtyRef.current.captureScreenshot(options);
             },
             clearData: () => {
                 // The element's own method, not `graph.dataManager.clear()`: clearing the

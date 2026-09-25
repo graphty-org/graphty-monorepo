@@ -21,7 +21,7 @@ import {
     metricFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey } from "./utils/graphUtils";
+import { edgePairKey, requireNodeOption } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Max Flow algorithm
@@ -123,8 +123,16 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
 
         // Get source and sink from legacy options, schema options, or use defaults
         // Legacy configure() takes precedence for backward compatibility
-        const source = String(this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0]);
-        const sink = String(this.legacyOptions?.sink ?? this._schemaOptions.sink ?? nodeIds[nodeIds.length - 1]);
+        // An id the caller named must be a node: the algorithms package answers an unknown id
+        // with a flow of 0, which would publish zeros as if they were a measurement.
+        const sourceOption = this.legacyOptions?.source ?? this._schemaOptions.source;
+        const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
+        const source =
+            sourceOption === null ? String(nodeIds[0]) : requireNodeOption("max-flow", "source", sourceOption, nodeIds);
+        const sink =
+            sinkOption === null
+                ? String(nodeIds[nodeIds.length - 1])
+                : requireNodeOption("max-flow", "sink", sinkOption, nodeIds);
 
         // Directed: a capacity runs the way the edge was declared.
         const capacityGraph = new AlgorithmGraph({ directed: true });
@@ -212,7 +220,18 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
                 method: "ford-fulkerson",
                 direction: "directed",
                 weight: { attribute: "capacity", meaning: "strength" },
-                notes: [`Flow from ${source} to ${sink}.`],
+                notes: [
+                    `Flow from ${source} to ${sink}.`,
+                    ...(sourceOption === null || sinkOption === null
+                        ? [
+                              "The source or sink was chosen automatically (the first and last node); " +
+                                  "set the source and sink options to measure between the nodes you mean.",
+                          ]
+                        : []),
+                    ...(result.maxFlow === 0
+                        ? [`There is no directed path from ${source} to ${sink}, so no flow can run.`]
+                        : []),
+                ],
             }),
         };
     }

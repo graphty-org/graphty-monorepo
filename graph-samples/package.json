@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-samples",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "private": false,
     "description": "Seeded, reproducible graph generators and classic sample datasets as typed arrays for the @graphty/graph-format snapshot",
     "author": "Adam Powers <apowers@ato.ms>",

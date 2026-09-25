@@ -1199,6 +1199,9 @@
       "oracle": "networkx-3.1",
       "expected": {
         "outcome": "pass",
+        "warnings": [
+          "W_GML_UNKNOWN_ENTITY"
+        ],
         "nodes": 4,
         "edges": 1,
         "directed": false,
@@ -1218,8 +1221,7 @@
             "target": 2
           }
         ]
-      },
-      "knownFailure": "HTML named entities are left verbatim (sources.md 4.4)"
+      }
     },
     {
       "file": "authored/unknown-entity.gml",
@@ -1230,6 +1232,9 @@
       "oracle": "networkx-3.1",
       "expected": {
         "outcome": "pass",
+        "warnings": [
+          "W_GML_UNKNOWN_ENTITY"
+        ],
         "nodes": 1,
         "edges": 0,
         "directed": false,

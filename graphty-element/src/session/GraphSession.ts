@@ -20,7 +20,7 @@ import {
     type AccelerationPolicy,
     type GraphAccelerator,
 } from "../acceleration";
-import type { EdgeId, NodeId, Path, RunId, Scope, StaticStyle } from "../catalog/types";
+import type { EdgeId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -31,6 +31,7 @@ import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { SessionData } from "./data";
 import { estimateCommand, type Plan, planCommand, type PlanningContext, type SessionCommand } from "./planning";
+import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import {
     type Caveats,
@@ -53,7 +54,7 @@ import {
     type ScopeApi,
     type ScopeResolver,
 } from "./scope";
-import { createSelectionApi, type SelectionOwner } from "./selection";
+import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -67,7 +68,7 @@ import {
 import { channelsFor } from "./styles/channels";
 import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
-import { createSelectorSource, type SessionSelectorSource } from "./styles/sources";
+import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
     AccelerationControllerLike,
     CreateGraphSessionOptions,
@@ -619,7 +620,10 @@ function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSn
     return {
         nodeValue: (index: number, path: Path): unknown =>
             records.nodeAttributes(index, readSnapshot().ids.idOf(index))?.[keyOf(path)],
-        edgeValue: (index: number, path: Path): unknown => records.edgeAttributes(index)?.[keyOf(path)],
+        // An edge's endpoints are read from the snapshot when the record holds nothing under the
+        // key, as a style selector reads them: the importer removes the keys they arrived under.
+        edgeValue: (index: number, path: Path): unknown =>
+            records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path)),
     };
 }
 
@@ -778,6 +782,15 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
         for (const field of run.fields) {
             if (field.kind === target) {
                 paths.push(field.path);
+            }
+        }
+    }
+
+    // An edge's endpoints are answered from the snapshot, whichever keys its record arrived with.
+    if (target === "edge") {
+        for (const endpoint of ["data.source", "data.target"]) {
+            if (!paths.includes(endpoint)) {
+                paths.push(endpoint);
             }
         }
     }
@@ -1055,6 +1068,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // policy's own `styles` member states: a session that paints nothing is a legitimate session,
     // and the stack does not exist yet at the moment the runs are constructed.
     let stack: SessionStylesApi | null = null;
+    // The query engine, late-bound for the same reason: it reads the style layers' selector
+    // source, which reads the runs, and the scope and visibility APIs are built before both.
+    let query: QueryEngine | null = null;
 
     const store = resolveStore(options.store, readData, {
         nodes: (remap: U32, count: number) => selection?.remapNodes(remap, count),
@@ -1081,6 +1097,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             nodes: () => visibility.masks.nodes(),
             edges: () => visibility.masks.edges(),
         },
+        match: (where: Query) => requireQuery(query).nodes(where),
     });
 
     const visibility = createVisibilityApi({
@@ -1088,6 +1105,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         components,
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        match: (where: Query) => requireQuery(query).nodes(where),
+        matchEdges: (where: Query) => requireQuery(query).edges(where),
+        unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
         onChange: (change) => {
@@ -1181,10 +1201,31 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         entries: () => runs.list().map((run) => toResultsEntry(run)),
     });
 
+    // The real columns, read per element and never captured: a compiled selector stays correct
+    // across a freeze that renumbers the index space because every lookup starts from the
+    // snapshot the session holds NOW.
+    const elements: SessionSelectorSource = createSelectorSource({
+        snapshot,
+        results: (runId) => runs.get(runId)?.result,
+        ...(options.records === undefined ? {} : { records: options.records }),
+    });
+    // ONE query engine, over the same source the style layers read, so a layer selector and a
+    // scope, a selection or a filter with the same expression match the same elements.
+    const paths = pathDirectoryOf(data, runs);
+    query = createQueryEngine({
+        snapshot,
+        elements,
+        answers: (path, target) => paths.answers(path, target),
+        searchPaths: () => data.attributes().filter((attribute) => attribute.kind === "node").map((attribute) => attribute.path),
+    });
+    const engine = query;
+
     selection = createSelectionApi({
         snapshot,
         scope,
         results,
+        match: (where: Query) => engine.select(where),
+        find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         ...(options.records === undefined ? {} : { records: options.records }),
         onChange: (delta) => {
             publish(watchers, "selection:changed", delta);
@@ -1195,14 +1236,6 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // accepted against a scale the repaint then could not find, which reads as a layer that
     // validated and paints nothing.
     const scales = createScaleRegistry();
-    // The real columns, read per element and never captured: a compiled selector stays correct
-    // across a freeze that renumbers the index space because every lookup starts from the
-    // snapshot the session holds NOW.
-    const elements: SessionSelectorSource = createSelectorSource({
-        snapshot,
-        results: (runId) => runs.get(runId)?.result,
-        ...(options.records === undefined ? {} : { records: options.records }),
-    });
     // The columnar pass, over the session's own data. It resolves what every element shows and
     // stops there: binding a renderer to those columns is a separate step, and nothing here
     // reaches one.
@@ -1223,7 +1256,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const styles = createStylesApi({
         elements,
         base: elementBaseLayers(),
-        paths: pathDirectoryOf(data, runs),
+        paths,
         scales,
         runs: encodingSourceOf(runs),
         nodeIndex: nodeIndexOf(snapshot),
@@ -1297,6 +1330,24 @@ function requireSelection(held: SelectionOwner | null): SelectionOwner {
         throw new GraphtyError({
             code: "E_UNSUPPORTED",
             message: "This session's selection was read before the session finished being built.",
+            source: "run",
+        });
+    }
+
+    return held;
+}
+
+/**
+ * The query engine, which is built after the scope and visibility APIs that read it.
+ * @param held - The engine, once built.
+ * @returns The engine.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when it is asked for too early.
+ */
+function requireQuery(held: QueryEngine | null): QueryEngine {
+    if (held === null) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "This session's query engine was read before the session finished being built.",
             source: "run",
         });
     }

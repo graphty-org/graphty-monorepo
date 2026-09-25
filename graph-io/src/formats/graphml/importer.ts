@@ -83,6 +83,12 @@ import {
 } from "./constants.js";
 import { XmlTreeBuilder } from "./tree.js";
 
+
+/** The XML attributes the importer reads on `<graph>`, `<node>` and `<edge>`; any other is reported. */
+const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
+const NODE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
+const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "source", "target", "directed", "sourceport", "targetport"]);
+
 /** The format-specific options of the GraphML importer. */
 export interface GraphmlImportOptions {
     /**
@@ -828,6 +834,39 @@ class GraphmlReader implements XmlHandler {
     // ------------------------------------------------------------------ graphs
 
     /**
+     * Report, once per element kind and attribute name, an XML attribute the importer does not read:
+     * a GraphML `parse.*` hint as ignored, anything else as unknown. Namespace declarations and
+     * `xml:` / `xsi:` attributes are not data and pass silently.
+     * @param kind - the element name
+     * @param attrs - the element's attributes
+     * @param known - the attributes the importer reads on that element
+     * @param line - the line
+     */
+    private reportUnreadAttributes(
+        kind: string,
+        attrs: ReadonlyMap<string, string>,
+        known: ReadonlySet<string>,
+        line: number,
+    ): void {
+        for (const name of attrs.keys()) {
+            if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name)) {
+                continue;
+            }
+            const hint = name.startsWith("parse.");
+            const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
+            this.report.warnOnce(
+                "unsupported",
+                code,
+                hint
+                    ? `the <${kind}> parse hint ${name} is ignored`
+                    : `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`,
+                { line, element: name },
+                `${code}:${kind}:${name}`,
+            );
+        }
+    }
+
+    /**
      * Open a `<graph>`: the top-level one sets the sink's direction (rule 1 of design section
      * 8.4); a nested one records its container as the parent of its nodes.
      * @param attrs - the graph attributes
@@ -835,6 +874,7 @@ class GraphmlReader implements XmlHandler {
      * @param parent - the containing node's index, or INVALID_INDEX
      */
     private beginGraph(attrs: ReadonlyMap<string, string>, line: number, parent: number): void {
+        this.reportUnreadAttributes("graph", attrs, GRAPH_ATTRIBUTES, line);
         const top = this.graphs.length === 0;
         const edgedefault = attrs.get("edgedefault");
         let directed: boolean;
@@ -1409,6 +1449,7 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private beginNode(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.reportUnreadAttributes("node", attrs, NODE_ATTRIBUTES, line);
         const graph = this.graphs[this.graphs.length - 1];
         const state: NodeState = {
             id: null,
@@ -1530,6 +1571,7 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private beginEdge(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.reportUnreadAttributes("edge", attrs, EDGE_ATTRIBUTES, line);
         const graph = this.graphs[this.graphs.length - 1];
         const edge: EdgeState = {
             source: null,

@@ -21,7 +21,7 @@ import {
     setFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey } from "./utils/graphUtils";
+import { edgePairKey, requireNodeOption } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Min Cut algorithm
@@ -218,6 +218,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         let cutEdges: { from: string; to: string; weight: number }[];
         let cutValue: number;
         let method: string;
+        let autoEndNote: string | undefined;
 
         context.report({ phase: "Finding the cut", total: null });
 
@@ -231,8 +232,19 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             }
         } else {
             method = "min-st-cut";
-            const source = sourceOption !== null ? String(sourceOption) : String(nodeIds[0]);
-            const sink = sinkOption !== null ? String(sinkOption) : String(nodeIds[nodeIds.length - 1]);
+            const source =
+                sourceOption === null
+                    ? String(nodeIds[0])
+                    : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
+            const sink =
+                sinkOption === null
+                    ? String(nodeIds[nodeIds.length - 1])
+                    : requireNodeOption("min-cut", "sink", sinkOption, nodeIds);
+            if (sourceOption === null || sinkOption === null) {
+                autoEndNote =
+                    `Only one end was set, so the other was chosen automatically (cut between ${source} and ${sink}); ` +
+                    "set both source and sink to cut between the nodes you mean.";
+            }
 
             ({ partition1, partition2, cutEdges, cutValue } = minSTCut(weightedGraph, source, sink));
         }
@@ -275,10 +287,12 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                 weight: { attribute: "weight", meaning: "strength" },
                 exact: method !== "karger",
                 iterations: method === "karger" ? kargerIterations : undefined,
-                notes:
+                notes: [
                     method === "karger"
-                        ? ["Karger's method is randomised: it finds the cheapest cut with high probability, not certainty."]
-                        : [`The cut separates ${String(partition1.size)} nodes from ${String(partition2.size)}.`],
+                        ? "Karger's method is randomised: it finds the cheapest cut with high probability, not certainty."
+                        : `The cut separates ${String(partition1.size)} nodes from ${String(partition2.size)}.`,
+                    ...(autoEndNote === undefined ? [] : [autoEndNote]),
+                ],
             }),
         };
     }

@@ -1,3 +1,7 @@
+## 0.8.5 (2026-09-24)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.8.4 (2026-09-24)
 
 ### 🩹 Fixes

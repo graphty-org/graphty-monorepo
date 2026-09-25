@@ -379,6 +379,21 @@ function notAScope(spec: unknown): GraphtyError {
 }
 
 /**
+ * Whether a specification is a predicate, whose answer is never cached.
+ *
+ * A predicate can read a run's results, and those change without the snapshot or any other input
+ * the resolver's frame tracks moving. A cached answer would go on naming the elements the
+ * expression matched before the run finished.
+ * @param spec - The specification.
+ * @returns True for `{ where }`.
+ */
+// ponytail: a saved set wrapping a predicate is still cached; key the frame on a results
+// revision if that ever matters.
+function isPredicate(spec: Scope): boolean {
+    return typeof spec === "object" && "where" in spec;
+}
+
+/**
  * Tell whether a value is one of the scope specifications.
  * @param value - The value to test.
  * @returns True when it is a scope.
@@ -703,7 +718,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         mask.grow(active.graph.nodeCount);
         const edgeConstraint = fillNodes(spec, mask, new Set<ScopeId>());
         const computed: ScopeNodes = { mask, edgeConstraint };
-        active.nodes.set(key, computed);
+
+        if (!isPredicate(spec)) {
+            active.nodes.set(key, computed);
+        }
 
         return computed;
     };
@@ -769,7 +787,9 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             edges: new Set(edgeIds),
             digest: membershipDigest(nodeIds, edgeIds),
         };
-        active.resolved.set(key, computed);
+        if (!isPredicate(spec)) {
+            active.resolved.set(key, computed);
+        }
 
         return computed;
     };

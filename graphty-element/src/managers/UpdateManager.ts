@@ -383,6 +383,10 @@ export class UpdateManager implements Manager {
                 edge.applySessionPaint(paint);
             }
         }
+
+        // Every element the pass moved has now left its old source mesh, so a mesh this left
+        // with no instances is a look nothing on screen has any more.
+        this.graphContext.getMeshCache().prune();
     }
 
     /**

@@ -273,8 +273,8 @@ export class NodeEffects {
      * with one outline configuration -- and resolving to it here would take the outline away from
      * every sibling still on screen. That is the same reasoning `Node.dispose` records for glow,
      * and it has the same consequence: for an instanced node this removes nothing, the source is
-     * freed when `MeshCache` is cleared, and the layer's leftover uniqueId is inert because
-     * Babylon's uniqueIds are monotonic per scene and never reused.
+     * freed when `MeshCache` prunes or clears it, and the layer's leftover uniqueId is inert
+     * because Babylon's uniqueIds are monotonic per scene and never reused.
      * @param mesh - The mesh to remove from highlighting
      */
     static removeFromHighlight(mesh: AbstractMesh): void {

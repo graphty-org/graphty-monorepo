@@ -756,6 +756,7 @@ void main(void) {
 
         // Register material for shared resolution updates
         this.activeMaterials.add(shaderMaterial);
+        shaderMaterial.onDisposeObservable.addOnce(() => this.activeMaterials.delete(shaderMaterial));
         this.registerResolutionCallback(scene);
 
         // Disable backface culling for double-sided rendering
@@ -874,6 +875,7 @@ void main(void) {
 
         // Register material for shared resolution updates
         this.activeMaterials.add(shaderMaterial);
+        shaderMaterial.onDisposeObservable.addOnce(() => this.activeMaterials.delete(shaderMaterial));
         this.registerResolutionCallback(scene);
 
         shaderMaterial.backFaceCulling = false;

@@ -158,6 +158,10 @@ A channel is one visual property with one name. These are all of them:
 
 Writing `node.label` or `edge.label` is what switches a label on.
 
+The five `...Style` channels merge field by field across layers instead of replacing each other.
+A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
+at 24 px, and each field takes the value from the highest layer that set it.
+
 ### A tooltip on a node
 
 A tooltip is drawn when the pointer rests on a node and taken down when it leaves, which is the

@@ -412,7 +412,7 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number): EdgePaint {
  * value per node.
  *
  * ITS KEY IS RESERVED AND MATCHES NOTHING THE SESSION MINTS. The interner's keys are `s0`, `s1`
- * and so on in the order a style was first seen, and they are session-local: a bootstrap that
+ * and so on, one per style and never reused, and they are session-local: a bootstrap that
  * borrowed `s0` would be handed back out of the mesh cache for whatever style the session
  * happened to intern first, which is the bootstrap's geometry drawn under another style's name.
  * The cost of a distinct key is one rebuild per element on the first repaint, paid once at load;

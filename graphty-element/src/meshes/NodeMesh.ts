@@ -422,8 +422,8 @@ export class NodeMesh {
      *      provenance is invisible here, but unbounded allocation is not.
      *
      * The cache is a WeakMap keyed by scene, so the entries die with the scene and never leak
-     * across scenes or across tests. `MeshCache.clear()` disposes meshes only -- not materials and
-     * not textures -- so a cached texture stays valid across a 2D/3D switch.
+     * across scenes or across tests. `MeshCache` disposes a source mesh's material but never its
+     * textures, so a cached texture stays valid across a 2D/3D switch.
      * @param gradient - The normalised gradient to paint
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated

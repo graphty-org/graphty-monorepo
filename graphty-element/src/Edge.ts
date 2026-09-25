@@ -591,7 +591,7 @@ export class Edge {
 
         // recreate arrow mesh if needed
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose();
+            this.arrowMesh.dispose(false, true);
         }
 
         this.arrowMesh = EdgeMesh.createArrowHead(
@@ -609,7 +609,7 @@ export class Edge {
 
         // recreate arrow tail mesh if needed
         if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose();
+            this.arrowTailMesh.dispose(false, true);
         }
 
         this.arrowTailMesh = EdgeMesh.createArrowHead(
@@ -809,13 +809,13 @@ export class Edge {
         }
 
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose();
+            this.arrowMesh.dispose(false, true);
         }
 
         this.arrowMesh = null;
 
         if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose();
+            this.arrowTailMesh.dispose(false, true);
         }
 
         this.arrowTailMesh = null;

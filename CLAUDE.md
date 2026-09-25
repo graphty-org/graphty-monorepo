@@ -248,6 +248,8 @@ The `tools/` directory contains build scripts:
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
+| `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
+| `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 
 ### Starting Servers
 
@@ -345,12 +347,38 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (21 parallel jobs) |
+| `ci.yml` | Push/PR | Build, lint, sharded tests (21 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
+| `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
 | `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
+
+### Dead Links
+
+Configured by `lychee.toml` and `.lycheeignore` (URL patterns never worth checking, each with its
+reason); run by `tools/check-links.sh`:
+
+- **Every pull request** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
+  the artifacts download): relative links and `#anchors` in every tracked Markdown, MDX, HTML file
+  and package.json; `github.com/graphty-org/graphty-monorepo/(blob|tree)/master/...` links resolved
+  against the checkout; every other `github.com/graphty-org` link over the network; and every
+  `https://graphty.app` link resolved against the site the next deploy would publish, which the job
+  assembles from the run's artifacts with `tools/assemble-pages-site.sh` -- the script
+  `deploy-pages.yml` publishes with. It also checks every link inside that built site (VitePress
+  sidebars and nav) and that every Storybook deep link (`?path=/story/<id>`) names a story that
+  exists (`tools/check-storybook-links.mjs`).
+- **Pre-push** (`tools/prepush.sh`): the offline half, `tools/check-links.sh --offline`, under a second.
+- **Docs builds**: VitePress fails on a dead link in Markdown (no `ignoreDeadLinks` anywhere), and
+  graphty-element's TypeDoc run (`graphty-element/scripts/build-api-docs.mjs`) fails on a broken
+  `{@link}`. The unified `npm run docs:build` in CI runs both.
+- **Weekly** (`links-weekly.yml`): every external link. A dead one goes into an issue, not a red build.
+
+A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes. The layout
+package has no guide pages, so its documentation link is the generated API reference,
+`https://graphty.app/docs/layout/api/generated/`. graphty-element's Storybook is at
+`/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
 ### CI Test Shards
 

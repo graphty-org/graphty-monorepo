@@ -14,8 +14,9 @@
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
  * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts,
  * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts, P8-T6 the three bfs-contract and four
- * sssp-pred rows measured by test/sabotage/bfs.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its
- * rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
+ * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too ("P8" is listed by
+ * P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -986,6 +987,16 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             minFactor: 10,
             test: FRONTIER_TEST,
         },
+        {
+            // P8-T7: the fused threshold inverted -- every depth stays right (both paths are exact), so only the
+            // exact fusedLevels / twoPhaseLevels count against the oracle's level sizes catches it (bfsReport's
+            // rmat14 run at the default threshold; a counter, never a timing)
+            name: "fused-threshold-inverted",
+            find: "} else if (next < P.fusedMax) {",
+            replace: "} else if (next >= P.fusedMax) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
     ]),
     // P8-T5: every row is measured by advanceReport (test/helpers/advance.ts) through the advance test
     "advance-expand": Object.freeze([
@@ -1090,6 +1101,34 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "stride-dropped",
             find: "for (var u = first; u < P.n; u = u + P.stride) {",
             replace: "for (var u = first; u < P.n; u = P.n) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    // P8-T7: every row is measured by bfsReport's always-fused runs (fusedMax U32_MAX) through the BFS test
+    "bfs-fused": Object.freeze([
+        {
+            // the claim runs past the row's end: the lanes beyond the degree read the next rows' arcs (the robustness
+            // clamp at the end of colIdx) and claim their targets at this level (a depth miss)
+            name: "claim-outside-the-guard",
+            find: "if (p < deg) {                                               // guarded claim into locals",
+            replace: "if (true) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // a scan round dropped: the appends land at the wrong slots and the strip's total is wrong
+            name: "fused-scan-round-dropped",
+            find: "for (var s = 1u; s < WG; s = s * 2u) {                       // Hillis-Steele inclusive scan of won (bfs-contract's, verbatim)",
+            replace: "for (var s = 1u; s < WG; s = s * 4u) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the claim writes the level itself: every fused depth from level 1 on is one too small
+            name: "fused-claim-is-the-level",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;\n    if (lid.x == 0u) {",
+            replace: "let claim = atomicLoad(&counters[11]);\n    if (lid.x == 0u) {",
             minFactor: 10,
             test: BFS_TEST,
         },

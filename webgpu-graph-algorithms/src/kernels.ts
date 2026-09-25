@@ -10,8 +10,8 @@
  * wcc-link-edges, wcc-compress and wcc-sample. P4-T1 adds indirect-finalize; the other P4 entries follow, one task
  * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
- * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred. This file is the only importer of src/wgsl/**
- * (spec 3.2; test/layers.test.ts).
+ * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused. This file is the only
+ * importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -22,6 +22,7 @@ import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
 import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
+import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
 import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
@@ -96,7 +97,8 @@ export type KernelId =
     | "frontier-finalize"
     | "advance-expand"
     | "bfs-contract"
-    | "sssp-pred";
+    | "sssp-pred"
+    | "bfs-fused";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -1147,6 +1149,25 @@ const SSSP_PRED: KernelEntry = {
     phase: "P8",
 };
 
+/** `bfs-fused` (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS fused expand-contract"; P8-T7, PD-23): one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; dispatched from `SLOT.fused` (a frontier below `P.fusedMax`) and from `SLOT.fusedRetry` (an overflowed level); 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here (PD-24). */
+const BFS_FUSED: KernelEntry = {
+    id: "bfs-fused",
+    body: bfsFusedWgsl,
+    entryPoint: "bfs_fused",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "frontierIn", "storage-ro", "array<u32>"),
+        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "depth", "storage", "array<atomic<u32>>"),
+        decl(1, 3, "frontierOut", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ),
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1154,8 +1175,8 @@ const SSSP_PRED: KernelEntry = {
  * `entryOf` is the E_INVALID_ARGUMENT the contract documents for a JS caller's unknown id. P1-T4 landed the five
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
- * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"` and P8-T6 `"bfs-contract"` and `"sssp-pred"`,
- * so every member of `KernelId` is present and the assertion is exact.
+ * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
+ * P8-T7 `"bfs-fused"`, so every member of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1195,6 +1216,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "advance-expand": ADVANCE_EXPAND,
     "bfs-contract": BFS_CONTRACT,
     "sssp-pred": SSSP_PRED,
+    "bfs-fused": BFS_FUSED,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

@@ -1,15 +1,21 @@
 /**
- * Breadth-first search on the device (design 8.4, 3.3 line 807, 9.7; P8-T6, the P8 plan's PD-5 / PD-6 / PD-7 /
- * PD-14 / PD-24 / PD-26 / DEP-P8-B): the two-phase top-down workhorse over the `Frontier` of P8-T4. Every level is
- * four recorded dispatches -- `frontier-finalize` role 0 (the level boundary: rotates the counts, advances `level`,
- * decides `done`, sizes the expand slot), `advance-expand` (the frontier's rows into the edge queue, indirect),
- * `frontier-finalize` role 1 (clamps `edgeCount`, sizes the contract slot) and `bfs-contract` (the claim
- * `atomicMin(&depth[v], level + 1)`, the winners packed into the next vertex queue, indirect) -- and the host records
- * `MAX_LEVELS_PER_SUBMIT` levels into ONE command buffer, submits, and reads four bytes, the `done` word (PD-7): a
- * road network has thousands of levels and a per-level `mapAsync` would be slower than the CPU. A level recorded
- * past the end is a no-op (its boundary finds `done` set, zeroes its slots and moves no counter), so the loop needs
- * no diameter and ends on `done`; a traversal has at most `n` levels, so more submits than that is E_VALIDATION,
- * never a hang.
+ * Breadth-first search on the device (design 8.4, 3.3 line 807, 9.7; P8-T6 / P8-T7, the P8 plan's PD-5 / PD-6 /
+ * PD-7 / PD-14 / PD-23 / PD-24 / PD-26 / DEP-P8-B): the two-phase top-down workhorse over the `Frontier` of P8-T4,
+ * with the fused expand-contract form chosen per level ON THE DEVICE. Every level is six recorded dispatches --
+ * `frontier-finalize` role 0 (the level boundary: rotates the counts, advances `level`, decides `done`, and CHOOSES:
+ * a frontier below `fusedMax` entries gets the fused slot, any other the expand slot), `advance-expand` (the
+ * frontier's rows into the edge queue, indirect), `frontier-finalize` role 1 (clamps `edgeCount` and sizes the
+ * contract slot, or, when the edge queue overflowed, the fused-retry slot instead, PD-23), `bfs-contract` (the claim
+ * `atomicMin(&depth[v], level + 1)`, the winners packed into the next vertex queue, indirect), then `bfs-fused` twice
+ * (the fused slot and the retry slot, indirect: one workgroup per frontier entry with the same claim inline and no
+ * edge queue) -- of which exactly one path runs, the others dispatching zero workgroups from their `(0, 0, 1)` slots.
+ * The host records `MAX_LEVELS_PER_SUBMIT` levels into ONE command buffer, submits, and reads four bytes, the `done`
+ * word (PD-7): a road network has thousands of levels and a per-level `mapAsync` would be slower than the CPU. A
+ * level recorded past the end is a no-op (its boundary finds `done` set, zeroes its slots and moves no counter), so
+ * the loop needs no diameter and ends on `done`; a traversal has at most `n` levels, so more submits than that is
+ * E_VALIDATION, never a hang. The threshold is a uniform field (`FUSED_FRONTIER_MAX` unless the tuning says
+ * otherwise), so a test forces either path without recompiling; the block's `fusedLevels` / `twoPhaseLevels` /
+ * `overflowLevels` words record which path each level took.
  *
  * There is no dedupe (DEP-P8-B, PD-5): the edge queue holds duplicates -- a vertex with three frontier neighbours
  * appears three times -- but for one level exactly one invocation observes `INVALID_INDEX` at `depth[v]` and
@@ -29,7 +35,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { FRONTIER_CANDIDATES, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../constants.js";
+import { FRONTIER_CANDIDATES, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
@@ -59,12 +65,12 @@ const ALGORITHM = "breadthFirstSearch";
 /**
  * Params slots of the ring, COUNTED, because `UniformRing.reserve` wraps to slot 0 when a submit's records outrun
  * the ring and silently overwrites the submit's first record: per level `frontier-finalize` twice, `advance-expand`
- * and `bfs-contract` (4 records; P8-T7 adds the two fused dispatches, 6; P8-T8 adds the bits `fill`,
- * `bfs-bitset-build` and `bfs-bottom-up`, 9), plus per submit P8-T8's rebuild (`bfs-unvisited-flags` and `compact`,
- * whose scan is at most 9 dispatches for any n below 2^32, so 10) and the result batch's records (the two `fill`s,
- * the radix sort's per-pass records and `sssp-pred`; they flush in their own submit but must fit the same ring).
- * `9 x MAX_LEVELS_PER_SUBMIT + 16` covers every submit of the finished driver with room; P8-T7 and P8-T8 re-count it
- * when they add their records.
+ * and `bfs-contract`, whose record the two `bfs-fused` dispatches share (4 records, re-counted by P8-T7; P8-T8 adds
+ * the bits `fill`, `bfs-bitset-build` and `bfs-bottom-up`, 7), plus per submit P8-T8's rebuild (`bfs-unvisited-flags`
+ * and `compact`, whose scan is at most 9 dispatches for any n below 2^32, so 10) and the result batch's records (the
+ * two `fill`s, the radix sort's per-pass records and `sssp-pred`; they flush in their own submit but must fit the
+ * same ring). `9 x MAX_LEVELS_PER_SUBMIT + 16` covers every submit of the finished driver with room; P8-T8 re-counts
+ * it when it adds its records.
  */
 const RING_SLOTS = 9 * MAX_LEVELS_PER_SUBMIT + 16;
 
@@ -80,7 +86,7 @@ export interface BfsTuning {
     readonly alpha?: number | undefined;
     /** Beamer's beta (P8-T8; `BEAMER_BETA` when absent). */
     readonly beta?: number | undefined;
-    /** The fused expand-contract threshold (P8-T7; `FUSED_FRONTIER_MAX` when absent). Passed as 0 until P8-T7 lands the fused kernel. */
+    /** The fused expand-contract threshold (`FUSED_FRONTIER_MAX` when absent): a level whose frontier is below it takes the fused path; 0 never fuses, `U32_MAX` always does. */
     readonly fusedMax?: number | undefined;
     /** The edge queue's entry count; a test fakes a small one to force the overflow path (PD-23). */
     readonly edgeCapacity?: number | undefined;
@@ -229,6 +235,7 @@ export async function bfsWithTuning(
         const planner = await prepareFrontier(scope, n, s.arcCount, tuning.edgeCapacity);
         const advance = await prepareAdvance(scope, core);
         const contract = await ctx.pipelines.kernel(kernelSpec("bfs-contract"));
+        const fused = await ctx.pipelines.kernel(kernelSpec("bfs-fused", graphOverrides(core, null)));
         const pred = await ctx.pipelines.kernel(kernelSpec("sssp-pred", { ...graphOverrides(core, null), MODE: 1 }));
         const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
         const sort = await prepareRadixSort(scope);
@@ -255,9 +262,9 @@ export async function bfsWithTuning(
         queue.writeBuffer(depth.buffer, depth.offset + 4 * source, Uint32Array.of(0));
         frontier.reset(queue, source, { nextFrontierCount: 1, level: U32_MAX });
 
-        // the levels: MAX_LEVELS_PER_SUBMIT per submit, four bytes back (PD-7); the trivial candidate rule until
-        // P8-T7 / P8-T8 (mode 1 = top-down only, fusedMax 0 = never fused)
-        const fields: FrontierFinalizeFields = { mode: 1, fusedMax: 0, maxDepth };
+        // the levels: MAX_LEVELS_PER_SUBMIT per submit, four bytes back (PD-7); the candidate rule is top-down only
+        // (mode 1) until P8-T8 wires Beamer's test, with the fused path below fusedMax (P8-T7)
+        const fields: FrontierFinalizeFields = { mode: 1, fusedMax: tuning.fusedMax ?? FUSED_FRONTIER_MAX, maxDepth };
         const window = { arcBase: 0, arcEnd: s.arcCount };
         let levelsRecorded = 0;
         let submits = 0;
@@ -265,20 +272,40 @@ export async function bfsWithTuning(
             const batch = new CommandBatch(ctx, `${ALGORITHM}/levels`);
             const pass = batch.pass("bfs");
             for (let level = 0; level < levelsPerSubmit; level++) {
+                const slotBase = level * FRONTIER_CANDIDATES;
                 planner.recordFinalize(pass, 0, level, { ...fields, firstOfSubmit: Math.min(level, 2) });
                 advance.record(pass, frontier, level, window);
                 planner.recordFinalize(pass, 1, level, fields);
-                const params = scope.params(FRONTIER_PARAMS, { wg, n, edgeCapacity: frontier.edgeCapacity });
-                const bound = contract.bind({
+                // one record serves the contract and both fused dispatches: the contract reads none of the window
+                const params = scope.params(FRONTIER_PARAMS, {
+                    wg,
+                    n,
+                    edgeCapacity: frontier.edgeCapacity,
+                    arcBase: window.arcBase,
+                    arcEnd: window.arcEnd,
+                });
+                const boundContract = contract.bind({
                     edgeQueue: frontier.edgeQueue,
                     counters,
                     depth,
                     frontierOut: frontier.output,
                     P: params.binding,
                 });
-                contract.dispatchIndirect(pass, bound, frontier.args, level * FRONTIER_CANDIDATES + SLOT.contract, [
+                contract.dispatchIndirect(pass, boundContract, frontier.args, slotBase + SLOT.contract, [
                     params.offset,
                 ]);
+                // the fused path (role 0's choice) and the overflow retry (role 1's, PD-23): the same bound kernel,
+                // one workgroup per frontier entry; the slot the boundary did not choose holds (0, 0, 1)
+                const boundFused = fused.bind({
+                    ...graphBindings(core, null),
+                    frontierIn: frontier.input,
+                    counters,
+                    depth,
+                    frontierOut: frontier.output,
+                    P: params.binding,
+                });
+                fused.dispatchIndirect(pass, boundFused, frontier.args, slotBase + SLOT.fused, [params.offset]);
+                fused.dispatchIndirect(pass, boundFused, frontier.args, slotBase + SLOT.fusedRetry, [params.offset]);
                 frontier.swap();
             }
             batch.endPass();

@@ -18,10 +18,13 @@ import { acquire, requireGpu } from "../setup/gpu.js";
 
 const ID = "frontier-finalize";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ROWS = SABOTAGE[ID] ?? [];
+/** The rows frontierReport measures; P8-T7's inverted-threshold row names the BFS test and is measured by test/sabotage/bfs.test.ts alone (only a traversal's choice counters see it). */
+const MEASURED = ROWS.filter((m) => m.test === FRONTIER_TEST);
 
 describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
-    it("has six rows naming the frontier test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has six rows naming the frontier test and one (P8-T7's) naming the BFS test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect(ROWS.map((m) => m.name)).toEqual([
             "ceil-wraps",
             "second-row-floored",
@@ -29,7 +32,9 @@ describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
             "fused-slot-per-invocation",
             "done-boundary-keeps-counting",
             "role-1-counts-every-level",
+            "fused-threshold-inverted",
         ]);
+        expect(MEASURED).toHaveLength(6);
         const { body } = KERNELS[ID];
         const names = new Set<string>();
         for (const m of ROWS) {
@@ -40,7 +45,7 @@ describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
             expect(body.indexOf(m.find, first + m.find.length), `${m.name}: find string not unique`).toBe(-1);
             expect(m.replace).not.toBe(m.find);
             expect(m.minFactor).toBeGreaterThanOrEqual(10);
-            expect(m.test).toBe("test/primitives/frontier.test.ts");
+            expect(m.test).toBe(m.name === "fused-threshold-inverted" ? "test/algorithms/bfs.test.ts" : FRONTIER_TEST);
             expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${m.test} does not exist`).toBe(true);
             const mutated = sabotagedBody(ID, m);
             expect(mutated).not.toBe(body);
@@ -61,7 +66,7 @@ describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
         }
     }, 120_000);
 
-    for (const mutation of ROWS) {
+    for (const mutation of MEASURED) {
         it(`${ID}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
             requireGpu(t);
             const report = await withSabotage(ID, mutation, (ctx) => frontierReport(ctx));

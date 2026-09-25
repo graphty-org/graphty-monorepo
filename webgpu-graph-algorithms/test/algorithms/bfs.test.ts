@@ -17,8 +17,8 @@
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
-import { bfsWithTuning, breadthFirstSearch } from "../../src/algorithms/bfs.js";
-import { MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
+import { type BfsTuning, bfsWithTuning, breadthFirstSearch } from "../../src/algorithms/bfs.js";
+import { FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
 import { GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
 import { type UniformValues } from "../../src/kernel/struct-block.js";
@@ -117,6 +117,23 @@ function levelSetsOf(order: U32, depth: U32): number[][] {
     return groups.map((group) => group.sort((a, b) => a - b));
 }
 
+/** The two forced candidate rules of P8-T7 Step 4 beside the default: `fusedMax 0` never fuses a level, `U32_MAX` fuses every level. */
+const FORCED_THRESHOLDS: readonly (readonly [string, number])[] = [
+    ["never fused (fusedMax 0)", 0],
+    ["always fused (fusedMax U32_MAX)", U32_MAX],
+];
+
+/** The level sizes the oracle predicts (level 0 is the source alone), in level order. */
+function levelSizesOf(s: GraphSnapshot, source: number): number[] {
+    return levelsOf(s, source).map((level) => level.length);
+}
+
+/** The last element of a non-empty list. */
+function lastOf<T>(items: readonly T[], label: string): T {
+    expect(items.length, label).toBeGreaterThan(0);
+    return items[items.length - 1];
+}
+
 /** The mapAsync count PD-7 predicts for `levels`: one per submit plus one for the result batch; a level count that is an exact multiple of the cadence needs one more submit for the done boundary. */
 function expectedMaps(levels: number): number {
     return levels % MAX_LEVELS_PER_SUBMIT === 0
@@ -186,7 +203,46 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(second.levels).toBe(first.levels);
         expect(blocks.length, `${label}: submits`).toBeGreaterThan(0);
         expect(again, `${label}: the counters block after every submit, run twice`).toEqual(blocks);
+        // P8-T7 Step 4: the two forced candidate rules agree with the default bitwise (PD-14)
+        for (const [name, fusedMax] of FORCED_THRESHOLDS) {
+            const forced = await bfsWithTuning(ctx, s, source, options, { fusedMax });
+            expectBitwiseEqual(forced.depth, first.depth, `${label}: depth, ${name} vs the default`);
+            expectBitwiseEqual(forced.parent, first.parent, `${label}: parent, ${name} vs the default`);
+            expectBitwiseEqual(forced.order, first.order, `${label}: order, ${name} vs the default`);
+            expect(forced.visitedCount, `${label}: visitedCount, ${name}`).toBe(first.visitedCount);
+            expect(forced.levels, `${label}: levels, ${name}`).toBe(first.levels);
+        }
         return first;
+    }
+
+    /** One run through the tuning entry with the counters block as its LAST submit left it: the choice counters freeze at the done boundary. */
+    async function runWithCounters(
+        ctx: GpuContext,
+        s: GraphSnapshot,
+        source: number,
+        options: BfsOptions | undefined,
+        tuning: BfsTuning,
+    ): Promise<{ result: GpuBfsResult; block: UniformValues }> {
+        const blocks: UniformValues[] = [];
+        const result = await bfsWithTuning(ctx, s, source, options, {
+            ...tuning,
+            onLevel: (_level, block) => {
+                blocks.push(block);
+            },
+        });
+        return { result, block: lastOf(blocks, "submits") };
+    }
+
+    /** P8-T7 Step 4's invariant: the three choice counters count the boundaries that dispatched a level, which is the level word. */
+    function expectChoicesSumToLevel(block: UniformValues, label: string): void {
+        const fused = block.fusedLevels;
+        const twoPhase = block.twoPhaseLevels;
+        const bottomUp = block.bottomUpLevels;
+        expect(bottomUp, `${label}: bottomUpLevels (the counters block)`).toBe(0);
+        expect(
+            Number(fused) + Number(twoPhase) + Number(bottomUp),
+            `${label}: fusedLevels + twoPhaseLevels + bottomUpLevels vs the level word`,
+        ).toBe(block.level);
     }
 
     for (const fixture of FIXTURES) {
@@ -378,6 +434,68 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         }
         expect(wrong, `first wrong pred word (${wrong >= 0 ? pred[wrong] : "-"})`).toBe(-1);
     });
+
+    it("the device-side per-level choice (P8-T7): on rmat14 at the default fusedMax the selector picks the fused path and the two-phase path each at least once, fusedLevels equals the number of oracle levels below FUSED_FRONTIER_MAX and twoPhaseLevels the number at or above it, and the choices sum to the level word", async (t) => {
+        const ctx = await context(t);
+        for (const directed of [false, true]) {
+            const kind = directed ? "directed" : "undirected";
+            const s = snapshotOf(rmatEdges(14, 10, 7), { directed, label: `rmat14-choice-${kind}` });
+            const sizes = levelSizesOf(s, 0);
+            const fused = sizes.filter((size) => size < FUSED_FRONTIER_MAX).length;
+            const { result, block } = await runWithCounters(ctx, s, 0, undefined, {});
+            console.warn(
+                `[bfs] rmat14 ${kind} from 0: level sizes ${sizes.join(" ")} -> fused ${fused}, two-phase ${sizes.length - fused}`,
+            );
+            expect(block.fusedLevels, `${kind}: fusedLevels (the counters block)`).toBeGreaterThan(0);
+            expect(block.twoPhaseLevels, `${kind}: twoPhaseLevels (the counters block)`).toBeGreaterThan(0);
+            expect(block.fusedLevels, `${kind}: fusedLevels vs the oracle's level sizes`).toBe(fused);
+            expect(block.twoPhaseLevels, `${kind}: twoPhaseLevels vs the oracle's level sizes`).toBe(
+                sizes.length - fused,
+            );
+            expect(block.overflowLevels, `${kind}: overflowLevels`).toBe(0);
+            expect(block.level, `${kind}: the level word`).toBe(sizes.length);
+            expectChoicesSumToLevel(block, kind);
+            expectBitwiseEqual(result.depth, bfsOracle(s, 0).depth, `${kind}: depth (the depth buffer) vs the oracle`);
+            ctx.release(s);
+        }
+    }, 120_000);
+
+    it("the overflow retry (PD-23, P8-T7): with edgeCapacity 4096 and the two-phase path forced (fusedMax 0) the undirected star from the hub overflows on both levels and the directed star on one, rmat14 on at least one; depth stays exact, every fused level is a retry, and the choices sum to the level word (levels - 1 when maxDepth stopped the run)", async (t) => {
+        const ctx = await context(t);
+        const tuning: BfsTuning = { edgeCapacity: 4096, fusedMax: 0 };
+        for (const [label, edges, directed, overflows] of [
+            ["undirected star from the hub", starEdges(HUB_DEGREE), false, 2],
+            ["directed star from the hub", starEdges(HUB_DEGREE), true, 1],
+            ["rmat14 from 0", rmatEdges(14, 10, 7), false, null],
+        ] as const) {
+            const s = snapshotOf(edges, { directed, label: `overflow-${label}` });
+            const want = bfsOracle(s, 0);
+            const { result, block } = await runWithCounters(ctx, s, 0, undefined, tuning);
+            expectBitwiseEqual(result.depth, want.depth, `${label}: depth (the depth buffer) vs the oracle`);
+            expect(result.visitedCount, `${label}: visitedCount`).toBe(want.visitedCount);
+            if (overflows === null) {
+                expect(block.overflowLevels, `${label}: overflowLevels (the counters block)`).toBeGreaterThan(0);
+            } else {
+                expect(block.overflowLevels, `${label}: overflowLevels (the counters block)`).toBe(overflows);
+            }
+            // fusedMax 0 never chooses the fused slot at a boundary, so every fused level is role 1's retry
+            expect(block.fusedLevels, `${label}: fusedLevels vs overflowLevels`).toBe(block.overflowLevels);
+            expect(block.twoPhaseLevels, `${label}: twoPhaseLevels`).toBe(
+                Number(block.level) - Number(block.overflowLevels),
+            );
+            expect(block.level, `${label}: the level word`).toBe(result.levels);
+            expectChoicesSumToLevel(block, label);
+            ctx.release(s);
+        }
+        // maxDepth stops the run with a reached-but-unexpanded level: the capped boundary chose nothing
+        const star = snapshotOf(starEdges(HUB_DEGREE), { label: "star-capped-choice" });
+        const capped = await runWithCounters(ctx, star, 0, { maxDepth: 1 }, {});
+        expect(capped.result.levels).toBe(2);
+        expect(capped.block.level, "the level word under maxDepth 1").toBe(1);
+        expect(capped.block.fusedLevels, "fusedLevels under maxDepth 1 (the hub alone is below the threshold)").toBe(1);
+        expectChoicesSumToLevel(capped.block, "star maxDepth 1");
+        ctx.release(star);
+    }, 120_000);
 
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);

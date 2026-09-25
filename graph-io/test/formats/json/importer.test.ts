@@ -261,6 +261,33 @@ describe("node-link", () => {
         expect((await load(json(doc), { edgesKey: "links" })).s.edgeCount).toBe(0);
     });
 
+    it("reports the edge array it does not read, naming the key and its entry count", async () => {
+        const doc = {
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [{ source: "a", target: "b" }],
+            links: [{ source: "b", target: "c" }],
+        };
+        const { s, report } = await load(json(doc));
+        expect(s.edgeCount).toBe(1);
+        expect(report.issues).toHaveLength(1);
+        expect(report.issues[0]).toMatchObject({
+            code: JSON_ISSUE.UNREAD_KEY,
+            severity: "warning",
+            element: "links",
+        });
+        expect(report.issues[0].message).toContain("1 entry");
+        const flipped = await load(json(doc), { edgesKey: "links" });
+        expect(edge(flipped.s, 0)).toBe("b->c");
+        expect(flipped.report.issues.map((i) => [i.code, i.element])).toEqual([[JSON_ISSUE.UNREAD_KEY, "edges"]]);
+    });
+
+    it("reports an unknown top-level key instead of dropping it silently", async () => {
+        const doc = { nodes: [{ id: 1 }, { id: 2 }], edges: [{ source: 1, target: 2 }], extraStuff: { x: 1 } };
+        const { s, report } = await load(json(doc));
+        expect(s.edgeCount).toBe(1);
+        expect(report.issues.map((i) => [i.code, i.element])).toEqual([[JSON_ISSUE.UNREAD_KEY, "extraStuff"]]);
+    });
+
     it('keeps 1 and "1" distinct under ids keep and merges texts under ids number with a warning', async () => {
         const doc = { nodes: [{ id: 1 }, { id: "1" }, { id: "01" }], links: [] };
         const kept = await load(json(doc));

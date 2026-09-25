@@ -17,16 +17,19 @@
 
 import { assert, describe, it } from "vitest";
 
+import { defaultEdgeStyle } from "../../src/config/EdgeStyle";
 import { GraphStyle } from "../../src/config/GraphStyle";
+import { defaultNodeStyle } from "../../src/config/NodeStyle";
 import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
 import { prepareRamp } from "../../src/session/styles/palettes";
 import { createScaleRegistry } from "../../src/session/styles/scales";
+import { DEFAULT_HIGHLIGHT } from "../../src/session/styles/StylesApi";
 
 type Rgb = [number, number, number];
 type Matrix = [Rgb, Rgb, Rgb];
 
 /** Machado, Oliveira & Fernandes (2009), severity 1.0, linear RGB. */
-const MACHADO: Record<"protan" | "deutan", Matrix> = {
+const MACHADO: Record<"protan" | "deutan" | "tritan", Matrix> = {
     protan: [
         [0.152286, 1.052583, -0.204868],
         [0.114503, 0.786281, 0.099216],
@@ -36,6 +39,11 @@ const MACHADO: Record<"protan" | "deutan", Matrix> = {
         [0.367322, 0.860646, -0.227968],
         [0.280085, 0.672501, 0.047413],
         [-0.01182, 0.04294, 0.968881],
+    ],
+    tritan: [
+        [1.255528, -0.076749, -0.178779],
+        [-0.078411, 0.930809, 0.147602],
+        [0.004733, 0.691367, 0.3039],
     ],
 };
 
@@ -107,8 +115,10 @@ function hueSpread(hues: readonly number[]): number {
     return 360 - widestGap;
 }
 
-/** The only CSS colour name the default background is spelled with, and its hex. */
-const NAMED_BACKGROUNDS: Record<string, string> = { whitesmoke: "#f5f5f5" };
+/** The CSS colour names the defaults are spelled with, and their hex. */
+const NAMED_COLORS: Record<string, string> = { whitesmoke: "#f5f5f5", darkgrey: "#a9a9a9" };
+
+const hexOf = (color: string): string => NAMED_COLORS[color.toLowerCase()] ?? color.toLowerCase();
 
 function defaultBackground(): string {
     const { background } = GraphStyle.parse({});
@@ -116,9 +126,7 @@ function defaultBackground(): string {
         assert.fail("the default background is expected to be a plain colour");
     }
 
-    const color = background.color.toLowerCase();
-
-    return NAMED_BACKGROUNDS[color] ?? color;
+    return hexOf(background.color);
 }
 
 const registry = createScaleRegistry();
@@ -219,6 +227,34 @@ describe("the grey an overflowing encoding paints its smallest groups", () => {
         for (const vision of ["protan", "deutan"] as const) {
             for (const color of slots) {
                 assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color, vision), 6, `${vision}: ${color}`);
+            }
+        }
+    });
+});
+
+describe("the element's own highlight colour", () => {
+    // What a highlight is drawn over: the default node, the default edge and the background. A
+    // route painted in a colour close to any of them is a route nobody finds.
+    const nodeColor = defaultNodeStyle.texture?.color;
+    const edgeColor = defaultEdgeStyle.line?.color;
+    if (typeof nodeColor !== "string" || edgeColor === undefined) {
+        assert.fail("the default node and edge colours are expected to be plain colours");
+    }
+
+    const underneath = { node: hexOf(nodeColor), edge: hexOf(edgeColor), background };
+
+    it("stands off the background as a graphical object must (>= 3:1)", () => {
+        assert.isAtLeast(contrast(DEFAULT_HIGHLIGHT.color, background), 3, `${DEFAULT_HIGHLIGHT.color} on ${background}`);
+    });
+
+    it("is apart from the default node, the default edge and the background for every kind of vision (Delta E >= 15)", () => {
+        for (const vision of [undefined, "protan", "deutan", "tritan"] as const) {
+            for (const [what, color] of Object.entries(underneath)) {
+                assert.isAtLeast(
+                    deltaE(DEFAULT_HIGHLIGHT.color, color, vision),
+                    15,
+                    `${vision ?? "normal"}: ${DEFAULT_HIGHLIGHT.color} vs the default ${what} ${color}`,
+                );
             }
         }
     });

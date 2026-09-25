@@ -1,3 +1,4 @@
+import { createGraphSession } from "@graphty/graphty-element/session";
 import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
@@ -150,6 +151,53 @@ describe("ExplorePanel", () => {
             fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
 
             expect(screen.getByTestId("explore-search-scope")).toHaveTextContent("Visible nodes");
+        });
+
+        /* The shell hands the query and the scope to graphty-element's selection as they are:
+           the element reads the prefixes and a leading `=`, and the scope values are its own. */
+        it("names the scope in graphty-element's own words, which its selection accepts", async () => {
+            const onScopeChange = vi.fn();
+            renderPanel({ onScopeChange });
+
+            fireEvent.click(screen.getByTestId("explore-search-scope"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
+            fireEvent.click(screen.getByTestId("explore-search-scope"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "All" }));
+
+            expect(onScopeChange.mock.calls).toEqual([["visible"], ["graph"]]);
+
+            const session = createGraphSession();
+
+            for (const [scope] of onScopeChange.mock.calls as [["visible" | "graph"]]) {
+                const delta = await session.selection.apply({ text: "id:a", scope });
+                expect(delta.nodes).toBe(0);
+            }
+
+            session.dispose();
+        });
+
+        it("draws the element's own refusal of a query under the field", async () => {
+            const session = createGraphSession();
+            let refusal = "";
+
+            try {
+                await session.selection.apply({ text: "=data.type ==", scope: "graph" });
+            } catch (error) {
+                refusal = error instanceof Error ? error.message : String(error);
+            }
+
+            session.dispose();
+            expect(refusal).not.toBe("");
+
+            renderPanel({ searchError: refusal });
+
+            expect(screen.getByTestId("explore-search-error")).toHaveTextContent(refusal);
+        });
+
+        it("draws no error while the query is accepted", () => {
+            renderPanel();
+
+            expect(screen.queryByTestId("explore-search-error")).not.toBeInTheDocument();
         });
     });
 

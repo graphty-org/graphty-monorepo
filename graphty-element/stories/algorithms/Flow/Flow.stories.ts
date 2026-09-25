@@ -101,7 +101,7 @@ const waterSupplyNetworkData = {
 /**
  * Bipartite Matching - maximum matching in bipartite graphs
  * Demonstrates job candidate ↔ job position matching
- * Matched edges are highlighted in blue over a reader layer that greys every edge
+ * Matched edges are highlighted in vermilion, drawn wide, over a reader layer that greys every edge
  * Nodes are coloured by the side of the pairing they are on
  */
 export const BipartiteMatching: Story = {
@@ -231,7 +231,7 @@ export const MaxFlow: Story = {
 
 /**
  * Min Cut - minimum cut visualization
- * Cut edges are highlighted in blue over a reader layer that greys every edge
+ * Cut edges are highlighted in vermilion, drawn wide, over a reader layer that greys every edge
  * Nodes are coloured by the side of the cut they are on
  */
 export const MinCut: Story = createAlgorithmStory("graphty:min-cut", {

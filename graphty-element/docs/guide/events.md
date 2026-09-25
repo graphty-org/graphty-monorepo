@@ -408,4 +408,4 @@ onUnmounted(() => {
 
 ## Interactive Examples
 
-- [Selection Events](https://graphty.app/storybook/element/?path=/story/selection--mode-3-d)
+- [Selection Events](https://graphty.app/storybook/graphty-element/?path=/story/selection--mode-3-d)

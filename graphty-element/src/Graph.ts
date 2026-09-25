@@ -1047,7 +1047,7 @@ export class Graph implements GraphContext {
      *
      * The settings take effect on the next layout the element runs. `preSteps` is read when a
      * layout starts, so setting it after a graph has already settled changes nothing that is
-     * already on screen.
+     * already on screen. `labels.declutter` is the exception: it takes effect on the next frame.
      * @param behavior - The fields to change. Anything omitted keeps its current value.
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
@@ -1058,6 +1058,7 @@ export class Graph implements GraphContext {
             ...behavior,
             layout: { ...current.layout, ...(behavior.layout ?? {}) },
             node: { ...current.node, ...(behavior.node ?? {}) },
+            labels: { ...current.labels, ...(behavior.labels ?? {}) },
         });
 
         this.styles.config.behavior = parsed;
@@ -1279,7 +1280,7 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when nodes are added
      * @since 1.0.0
      * @see {@link addEdges} for adding edges
-     * @see {@link https://graphty.app/storybook/element/?path=/story/data--default | Data Loading Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/data--basic | Data Loading Examples}
      * @example
      * ```typescript
      * // Add nodes with default ID field
@@ -1352,7 +1353,7 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when edges are added
      * @since 1.0.0
      * @see {@link addNodes} for adding nodes first
-     * @see {@link https://graphty.app/storybook/element/?path=/story/data--default | Data Loading Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/data--basic | Data Loading Examples}
      * @example
      * ```typescript
      * // Add edges with default source/target fields
@@ -1462,8 +1463,8 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when layout is initialized
      * @since 1.0.0
      * @see {@link waitForSettled} to wait for layout completion
-     * @see {@link https://graphty.app/storybook/element/?path=/story/layout--default | 3D Layout Examples}
-     * @see {@link https://graphty.app/storybook/element/?path=/story/layout2d--default | 2D Layout Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular | 3D Layout Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/layout-2d--circular | 2D Layout Examples}
      * @example
      * ```typescript
      * // Use force-directed layout with custom settings
@@ -1531,8 +1532,8 @@ export class Graph implements GraphContext {
      * @since 1.0.0
      * @see {@link Graph.run} for the verb that replaces this one
      * @see {@link applySuggestedStyles} to visualize results
-     * @see {@link https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree | Centrality Examples}
-     * @see {@link https://graphty.app/storybook/element/?path=/story/algorithms-community--louvain | Community Detection}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/algorithms-centrality--degree | Centrality Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/algorithms-community--louvain | Community Detection}
      * @example
      * ```typescript
      * // This entry point starts the work and hands nothing back. Everything below reads the
@@ -2367,7 +2368,7 @@ export class Graph implements GraphContext {
      * @since 1.0.0
      * @see {@link deselectNode} to clear selection
      * @see {@link getSelectedNode} to get current selection
-     * @see {@link https://graphty.app/storybook/element/?path=/story/selection--default | Selection Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/selection--mode-3-d | Selection Examples}
      * @example
      * ```typescript
      * // Select a node and show its details

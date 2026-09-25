@@ -259,6 +259,44 @@ describe("a selector source over the session's own attributes", () => {
     });
 });
 
+describe("an edge's endpoints", () => {
+    it("reads an edge's source and target ids, though the record no longer carries them", () => {
+        // The fixture's edges arrived as { src, dst }, and those keys are removed from the record
+        // a selector reads so the data table does not show them twice.
+        const { harness, source } = fixture();
+
+        assert.strictEqual(source.edgeValue(0, "data.source"), "a");
+        assert.strictEqual(source.edgeValue(0, "data.target"), "b");
+        assert.strictEqual(source.edgeValue(2, "source"), "c");
+        assert.isTrue(source.edgeHas(1, "data.source"));
+        assert.isTrue(source.edgeHas(1, "data.target"));
+        assert.isUndefined(source.nodeValue(0, "data.source"), "a node has no endpoints");
+        harness.session.dispose();
+    });
+
+    it("lets an edge layer select by source, and paints only the edges leaving that node", () => {
+        const { harness, source } = fixture();
+        const bySource = compileSelector({ match: "expression", where: "data.source == 'b'" }, "edge", source);
+        const byTarget = compileSelector({ match: "has", path: "data.target" }, "edge", source);
+
+        assert.deepStrictEqual([0, 1, 2].map((index) => bySource.test?.(index)), [false, true, false]);
+        assert.deepStrictEqual([0, 1, 2].map((index) => byTarget.test?.(index)), [true, true, true]);
+        harness.session.dispose();
+    });
+
+    it("keeps a `source` attribute the edge really carries, with its endpoints under src/dst", () => {
+        const { harness, source } = fixture();
+
+        // Edge 1 arrived as { src: "b", dst: "c", source: "crawler" }: a provenance field.
+        harness.edgeAttributes.set(1, { source: "crawler" });
+
+        assert.strictEqual(source.edgeValue(1, "data.source"), "crawler");
+        assert.strictEqual(source.edgeValue(1, "data.target"), "c", "the other endpoint still reads");
+        assert.strictEqual(source.edgeValue(0, "data.source"), "a", "an edge without one reads its endpoint");
+        harness.session.dispose();
+    });
+});
+
 describe("a selector source over what a run published", () => {
     it("reads one run's field for the node at a dense index", async () => {
         const { harness, source } = fixture({

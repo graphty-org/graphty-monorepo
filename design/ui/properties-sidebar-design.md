@@ -1389,5 +1389,5 @@ Handle cases with no data:
 ## References
 
 - [Figma Style Sidebar Design](./figma-style-sidebar.md) - Base component styling
-- [graphty-element API](../../packages/graphty-element/README.md) - Style property definitions
+- [graphty-element API](../../graphty-element/README.md) - Style property definitions
 - [Mantine Components](https://mantine.dev/) - UI component library

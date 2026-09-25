@@ -571,7 +571,6 @@ import { bfsOptimized } from "@graphty/algorithms/optimized";
 import { shortestPathBFSOptimized } from "@graphty/algorithms/optimized";
 ```
 
-````
 
 ## Performance Benchmarks
 
@@ -641,7 +640,7 @@ class GraphBenchmark {
     };
   }
 }
-````
+```
 
 ## Implementation Timeline
 

@@ -11,7 +11,6 @@ function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
         opened: true,
         onOpenChange: vi.fn(),
         profile: CANVAS_TOOLBAR_DESKTOP,
-        minimapShown: true,
         legendShown: true,
         toolbarShown: true,
         vrSupported: false,
@@ -19,7 +18,6 @@ function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
         visibleNodeCount: 20,
         onResetView: vi.fn(),
         onViewPreset: vi.fn(),
-        onToggleMinimap: vi.fn(),
         onToggleToolbar: vi.fn(),
         onToggleLegend: vi.fn(),
         onEnterVr: vi.fn(),
@@ -114,7 +112,6 @@ describe("ViewsMenu", () => {
             expect((await row("Top")).getAttribute("aria-keyshortcuts")).toBe("7");
             expect((await row("Front")).getAttribute("aria-keyshortcuts")).toBe("1");
             expect((await row("Side")).getAttribute("aria-keyshortcuts")).toBe("3");
-            expect((await row("Minimap")).getAttribute("aria-keyshortcuts")).toBe("M");
             expect((await row("Legend")).getAttribute("aria-keyshortcuts")).toBe("L");
             expect((await row("Toolbar")).getAttribute("aria-keyshortcuts")).toBeNull();
         });
@@ -126,10 +123,13 @@ describe("ViewsMenu", () => {
             expect((await row("Toolbar")).textContent).toBe("Toolbar");
         });
 
-        it("tags the three unshipped rows and gives them no binding", async () => {
+        /* The minimap is unshipped until graphty-element publishes node positions and camera
+           changes to project (#293). Drawn before then it was an empty dark box, and a checked
+           row and an M key claimed it showed something. */
+        it("tags the four unshipped rows and gives them no binding", async () => {
             render(<ViewsMenu {...props()} />);
 
-            for (const label of ["Isometric", "Follow selection", "Save as view..."]) {
+            for (const label of ["Isometric", "Follow selection", "Save as view...", "Minimap"]) {
                 const unshipped = await row(label);
 
                 expect(unshipped.textContent).toContain("Coming");
@@ -140,15 +140,11 @@ describe("ViewsMenu", () => {
     });
 
     describe("the Show group", () => {
-        it("draws the three visibility rows as checkable menu items", async () => {
-            render(<ViewsMenu {...props({ minimapShown: true, legendShown: false })} />);
+        it("draws the two shipped visibility rows as checkable menu items", async () => {
+            render(<ViewsMenu {...props({ legendShown: false })} />);
 
             const dropdown = await menu();
 
-            expect(within(dropdown).getByRole("menuitemcheckbox", { name: "Minimap" })).toHaveAttribute(
-                "aria-checked",
-                "true",
-            );
             expect(within(dropdown).getByRole("menuitemcheckbox", { name: "Toolbar" })).toHaveAttribute(
                 "aria-checked",
                 "true",
@@ -157,19 +153,6 @@ describe("ViewsMenu", () => {
                 "aria-checked",
                 "false",
             );
-        });
-
-        it("keeps the menu open when the minimap is toggled", async () => {
-            const user = userEvent.setup();
-            const onToggleMinimap = vi.fn();
-            const onOpenChange = vi.fn();
-
-            render(<ViewsMenu {...props({ onToggleMinimap, onOpenChange })} />);
-
-            await user.click(within(await menu()).getByRole("menuitemcheckbox", { name: "Minimap" }));
-
-            expect(onToggleMinimap).toHaveBeenCalledTimes(1);
-            expect(onOpenChange).not.toHaveBeenCalled();
         });
 
         it("closes itself when the toolbar is hidden, because the bar takes this menu with it", async () => {

@@ -5294,7 +5294,7 @@
           }
         ]
       },
-      "knownFailure": "links silently dropped when edges is also present (sources.md 8.4 node-link)"
+      "knownFailure": "links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link)"
     },
     {
       "file": "networkx-generated/node-link-path-0.json",

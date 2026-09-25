@@ -132,13 +132,14 @@ describe("session.scope", () => {
         harness.session.dispose();
     });
 
-    it("refuses a predicate rather than resolving it to nothing", () => {
-        // A session with no query engine that answered "0 nodes matched" would be indistinguishable
-        // from a predicate that genuinely matched nothing, and no consumer can tell those apart
-        // after the fact.
+    it("resolves a predicate, and refuses one that does not parse rather than matching nothing", async () => {
+        // A malformed predicate answering "0 nodes matched" would be indistinguishable from a
+        // predicate that genuinely matched nothing. (`host` in backticks is a JSON literal, and
+        // a bare word is not JSON.)
         const harness = harnessOf();
 
-        assert.strictEqual(codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })), "E_UNSUPPORTED");
+        assert.strictEqual((await harness.session.scope.count({ where: "data.type == 'host'" })).nodes, 3);
+        assert.strictEqual(codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })), "E_BAD_SELECTOR");
         harness.session.dispose();
     });
 });

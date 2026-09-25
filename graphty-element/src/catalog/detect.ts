@@ -54,7 +54,7 @@ export interface DetectionInput {
 /**
  * The element's own content sniffers, in the order they are asked.
  *
- * CSV IS LAST because its pattern -- a word, a comma, a word -- matches the first line of a great
+ * CSV IS LAST because its pattern -- a word, a separator (comma, tab, semicolon or pipe), a word -- matches the first line of a great
  * many files that are not CSV. Ordering is the whole of the policy here; each individual test is
  * as narrow as the format allows.
  */
@@ -85,7 +85,7 @@ const BUILT_IN_DETECTORS: readonly { id: FormatId; detect: (sample: string) => b
     { id: "gml", detect: (sample) => !isXmlDocument(sample) && /graph\s*\[/i.test(sample) },
     { id: "pajek", detect: (sample) => /^\*vertices/i.test(sample) },
     { id: "dot", detect: (sample) => /^\s*(strict\s+)?(di)?graph\s+/i.test(sample) },
-    { id: "csv", detect: (sample) => !isXmlDocument(sample) && /^[\w-]+\s*,\s*[\w-]+/m.test(sample) },
+    { id: "csv", detect: (sample) => !isXmlDocument(sample) && /^[\w-]+[ \t]*[,\t;|][ \t]*[\w-]+/m.test(sample) },
 ];
 
 /**

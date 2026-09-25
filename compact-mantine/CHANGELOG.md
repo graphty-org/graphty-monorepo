@@ -1,3 +1,17 @@
+## 0.8.6 (2026-09-25)
+
+### 🩹 Fixes
+
+- **graphty:** overlays close pop-outs, layer drags move one layer, runs keep their layers ([#184](https://github.com/graphty-org/graphty-monorepo/issues/184), [#164](https://github.com/graphty-org/graphty-monorepo/issues/164), [#163](https://github.com/graphty-org/graphty-monorepo/issues/163), [#6](https://github.com/graphty-org/graphty-monorepo/issues/6), [#4](https://github.com/graphty-org/graphty-monorepo/issues/4))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.5 (2026-09-24)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.8.4 (2026-09-24)
 
 ### 🩹 Fixes

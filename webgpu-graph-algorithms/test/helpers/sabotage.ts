@@ -1034,10 +1034,13 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: ADVANCE_TEST,
         },
         {
-            // the aggregate is reserved once per LANE: the queue interleaves and the three counters explode
+            // the aggregate is reserved once per LANE: edgeCount is WG times the oracle's and the queue is left with
+            // holes. The store into var<workgroup> base stays under lid.x == 0u, as in the normative body: FXC
+            // (the D3D12 leg of hosts.yml compiles through it) rejects an unconditional groupshared store from
+            // every lane as a race (X3695), so a mutant that dropped the guard never built a pipeline there
             name: "per-lane-reservation",
             find: "if (lid.x == 0u) {\n        base = atomicAdd(&counters[8], aggregate);",
-            replace: "{\n        base = atomicAdd(&counters[8], aggregate);",
+            replace: "let mine = atomicAdd(&counters[8], aggregate);\n    if (lid.x == 0u) {\n        base = mine;",
             minFactor: 10,
             test: ADVANCE_TEST,
         },

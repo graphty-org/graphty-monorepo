@@ -289,8 +289,14 @@ interface StorySetup {
     startingCameraDistance?: number;
     /** Algorithms to run once the data has loaded: names, or `{ algorithm, style, ... }` entries. */
     algorithms?: readonly AlgorithmOnLoad[];
-    /** How many layout steps to run before the first frame is drawn. */
+    /** How many layout steps to run before the first frame is drawn, under Chromatic. */
     preSteps?: number;
+    /**
+     * How many iterations a simulation layout computes per frame while it animates, for a story
+     * whose iteration budget would take longer to watch than a reader -- or the Storybook test
+     * project's wait for a final frame -- should spend on it. The settled picture is the same.
+     */
+    stepMultiplier?: number;
 }
 
 /**
@@ -302,16 +308,31 @@ interface StorySetup {
 export type StoryArgs = Graphty & { setup: StorySetup };
 
 /**
+ * How many layout steps to run before the first frame, given what a story asks for under Chromatic.
+ *
+ * PRE-STEPS ARE FOR CHROMATIC ONLY. They are what makes a snapshot the same picture twice: a
+ * physics layout that has not been stepped is a graph in mid-flight, and how far it has flown
+ * depends on when the screenshot was taken. A reader in Storybook, and the Storybook test project,
+ * get zero instead, so the layout animates and settles in front of them -- the play functions wait
+ * for that settled frame with {@link waitForGraphSettled}.
+ * @param chromaticSteps - The steps this story runs under Chromatic.
+ * @returns The steps to run here.
+ */
+function preStepsHere(chromaticSteps: number): number {
+    return isChromatic() ? chromaticSteps : 0;
+}
+
+/**
  * Fill in the defaults every story shares.
  *
- * The only one is the layout pre-step count, which is what makes a Chromatic snapshot the same
- * picture twice: a physics layout that has not been stepped is a graph in mid-flight, and how far
- * it has flown depends on when the screenshot was taken.
+ * The only one is the layout pre-step count. A story's `preSteps` is its Chromatic count, 2000
+ * when it names none; everywhere else it is zero, so the layout animates (see
+ * {@link preStepsHere}).
  * @param opts - What this story wants.
  * @returns The setup to hand the element.
  */
 export function storySetup(opts: StorySetup = {}): StorySetup {
-    return { preSteps: isChromatic() ? 2000 : 0, ...opts };
+    return { ...opts, preSteps: preStepsHere(opts.preSteps ?? 2000) };
 }
 
 /**
@@ -377,15 +398,16 @@ function writeChannelControl(setup: StorySetup, name: string, value: unknown): b
 }
 
 /**
- * How many layout steps to run before the first frame is drawn.
+ * How many layout steps to run before the first frame is drawn, under Chromatic.
  *
  * Stories with a render function of their own call this, because they build the element
- * themselves and so do not pass through {@link applyConfiguration}.
+ * themselves and so do not pass through {@link applyConfiguration}. Outside Chromatic it sets
+ * zero, so the layout animates (see {@link preStepsHere}).
  * @param element - The element to configure.
- * @param preSteps - How many steps to run before the first frame.
+ * @param preSteps - How many steps to run before the first frame under Chromatic.
  */
 export function setLayoutPreSteps(element: Graphty, preSteps: number): void {
-    element.layoutBehavior = { layout: { preSteps } };
+    element.layoutBehavior = { layout: { preSteps: preStepsHere(preSteps) } };
 }
 
 /**
@@ -452,8 +474,14 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
         element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    if (setup.preSteps !== undefined) {
-        element.layoutBehavior = { layout: { preSteps: setup.preSteps } };
+    if (setup.preSteps !== undefined || setup.stepMultiplier !== undefined) {
+        const { preSteps, stepMultiplier } = setup;
+        element.layoutBehavior = {
+            layout: {
+                ...(preSteps === undefined ? {} : { preSteps }),
+                ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
+            },
+        };
     }
 
     if (setup.algorithms !== undefined) {

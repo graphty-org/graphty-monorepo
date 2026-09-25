@@ -19,7 +19,7 @@ import type { LayerSpec } from "../src/catalog/types";
 // load-bearing even though only the type is named.
 import { type Graphty } from "../src/graphty-element";
 import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
-import { eventWaitingDecorator, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Four cities, each with something worth saying about it. */
 const NODES = [
@@ -67,7 +67,7 @@ function render(args: TooltipArgs): Element {
     const element = document.createElement("graphty-element") as Graphty;
 
     element.startingCameraDistance = 20;
-    element.layoutBehavior = { layout: { preSteps: 2000 } };
+    setLayoutPreSteps(element, 2000);
 
     for (const layer of args.layers ?? []) {
         void element.session.styles.add(layer);

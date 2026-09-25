@@ -15,8 +15,10 @@
  * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts,
  * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts, P8-T6 the three bfs-contract and four
  * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
- * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too ("P8" is listed by
- * P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
+ * sssp-relax rows and three f32-mode sssp-pred rows measured by test/sabotage/sssp.test.ts, P8-T10 the three bf-relax
+ * rows measured by test/sabotage/bellman-ford.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its
+ * rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -57,6 +59,7 @@ const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
 const SSSP_TEST = "test/algorithms/sssp.test.ts";
+const BF_TEST = "test/algorithms/bellman-ford.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1291,6 +1294,34 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "if (false) {\n                let q = atomicAdd(&counters[1], 1u);",
             minFactor: 10,
             test: SSSP_TEST,
+        },
+    ]),
+    "bf-relax": Object.freeze([
+        {
+            // the compare-exchange result is ignored: a lane whose exchange failed gives up as if it had changed
+            // something; the next round repairs the lost update, so dist never misses -- the witness is the retry
+            // bound, which the real kernel's losing lanes exhaust under maxRetries 1 and this mutant never reaches
+            name: "exchange-result-ignored",
+            find: "if (r.exchanged) { atomicStore(&flags[0], 1u); break; }",
+            replace: "{ atomicStore(&flags[0], 1u); break; }",
+            minFactor: 10,
+            test: BF_TEST,
+        },
+        {
+            // relaxes only when NOT improving: everything but the source stays +Inf (dist miss everywhere)
+            name: "improvement-test-inverted",
+            find: "if (!(nd < bitcast<f32>(cur))) { break; }",
+            replace: "if (nd < bitcast<f32>(cur)) { break; }",
+            minFactor: 10,
+            test: BF_TEST,
+        },
+        {
+            // the reverse direction of an undirected edge is never relaxed (dist miss on every undirected fixture)
+            name: "reverse-direction-dropped",
+            find: "if (UNDIRECTED) {",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: BF_TEST,
         },
     ]),
 });

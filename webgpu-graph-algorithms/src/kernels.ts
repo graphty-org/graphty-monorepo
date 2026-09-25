@@ -11,8 +11,8 @@
  * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
- * bfs-bitset-build and bfs-unvisited-flags. This file is the only importer of src/wgsl/** (spec 3.2;
- * test/layers.test.ts).
+ * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
+ * blocks. This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -22,6 +22,7 @@ import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kern
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
+import { bfRelaxWgsl } from "./wgsl/bf-relax.wgsl.js";
 import { bfsBitsetBuildWgsl } from "./wgsl/bfs-bitset-build.wgsl.js";
 import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
 import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
@@ -107,7 +108,8 @@ export type KernelId =
     | "bfs-bottom-up"
     | "bfs-bitset-build"
     | "bfs-unvisited-flags"
-    | "sssp-relax";
+    | "sssp-relax"
+    | "bf-relax";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -443,6 +445,26 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["iteration", "u32"],
     ["pad1", "u32"],
 ]);
+
+/** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
+export const BF_PARAMS: UniformBlock = UniformBlock.define("BfParams", [
+    ["edgeCount", "u32"],
+    ["stride", "u32"],
+    ["maxRetries", "u32"],
+    ["cutoffBits", "u32"],
+]);
+
+/** `BfFlags` (storage, 16 B; P8-T10): the two words `bf-relax` raises and the host reads back after every batch of rounds -- `changed` @0 (some exchange succeeded), `retryExhausted` @4 (some lane hit `maxRetries`, PD-12), `pad0` @8, `pad1` @12. Bound by the kernel as `array<atomic<u32>>`; the block is the host's decoder. */
+export const BF_FLAGS: UniformBlock = UniformBlock.define(
+    "BfFlags",
+    [
+        ["changed", "u32"],
+        ["retryExhausted", "u32"],
+        ["pad0", "u32"],
+        ["pad1", "u32"],
+    ],
+    { layout: "storage" },
+);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
 
@@ -1253,6 +1275,27 @@ const SSSP_RELAX: KernelEntry = {
     phase: "P8",
 };
 
+/** `bf-relax` (design 8.4 "Bellman-Ford"; P8-T10, PD-12 / DEP-P8-E): one edge-parallel relaxation round over the `edgeList` view with a bounded compare-exchange on the f32 bit patterns of `dist` (negative distances reverse the bit-pattern order, so no `atomicMin`); `UNDIRECTED` relaxes the other direction of every edge too; 6 storage bindings (`edgeSrc`, `edgeDst`, `edgeToArc` -- the core's segment, or an iota scratch on a directed identity snapshot --, the run's arc-indexed `weights`, `dist` and the `BfFlags` block as `array<atomic<u32>>`); no graph group. */
+const BF_RELAX: KernelEntry = {
+    id: "bf-relax",
+    body: bfRelaxWgsl,
+    entryPoint: "bf_relax",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "edgeToArc", "storage-ro", "array<u32>"),
+        decl(1, 3, "weights", "storage-ro", "array<f32>"),
+        decl(1, 4, "dist", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "flags", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "BfParams"),
+    ],
+    overrideDecls: [{ name: "UNDIRECTED", type: "bool", default: false }],
+    uniforms: [BF_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1261,8 +1304,8 @@ const SSSP_RELAX: KernelEntry = {
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
- * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"` and P8-T9
- * `"sssp-relax"`, so every member of `KernelId` is present and the assertion is exact.
+ * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
+ * `"sssp-relax"` and P8-T10 `"bf-relax"`, so every member of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1307,6 +1350,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-bitset-build": BFS_BITSET_BUILD,
     "bfs-unvisited-flags": BFS_UNVISITED_FLAGS,
     "sssp-relax": SSSP_RELAX,
+    "bf-relax": BF_RELAX,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

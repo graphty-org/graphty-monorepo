@@ -44,6 +44,11 @@
  * is recorded again without the roots pass; a reached node the key never reached is a kernel bug (E_VALIDATION),
  * never a result. The tuning entry `ssspWithTuning` (PD-26's shape) is what the tests drive; nothing public
  * exposes it.
+ *
+ * The host-side helpers of the two routings (`resolveWeights`, `normaliseCutoff`, `checkDest`, `assertSource`,
+ * `unitWeightRoute`) and the predecessor pass (`predecessorPass`, both PD-27 keys) are shared with
+ * `bellman-ford.ts` (P8-T10), which is the same seam type over the same `SsspOptions`; they take the algorithm's
+ * name for their messages and are `@internal`.
  */
 
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
@@ -53,6 +58,7 @@ import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
+import { type Kernel } from "../kernel/kernel.js";
 import { type UniformValues } from "../kernel/struct-block.js";
 import {
     FILL_PARAMS,
@@ -71,7 +77,7 @@ import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
 import { type GpuSsspResult } from "../types/traversal.js";
 import { bfsWithTuning } from "./bfs.js";
-import { algorithmScope } from "./scope.js";
+import { type AlgorithmScope, algorithmScope } from "./scope.js";
 
 const ALGORITHM = "sssp";
 
@@ -101,8 +107,11 @@ export interface SsspTuning {
     readonly onRound?: ((round: number, counters: UniformValues) => void) | undefined;
 }
 
-/** The weight vector a run uses and what the host scan found in it. */
-interface WeightVector {
+/**
+ * The weight vector a run uses and what the host scan found in it.
+ * @internal
+ */
+export interface WeightVector {
     /** The per-arc weights (the snapshot's column, or the override narrowed to f32). */
     readonly values: F32;
     /** Null when the snapshot's own column is used (the core's binding serves); else the override to upload. */
@@ -116,34 +125,55 @@ interface WeightVector {
 
 /**
  * The f32 bit pattern of a number (the form the counters block and `FrontierParams` carry).
+ * @internal
  * @param value - the number (rounded to f32 first)
  * @returns the pattern
  */
-function bitsOf(value: number): number {
+export function bitsOf(value: number): number {
     return new Uint32Array(Float32Array.of(value).buffer)[0];
 }
 
 /**
  * Whole-buffer binding of a scratch buffer over its first `size` bytes.
+ * @internal
  * @param buffer - the buffer
  * @param size - the bound byte length
  * @returns the binding
  */
-function bindingOf(buffer: GPUBuffer, size: number): Binding {
+export function bindingOf(buffer: GPUBuffer, size: number): Binding {
     return { buffer, offset: 0, size, window: null };
 }
 
 /**
  * The E_ABORTED error of a signal.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
  * @param batchId - the last submitted batch, when one exists
  * @returns the error
  */
-function aborted(batchId?: number): WebGpuGraphError {
+export function aborted(algorithm: string, batchId?: number): WebGpuGraphError {
     return new WebGpuGraphError(
         "E_ABORTED",
-        `${ALGORITHM}: the signal was aborted`,
+        `${algorithm}: the signal was aborted`,
         batchId === undefined ? {} : { batchId },
     );
+}
+
+/**
+ * E_INVALID_ARGUMENT unless `source` is an integer in `[0, n)`.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
+ * @param source - the caller's source node index
+ * @param n - the node count
+ */
+export function assertSource(algorithm: string, source: number, n: number): void {
+    if (!Number.isInteger(source) || source < 0 || source >= n) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: source ${source} is outside [0, ${n})`, {
+            argument: "source",
+            value: source,
+            expected: `an integer in [0, ${n})`,
+        });
+    }
 }
 
 /**
@@ -165,11 +195,13 @@ function wordOf(block: UniformValues, name: string): number {
 
 /**
  * Validates `options.dest` for a distance result of `n` elements.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
  * @param dest - the caller's destination array, if any
  * @param n - the node count
  * @returns the destination as an F32, or null when none was given
  */
-function checkDest(dest: Float32Array | Uint32Array | undefined, n: number): F32 | null {
+export function checkDest(algorithm: string, dest: Float32Array | Uint32Array | undefined, n: number): F32 | null {
     if (dest === undefined) {
         return null;
     }
@@ -178,7 +210,7 @@ function checkDest(dest: Float32Array | Uint32Array | undefined, n: number): F32
     }
     throw new WebGpuGraphError(
         "E_INVALID_ARGUMENT",
-        `${ALGORITHM}: dest must be a Float32Array of length ${n} over an ArrayBuffer`,
+        `${algorithm}: dest must be a Float32Array of length ${n} over an ArrayBuffer`,
         {
             argument: "dest",
             value: `${dest.constructor.name}(${dest.length})`,
@@ -191,15 +223,17 @@ function checkDest(dest: Float32Array | Uint32Array | undefined, n: number): F32
  * The CPU port's `cutoff` before any device work: absent is no cap; `NaN` is refused (PD-19: `dv <= NaN` relaxes
  * nothing on the CPU while the kernel's `nd > NaN` guard would relax everything, a silently inverted option);
  * anything else is a finite or infinite number.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
  * @param cutoff - the caller's option
  * @returns the cap
  */
-function normaliseCutoff(cutoff: number | undefined): number {
+export function normaliseCutoff(algorithm: string, cutoff: number | undefined): number {
     if (cutoff === undefined) {
         return Infinity;
     }
     if (Number.isNaN(cutoff)) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: cutoff must not be NaN`, {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: cutoff must not be NaN`, {
             argument: "cutoff",
             value: cutoff,
             expected: "a number (the CPU port and the kernel would disagree on NaN)",
@@ -211,11 +245,17 @@ function normaliseCutoff(cutoff: number | undefined): number {
 /**
  * The weight vector of the run (PD-22): the override, validated and narrowed, else the snapshot's column, else
  * null; scanned once on the host for the routing flags and the sum.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
  * @param s - the snapshot
  * @param weights - the caller's override, if any
  * @returns the vector and its flags, or null when the run has no weights at all
  */
-function resolveWeights(s: GraphSnapshot, weights: NumericVector | undefined): WeightVector | null {
+export function resolveWeights(
+    algorithm: string,
+    s: GraphSnapshot,
+    weights: NumericVector | undefined,
+): WeightVector | null {
     if (weights === undefined) {
         if (s.weights === null) {
             return null;
@@ -236,7 +276,7 @@ function resolveWeights(s: GraphSnapshot, weights: NumericVector | undefined): W
     if (weights.length !== s.arcCount) {
         throw new WebGpuGraphError(
             "E_INVALID_ARGUMENT",
-            `${ALGORITHM}: weights has ${weights.length} entries, the snapshot ${s.arcCount} arcs`,
+            `${algorithm}: weights has ${weights.length} entries, the snapshot ${s.arcCount} arcs`,
             { argument: "weights", value: weights.length, expected: s.arcCount },
         );
     }
@@ -265,6 +305,7 @@ function resolveWeights(s: GraphSnapshot, weights: NumericVector | undefined): W
  * The unit-weight route (PD-22): the BFS with `cutoff` as a depth cap (`dv <= cutoff` on unit weights is
  * `depth <= floor(cutoff)`; no cap or `+Infinity` is no cap, a negative cutoff the source alone), its `parent` in
  * arc form, its depths as f32 distances.
+ * @internal
  * @param ctx - the context
  * @param s - the snapshot
  * @param source - the source node index
@@ -273,7 +314,7 @@ function resolveWeights(s: GraphSnapshot, weights: NumericVector | undefined): W
  * @param options - the run options
  * @returns the result
  */
-async function unitWeightRoute(
+export async function unitWeightRoute(
     ctx: GpuContext,
     s: GraphSnapshot,
     source: number,
@@ -298,6 +339,134 @@ async function unitWeightRoute(
 }
 
 /**
+ * The words of PD-27's `pred` buffer for `n` nodes: the arcs at 0, the hop counts at `hb = roundUp(n, 64)`, the
+ * changed word at `2 hb` and the orphan word after it, in a 64-word tail.
+ * @internal
+ * @param n - the node count
+ * @returns the word count (`2 x hb + 64`)
+ */
+export function predBufferWords(n: number): number {
+    return 2 * Math.ceil(n / 64) * 64 + 64;
+}
+
+/**
+ * What the predecessor pass needs from its driver.
+ * @internal
+ */
+export interface PredecessorPassInput {
+    /** The algorithm's name (the batch labels and the E_VALIDATION label). */
+    readonly algorithm: string;
+    readonly ctx: GpuContext;
+    readonly scope: AlgorithmScope;
+    /** `sssp-pred` compiled in `MODE 0` with the run's graph overrides. */
+    readonly predKernel: Kernel;
+    /** Records one `fill` of `count` words of `dst` with `value` (the driver's own closure over its `fill` kernel). */
+    readonly recordFill: (pass: GPUComputePassEncoder, dst: Binding, count: number, value: number) => void;
+    /** The graph group with the run's weights in the weights slot. */
+    readonly graph: Readonly<Record<"rowPtr" | "colIdx" | "weights" | "perm", Binding>>;
+    /** The settled distances (f32 bit patterns, `F32_INF_BITS` unreached). */
+    readonly dist: Binding;
+    /** The `predBufferWords(n)`-word pred buffer, every word `INVALID_INDEX` (the driver's setup fill). */
+    readonly pred: Binding;
+    readonly n: number;
+    readonly arcCount: number;
+    readonly source: number;
+    /** PD-27's key: 0 the plateau rule (`sssp`; a roots pass first), 1 the tight-subgraph rule (`bellmanFord`; the source is the only root). */
+    readonly mode: 0 | 1;
+}
+
+/**
+ * What the predecessor pass read back, in one batch with the arcs.
+ * @internal
+ */
+export interface PredecessorPassOutput {
+    /** The settled distances (the dist buffer), a view of the batch's copy. */
+    readonly dist: Float32Array;
+    /** `pred[0, n)`: the arcs. */
+    readonly predArc: U32;
+    /** The orphan word: reached non-source nodes the key never reached. */
+    readonly orphans: number;
+}
+
+/**
+ * The predecessor pass (PD-11, PD-27): the source is the one seeded root and the two flag words are zeroed by
+ * `queue.writeBuffer`; then ONE batch of the roots pass (the plateau rule only), `MAX_LEVELS_PER_SUBMIT` hop passes
+ * with `P.iteration` counting inside the batch, the arcs re-filled with `INVALID_INDEX` and the predecessor pass,
+ * with the readbacks of `dist`, `pred[0, n)` and the two flag words; recorded again without the roots pass while the
+ * last hop pass still changed something (a plateau, or a tight subgraph, `k` hops deep needs `ceil((k + 1) / 32)`
+ * batches). More than `ceil((n + 1) / MAX_LEVELS_PER_SUBMIT) + 1` batches is E_VALIDATION, because a hop count is at
+ * most `n`. The orphan word is returned, not judged: `sssp` treats it as a kernel bug and `bellmanFord` as the rounded
+ * cycle PD-27 names.
+ * @internal
+ * @param input - the driver's buffers, kernels and key rule
+ * @returns the distances, the arcs and the orphan count
+ */
+export async function predecessorPass(input: PredecessorPassInput): Promise<PredecessorPassOutput> {
+    const { algorithm, ctx, scope, predKernel, recordFill, graph, dist, pred, n, arcCount, source, mode } = input;
+    const wg = ctx.workgroupSize;
+    const { queue } = ctx.device;
+    const bytes = 4 * n;
+    const hb = Math.ceil(n / 64) * 64;
+    const predArcs: Binding = { buffer: pred.buffer, offset: pred.offset, size: bytes, window: null };
+    queue.writeBuffer(pred.buffer, pred.offset + 4 * (hb + source), Uint32Array.of(0));
+    queue.writeBuffer(pred.buffer, pred.offset + 4 * 2 * hb, new Uint32Array(2));
+    const predPlan = planGridStride(n, wg, ctx.caps);
+    const predFields = {
+        wg,
+        n,
+        arcBase: 0,
+        arcEnd: arcCount,
+        predKind: 0,
+        source,
+        stride: predPlan.stride ?? n,
+        mode,
+    };
+    const maxBatches = Math.ceil((n + 1) / MAX_LEVELS_PER_SUBMIT) + 1;
+    let batches = 0;
+    for (;;) {
+        const batch = new CommandBatch(ctx, `${algorithm}/pred`);
+        const pass = batch.pass("pred");
+        const recordRole = (role: number, iteration: number): void => {
+            const params = scope.params(FRONTIER_PARAMS, { ...predFields, role, iteration });
+            const bound = predKernel.bind({ ...graph, dist, pred, P: params.binding });
+            predKernel.dispatch(pass, bound, predPlan, [params.offset]);
+        };
+        if (batches === 0 && mode === 0) {
+            recordRole(0, 0);
+        }
+        for (let iteration = 0; iteration < MAX_LEVELS_PER_SUBMIT; iteration++) {
+            recordRole(1, iteration);
+        }
+        recordFill(pass, predArcs, n, INVALID_INDEX);
+        recordRole(2, 0);
+        batch.endPass();
+        const distRequest = batch.readback(dist.buffer, dist.offset, bytes);
+        const predRequest = batch.readback(pred.buffer, pred.offset, bytes);
+        const flagsRequest = batch.readback(pred.buffer, pred.offset + 4 * 2 * hb, 8);
+        scope.flush();
+        const back = await batch.submit().readback;
+        ctx.assertReady();
+        batches += 1;
+        const [changed, orphans] = new Uint32Array(back, flagsRequest.offset, 2);
+        if (changed < MAX_LEVELS_PER_SUBMIT) {
+            return {
+                dist: new Float32Array(back, distRequest.offset, n),
+                predArc: new Uint32Array(back, predRequest.offset, n).slice(),
+                orphans,
+            };
+        }
+        if (batches > maxBatches) {
+            throw new WebGpuGraphError(
+                "E_VALIDATION",
+                `${algorithm}: the hop passes still changed something after ${batches} batches (a hop count is at most ${n})`,
+                { label: `${algorithm}/pred`, message: `the hop passes did not converge in ${batches} batches` },
+            );
+        }
+        queue.writeBuffer(pred.buffer, pred.offset + 4 * 2 * hb, new Uint32Array(2));
+    }
+}
+
+/**
  * Single-source shortest paths with the test knobs of PD-26's shape; `sssp` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
@@ -317,13 +486,7 @@ export async function ssspWithTuning(
     ctx.assertReady();
     await assertDeviceComputes(ctx);
     const n = s.nodeCount;
-    if (!Number.isInteger(source) || source < 0 || source >= n) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: source ${source} is outside [0, ${n})`, {
-            argument: "source",
-            value: source,
-            expected: `an integer in [0, ${n})`,
-        });
-    }
+    assertSource(ALGORITHM, source, n);
     const roundsPerSubmit = tuning.roundsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
     if (!Number.isInteger(roundsPerSubmit) || roundsPerSubmit < 1 || roundsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
         throw new WebGpuGraphError(
@@ -343,11 +506,11 @@ export async function ssspWithTuning(
             expected: "a finite positive number",
         });
     }
-    const dest = checkDest(options?.dest, n);
-    const vector = resolveWeights(s, options?.weights);
-    const cutoff = normaliseCutoff(options?.cutoff);
+    const dest = checkDest(ALGORITHM, options?.dest, n);
+    const vector = resolveWeights(ALGORITHM, s, options?.weights);
+    const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
     if (options?.signal?.aborted) {
-        throw aborted();
+        throw aborted(ALGORITHM);
     }
     if (vector === null || vector.allOne) {
         return unitWeightRoute(ctx, s, source, cutoff, dest, options);
@@ -394,10 +557,8 @@ export async function ssspWithTuning(
         const nearHalf: Binding = { buffer: queueOut.buffer, offset: 0, size: 4 * cap, window: null };
         const farHalf: Binding = { buffer: queueOut.buffer, offset: 4 * cap, size: 4 * cap, window: null };
         // the pred buffer of PD-27: the arcs at 0, the hop counts at hb, the changed word at 2 hb, the orphan word after it
-        const hb = Math.ceil(n / 64) * 64;
-        const predWords = 2 * hb + 64;
+        const predWords = predBufferWords(n);
         const pred = bindingOf(scope.scratch(4 * predWords, "pred"), 4 * predWords);
-        const predArcs: Binding = { buffer: pred.buffer, offset: 0, size: bytes, window: null };
         const { queue } = ctx.device;
         let weightsBinding: Binding | undefined;
         if (vector.override !== null) {
@@ -500,7 +661,7 @@ export async function ssspWithTuning(
             submits += 1;
             ctx.assertReady();
             if (options?.signal?.aborted) {
-                throw aborted(submitted.id);
+                throw aborted(ALGORITHM, submitted.id);
             }
             options?.onProgress?.(Math.min(roundsRecorded, maxRounds), maxRounds);
             if (inspect !== null && tuning.onRound !== undefined) {
@@ -544,81 +705,38 @@ export async function ssspWithTuning(
             }
         }
 
-        // the predecessor pass (PD-11, PD-27): the source is the one seeded root, the flag words zeroed, then the
-        // roots pass, MAX_LEVELS_PER_SUBMIT hop passes, the arcs re-filled and the predecessor pass in ONE batch,
-        // recorded again without the roots pass while the last hop pass still changed something
-        queue.writeBuffer(pred.buffer, pred.offset + 4 * (hb + source), Uint32Array.of(0));
-        queue.writeBuffer(pred.buffer, pred.offset + 4 * 2 * hb, new Uint32Array(2));
-        const predPlan = planGridStride(n, wg, ctx.caps);
-        const predFields = {
-            wg,
+        // the predecessor pass (PD-11, PD-27) under the plateau rule
+        const passed = await predecessorPass({
+            algorithm: ALGORITHM,
+            ctx,
+            scope,
+            predKernel,
+            recordFill,
+            graph,
+            dist,
+            pred,
             n,
-            arcBase: 0,
-            arcEnd: arcCount,
-            predKind: 0,
+            arcCount,
             source,
-            stride: predPlan.stride ?? n,
             mode: 0,
-        };
-        const maxBatches = Math.ceil((n + 1) / MAX_LEVELS_PER_SUBMIT) + 1;
-        let batches = 0;
-        let back: ArrayBuffer;
-        let distRequest;
-        let predRequest;
-        for (;;) {
-            const batch = new CommandBatch(ctx, `${ALGORITHM}/pred`);
-            const pass = batch.pass("pred");
-            const recordRole = (role: number, iteration: number): void => {
-                const params = scope.params(FRONTIER_PARAMS, { ...predFields, role, iteration });
-                const bound = predKernel.bind({ ...graph, dist, pred, P: params.binding });
-                predKernel.dispatch(pass, bound, predPlan, [params.offset]);
-            };
-            if (batches === 0) {
-                recordRole(0, 0);
-            }
-            for (let iteration = 0; iteration < MAX_LEVELS_PER_SUBMIT; iteration++) {
-                recordRole(1, iteration);
-            }
-            recordFill(pass, predArcs, n, INVALID_INDEX);
-            recordRole(2, 0);
-            batch.endPass();
-            distRequest = batch.readback(dist.buffer, dist.offset, bytes);
-            predRequest = batch.readback(pred.buffer, pred.offset, bytes);
-            const flagsRequest = batch.readback(pred.buffer, pred.offset + 4 * 2 * hb, 8);
-            back = await submit(batch).readback;
-            ctx.assertReady();
-            batches += 1;
-            const [changed, orphans] = new Uint32Array(back, flagsRequest.offset, 2);
-            if (changed < MAX_LEVELS_PER_SUBMIT) {
-                if (orphans !== 0) {
-                    // (2) of PD-27: every reached non-source node has an admitted in-arc under non-negative weights
-                    throw new WebGpuGraphError(
-                        "E_VALIDATION",
-                        `${ALGORITHM}: ${orphans} reached node(s) the predecessor key never reached (a kernel bug)`,
-                        { label: `${ALGORITHM}/pred`, message: `${orphans} orphan(s) in the predecessor pass` },
-                    );
-                }
-                break;
-            }
-            if (batches > maxBatches) {
-                throw new WebGpuGraphError(
-                    "E_VALIDATION",
-                    `${ALGORITHM}: the hop passes still changed something after ${batches} batches (a hop count is at most ${n})`,
-                    { label: `${ALGORITHM}/pred`, message: `the hop passes did not converge in ${batches} batches` },
-                );
-            }
-            queue.writeBuffer(pred.buffer, pred.offset + 4 * 2 * hb, new Uint32Array(2));
+        });
+        if (passed.orphans !== 0) {
+            // (2) of PD-27: every reached non-source node has an admitted in-arc under non-negative weights
+            throw new WebGpuGraphError(
+                "E_VALIDATION",
+                `${ALGORITHM}: ${passed.orphans} reached node(s) the predecessor key never reached (a kernel bug)`,
+                { label: `${ALGORITHM}/pred`, message: `${passed.orphans} orphan(s) in the predecessor pass` },
+            );
         }
         const distOut = dest ?? new Float32Array(n);
-        distOut.set(new Float32Array(back, distRequest.offset, n));
+        distOut.set(passed.dist);
         let reachedCount = 0;
         for (const d of distOut) {
             if (d !== Infinity) {
                 reachedCount += 1;
             }
         }
-        const predArc: U32 = new Uint32Array(back, predRequest.offset, n).slice();
-        return { dist: distOut, predArc, reachedCount };
+        return { dist: distOut, predArc: passed.predArc, reachedCount };
     } finally {
         scope.dispose();
     }

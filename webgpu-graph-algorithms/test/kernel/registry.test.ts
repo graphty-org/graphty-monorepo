@@ -15,6 +15,7 @@ import { PRELUDE_WGSL } from "../../src/kernel/prelude.js";
 import { type UniformBlock } from "../../src/kernel/struct-block.js";
 import { composeWgsl, entryPointOf, STANDARD_OVERRIDES } from "../../src/kernel/wgsl.js";
 import {
+    BF_PARAMS,
     COMPACT_PARAMS,
     FA2_PARAMS,
     FA2_PARTIAL,
@@ -747,6 +748,24 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P8",
         storageCount: 8,
+    },
+    "bf-relax": {
+        entryPoint: "bf_relax",
+        bindings: [
+            [1, 0, "edgeSrc", "storage-ro", "array<u32>"],
+            [1, 1, "edgeDst", "storage-ro", "array<u32>"],
+            [1, 2, "edgeToArc", "storage-ro", "array<u32>"],
+            [1, 3, "weights", "storage-ro", "array<f32>"],
+            [1, 4, "dist", "storage", "array<atomic<u32>>"],
+            [1, 5, "flags", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "BfParams"],
+        ],
+        overrideDecls: [["UNDIRECTED", "bool", false]],
+        uniforms: [BF_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 6,
     },
 };
 

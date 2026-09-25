@@ -144,6 +144,19 @@ const FRONTIER_COUNTERS_FIELDS: readonly UniformField[] = [
     ["thresholdBits", "u32"],
     ["deltaBits", "u32"],
 ];
+/** The four words of the Bellman-Ford params block and the four of its flags block (P8-T10 Step 2). */
+const BF_PARAMS_FIELDS: readonly UniformField[] = [
+    ["edgeCount", "u32"],
+    ["stride", "u32"],
+    ["maxRetries", "u32"],
+    ["cutoffBits", "u32"],
+];
+const BF_FLAGS_FIELDS: readonly UniformField[] = [
+    ["changed", "u32"],
+    ["retryExhausted", "u32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
+];
 /** The twenty fields of the P8 params block (P8-T4 Step 3). */
 const FRONTIER_PARAMS_FIELDS: readonly UniformField[] = [
     ["role", "u32"],
@@ -539,5 +552,18 @@ describe("the generated blocks of 3.10.2", () => {
         });
         expect(params.offsetOf("firstOfSubmit")).toBe(68);
         expect(params.wgsl).not.toContain("@size");
+    });
+
+    it("BfParams (16 B: edgeCount @0, stride @4, maxRetries @8, cutoffBits @12) and BfFlags (storage, 16 B: changed @0, retryExhausted @4), P8-T10", () => {
+        const params = UniformBlock.define("BfParams", BF_PARAMS_FIELDS);
+        expect(params.layout).toBe("uniform");
+        expect(params.byteLength).toBe(16);
+        expect(offsets(params)).toEqual({ edgeCount: 0, stride: 4, maxRetries: 8, cutoffBits: 12 });
+        expect(params.wgsl).not.toContain("@size");
+        const flags = UniformBlock.define("BfFlags", BF_FLAGS_FIELDS, { layout: "storage" });
+        expect(flags.layout).toBe("storage");
+        expect(flags.byteLength).toBe(16);
+        expect(offsets(flags)).toEqual({ changed: 0, retryExhausted: 4, pad0: 8, pad1: 12 });
+        expect(flags.wgsl).not.toContain("@size");
     });
 });

@@ -1030,7 +1030,7 @@ graph-io source: `formats/neo4j/header.ts` and `importer.ts`.
 | `vector{...}` (a quoted header cell) | ? | Parse it as a list of f32 / f64. Test it. |
 | boolean: only exactly `true` is true in Neo4j | Accepts true / false / 1 / 0 in any case; anything else is a parse failure that **skips the whole row** | Accept the same set, but a value outside it should warn and leave the cell unset, not drop the row. |
 | int / long beyond 2^53 | f64 plus `PRECISION`, or `long:"string"` | Keep it. |
-| **`:START_ID(space)` / `:END_ID(space)`** | **Parsed, but the space is silently ignored**; endpoints resolve by id alone. The same id in two spaces is `ID_SPACE_COLLISION` and the **row is skipped**. | Qualify ids by space (e.g. `space:id`), or keep a per-space map. A file using `Person(1)` and `Movie(1)` is common and must work. |
+| **`:START_ID(space)` / `:END_ID(space)`** | Supported: a node of a space is stored as `space:id` (id text in `originalId`, space in `idSpace`) and endpoints resolve inside their space. | Qualify ids by space (e.g. `space:id`), or keep a per-space map. A file using `Person(1)` and `Movie(1)` is common and must work. |
 | Several `:ID` columns (composite key) | ? | Concatenate them as Neo4j does. Test it. |
 | `:LABEL` split by the array delimiter; `{label:X}` on `:ID`; `:IGNORE`; `:TYPE` | Supported | Keep it. |
 | A missing `:TYPE` column (the type comes from the command line) | ? | Add a `relationshipType` option, or error clearly. |

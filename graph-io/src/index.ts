@@ -130,6 +130,7 @@ export {
     type Neo4jExportOptions,
     neo4jImporter,
     type Neo4jImportOptions,
+    ORIGINAL_ID_COLUMN,
     TYPE_COLUMN,
 } from "./formats/neo4j/index.js";
 export {

@@ -44,7 +44,14 @@ import {
 } from "./importer.js";
 
 export { NEO4J_CAPABILITIES, neo4jExporter, type Neo4jExportOptions } from "./exporter.js";
-export { ID_SPACE_COLUMN, LABELS_COLUMN, neo4jImporter, type Neo4jImportOptions, TYPE_COLUMN } from "./importer.js";
+export {
+    ID_SPACE_COLUMN,
+    LABELS_COLUMN,
+    neo4jImporter,
+    type Neo4jImportOptions,
+    ORIGINAL_ID_COLUMN,
+    TYPE_COLUMN,
+} from "./importer.js";
 
 /**
  * The issue codes the Neo4j importer records (design section 8.6), by name: the codes shared with
@@ -74,9 +81,9 @@ export const NEO4J_ISSUE = Object.freeze({
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
     /** A node id repeated in one id space (last write wins). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
-    /** A node id declared in two id spaces. */
+    /** A spaced node id `Space:id` that equals the text of an id declared without a space. */
     ID_SPACE_COLLISION: ID_SPACE_COLLISION_CODE,
-    /** A relationship endpoint whose id belongs to a node of another id space; the row is skipped. */
+    /** A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped. */
     ENDPOINT_SPACE: ENDPOINT_SPACE_CODE,
     /** Two id texts merged into one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,

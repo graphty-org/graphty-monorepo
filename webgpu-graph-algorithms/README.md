@@ -650,7 +650,8 @@ pnpm run bench                                                 # every group; ap
 pnpm exec tsx benchmarks/run.ts upload roundtrip layout-exact  # selected groups; --no-save, --runs N, --allow-software
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end layout driver (exit 1 on a bad result)
 pnpm run gpu:report > gpu-report.json                          # the adapter report with a 10 s nvidia-smi sample
-pnpm run bench:compare                                         # the last out session vs benchmarks/results/<runner-class>.json (> 3x fails)
+pnpm run bench:compare                                         # the last out session vs benchmarks/results/<runner-class>.json (1.35x and 2.5 ms over the pinned best fails)
+pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to a baseline (refuses software / incomplete / duplicate sessions)
 ```
 
 The runner class is `<vendor>-<architecture>-driver<major>` (`scripts/runner-class.js`; `GRAPHTY_RUNNER_CLASS` overrides it,
@@ -667,7 +668,12 @@ SM clock at its idle 210 MHz under sparse sub-millisecond dispatches and the ker
 at 10k and at 100k with `repulsion: "exact"`, the same two rows per model and rung as `layout-exact`, tagged `fr` /
 `se`), `layout-grid` (T-6 and T-7: `step(1)` of the grid tier on the grid ladder 32k / 65k / 100k / 262k / 1M in 2D
 and in 3D, the same two rows per rung tagged `grid` with the dimension, plus the `fa2-attraction` pass of the 1M 2D
-iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check). The Chromium numbers of T-5 (10k on the exact tier, 100k on the grid tier) come from the
+iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check),
+`attraction-scale` (no target: the `fa2-attraction` pass across a working-set ladder, the G4-F16 diagnostic) and `bfs`
+(T-10: `breadthFirstSearch` direction-optimizing and top-down from node 0 of the undirected RMAT tiers 100k / 1M and
+1M / 10M, `sssp` on the same tiers with random weights in [0.1, 10), and `breadthFirstSearch` from a corner of the
+1000 x 1000 grid, all wall end to end including the upload). A baseline session must carry every group:
+`pnpm run bench:append` refuses one that does not. The Chromium numbers of T-5 (10k on the exact tier, 100k on the grid tier) come from the
 `bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node scripts/run-browser-project.js`), which appends its
 session through the Vitest commands bridge. `exactMaxNodes` is re-fixed from the ladder by the rule of plan section 7.8
 (the largest rung under 4 ms per iteration and not slower than the grid tier at the same n -- the `layout-grid` 2D rows,
@@ -699,6 +705,9 @@ Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 
 | T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s           | 17.204 ms; 198.645 ms        |
 | T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms                     | 145.970 ms (12.613 ms)       |
 | T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded                      | 0.617 ms; 16.367 ms          |
+| T-10 | BFS direction-optimizing (`breadthFirstSearch`), wall end to end including the upload, from node 0 of the undirected RMAT at 1M / 10M (577,681 nodes reached, 6 levels; 100k / 1M in brackets; top-down 233.064 ms / 97.259 ms) | <= 100 ms                     | 237.388 ms (101.183 ms) -- MISSED, see below |
+| T-10 | BFS on the 1000 x 1000 grid from a corner (1,999 levels; 64 `mapAsync` calls = ceil(levels / 32) + 1), wall including the upload          | <= 1.5 s                      | 5680.192 ms -- MISSED, see below |
+| T-10 | `sssp` (the near-far queue), wall end to end including the upload, random f32 weights in [0.1, 10), at 1M / 10M (100k / 1M in brackets)  | recorded                      | 310.351 ms (118.064 ms)      |
 
 Three rows miss their target in this session: the 1M / 10M upload (125.7 ms against 100 ms, the open owner decision of
 `docs/decisions/G1.md` section 7), the empty-submit round trip (0.181 ms against 0.1 ms: the row is measured after the
@@ -711,6 +720,17 @@ the T-1 upload it includes, an owner decision for `docs/decisions/G7.md`. The `p
 four iterations, which would time one pull and call it a hundred. The T-14 row is the `layout-fr` group of the later
 session 2026-09-20T19:25:37.311Z (the file's last session, the current baseline), whose other rows are within 1.08x of
 this table's; the spring-electrical preset measures 0.648 ms at 10k and 18.154 ms at 100k in the same session.
+
+The three T-10 rows are the `bfs` group of session 2026-09-25T10:19:11.536Z (the file's last session, the current
+baseline; `webgpu` 0.4.0, driver 580.173.02, load average 1.7-2.1, medians of 5). Both T-10 targets are MISSED on the
+reference card, by 2.4x and 3.8x, and the cost is not in the kernels: a traversal costs about 2.85 ms per LEVEL
+whatever the level's size or the submit cadence (the 200 x 200 grid, 399 levels, at 32, 8 and 1 levels per submit
+alike) plus about 80 ms per CALL (a karate BFS, 34 nodes and 3 levels, takes 90 ms), and with Dawn's `skip_validation`
+toggle the same karate call takes 3.0 ms and the 399-level grid 27 ms. About 97 % of the wall time is Dawn's own
+validation of `dispatchWorkgroupsIndirect`, which the frontier design pays nine times a level; the baseline records
+the default runtime because that is what a consumer gets, and the toggle is unsafe. The decision -- re-fix T-10 to
+the class, fold the per-level indirect dispatches, or dispatch directly where the host already knows a count -- is
+recorded in `docs/decisions/G8.md`.
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 
@@ -754,6 +774,7 @@ Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-20T0
 | T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s           | 45.461 ms; 1092.799 ms                                                                                           |
 | T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms                     | 293.079 ms (28.544 ms)                                                                                           |
 | T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded                      | 0.942 ms; 54.232 ms (the spring preset 1.051 ms; 60.706 ms)                                                      |
+| T-10 | BFS direction-optimizing at 1M / 10M RMAT; the 1000 x 1000 grid; `sssp` at 1M / 10M (the `bfs` group)                                   | recorded (the contract is the dev box's) | not yet recorded: the lane has not run a branch that carries the `bfs` group; the first `gpu.yml` run of it is appended with `pnpm run bench:append` |
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 

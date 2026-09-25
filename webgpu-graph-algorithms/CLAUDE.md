@@ -44,6 +44,7 @@ webgpu-graph-algorithms/
 +-- scripts/gpu-report.js         # adapter report + policy exit code + nvidia-smi sample (imports dist/node.js only)
 +-- scripts/run-browser-project.js   # timeout -k 10 600 around the browser project; exit 124 passes iff the JSON says all tests passed
 +-- scripts/bench-compare.js      # the regression check: a median AND a minimum above 1.35x the PINNED best of benchmarks/results/<runner-class>.json, and above it by at least 2.5 ms
++-- scripts/bench-append-session.js  # `bench:append <out> <results>`: appends the last out session to a baseline; refuses a software session, a session missing any of the nine groups, a duplicate date
 +-- src/
 |   +-- index.ts                  # the ONLY public barrel; explicit named exports; /// <reference types="@webgpu/types" preserve="true" />
 |   +-- errors.ts                 # WebGpuGraphError, WebGpuGraphErrorCode, PASSTHROUGH_FORMAT_CODES, isWebGpuGraphError, hasErrorCode
@@ -71,7 +72,7 @@ webgpu-graph-algorithms/
 |   +-- limits/                   # the node-limits project (GPU lane only): pagerank-1m.test.ts (P7, the T-8 fixture); binding-2gib, windowed-200mb, dispatch-2d-100m, oom-scope, vendor-features and layout-1m .test.ts (P4, the G4 items at scale)
 |   +-- browser/                  # the browser smoke project
 |   +-- types/*.test-d.ts  index.test.ts  build-output.test.ts  layers.test.ts  errors.test.ts
-+-- benchmarks/                   # run.ts (tsx), harness.ts, datasets.ts, upload / roundtrip / layout-exact / pagerank / wcc / layout-fr / layout-grid .bench.ts, layout-run.ts (the end-to-end driver; `--repulsion exact|grid|auto`), results/<runner-class>.json and noise-floor.json (checked in), out/ (gitignored)
++-- benchmarks/                   # run.ts (tsx), harness.ts, datasets.ts, upload / roundtrip / layout-exact / pagerank / wcc / layout-fr / layout-grid / attraction-scale / bfs .bench.ts, layout-run.ts (the end-to-end driver; `--repulsion exact|grid|auto`), results/<runner-class>.json and noise-floor.json (checked in), out/ (gitignored)
 +-- docs/                         # HEADLESS_GPU_REPORT.md, research/, decisions/G<n>.md
 ```
 
@@ -97,6 +98,7 @@ pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader u
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
 pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-class>.json
 pnpm run bench:compare      # the regression check: a median AND a minimum above 1.35x AND 2.5 ms over the pinned best of benchmarks/results/<runner-class>.json
+pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to the baseline (refuses software / incomplete / duplicate sessions)
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end exact-tier layout; exit 1 on a non-finite position or an unfinished run
 pnpm run gpu:report         # node scripts/gpu-report.js (after build:all): adapter report, policy exit code
 pnpm run ready:commit       # build:all, lint, test:node
@@ -121,12 +123,15 @@ that `scripts/gpu-report.js` and `scripts/bench-compare.js` also use, so the fil
 | `wcc`          | `connectedComponents` wall end to end including the upload and the label readback, at 100k / 1M and 1M / 10M                                                                                                                                                                                                                                                                                                                                                                                                                           | T-9 (the 1M / 10M row)                                                                        |
 | `layout-fr`    | one `createFruchtermanReingold` and one `createSpringElectrical` simulation per rung 10k / 100k (E = 10n, 2D, `repulsion: "exact"`), the same warm-up burst and `reheat()` + `step(1)` protocol as `layout-exact`; four rows per rung: `fr` / `se` x `step(1) wall` / `ms/iteration`                                                                                                                                                                                                                                                   | T-14 (the two `fr ms/iteration` rows)                                                         |
 | `layout-grid`  | one `createForceAtlas2` grid simulation per rung of the grid ladder 32k / 65k / 100k / 262k / 1M in 2D and 3D (E = 10n, `repulsion: "grid"`), the same warm-up burst and `reheat()` + `step(1)` protocol as `layout-exact`; two rows per rung and dim (`grid step(1) wall ...`, `grid ms/iteration (profiler) ...`), plus the 1M attraction-pass row (`attraction ms/iteration (profiler) n=1000000 [1M]`, the `fa2-attraction` pass of the profiler) and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check | T-6 (the `grid ms/iteration` rows at 100k 2D, 1M 2D and 100k 3D), T-7 (the 1M attraction row) |
+| `attraction-scale` | the `fa2-attraction` pass alone across a ladder that doubles its working set from 0.25 MiB to 64 MiB (n = 16k .. 4M, grid tier, 2D, E = 10n), with the whole iteration beside it as the control; nothing without `timestamp-query` | none: the G4-F16 / G4-F21 diagnostic (a ratio curve, not a gate row) |
+| `bfs`          | `breadthFirstSearch` (auto) and `bfsWithTuning({ direction: "top-down" })` from node 0 of the undirected RMAT rungs 100k / 1M (2^17 x 8) and 1M / 10M (2^20 x 10), `sssp` on the same rungs with random f32 weights in [0.1, 10), and `breadthFirstSearch` from corner 0 of the 1000 x 1000 grid (1,999 levels; the row name carries the level count), all wall end to end including the upload; the per-level choices of the counters block and the grid's `mapAsync` count are printed beside the rows | T-10 (`bfs auto at 1M/10M` <= 100 ms and the grid row <= 1.5 s, a CONTRACT on `nvidia-lovelace-driver580` and a RECORDED figure on `gpu-linux-t4`) |
 
 The checked-in baselines live in `benchmarks/results/<runner-class>.json` (the dev box: `nvidia-lovelace-driver580.json` --
 Dawn spells the RTX 4070 SUPER's architecture `lovelace`; the GPU lane: `gpu-linux-t4.json`, fixed by
 `GRAPHTY_RUNNER_CLASS`); the baseline is the PINNED best median and minimum across the file's sessions, not whichever session is last -- a regressed session appended to the file can no longer become the thing the gate measures against (G4-F19) -- and a session must still carry every group (the append procedure of
 `docs/decisions/G3.md` appendix A appends the last out session and refuses one that lacks a group or ran on a software
-adapter). `bench:compare` fails the GPU lane when BOTH a row's median and its minimum stand above 1.35x their baselines AND both
+adapter). Since P8 that procedure is the committed `scripts/bench-append-session.js` (`pnpm run bench:append`), and every
+group of `run.ts` is required, `bfs` included. `bench:compare` fails the GPU lane when BOTH a row's median and its minimum stand above 1.35x their baselines AND both
 rose by at least 2.5 ms; a median that rose over an intact floor is printed `noisy` and passes, because interference can
 only make a sample slower, never faster (`design/decisions/2026-09-19-bench-compare-min-confirms-median.md`, which
 supersedes contract 6.8's rule 4), and a row over the factor that rose by less than 2.5 ms is printed `too small` and

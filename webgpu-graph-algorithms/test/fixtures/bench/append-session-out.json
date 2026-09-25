@@ -1,0 +1,127 @@
+[
+    {
+        "date": "2026-09-25T00:00:00.000Z",
+        "host": "fixture",
+        "node": "v22.22.1",
+        "cpu": "fixture",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "lovelace",
+            "device": "NVIDIA GeForce RTX 4070 SUPER",
+            "description": "NVIDIA: 580.173.02 580.173.2.0",
+            "driver": "580.173.02",
+            "limits": {
+                "maxBufferSize": 4294967296,
+                "maxStorageBufferBindingSize": 4294967292,
+                "maxStorageBuffersPerShaderStage": 16,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "node",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-lovelace-driver580",
+        "results": [
+            {
+                "group": "upload",
+                "name": "residency.core 100k/1M weighted hot prefix (16.4 MB, arena)",
+                "medianMs": 5.98,
+                "minMs": 5.71,
+                "maxMs": 6.4,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 1179812353,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "roundtrip",
+                "name": "degree + 400 KB readback at 100k (core resident)",
+                "medianMs": 0.87,
+                "minMs": 0.85,
+                "maxMs": 0.93,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "layout-exact",
+                "name": "ms/iteration (profiler) n=10000 [10k]",
+                "medianMs": 0.586,
+                "minMs": 0.58,
+                "maxMs": 0.61,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "pagerank",
+                "name": "pagerank 100 iterations at 100k/1M",
+                "medianMs": 17.204,
+                "minMs": 16.9,
+                "maxMs": 18.1,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 5812602,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "wcc",
+                "name": "wcc at 100k/1M",
+                "medianMs": 12.613,
+                "minMs": 12.4,
+                "maxMs": 13.2,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 7928327,
+                "rateUnit": "nodes/s"
+            },
+            {
+                "group": "layout-fr",
+                "name": "fr ms/iteration (profiler) n=10000 [10k]",
+                "medianMs": 0.617,
+                "minMs": 0.61,
+                "maxMs": 0.64,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "layout-grid",
+                "name": "grid ms/iteration (profiler) n=100000 2D [100k]",
+                "medianMs": 0.634,
+                "minMs": 0.62,
+                "maxMs": 0.66,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "attraction-scale",
+                "name": "scale attraction ms/iteration (profiler) n=1048576 2D [16 MiB]",
+                "medianMs": 1.548,
+                "minMs": 1.52,
+                "maxMs": 1.6,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "bfs",
+                "name": "bfs auto at 100k/1M",
+                "medianMs": 4.2,
+                "minMs": 4.1,
+                "maxMs": 4.5,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 31200000,
+                "rateUnit": "nodes/s"
+            }
+        ]
+    }
+]

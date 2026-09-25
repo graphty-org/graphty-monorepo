@@ -9,7 +9,8 @@
  * JSON Graph Format v2 (`graph.nodes` keyed by id, per-edge `directed`, hyperedges), Cytoscape.js
  * elements (`data.id` / `data.source` / `data.target`, `position`, `classes`, `data.parent`),
  * graphology serialisation (`key` / `attributes`, `undirected` edges, `options.type` / `multi`) and
- * vis.js (`from` / `to`).
+ * vis.js (`from` / `to`); read only: NetworkX adjacency_data (`nodes` + `adjacency`) and tree_data
+ * (nested `id` / `children`).
  */
 
 import { type GraphMeta } from "@graphty/graph-format";
@@ -28,6 +29,20 @@ export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
     "cytoscape",
     "graphology",
     "vis",
+]);
+
+/**
+ * The dialects the importer reads: every JsonDialect plus two it only reads, NetworkX
+ * adjacency_data (`nodes` plus one neighbour list per node under `adjacency`) and tree_data (a
+ * nested `id` / `children` record). The exporter writes neither; write node-link instead.
+ */
+export type JsonImportDialect = JsonDialect | "adjacency" | "tree";
+
+/** Every dialect the importer reads, for option checking and messages. */
+export const JSON_IMPORT_DIALECTS: readonly JsonImportDialect[] = Object.freeze([
+    ...JSON_DIALECTS,
+    "adjacency",
+    "tree",
 ]);
 
 /** The key under `meta.extra` that holds the shape record (design section 8.5). */
@@ -91,16 +106,27 @@ export function isJsonDialect(value: unknown): value is JsonDialect {
 }
 
 /**
+ * Whether a text names a dialect the importer reads.
+ * @param value - any value
+ * @returns true for one of JSON_IMPORT_DIALECTS
+ */
+export function isJsonImportDialect(value: unknown): value is JsonImportDialect {
+    return typeof value === "string" && (JSON_IMPORT_DIALECTS as readonly string[]).includes(value);
+}
+
+/**
  * The dialect of a parsed JSON document, by the shape rules of design section 8.2 (Cytoscape:
  * `elements` or a top-level array of `{ data }` elements; JGF: `graph.nodes` / `graph.edges` or
  * `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
  * `undirected` or an `attributes` record; vis: edges with `from` / `to`; d3: `links` without
- * `directed` / `multigraph` / `graph`; else node-link). Pure: the importer wraps it with its issue
+ * `directed` / `multigraph` / `graph`; NetworkX adjacency_data: `nodes` and `adjacency` without
+ * `links` / `edges`; NetworkX tree_data: `children` without `nodes` / `links` / `edges`; else
+ * node-link). Pure: the importer wraps it with its issue
  * codes, the registry's sniff() uses it on a head that parses as a whole document.
  * @param root - the parsed document
  * @returns the dialect, or null when the document is not a graph document in any dialect
  */
-export function sniffJsonDialect(root: unknown): JsonDialect | null {
+export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     if (Array.isArray(root)) {
         const first = firstJsonObject(root);
         return root.length === 0 || (first !== null && isJsonObject(first.data)) ? "cytoscape" : null;
@@ -117,8 +143,13 @@ export function sniffJsonDialect(root: unknown): JsonDialect | null {
     if (Array.isArray(root.graphs)) {
         return "jgf";
     }
-    if (!hasKey(root, "nodes") && !hasKey(root, "edges") && !hasKey(root, "links")) {
-        return null;
+    if (!hasKey(root, "edges") && !hasKey(root, "links")) {
+        if (hasKey(root, "nodes") && hasKey(root, "adjacency")) {
+            return "adjacency";
+        }
+        if (!hasKey(root, "nodes")) {
+            return hasKey(root, "children") ? "tree" : null;
+        }
     }
     const firstNode = firstJsonObject(root.nodes);
     const firstEdge = firstJsonObject(hasKey(root, "edges") ? root.edges : root.links);
@@ -182,13 +213,16 @@ export function shapeMetaOf(meta: GraphMeta): JsonShapeMeta {
 }
 
 /** The direction a dialect assumes when the file declares none (design section 8.4, `defaultDirected`). */
-export const DIALECT_DEFAULT_DIRECTED: Readonly<Record<JsonDialect, boolean>> = Object.freeze({
+export const DIALECT_DEFAULT_DIRECTED: Readonly<Record<JsonImportDialect, boolean>> = Object.freeze({
     "node-link": false,
     d3: false,
     jgf: true,
     cytoscape: true,
     graphology: true,
     vis: false,
+    // networkx adjacency_data declares `directed`; tree_graph always builds a DiGraph
+    adjacency: false,
+    tree: true,
 });
 
 /**

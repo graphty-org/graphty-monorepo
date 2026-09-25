@@ -1,5 +1,5 @@
 {
-    "recordedAt": "2026-09-21T14:46:09.522Z",
+    "recordedAt": "2026-09-25T10:41:44.657Z",
     "adapters": [
         {
             "class": "mesa-software-node",
@@ -327,6 +327,17 @@
             "maxRelError": 2.6626686401183217e-7,
             "maxAbsError": 0.0000019073486328125,
             "samples": 1000
+        },
+        {
+            "id": "sssp-relax.f32-vs-f64",
+            "kernel": "sssp-relax",
+            "fixture": "p8-t9-fixtures",
+            "comparison": "oracle-f64",
+            "a": "oracle-f32",
+            "b": "oracle-f64",
+            "maxRelError": 6.422317386040102e-7,
+            "maxAbsError": 7,
+            "samples": 76447
         },
         {
             "id": "fa2-skeleton.force.cross",
@@ -1649,15 +1660,48 @@
             "samples": 15000
         },
         {
-            "id": "sssp-relax.f32-vs-f64",
+            "id": "bfs.depth.cross",
+            "kernel": "bfs-contract",
+            "fixture": "rmat14-depth",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 16329
+        },
+        {
+            "id": "sssp-relax.dist.cross",
             "kernel": "sssp-relax",
-            "fixture": "p8-t9-fixtures",
-            "comparison": "oracle-f64",
-            "a": "oracle-f32",
-            "b": "oracle-f64",
-            "maxRelError": 6.422317386040102e-7,
-            "maxAbsError": 7,
-            "samples": 76447
+            "fixture": "grid30-integer-dist",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 900
+        },
+        {
+            "id": "advance-expand.cross",
+            "kernel": "advance-expand",
+            "fixture": "karate-reversed-queue",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 156
+        },
+        {
+            "id": "advance-expand.twin",
+            "kernel": "advance-expand",
+            "fixture": "karate-reversed-queue",
+            "comparison": "twin",
+            "a": "mesa-software-node",
+            "b": "mesa-software-node/no-subgroups",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 156
         }
     ],
     "tolerances": {

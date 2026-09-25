@@ -57,6 +57,7 @@ import {
 } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import {
     expectLevelConsistent,
@@ -384,6 +385,116 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             }
         });
         ctx.release(grid);
+    });
+
+    it("the inspect stage comparison (P8-T15 Step 2): on rmat14 at levelsPerSubmit 1 under the default and under top-down, every submit's frontier is the oracle's next level as a set, frontierCount that level's size, frontierDegreeSum the expanded level's out-degree sum (0 after a bottom-up sweep), and the two unvisited words the oracle's complement of everything claimed through that level", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(rmatEdges(14, 10, 7), { label: "rmat14-inspect" });
+        const n = s.nodeCount;
+        const levels = levelsOf(s, 0);
+        const degreeSums = levels.map((level) => level.reduce((sum, v) => sum + (s.rowPtr[v + 1] - s.rowPtr[v]), 0));
+        // the complement after level k: every node of a deeper level or unreached, and its out-degree sum
+        let claimed = 0;
+        let claimedDegree = 0;
+        const unvisitedAfter = levels.map((level, k) => {
+            claimed += level.length;
+            claimedDegree += degreeSums[k];
+            return { count: n - claimed, degreeSum: s.arcCount - claimedDegree };
+        });
+        for (const [name, tuning] of [
+            ["default", {}],
+            ["top-down", { direction: "top-down" }],
+        ] as const) {
+            const seen: { level: number; block: UniformValues; frontier: number[] }[] = [];
+            const result = await bfsWithTuning(ctx, s, 0, undefined, {
+                ...tuning,
+                levelsPerSubmit: 1,
+                onLevel: (level, block, frontier) => {
+                    seen.push({ level, block, frontier: Array.from(frontier).sort((a, b) => a - b) });
+                },
+            });
+            expect(result.levels, `${name}: levels`).toBe(levels.length);
+            expect(seen, `${name}: one submit per level plus the empty boundary`).toHaveLength(levels.length + 1);
+            let bottomUp = 0;
+            seen.forEach((entry, k) => {
+                const label = `${name}: after submit ${k}`;
+                expect(entry.block.level, `${label}: the level word`).toBe(k);
+                expect(entry.block.overflowLevels, `${label}: overflowLevels (no retry doubles the degree sum)`).toBe(
+                    0,
+                );
+                if (k === levels.length) {
+                    expect(entry.block.done, `${label}: done`).toBe(1);
+                    expect(entry.frontier, `${label}: the frontier`).toEqual([]);
+                    return;
+                }
+                expect(entry.block.done, `${label}: done`).toBe(0);
+                expect(
+                    entry.frontier,
+                    `${label}: the next frontier (the input queue) as the oracle's level ${k + 1}`,
+                ).toEqual(levels[k + 1] ?? []);
+                expect(entry.block.frontierCount, `${label}: frontierCount vs |level ${k}|`).toBe(levels[k].length);
+                // the sweep of a bottom-up level adds nothing to the degree sum (P8-T8); a top-down level adds the level's out-degree sum
+                const sweep = Number(entry.block.direction) === 1;
+                bottomUp += sweep ? 1 : 0;
+                expect(
+                    entry.block.frontierDegreeSum,
+                    `${label}: frontierDegreeSum vs the oracle's sum over level ${k}`,
+                ).toBe(sweep ? 0 : degreeSums[k]);
+                // cadence 1: the words are rebuilt from the flags at the top of the submit and no boundary subtracts
+                expect(entry.block.unvisitedCount, `${label}: unvisitedCount vs the oracle's complement`).toBe(
+                    unvisitedAfter[k].count,
+                );
+                expect(
+                    entry.block.unvisitedDegreeSum,
+                    `${label}: unvisitedDegreeSum vs the complement's degree sum`,
+                ).toBe(unvisitedAfter[k].degreeSum);
+            });
+            if (tuning.direction === "top-down") {
+                expect(bottomUp, `${name}: bottom-up levels`).toBe(0);
+            } else {
+                expect(bottomUp, `${name}: bottom-up levels (rmat14 switches at level 2)`).toBeGreaterThan(0);
+            }
+        }
+        ctx.release(s);
+    }, 120_000);
+
+    it("the workgroup twin (P8-T15 Step 3): a second context without the subgroups feature reads depth, parent, order and every counters-block word of every submit bitwise equal to the feature context's on rmat16 at cadence 1 (bfs-bottom-up and bfs-unvisited-flags call wg_reduce_u32; arcsScanned and the unvisited words are its sums)", async (t) => {
+        const ctx = await context(t);
+        const twin = await acquire({ subgroups: false, label: "bfs-twin" });
+        expect(twin.caps.features.has("subgroups")).toBe(false);
+        const s = snapshotOf(rmatEdges(16, 10, 3), { label: "rmat16-twin" });
+        const runOn = async (on: GpuContext): Promise<{ result: GpuBfsResult; blocks: UniformValues[] }> => {
+            const blocks: UniformValues[] = [];
+            const result = await bfsWithTuning(on, s, 0, undefined, {
+                levelsPerSubmit: 1,
+                onLevel: (_level, block) => {
+                    blocks.push(block);
+                },
+            });
+            return { result, blocks };
+        };
+        const feature = await runOn(ctx);
+        const workgroup = await runOn(twin);
+        expect(feature.result.switches, "switches (the sweep ran on both)").toBeGreaterThan(0);
+        expectBitwiseEqual(workgroup.result.depth, feature.result.depth, "twin depth (the depth buffer)");
+        expectBitwiseEqual(workgroup.result.parent, feature.result.parent, "twin parent (the pred buffer)");
+        expectBitwiseEqual(workgroup.result.order, feature.result.order, "twin order (the sorted vals buffer)");
+        expect(workgroup.result.switches).toBe(feature.result.switches);
+        expect(feature.blocks.length).toBeGreaterThan(0);
+        expect(workgroup.blocks, "the counters block after every submit, twin vs feature").toEqual(feature.blocks);
+        const last = feature.blocks[feature.blocks.length - 1];
+        expect(last.arcsScanned, "arcsScanned (the sweep's sum) is non-zero").toBeGreaterThan(0);
+        ctx.release(s);
+        twin.release(s);
+    }, 300_000);
+
+    it("the noise-floor fixture (P8-T15 Step 6): depth on rmat14 from 0, written for this adapter class under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the classes bitwise)", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(rmatEdges(14, 10, 7), { label: "rmat14-noise" });
+        const result = await breadthFirstSearch(ctx, s, 0);
+        expectBitwiseEqual(result.depth, bfsOracle(s, 0).depth, "rmat14 depth (the depth buffer) vs the oracle");
+        writeNoiseFixture("bfs-contract", "rmat14-depth", adapterClass(ctx.caps), result.depth, "u32");
+        ctx.release(s);
     });
 
     it("the run options: dest is filled and returned as depth, a wrong dest is E_INVALID_ARGUMENT, an aborted signal is E_ABORTED, onProgress reports per submit up to n, a bad levelsPerSubmit is refused", async (t) => {

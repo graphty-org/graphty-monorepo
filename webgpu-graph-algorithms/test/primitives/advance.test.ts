@@ -29,6 +29,7 @@ import { withResidency } from "../helpers/degree-check.js";
 import { POISON, slotOf, ZERO_SLOT } from "../helpers/frontier.js";
 import { gridEdges, hubbedRandom, KARATE_EDGES, rmatEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { advanceOracle } from "../oracle/advance.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
@@ -121,6 +122,29 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
 
     it("a single-vertex frontier: the queue is that row's targets (node 0 and node 33 of karate)", async (t) => {
         await checkFixture(t, "single", snapshotOf(KARATE_EDGES), [[0], [33], [11]]);
+    });
+
+    it("the noise-floor fixture (P8-T15 Step 6): the sorted edge queue of karate's reversed vertex set, written for this adapter class and its workgroup twin under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the twin and the classes bitwise)", async (t) => {
+        const ctx = await context(t);
+        const other = await twin(t);
+        const s = snapshotOf(KARATE_EDGES, { label: "karate-noise" });
+        const reversed = Array.from({ length: s.nodeCount }, (_, i) => s.nodeCount - 1 - i);
+        const [feature] = await runAdvance(ctx, s, [reversed]);
+        const [workgroup] = await runAdvance(other, s, [reversed]);
+        const want = sortedU32(advanceOracle(s, reversed));
+        expectBitwiseEqual(sortedU32(feature.queue), want, "karate reversed: the sorted edge queue (edgeQueue buffer)");
+        expectBitwiseEqual(sortedU32(workgroup.queue), want, "karate reversed: the twin's sorted edge queue");
+        const cls = adapterClass(ctx.caps);
+        writeNoiseFixture("advance-expand", "karate-reversed-queue", cls, sortedU32(feature.queue), "u32");
+        writeNoiseFixture(
+            "advance-expand",
+            "karate-reversed-queue",
+            `${cls}-no-subgroups`,
+            sortedU32(workgroup.queue),
+            "u32",
+        );
+        ctx.release(s);
+        other.release(s);
     });
 
     it("the whole vertex set of karate, in index order and reversed", async (t) => {

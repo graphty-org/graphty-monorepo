@@ -43,7 +43,7 @@ import {
     xorshift,
 } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { recordNoiseRow } from "../helpers/noise-floor.js";
+import { adapterClass, recordNoiseRow, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import {
     absorbPath,
@@ -61,6 +61,14 @@ import {
 import { expectPredArcAttains, expectTriangleInequality } from "../helpers/traversal-check.js";
 import { bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
+
+/** The tuned delta of the stage comparison: the weighted karate's farthest distance is a few units, so the ladder has several steps. */
+const INSPECT_DELTA = 1;
+
+/** The f32 a counters-block word holds as a bit pattern (thresholdBits, deltaBits). */
+function bitsToF32(bits: number): number {
+    return new Float32Array(Uint32Array.of(bits).buffer)[0];
+}
 
 /** One weighted fixture: its edges, an optional node count (isolated vertices above the edges' indices) and the sources to run from (`-1` = the last index). */
 interface Fixture {
@@ -422,6 +430,83 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         expect(modes.indexOf(1), "the first far round follows the first bucket's 16 near rounds").toBe(16);
         ctx.release(path);
     }, 120_000);
+
+    it("the inspect stage comparison (P8-T15 Step 2): on the weighted karate at roundsPerSubmit 1 and delta 1 (several buckets) the block after submit k is round k's (the level word counts rounds, done rises only at the last), the threshold word climbs the f32 delta ladder one step per far round and never otherwise, and the far-round count is the ladder step above the oracle's farthest f32 distance (the near-round count follows the schedule and is only bounded)", async (t) => {
+        const ctx = await context(t);
+        const karate = snapshotOf(weightedEdges(KARATE_EDGES, "uniform", 1), { label: "karate-inspect" });
+        const want = dijkstraOracle(karate, 0, "f32");
+        const perRound: UniformValues[] = [];
+        const result = await ssspWithTuning(ctx, karate, 0, undefined, {
+            roundsPerSubmit: 1,
+            delta: INSPECT_DELTA,
+            onRound: (round, block) => {
+                expect(round, "the round index handed over").toBe(perRound.length);
+                perRound.push(block);
+            },
+        });
+        expectBitwiseEqual(
+            distBits(result.dist),
+            distBits(want.dist),
+            "karate dist (the dist buffer) vs the f32 oracle",
+        );
+        const rounds = perRound.length - 1;
+        expect(rounds, "rounds (one submit each, plus the done boundary)").toBeGreaterThan(0);
+        const delta = bitsToF32(Number(perRound[0].deltaBits));
+        expect(delta, "deltaBits (the counters block) is the tuned delta").toBe(INSPECT_DELTA);
+        let ladder = delta;
+        let farRounds = 0;
+        perRound.forEach((block, k) => {
+            // the boundary that opens round k counts it (role 2 picks a mode), so the block after submit k reads k + 1
+            // until the done boundary, which dispatches nothing and leaves the word at the round count
+            expect(block.level, `after submit ${k}: the level word (rounds dispatched)`).toBe(Math.min(k + 1, rounds));
+            expect(block.done, `after submit ${k}: done`).toBe(k === rounds ? 1 : 0);
+            expect(block.deltaBits, `after submit ${k}: deltaBits`).toBe(perRound[0].deltaBits);
+            if (k < rounds && Number(block.direction) === 1) {
+                // the boundary that opened round k as a far round raised the threshold by one f32 add before the round ran
+                ladder = Math.fround(ladder + delta);
+                farRounds += 1;
+            }
+            expect(
+                bitsToF32(Number(block.thresholdBits)),
+                `after submit ${k}: the threshold word vs the f32 ladder`,
+            ).toBe(ladder);
+        });
+        // every node with dist < threshold is settled from the near pile, so the far pile is empty exactly when the
+        // ladder has climbed above the farthest finite distance: the far-round count is a function of the oracle alone
+        let farthest = 0;
+        for (const d of want.dist) {
+            if (d !== Infinity) {
+                farthest = Math.max(farthest, d);
+            }
+        }
+        let expectedFar = 0;
+        for (let step = delta; !(step > farthest); step = Math.fround(step + delta)) {
+            expectedFar += 1;
+        }
+        expect(expectedFar, "the fixture climbs several buckets, so the ladder is exercised").toBeGreaterThanOrEqual(3);
+        expect(farRounds, "far rounds vs the ladder step above the oracle's farthest distance").toBe(expectedFar);
+        console.warn(
+            `[sssp] karate inspect at delta ${INSPECT_DELTA}: ${rounds} rounds, ${farRounds} far, farthest ${farthest}`,
+        );
+        expect(
+            rounds - farRounds,
+            "near rounds: at least one per reached node beyond the source is the bound",
+        ).toBeLessThanOrEqual(want.reachedCount);
+        ctx.release(karate);
+    }, 120_000);
+
+    it("the noise-floor fixture (P8-T15 Step 6): dist on the integer 30 x 30 grid from 0, written for this adapter class under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the classes bitwise)", async (t) => {
+        const ctx = await context(t);
+        const grid = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 2), { label: "grid30-noise" });
+        const result = await sssp(ctx, grid, 0);
+        expectBitwiseEqual(
+            distBits(result.dist),
+            distBits(dijkstraOracle(grid, 0, "f32").dist),
+            "grid30 dist (the dist buffer) vs the f32 oracle",
+        );
+        writeNoiseFixture("sssp-relax", "grid30-integer-dist", adapterClass(ctx.caps), result.dist, "f32");
+        ctx.release(grid);
+    });
 
     it("the run options: dest is filled and returned as dist, a wrong dest is E_INVALID_ARGUMENT, an aborted signal is E_ABORTED, onProgress reports per submit, a bad roundsPerSubmit is refused", async (t) => {
         const ctx = await context(t);

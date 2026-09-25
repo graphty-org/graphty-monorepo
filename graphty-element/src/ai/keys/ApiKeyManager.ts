@@ -38,6 +38,12 @@ export class ApiKeyManager {
 
     /**
      * Enable persistent storage for API keys with AES encryption.
+     *
+     * Keys already stored are merged into memory (a key already in memory wins
+     * for the same provider), and the result is written back, so a key set
+     * before persistence was enabled is remembered too. A stored value this
+     * encryption key cannot read -- one saved under a different key, or corrupt
+     * data -- is left untouched and nothing is written over it.
      * @param config - Persistence configuration
      * @throws Error if encryption key is empty or too short (minimum 10 characters)
      */
@@ -62,8 +68,9 @@ export class ApiKeyManager {
                 storageType: config.storage,
             });
 
-            // Load any existing persisted keys
-            this.loadPersistedKeys();
+            if (this.loadPersistedKeys() && this.keys.size > 0) {
+                this.persistKeys();
+            }
         }
     }
 
@@ -186,25 +193,38 @@ export class ApiKeyManager {
     }
 
     /**
-     * Load persisted keys from storage.
+     * Merge persisted keys into memory, never replacing a key already in memory.
+     * @returns True if storage could be read: it held nothing, or it held keys.
+     *   False for a value this encryption key cannot decrypt (encrypt-storage
+     *   returns "" for a wrong key) or cannot parse (it throws), which must not
+     *   be overwritten.
      */
-    private loadPersistedKeys(): void {
+    private loadPersistedKeys(): boolean {
         if (!this.encryptStorage) {
-            return;
+            return false;
         }
 
+        let stored: unknown;
         try {
-            const keysObject = this.encryptStorage.getItem<Record<string, string>>("keys");
-
-            if (keysObject && typeof keysObject === "object") {
-                for (const [provider, key] of Object.entries(keysObject)) {
-                    this.keys.set(provider as ProviderType, key);
-                }
-            }
+            stored = this.encryptStorage.getItem("keys");
         } catch {
-            // Failed to decrypt or parse - likely wrong encryption key or corrupted data
-            // Silently ignore and start fresh
-            this.keys.clear();
+            return false;
         }
+
+        if (stored === undefined || stored === null) {
+            return true;
+        }
+
+        if (typeof stored !== "object") {
+            return false;
+        }
+
+        for (const [provider, key] of Object.entries(stored)) {
+            if (typeof key === "string" && !this.keys.has(provider as ProviderType)) {
+                this.keys.set(provider as ProviderType, key);
+            }
+        }
+
+        return true;
     }
 }

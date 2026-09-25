@@ -115,12 +115,13 @@ not, so the surface stays quiet under the pointer.
 
 ### Components the theme restyles
 
-Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
-and you get Mantine's usual sizes back.
+Pass no `size` prop and these render compact. Pass a size token and they step
+along a compact scale: an input field is 20, 24, 30, 36 and 44px tall at `xs`,
+`sm` (the default), `md`, `lg` and `xl`.
 
 | Group | Components |
 |-------|------------|
-| Inputs (12) | TextInput, NumberInput, Select, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton |
+| Inputs (14) | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
 | Buttons (3) | Button, ActionIcon, CloseButton |
 | Controls (6) | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl |
 | Display (7) | Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill |

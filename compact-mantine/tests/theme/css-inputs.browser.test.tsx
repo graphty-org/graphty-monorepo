@@ -519,18 +519,18 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
             expect(style?.alignItems).toBe("center");
         });
 
-        it("paddingTop is 4px", () => {
+        it("paddingTop is 1px", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
             const input = container.querySelector(".mantine-MultiSelect-input");
             const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingTop).toBe("4px");
+            expect(style?.paddingTop).toBe("1px");
         });
 
-        it("paddingBottom is 4px", () => {
+        it("paddingBottom is 1px", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
             const input = container.querySelector(".mantine-MultiSelect-input");
             const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingBottom).toBe("4px");
+            expect(style?.paddingBottom).toBe("1px");
         });
     });
 
@@ -663,11 +663,12 @@ describe("TagsInput - All CSS Values (Browser)", () => {
             expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is 24px (a min-height; --input-size stays unset so pills can wrap)", () => {
             const { container } = renderWithTheme(<TagsInput label="Test" />);
             const wrapper = container.querySelector(".mantine-TagsInput-wrapper");
             const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(heightVar).toBe("24px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("24px");
         });
     });
 
@@ -712,7 +713,7 @@ describe("PillsInput - All CSS Values (Browser)", () => {
             expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is 24px (a min-height; --input-size stays unset so pills can wrap)", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
@@ -720,7 +721,8 @@ describe("PillsInput - All CSS Values (Browser)", () => {
             );
             const wrapper = container.querySelector(".mantine-PillsInput-wrapper");
             const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(heightVar).toBe("24px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("24px");
         });
     });
 

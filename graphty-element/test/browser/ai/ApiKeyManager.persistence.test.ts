@@ -172,6 +172,95 @@ describe("ApiKeyManager Persistence", () => {
         });
     });
 
+    describe("keys set before persistence was enabled", () => {
+        it("saves a key that was in memory when persistence was turned on", () => {
+            const config = {
+                encryptionKey: "before-enable-long-key",
+                storage: "localStorage" as const,
+                prefix: testPrefix,
+            };
+            const manager1 = new ApiKeyManager();
+            manager1.setKey("openai", "sk-typed-first");
+            manager1.enablePersistence(config);
+
+            const manager2 = new ApiKeyManager();
+            manager2.enablePersistence(config);
+
+            assert.strictEqual(manager2.getKey("openai"), "sk-typed-first");
+        });
+
+        it("merges stored keys under the ones in memory, memory winning", () => {
+            const config = {
+                encryptionKey: "merge-test-long-key",
+                storage: "localStorage" as const,
+                prefix: testPrefix,
+            };
+            const earlier = new ApiKeyManager();
+            earlier.enablePersistence(config);
+            earlier.setKey("openai", "sk-stored-openai");
+            earlier.setKey("anthropic", "sk-stored-anthropic");
+
+            const manager = new ApiKeyManager();
+            manager.setKey("openai", "sk-memory-openai");
+            manager.enablePersistence(config);
+
+            assert.strictEqual(manager.getKey("openai"), "sk-memory-openai");
+            assert.strictEqual(manager.getKey("anthropic"), "sk-stored-anthropic");
+
+            const reloaded = new ApiKeyManager();
+            reloaded.enablePersistence(config);
+            assert.strictEqual(reloaded.getKey("openai"), "sk-memory-openai");
+            assert.strictEqual(reloaded.getKey("anthropic"), "sk-stored-anthropic");
+        });
+
+        it("keeps the in-memory key, and leaves a blob it cannot read untouched", () => {
+            const owner = {
+                encryptionKey: "owners-own-long-key",
+                storage: "localStorage" as const,
+                prefix: testPrefix,
+            };
+            const saved = new ApiKeyManager();
+            saved.enablePersistence(owner);
+            saved.setKey("anthropic", "sk-saved-under-owner-key");
+
+            const manager = new ApiKeyManager();
+            manager.setKey("openai", "sk-in-memory-only");
+            manager.enablePersistence({ ...owner, encryptionKey: "a-different-long-key" });
+
+            assert.strictEqual(manager.getKey("openai"), "sk-in-memory-only");
+
+            const reader = new ApiKeyManager();
+            reader.enablePersistence(owner);
+            assert.strictEqual(reader.getKey("anthropic"), "sk-saved-under-owner-key");
+        });
+
+        it("keeps the in-memory key when the stored blob is corrupt, and does not overwrite it", () => {
+            localStorage.setItem(`${testPrefix}:keys`, "not an encrypted value");
+
+            const manager = new ApiKeyManager();
+            manager.setKey("openai", "sk-in-memory-only");
+            manager.enablePersistence({
+                encryptionKey: "corrupt-test-long-key",
+                storage: "localStorage",
+                prefix: testPrefix,
+            });
+
+            assert.strictEqual(manager.getKey("openai"), "sk-in-memory-only");
+            assert.strictEqual(localStorage.getItem(`${testPrefix}:keys`), "not an encrypted value");
+        });
+
+        it("writes nothing when there is nothing to save", () => {
+            const manager = new ApiKeyManager();
+            manager.enablePersistence({
+                encryptionKey: "empty-test-long-key",
+                storage: "localStorage",
+                prefix: testPrefix,
+            });
+
+            assert.strictEqual(localStorage.getItem(`${testPrefix}:keys`), null);
+        });
+    });
+
     describe("disablePersistence", () => {
         it("disables persistence and clears stored keys", () => {
             const manager = new ApiKeyManager();

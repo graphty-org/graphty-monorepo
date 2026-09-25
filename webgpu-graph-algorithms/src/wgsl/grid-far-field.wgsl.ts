@@ -2,9 +2,11 @@
  * G6, the `grid-far-field` kernel body (spec 7.7; P4-T10; D24): per node `i = sortedIdx[t]`, its finest cell
  * recomputed from `pos[i]` and the state (PD-10); for an inside node the coarsest level minus the 3x3 (3x3x3)
  * around its coarsest cell, then at every finer level the 6x6 (6x6x6) block that is the parent's 3x3 minus this
- * level's own 3x3 -- space tiled exactly once, no theta -- plus the outside pseudo-cell's centroid; for an outside
- * node the coarsest level in full and no pseudo-cell. Every cell term is the per-cell law on the mass-weighted
- * centroid (Gephi Region semantics), softened by `eps^2`: `LAW` 0 (FA2) `d * (k m_i M / d2)`, `LAW` 1 (FR, 7.20)
+ * level's own 3x3 -- space tiled exactly once, no theta -- plus the centroid of each of the 2^dim outside
+ * pseudo-cells, one per orthant about the grid centre (issue #90); for an outside node the coarsest level in full and
+ * no pseudo-cell. Every cell term is the per-cell law on the mass-weighted
+ * centroid (Gephi Region semantics), softened by `eps^2`: `LAW` 0 (FA2) `d * (k m_i M / d2)` with `|d|^2` first
+ * floored at 0.01^2 like K3's pair law (issue #89), `LAW` 1 (FR, 7.20)
  * `d * (k^2 M / d2)` (mass 1 per node, so `M` is the cell's count), `LAW` 2 (coulomb) `d * (-g m_i M / d2^1.5)`
  * (P4-T13, PD-22). `force += f` (K2 wrote it). The loop bounds are `P.levels` and `P.gridMax` from the uniform,
  * not a `LEVELS` override (PD-16, DEP-P4-G). Body only; normative text.
@@ -18,11 +20,12 @@ fn store_force(i: u32, f: vec3f) {
 }
 fn grid_cells() -> u32 { return P.gridMax * P.gridMax * select(1u, P.gridMax, P.dim == 3u); }
 fn grid_side(level: u32) -> u32 { return P.gridMax >> level; }
-fn level_base(level: u32) -> u32 {                             // the pyramid index of level L's cell 0 (level 0 carries the pseudo-cell at index cells)
+fn outside_cells() -> u32 { return select(4u, 8u, P.dim == 3u); }   // one pseudo-cell per orthant (issue #90)
+fn level_base(level: u32) -> u32 {                             // the pyramid index of level L's cell 0 (level 0 carries the pseudo-cells at cells ..)
     var base = 0u;
     for (var l = 0u; l < level; l = l + 1u) {
         let s = grid_side(l);
-        base = base + s * s * select(1u, s, P.dim == 3u) + select(0u, 1u, l == 0u);
+        base = base + s * s * select(1u, s, P.dim == 3u) + select(0u, outside_cells(), l == 0u);
     }
     return base;
 }
@@ -33,7 +36,9 @@ fn cell_at(level: u32, cx: i32, cy: i32, cz: i32) -> u32 {
 fn cell_force(pi: vec4f, q: vec4f) -> vec3f {                  // one far-field term, softened by state.eps (7.7)
     if (q.w <= 0.0) { return vec3f(0.0); }                     // an empty cell
     let d = pi.xyz - q.xyz / q.w;                              // to the mass-weighted centroid
-    let d2 = dot(d, d) + S.eps * S.eps;
+    var d2 = dot(d, d);
+    if (LAW == 0u) { d2 = max(d2, FA2_DIST_FLOOR_SQ); }        // FA2 alone floors d >= 0.01, as K3 and G7 do (issue #89); FR and coulomb are unfloored (7.20)
+    d2 = d2 + S.eps * S.eps;
     if (LAW == 1u) { return d * (P.frK * P.frK * q.w / d2); }                       // LAW 1 (FR, 7.20): k^2 / d per node, q.w nodes at the centroid
     if (LAW == 2u) { return d * (-P.coulomb * pi.w * q.w / (d2 * sqrt(d2))); }     // LAW 2 (coulomb): -g m_i M_cell / d^2
     return d * (P.scalingRatio * pi.w * q.w / d2);             // LAW 0 (FA2): |F| = k m_i M_cell / d
@@ -82,9 +87,11 @@ fn grid_far_field(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocati
                 }
             }
         }
-        f = f + cell_force(pi, pyramid[grid_cells()]);             // the outside pseudo-cell as one far-field term
+        for (var o = 0u; o < outside_cells(); o = o + 1u) {        // every outside pseudo-cell: one far-field term per orthant
+            f = f + cell_force(pi, pyramid[grid_cells() + o]);
+        }
     } else {
-        for (var cz = 0; cz <= zTop; cz = cz + 1) {                // an outside node: the coarsest level in full, no pseudo-cell (it would include itself)
+        for (var cz = 0; cz <= zTop; cz = cz + 1) {                // an outside node: the coarsest level in full, no pseudo-cell (G7 sums them pair by pair)
             for (var cy = 0; cy < ts; cy = cy + 1) {
                 for (var cx = 0; cx < ts; cx = cx + 1) {
                     f = f + cell_force(pi, pyramid[cell_at(top, cx, cy, cz)]);

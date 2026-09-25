@@ -25,6 +25,7 @@ import {
     MAX_ITERATIONS_PER_STEP,
     SE_DEFAULTS,
     SE_SCALE_REFERENCE_NODES,
+    SETTLE_FLOOR_FRACTION,
     TRACE_RECORD_BYTES,
     UNIFORM_SLOT_BYTES,
 } from "../constants.js";
@@ -77,6 +78,7 @@ import {
     subset,
     vector,
 } from "./model-common.js";
+import { recordExactRepulsion } from "./repulsion-exact.js";
 import { type GridStage, RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js";
 
 // ============================================================ constants
@@ -555,6 +557,7 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
             frK: 0,
             temperature: 0,
             springLength: resolved.springLength,
+            settleFloor: SETTLE_FLOOR_FRACTION.springElectrical * resolved.springLength,
             springCoefficient: resolved.springCoefficient ?? SE_DEFAULTS.springCoefficient * springSizeFactor(n),
             coulomb: resolved.gravity ?? SE_DEFAULTS.gravity * springSizeFactor(n),
             dragCoefficient: resolved.dragCoefficient,
@@ -609,7 +612,7 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
         if (stop < 2) {
             return;
         }
-        k3.dispatch(pass, k3Bound, bound.plan, [offset]);
+        recordExactRepulsion(k3, pass, k3Bound, bound.plan, bound.n, offset);
         if (stop < STAGE_K5) {
             return;
         }

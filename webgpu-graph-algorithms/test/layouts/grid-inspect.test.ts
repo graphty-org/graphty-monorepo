@@ -114,21 +114,22 @@ describe("grid-parity helper (pure)", () => {
     });
 
     it("samplePyramid keeps every level: one value triple per sampled cell, the coarse levels whole", () => {
-        // a G = 8, 2D spec: level 0 has 65 cells (the pseudo-cell), level 1 has 16
+        // a G = 8, 2D spec: level 0 has 68 cells (the four orthant pseudo-cells), level 1 has 16
         const spec = {
             dim: 2 as const,
             g: 8,
             levels: 2,
             cells: 64,
-            histWords: 66,
-            levelOffsets: [0, 65],
-            pyramidCells: 81,
+            outsideCells: 4,
+            histWords: 69,
+            levelOffsets: [0, 68],
+            pyramidCells: 84,
             deterministic: true,
         };
-        const xyz = Float64Array.from({ length: 3 * 81 }, (_, i) => i);
+        const xyz = Float64Array.from({ length: 3 * 84 }, (_, i) => i);
         const sampled = samplePyramid(xyz, spec);
-        expect(sampled.length).toBe(3 * 81);
-        expect(sampled[3 * 65]).toBe(3 * 65);
+        expect(sampled.length).toBe(3 * 84);
+        expect(sampled[3 * 68]).toBe(3 * 68);
     });
 
     it("sampleNodes takes every 4th node's three lanes", () => {

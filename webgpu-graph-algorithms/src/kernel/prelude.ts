@@ -12,6 +12,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import {
+    EXACT_TILES_PER_PASS,
     FA2_COINCIDENT_SQ,
     FA2_DISTANCE_FLOOR,
     FA2_DISTANCE_FLOOR_SQ,
@@ -52,6 +53,7 @@ export const PRELUDE_WGSL: string = /* wgsl */ `// ---- prelude: constants, stan
 const INVALID_INDEX: u32 = ${INVALID_INDEX}u;
 const U32_MAX: u32 = ${U32_MAX}u;
 const MAX_WORKGROUPS_PER_DIM: u32 = ${MAX_WORKGROUPS_PER_DIM}u;
+const EXACT_TILES_PER_PASS: u32 = ${EXACT_TILES_PER_PASS}u;
 const FA2_DIST_FLOOR: f32 = ${wgslF32Literal(FA2_DISTANCE_FLOOR)};
 const FA2_DIST_FLOOR_SQ: f32 = ${wgslF32Literal(FA2_DISTANCE_FLOOR_SQ)};
 const FA2_COINCIDENT_SQ: f32 = ${wgslF32Literal(FA2_COINCIDENT_SQ)};

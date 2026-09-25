@@ -128,6 +128,35 @@ export function gridFixture(
     return { snapshot: f.snapshot, start };
 }
 
+/**
+ * Issue #90's scene: a uniform core in [-h, h)^dim and two groups of 50 outliers centred at x = +100 and x = -100,
+ * beyond the grid's extent (6 x the rms radius) on opposite sides. The core nodes come first. The core's half-width h
+ * (5 in 2D, 15 in 3D) spreads it over enough finest cells that none holds more than the default nearMax (64) nodes,
+ * so the near field is exact and the comparison sees the far field alone.
+ * @param dim - 2 or 3
+ * @returns the core size and the stride-3 scene positions
+ */
+export function opposingOutliers(dim: 2 | 3): { readonly core: number; readonly start: F32 } {
+    let seed = 12345;
+    const rnd = (): number => {
+        seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+        return seed / 2 ** 32;
+    };
+    const core = dim === 2 ? 2000 : 1500;
+    const half = dim === 2 ? 5 : 15;
+    const per = 50;
+    const start = new Float32Array(3 * (core + 2 * per));
+    for (let i = 0; i < core + 2 * per; i++) {
+        const inCore = i < core;
+        const side = i < core + per ? 100 : -100;
+        for (let a = 0; a < dim; a++) {
+            const offset = a === 0 && !inCore ? side : 0;
+            start[3 * i + a] = offset + (inCore ? half * (2 * rnd() - 1) : rnd() - 0.5);
+        }
+    }
+    return { core, start };
+}
+
 // ---------------------------------------------------------------- the state header
 
 /**
@@ -696,7 +725,7 @@ export async function captureGridStages(
                     frame.invCellSize,
                     frame.eps,
                     build.outside,
-                    Math.max(build.maxOccupancy, build.outside),
+                    oraclePyramid.maxOccupancy,
                 ],
             ),
         },

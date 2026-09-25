@@ -18,6 +18,7 @@ import { type GpuContext } from "../../src/context.js";
 import { createSpringElectrical } from "../../src/layouts/spring-electrical.js";
 import { type SpringElectricalStats } from "../../src/types/layout.js";
 import { rel } from "../helpers/fa2-parity.js";
+import { type EdgeSpec, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { edgeLengthQuantiles } from "../helpers/metrics.js";
 import { STORY_NODE_COUNT, storyEdges, storyGraph } from "../helpers/story-graph.js";
@@ -160,6 +161,90 @@ describe("G5: the spring-electrical preset vs ngraph on the story graph (design 
                 });
             } finally {
                 ctx.release(s);
+            }
+        },
+        CASE_TIMEOUT,
+    );
+});
+
+/** Issue #97's graph: a random spanning tree on n nodes plus n random extra edges (the triage's harness). */
+function treePlusRandom(n: number): EdgeSpec[] {
+    let seed = 12345;
+    const rnd = (): number => {
+        seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+        return seed / 2 ** 32;
+    };
+    const edges: EdgeSpec[] = [];
+    for (let i = 1; i < n; i++) {
+        edges.push([i, Math.floor(rnd() * i)]);
+    }
+    for (let k = 0; k < n; k++) {
+        const a = Math.floor(rnd() * n);
+        const b = Math.floor(rnd() * n);
+        if (a !== b) {
+            edges.push([a, b]);
+        }
+    }
+    return edges;
+}
+
+/**
+ * The rms distance of the nodes from their centroid (2D).
+ * @param p - stride-3 positions
+ * @returns the rms radius
+ */
+function rmsRadius(p: Float32Array): number {
+    const n = p.length / 3;
+    let cx = 0;
+    let cy = 0;
+    for (let i = 0; i < n; i++) {
+        cx += p[3 * i] / n;
+        cy += p[3 * i + 1] / n;
+    }
+    let r2 = 0;
+    for (let i = 0; i < n; i++) {
+        r2 += ((p[3 * i] - cx) ** 2 + (p[3 * i + 1] - cy) ** 2) / n;
+    }
+    return Math.sqrt(r2);
+}
+
+describe("issue #97: settled means the spring layout has stopped growing", () => {
+    const N = 2000;
+    const BUDGET = 6000;
+    const AFTER = 1000;
+    /** Measured 0.40 % on the RTX 4070 SUPER with the floor (1.63 % under the relative rule alone). */
+    const MAX_GROWTH = 0.01;
+
+    it(
+        `a ${N}-node spring layout run to settled grows its rms radius by less than ${MAX_GROWTH * 100} % over the next ${AFTER} iterations`,
+        async (t) => {
+            requireGpu(t);
+            const ctx = await acquire({ label: "se-settle-growth" });
+            const s = snapshotOf(treePlusRandom(N), { nodeCount: N });
+            try {
+                const settledRun = async (options: { readonly settleThreshold?: number }, iterations: number) => {
+                    const sim = createSpringElectrical(ctx, { seed: 42, maxInFlight: 1, ...options });
+                    try {
+                        const positions = new Float32Array(3 * N).fill(Number.NaN);
+                        sim.load(s, positions);
+                        await sim.run({ maxIter: iterations, batch: 8 });
+                        return { positions, iterationsDone: sim.iterationsDone, settled: sim.settled };
+                    } finally {
+                        sim.dispose();
+                    }
+                };
+                const stop = await settledRun({}, BUDGET);
+                expect(stop.settled && stop.iterationsDone < BUDGET, "settled before the budget").toBe(true);
+                // the same seeded run past the stop (settleThreshold 0 never settles): what a viewer would have seen
+                const later = await settledRun({ settleThreshold: 0 }, stop.iterationsDone + AFTER);
+                const growth = rmsRadius(later.positions) / rmsRadius(stop.positions) - 1;
+                console.log(
+                    `[se-settle] n=${N}: settled at ${stop.iterationsDone}; rms radius growth over the next ${AFTER} iterations ${(growth * 100).toFixed(3)} %`,
+                );
+                expect(Math.abs(growth)).toBeLessThan(MAX_GROWTH);
+            } finally {
+                ctx.release(s);
+                ctx.dispose();
             }
         },
         CASE_TIMEOUT,

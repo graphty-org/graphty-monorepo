@@ -130,6 +130,13 @@ export const FA2_DISTANCE_FLOOR = 0.01;
 export const FA2_DISTANCE_FLOOR_SQ = 0.0001;
 /** The coincident threshold `d^2 < 1e-8` of spec 7.2. */
 export const FA2_COINCIDENT_SQ = 1e-8;
+/**
+ * The most WG-node tiles one K3 (`fa2-repulsion-exact`) dispatch sums per invocation (issue #87). llvmpipe runs at
+ * most 65,535 loop iterations per shader invocation, counted over every loop together, and then quietly breaks
+ * out of each loop; one tile costs WG + 2 of them (258 at WG 256), so a single pass lost every node past
+ * j = 65,027. 128 tiles is 33,024 iterations, half the budget; a larger exact run records ceil(tiles / 128) passes.
+ */
+export const EXACT_TILES_PER_PASS = 128;
 /** Bits of Fa2Params.flags (contract 4.4). */
 export const FA2_FLAG_FIRST = 1;
 /** Fa2Params.flags bit: the Fruchterman-Reingold temperature is the adaptive one in the state block, not the uniform's (the `cooling: "adaptive"` option). */
@@ -202,6 +209,21 @@ export const SE_DEFAULTS: Readonly<{
     iterationsPerStep: 1,
     maxInFlight: 2,
 });
+/**
+ * The absolute settle floor of the shared settle rule (spec 7.17; issue #97): an iteration counts toward `settled` only
+ * when its mean displacement is at most `settleThreshold x rmsRadius` AND at most this fraction of the model's length
+ * unit -- `springLength` for spring-electrical, `k` for Fruchterman-Reingold. The relative rule alone reported a spring
+ * layout settled while it still grew (6 % over 1,000 iterations at 10k nodes). ForceAtlas2 writes
+ * `SETTLE_FLOOR_UNBOUNDED` instead: it does not drift after settling, and its per-iteration jitter grows with n, so any
+ * fixed floor only delays or blocks its stop. The values are measured:
+ * design/decisions/2026-09-24-settle-rule-has-an-absolute-floor.md.
+ */
+export const SETTLE_FLOOR_FRACTION: Readonly<{ springElectrical: number; fruchtermanReingold: number }> = Object.freeze({
+    springElectrical: 2e-3,
+    fruchtermanReingold: 2e-3,
+});
+/** The settle floor that never binds: the largest finite f32, 0x1.fffffep+127 (ForceAtlas2's `settleFloor`, issue #97). */
+export const SETTLE_FLOOR_UNBOUNDED = 2 ** 128 - 2 ** 104;
 /** The smallest finest grid side `G` (spec 7.7 geometry table: `clamp(nextPow2(2 n^(1/dim)), 8, gridMax)`; P4 PD-9). */
 export const GRID_MIN_SIDE = 8;
 /** The coarsest pyramid level's side (spec 7.7: "levels (coarsest 4 per axis)", `levels = log2(G / 4) + 1`). */

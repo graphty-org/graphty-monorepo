@@ -879,7 +879,7 @@ const BLOCKS: readonly BlockRow[] = [
         block: FA2_PARAMS,
         name: "Fa2Params",
         layout: "uniform",
-        byteLength: 128,
+        byteLength: 144,
         offsets: [
             ["n", 0],
             ["dim", 4],
@@ -910,6 +910,7 @@ const BLOCKS: readonly BlockRow[] = [
             ["dragCoefficient", 116],
             ["timeStep", 120],
             ["midEnd", 124],
+            ["settleFloor", 128],
         ],
     },
     {

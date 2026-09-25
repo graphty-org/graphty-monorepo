@@ -76,6 +76,7 @@ import type {
     StaticStyle,
     StyleDocument,
 } from "../../catalog/types";
+import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
 import { nearestNames } from "../results/ResultsApi";
 import { isHighlightShape, resultPath, resultShapeContract, type RunRef } from "../results/types";
@@ -591,13 +592,23 @@ const NO_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
 const NO_INDEX = (): number | undefined => undefined;
 
 /**
- * The palette the element's own highlight colour comes from.
+ * What a highlight paints when its caller names no style.
  *
- * Its first colour is the highlighted state and its second the muted one, and it is safe for all
- * three kinds of colour blindness -- which is why the highlight default is taken from here rather
- * than written as a hex string somebody once liked.
+ * A highlight is drawn OVER the default indigo node, the default darkgrey edge and the whitesmoke
+ * background, so it is chosen against those three rather than on its own. Okabe-Ito vermilion is
+ * at least Delta E 16 from each of them at normal vision and under all three kinds of colour
+ * blindness, and 3.5:1 against the background. The blue this replaced was Delta E 13 from the
+ * default node and under 4 for tritanopia, so a route through default nodes disappeared into
+ * them. `test/catalog/default-palette-quality.test.ts` measures it.
+ *
+ * Colour alone is not enough for an edge: a thin line at the default width reads as a thin line
+ * whatever its colour, so a highlighted edge is also drawn three times as wide. A node gets no
+ * size, because a size here would flatten whatever size encoding the layers beneath it drew.
  */
-const HIGHLIGHT_PALETTE = "blue-highlight";
+export const DEFAULT_HIGHLIGHT = {
+    color: "#D55E00",
+    edgeWidth: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
+} as const;
 
 /** The only style document version there is. */
 const DOCUMENT_VERSION = 1;
@@ -923,15 +934,15 @@ function isDerivedFor(layer: Layer, runId: RunId, channel: Channel): boolean {
 
 /**
  * The channels of a static style that paint one half of the graph.
- * @param set - The style, or undefined for the element's own highlight colour.
+ * @param set - The style, or undefined for the element's own highlight.
  * @param half - Whether the layer paints nodes or edges.
  * @returns The channels for that half, or null when the style names none of them.
  */
 function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): StaticStyle | null {
     if (set === undefined) {
-        const [highlighted] = paletteDescriptor(HIGHLIGHT_PALETTE)?.colors ?? [];
-
-        return highlighted === undefined ? null : { [`${half}.color`]: highlighted };
+        return half === "node"
+            ? { "node.color": DEFAULT_HIGHLIGHT.color }
+            : { "edge.color": DEFAULT_HIGHLIGHT.color, "edge.width": DEFAULT_HIGHLIGHT.edgeWidth };
     }
 
     const mine: StaticStyle = {};

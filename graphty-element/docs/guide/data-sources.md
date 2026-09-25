@@ -359,4 +359,4 @@ Read a format the element does not ship. See [Custom File Formats](./extending/c
 
 ## Interactive Examples
 
-- [Data Loading](https://graphty.app/storybook/element/?path=/story/data--default)
+- [Data Loading](https://graphty.app/storybook/graphty-element/?path=/story/data--basic)

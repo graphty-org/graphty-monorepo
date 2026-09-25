@@ -128,17 +128,16 @@ jobs:
               run: pnpm exec nx run layout:build-storybook
 
             # Build unified documentation on every run, so a pull request that breaks the docs
-            # fails here rather than on master. Only master uploads the result (see
-            # "Upload unified docs" below).
+            # (a dead link included: VitePress fails the build on one) fails here rather than on
+            # master. The docs and both gh-pages builds are uploaded on every run because the
+            # "Links" job checks every link to graphty.app against the site they assemble into.
             - name: Build docs
               run: npm run docs:build
 
             - name: Build algorithms gh-pages
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run algorithms:build:gh-pages
 
             - name: Build layout gh-pages
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run layout:build:gh-pages
 
             - name: Upload graph-format build
@@ -246,9 +245,8 @@ jobs:
                   path: layout/storybook-static/
                   retention-days: 1
 
-            # Upload documentation artifacts (only on master)
+            # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               uses: actions/upload-artifact@v4
               with:
                   name: build-docs
@@ -256,7 +254,6 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               uses: actions/upload-artifact@v4
               with:
                   name: build-ghpages-algorithms
@@ -264,7 +261,6 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout gh-pages
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               uses: actions/upload-artifact@v4
               with:
                   name: build-ghpages-layout
@@ -803,6 +799,85 @@ jobs:
                   # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
                   # See: https://github.com/storybookjs/storybook/issues/27172
 
+    # Dead links: relative links and anchors, this repository's files on GitHub, everything else
+    # under github.com/graphty-org, and every link to graphty.app -- checked against the site the
+    # next deploy would publish, assembled here from this run's artifacts by the same script
+    # deploy-pages.yml runs. See tools/check-links.sh. External links are checked weekly instead
+    # (links-weekly.yml), so another site's outage never fails a pull request.
+    links:
+        name: Links
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download graphty build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graphty
+                  path: graphty/dist/
+
+            - name: Download unified docs
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-docs
+                  path: docs/.vitepress/dist/
+
+            - name: Download Storybook build (graphty-element)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+
+            - name: Download Storybook build (graphty)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-app
+                  path: graphty/storybook-static/
+
+            - name: Download Storybook build (compact-mantine)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-compact-mantine
+                  path: compact-mantine/storybook-static/
+
+            - name: Download Storybook build (algorithms)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-algorithms
+                  path: algorithms/storybook-static/
+
+            - name: Download Storybook build (layout)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-layout
+                  path: layout/storybook-static/
+
+            - name: Download algorithms gh-pages
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-ghpages-algorithms
+                  path: algorithms/gh-pages/
+
+            - name: Download layout gh-pages
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-ghpages-layout
+                  path: layout/gh-pages/
+
+            - name: Assemble the GitHub Pages site
+              run: ./tools/assemble-pages-site.sh "$RUNNER_TEMP/site"
+
+            - name: Check links
+              run: ./tools/check-links.sh --site "$RUNNER_TEMP/site"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     # Performance regression tests (algorithms only, master branch)
     performance:
         name: Performance Tests
@@ -855,7 +930,7 @@ jobs:
     # Gate job - ensures all required checks pass before release/deploy
     all-checks:
         name: All Checks Pass
-        needs: [test, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
+        needs: [test, links, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
         if: always()
         runs-on: ubuntu-latest
         steps:
@@ -863,6 +938,10 @@ jobs:
               run: |
                   if [[ "${{ needs.test.result }}" != "success" ]]; then
                     echo "Test job failed"
+                    exit 1
+                  fi
+                  if [[ "${{ needs.links.result }}" != "success" ]]; then
+                    echo "Links job failed"
                     exit 1
                   fi
                   if [[ "${{ needs.chromatic-element.result }}" != "success" ]]; then

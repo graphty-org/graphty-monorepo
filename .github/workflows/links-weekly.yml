@@ -1,0 +1,62 @@
+name: Links (weekly)
+
+# Every link in the repository's Markdown, MDX, HTML and package.json, external ones included,
+# once a week. Dead ones go into one open issue labelled "dead-links", which each run rewrites and
+# a clean run closes. This never fails a pull request: an external site going down is not
+# something a contributor did. Our own links (relative, anchors, github.com/graphty-org,
+# graphty.app) are gated on every pull request by the "Links" job in ci.yml instead.
+# See tools/check-links.sh.
+
+on:
+    schedule:
+        - cron: "17 6 * * 1" # Mondays 06:17 UTC
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    issues: write
+
+concurrency:
+    group: links-weekly
+    cancel-in-progress: true
+
+jobs:
+    external-links:
+        name: External links
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Check every link
+              id: check
+              continue-on-error: true
+              run: ./tools/check-links.sh --external "$RUNNER_TEMP/dead-links.md"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: File, update or close the dead-links issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  OUTCOME: ${{ steps.check.outcome }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  number="$(gh issue list --state open --label dead-links --json number --jq '.[0].number // empty')"
+                  if [ "$OUTCOME" = "success" ]; then
+                    if [ -n "$number" ]; then
+                      gh issue close "$number" --comment "The weekly link check found no dead links ($RUN_URL)."
+                    fi
+                    exit 0
+                  fi
+                  {
+                    echo "The weekly link check ($RUN_URL) found dead links. Each is a link to fix or to"
+                    echo "remove; a pattern that can never be checked belongs in .lycheeignore with its reason."
+                    echo "This issue is rewritten by every run and closed by the first clean one."
+                    echo
+                    head -c 60000 "$RUNNER_TEMP/dead-links.md" 2>/dev/null || echo "(no report: see the run log)"
+                  } > "$RUNNER_TEMP/issue.md"
+                  if [ -n "$number" ]; then
+                    gh issue edit "$number" --body-file "$RUNNER_TEMP/issue.md"
+                  else
+                    gh label create dead-links --color B60205 --description "Found by the weekly link check" 2>/dev/null || true
+                    gh issue create --title "Dead links found by the weekly link check" --label dead-links --body-file "$RUNNER_TEMP/issue.md"
+                  fi

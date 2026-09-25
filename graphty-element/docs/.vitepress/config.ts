@@ -44,8 +44,7 @@ export default defineConfig({
         nav: [
             { text: "Guide", link: "/guide/getting-started" },
             { text: "API", link: "/api/" },
-            // Points to Storybook deployed alongside docs at /storybook/
-            { text: "Examples", link: "/storybook/" },
+            { text: "Examples", link: "https://graphty.app/storybook/graphty-element/" },
         ],
 
         sidebar: {

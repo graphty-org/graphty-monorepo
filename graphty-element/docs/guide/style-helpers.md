@@ -193,6 +193,6 @@ See [Custom Palettes](./extending/custom-palettes) for the full contract.
 
 ## Interactive examples
 
-- [Palette Picker](https://graphty.app/storybook/element/?path=/story/algorithms-palette-picker--palette-picker)
-- [Centrality with Colors](https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree-centrality)
-- [Community Detection](https://graphty.app/storybook/element/?path=/story/algorithms-community--louvain-community-detection)
+- [Palette Picker](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-palette-picker--palette-picker)
+- [Centrality with Colors](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-centrality--degree)
+- [Community Detection](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-community--louvain)

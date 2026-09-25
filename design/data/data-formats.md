@@ -118,7 +118,7 @@ JSON is the most widely supported format across modern graph visualization tools
 **Used by:** Cytoscape.js, GraphSpace
 
 **Specification:** https://js.cytoscape.org/#notation/elements-json
-**JSON Schema:** https://github.com/cytoscape/cytoscape.js/blob/master/documentation/md/notation/elements-json.md
+**JSON Schema:** https://js.cytoscape.org/#notation/elements-json
 
 **Structure:**
 
@@ -842,7 +842,7 @@ GEXF is an XML format designed specifically for Gephi but adopted by other tools
 
 **Official Specification:** https://gexf.net/
 **XSD Schema:** https://gexf.net/schema.html
-**Format Documentation:** https://gexf.net/format/
+**Format Documentation:** https://gexf.net/
 
 **Current Version:** 1.3 (2015)
 **Previous Versions:** 1.2, 1.1 (deprecated)
@@ -1078,7 +1078,7 @@ DOT is the graph description language used by Graphviz. It's a human-readable te
 ##### Specification
 
 **Official Documentation:** https://graphviz.org/doc/info/lang.html
-**Attribute Reference:** https://graphviz.org/docs/attrs/
+**Attribute Reference:** https://graphviz.org/doc/info/attrs.html
 **Grammar:** https://graphviz.org/doc/info/lang.html
 
 **Maintained by:** Graphviz project (AT&T Labs Research)

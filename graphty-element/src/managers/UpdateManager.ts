@@ -649,7 +649,7 @@ export class UpdateManager implements Manager {
     /**
      * Update the graph for the current frame.
      *
-     * The pass itself is {@link UpdateManager.runUpdatePass}; what is added here is the one
+     * The pass itself is the private `runUpdatePass()`; what is added here is the one
      * question a consumer cares about and the pass has several exits from -- whether the state it
      * leaves behind is a finished picture.
      */

@@ -1,4 +1,5 @@
 import type { TextSegment } from "./RichTextLabel.ts";
+import { measureLine } from "./RichTextParser.ts";
 
 interface RenderOptions {
     textAlignment: "left" | "center" | "right";
@@ -49,34 +50,12 @@ export class RichTextRenderer {
         let currentY = contentArea.y + this.options.marginTop;
 
         for (const lineSegments of parsedContent) {
-            if (lineSegments.length === 0) {
-                continue;
-            }
+            const { width, lineBox, baseline } = measureLine(ctx, lineSegments, this.options);
+            const startX = this.calculateLineStartX(textAreaX, textAreaWidth, width);
 
-            const { totalWidth, maxLineHeight } = this.measureLine(ctx, lineSegments);
-            const startX = this.calculateLineStartX(textAreaX, textAreaWidth, totalWidth);
-
-            this.drawLine(ctx, lineSegments, startX, currentY, maxLineHeight);
-            currentY += maxLineHeight * this.options.lineHeight;
+            this.drawLine(ctx, lineSegments, startX, currentY, lineBox, currentY + baseline);
+            currentY += lineBox;
         }
-    }
-
-    private measureLine(
-        ctx: CanvasRenderingContext2D,
-        lineSegments: TextSegment[],
-    ): { totalWidth: number; maxLineHeight: number } {
-        let totalWidth = 0;
-        let maxLineHeight = 0;
-
-        for (const segment of lineSegments) {
-            const { style } = segment;
-            ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
-            const metrics = ctx.measureText(segment.text);
-            totalWidth += metrics.width;
-            maxLineHeight = Math.max(maxLineHeight, style.size);
-        }
-
-        return { totalWidth, maxLineHeight };
     }
 
     private calculateLineStartX(textAreaX: number, textAreaWidth: number, totalWidth: number): number {
@@ -97,8 +76,9 @@ export class RichTextRenderer {
         ctx: CanvasRenderingContext2D,
         lineSegments: TextSegment[],
         startX: number,
-        currentY: number,
-        lineHeight: number,
+        lineTop: number,
+        lineBox: number,
+        baselineY: number,
     ): void {
         let currentX = startX;
 
@@ -106,24 +86,24 @@ export class RichTextRenderer {
             const { style } = segment;
 
             ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
-            ctx.textBaseline = "top";
+            ctx.textBaseline = "alphabetic";
 
             if (style.background) {
                 const metrics = ctx.measureText(segment.text);
                 ctx.fillStyle = style.background;
-                ctx.fillRect(currentX, currentY, metrics.width, lineHeight);
+                ctx.fillRect(currentX, lineTop, metrics.width, lineBox);
             }
 
             if (this.options.textShadow) {
-                this.drawTextWithShadow(ctx, segment.text, currentX, currentY, style.color);
+                this.drawTextWithShadow(ctx, segment.text, currentX, baselineY, style.color);
             }
 
             if (this.options.textOutline) {
-                this.drawTextOutline(ctx, segment.text, currentX, currentY);
+                this.drawTextOutline(ctx, segment.text, currentX, baselineY);
             }
 
             ctx.fillStyle = style.color;
-            ctx.fillText(segment.text, currentX, currentY);
+            ctx.fillText(segment.text, currentX, baselineY);
 
             currentX += ctx.measureText(segment.text).width;
         }

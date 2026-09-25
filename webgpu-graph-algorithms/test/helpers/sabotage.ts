@@ -12,8 +12,8 @@
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
- * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts
- * ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts,
+ * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -51,6 +51,7 @@ const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
+const ADVANCE_TEST = "test/primitives/advance.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -981,6 +982,51 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "if (false) {",
             minFactor: 10,
             test: FRONTIER_TEST,
+        },
+    ]),
+    // P8-T5: every row is measured by advanceReport (test/helpers/advance.ts) through the advance test
+    "advance-expand": Object.freeze([
+        {
+            // the unscanned degrees are stored: the binary search walks a non-monotone array and every lane gets the
+            // wrong source (the helper itself is prelude code and is not a per-kernel row)
+            name: "scan-result-dropped",
+            find: "sh[lid.x] = inclusive;",
+            replace: "sh[lid.x] = deg;",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // lower_bound instead of upper_bound: off by one at every block boundary (the reversed frontier and the
+            // grid levels read a neighbouring row's arc there)
+            name: "lower-bound-not-upper",
+            find: "if (sh[mid] > p) { hi = mid; } else { lo = mid + 1u; }",
+            replace: "if (sh[mid] >= p) { hi = mid; } else { lo = mid + 1u; }",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the aggregate is reserved once per LANE: the queue interleaves and the three counters explode
+            name: "per-lane-reservation",
+            find: "if (lid.x == 0u) {\n        base = atomicAdd(&counters[8], aggregate);",
+            replace: "{\n        base = atomicAdd(&counters[8], aggregate);",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the last entry of the frontier is never loaded: its arcs are missing from the queue and the counters
+            name: "last-entry-skipped",
+            find: "if (i < count) {                                                 // guarded loads into locals (3.5 rule 1)",
+            replace: "if (i + 1u < count) {",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the overflow detector counts nothing: caught by the unclamped word, which every case pins
+            name: "unclamped-not-counted",
+            find: "atomicAdd(&counters[9], aggregate);",
+            replace: "atomicAdd(&counters[9], 0u);",
+            minFactor: 10,
+            test: ADVANCE_TEST,
         },
     ]),
 });

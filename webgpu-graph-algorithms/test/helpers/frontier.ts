@@ -90,7 +90,7 @@ export function slotOf(args: U32, level: number, slot: number): number[] {
  * @param words - the 24 words read back
  * @returns the block by name
  */
-function decodeCounters(words: U32): Readonly<Record<CounterWord, number>> {
+export function decodeCounters(words: U32): Readonly<Record<CounterWord, number>> {
     const values = FRONTIER_COUNTERS.read(new DataView(words.buffer, words.byteOffset, words.byteLength));
     const out: Partial<Record<CounterWord, number>> = {};
     for (const name of WORDS) {
@@ -326,7 +326,7 @@ export async function runIndirectLadder(ctx: GpuContext, counts: readonly number
  * @param want - the expected words
  * @returns the reports
  */
-function bitwiseReports(label: string, got: ArrayLike<number>, want: ArrayLike<number>): CheckReport[] {
+export function bitwiseReports(label: string, got: ArrayLike<number>, want: ArrayLike<number>): CheckReport[] {
     const reports: CheckReport[] = [];
     for (let i = 0; i < want.length; i++) {
         reports.push({ worst: ratioOf(Math.abs(got[i] - want[i]), 0), worstLabel: `${label}[${i}]`, samples: 1 });

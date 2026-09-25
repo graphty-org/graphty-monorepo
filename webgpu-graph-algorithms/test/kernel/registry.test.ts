@@ -623,6 +623,21 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P8",
         storageCount: 2,
     },
+    "advance-expand": {
+        entryPoint: "advance_expand",
+        bindings: withGraph([
+            [1, 0, "frontierIn", "storage-ro", "array<u32>"],
+            [1, 1, "counters", "storage", "array<atomic<u32>>"],
+            [1, 2, "edgeQueue", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 7,
+    },
 };
 
 const P1_IDS: readonly KernelId[] = ["degree", "reduce", "fill", "fa2-repulsion-exact", "fa2-speed-finalize"];

@@ -46,7 +46,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `positionScale`          | `position-scale`           | `number`                       | `1`         | Multiplier from a record's own coordinates into scene units |
 | `directed`               | `directed`                 | `boolean \| 'auto'`            | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide |
 | `selectionStyle`         | property only              | `{ color?, scale?, opacity? }` | gold halo   | What a selected node looks like |
-| `layoutBehavior`         | property only              | `object`                       | `{}`        | How the element drives the layout, and the two on-demand expansion functions |
+| `layoutBehavior`         | property only              | `object`                       | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions |
 | `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`      | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads)) |
 | `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                      | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence |
 | `debug`                  | `debug`                    | `boolean`                      | `false`     | Enable debug overlay           |
@@ -131,6 +131,16 @@ element.layoutBehavior = {
 
 `preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
 its default of `0` leaves the engine to decide when it has finished.
+
+### Overlapping labels
+
+`layoutBehavior.labels.declutter` hides a node label whose words would be drawn over another
+label's. It is off by default, so every label a style asks for is drawn; see
+[Labels that would overlap](./styling#labels-that-would-overlap).
+
+```javascript
+element.layoutBehavior = { labels: { declutter: true } };
+```
 
 ## Basic Usage
 

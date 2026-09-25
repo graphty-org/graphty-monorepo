@@ -23,6 +23,21 @@ const NodeBehaviorOpts = z
     })
     .prefault({});
 
+const LabelBehaviorOpts = z
+    .strictObject({
+        /*
+         * Whether node labels that would be drawn on top of each other are thinned out.
+         *
+         * OFF BY DEFAULT, so a graph looks the way it always has: every label a style asks for is
+         * drawn. On, the element hides a label whose words would overlap a label it keeps, and it
+         * keeps a selected node's label first, then the label of the node with more edges. The
+         * decision is taken again whenever the camera, the viewport, a label, a node's position or
+         * the selection changes, and never on a frame where none of them did.
+         */
+        declutter: z.boolean().default(false),
+    })
+    .prefault({});
+
 const GraphLayoutOpts = z.strictObject({
     type: z.string().default("ngraph"),
     preSteps: z.number().default(0),
@@ -64,6 +79,7 @@ export const GraphBehaviorOpts = z.strictObject({
     // dimensions: z.int().min(2).max(3).default(3),
     layout: GraphLayoutOpts.prefault({}),
     node: NodeBehaviorOpts,
+    labels: LabelBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

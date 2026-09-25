@@ -90,6 +90,15 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
     "node.outline": "mesh",
     "node.glow": "mesh",
+    // A glow's STRENGTH is keyed the same way. `NodeEffects.syncGlowStrengths` gives each SOURCE
+    // mesh its own intensity (Babylon's per-mesh `setEffectIntensity`, keyed by uniqueId), so two
+    // strengths need two source meshes. As an `instance` channel, two styles differing only in
+    // strength shared one source and were drawn at whichever was applied last.
+    // COST, as for `node.glow`: every distinct strength builds and caches one source mesh, so a
+    // strength computed per node or encoded from data breaks instancing into one mesh per value.
+    // ponytail: quantize the strength in the key (or evict source meshes left with no instances)
+    // if a continuous glow encoding ever shows up in a profile.
+    "node.glowStrength": "mesh",
     "edge.width": "mesh",
     "edge.style": "mesh",
     "edge.patternCount": "mesh",
@@ -113,15 +122,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Per-instance state: one buffer write, and never a reason to build a second mesh.
     "node.color": "instance",
     "node.opacity": "instance",
-    // A glow's STRENGTH is the opposite case to its colour. Babylon keeps a glow's intensity on
-    // the LAYER, one per scene, so no two nodes can ever be drawn at two strengths and a source
-    // mesh per strength would buy nothing at all -- which is what it was minting, because
-    // `Node.paintFrom` used to apply a node's effects only on the branch that rebuilds the mesh
-    // and a channel outside the key therefore never reached the screen. That branch now applies
-    // every `instance` channel whether it rebuilds or not, so a strength edit repaints without
-    // minting anything. The caveat on the channel says the rest: the last strength applied is
-    // the strength every glowing node is drawn at.
-    "node.glowStrength": "instance",
     "edge.color": "instance",
     "edge.opacity": "instance",
 

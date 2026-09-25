@@ -62,3 +62,8 @@ version of the code.
 | [2026-09-21-acceleration-knobs-and-their-homes.md](2026-09-21-acceleration-knobs-and-their-homes.md) | The two layout knobs live on `behavior.layout`; the threshold keeps one spelling |
 | [2026-09-21-g12-without-the-nightly-clause.md](2026-09-21-g12-without-the-nightly-clause.md) | G12 is gated on the GPU lane green on master, not on a nightly week |
 | [2026-09-21-app-stories-draw-the-chip-not-the-gpu.md](2026-09-21-app-stories-draw-the-chip-not-the-gpu.md) | The app's acceleration stories draw the chip from a fixed status; the real GPU is the element's story |
+| [2026-09-24-frontier-primitives-are-planners.md](2026-09-24-frontier-primitives-are-planners.md) | `compact` / `dedupe`, `Frontier` and `advance` are planners over a scope, not free functions over a batch |
+| [2026-09-24-bfs-claims-instead-of-culling.md](2026-09-24-bfs-claims-instead-of-culling.md) | BFS dedupes by the atomic claim alone; no hash culling and no ownership pass in the contract |
+| [2026-09-24-advance-is-window-aware.md](2026-09-24-advance-is-window-aware.md) | `advance` and the BFS kernels execute arc windows; the relax and sweep kernels keep `E_TOO_LARGE` |
+| [2026-09-24-frontier-members-conform-to-the-seam.md](2026-09-24-frontier-members-conform-to-the-seam.md) | The four frontier members take the seam's option types; no harmonic / eccentricity; `maxIterations` / `tolerance` refused; `cutoff: NaN` refused |
+| [2026-09-24-edge-queue-overflow-is-a-fused-retry.md](2026-09-24-edge-queue-overflow-is-a-fused-retry.md) | An edge-queue overflow is recovered by a fused retry of the level, not a chunked re-dispatch |

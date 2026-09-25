@@ -308,8 +308,9 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 ## CSS Styling
 
-The element is a block that fills its parent (`width: 100%; height: 100%`) with a `min-height` of
-400px, so a bare tag in an unsized page is full width and 400px tall. Size it with ordinary CSS:
+The element is a block that fills its container's width. Its height is 2:1 -- half its width --
+unless you give it a height or place it in a parent that has one, in which case it fills that
+parent. Size it with ordinary CSS:
 
 ```css
 graphty-element {
@@ -322,8 +323,6 @@ Or inline styles:
 ```html
 <graphty-element style="width: 800px; height: 600px;"> </graphty-element>
 ```
-
-To make it shorter than 400px, lower `min-height` as well: `style="height: 250px; min-height: 0"`.
 
 ## Events
 

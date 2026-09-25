@@ -89,10 +89,9 @@ describe("Graphty", () => {
         expect(ref.current?.session).toBe(session);
     });
 
-    it("has proper styling", () => {
+    it("leaves the element's size to the element, which fills the sized container", () => {
         const { container } = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector<HTMLElement>("graphty-element");
-        // The element fills its parent on its own (:host); the app only lifts its 400px floor.
-        expect(graphtyElement?.style.minHeight).toBe("0px");
+        expect(graphtyElement?.getAttribute("style")).toBeNull();
     });
 });

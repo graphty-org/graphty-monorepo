@@ -6,8 +6,10 @@
  * canvas's intrinsic 300x150 ratio: a bare tag in a 1000px-wide page drew a 1000x500 graph, and a
  * height set on the tag itself was ignored because heights do not apply to inline boxes.
  *
- * The contract now: the host is a block that fills its parent (`width: 100%; height: 100%`) and is
- * never shorter than 400px unless the page lowers `min-height`.
+ * The contract now: the host is a block that fills its parent's width (`width: 100%`). Its height is
+ * the parent's when the parent has a definite height (`height: 100%`), the element's own when the
+ * page sets one, and otherwise half its width (`aspect-ratio: 2 / 1`, which applies only while the
+ * used height is `auto`) -- the same 2:1 a bare tag always drew.
  */
 import "../../src/graphty-element";
 
@@ -45,9 +47,24 @@ async function canvasSize(parentStyle: string, elementStyle = ""): Promise<{ wid
     return { width: Math.round(rect.width), height: Math.round(rect.height) };
 }
 
-test("a bare element in an unsized parent is full width and 400px tall, not 2:1", async () => {
+/**
+ * Mounts an element and returns its host's computed display.
+ * @returns The computed `display` of the host.
+ */
+function hostDisplay(): string {
+    const element = document.createElement("graphty-element");
+    document.body.appendChild(element);
+    mounted.push(element);
+    return getComputedStyle(element).display;
+}
+
+test("the host is a block box", () => {
+    assert.equal(hostDisplay(), "block");
+});
+
+test("a bare element in an unsized parent is full width and 2:1, as it always was", async () => {
     const size = await canvasSize("width: 1000px;");
-    assert.deepEqual(size, { width: 1000, height: 400 });
+    assert.deepEqual(size, { width: 1000, height: 500 });
 });
 
 test("a height set on the element itself is honoured", async () => {
@@ -60,7 +77,7 @@ test("an element in a fixed-size parent fills it", async () => {
     assert.deepEqual(size, { width: 800, height: 600 });
 });
 
-test("the default minimum height can be lowered by the page", async () => {
-    const size = await canvasSize("width: 500px; height: 200px;", "min-height: 0;");
-    assert.deepEqual(size, { width: 500, height: 200 });
+test("an element in a parent sized by its insets fills it", async () => {
+    const size = await canvasSize("position: fixed; left: 0; top: 0; width: 700px; bottom: calc(100vh - 300px);");
+    assert.deepEqual(size, { width: 700, height: 300 });
 });

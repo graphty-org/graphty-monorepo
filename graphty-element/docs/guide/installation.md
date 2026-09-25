@@ -254,9 +254,9 @@ Graphty bundles Babylon.js core, which adds to bundle size. For production:
 
 ### Component Not Rendering
 
-The element fills its parent and is at least 400px tall. If it is still not visible, check that
-the parent is not hiding it (`display: none`, `overflow: hidden` with no size), or give the
-element a size directly:
+The element is a block that fills its container's width and is 2:1 unless it is given a height
+or placed in a parent that has one. If it is still not visible, check that the parent is not
+hiding it (`display: none`, or a zero width), or give the element a size directly:
 
 ```css
 graphty-element {

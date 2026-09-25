@@ -542,13 +542,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 overflow: "hidden",
             }}
         >
-            <graphty-element
-                ref={graphtyRef}
-                acceleration={acceleration}
-                // The element fills its parent by default; the app's panel decides the height,
-                // even when that is below the element's default 400px floor.
-                style={{ minHeight: 0 }}
-            />
+            <graphty-element ref={graphtyRef} acceleration={acceleration} />
         </Box>
     );
 });

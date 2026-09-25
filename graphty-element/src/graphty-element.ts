@@ -49,9 +49,10 @@ const RICH_PROPERTIES = [
  */
 export class Graphty extends LitElement {
     /**
-     * The host is a block that fills its parent and is never shorter than 400px, so a bare tag
-     * draws a usable graph and a height given to the tag or its parent is honoured. Every rule
-     * here can be overridden from the page, `min-height` included.
+     * The host is a block that fills its parent's width. Its height is the parent's when the
+     * parent has a definite height, the element's own when the page sets one, and otherwise half
+     * its width: `aspect-ratio` only applies while the used height is `auto`, so a bare tag keeps
+     * the 2:1 canvas it always had. Every rule here can be overridden from the page.
      */
     static styles = css`
         :host {
@@ -59,7 +60,7 @@ export class Graphty extends LitElement {
             position: relative;
             width: 100%;
             height: 100%;
-            min-height: 400px;
+            aspect-ratio: 2 / 1;
         }
     `;
 

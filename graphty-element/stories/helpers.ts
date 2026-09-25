@@ -297,6 +297,8 @@ interface StorySetup {
      * project's wait for a final frame -- should spend on it. The settled picture is the same.
      */
     stepMultiplier?: number;
+    /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
+    declutterLabels?: boolean;
 }
 
 /**
@@ -486,6 +488,10 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
 
     if (setup.algorithms !== undefined) {
         element.algorithmsOnLoad = setup.algorithms;
+    }
+
+    if (setup.declutterLabels !== undefined) {
+        element.layoutBehavior = { labels: { declutter: setup.declutterLabels } };
     }
 }
 

@@ -75,14 +75,6 @@
  * - **The legend's channels.** With nothing encoded the legend renders nothing by
  *   design (spec 01 section 9), so an empty channel list is the correct state, not a
  *   missing one.
- * - **A reproducible scatter on a large graph.** `recommendLayout` picks the Scattered
- *   arrangement above the large-graph threshold and says of it that the result is "the same
- *   every time", but the recommendation is a descriptor with no configuration and the random
- *   engine's own seed defaults to null, so each load scatters differently. The shell applies
- *   the arrangement the element named and adds no seed of its own: a layout option written
- *   down here would be the copy of the element's catalogue this file has just finished
- *   deleting. The promise holds the day the recommendation carries the configuration it
- *   describes.
  */
 
 import {

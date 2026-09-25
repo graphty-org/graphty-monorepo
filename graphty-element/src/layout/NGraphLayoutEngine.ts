@@ -102,6 +102,8 @@ export class NGraphEngine extends LayoutEngine {
     _settled = true;
     _stepCount = 0;
     _lastMoves: number[] = [];
+    /** Places each new node when `seed` is set; null leaves placement to ngraph. */
+    private seededPlacement: { rng: ReturnType<typeof random>; extent: number; dim: number } | null = null;
 
     /**
      * Create an NGraph layout engine
@@ -144,9 +146,17 @@ export class NGraphEngine extends LayoutEngine {
             ngraphConfig.timeStep = typedConfig.timeStep;
         }
 
-        // Add random number generator with seed if provided
-        if (typedConfig.seed !== undefined && typeof typedConfig.seed === "number") {
-            ngraphConfig.random = random(typedConfig.seed);
+        // ngraph.forcelayout never reads a generator from its settings: it seeds its own with a
+        // hard-coded 42, so every seed used to give the same picture. A seeded layout therefore
+        // places each node itself, from this generator, before the simulation moves it.
+        if (typeof typedConfig.seed === "number") {
+            const springLength = typeof typedConfig.springLength === "number" ? typedConfig.springLength : 30;
+            this.seededPlacement = {
+                rng: random(typedConfig.seed),
+                // ponytail: a fixed box of ten spring lengths; scale with node count if large seeded graphs start too tight
+                extent: springLength * 5,
+                dim: ngraphConfig.dimensions as number,
+            };
         }
 
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
@@ -227,6 +237,14 @@ export class NGraphEngine extends LayoutEngine {
     addNode(n: Node): void {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
+        if (this.seededPlacement) {
+            const { rng, extent, dim } = this.seededPlacement;
+            const coord = (): number => (rng.nextDouble() * 2 - 1) * extent;
+            const x = coord();
+            const y = coord();
+            this.ngraphLayout.setNodePosition(n.id, x, y, dim === 3 ? coord() : 0);
+        }
+
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];

@@ -138,20 +138,21 @@ void main() {
     // Calculate line direction in screen space (after perspective divide)
     vec2 startScreen = segmentStartClip.xy / segmentStartClip.w;
     vec2 endScreen = segmentEndClip.xy / segmentEndClip.w;
-    vec2 screenDirRaw = endScreen - startScreen;
-    float screenDirLength = length(screenDirRaw);
+    // The direction in PIXELS, not NDC. NDC x and y have different pixel scales on any
+    // non-square canvas, so a perpendicular taken in NDC is not perpendicular on screen and a
+    // diagonal line draws thinner than an axis-aligned one of the same width.
+    vec2 screenDirPx = (endScreen - startScreen) * resolution * 0.5;
+    float screenDirLength = length(screenDirPx);
 
-    // Safety check: handle near-zero vectors to prevent numerical instability
-    // When a line segment appears very small in screen space (< 0.000001 NDC units),
-    // normalizing the direction vector causes garbage values
-    // NOTE: Lowered threshold from 0.001 to 0.000001 to support bezier curves with many tiny segments
+    // Safety check: a segment that is (near) a point on screen has no direction to normalise.
+    // The threshold is tiny so bezier curves with many short segments still get their width.
     vec2 perpendicular;
-    if (screenDirLength < 0.000001) {
+    if (screenDirLength < 0.0005) {
         // Fallback: line is degenerate in screen space, collapse to a point (zero width)
         perpendicular = vec2(0.0, 0.0);
     } else {
-        vec2 screenDir = screenDirRaw / screenDirLength; // Safe normalize
-        // Perpendicular in screen space (rotate 90 degrees)
+        vec2 screenDir = screenDirPx / screenDirLength; // Safe normalize
+        // Perpendicular in pixel space (rotate 90 degrees)
         perpendicular = vec2(-screenDir.y, screenDir.x);
     }
 
@@ -169,32 +170,14 @@ void main() {
     gl_Position = vertexClip;
     gl_Position.xy += offset;
 
-    // Calculate world-space line width for patterns
-    // We need to convert screen-space width (pixels) to world-space distance
-    // Strategy: Calculate two points in NDC space separated by 'width' pixels,
-    // then convert the distance to world-space units
-
-    // First, convert vertexClip to NDC space
-    vec2 point1NDC = vertexClip.xy / vertexClip.w;
-
-    // Calculate offset for 'width' pixels in NDC space
-    vec2 pixelOffset = perpendicular * width / resolution;
-
-    // Add offset in NDC space (this is the correct approach)
-    vec2 point2NDC = point1NDC + pixelOffset;
-
-    // Measure screen-space distance in NDC units
-    float screenSpaceDist = length(point2NDC - point1NDC);
-
-    // Convert screen-space distance to world-space distance
-    // Use the segment's world length vs screen length ratio
-    vec3 worldSegmentDir = segmentEnd - segmentStart;
-    float worldSegmentLength = length(worldSegmentDir);
-    float screenSegmentLength = screenDirLength;
-
-    // Calculate world units per NDC unit along the line direction
-    float worldPerScreen = (screenSegmentLength > 0.001)
-        ? worldSegmentLength / screenSegmentLength
+    // World-space line width for patterns: the width in pixels (the pixel length of a
+    // 'width / resolution' NDC offset, which is width / 2) over the segment's length in pixels,
+    // times the segment's length in world units. Both lengths are in pixels, so the ratio does
+    // not depend on the canvas's aspect ratio.
+    float screenSpaceDist = length(perpendicular) * width * 0.5;
+    float worldSegmentLength = length(segmentEnd - segmentStart);
+    float worldPerScreen = (screenDirLength > 0.5)
+        ? worldSegmentLength / screenDirLength
         : 0.0;
 
     vWorldSpaceLineWidth = screenSpaceDist * worldPerScreen;

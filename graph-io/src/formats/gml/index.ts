@@ -45,6 +45,7 @@ import {
     REPEATED_KEY_CODE,
     ROLE_TAKEN_CODE,
     SECOND_GRAPH_CODE,
+    UNKNOWN_ENTITY_CODE,
 } from "./importer.js";
 
 export { gmlExporter, type GmlExportOptions } from "./exporter.js";
@@ -88,6 +89,8 @@ export const GML_ISSUE = Object.freeze({
     FLAG_TYPE: FLAG_TYPE_CODE,
     /** A `directed` / `multigraph` flag outside 0 / 1, or repeated. */
     FLAG_VALUE: FLAG_VALUE_CODE,
+    /** A named entity in a string that no table decodes; kept as written. */
+    UNKNOWN_ENTITY: UNKNOWN_ENTITY_CODE,
     /** An integer beyond 2^53 rounded to f64. */
     PRECISION: PRECISION_CODE,
     /** A column renamed `<name>#<key>` because the sink held the name with another shape. */

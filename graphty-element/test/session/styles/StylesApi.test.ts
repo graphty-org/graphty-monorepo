@@ -1,8 +1,8 @@
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredPalettesForTesting, registerPalette } from "../../../src/catalog/paletteRegistry";
-import { paletteDescriptor } from "../../../src/catalog/palettes";
 import type { Channel, FieldDescriptor, LayerSpec, PaletteDescriptor, Path, RunId, StyleDocument } from "../../../src/catalog/types";
+import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import { isGraphtyError } from "../../../src/errors";
 import type { RunRef } from "../../../src/session/results/types";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
@@ -43,6 +43,7 @@ import {
 } from "../../../src/session/styles/index";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
+import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
 
 /** One element's columns, keyed by the path a selector names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -1028,11 +1029,20 @@ describe("highlight(), which is exclusive", () => {
 
     it("paints the element's own highlight colour when the caller names none", async () => {
         const { styles } = makeStyles();
-        const [highlighted] = paletteDescriptor("blue-highlight")?.colors ?? [];
 
         const [nodes] = await styles.highlight({ run: "influencers" });
 
-        assert.strictEqual(nodes?.set?.["node.color"], highlighted);
+        assert.deepStrictEqual(nodes?.set, { "node.color": DEFAULT_HIGHLIGHT.color });
+    });
+
+    it("draws a highlighted edge wider than a default edge, so a route reads as a route", async () => {
+        const { styles } = makeStyles();
+
+        const layers = await styles.highlight({ run: "route" });
+        const edges = layers.find((layer) => layer.target === "edge");
+
+        assert.strictEqual(edges?.set?.["edge.color"], DEFAULT_HIGHLIGHT.color);
+        assert.isAbove(Number(edges?.set?.["edge.width"]), EDGE_CONSTANTS.DEFAULT_LINE_WIDTH);
     });
 
     it("paints only the half the caller's style names a channel for", async () => {
@@ -1101,6 +1111,59 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.strictEqual(block?.field?.path, "results.betweenness.value");
         assert.isAbove(swatches.length, 0);
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
+    });
+
+    /* Two runs stacked on node colour: each run-made layer is scoped `{match:"has"}` to the
+       elements its run measured, so a cover test that only believed `{match:"everything"}`
+       never reported one run's colours hidden under another's. */
+    describe("a layer above that selects every element this one does", () => {
+        /**
+         * A session whose selector source can enumerate the elements a column holds a value for,
+         * which is what a real session's source does for a run's column.
+         * @returns the harness.
+         */
+        function measuredStyles(): Harness {
+            return makeStyles({
+                elements: {
+                    ...ELEMENTS,
+                    measured: (path: Path) =>
+                        NODES.flatMap((row, index) => (row[path] === undefined || row[path] === null ? [] : [index])),
+                },
+            });
+        }
+
+        it("says the lower block is painted over when the layer above selects all of its elements", async () => {
+            const { styles } = measuredStyles();
+
+            await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+            await styles.add(
+                layerSpec("Route colour", {
+                    selector: { match: "has", path: "results.route.onPath" },
+                    set: { "node.color": "#00ff00" },
+                }),
+            );
+
+            const [lower, upper] = styles.legend();
+
+            assert.include(lower?.departures, 'painted over by "Route colour"');
+            assert.notInclude(upper?.departures ?? [], 'painted over by "By betweenness"');
+        });
+
+        it("says nothing when the layer above selects only some of them", async () => {
+            const { styles } = measuredStyles();
+
+            await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+            await styles.add(
+                layerSpec("Group colour", {
+                    selector: { match: "has", path: "results.louvain.group" },
+                    set: { "node.color": "#00ff00" },
+                }),
+            );
+
+            const [lower] = styles.legend();
+
+            assert.notInclude(lower?.departures ?? [], 'painted over by "Group colour"');
+        });
     });
 
     it("has nothing to say in a session with nothing prepared to paint from", async () => {

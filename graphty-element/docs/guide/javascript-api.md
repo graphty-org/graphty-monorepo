@@ -246,6 +246,35 @@ const selectionManager = graph.getSelectionManager();
 const statsManager = graph.getStatsManager();
 ```
 
+### Selecting by search or by expression
+
+`element.session.selection.apply()` takes a target. Two of them search the graph:
+
+```typescript
+const { selection } = element.session;
+
+// Text: a case-insensitive substring of a node's id or any of its attribute values.
+await selection.apply({ text: "alpha" });
+
+// The text may carry a prefix that says how to match:
+await selection.apply({ text: "exact:Alpha" }); // the id or a value is exactly this
+await selection.apply({ text: "regex:^A[0-9]+$" }); // a regular expression
+await selection.apply({ text: "id:a17" }); // this id, ignoring case
+await selection.apply({ text: "type:person" }); // data.type is "person", ignoring case
+await selection.apply({ text: "=data.weight > `5`" }); // a leading = is an expression, as below
+
+// An expression, in the same language a style layer selector uses. It selects edges as well
+// as nodes, and reports on `unresolvedPaths` any path nothing in the graph answers.
+const delta = await selection.apply({ where: "data.type == 'server'" });
+
+// Either one can be narrowed to a scope, such as what is currently visible.
+await selection.apply({ text: "alpha", scope: "visible" });
+```
+
+A prefix that names no attribute is searched as plain text, so `http://example.com` still finds
+the node that carries it. An invalid regular expression is refused with `E_BAD_COMMAND`, and an
+expression that does not parse with `E_BAD_SELECTOR`.
+
 ### Screenshot and Video Capture
 
 ```typescript
@@ -433,7 +462,7 @@ initGraph();
 
 ## Interactive Examples
 
-- [Data Loading](https://graphty.app/storybook/element/?path=/story/data--basic) - Data management
-- [Selection](https://graphty.app/storybook/element/?path=/story/selection--mode-3-d) - Selection handling
-- [Algorithms](https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree-centrality) - Algorithm execution
-- [Camera](https://graphty.app/storybook/element/?path=/story/camera-controls--three-d) - Camera control
+- [Data Loading](https://graphty.app/storybook/graphty-element/?path=/story/data--basic) - Data management
+- [Selection](https://graphty.app/storybook/graphty-element/?path=/story/selection--mode-3-d) - Selection handling
+- [Algorithms](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-centrality--degree) - Algorithm execution
+- [Camera](https://graphty.app/storybook/graphty-element/?path=/story/camera-controls--three-d) - Camera control

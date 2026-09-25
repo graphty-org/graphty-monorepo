@@ -35,9 +35,6 @@ export default defineConfig({
     description: "Modular graph visualization ecosystem",
     base: "/docs/",
 
-    // Ignore dead links during build
-    ignoreDeadLinks: true,
-
     vue: {
         template: {
             compilerOptions: {
@@ -54,7 +51,7 @@ export default defineConfig({
                 items: [
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
-                    { text: "layout", link: "/layout/" },
+                    { text: "layout", link: "/layout/api/generated/" },
                 ],
             },
         ],
@@ -66,13 +63,13 @@ export default defineConfig({
                     items: [
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
-                        { text: "layout", link: "/layout/" },
+                        { text: "layout", link: "/layout/api/generated/" },
                     ],
                 },
                 {
                     text: "Quick Links",
                     items: [
-                        { text: "graphty-element Storybook", link: "https://graphty.app/storybook/element/" },
+                        { text: "graphty-element Storybook", link: "https://graphty.app/storybook/graphty-element/" },
                         { text: "algorithms Storybook", link: "https://graphty.app/storybook/algorithms/" },
                         { text: "layout Storybook", link: "https://graphty.app/storybook/layout/" },
                         { text: "GitHub", link: "https://github.com/graphty-org/graphty-monorepo" },
@@ -167,42 +164,12 @@ export default defineConfig({
                     items: algorithmsTypedoc,
                 },
             ],
+            // layout has no guide pages yet (there is no layout/docs/): its section is the
+            // generated TypeDoc reference alone.
             "/layout/": [
                 {
-                    text: "Introduction",
-                    items: [
-                        { text: "Overview", link: "/layout/" },
-                        { text: "Getting Started", link: "/layout/guide/getting-started" },
-                        { text: "Installation", link: "/layout/guide/installation" },
-                    ],
-                },
-                {
-                    text: "Layouts",
-                    items: [
-                        { text: "Force-Directed", link: "/layout/guide/force-directed" },
-                        { text: "Geometric", link: "/layout/guide/geometric" },
-                        { text: "Hierarchical", link: "/layout/guide/hierarchical" },
-                        { text: "Spectral", link: "/layout/guide/spectral" },
-                    ],
-                },
-                {
-                    text: "Advanced",
-                    items: [
-                        { text: "3D Layouts", link: "/layout/guide/3d-layouts" },
-                        { text: "Graph Generators", link: "/layout/guide/generators" },
-                        { text: "Layout Helpers", link: "/layout/guide/helpers" },
-                    ],
-                },
-                {
                     text: "API",
-                    items: [
-                        { text: "Overview", link: "/layout/api/" },
-                    ],
-                },
-                {
-                    text: "Generated TypeDoc",
-                    collapsed: true,
-                    items: layoutTypedoc,
+                    items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
                 },
             ],
         },

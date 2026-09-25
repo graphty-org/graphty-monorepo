@@ -791,7 +791,7 @@ export class Edge {
      * (it disposes a per-element ShaderMaterial that Babylon's default flags would leave behind),
      * so it is routed to that rather than to `AbstractMesh.dispose`.
      *
-     * A DISPOSED EDGE STILL RECEIVES CALLS, which is why {@link Edge.disposed} exists: the layout
+     * A DISPOSED EDGE STILL RECEIVES CALLS, which is why {@link Edge.isDisposed} exists: the layout
      * engine keeps its own edge list and `UpdateManager` walks it every frame regardless of what
      * DataManager holds. Calling this twice is safe.
      */

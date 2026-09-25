@@ -171,7 +171,7 @@ export interface Drawn {
      *
      * TWO RENDERERS DRAW AN EDGE AND THIS HAS TO SEE BOTH. In 3D a solid edge is an instance of a
      * source mesh the element interns per appearance, and Babylon names the instance after the
-     * cache key -- `edge-style-s1|#0072b2|` -- so the name IS the appearance. In 2D there is no
+     * cache key -- `edge-style-s1|#d55e00|` -- so the name IS the appearance. In 2D there is no
      * interning at all: `EdgeMesh.createLineMesh` routes a solid line to
      * `Simple2DLineRenderer.create`, which builds one mesh per edge, names every one of them
      * `line-2d`, and puts the colour in that mesh's own material. Counting names alone therefore

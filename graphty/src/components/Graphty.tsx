@@ -24,14 +24,16 @@ interface GraphEdge {
  * used whole: `Graph.dataManager` is private on it and {@link GraphtyHandle.getData} reads the
  * node and edge maps through it, which is the element gap recorded on `getData` itself.
  *
- * The pin verbs and `session` are NOT written out. They are picked off the element's own class,
+ * The pin verbs, `session` and `layoutBehavior` are NOT written out. They are picked off the element's own class,
  * so their signatures are the element's and a rename over there is a type error here rather than
  * a method that quietly stops existing. That is how every member reaches this interface from now
  * on: the ten below are a duck-type of the element (root CLAUDE.md, "duck-typing or re-declaring
  * the element's types") that the element's exported `GraphtyElement` makes unnecessary, and they
  * survive only because replacing them wholesale touches every effect in this file.
  */
-interface GraphtyElementType extends HTMLElement, Pick<GraphtyElement, "pin" | "unpin" | "pinnedNodes" | "session"> {
+interface GraphtyElementType
+    extends HTMLElement,
+        Pick<GraphtyElement, "captureScreenshot" | "pin" | "unpin" | "pinnedNodes" | "session" | "layoutBehavior"> {
     nodeData?: { id: number | string; [key: string]: unknown }[];
     edgeData?: { source: number | string; target: number | string; [key: string]: unknown }[];
     layout?: string;
@@ -231,6 +233,8 @@ export interface GraphtyHandle {
     unpin: (ids: (string | number) | readonly (string | number)[]) => void;
     /** Which nodes are pinned right now, by the element's own ids; empty before the element is up. */
     pinnedNodes: ReadonlySet<string | number>;
+    /** Captures the canvas as an image, forwarded to the element's own verb. */
+    captureScreenshot: GraphtyElement["captureScreenshot"];
     /** Access to the underlying Graph instance for advanced operations (e.g., AI integration) */
     graph: Graph | null;
     /** The element's session, or null before the element upgraded. The element publishes its capabilities here. */
@@ -373,6 +377,13 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
             get pinnedNodes() {
                 return graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES;
             },
+            captureScreenshot: (options) => {
+                if (!graphtyRef.current) {
+                    return Promise.reject(new Error("Graph element not initialized"));
+                }
+
+                return graphtyRef.current.captureScreenshot(options);
+            },
             clearData: () => {
                 // The element's own method, not `graph.dataManager.clear()`: clearing the
                 // data has to reset the element's per-load data-source guard as well, and
@@ -419,6 +430,14 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
         prevDataSourceRef.current = { dataSource, dataSourceConfig };
     }, [dataSource, dataSourceConfig, replaceExisting]);
+
+    // The app thins out node labels that would be drawn over each other. The element does the
+    // work; its default is off so that every other consumer keeps the picture it had.
+    useEffect(() => {
+        if (graphtyRef.current) {
+            graphtyRef.current.layoutBehavior = { labels: { declutter: true } };
+        }
+    }, []);
 
     // Handle layout changes
     useEffect(() => {

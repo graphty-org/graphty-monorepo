@@ -211,16 +211,16 @@ describe("runs on the session", () => {
     });
 
     it("blocks a plan whose scope the element cannot narrow to, and says why", async () => {
-        // A predicate is the scope a session still cannot answer, because it has no query engine.
-        // Resolving it to nothing would be indistinguishable from a predicate that genuinely
-        // matched nothing, so it is refused and the plan carries the refusal.
+        // A saved scope that does not exist names no elements. Resolving it to nothing would be
+        // indistinguishable from a scope that is genuinely empty, so it is refused and the plan
+        // carries the refusal.
         const { harness } = withRunner();
         harness.add([{ id: "a" }, { id: "b" }]);
 
         const plan = await harness.session.plan({
             op: "algo.run",
             algorithm: "degree",
-            scope: { where: "data.type == `host`" },
+            scope: { set: "nowhere" },
         });
 
         assert.isFalse(plan.ok);

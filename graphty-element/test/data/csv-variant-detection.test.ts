@@ -14,7 +14,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { detectCSVVariant } from "../../src/data/csv-variant-detection";
+import { detectCSVVariant, sniffDelimiter } from "../../src/data/csv-variant-detection";
 
 describe("the three endpoint spellings an edge list may use", () => {
     it("reads source/target", () => {
@@ -83,5 +83,27 @@ describe("the variants that do carry a marker", () => {
 
     it("still reads Cytoscape's interaction column", () => {
         assert.strictEqual(detectCSVVariant(["source", "interaction", "target"]).variant, "cytoscape");
+    });
+});
+
+describe("sniffDelimiter", () => {
+    it("picks the separator the header line uses most", () => {
+        assert.strictEqual(sniffDelimiter("source,target\na,b"), ",");
+        assert.strictEqual(sniffDelimiter("source\ttarget\ta,b\n"), "\t");
+        assert.strictEqual(sniffDelimiter("source;target;weight"), ";");
+        assert.strictEqual(sniffDelimiter("source|target"), "|");
+    });
+
+    it("does not count separators inside quotes", () => {
+        assert.strictEqual(sniffDelimiter('"a;b;c",d'), ",");
+    });
+
+    it("falls back to a comma when the line has no separator", () => {
+        assert.strictEqual(sniffDelimiter("id"), ",");
+        assert.strictEqual(sniffDelimiter(""), ",");
+    });
+
+    it("reads only the first line", () => {
+        assert.strictEqual(sniffDelimiter("a,b\nc;d;e;f"), ",");
     });
 });

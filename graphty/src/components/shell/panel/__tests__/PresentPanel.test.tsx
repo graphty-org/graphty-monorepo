@@ -59,10 +59,10 @@ describe("PresentPanel", () => {
             expect(screen.queryByText(/about/)).not.toBeInTheDocument();
         });
 
-        it("offers the image options gear", () => {
+        it("offers the image options gear, disabled until something opens its pop-over", () => {
             renderPanel();
 
-            expect(screen.getByRole("button", { name: "Image options" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Image options" })).toBeDisabled();
         });
 
         it("reports the export", () => {
@@ -98,6 +98,21 @@ describe("PresentPanel", () => {
             renderPanel();
 
             expect(screen.getByRole("button", { name: "Data options" })).toBeInTheDocument();
+        });
+
+        /* graphty-element has no data exporter, so nothing here can act. Drawn enabled, each
+           control took a click and snapped back, because nothing supplied its value. */
+        it("draws every control disabled, because the element has no exporter yet", async () => {
+            renderPanel({ onExportData: vi.fn(), onCopyNodeIds: vi.fn(), onOpenDataOptions: vi.fn() });
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+
+            expect(await screen.findByRole("button", { name: "Export data" })).toBeDisabled();
+            expect(screen.getByRole("button", { name: "Copy node ids" })).toBeDisabled();
+            expect(screen.getByRole("button", { name: "Data options" })).toBeDisabled();
+            expect(screen.getByRole("checkbox", { name: "Include notes" })).toBeDisabled();
+            expect(screen.getByRole("textbox", { name: "Data format" })).toBeDisabled();
+            expect(screen.getByRole("textbox", { name: "Scope" })).toBeDisabled();
         });
     });
 

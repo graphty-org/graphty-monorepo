@@ -286,12 +286,18 @@ export class InputManager implements Manager {
                 return;
             }
 
-            // Emit specific shortcut events
-            if (info.ctrlKey && info.key === "z") {
+            // Emit specific shortcut events. Ctrl on Windows and Linux, Cmd on macOS. Shift turns
+            // the key upper case, so compare lower case: Ctrl/Cmd+Shift+Z is redo.
+            if (!info.ctrlKey && !info.metaKey) {
+                return;
+            }
+
+            const key = info.key.toLowerCase();
+            if (key === "z" && !info.shiftKey) {
                 this.context.eventManager.emitGraphEvent("input:undo", {});
-            } else if (info.ctrlKey && info.key === "y") {
+            } else if (key === "y" || (key === "z" && info.shiftKey)) {
                 this.context.eventManager.emitGraphEvent("input:redo", {});
-            } else if (info.ctrlKey && info.key === "a") {
+            } else if (key === "a") {
                 this.context.eventManager.emitGraphEvent("input:select-all", {});
             }
             // Add more shortcuts as needed

@@ -104,6 +104,9 @@ function createMinimalStyles(): Styles {
             node: {
                 pinOnDrag: false,
             },
+            labels: {
+                declutter: false,
+            },
         },
         data: {
             knownFields: {

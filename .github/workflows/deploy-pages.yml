@@ -51,6 +51,14 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download compact-mantine Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-compact-mantine
+                  path: ./compact-mantine/storybook-static/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download algorithms Storybook
               uses: actions/download-artifact@v4
               with:
@@ -118,144 +126,15 @@ jobs:
             - name: Build graph-samples hosted datasets
               run: node graph-samples/scripts/build-hosted.mjs
 
-            # Assemble the unified GitHub Pages site
-            # URL Structure:
-            #   / = graphty app (React app - graphty.app)
-            #   /docs/ = unified documentation (VitePress)
-            #   /docs/graphty/ = graphty-element docs
-            #   /docs/algorithms/ = algorithms docs
-            #   /docs/layout/ = layout docs
-            #   /storybook/ = Storybook index page
-            #   /storybook/element/ = graphty-element Storybook
-            #   /storybook/app/ = graphty Storybook
-            #   /storybook/algorithms/ = algorithms Storybook
-            #   /storybook/layout/ = layout Storybook
-            #   /algorithms/ = algorithms gh-pages (examples + benchmarks)
-            #   /layout/ = layout gh-pages (examples)
-            #   /data/graph-samples/v1/ = graph-samples hosted datasets (<name>.gsnp.gz, index.json)
+            # Assemble the unified GitHub Pages site. The URL layout (what goes where, and the
+            # /storybook/element/ -> /storybook/graphty-element/ redirects) lives in the script, which
+            # CI's link check also runs, so every link to graphty.app is checked against this site.
             - name: Assemble GitHub Pages site
               run: |
-                  mkdir -p ./public
-
-                  # graphty app as root (/)
-                  if [ -d "./graphty/dist" ]; then
-                    cp -r ./graphty/dist/* ./public/
-                    echo "✅ Copied graphty app to /"
-                  else
-                    echo "⚠️ graphty dist not found"
-                  fi
-
-                  # Unified docs (/docs/)
-                  if [ -d "./docs/.vitepress/dist" ]; then
-                    mkdir -p ./public/docs
-                    cp -r ./docs/.vitepress/dist/* ./public/docs/
-                    echo "✅ Copied unified docs to /docs/"
-                  else
-                    echo "⚠️ unified docs not found"
-                  fi
-
-                  # graphty-element Storybook (/storybook/element/)
-                  if [ -d "./graphty-element/storybook-static" ]; then
-                    mkdir -p ./public/storybook/element
-                    cp -r ./graphty-element/storybook-static/* ./public/storybook/element/
-                    echo "✅ Copied graphty-element Storybook to /storybook/element/"
-                  else
-                    echo "⚠️ graphty-element Storybook not found"
-                  fi
-
-                  # graphty Storybook (/storybook/app/)
-                  if [ -d "./graphty/storybook-static" ]; then
-                    mkdir -p ./public/storybook/app
-                    cp -r ./graphty/storybook-static/* ./public/storybook/app/
-                    echo "✅ Copied graphty Storybook to /storybook/app/"
-                  else
-                    echo "⚠️ graphty Storybook not found"
-                  fi
-
-                  # algorithms Storybook (/storybook/algorithms/)
-                  if [ -d "./algorithms/storybook-static" ]; then
-                    mkdir -p ./public/storybook/algorithms
-                    cp -r ./algorithms/storybook-static/* ./public/storybook/algorithms/
-                    echo "✅ Copied algorithms Storybook to /storybook/algorithms/"
-                  else
-                    echo "⚠️ algorithms Storybook not found"
-                  fi
-
-                  # layout Storybook (/storybook/layout/)
-                  if [ -d "./layout/storybook-static" ]; then
-                    mkdir -p ./public/storybook/layout
-                    cp -r ./layout/storybook-static/* ./public/storybook/layout/
-                    echo "✅ Copied layout Storybook to /storybook/layout/"
-                  else
-                    echo "⚠️ layout Storybook not found"
-                  fi
-
-                  # Create storybook index page
-                  cat > ./public/storybook/index.html << 'SBINDEXEOF'
-                  <!DOCTYPE html>
-                  <html>
-                  <head>
-                    <title>Graphty Storybooks</title>
-                    <style>
-                      body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
-                      h1 { color: #333; }
-                      ul { list-style: none; padding: 0; }
-                      li { margin: 1rem 0; }
-                      a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
-                      a:hover { text-decoration: underline; }
-                      .desc { color: #666; font-size: 0.9rem; margin-top: 0.25rem; }
-                    </style>
-                  </head>
-                  <body>
-                    <h1>Graphty Storybooks</h1>
-                    <ul>
-                      <li>
-                        <a href="/storybook/element/">graphty-element</a>
-                        <div class="desc">Web Component library for graph visualization</div>
-                      </li>
-                      <li>
-                        <a href="/storybook/app/">graphty app</a>
-                        <div class="desc">React application components</div>
-                      </li>
-                      <li>
-                        <a href="/storybook/algorithms/">algorithms</a>
-                        <div class="desc">Interactive graph algorithm visualizations</div>
-                      </li>
-                      <li>
-                        <a href="/storybook/layout/">layout</a>
-                        <div class="desc">Graph layout algorithm demonstrations</div>
-                      </li>
-                    </ul>
-                    <p><a href="/">← Back to graphty.app</a></p>
-                  </body>
-                  </html>
-                  SBINDEXEOF
-                  echo "✅ Created storybook index at /storybook/"
-
-                  # algorithms gh-pages (/algorithms/)
-                  if [ -d "./algorithms/gh-pages" ]; then
-                    cp -r ./algorithms/gh-pages ./public/algorithms
-                    echo "✅ Copied algorithms to /algorithms/"
-                  else
-                    echo "⚠️ algorithms gh-pages not found"
-                  fi
-
-                  # layout gh-pages (/layout/)
-                  if [ -d "./layout/gh-pages" ]; then
-                    cp -r ./layout/gh-pages ./public/layout
-                    echo "✅ Copied layout to /layout/"
-                  else
-                    echo "⚠️ layout gh-pages not found"
-                  fi
-
-                  # graph-samples hosted datasets (/data/graph-samples/v1/)
-                  mkdir -p ./public/data/graph-samples/v1
-                  cp ./graph-samples/public-data/v1/* ./public/data/graph-samples/v1/
-                  echo "Copied graph-samples hosted datasets to /data/graph-samples/v1/"
-
+                  ./tools/assemble-pages-site.sh ./public
                   echo ""
-                  echo "📁 Site structure:"
-                  find ./public -type f -name "*.html" | head -30
+                  echo "Site structure:"
+                  find ./public -maxdepth 3 -name "index.html" | sort
 
             - name: Setup Pages
               uses: actions/configure-pages@v4

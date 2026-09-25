@@ -62,7 +62,7 @@ fileInput.addEventListener("change", async (e) => {
 | GEXF    | `.gexf`    | Gephi exchange format                 |
 | GML     | `.gml`     | Graph Modeling Language               |
 | DOT     | `.dot`     | Graphviz format                       |
-| CSV     | `.csv`     | Comma-separated adjacency             |
+| CSV     | `.csv`, `.tsv`, `.tab` | Delimited edge or node list       |
 | Pajek   | `.net`     | Pajek network format                  |
 
 ## Directed or Undirected
@@ -139,6 +139,9 @@ a,b,1.0
 b,c,2.0
 c,a,1.5
 ```
+
+The column separator is worked out from the first line -- comma, tab, semicolon or pipe -- so a
+tab-separated or semicolon-separated file loads with no options. Pass `delimiter` to override it.
 
 ## Custom ID Paths
 
@@ -356,4 +359,4 @@ Read a format the element does not ship. See [Custom File Formats](./extending/c
 
 ## Interactive Examples
 
-- [Data Loading](https://graphty.app/storybook/element/?path=/story/data--default)
+- [Data Loading](https://graphty.app/storybook/graphty-element/?path=/story/data--basic)

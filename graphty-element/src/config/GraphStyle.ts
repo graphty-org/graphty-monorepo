@@ -53,7 +53,7 @@ const GraphSelectionStyle = z.strictObject({
     opacity: z.number().min(0).max(1).default(0.4),
 });
 
-/** What a selected node looks like, as it parses. See {@link GraphSelectionStyle}. */
+/** What a selected node looks like, as it parses. See {@link GraphSelectionStyleOpts}. */
 export type GraphSelectionStyleConfig = z.infer<typeof GraphSelectionStyle>;
 
 /** What a caller may say about the selection highlight: every field optional. */

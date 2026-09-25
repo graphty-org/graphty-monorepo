@@ -7,7 +7,7 @@ Complete API reference for the `<graphty-element>` Web Component.
 The `Graphty` class is a Lit-based Web Component that provides declarative graph visualization through HTML attributes and element properties.
 
 ::: tip
-For usage patterns and examples, see the [Web Component Guide](/guide/web-component).
+For usage patterns and examples, see the [Web Component Guide](../guide/web-component).
 :::
 
 ## Properties
@@ -42,7 +42,7 @@ The Web Component exposes these properties for declarative configuration:
 | `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out    |
 
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
-See the [styling guide](/guide/styling).
+See the [styling guide](../guide/styling).
 
 ### Acceleration Properties
 
@@ -53,7 +53,7 @@ See the [styling guide](/guide/styling).
 
 Where the work actually ran is `element.session.capabilities.acceleration`, and every transition
 of it is mirrored as a `graphty-capabilities-change` DOM event. See the
-[acceleration guide](/guide/acceleration).
+[acceleration guide](../guide/acceleration).
 
 ### Data Source Properties
 
@@ -142,16 +142,16 @@ element.addEventListener("node-click", (e) => {
 });
 ```
 
-See the [Events Guide](/guide/events) for the complete event reference.
+See the [Events Guide](../guide/events) for the complete event reference.
 
 ## Generated Reference
 
 For complete type definitions and detailed API documentation:
 
-- [Graphty Class](/api/generated/index/classes/Graphty.md) - Full TypeDoc reference. `Graphty` is
+- [Graphty Class](./generated/index/classes/Graphty.md) - Full TypeDoc reference. `Graphty` is
   the class of the `<graphty-element>` element, and what `document.querySelector` returns.
 
 ## Related
 
-- [Web Component Guide](/guide/web-component) - Usage patterns and examples
-- [JavaScript API Reference](/api/javascript) - Programmatic Graph API
+- [Web Component Guide](../guide/web-component) - Usage patterns and examples
+- [JavaScript API Reference](./javascript) - Programmatic Graph API

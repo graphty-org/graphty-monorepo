@@ -1,9 +1,9 @@
 import { MantineProvider } from "@mantine/core";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { Popout, PopoutManager } from "../../src/components/popout";
+import { Popout, PopoutManager, usePopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
 
 /**
@@ -766,5 +766,58 @@ describe("PopoutManager hierarchy", () => {
         expect(screen.getByTestId("grandparent-content")).toBeInTheDocument();
         expect(screen.getByTestId("parent-content")).toBeInTheDocument();
         expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+    });
+});
+
+describe("usePopoutManager", () => {
+    /**
+     * Closes every pop-out from a control that is not a mouse click outside them, which is the
+     * route the hook exists for: a click outside already closes them all on its own.
+     * @returns the control.
+     */
+    function CloseAllButton() {
+        const { closeAll, hasOpenPopouts } = usePopoutManager();
+
+        return (
+            <button
+                onClick={() => {
+                    if (hasOpenPopouts()) {
+                        closeAll();
+                    }
+                }}
+            >
+                Close all
+            </button>
+        );
+    }
+
+    it("closes every open pop-out for a route that is not a click outside", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <>
+                <CloseAllButton />
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">Content</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        expect(await screen.findByTestId("panel-content")).toBeInTheDocument();
+
+        // A click event with no pointerdown before it, as a keyboard activation delivers.
+        fireEvent.click(screen.getByRole("button", { name: "Close all" }));
+
+        await waitFor(() => {
+            expect(screen.queryByTestId("panel-content")).toBeNull();
+        });
     });
 });

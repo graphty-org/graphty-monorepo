@@ -1,3 +1,17 @@
+## 0.8.4 (2026-09-25)
+
+### 🔥 Performance
+
+- **graphty-element:** label declutter is an option, off by default, and runs only on change ([#5](https://github.com/graphty-org/graphty-monorepo/issues/5))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.2.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.3 (2026-09-25)
 
 ### 🚀 Features

@@ -1,3 +1,20 @@
+## 2.2.1 (2026-09-25)
+
+### 🩹 Fixes
+
+- **graphty-element:** a label's animation no longer undoes the declutter decision ([cca39906](https://github.com/graphty-org/graphty-monorepo/commit/cca39906))
+- **graphty-element:** size the Combined Edge Flow story's arrowheads with edge strength ([e0969765](https://github.com/graphty-org/graphty-monorepo/commit/e0969765))
+- **graphty-element:** glow strength per style, and labels no longer overlap ([#129](https://github.com/graphty-org/graphty-monorepo/issues/129), [#5](https://github.com/graphty-org/graphty-monorepo/issues/5))
+- **graphty-element:** arrowheads follow the line, diagonals keep width, patterns fill edges ([#122](https://github.com/graphty-org/graphty-monorepo/issues/122), [#124](https://github.com/graphty-org/graphty-monorepo/issues/124), [#126](https://github.com/graphty-org/graphty-monorepo/issues/126))
+
+### 🔥 Performance
+
+- **graphty-element:** label declutter is an option, off by default, and runs only on change ([#5](https://github.com/graphty-org/graphty-monorepo/issues/5))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.0 (2026-09-25)
 
 ### 🚀 Features

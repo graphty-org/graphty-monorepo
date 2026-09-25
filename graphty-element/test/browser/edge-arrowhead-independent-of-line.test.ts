@@ -1,10 +1,10 @@
 /**
- * @file An arrowhead follows the line it caps: its size scales with `line.width` and its opacity
- * falls back to `line.opacity`, the same way its colour already falls back to `line.color`.
+ * @file An arrowhead does NOT follow the line it caps: its size comes from `arrowHead.size` over
+ * the fixed default arrow width and length, and its opacity from `arrowHead.opacity` (default 1).
+ * Changing `edge.width` or `edge.opacity` must leave the arrowhead exactly as it was.
  *
  * Checked on the meshes the element builds (in 2D the arrow's scaling is its length, in 3D the
- * billboard shader's bounding sphere is), and on where the element ends the line: a thicker
- * line's longer arrow must still meet the line at its base.
+ * billboard shader's bounding sphere is), by comparing two edges that differ only in the line.
  */
 
 import type { AbstractMesh } from "@babylonjs/core";
@@ -16,7 +16,7 @@ import { addStyleLayer, asData, edgeBetween } from "../helpers/testSetup";
 
 type ViewMode = "2d" | "3d";
 
-describe("an arrowhead follows the line it caps", () => {
+describe("an arrowhead is independent of the line it caps", () => {
     let container: HTMLElement;
     let graph: Graph;
 
@@ -87,38 +87,24 @@ describe("an arrowhead follows the line it caps", () => {
     }
 
     for (const mode of ["2d", "3d"] as const) {
-        test(`${mode}: a thicker line draws a bigger arrowhead, in proportion`, async () => {
+        test(`${mode}: a thicker line draws the same arrowhead`, async () => {
             const [thin, thick] = await build(mode, [{ "edge.width": 2 }, { "edge.width": 16 }]);
             assert(thin.arrowMesh && thick.arrowMesh, "both edges have arrowheads");
 
-            const ratio = arrowLength(thick.arrowMesh, mode) / arrowLength(thin.arrowMesh, mode);
-            assert.closeTo(ratio, 8, 0.01, "arrow size is proportional to line width");
+            assert.closeTo(arrowLength(thick.arrowMesh, mode), arrowLength(thin.arrowMesh, mode), 1e-6);
         });
 
-        test(`${mode}: a half-opacity line draws a half-opacity arrowhead`, async () => {
-            const [faded] = await build(mode, [{ "edge.opacity": 0.5 }]);
-            assert(faded.arrowMesh, "the edge has an arrowhead");
-            assert.closeTo(faded.arrowMesh.visibility, 0.5, 1e-6);
+        test(`${mode}: a half-opacity line keeps a fully opaque arrowhead`, async () => {
+            const [faded, plain] = await build(mode, [{ "edge.opacity": 0.5 }, {}]);
+            assert(faded.arrowMesh && plain.arrowMesh, "both edges have arrowheads");
+            assert.closeTo(faded.arrowMesh.visibility, 1, 1e-6);
+            assert.closeTo(faded.arrowMesh.visibility, plain.arrowMesh.visibility, 1e-6);
         });
 
-        test(`${mode}: an explicit arrowhead opacity still wins over the line's`, async () => {
+        test(`${mode}: an explicit arrowhead opacity is the arrowhead's opacity`, async () => {
             const [edge] = await build(mode, [{ "edge.opacity": 0.5, "edge.arrowHeadOpacity": 0.8 }]);
             assert(edge.arrowMesh, "the edge has an arrowhead");
             assert.closeTo(edge.arrowMesh.visibility, 0.8, 1e-6);
         });
     }
-
-    test("the line still ends at the base of a line-width-scaled arrowhead", async () => {
-        const [thin, thick] = await build("2d", [{ "edge.width": 2 }, { "edge.width": 16 }]);
-
-        for (const edge of [thin, thick]) {
-            assert(edge.arrowMesh, "the edge has an arrowhead");
-            const { dstPoint } = edge.transformArrowCap();
-            assert(dstPoint, "the line has an end");
-            // A "normal" arrow's tip sits on the node surface and its base one arrow length back,
-            // which is where the line must stop.
-            const gap = dstPoint.subtract(edge.arrowMesh.position).length();
-            assert.closeTo(gap, edge.arrowMesh.scaling.x, 1e-4);
-        }
-    });
 });

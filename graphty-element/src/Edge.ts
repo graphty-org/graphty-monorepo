@@ -308,7 +308,7 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowHead?.size,
-                opacity: style.arrowHead?.opacity ?? style.line?.opacity,
+                opacity: style.arrowHead?.opacity,
             },
             this.context.getScene(),
         );
@@ -322,7 +322,7 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowTail?.size,
-                opacity: style.arrowTail?.opacity ?? style.line?.opacity,
+                opacity: style.arrowTail?.opacity,
             },
             this.context.getScene(),
         );
@@ -602,7 +602,7 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowHead?.size,
-                opacity: style.arrowHead?.opacity ?? style.line?.opacity,
+                opacity: style.arrowHead?.opacity,
             },
             this.context.getScene(),
         );
@@ -620,7 +620,7 @@ export class Edge {
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
                 size: style.arrowTail?.size,
-                opacity: style.arrowTail?.opacity ?? style.line?.opacity,
+                opacity: style.arrowTail?.opacity,
             },
             this.context.getScene(),
         );
@@ -1063,7 +1063,7 @@ export class Edge {
                 this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
                 const style = this.currentStyle;
                 const arrowSize = style.arrowHead?.size ?? 1.0;
-                const arrowLength = EdgeMesh.calculateArrowLength(style.line?.width) * arrowSize;
+                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
 
                 // Use actual bounding sphere radii
                 const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
@@ -1149,7 +1149,7 @@ export class Edge {
             const arrowStyle = this.currentStyle;
             const arrowType = arrowStyle.arrowHead?.type;
             const arrowSize = arrowStyle.arrowHead?.size ?? 1.0;
-            const arrowLength = EdgeMesh.calculateArrowLength(arrowStyle.line?.width) * arrowSize;
+            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
             const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
 
             // PHASE 4: Override scaleFactor for 2D arrows
@@ -1230,7 +1230,7 @@ export class Edge {
 
                     // Get tail arrow dimensions and geometry
                     const tailSize = tailStyle.arrowTail?.size ?? 1.0;
-                    const tailLength = EdgeMesh.calculateArrowLength(tailStyle.line?.width) * tailSize;
+                    const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
                     const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
 
                     // PHASE 4: Override scaleFactor for 2D tail arrows
@@ -1349,7 +1349,7 @@ export class Edge {
             // Only adjust endpoint if we have an arrow head
             if (hasArrowHead) {
                 const arrowSize = style.arrowHead?.size ?? 1.0;
-                const arrowLength = EdgeMesh.calculateArrowLength(style.line?.width) * arrowSize;
+                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
                 const arrowType = style.arrowHead?.type ?? "normal";
                 const geometry = EdgeMesh.getArrowGeometry(arrowType);
 

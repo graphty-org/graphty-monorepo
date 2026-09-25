@@ -37,11 +37,7 @@ const ArrowStyle = z.strictObject({
      * with caps at both ends was drawn with a magenta tail and a grey head.
      */
     color: ColorStyle.optional(),
-    /**
-     * The cap's opacity, or unset to follow the line's opacity. No default, for the same reason
-     * as `color`: `Edge` draws a cap with `arrowHead.opacity ?? line.opacity`.
-     */
-    opacity: z.number().min(0).max(1).optional(),
+    opacity: z.number().min(0).max(1).default(1).optional(),
     text: RichTextStyle.optional(),
 });
 

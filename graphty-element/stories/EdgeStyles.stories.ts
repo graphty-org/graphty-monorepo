@@ -508,10 +508,9 @@ export const LineOpacity: Story = {
         // says the thing the story is named for -- there IS a line, and it is drawn at the
         // half-way blend.
         //
-        // Each is normalised the way its own ink grows. The cap now follows the line's opacity
-        // too, so almost nothing is left at full strength; the ceiling is a share of the canvas
-        // because the cap, a triangle, grows in two directions -- when the cap was drawn opaque
-        // it alone read 0.293% to 0.296% across canvas widths 668 to 1668. The blend is
+        // Each is normalised the way its own ink grows. What is left at full strength is cap, a
+        // triangle that grows in two directions, so it is a share of the canvas: 0.293%, 0.294%,
+        // 0.296%, 0.293% and 0.296% at canvas widths 668, 968, 1168, 1200 and 1668. The blend is
         // line, which grows with its length alone: 10.77, 10.76, 10.74, 10.75 and 10.80 per pixel
         // of span over the same range. The raw `ink < 4000` this replaces reads 4,118 at the
         // 1,668px canvas -- the unbroken picture, failing on nothing but size.

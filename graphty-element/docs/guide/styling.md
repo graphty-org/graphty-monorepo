@@ -131,15 +131,15 @@ A channel is one visual property with one name. These are all of them:
 | `edge.patternCount`      | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`         | true or false (a bezier)                     |
 | `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
-| `edge.arrowHeadSize`     | a number, multiplying a size that follows `edge.width` |
+| `edge.arrowHeadSize`     | a number, 1 being the element's own size     |
 | `edge.arrowHeadColor`    | a colour                                     |
-| `edge.arrowHeadOpacity`  | 0 to 1, unset follows `edge.opacity`         |
+| `edge.arrowHeadOpacity`  | 0 to 1                                       |
 | `edge.arrowHeadText`     | words drawn beside the head cap              |
 | `edge.arrowHeadTextStyle` | as `node.labelStyle`                        |
 | `edge.arrowTail`         | the same arrows                              |
 | `edge.arrowTailSize`     | a number                                     |
 | `edge.arrowTailColor`    | a colour                                     |
-| `edge.arrowTailOpacity`  | 0 to 1, unset follows `edge.opacity`         |
+| `edge.arrowTailOpacity`  | 0 to 1                                       |
 | `edge.arrowTailText`     | words drawn beside the tail cap              |
 | `edge.arrowTailTextStyle` | as `node.labelStyle`                        |
 | `edge.animationSpeed`    | a number                                     |
@@ -176,8 +176,6 @@ Put the words on the edge itself with `edge.label`, or at one of its ends with
 `edge.arrowHeadText` and `edge.arrowTailText`.
 
 An arrow that is told nothing about its own appearance follows the line it caps, at either end:
-its colour and opacity are the line's, and its size grows and shrinks with the line's width
-(`edge.arrowHeadSize` then multiplies that).
 
 ```typescript
 await element.session.styles.add({

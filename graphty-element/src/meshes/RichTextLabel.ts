@@ -150,6 +150,8 @@ export class RichTextLabel {
     private parsedContent: TextSegment[][] = [];
     private actualDimensions: ActualDimensions = { width: 0, height: 0 };
     private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
+    /** The size of the words alone, in the same units as `actualDimensions`. */
+    private textSize = { width: 0, height: 0 };
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
@@ -351,6 +353,7 @@ export class RichTextLabel {
             textOutlineWidth: this.options.textOutlineWidth,
         });
 
+        this.textSize = { width: maxWidth, height: totalHeight };
         const bgPadding = this.options.backgroundPadding * 2;
 
         this.totalBorderWidth = 0;
@@ -1125,10 +1128,12 @@ export class RichTextLabel {
 
         this.animationStarted = true;
 
-        // If no animator (animation: "none"), just ensure the label is visible
+        // No animator (animation: "none"): nothing to start. `isVisible` is deliberately left
+        // alone: it is LabelDeclutter's switch, and this runs on the layout settling and on a
+        // timer after init -- after the declutter pass on some loads and before it on others --
+        // with nothing that makes the pass run again, so showing the label here re-drew labels
+        // the pass had hidden, on some loads only.
         if (!this.animator) {
-            this.mesh.isVisible = true;
-
             if (this.material.diffuseTexture) {
                 this.material.diffuseTexture.hasAlpha = true;
             }
@@ -1180,6 +1185,41 @@ export class RichTextLabel {
      */
     public get labelMesh(): Mesh | null {
         return this.mesh;
+    }
+
+    /**
+     * Where the words sit on the label's plane, without its margins, padding, borders or pointer.
+     *
+     * Each edge is a fraction of the plane: `left`/`right` across it from its left edge, and
+     * `top`/`bottom` down it from its top edge, so a label whose words fill it reads
+     * `{ left: 0, right: 1, top: 0, bottom: 1 }`. Two labels whose planes overlap only in their
+     * padding do not draw over each other's words; this is what tells them apart.
+     * @returns The words' rectangle as fractions of the plane.
+     */
+    public get textBounds(): { left: number; right: number; top: number; bottom: number } {
+        const { width, height } = this.actualDimensions;
+        if (width <= 0 || height <= 0) {
+            return { left: 0, right: 1, top: 0, bottom: 1 };
+        }
+
+        // The same arithmetic RichTextRenderer.drawText lays the widest line out with.
+        const areaX = this.contentArea.x + this.options.marginLeft;
+        const areaWidth = this.contentArea.width - this.options.marginLeft - this.options.marginRight;
+        let x = areaX + (areaWidth - this.textSize.width) / 2;
+        if (this.options.textAlign === "left") {
+            x = areaX;
+        } else if (this.options.textAlign === "right") {
+            x = areaX + areaWidth - this.textSize.width;
+        }
+
+        const y = this.contentArea.y + this.options.marginTop;
+
+        return {
+            left: x / width,
+            right: (x + this.textSize.width) / width,
+            top: y / height,
+            bottom: (y + this.textSize.height) / height,
+        };
     }
 
     /**

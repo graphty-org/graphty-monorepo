@@ -997,6 +997,16 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             minFactor: 10,
             test: BFS_TEST,
         },
+        {
+            // P8-T8: the growing half of Beamer's switch-into-bottom-up test inverted -- every depth stays right
+            // (both directions are exact), so only the direction model of bfsReport (rmat14's per-boundary direction
+            // words and switch count against the host replay) catches it; a counter, never a timing
+            name: "growing-test-inverted",
+            find: "&& next > finished) { direction = 1u; }",
+            replace: "&& next < finished) { direction = 1u; }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
     ]),
     // P8-T5: every row is measured by advanceReport (test/helpers/advance.ts) through the advance test
     "advance-expand": Object.freeze([
@@ -1129,6 +1139,93 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "fused-claim-is-the-level",
             find: "let claim = atomicLoad(&counters[11]) + 1u;\n    if (lid.x == 0u) {",
             replace: "let claim = atomicLoad(&counters[11]);\n    if (lid.x == 0u) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    // P8-T8: every row is measured by bfsReport's forced-bottom-up runs (alpha U32_MAX, beta 0: the 500-node path
+    // from its middle, the hub-clique fixture) and its rmat14 runs at the default rule, through the BFS test
+    "bfs-bottom-up": Object.freeze([
+        {
+            // the early exit removed: every depth stays right, so the answer never catches it -- the arcsScanned word
+            // does: on the hub-clique fixture each of the 253 claims reads one in-arc with the exit and the whole
+            // 254-arc row without it (the check allows one extra read per claim)
+            name: "early-exit-removed",
+            find: "{ won = 1u; break; }",
+            replace: "{ won = 1u; }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // a stale entry (claimed since the rebuild) is claimed again at a later level: a depth miss on the path
+            // from its middle, whose list is stale from the second bottom-up level on
+            name: "stale-entries-claimed",
+            find: "if (atomicLoad(&depth[v]) == INVALID_INDEX) {                // a stale entry, claimed since the rebuild, is skipped",
+            replace: "if (true) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the claim writes the level itself: every bottom-up depth is one too small
+            name: "bottom-up-claim-is-the-level",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;\n    var won = 0u;\n    var v = 0u;\n    var reads = 0u;",
+            replace: "let claim = atomicLoad(&counters[11]);\n    var won = 0u;\n    var v = 0u;\n    var reads = 0u;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "bfs-bitset-build": Object.freeze([
+        {
+            // a store instead of an or: two frontier vertices in one word keep one bit (the path's two ends of a
+            // level share a word near the middle), so a vertex goes unclaimed at its level
+            name: "or-is-a-store",
+            find: "atomicOr(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));",
+            replace: "atomicStore(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the bit lands in the wrong word: the sweep tests word u >> 5 and finds nothing (or a stranger's bit)
+            name: "bit-of-the-wrong-word",
+            find: "(v >> 5u)",
+            replace: "(v >> 4u)",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the last frontier entry's bit is never set: the vertices only it reaches go unclaimed (one side of the
+            // path from its middle)
+            name: "last-frontier-entry-unset",
+            find: "if (i >= atomicLoad(&counters[0])) { return; }                   // frontierCount; no barrier follows",
+            replace: "if (i + 1u >= atomicLoad(&counters[0])) { return; }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "bfs-unvisited-flags": Object.freeze([
+        {
+            // every vertex with an in-arc is listed, claimed or not: unvisitedListLen misses the oracle's complement
+            // on every rebuild but the first
+            name: "everyone-listed",
+            find: "let listed = unv && (inDegree[v] != 0u);",
+            replace: "let listed = (inDegree[v] != 0u);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // only the vertices nobody points at are listed: unvisitedListLen misses, and no bottom-up level claims
+            name: "in-degree-test-inverted",
+            find: "let listed = unv && (inDegree[v] != 0u);",
+            replace: "let listed = unv && (inDegree[v] == 0u);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the in-degree is summed instead of the out-degree: caught on a DIRECTED fixture (the path built from
+            // vertex 0, whose in-degree 0 differs from its out-degree 1), where unvisitedDegreeSum misses the model
+            name: "in-degree-summed",
+            find: "select(0u, outDegree[v], unv)",
+            replace: "select(0u, inDegree[v], unv)",
             minFactor: 10,
             test: BFS_TEST,
         },

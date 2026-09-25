@@ -83,6 +83,9 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("bfs-contract")).toBe(1);
         expect(counts.get("sssp-pred")).toBe(9);
         expect(counts.get("bfs-fused")).toBe(5);
+        expect(counts.get("bfs-bottom-up")).toBe(5);
+        expect(counts.get("bfs-bitset-build")).toBe(1);
+        expect(counts.get("bfs-unvisited-flags")).toBe(1);
     });
 
     it("every case names a registry entry, uses only its declared overrides plus the standard pair (graph kernels only), carries snippets iff the entry has slots, matches the twin axis, and is unique", () => {

@@ -11,8 +11,28 @@
  * role 0 chose one, which it reads from slot 0's `x` (a storage write of one dispatch is visible to the next of the
  * same pass). The `(x, y)` arithmetic is `indirect-finalize`'s verbatim (P4), so a count above 2^32 - wg cannot wrap
  * and a group count above MAX_WORKGROUPS_PER_DIM splits in 2D; slots 2 and 6 are sized one WORKGROUP per entry for
- * `bfs-fused`. The `direction` and `fusedMax` branches are unreachable until P8-T7 / P8-T8 set them. Body only (spec
- * 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits of it.
+ * `bfs-fused`; slots 3, 4 and 5 (the bits fill over `ceil(n / 32)` words, the bitset build over the frontier, the sweep
+ * over the unvisited list) are the bottom-up level's.
+ *
+ * Beamer's test (P8-T8, PD-21), evaluated at every boundary BEFORE the `done` branch (so a switch can be counted at
+ * the done boundary too, which the host model of the tests mirrors): top-down switches to bottom-up when
+ * `frontierDegreeSum > unvisitedDegreeSum / alpha` (u32 division; alpha the host's `max(1, floor(arcCount / n))`
+ * unless tuned) and the frontier is growing (`next > frontierCount`); bottom-up switches back when
+ * `next * beta < unvisitedCount` (a u32 product, wrapping only above 178M vertices, which no admitted device
+ * reaches) and the frontier is shrinking; `P.mode == 1` (the driver's `"top-down"`) pins the direction at 0. Every
+ * change is counted in `switches`, the previous direction is word 14. The two unvisited words the test reads are
+ * rebuilt exactly once per submit by `bfs-unvisited-flags` (PD-18) and maintained here by subtraction: the count is
+ * subtracted from the SECOND boundary of a submit on and the degree sum from the THIRD on, because a boundary may
+ * only subtract what the submit's rebuild counted, and the frontier whose degree sum the second boundary holds was
+ * claimed before the rebuild ran (the rebuild counts the vertices unclaimed when it runs; the frontier rotated in at
+ * boundary 0 was claimed by the previous submit's last contract, so it was never in the sum; boundary b subtracts
+ * `next = |F_b|`, inside the sum iff b >= 1, and `degSum = deg(F_{b-1})`, inside it iff b >= 2). The degree sum is
+ * the "unvisited degree estimate" of the design rather than an exact count for two reasons: it is one level stale
+ * (a frontier's degree sum is only known once it has been expanded), and a bottom-up level expands nothing, so the
+ * word stops falling while bottom-up runs and overstates the set afterwards. The bias is one-directional -- an
+ * overstated m_u makes the switch INTO bottom-up harder, never easier -- and the next submit's rebuild makes it
+ * exact again. Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are
+ * textual edits of it.
  */
 export const frontierFinalizeWgsl = /* wgsl */ `
 fn write_slot_groups(slot: u32, groups: u32, count: u32) {           // groups workgroups, split in 2D above the per-dim limit
@@ -63,10 +83,18 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         atomicStore(&counters[11], level);
         let done = (next == 0u) || (level >= P.maxDepth);
         atomicStore(&counters[15], select(0u, 1u, done));
-        var direction = 0u;                                            // P8-T8 replaces this line with Beamer's test
+        var direction = atomicLoad(&counters[14]);
+        if (P.mode == 1u) {
+            direction = 0u;                                                 // top-down only (the test seam)
+        } else if (direction == 0u) {
+            if (degSum > atomicLoad(&counters[6]) / P.alpha && next > finished) { direction = 1u; }   // m_f > m_u / alpha and growing
+        } else {
+            if (next * P.beta < atomicLoad(&counters[5]) && next < finished) { direction = 0u; }      // next * beta < unvisited and shrinking
+        }
+        if (direction != atomicLoad(&counters[14])) { atomicStore(&counters[13], atomicLoad(&counters[13]) + 1u); }   // switches
         if (done) {
             for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
-        } else if (direction == 1u) {                                  // unreachable until P8-T8
+        } else if (direction == 1u) {                                  // the bottom-up level (P8-T8): the bits fill, the bitset build, the sweep
             zero_slot(0u); zero_slot(1u); zero_slot(2u); zero_slot(6u);
             write_slot(3u, (P.n + 31u) / 32u); write_slot(4u, next); write_slot(5u, atomicLoad(&counters[7]));
             atomicStore(&counters[19], atomicLoad(&counters[19]) + 1u);

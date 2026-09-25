@@ -10,8 +10,9 @@
  * wcc-link-edges, wcc-compress and wcc-sample. P4-T1 adds indirect-finalize; the other P4 entries follow, one task
  * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
- * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused. This file is the only
- * importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
+ * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
+ * bfs-bitset-build and bfs-unvisited-flags. This file is the only importer of src/wgsl/** (spec 3.2;
+ * test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -21,8 +22,11 @@ import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kern
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
+import { bfsBitsetBuildWgsl } from "./wgsl/bfs-bitset-build.wgsl.js";
+import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
 import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
+import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
 import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
@@ -98,7 +102,10 @@ export type KernelId =
     | "advance-expand"
     | "bfs-contract"
     | "sssp-pred"
-    | "bfs-fused";
+    | "bfs-fused"
+    | "bfs-bottom-up"
+    | "bfs-bitset-build"
+    | "bfs-unvisited-flags";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -1168,6 +1175,63 @@ const BFS_FUSED: KernelEntry = {
     phase: "P8",
 };
 
+/** `bfs-bottom-up` (design 8.4 "the bottom-up sweep", 8.10 "BFS bottom-up"; P8-T8, PD-18 / PD-21): one invocation per entry of the unvisited list, walking its in-neighbours through the REVERSE core bound in group 0 until the first one whose bit is set in the frontier bitset (the early exit `arcsScanned` witnesses), claiming with a plain `atomicStore` and packing the winners into the output vertex queue by `bfs-contract`'s scan; 8 storage bindings (the four graph slots of the reverse core, `sweepIn` read-only -- the unvisited list at word 0 and the bitset at `P.bitsBase`, one buffer -- the counters block, `depth` and `frontierOut` as `array<atomic<u32>>` / `array<u32>`); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
+const BFS_BOTTOM_UP: KernelEntry = {
+    id: "bfs-bottom-up",
+    body: bfsBottomUpWgsl,
+    entryPoint: "bfs_bottom_up",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "sweepIn", "storage-ro", "array<u32>"),
+        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "depth", "storage", "array<atomic<u32>>"),
+        decl(1, 3, "frontierOut", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ),
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `bfs-bitset-build` (design 8.4 "the bitset frontier"; P8-T8): the vertex-list-to-bitset hand-off of a bottom-up level -- one `atomicOr` per entry of the input frontier into the `ceil(n / 32)`-word bitset at `P.bitsBase` of the `sweepIn` buffer (bound whole as `bits`, read-write); 3 storage bindings. */
+const BFS_BITSET_BUILD: KernelEntry = {
+    id: "bfs-bitset-build",
+    body: bfsBitsetBuildWgsl,
+    entryPoint: "bfs_bitset_build",
+    bindings: [
+        decl(1, 0, "frontierIn", "storage-ro", "array<u32>"),
+        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "bits", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `bfs-unvisited-flags` (design 8.4; P8-T8, PD-18): the unvisited set's producer, once per submit -- grid-striding over the vertices, counting the unclaimed ones and their OUT-degree sum into words 5 and 6 and flagging those with a non-zero IN-degree (word 7, what the sweep iterates) for `compact`; 5 storage bindings (the `outDegree` and `inDegree` VIEWS rather than the graph group, `depth` read-only, `flags`, the counters block); `needs: ["subgroups"]` for the three `wg_reduce_u32` calls (a twin kernel). */
+const BFS_UNVISITED_FLAGS: KernelEntry = {
+    id: "bfs-unvisited-flags",
+    body: bfsUnvisitedFlagsWgsl,
+    entryPoint: "bfs_unvisited_flags",
+    bindings: [
+        decl(1, 0, "outDegree", "storage-ro", "array<u32>"),
+        decl(1, 1, "inDegree", "storage-ro", "array<u32>"),
+        decl(1, 2, "depth", "storage-ro", "array<u32>"),
+        decl(1, 3, "flags", "storage", "array<u32>"),
+        decl(1, 4, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1176,7 +1240,8 @@ const BFS_FUSED: KernelEntry = {
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
- * P8-T7 `"bfs-fused"`, so every member of `KernelId` is present and the assertion is exact.
+ * P8-T7 `"bfs-fused"` and P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, so every member
+ * of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1217,6 +1282,9 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-contract": BFS_CONTRACT,
     "sssp-pred": SSSP_PRED,
     "bfs-fused": BFS_FUSED,
+    "bfs-bottom-up": BFS_BOTTOM_UP,
+    "bfs-bitset-build": BFS_BITSET_BUILD,
+    "bfs-unvisited-flags": BFS_UNVISITED_FLAGS,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

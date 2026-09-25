@@ -1,16 +1,21 @@
 /**
- * Spec 11.9 item 1 for the `bfs-contract` and `sssp-pred` kernels (P8-T6) and the `bfs-fused` kernel (P8-T7), plus
- * the selector rows the traversal rests on: every SABOTAGE row is spliced into the normative body and compiled on a
- * FRESH context, and the SAME check that passes on the real kernels -- bfsReport: `depth`, `parent`, `order`,
- * `visitedCount` and `levels` of the 30 x 30 grid from its corner and the 500-node path from its last index against
- * the oracle and the host rules under the two-phase path forced and under the fused path forced, the choice counters
- * of rmat14 at the default threshold against the oracle's level sizes, and the one-workgroup predecessor pass, all
- * bitwise (any mismatch is Infinity) -- fails on the mutant by at least minFactor. The first block is the coverage
- * loop of test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15). Three
+ * Spec 11.9 item 1 for the `bfs-contract` and `sssp-pred` kernels (P8-T6), the `bfs-fused` kernel (P8-T7) and the
+ * `bfs-bottom-up`, `bfs-bitset-build` and `bfs-unvisited-flags` kernels (P8-T8), plus the selector rows the
+ * traversal rests on: every SABOTAGE row is spliced into the normative body and compiled on a FRESH context, and the
+ * SAME check that passes on the real kernels -- bfsReport: `depth`, `parent`, `order`, `visitedCount` and `levels`
+ * of the 30 x 30 grid from its corner and the 500-node path from its last index against the oracle and the host
+ * rules under the two-phase path forced and under the fused path forced (top-down only), the choice counters of
+ * rmat14 at the default threshold against the oracle's level sizes, rmat14's per-boundary direction and unvisited
+ * words against the host model of Beamer's rule at both cadences, the path from its middle and the hub-clique
+ * fixture forced bottom-up (alpha U32_MAX, beta 0) with the clique's `arcsScanned` allowed one extra read per
+ * claim, the directed path's unvisited words, and the one-workgroup predecessor pass, all bitwise (any mismatch is
+ * Infinity) -- fails on the mutant by at least minFactor. The first block is the coverage loop of
+ * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15). Four
  * `frontier-finalize` rows are run here too: P8-T4's `rotation-dropped` (the first boundary rotates nothing in and
  * every traversal is the source alone) and `fused-slot-per-invocation` (a fused level expands only its first
- * ceil(next / wg) entries), and P8-T7's `fused-threshold-inverted`, which leaves every depth right and is caught
- * only by the exact `fusedLevels` / `twoPhaseLevels` counts.
+ * ceil(next / wg) entries), P8-T7's `fused-threshold-inverted`, which leaves every depth right and is caught only
+ * by the exact `fusedLevels` / `twoPhaseLevels` counts, and P8-T8's `growing-test-inverted`, caught only by the
+ * direction model.
  */
 
 import { existsSync } from "node:fs";
@@ -25,22 +30,35 @@ import { acquire, requireGpu } from "../setup/gpu.js";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const BFS_TEST = "test/algorithms/bfs.test.ts";
 
-/** The selector rows this suite measures beside the frontier suite (rotation, fused slot) or alone (the threshold). */
-const SELECTOR_ROWS: readonly string[] = ["rotation-dropped", "fused-slot-per-invocation", "fused-threshold-inverted"];
+/** The selector rows this suite measures beside the frontier suite (rotation, fused slot) or alone (the threshold, the growing test). */
+const SELECTOR_ROWS: readonly string[] = [
+    "rotation-dropped",
+    "fused-slot-per-invocation",
+    "fused-threshold-inverted",
+    "growing-test-inverted",
+];
 
-/** The rows this suite measures: the three BFS kernels' own, and the selector rows by name. */
+/** The kernels whose every row names the BFS test. */
+const BFS_KERNELS = [
+    "bfs-contract",
+    "sssp-pred",
+    "bfs-fused",
+    "bfs-bottom-up",
+    "bfs-bitset-build",
+    "bfs-unvisited-flags",
+] as const;
+
+/** The rows this suite measures: the six BFS kernels' own, and the selector rows by name. */
 const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutation[] }[] = [
-    { id: "bfs-contract", rows: SABOTAGE["bfs-contract"] ?? [] },
-    { id: "sssp-pred", rows: SABOTAGE["sssp-pred"] ?? [] },
-    { id: "bfs-fused", rows: SABOTAGE["bfs-fused"] ?? [] },
+    ...BFS_KERNELS.map((id) => ({ id, rows: SABOTAGE[id] ?? [] })),
     {
         id: "frontier-finalize",
         rows: (SABOTAGE["frontier-finalize"] ?? []).filter((m) => SELECTOR_ROWS.includes(m.name)),
     },
 ];
 
-describe("sabotage: bfs-contract, sssp-pred and bfs-fused (spec 11.9 item 1; P8-T6, P8-T7)", () => {
-    it("has three contract rows, four predecessor rows and three fused rows naming the BFS test, and measures three selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitset-build and bfs-unvisited-flags (spec 11.9 item 1; P8-T6, P8-T7, P8-T8)", () => {
+    it("has three contract rows, four predecessor rows, three fused rows, three bottom-up rows, three bitset rows and three unvisited rows naming the BFS test, and measures four selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect((SABOTAGE["bfs-contract"] ?? []).map((m) => m.name)).toEqual([
             "claim-not-a-min",
             "same-level-claimants-append",
@@ -57,13 +75,30 @@ describe("sabotage: bfs-contract, sssp-pred and bfs-fused (spec 11.9 item 1; P8-
             "fused-scan-round-dropped",
             "fused-claim-is-the-level",
         ]);
-        expect(MEASURED[3].rows.map((m) => m.name)).toEqual(SELECTOR_ROWS);
-        expect(MEASURED[3].rows.map((m) => m.test)).toEqual([
+        expect((SABOTAGE["bfs-bottom-up"] ?? []).map((m) => m.name)).toEqual([
+            "early-exit-removed",
+            "stale-entries-claimed",
+            "bottom-up-claim-is-the-level",
+        ]);
+        expect((SABOTAGE["bfs-bitset-build"] ?? []).map((m) => m.name)).toEqual([
+            "or-is-a-store",
+            "bit-of-the-wrong-word",
+            "last-frontier-entry-unset",
+        ]);
+        expect((SABOTAGE["bfs-unvisited-flags"] ?? []).map((m) => m.name)).toEqual([
+            "everyone-listed",
+            "in-degree-test-inverted",
+            "in-degree-summed",
+        ]);
+        const selector = MEASURED[MEASURED.length - 1];
+        expect(selector.rows.map((m) => m.name)).toEqual(SELECTOR_ROWS);
+        expect(selector.rows.map((m) => m.test)).toEqual([
             "test/primitives/frontier.test.ts",
             "test/primitives/frontier.test.ts",
             BFS_TEST,
+            BFS_TEST,
         ]);
-        for (const id of ["bfs-contract", "sssp-pred", "bfs-fused"] as const) {
+        for (const id of BFS_KERNELS) {
             const { body } = KERNELS[id];
             const names = new Set<string>();
             for (const m of SABOTAGE[id] ?? []) {

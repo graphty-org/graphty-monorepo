@@ -55,6 +55,9 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "bfs-contract": 4,
     "sssp-pred": 6,
     "bfs-fused": 8,
+    "bfs-bottom-up": 8,
+    "bfs-bitset-build": 3,
+    "bfs-unvisited-flags": 5,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

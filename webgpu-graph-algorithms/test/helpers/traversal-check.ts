@@ -101,7 +101,9 @@ export function expectLevelConsistent(result: LevelResult, s: GraphSnapshot, sou
     for (let v = 0; v < n; v++) {
         if (v === source || depth[v] === INVALID_INDEX) {
             if (parent[v] !== INVALID_INDEX) {
-                throw new Error(`parent[${v}] is ${parent[v]}, expected INVALID_INDEX (${v === source ? "the source" : "unreached"})`);
+                throw new Error(
+                    `parent[${v}] is ${parent[v]}, expected INVALID_INDEX (${v === source ? "the source" : "unreached"})`,
+                );
             }
             continue;
         }
@@ -144,7 +146,9 @@ export function expectSmallestPredecessor(result: LevelResult, s: GraphSnapshot)
             continue;
         }
         if (parent[v] !== smallest[v]) {
-            throw new Error(`parent[${v}] is ${parent[v]}, but the smallest depth-${depth[v] - 1} predecessor is ${smallest[v]}`);
+            throw new Error(
+                `parent[${v}] is ${parent[v]}, but the smallest depth-${depth[v] - 1} predecessor is ${smallest[v]}`,
+            );
         }
     }
 }
@@ -183,7 +187,9 @@ export function expectOrderGroupedByLevel(result: OrderResult): void {
         }
         const prev = order[i - 1];
         if (depth[v] < depth[prev]) {
-            throw new Error(`order[${i}] = ${v} at depth ${depth[v]} follows order[${i - 1}] = ${prev} at depth ${depth[prev]}`);
+            throw new Error(
+                `order[${i}] = ${v} at depth ${depth[v]} follows order[${i - 1}] = ${prev} at depth ${depth[prev]}`,
+            );
         }
         if (depth[v] === depth[prev] && v <= prev) {
             throw new Error(`order[${i}] = ${v} is not above order[${i - 1}] = ${prev} within depth ${depth[v]}`);
@@ -209,7 +215,9 @@ export function expectTriangleInequality(dist: ArrayLike<number>, s: GraphSnapsh
             const v = s.colIdx[a];
             const bound = Math.fround(du + w(a));
             if (!(dist[v] <= bound)) {
-                throw new Error(`arc ${a} (${u} -> ${v}, w ${w(a)}) violates dist[${v}] = ${dist[v]} <= fround(${du} + w) = ${bound}`);
+                throw new Error(
+                    `arc ${a} (${u} -> ${v}, w ${w(a)}) violates dist[${v}] = ${dist[v]} <= fround(${du} + w) = ${bound}`,
+                );
             }
         }
     }
@@ -368,4 +376,103 @@ export function expectPredArcAttains(
         source,
         Array.from({ length: s.nodeCount }, (_, v) => dist[v] !== Infinity),
     );
+}
+
+/** One level boundary of the direction model: the words `frontier-finalize` leaves after it (P8-T8 Step 5). */
+interface DirectionBoundary {
+    /** The `direction` word: 0 top-down, 1 bottom-up. */
+    readonly direction: 0 | 1;
+    /** The `unvisitedCount` word after this boundary's subtraction. */
+    readonly unvisitedCount: number;
+    /** The `unvisitedDegreeSum` word after this boundary's subtraction. */
+    readonly unvisitedDegreeSum: number;
+    /** The `switches` word after this boundary. */
+    readonly switches: number;
+    /** Whether this boundary set `done` (an empty frontier, or the level reached `maxDepth`). */
+    readonly done: boolean;
+}
+
+/**
+ * Beamer's rule replayed on the host from the oracle's per-level frontier sizes and out-degree sums, exactly as
+ * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21), boundary by boundary until the one that
+ * sets `done` (the rule is evaluated there too, because the kernel's test sits before its `done` branch). The two
+ * unvisited words are rebuilt EXACTLY from the oracle's complement at the top of every submit (everything claimed
+ * through the frontier that submit rotates in first is outside the sums), the count is subtracted from the second
+ * boundary of a submit on and the degree sum from the third on, and the degree sum a boundary holds is the one the
+ * previous level's EXPANSION measured: the previous frontier's out-degree sum after a top-down level, 0 after a
+ * bottom-up level (the sweep expands nothing), which is the one-level staleness the design accepts. `alpha` divides
+ * as a `u32` (floored), `next * beta` is exact (no wrap below 178M vertices).
+ * @param levelSizes - `|F_L|` per level, level 0 the source alone (a level past the end is 0)
+ * @param levelDegreeSums - the out-degree sum of `F_L` per level
+ * @param n - the node count
+ * @param arcCount - the arc count (the out-degree sum of every node)
+ * @param alpha - Beamer's alpha as the driver passes it (`max(1, floor(arcCount / n))` unless tuned)
+ * @param beta - Beamer's beta (`BEAMER_BETA` unless tuned)
+ * @param levelsPerSubmit - the submit cadence (the rebuild cadence)
+ * @param maxDepth - the cap, raw (`level >= maxDepth` is `done`; absent or NaN never is)
+ * @param topDown - the driver's `mode 1` (`direction: "top-down"`): the rule is never evaluated, the words still move
+ * @returns the boundaries in order, the last one `done`
+ */
+export function expectedDirections(
+    levelSizes: readonly number[],
+    levelDegreeSums: readonly number[],
+    n: number,
+    arcCount: number,
+    alpha: number,
+    beta: number,
+    levelsPerSubmit: number,
+    maxDepth?: number,
+    topDown = false,
+): readonly DirectionBoundary[] {
+    const sizeAt = (level: number): number => levelSizes[level] ?? 0;
+    const degreeAt = (level: number): number => levelDegreeSums[level] ?? 0;
+    const cap = maxDepth ?? Infinity;
+    const boundaries: DirectionBoundary[] = [];
+    let direction: 0 | 1 = 0;
+    let switches = 0;
+    let unvisitedCount = 0;
+    let unvisitedDegreeSum = 0;
+    for (let level = 0; level <= n + 1; level++) {
+        const b = level % levelsPerSubmit;
+        if (b === 0) {
+            // the rebuild: F_0 .. F_level are claimed when it runs (F_level by the previous submit's last contract)
+            let claimed = 0;
+            let claimedDegree = 0;
+            for (let j = 0; j <= level; j++) {
+                claimed += sizeAt(j);
+                claimedDegree += degreeAt(j);
+            }
+            unvisitedCount = n - claimed;
+            unvisitedDegreeSum = arcCount - claimedDegree;
+        }
+        const finished = level === 0 ? 0 : sizeAt(level - 1);
+        const next = sizeAt(level);
+        const degSum = level === 0 || direction === 1 ? 0 : degreeAt(level - 1);
+        if (b >= 1) {
+            unvisitedCount -= next;
+        }
+        if (b >= 2) {
+            unvisitedDegreeSum -= degSum;
+        }
+        const done = next === 0 || level >= cap;
+        let chosen: 0 | 1 = direction;
+        if (topDown) {
+            chosen = 0;
+        } else if (direction === 0) {
+            if (degSum > Math.floor(unvisitedDegreeSum / alpha) && next > finished) {
+                chosen = 1;
+            }
+        } else if (next * beta < unvisitedCount && next < finished) {
+            chosen = 0;
+        }
+        if (chosen !== direction) {
+            switches += 1;
+        }
+        direction = chosen;
+        boundaries.push({ direction, unvisitedCount, unvisitedDegreeSum, switches, done });
+        if (done) {
+            return boundaries;
+        }
+    }
+    throw new Error(`the direction model ran ${n + 2} boundaries without an empty frontier`);
 }

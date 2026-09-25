@@ -25,7 +25,8 @@
  *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
  *   screen is one width. This is the sentence the element's natural-language layer reads out
  *   when someone asks for an outline width, so it answers with a reason rather than a refusal.
- * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count.
+ * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
+ *   and zigzag and sinewave ignore it because they always tile the whole edge.
  * - The four arrow caption channels draw words at ONE END of an edge, hanging from the cap
  *   there. An end with no cap carries no caption, and the words are what switch one on.
  * - The two node tooltip channels draw on HOVER and only on hover, so a graph at rest carries
@@ -579,7 +580,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         renderable: true,
         caveat:
             "A cap on how many dots or dashes a patterned edge draws, and it applies to a " +
-            "patterned line only: a solid line has no elements to count. Left unset, the spacing " +
+            "patterned line only: a solid line has no elements to count, and zigzag and " +
+            "sinewave always tile the whole edge, so they ignore it. Left unset, the spacing " +
             "rule decides, so a long edge or a thin one draws more of them.",
     },
     "edge.curvature": {

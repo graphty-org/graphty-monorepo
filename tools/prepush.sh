@@ -78,6 +78,13 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
 run_step "Published dependencies" "pnpm run check:published-deps"
 
+# Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
+# files on GitHub, resolved against the working tree. Offline: the network half of the check
+# (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,
+# which has the built site this gate does not. Under a second (2026-09-24); the first run also
+# downloads the pinned lychee binary. See tools/check-links.sh.
+run_step "Links" "./tools/check-links.sh --offline"
+
 # Run fast tests for each package
 # These run only the 'default' project (happy-dom/jsdom/node tests, no playwright)
 echo -e "${YELLOW}> Fast tests${NC}"

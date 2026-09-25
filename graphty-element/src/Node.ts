@@ -631,7 +631,7 @@ export class Node {
      * `removeFromHighlight` call below is what is safe to do: it removes THIS mesh, which for an
      * instanced node the layer never held.
      *
-     * A DISPOSED NODE STILL RECEIVES CALLS, which is why {@link Node.disposed} exists rather than
+     * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
      * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
      * (its own standing TODO), so `UpdateManager` keeps iterating the engine's node and edge
      * lists; and `SelectionManager.selectedNode` holds a Node across a dataset boundary and calls

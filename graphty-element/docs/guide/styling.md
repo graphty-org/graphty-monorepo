@@ -138,7 +138,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.width`             | a number                                     |
 | `edge.opacity`           | 0 to 1                                       |
 | `edge.style`             | `solid`, `dash`, `dot`, `zigzag`, ...        |
-| `edge.patternCount`      | how many dots or dashes to draw, 2 or more   |
+| `edge.patternCount`      | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`         | true or false (a bezier)                     |
 | `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
 | `edge.arrowHeadSize`     | a number, 1 being the element's own size     |
@@ -353,10 +353,10 @@ element, and what the layers under it had said before it did.
 
 ## Interactive Examples
 
-- [Node Styles](https://graphty.app/storybook/element/?path=/story/styles-node--default)
-- [Edge Styles](https://graphty.app/storybook/element/?path=/story/styles-edge--default)
-- [Label Styles](https://graphty.app/storybook/element/?path=/story/styles-label--default)
-- [All Node Shapes](https://graphty.app/storybook/element/?path=/story/styles-node--all-node-shapes)
-- [Bezier Edges](https://graphty.app/storybook/element/?path=/story/styles-edge--bezier)
-- [Bidirectional Arrows](https://graphty.app/storybook/element/?path=/story/styles-edge--bidirectional)
-- [Layered Styles](https://graphty.app/storybook/element/?path=/story/styles-layered--two-layer-node-colors)
+- [Node Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--default)
+- [Edge Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--default)
+- [Label Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-label--default)
+- [All Node Shapes](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--all-node-shapes)
+- [Bezier Edges](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bezier)
+- [Bidirectional Arrows](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bidirectional)
+- [Layered Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-layered--two-layer-node-colors)

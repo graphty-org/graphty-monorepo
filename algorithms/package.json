@@ -66,7 +66,7 @@
         "commit": "cz",
         "ready:commit": "npm run build && npm run lint && npm run test:all",
         "watch": "tsc --watch",
-        "docs:api": "typedoc && node scripts/sanitize-api-docs.js",
+        "docs:api": "typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
         "docs:api:watch": "typedoc --watch",
         "docs:dev": "vitepress dev docs --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "docs:watch": "npm run docs:api && (npm run docs:api:watch & npm run docs:dev & wait)",

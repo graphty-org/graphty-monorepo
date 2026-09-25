@@ -318,12 +318,12 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 ## CSS Styling
 
-The component **must have dimensions** to render. Set via CSS:
+The element is a block that fills its container's width. Its height is 2:1 -- half its width --
+unless you give it a height or place it in a parent that has one, in which case it fills that
+parent. Size it with ordinary CSS:
 
 ```css
 graphty-element {
-    display: block;
-    width: 100%;
     height: 500px;
 }
 ```
@@ -331,7 +331,7 @@ graphty-element {
 Or inline styles:
 
 ```html
-<graphty-element style="display: block; width: 800px; height: 600px;"> </graphty-element>
+<graphty-element style="width: 800px; height: 600px;"> </graphty-element>
 ```
 
 ## Events
@@ -375,11 +375,15 @@ function GraphComponent({ nodes, edges, layout = "ngraph" }) {
             node-data={JSON.stringify(nodes)}
             edge-data={JSON.stringify(edges)}
             layout={layout}
-            style={{ width: "100%", height: "500px", display: "block" }}
+            style={{ height: "500px" }}
         />
     );
 }
 ```
+
+If the element module is loaded lazily, make sure it is defined before React renders the tag;
+otherwise React writes object props as `"[object Object]"` attributes. See
+[Loading the element lazily](./installation#loading-the-element-lazily).
 
 ### Vue
 

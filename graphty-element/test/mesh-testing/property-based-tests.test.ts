@@ -220,10 +220,12 @@ describe("Property-Based Tests", () => {
             );
         });
 
-        test("a patternCount is honoured for every patterned type", () => {
+        test("a patternCount is honoured for every discrete patterned type", () => {
+            // Zigzag and sinewave are excluded: they always tile the whole edge and ignore it.
+            const connected = ["solid", "zigzag", "sinewave"];
             fc.assert(
                 fc.property(
-                    fc.constantFrom(...LINE_TYPES.filter((type) => type !== "solid")),
+                    fc.constantFrom(...LINE_TYPES.filter((type) => !connected.includes(type))),
                     fc.integer({ min: 2, max: 30 }),
                     (type, patternCount) => {
                         const edge = EdgeMesh.create(

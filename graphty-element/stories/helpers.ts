@@ -291,6 +291,8 @@ interface StorySetup {
     algorithms?: readonly AlgorithmOnLoad[];
     /** How many layout steps to run before the first frame is drawn. */
     preSteps?: number;
+    /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
+    declutterLabels?: boolean;
 }
 
 /**
@@ -458,6 +460,10 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
 
     if (setup.algorithms !== undefined) {
         element.algorithmsOnLoad = setup.algorithms;
+    }
+
+    if (setup.declutterLabels !== undefined) {
+        element.layoutBehavior = { labels: { declutter: setup.declutterLabels } };
     }
 }
 

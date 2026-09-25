@@ -47,6 +47,9 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "grid-downsample": 1,
     "grid-far-field": 5,
     "grid-near-field": 8,
+    "compact-scatter": 5,
+    "dedupe-claim": 3,
+    "dedupe-filter": 4,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

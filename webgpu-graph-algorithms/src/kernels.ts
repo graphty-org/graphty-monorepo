@@ -8,7 +8,8 @@
  * segmented-reduce; P3-T2 adds fa2-stats-finalize (K1), fa2-attraction (K2), fa2-integrate (K5) and
  * fa2-to-scene; M8b-T3 adds the seven P7 entries: spmv-pull, pr-scale, pr-finalize, wcc-link-sample,
  * wcc-link-edges, wcc-compress and wcc-sample. P4-T1 adds indirect-finalize; the other P4 entries follow, one task
- * each (the P4 plan, PD-1). This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
+ * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
+ * dedupe-claim and dedupe-filter. This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -17,7 +18,10 @@ import { UniformBlock } from "./kernel/struct-block.js";
 import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kernel/wgsl.js";
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
+import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
+import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
+import { dedupeFilterWgsl } from "./wgsl/dedupe-filter.wgsl.js";
 import { degreeWgsl } from "./wgsl/degree.wgsl.js";
 import { fa2AttractionWgsl } from "./wgsl/fa2-attraction.wgsl.js";
 import { fa2IntegrateWgsl } from "./wgsl/fa2-integrate.wgsl.js";
@@ -48,7 +52,7 @@ import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
 import { wccSampleWgsl } from "./wgsl/wcc-sample.wgsl.js";
 
-/** Every module id of P1-P3 and P7 (later ids are appended, never renamed). */
+/** Every module id of P1-P4, P7 and P8 (later ids are appended, never renamed). */
 export type KernelId =
     | "degree"
     | "reduce"
@@ -79,7 +83,10 @@ export type KernelId =
     | "grid-centroid-hub"
     | "grid-downsample"
     | "grid-far-field"
-    | "grid-near-field";
+    | "grid-near-field"
+    | "compact-scatter"
+    | "dedupe-claim"
+    | "dedupe-filter";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -94,7 +101,7 @@ export interface KernelEntry {
     /** The snippet marker names the body carries (segmented-reduce: ["VALUE"]). */
     readonly snippetSlots: readonly string[];
     /** The phase the entry landed in (documentation and the compile-matrix filter). */
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
 }
 
 // ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
@@ -326,6 +333,14 @@ export const RADIX_PARAMS: UniformBlock = UniformBlock.define("RadixParams", [
     ["count", "u32"],
     ["shift", "u32"],
     ["groups", "u32"],
+    ["pad0", "u32"],
+]);
+
+/** `CompactParams` (uniform, 16 B; spec 6 row 4, P8-T3): `count` @0 (the entries, or the capacity a device count is clamped to), `outIndex` @4 (the word of `outCount` that receives the output count: the block is bound whole because a four-byte word is never 256-aligned), `countIndex` @8 (the word of the counters block holding the entry count, or `U32_MAX` for a host-known count; `compact-scatter` ignores it), `pad0` @12. */
+export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams", [
+    ["count", "u32"],
+    ["outIndex", "u32"],
+    ["countIndex", "u32"],
     ["pad0", "u32"],
 ]);
 
@@ -915,14 +930,71 @@ const GRID_NEAR_FIELD: KernelEntry = {
     phase: "P4",
 };
 
+/** `compact-scatter` (spec 6 row 4; P8-T3): the scatter of `compact` after the flags' exclusive scan, plus the total into `outCount[P.outIndex]`; 5 storage bindings; order-preserving, so bitwise reproducible. */
+const COMPACT_SCATTER: KernelEntry = {
+    id: "compact-scatter",
+    body: compactScatterWgsl,
+    entryPoint: "compact_scatter",
+    bindings: [
+        decl(1, 0, "queue", "storage-ro", "array<u32>"),
+        decl(1, 1, "flags", "storage-ro", "array<u32>"),
+        decl(1, 2, "offsets", "storage-ro", "array<u32>"),
+        decl(1, 3, "out", "storage", "array<u32>"),
+        decl(1, 4, "outCount", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "CompactParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COMPACT_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `dedupe-claim` (spec 6 row 4; P8-T3): `atomicStore(&owner[queue[i]], i)` for every entry, the count from `P.count` or the device word `counters[P.countIndex]`; 3 storage bindings (`counters` is `array<atomic<u32>>` and therefore read-write, although only loaded: WGSL admits an atomic only in a read-write storage buffer). */
+const DEDUPE_CLAIM: KernelEntry = {
+    id: "dedupe-claim",
+    body: dedupeClaimWgsl,
+    entryPoint: "dedupe_claim",
+    bindings: [
+        decl(1, 0, "queue", "storage-ro", "array<u32>"),
+        decl(1, 1, "owner", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "CompactParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COMPACT_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `dedupe-filter` (spec 6 row 4; P8-T3): a separate dispatch keeping the entries that still own their vertex, packed by a workgroup scan and one `atomicAdd` per workgroup on `outCount[P.outIndex]`, which is also the block the count word `P.countIndex` is read from; 4 storage bindings; set-deterministic. */
+const DEDUPE_FILTER: KernelEntry = {
+    id: "dedupe-filter",
+    body: dedupeFilterWgsl,
+    entryPoint: "dedupe_filter",
+    bindings: [
+        decl(1, 0, "queue", "storage-ro", "array<u32>"),
+        decl(1, 1, "owner", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "out", "storage", "array<u32>"),
+        decl(1, 3, "outCount", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "CompactParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COMPACT_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
  * contract's `Readonly<Record<KernelId, KernelEntry>>` type by one assertion; the runtime membership check of
  * `entryOf` is the E_INVALID_ARGUMENT the contract documents for a JS caller's unknown id. P1-T4 landed the five
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
- * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries, so every member of `KernelId` is present and the
- * assertion is exact.
+ * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
+ * dedupe entries, so every member of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -955,6 +1027,9 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "grid-downsample": GRID_DOWNSAMPLE,
     "grid-far-field": GRID_FAR_FIELD,
     "grid-near-field": GRID_NEAR_FIELD,
+    "compact-scatter": COMPACT_SCATTER,
+    "dedupe-claim": DEDUPE_CLAIM,
+    "dedupe-filter": DEDUPE_FILTER,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

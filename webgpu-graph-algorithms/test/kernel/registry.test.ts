@@ -15,6 +15,7 @@ import { PRELUDE_WGSL } from "../../src/kernel/prelude.js";
 import { type UniformBlock } from "../../src/kernel/struct-block.js";
 import { composeWgsl, entryPointOf, STANDARD_OVERRIDES } from "../../src/kernel/wgsl.js";
 import {
+    COMPACT_PARAMS,
     FA2_PARAMS,
     FA2_PARTIAL,
     FA2_STATE,
@@ -56,7 +57,7 @@ interface ExpectedEntry {
     readonly uniforms: readonly UniformBlock[];
     readonly needs: readonly "subgroups"[];
     readonly snippetSlots: readonly string[];
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
     /** Storage-buffer count per stage (3.10.1: "degree 5, reduce 2, fill 1, segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2"; design 8.10: spmvPull 8, pr-scale 5, pr-finalize 1, Afforest link 3 / compress 1, sample 2; wcc-link-sample 5 = the graph slots + comp). */
     readonly storageCount: number;
 }
@@ -558,6 +559,54 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P4",
         storageCount: 8,
+    },
+    "compact-scatter": {
+        entryPoint: "compact_scatter",
+        bindings: [
+            [1, 0, "queue", "storage-ro", "array<u32>"],
+            [1, 1, "flags", "storage-ro", "array<u32>"],
+            [1, 2, "offsets", "storage-ro", "array<u32>"],
+            [1, 3, "out", "storage", "array<u32>"],
+            [1, 4, "outCount", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "CompactParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COMPACT_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 5,
+    },
+    "dedupe-claim": {
+        entryPoint: "dedupe_claim",
+        bindings: [
+            [1, 0, "queue", "storage-ro", "array<u32>"],
+            [1, 1, "owner", "storage", "array<atomic<u32>>"],
+            [1, 2, "counters", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "CompactParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COMPACT_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 3,
+    },
+    "dedupe-filter": {
+        entryPoint: "dedupe_filter",
+        bindings: [
+            [1, 0, "queue", "storage-ro", "array<u32>"],
+            [1, 1, "owner", "storage", "array<atomic<u32>>"],
+            [1, 2, "out", "storage", "array<u32>"],
+            [1, 3, "outCount", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "CompactParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COMPACT_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 4,
     },
 };
 

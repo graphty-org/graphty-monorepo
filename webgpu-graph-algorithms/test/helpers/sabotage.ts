@@ -11,7 +11,8 @@
  * Rows: degree, reduce, K3 (fa2-repulsion-exact) and K4 (fa2-speed-finalize) at P1-T5; segmented-reduce at P2-T2
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
- * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts. SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
+ * by test/sabotage/compact.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -47,6 +48,7 @@ const RADIX_TEST = "test/primitives/radix-sort.test.ts";
 const GRID_TEST = "test/primitives/grid.test.ts";
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
+const COMPACT_TEST = "test/primitives/compact.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -845,6 +847,85 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let valid = t + 1u < P.n;",
             minFactor: 10,
             test: GRID_INSPECT_TEST,
+        },
+    ]),
+    "compact-scatter": Object.freeze([
+        {
+            // the flag test inverted: the UNflagged entries are scattered (at the flagged ones' offsets)
+            name: "flag-test-inverted",
+            find: "if (flags[i] != 0u) { out[offsets[i]] = queue[i]; }",
+            replace: "if (flags[i] == 0u) { out[offsets[i]] = queue[i]; }",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the total drops the last flag: one short whenever the last entry is flagged (the alternating case's 4096 is)
+            name: "total-from-offsets-only",
+            find: "offsets[P.count - 1u] + flags[P.count - 1u]",
+            replace: "offsets[P.count - 1u]",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the last entry is never scattered: its slot keeps the poison
+            name: "last-element-skipped",
+            find: "if (i >= P.count) { return; }",
+            replace: "if (i >= P.count - 1u) { return; }",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+    ]),
+    "dedupe-claim": Object.freeze([
+        {
+            // the claim lands at the entry's own index instead of its vertex's: the repeated vertex survives once
+            // (owner[5] = 5) but the reversed tail keeps only its fixed point, so the surviving set is wrong
+            name: "claims-own-slot",
+            find: "atomicStore(&owner[queue[i]], i);",
+            replace: "atomicStore(&owner[i], i);",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // every claim writes 0: only entry 0 owns its vertex, so one entry survives
+            name: "claims-zero",
+            find: "atomicStore(&owner[queue[i]], i);",
+            replace: "atomicStore(&owner[queue[i]], 0u);",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the last entry never claims: its vertex (a tail vertex nobody else names) is dropped
+            name: "last-entry-unclaimed",
+            find: "if (i >= count) { return; }",
+            replace: "if (i >= count - 1u) { return; }",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+    ]),
+    "dedupe-filter": Object.freeze([
+        {
+            // every entry is kept: the repeats survive and the count is the queue's length
+            name: "keeps-everything",
+            find: "select(0u, 1u, atomicLoad(&owner[v]) == i)",
+            replace: "1u",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the inclusive rank written as an exclusive one: slot 0 keeps the poison and the last write lands past the count
+            name: "inclusive-off-by-one",
+            find: "out[base + inclusive - 1u] = v;",
+            replace: "out[base + inclusive] = v;",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the block's aggregate is lane 0's own keep bit: the count word and every base are wrong
+            name: "aggregate-from-lane-zero",
+            find: "if (lid.x == WG - 1u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }",
+            replace: "if (lid.x == 0u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }",
+            minFactor: 10,
+            test: COMPACT_TEST,
         },
     ]),
 });

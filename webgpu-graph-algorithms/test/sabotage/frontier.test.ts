@@ -24,18 +24,17 @@ const ROWS = SABOTAGE[ID] ?? [];
 const MEASURED = ROWS.filter((m) => m.test === FRONTIER_TEST);
 
 describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
-    it("has six rows naming the frontier test and two (P8-T7's threshold, P8-T8's growing test) naming the BFS test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has five rows naming the frontier test and two (P8-T7's threshold, P8-T8's growing test) naming the BFS test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect(ROWS.map((m) => m.name)).toEqual([
             "ceil-wraps",
             "second-row-floored",
             "rotation-dropped",
-            "fused-slot-per-invocation",
             "done-boundary-keeps-counting",
             "role-1-counts-every-level",
             "fused-threshold-inverted",
             "growing-test-inverted",
         ]);
-        expect(MEASURED).toHaveLength(6);
+        expect(MEASURED).toHaveLength(5);
         const { body } = KERNELS[ID];
         const names = new Set<string>();
         for (const m of ROWS) {

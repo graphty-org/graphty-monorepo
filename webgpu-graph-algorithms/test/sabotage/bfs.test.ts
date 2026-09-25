@@ -10,10 +10,9 @@
  * fixture forced bottom-up (alpha U32_MAX, beta 0) with the clique's `arcsScanned` allowed one extra read per
  * claim, the directed path's unvisited words, and the one-workgroup predecessor pass, all bitwise (any mismatch is
  * Infinity) -- fails on the mutant by at least minFactor. The first block is the coverage loop of
- * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15). Four
+ * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15). Three
  * `frontier-finalize` rows are run here too: P8-T4's `rotation-dropped` (the first boundary rotates nothing in and
- * every traversal is the source alone) and `fused-slot-per-invocation` (a fused level expands only its first
- * ceil(next / wg) entries), P8-T7's `fused-threshold-inverted`, which leaves every depth right and is caught only
+ * every traversal is the source alone), P8-T7's `fused-threshold-inverted`, which leaves every depth right and is caught only
  * by the exact `fusedLevels` / `twoPhaseLevels` counts, and P8-T8's `growing-test-inverted`, caught only by the
  * direction model. The `sssp-pred` rows measured here are the four of its depth mode; P8-T9's three f32-mode rows
  * name the SSSP test and are measured by test/sabotage/sssp.test.ts alone.
@@ -35,12 +34,7 @@ const SSSP_TEST = "test/algorithms/sssp.test.ts";
 const F32_MODE_ROWS: readonly string[] = ["attains-is-ge", "plateau-step-ignored", "roots-unseeded"];
 
 /** The selector rows this suite measures beside the frontier suite (rotation, fused slot) or alone (the threshold, the growing test). */
-const SELECTOR_ROWS: readonly string[] = [
-    "rotation-dropped",
-    "fused-slot-per-invocation",
-    "fused-threshold-inverted",
-    "growing-test-inverted",
-];
+const SELECTOR_ROWS: readonly string[] = ["rotation-dropped", "fused-threshold-inverted", "growing-test-inverted"];
 
 /** The kernels whose every row names the BFS test. */
 const BFS_KERNELS = [
@@ -62,7 +56,7 @@ const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutati
 ];
 
 describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitset-build and bfs-unvisited-flags (spec 11.9 item 1; P8-T6, P8-T7, P8-T8)", () => {
-    it("has three contract rows, four depth-mode predecessor rows (plus P8-T9's three f32-mode rows naming the SSSP test), three fused rows, three bottom-up rows, three bitset rows and three unvisited rows naming the BFS test, and measures four selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has three contract rows, four depth-mode predecessor rows (plus P8-T9's three f32-mode rows naming the SSSP test), three fused rows, three bottom-up rows, three bitset rows and three unvisited rows naming the BFS test, and measures three selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect((SABOTAGE["bfs-contract"] ?? []).map((m) => m.name)).toEqual([
             "claim-not-a-min",
             "same-level-claimants-append",
@@ -99,12 +93,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
         ]);
         const selector = MEASURED[MEASURED.length - 1];
         expect(selector.rows.map((m) => m.name)).toEqual(SELECTOR_ROWS);
-        expect(selector.rows.map((m) => m.test)).toEqual([
-            "test/primitives/frontier.test.ts",
-            "test/primitives/frontier.test.ts",
-            BFS_TEST,
-            BFS_TEST,
-        ]);
+        expect(selector.rows.map((m) => m.test)).toEqual(["test/primitives/frontier.test.ts", BFS_TEST, BFS_TEST]);
         for (const id of BFS_KERNELS) {
             const { body } = KERNELS[id];
             const names = new Set<string>();

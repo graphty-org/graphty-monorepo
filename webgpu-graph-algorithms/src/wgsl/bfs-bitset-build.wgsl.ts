@@ -2,7 +2,7 @@
  * The `bfs-bitset-build` kernel body (design 8.4 "the bitset frontier"; P8-T8): the vertex-list-to-bitset hand-off
  * of a bottom-up level. One invocation per entry of the input frontier (`frontierCount`, word 0), each `atomicOr`ing
  * its vertex's bit into the `ceil(n / 32)`-word bitset at `P.bitsBase` inside the `sweepIn` buffer (the region a
- * `fill` from `SLOT.fillBits` zeroed just before). The design's "bulk non-atomic path when the frontier is >= 40% of
+ * `fill` zeroed just before, on every level). The design's "bulk non-atomic path when the frontier is >= 40% of
  * n" iterates WORDS of a frontier that is already a bitset; this frontier is a vertex list, so a word-owning store
  * has nothing to iterate and `atomicOr` per vertex is the whole kernel. The sweep appends what it claims as a plain
  * vertex list, exactly as the contract does, and writes no second bitset: the next level's bits come from this
@@ -14,9 +14,10 @@
 export const bfsBitsetBuildWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
 fn bfs_bitset_build(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let i = linear_id(wid, lid.x);
-    if (i >= atomicLoad(&counters[0])) { return; }                   // frontierCount; no barrier follows
-    let v = frontierIn[i];
-    atomicOr(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));
+    let count = select(0u, atomicLoad(&counters[0]), atomicLoad(&counters[24]) == 3u);   // frontierCount, on the bottom-up path only (the path word)
+    for (var i = linear_id(wid, lid.x); i < count; i = i + P.stride) {   // grid-stride; no barrier anywhere
+        let v = frontierIn[i];
+        atomicOr(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));
+    }
 }
 `;

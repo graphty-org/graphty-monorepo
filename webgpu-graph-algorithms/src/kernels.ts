@@ -369,11 +369,11 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
     ["count", "u32"],
     ["outIndex", "u32"],
     ["countIndex", "u32"],
-    ["pad0", "u32"],
+    ["stride", "u32"],
 ]);
 
 /**
- * `FrontierCounters` (storage, 96 B; design 6 row 7, P8-T4, PD-8): EVERY counter of the frontier family is a word of
+ * `FrontierCounters` (storage, 112 B; design 6 row 7, P8-T4, PD-8): EVERY counter of the frontier family is a word of
  * this one block, byte offset 4 x index, because a four-byte word is never a legal storage-binding offset and the
  * device-side selector must reach every count it acts on through one binding; every kernel binds it as
  * `array<atomic<u32>>` and indexes by the `W` record of src/primitives/frontier.ts, and the host decodes the result
@@ -384,8 +384,10 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
  * detector, PD-23), `overflowLevels` @40, `level` @44 (the current level; the seed is U32_MAX so the first boundary
  * lands on 0), `visitedCount` @48, `switches` @52, `direction` @56, `done` @60 (the four bytes the host reads per
  * submit), `arcsScanned` @64, `fusedLevels` @68, `twoPhaseLevels` @72, `bottomUpLevels` @76, `farCount` @80,
- * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92 (P8-T9). The words nothing writes before P8-T8 / P8-T9
- * are declared now because the byte layout is what the single result copy decodes.
+ * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92 (P8-T9), `path` @96 (what the level's kernels run, written
+ * by the selector: 0 nothing, 1 two-phase, 2 fused, 3 bottom-up, 4 the fused retry, 5 a near SSSP round, 6 a far
+ * one; every level kernel is a direct dispatch that reads it first -- G8-F5). The words nothing writes before
+ * P8-T8 / P8-T9 are declared now because the byte layout is what the single result copy decodes.
  */
 export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
     "FrontierCounters",
@@ -414,6 +416,7 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
         ["nextFarCount", "u32"],
         ["thresholdBits", "u32"],
         ["deltaBits", "u32"],
+        ["path", "u32"],
     ],
     { layout: "storage" },
 );

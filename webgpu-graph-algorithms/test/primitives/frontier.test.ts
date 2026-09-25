@@ -75,11 +75,11 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         return ctx;
     }
 
-    it("FRONTIER_COUNTERS is a 96-byte storage block of 24 u32 words indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields", () => {
+    it("FRONTIER_COUNTERS is a 112-byte storage block of 25 u32 words (the path word last, rounded to 16 bytes) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields", () => {
         expect(FRONTIER_COUNTERS.name).toBe("FrontierCounters");
         expect(FRONTIER_COUNTERS.layout).toBe("storage");
-        expect(FRONTIER_COUNTERS.byteLength).toBe(96);
-        expect(WORDS).toHaveLength(24);
+        expect(FRONTIER_COUNTERS.byteLength).toBe(112);
+        expect(WORDS).toHaveLength(25);
         expect(FRONTIER_COUNTERS.fields.map((f) => f[0])).toEqual(WORDS);
         for (const name of WORDS) {
             expect(FRONTIER_COUNTERS.offsetOf(name), name).toBe(4 * W[name]);
@@ -89,6 +89,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         expect(W.level).toBe(11);
         expect(W.done).toBe(15);
         expect(W.deltaBits).toBe(23);
+        expect(W.path).toBe(24);
         expect(SLOT).toEqual({ expand: 0, contract: 1, fused: 2, fillBits: 3, bitset: 4, bottomUp: 5, fusedRetry: 6 });
         expect(Object.keys(SLOT)).toHaveLength(FRONTIER_CANDIDATES);
         expect(FRONTIER_PARAMS.name).toBe("FrontierParams");
@@ -222,7 +223,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             expect(frontier.input).toBe(a);
             expect(frontier.edgeCapacity).toBe(4);
             expect(frontier.args.size).toBe(MAX_LEVELS_PER_SUBMIT * FRONTIER_CANDIDATES * INDIRECT_ARGS_STRIDE);
-            expect(frontier.counters.size).toBe(96);
+            expect(frontier.counters.size).toBe(112);
         } finally {
             scope.dispose();
         }

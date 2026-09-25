@@ -2,7 +2,7 @@
 
 `webgpu-acceleration-plan.md` in this directory is the accepted design for
 `@graphty/webgpu-graph-algorithms`, approved on 2026-09-14. Since then, decision records under
-`design/decisions/` have reversed fifty passages of it. None of those passages were
+`design/decisions/` have reversed fifty-three passages of it. None of those passages were
 edited: the convention in this repository is that a decision record names the lines it
 overrules and the design keeps its original text, because deleting the argument that was
 rejected is how a decision gets quietly reversed a year later. `design/decisions/README.md`
@@ -26,7 +26,7 @@ top of it on 2026-09-23 pushed the body down by eight lines, so a line number qu
 decision record -- all of which were written earlier -- is eight lower than the line that text
 sits on now.
 
-Sections with superseded text, in order: 1.4 (D16), 2.4, 3.3, 4.6, 6, 7.3, 7.7, 7.19, 7.20, 8.2,
+Sections with superseded text, in order: 1.4 (D16), 2.4, 3.3, 4.6, 5.4, 6, 7.3, 7.7, 7.19, 7.20, 8.2,
 8.4, 8.8, 8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12 and T-13), 12.1, 12.2, 12.3, 12.6, 13 (the
 phase table), 14.1 (the risk register), 16.2 and the Review log's applied-findings table.
 
@@ -137,6 +137,23 @@ snapshot whose reverse adjacency exceeds one binding is refused with `E_TOO_LARG
 the forward core.
 
 **Decided by:** [2026-09-24-advance-is-window-aware.md](../decisions/2026-09-24-advance-is-window-aware.md)
+
+## Section 5.4, the selector paragraph (lines 1483-1493)
+
+**The design says:** when a round has several candidate pipelines, every candidate is recorded
+for every round, one `INDIRECT | STORAGE | COPY_DST` buffer holds one 16-byte slot per (round,
+candidate), and the finalize kernel writes real args into exactly one slot per round and
+`(0, 0, 1)` into the others, so the unchosen candidates dispatch nothing.
+
+**What is true instead:** the selector still chooses on the device, but it writes the choice
+into a `path` word of the counters block, and every candidate kernel is a DIRECT grid-stride
+dispatch that reads that word and loops to its count. An indirect dispatch costs about 0.4 ms of
+device time under Dawn's validation whether or not it dispatches anything, in Node and Chromium
+alike, and seven of them per recorded level were 97 % of a traversal's wall time. The slots are
+still written and read back by the selector's tests; nothing dispatches from them. The grid
+pyramid's hub dispatch (`indirect-finalize`, once per iteration) is unchanged.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
 ## Section 6, row 3, `segmentedReduce` (line 1578)
 
@@ -278,7 +295,7 @@ kernel's traversal -- the 3x3 exclusion, the 6x6 block per level, the outside ps
 
 ## Section 7.19, the `onReheat` comment in the `ForceModel` interface (line 2331)
 
-**The design says:** the trailing comment reads "FR: iteration = floor(0.7 * iterations)".
+**The design says:** the trailing comment reads "FR: iteration = floor(0.7 \* iterations)".
 
 **What is true instead:** a Fruchterman-Reingold reheat restarts the TEMPERATURE index at
 `floor(0.7 * iterations)` and the iteration BUDGET at 0. The two were one number in the design
@@ -358,6 +375,19 @@ build serve the direction-optimizing path's unvisited list, not the contraction.
 
 **Decided by:** [2026-09-24-bfs-claims-instead-of-culling.md](../decisions/2026-09-24-bfs-claims-instead-of-culling.md)
 
+## Section 8.4, the BFS host loop (line 2667) and the near-empty SSSP test (line 2689)
+
+**The design says:** "Host loop: 32 levels per submit with indirect args (5.4), one 4-byte
+readback", and for the near-far loop "the near-empty test is a device flag turned into a zero
+indirect dispatch so extra queued rounds are no-ops".
+
+**What is true instead:** 32 levels (rounds) per submit and one 4-byte readback stand; the
+kernels of a level are direct dispatches gated by the block's `path` word, and a queued round
+past the end is a no-op because the word is 0 and every count word it would read is 0, not
+because a zero-workgroup indirect dispatch runs.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
+
 ## Section 8.8, row 1, PageRank's new primitive (line 2797)
 
 **The design says:** the primitive is "`spmvPull` (tiered segmented reduce by in-degree)".
@@ -379,6 +409,16 @@ then link rounds over the remaining edges. The edge map with compare-and-swap, t
 the histogram sample stay in the cell.
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
+
+## Section 8.8, row 4, BFS's primitive list (line 2801)
+
+**The design says:** the row lists "`Frontier`, `advance`, `dedupe`, bitset, indirect dispatch"
+among what BFS builds on.
+
+**What is true instead:** `dedupe` is not in the list (the entry for section 8.4's dedupe
+sentence, above) and neither is indirect dispatch: BFS dispatches directly.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
 ## Section 8.10, the ping-pong sentence (line 2841)
 

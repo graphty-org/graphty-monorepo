@@ -9,9 +9,11 @@
  * A round is eight recorded dispatches: `frontier-finalize` role 2 (the round boundary: a non-empty raw near half
  * is deduped into `nearIn` for a near round; an empty one with a non-empty far half raises the threshold by the
  * delta and dedupes the far half into `farIn` for a pass-through; both empty is `done`), `dedupe-claim` and
- * `dedupe-filter` over each half (indirect; the slots of the half not chosen hold `(0, 0, 1)`), role 3 (sizes the
- * relax from the deduped count and restarts the raw half), and `sssp-relax` twice (role 0 over `nearIn` from
- * `SLOT.fused`, role 1 over `farIn` from `SLOT.bottomUp`; one of them runs). The far pile is re-bucketed by the
+ * `dedupe-filter` over each half (direct grid-stride dispatches; role 2 writes the chosen half's raw count into that
+ * dedupe's count word -- `edgeCount` for the near half, `edgeCountUnclamped` for the far one, two words SSSP borrows
+ * -- and 0 into the other's, so the half not chosen is a no-op), role 3 (restarts the raw half), and `sssp-relax`
+ * twice (role 0 over `nearIn`, role 1 over `farIn`; the block's `path` word, 5 a near round and 6 a far one, makes
+ * the other role's dispatch a no-op). The far pile is re-bucketed by the
  * relax kernel's pass-through, not by `compact` (PD-20): a far entry whose settled distance fell below the previous
  * threshold was relaxed in the near band already and is dropped, the rest go back to near or far against the raised
  * threshold. The near pile is ONE pile (no sub-partitions). The host records `MAX_LEVELS_PER_SUBMIT` rounds per
@@ -53,7 +55,7 @@
 
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
-import { F32_INF_BITS, FRONTIER_CANDIDATES, MAX_LEVELS_PER_SUBMIT, SSSP_DELTA_FACTOR } from "../constants.js";
+import { F32_INF_BITS, MAX_LEVELS_PER_SUBMIT, SSSP_DELTA_FACTOR } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
@@ -70,7 +72,7 @@ import {
 } from "../kernels.js";
 import { type DedupeRecord, prepareCompact } from "../primitives/compact.js";
 import { assertWholeCore } from "../primitives/core-shape.js";
-import { prepareFrontier, SLOT, W } from "../primitives/frontier.js";
+import { prepareFrontier, W } from "../primitives/frontier.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type SsspOptions } from "../types/accelerator.js";
 import { type Binding } from "../types/memory.js";
@@ -575,7 +577,7 @@ export async function ssspWithTuning(
         const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
         const graph = graphBindings(core, null, weightsBinding);
         const { frontier } = planner;
-        const { counters, args } = frontier;
+        const { counters } = frontier;
         const nearIn = frontier.vertices[0];
         const farIn = frontier.vertices[1];
         const recordFill = (pass: GPUComputePassEncoder, dst: Binding, count: number, value: number): void => {
@@ -604,7 +606,7 @@ export async function ssspWithTuning(
         const nearDedupe: DedupeRecord = {
             queue: nearHalf,
             count: cap,
-            countIndex: W.nextFrontierCount,
+            countIndex: W.edgeCount, // role 2 writes the raw near count here when it chooses a near round, 0 otherwise
             counters,
             owner,
             out: nearIn,
@@ -614,13 +616,14 @@ export async function ssspWithTuning(
         const farDedupe: DedupeRecord = {
             queue: farHalf,
             count: cap,
-            countIndex: W.nextFarCount,
+            countIndex: W.edgeCountUnclamped, // and the raw far count here on a far round
             counters,
             owner,
             out: farIn,
             outCount: counters,
             outIndex: W.farCount,
         };
+        const relaxPlan = planGridStride(n, wg, ctx.caps); // a pile holds at most n entries; the kernel loops to the count word
         const relaxFields = {
             wg,
             n,
@@ -629,7 +632,7 @@ export async function ssspWithTuning(
             arcEnd: arcCount,
             cutoffBits: bitsOf(cutoff),
             source,
-            stride: Math.ceil(n / wg) * wg,
+            stride: relaxPlan.stride ?? wg,
         };
         let roundsRecorded = 0;
         let submits = 0;
@@ -641,13 +644,14 @@ export async function ssspWithTuning(
             const boundNear = relax.bind({ ...graph, dist, counters, queueIn: nearIn, queueOut, P: near.binding });
             const boundFar = relax.bind({ ...graph, dist, counters, queueIn: farIn, queueOut, P: far.binding });
             for (let round = 0; round < roundsPerSubmit; round++) {
-                const slotBase = round * FRONTIER_CANDIDATES;
+                // every dispatch of a round is DIRECT: role 2 writes the chosen half's raw count into the dedupe's count
+                // word (the other's is 0) and the path word the relax roles gate on, so the half not chosen is a no-op
                 planner.recordFinalize(pass, 2, round, {});
-                compact.recordDedupeIndirect(pass, nearDedupe, args, slotBase + SLOT.expand, slotBase + SLOT.contract);
-                compact.recordDedupeIndirect(pass, farDedupe, args, slotBase + SLOT.fillBits, slotBase + SLOT.bitset);
+                compact.recordDedupe(pass, nearDedupe);
+                compact.recordDedupe(pass, farDedupe);
                 planner.recordFinalize(pass, 3, round, {});
-                relax.dispatchIndirect(pass, boundNear, args, slotBase + SLOT.fused, [near.offset]);
-                relax.dispatchIndirect(pass, boundFar, args, slotBase + SLOT.bottomUp, [far.offset]);
+                relax.dispatch(pass, boundNear, relaxPlan, [near.offset]);
+                relax.dispatch(pass, boundFar, relaxPlan, [far.offset]);
             }
             batch.endPass();
             const doneRequest = batch.readback(counters.buffer, counters.offset + 4 * W.done, 4);

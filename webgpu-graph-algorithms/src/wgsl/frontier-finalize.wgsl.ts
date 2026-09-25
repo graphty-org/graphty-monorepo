@@ -46,6 +46,14 @@
  * overstated m_u makes the switch INTO bottom-up harder, never easier -- and the next submit's rebuild makes it
  * exact again. Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are
  * textual edits of it.
+ *
+ * Since 2026-09-25 nothing dispatches FROM the slots (G8-F5: Dawn's validation of an indirect dispatch cost about
+ * 0.4 ms of device time each, whether or not it dispatched anything, and the seven slots of thirty-two recorded
+ * levels were 97 % of a traversal's wall time). Every level kernel is a direct grid-stride dispatch that reads the
+ * `path` word (24) this kernel writes -- 0 nothing (done, or a level past the end), 1 two-phase, 2 fused, 3
+ * bottom-up, 4 the fused retry (role 1), 5 a near SSSP round, 6 a far one (role 2) -- and the SSSP dedupes read
+ * their counts from words 8 and 9, which role 2 writes. The slots stay as the selector's recorded decision, read
+ * back by the frontier tests; deleting them with those tests is the follow-up.
  */
 export const frontierFinalizeWgsl = /* wgsl */ `
 fn write_slot_groups(slot: u32, groups: u32, count: u32) {           // groups workgroups, split in 2D above the per-dim limit
@@ -105,21 +113,26 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             if (next * P.beta < atomicLoad(&counters[5]) && next < finished) { direction = 0u; }      // next * beta < unvisited and shrinking
         }
         if (direction != atomicLoad(&counters[14])) { atomicStore(&counters[13], atomicLoad(&counters[13]) + 1u); }   // switches
+        var path = 0u;                                                 // word 24: what the level's kernels run (0 nothing, 1 two-phase, 2 fused, 3 bottom-up; role 1 writes 4 for the retry)
         if (done) {
             for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
         } else if (direction == 1u) {                                  // the bottom-up level (P8-T8): the bits fill, the bitset build, the sweep
             zero_slot(0u); zero_slot(1u); zero_slot(2u); zero_slot(6u);
             write_slot(3u, (P.n + 31u) / 32u); write_slot(4u, next); write_slot(5u, atomicLoad(&counters[7]));
+            path = 3u;
             atomicStore(&counters[19], atomicLoad(&counters[19]) + 1u);
         } else if (next < P.fusedMax) {                                // P8-T7 makes this branch reachable (fusedMax is 0 until then)
             zero_slot(0u); zero_slot(1u); zero_slot(3u); zero_slot(4u); zero_slot(5u); zero_slot(6u);
             write_slot_groups(2u, next, next);                         // bfs-fused is one WORKGROUP per frontier entry
+            path = 2u;
             atomicStore(&counters[17], atomicLoad(&counters[17]) + 1u);
         } else {
             zero_slot(2u); zero_slot(3u); zero_slot(4u); zero_slot(5u);
             write_slot(0u, next);                                      // slots 1 and 6 are role 1's
+            path = 1u;
         }
         atomicStore(&counters[14], direction);
+        atomicStore(&counters[24], path);
     } else if (P.role == 1u) {                                         // the edge queue is filled
         if (args[4u * P.slotBase] == 0u) {                             // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to size, nothing to count
             zero_slot(1u); zero_slot(6u);
@@ -130,6 +143,7 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         if (atomicLoad(&counters[9]) > P.edgeCapacity) {               // PD-23: the fused retry
             let entries = atomicLoad(&counters[0]);
             zero_slot(1u); write_slot_groups(6u, entries, entries);    // one workgroup per frontier entry, as slot 2
+            atomicStore(&counters[24], 4u);                            // the path word: bfs-fused runs the retry, bfs-contract nothing
             atomicStore(&counters[10], atomicLoad(&counters[10]) + 1u);
             atomicStore(&counters[17], atomicLoad(&counters[17]) + 1u);
         } else {
@@ -137,6 +151,9 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             atomicStore(&counters[18], atomicLoad(&counters[18]) + 1u);   // twoPhaseLevels counts the CHOICE role 0 made, even for zero edges (P8-T7 Step 4's invariant)
         }
     } else if (P.role == 2u) {                                         // the SSSP round boundary (P8-T9, PD-20): which pile this round relaxes
+        atomicStore(&counters[8], 0u);                                 // the dedupe counts (words 8 and 9, the SSSP sense) and the path word: nothing unless a pile is chosen below
+        atomicStore(&counters[9], 0u);
+        atomicStore(&counters[24], 0u);
         if (atomicLoad(&counters[15]) != 0u) {                         // done already: a no-op round the host recorded past the end (rule 1)
             for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
             return;
@@ -153,6 +170,8 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             atomicStore(&counters[0], 0u);                             // the deduped near count, accumulated by dedupe-filter
             atomicStore(&counters[14], 0u);                            // mode 0
             write_slot(0u, nearRaw); write_slot(1u, nearRaw);          // dedupe-claim, dedupe-filter over the near half
+            atomicStore(&counters[8], nearRaw);                        // the near dedupe's count word
+            atomicStore(&counters[24], 5u);                            // the path word: sssp-relax role 0 runs, role 1 nothing
             zero_slot(3u); zero_slot(4u);
             atomicStore(&counters[11], atomicLoad(&counters[11]) + 1u);   // rounds dispatched (the done boundary is not counted)
         } else if (farRaw != 0u) {                                     // the near pile is empty: raise the threshold and re-bucket the far pile
@@ -169,6 +188,8 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             atomicStore(&counters[14], 1u);                            // mode 1
             zero_slot(0u); zero_slot(1u);
             write_slot(3u, farRaw); write_slot(4u, farRaw);            // dedupe-claim, dedupe-filter over the far half
+            atomicStore(&counters[9], farRaw);                         // the far dedupe's count word
+            atomicStore(&counters[24], 6u);                            // the path word: sssp-relax role 1 runs, role 0 nothing
             atomicStore(&counters[11], atomicLoad(&counters[11]) + 1u);
         } else {                                                       // both piles empty: finished
             atomicStore(&counters[15], 1u);

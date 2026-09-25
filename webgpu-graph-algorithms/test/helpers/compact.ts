@@ -12,9 +12,6 @@ import { type U32 } from "@graphty/graph-format";
 
 import { U32_MAX } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
-import { BufferUsage } from "../../src/device/webgpu-constants.js";
-import { plan1d } from "../../src/kernel/dispatch.js";
-import { INDIRECT_ARGS_STRIDE } from "../../src/kernel/kernel.js";
 import {
     type CompactPlanner,
     type CompactRecord,
@@ -145,7 +142,6 @@ interface DedupeOptions extends CompactOptions {
     readonly countIndex?: number | undefined;
     readonly capacity?: number | undefined;
     readonly owner?: GPUBuffer | undefined;
-    readonly indirect?: boolean | undefined;
 }
 
 /**
@@ -156,7 +152,12 @@ interface DedupeOptions extends CompactOptions {
  * @param options - the block and its output word
  * @returns the run
  */
-export async function runCompact(ctx: GpuContext, queue: U32, flags: U32, options?: CompactOptions): Promise<PrimitiveRun> {
+export async function runCompact(
+    ctx: GpuContext,
+    queue: U32,
+    flags: U32,
+    options?: CompactOptions,
+): Promise<PrimitiveRun> {
     const count = queue.length;
     const words = Math.max(count, 1);
     const outIndex = options?.outIndex ?? 0;
@@ -196,15 +197,19 @@ export async function runCompact(ctx: GpuContext, queue: U32, flags: U32, option
 /**
  * Uploads `queue`, dedupes it once over an `owner` of `n` words (a fresh poisoned one unless `options.owner` is
  * given, which is then never touched between runs) into a poisoned `out`, and reads `out`, the block and the count
- * word back. `options.capacity` is the `count` the planner receives (the queue's length by default); the indirect
- * form dispatches both kernels from a two-slot args buffer sized for that capacity.
+ * word back. `options.capacity` is the `count` the planner receives (the queue's length by default).
  * @param ctx - the context
  * @param queue - the entries (vertex indices below n)
  * @param n - the vertex count (the owner's length)
  * @param options - the knobs
  * @returns the run
  */
-export async function runDedupe(ctx: GpuContext, queue: U32, n: number, options?: DedupeOptions): Promise<PrimitiveRun> {
+export async function runDedupe(
+    ctx: GpuContext,
+    queue: U32,
+    n: number,
+    options?: DedupeOptions,
+): Promise<PrimitiveRun> {
     const capacity = options?.capacity ?? queue.length;
     const words = Math.max(capacity, 1);
     const outIndex = options?.outIndex ?? 0;
@@ -216,7 +221,6 @@ export async function runDedupe(ctx: GpuContext, queue: U32, n: number, options?
     const ownedOwner = options?.owner === undefined;
     const owner = options?.owner ?? uploadBuffer(ctx, new Uint32Array(Math.max(n, 1)).fill(POISON), "dedupe/owner");
     const scope = testReduceScope(ctx);
-    let args: GPUBuffer | null = null;
     try {
         const planner: CompactPlanner = await prepareCompact(scope);
         const encoder = ctx.device.createCommandEncoder({ label: "dedupe/test" });
@@ -231,16 +235,7 @@ export async function runDedupe(ctx: GpuContext, queue: U32, n: number, options?
             outCount: bindingOf(block),
             outIndex,
         };
-        if (options?.indirect === true) {
-            const plan = plan1d(capacity, ctx.workgroupSize, ctx.caps);
-            const slots = new Uint32Array((2 * INDIRECT_ARGS_STRIDE) / 4);
-            slots.set([plan.x, plan.y, 1, 0], 0);
-            slots.set([plan.x, plan.y, 1, 0], INDIRECT_ARGS_STRIDE / 4);
-            args = uploadBuffer(ctx, slots, "dedupe/args", BufferUsage.INDIRECT);
-            planner.recordDedupeIndirect(pass, record, bindingOf(args), 0, 1);
-        } else {
-            planner.recordDedupe(pass, record);
-        }
+        planner.recordDedupe(pass, record);
         pass.end();
         ctx.device.queue.submit([encoder.finish()]);
         const result = capacity > 0 ? await readU32(ctx, out, capacity) : new Uint32Array(0);
@@ -251,7 +246,6 @@ export async function runDedupe(ctx: GpuContext, queue: U32, n: number, options?
         src.destroy();
         out.destroy();
         block.destroy();
-        args?.destroy();
         if (ownedOwner) {
             owner.destroy();
         }
@@ -271,7 +265,9 @@ export async function compactReport(ctx: GpuContext, count: number): Promise<Che
     const flags = flagsOf(count, "alternating");
     const got = await runCompact(ctx, queue, flags);
     const want = compactOracle(queue, flags);
-    const reports: CheckReport[] = [{ worst: ratioOf(Math.abs(got.count - want.count), 0), worstLabel: "count", samples: 1 }];
+    const reports: CheckReport[] = [
+        { worst: ratioOf(Math.abs(got.count - want.count), 0), worstLabel: "count", samples: 1 },
+    ];
     for (let i = 0; i < want.count; i++) {
         reports.push({ worst: ratioOf(Math.abs(got.out[i] - want.out[i]), 0), worstLabel: `out[${i}]`, samples: 1 });
     }

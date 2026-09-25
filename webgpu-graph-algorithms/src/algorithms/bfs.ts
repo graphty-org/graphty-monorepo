@@ -1,18 +1,21 @@
 /**
  * Breadth-first search on the device (design 8.4, 3.3 line 807, 9.7; P8-T6 / P8-T7 / P8-T8, the P8 plan's PD-5 /
  * PD-6 / PD-7 / PD-14 / PD-18 / PD-21 / PD-23 / PD-24 / PD-26 / DEP-P8-B): the direction-optimizing traversal over
- * the `Frontier` of P8-T4, every per-level choice made ON THE DEVICE. Every level is nine recorded dispatches --
- * `frontier-finalize` role 0 (the level boundary: rotates the counts, advances `level`, decides `done`, evaluates
- * Beamer's test and CHOOSES: bottom-up gets the three bottom-up slots, a top-down frontier below `fusedMax` entries
- * the fused slot, any other the expand slot), `advance-expand` (the frontier's rows into the edge queue, indirect),
- * `frontier-finalize` role 1 (clamps `edgeCount` and sizes the contract slot, or, when the edge queue overflowed,
- * the fused-retry slot instead, PD-23), `bfs-contract` (the claim `atomicMin(&depth[v], level + 1)`, the winners
- * packed into the next vertex queue, indirect), `bfs-fused` twice (the fused slot and the retry slot, indirect: one
- * workgroup per frontier entry with the same claim inline and no edge queue), then the bottom-up trio: a `fill`
- * zeroing the frontier bitset, `bfs-bitset-build` setting the frontier's bits, and `bfs-bottom-up` sweeping the
- * unvisited list over the REVERSE core (each unvisited vertex reads its in-neighbours until the first one in the
- * bitset and claims itself) -- of which exactly one path runs, the others dispatching zero workgroups from their
- * `(0, 0, 1)` slots. The unvisited set Beamer's test is against (PD-18) is rebuilt exactly once per submit, before
+ * the `Frontier` of P8-T4, every per-level choice made ON THE DEVICE. Every level is eight recorded dispatches, all
+ * DIRECT (2026-09-25, docs/decisions/G8.md G8-F5: Dawn validates every `dispatchWorkgroupsIndirect` with an internal
+ * clamp pass costing about 0.4 ms of device time whether or not it dispatches anything, in Node and in Chromium
+ * alike, and that was 97 % of a traversal's wall time) -- `frontier-finalize` role 0 (the level boundary: rotates
+ * the counts, advances `level`, decides `done`, evaluates Beamer's test and CHOOSES, writing the choice into the
+ * block's `path` word: 3 bottom-up, 2 fused for a top-down frontier below `fusedMax` entries, 1 two-phase for any
+ * other, 0 done), `advance-expand` (the frontier's rows into the edge queue), `frontier-finalize` role 1 (clamps
+ * `edgeCount`, or, when the edge queue overflowed, sets `path` 4 for the fused retry, PD-23), `bfs-contract` (the
+ * claim `atomicMin(&depth[v], level + 1)`, the winners packed into the next vertex queue), `bfs-fused` (one workgroup
+ * per frontier entry with the same claim inline and no edge queue; the fused level and the retry alike), then the
+ * bottom-up trio: a `fill` zeroing the frontier bitset, `bfs-bitset-build` setting the frontier's bits, and
+ * `bfs-bottom-up` sweeping the unvisited list over the REVERSE core (each unvisited vertex reads its in-neighbours
+ * until the first one in the bitset and claims itself). Every kernel is a grid-stride dispatch of a host-planned
+ * grid (`planGridStride`) that loops to its count word and reads the path word first, so exactly one path does the
+ * level's work and the others cost one uniform load per workgroup. The unvisited set Beamer's test is against (PD-18) is rebuilt exactly once per submit, before
  * the levels, by `bfs-unvisited-flags` plus `compact` over an iota queue, and maintained between rebuilds by
  * subtraction inside the selector (whose JSDoc states the boundary rule). The host records `MAX_LEVELS_PER_SUBMIT`
  * levels into ONE command buffer, submits, and reads four bytes, the `done` word (PD-7): a road network has
@@ -40,16 +43,15 @@
  * absent). The tuning entry `bfsWithTuning` (PD-26) is what the tests drive; nothing public exposes it.
  *
  * A core whose `colIdx` exceeds `maxStorageBufferBindingSize` is bound as arc windows and EXECUTED (P8-T12, DEP-P8-E
- * lifted for the frontier family): `advance-expand`, the two `bfs-fused` dispatches and `sssp-pred` run once per
- * window of the forward core and `bfs-bottom-up` once per window of the reverse core, every window re-issued from
- * the level's same indirect slot with its own `FrontierParams` record carrying the window's owned arc range
- * (`coreWindows`), so `FRONTIER_CANDIDATES` and the args buffer are untouched and the claims, being `atomicMin`s
+ * lifted for the frontier family): `advance-expand`, `bfs-fused` and `sssp-pred` run once per window of the
+ * forward core and `bfs-bottom-up` once per window of the reverse core, every window its own dispatch with its own
+ * `FrontierParams` record carrying the window's owned arc range (`coreWindows`), and the claims, being `atomicMin`s
  * and an `INVALID_INDEX` entry test, are idempotent across windows. The ring is sized per run by `bfsRingSlots`.
  */
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { BEAMER_BETA, FRONTIER_CANDIDATES, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../constants.js";
+import { BEAMER_BETA, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
@@ -66,7 +68,7 @@ import {
 import { prepareAdvance } from "../primitives/advance.js";
 import { prepareCompact } from "../primitives/compact.js";
 import { coreOfView, coreWindows } from "../primitives/core-shape.js";
-import { type FrontierFinalizeFields, prepareFrontier, SLOT, W } from "../primitives/frontier.js";
+import { type FrontierFinalizeFields, prepareFrontier, W } from "../primitives/frontier.js";
 import { prepareRadixSort, radixHistBytes } from "../primitives/radix-sort.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type BfsOptions } from "../types/accelerator.js";
@@ -344,6 +346,14 @@ export async function bfsWithTuning(
         const { counters } = frontier;
         const { queue } = ctx.device;
         const fillPlan = plan1d(n, wg, ctx.caps);
+        // the level kernels are DIRECT grid-stride dispatches gated by the selector's path word (word 24): the plan
+        // bounds the grid, the kernel loops to its count word. The contract walks the edge queue and the bitset build
+        // the frontier from one record, so one plan covers both; bfs-fused is one workgroup per entry and takes the
+        // plan's GROUP count as its stride (planGridStride's cap applies to the groups)
+        const levelPlan = planGridStride(Math.max(n, frontier.edgeCapacity), wg, ctx.caps);
+        const sweepPlan = planGridStride(n, wg, ctx.caps);
+        const fusedPlan = planGridStride(n * wg, wg, ctx.caps);
+        const bitsPlan = plan1d(bitsWords, wg, ctx.caps);
         const recordFill = (pass: GPUComputePassEncoder, dst: Binding, value: number, mode: 0 | 1): void => {
             const params = scope.params(FILL_PARAMS, { count: n, value, mode, pad0: 0 });
             fill.dispatch(pass, fill.bind({ dst, P: params.binding }), fillPlan, [params.offset]);
@@ -405,12 +415,11 @@ export async function bfsWithTuning(
             const bitsParams = scope.params(FILL_PARAMS, { count: bitsWords, value: 0, mode: 0, pad0: 0 });
             const boundBitsFill = fill.bind({ dst: frontierBits, P: bitsParams.binding });
             for (let level = 0; level < levelsPerSubmit; level++) {
-                const slotBase = level * FRONTIER_CANDIDATES;
                 planner.recordFinalize(pass, 0, level, { ...fields, firstOfSubmit: Math.min(level, 2) });
-                advance.record(pass, frontier, level);
+                advance.record(pass, frontier);
                 planner.recordFinalize(pass, 1, level, fields);
                 // one window-free record serves the contract and the bitset build, which read no arc; the kernels that
-                // walk arcs (the two fused dispatches, the sweep) get one record per window below (P8-T12)
+                // walk arcs (the fused dispatch, the sweep) get one record per window below (P8-T12)
                 const params = scope.params(FRONTIER_PARAMS, {
                     wg,
                     n,
@@ -418,6 +427,7 @@ export async function bfsWithTuning(
                     arcBase: 0,
                     arcEnd: s.arcCount,
                     bitsBase,
+                    stride: levelPlan.stride ?? wg,
                 });
                 const boundContract = contract.bind({
                     edgeQueue: frontier.edgeQueue,
@@ -426,12 +436,9 @@ export async function bfsWithTuning(
                     frontierOut: frontier.output,
                     P: params.binding,
                 });
-                contract.dispatchIndirect(pass, boundContract, frontier.args, slotBase + SLOT.contract, [
-                    params.offset,
-                ]);
-                // the fused path (role 0's choice) and the overflow retry (role 1's, PD-23): the same bound kernel,
-                // one workgroup per frontier entry, re-issued from the same two slots once per arc window (the claim
-                // is idempotent across windows); the slot the boundary did not choose holds (0, 0, 1)
+                contract.dispatch(pass, boundContract, levelPlan, [params.offset]);
+                // the fused path (role 0's choice) and the overflow retry (role 1's, PD-23): ONE dispatch per window that
+                // the path word turns into the level's work or into nothing (the claim is idempotent across windows)
                 for (const w of forward) {
                     const fusedParams = scope.params(FRONTIER_PARAMS, {
                         wg,
@@ -439,6 +446,7 @@ export async function bfsWithTuning(
                         edgeCapacity: frontier.edgeCapacity,
                         arcBase: w.arcBase,
                         arcEnd: w.arcEnd,
+                        stride: fusedPlan.x * fusedPlan.y,
                     });
                     const boundFused = fused.bind({
                         ...graphBindings(w.core, null),
@@ -448,25 +456,19 @@ export async function bfsWithTuning(
                         frontierOut: frontier.output,
                         P: fusedParams.binding,
                     });
-                    fused.dispatchIndirect(pass, boundFused, frontier.args, slotBase + SLOT.fused, [
-                        fusedParams.offset,
-                    ]);
-                    fused.dispatchIndirect(pass, boundFused, frontier.args, slotBase + SLOT.fusedRetry, [
-                        fusedParams.offset,
-                    ]);
+                    fused.dispatch(pass, boundFused, fusedPlan, [fusedParams.offset]);
                 }
-                // the bottom-up level (role 0's choice under Beamer's test, P8-T8): the bitset zeroed, the frontier's
-                // bits set, the unvisited list swept over the reverse core; a top-down level's three slots hold (0, 0, 1)
-                fill.dispatchIndirect(pass, boundBitsFill, frontier.args, slotBase + SLOT.fillBits, [
-                    bitsParams.offset,
-                ]);
+                // the bottom-up level (role 0's choice under Beamer's test, P8-T8): the bitset zeroed (every level: a
+                // top-down level zeroes bits nobody reads, cheaper than a gate), the frontier's bits set, the unvisited
+                // list swept over the reverse core
+                fill.dispatch(pass, boundBitsFill, bitsPlan, [bitsParams.offset]);
                 const boundBitset = bitset.bind({
                     frontierIn: frontier.input,
                     counters,
                     bits: sweepIn,
                     P: params.binding,
                 });
-                bitset.dispatchIndirect(pass, boundBitset, frontier.args, slotBase + SLOT.bitset, [params.offset]);
+                bitset.dispatch(pass, boundBitset, levelPlan, [params.offset]);
                 // the sweep once per window of the REVERSE core (an entry claimed in one window is skipped in the next)
                 for (const w of backward) {
                     const sweepParams = scope.params(FRONTIER_PARAMS, {
@@ -475,6 +477,7 @@ export async function bfsWithTuning(
                         arcBase: w.arcBase,
                         arcEnd: w.arcEnd,
                         bitsBase,
+                        stride: sweepPlan.stride ?? wg,
                     });
                     const boundSweep = bottomUp.bind({
                         ...graphBindings(w.core, null),
@@ -484,9 +487,7 @@ export async function bfsWithTuning(
                         frontierOut: frontier.output,
                         P: sweepParams.binding,
                     });
-                    bottomUp.dispatchIndirect(pass, boundSweep, frontier.args, slotBase + SLOT.bottomUp, [
-                        sweepParams.offset,
-                    ]);
+                    bottomUp.dispatch(pass, boundSweep, sweepPlan, [sweepParams.offset]);
                 }
                 frontier.swap();
             }

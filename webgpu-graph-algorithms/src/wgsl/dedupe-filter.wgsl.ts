@@ -11,27 +11,35 @@
 export const dedupeFilterWgsl = /* wgsl */ `
 var<workgroup> sh: array<u32, WG>;
 var<workgroup> base: u32;
+var<workgroup> wcount: u32;
 
 @compute @workgroup_size(WG)
 fn dedupe_filter(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let i = linear_id(wid, lid.x);
-    var count = P.count;
-    if (P.countIndex != U32_MAX) { count = min(atomicLoad(&outCount[P.countIndex]), P.count); }   // the same count source as the claim
-    var keep = 0u;
-    var v = 0u;
-    if (i < count) { v = queue[i]; keep = select(0u, 1u, atomicLoad(&owner[v]) == i); }   // guarded work into locals
-    sh[lid.x] = keep;
-    workgroupBarrier();                                                                   // every lane, unconditionally (3.5 rule 1)
-    for (var s = 1u; s < WG; s = s * 2u) {                                                // Hillis-Steele inclusive scan of keep
-        var t = 0u;
-        if (lid.x >= s) { t = sh[lid.x - s]; }
-        workgroupBarrier();
-        sh[lid.x] = sh[lid.x] + t;
-        workgroupBarrier();
+    if (lid.x == 0u) {
+        var count = P.count;
+        if (P.countIndex != U32_MAX) { count = min(atomicLoad(&outCount[P.countIndex]), P.count); }   // the same count source as the claim
+        wcount = count;
     }
-    let inclusive = sh[lid.x];
-    if (lid.x == WG - 1u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }         // ONE atomic per workgroup: the block's aggregate
-    workgroupBarrier();
-    if (keep == 1u) { out[base + inclusive - 1u] = v; }
+    let count = workgroupUniformLoad(&wcount);                                            // uniform: the block loop below holds barriers
+    for (var b0 = group_id(wid) * WG; b0 < count; b0 = b0 + P.stride) {                  // grid-stride over blocks of WG entries
+        let i = b0 + lid.x;
+        var keep = 0u;
+        var v = 0u;
+        if (i < count) { v = queue[i]; keep = select(0u, 1u, atomicLoad(&owner[v]) == i); }   // guarded work into locals
+        sh[lid.x] = keep;
+        workgroupBarrier();                                                                   // every lane, unconditionally (3.5 rule 1)
+        for (var s = 1u; s < WG; s = s * 2u) {                                                // Hillis-Steele inclusive scan of keep
+            var t = 0u;
+            if (lid.x >= s) { t = sh[lid.x - s]; }
+            workgroupBarrier();
+            sh[lid.x] = sh[lid.x] + t;
+            workgroupBarrier();
+        }
+        let inclusive = sh[lid.x];
+        if (lid.x == WG - 1u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }         // ONE atomic per workgroup: the block's aggregate
+        workgroupBarrier();
+        if (keep == 1u) { out[base + inclusive - 1u] = v; }
+        workgroupBarrier();                                                                   // sh and base are reused by the next block
+    }
 }
 `;

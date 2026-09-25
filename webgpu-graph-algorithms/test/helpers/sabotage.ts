@@ -597,7 +597,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // the last key is never counted (the three-line find documents the intent; the body has one such line)
             name: "last-key-skipped",
             find: "if (i >= P.count) { return; }                                  // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
-            replace: "if (i + 1u >= P.count) { return; }                             // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
+            replace:
+                "if (i + 1u >= P.count) { return; }                             // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
             minFactor: 10,
             test: HISTOGRAM_TEST,
         },
@@ -908,8 +909,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the last entry never claims: its vertex (a tail vertex nobody else names) is dropped
             name: "last-entry-unclaimed",
-            find: "if (i >= count) { return; }",
-            replace: "if (i >= count - 1u) { return; }",
+            find: "i < count; i = i + P.stride) {   // grid-stride; no barrier anywhere\n        atomicStore",
+            replace: "i + 1u < count; i = i + P.stride) {\n        atomicStore",
             minFactor: 10,
             test: COMPACT_TEST,
         },
@@ -965,14 +966,6 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "rotation-dropped",
             find: "atomicStore(&counters[0], next);                               // the rotation",
             replace: "atomicStore(&counters[0], 0u);",
-            minFactor: 10,
-            test: FRONTIER_TEST,
-        },
-        {
-            // the fused slot sized per invocation: a fused level of `next` entries expands only its first ceil(next / wg)
-            name: "fused-slot-per-invocation",
-            find: "write_slot_groups(2u, next, next);",
-            replace: "write_slot(2u, next);",
             minFactor: 10,
             test: FRONTIER_TEST,
         },
@@ -1039,8 +1032,9 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // (the D3D12 leg of hosts.yml compiles through it) rejects an unconditional groupshared store from
             // every lane as a race (X3695), so a mutant that dropped the guard never built a pipeline there
             name: "per-lane-reservation",
-            find: "if (lid.x == 0u) {\n        base = atomicAdd(&counters[8], aggregate);",
-            replace: "let mine = atomicAdd(&counters[8], aggregate);\n    if (lid.x == 0u) {\n        base = mine;",
+            find: "if (lid.x == 0u) {\n            base = atomicAdd(&counters[8], aggregate);",
+            replace:
+                "let mine = atomicAdd(&counters[8], aggregate);\n        if (lid.x == 0u) {\n            base = mine;",
             minFactor: 10,
             test: ADVANCE_TEST,
         },
@@ -1212,8 +1206,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the claim writes the level itself: every bottom-up depth is one too small
             name: "bottom-up-claim-is-the-level",
-            find: "let claim = atomicLoad(&counters[11]) + 1u;\n    var won = 0u;\n    var v = 0u;\n    var reads = 0u;",
-            replace: "let claim = atomicLoad(&counters[11]);\n    var won = 0u;\n    var v = 0u;\n    var reads = 0u;",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;\n    if (lid.x == 0u) { wcount",
+            replace: "let claim = atomicLoad(&counters[11]);\n    if (lid.x == 0u) { wcount",
             minFactor: 10,
             test: BFS_TEST,
         },
@@ -1240,8 +1234,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // the last frontier entry's bit is never set: the vertices only it reaches go unclaimed (one side of the
             // path from its middle)
             name: "last-frontier-entry-unset",
-            find: "if (i >= atomicLoad(&counters[0])) { return; }                   // frontierCount; no barrier follows",
-            replace: "if (i + 1u >= atomicLoad(&counters[0])) { return; }",
+            find: "i < count; i = i + P.stride) {   // grid-stride; no barrier anywhere\n        let v = frontierIn[i];",
+            replace: "i + 1u < count; i = i + P.stride) {\n        let v = frontierIn[i];",
             minFactor: 10,
             test: BFS_TEST,
         },

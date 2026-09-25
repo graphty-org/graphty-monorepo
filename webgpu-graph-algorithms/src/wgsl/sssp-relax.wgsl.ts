@@ -19,9 +19,10 @@
  * the rest go back to near or far against the threshold the boundary just raised. The count words are unclamped
  * (the write is guarded by the capacity; `frontier-finalize` role 2 detects a pile above it). The appends are per
  * improving relaxation, one atomic each: inside a per-lane arc loop no workgroup aggregation is possible without the
- * uniform-strip structure of `bfs-fused`, and Davidson's kernel appends per thread too. Grid-strided under an
- * indirect dispatch the host never sees: `P.stride` is `roundUp(n, WG)`, so a deduped pile of at most `n` entries is
- * covered in one trip per lane and `i + stride` never wraps (`U32_MAX` would). No barrier anywhere: the loops may
+ * uniform-strip structure of `bfs-fused`, and Davidson's kernel appends per thread too. Grid-strided under a direct
+ * dispatch of `planGridStride(n)`: `P.stride` is the plan's, a deduped pile of at most `n` entries is covered in a
+ * few trips per lane and `i + stride` never wraps (`U32_MAX` would); the block's `path` word (5 a near round, 6 a
+ * far one) makes the other role's dispatch a no-op. No barrier anywhere: the loops may
  * be per lane. Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are
  * textual edits of it.
  */
@@ -29,7 +30,9 @@ export const ssspRelaxWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
 fn sssp_relax(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     let first = linear_id(wid, lid.x);
-    let count = min(atomicLoad(&counters[select(0u, 20u, P.role == 1u)]), P.n);   // the deduped near or far pile
+    let mine = select(5u, 6u, P.role == 1u);                           // the path word role 2 wrote: 5 a near round, 6 a far pass-through
+    let chosen = atomicLoad(&counters[24]) == mine;                    // the other role's dispatch of the round is a no-op
+    let count = select(0u, min(atomicLoad(&counters[select(0u, 20u, P.role == 1u)]), P.n), chosen);   // the deduped near or far pile
     let threshold = bitcast<f32>(atomicLoad(&counters[22]));
     let cutoff = bitcast<f32>(P.cutoffBits);
     for (var i = first; i < count; i = i + P.stride) {                // no barrier anywhere: the loops may be per lane

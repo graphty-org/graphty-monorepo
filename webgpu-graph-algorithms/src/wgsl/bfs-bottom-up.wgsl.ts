@@ -19,43 +19,48 @@
 export const bfsBottomUpWgsl = /* wgsl */ `
 var<workgroup> sh: array<u32, WG>;
 var<workgroup> base: u32;
+var<workgroup> wcount: u32;                                          // the unvisited list's length on a bottom-up level, 0 on any other
 
 @compute @workgroup_size(WG)
 fn bfs_bottom_up(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let i = linear_id(wid, lid.x);
-    let len = atomicLoad(&counters[7]);                              // unvisitedListLen
     let claim = atomicLoad(&counters[11]) + 1u;
-    var won = 0u;
-    var v = 0u;
-    var reads = 0u;
-    if (i < len) {                                                   // guarded work into locals
-        v = sweepIn[i];
-        if (atomicLoad(&depth[v]) == INVALID_INDEX) {                // a stale entry, claimed since the rebuild, is skipped
-            let end = min(rowPtr[v + 1u], P.arcEnd);
-            for (var a = max(rowPtr[v], P.arcBase); a < end; a = a + 1u) {   // in-neighbours through the reverse core
-                reads = reads + 1u;
-                let u = colIdx[a - P.arcBase];
-                if (mask_bit(sweepIn[P.bitsBase + (u >> 5u)], u)) { won = 1u; break; }   // the early exit: a real break, never a flag
+    if (lid.x == 0u) { wcount = select(0u, atomicLoad(&counters[7]), atomicLoad(&counters[24]) == 3u); }   // unvisitedListLen, on the bottom-up path only (the path word)
+    let len = workgroupUniformLoad(&wcount);                         // uniform: the block loop below holds barriers
+    for (var b0 = group_id(wid) * WG; b0 < len; b0 = b0 + P.stride) {   // grid-stride over blocks of WG entries
+        let i = b0 + lid.x;
+        var won = 0u;
+        var v = 0u;
+        var reads = 0u;
+        if (i < len) {                                                   // guarded work into locals
+            v = sweepIn[i];
+            if (atomicLoad(&depth[v]) == INVALID_INDEX) {                // a stale entry, claimed since the rebuild, is skipped
+                let end = min(rowPtr[v + 1u], P.arcEnd);
+                for (var a = max(rowPtr[v], P.arcBase); a < end; a = a + 1u) {   // in-neighbours through the reverse core
+                    reads = reads + 1u;
+                    let u = colIdx[a - P.arcBase];
+                    if (mask_bit(sweepIn[P.bitsBase + (u >> 5u)], u)) { won = 1u; break; }   // the early exit: a real break, never a flag
+                }
             }
         }
-    }
-    sh[lid.x] = won;
-    workgroupBarrier();
-    for (var s = 1u; s < WG; s = s * 2u) {                           // Hillis-Steele inclusive scan of won (bfs-contract's)
-        var t = 0u;
-        if (lid.x >= s) { t = sh[lid.x - s]; }
+        sh[lid.x] = won;
         workgroupBarrier();
-        sh[lid.x] = sh[lid.x] + t;
+        for (var s = 1u; s < WG; s = s * 2u) {                           // Hillis-Steele inclusive scan of won (bfs-contract's)
+            var t = 0u;
+            if (lid.x >= s) { t = sh[lid.x - s]; }
+            workgroupBarrier();
+            sh[lid.x] = sh[lid.x] + t;
+            workgroupBarrier();
+        }
+        let inclusive = sh[lid.x];
+        let readsTotal = wg_reduce_u32(reads, lid.x, 0u);                // arcsScanned, one atomic per workgroup (the sabotage witness, Step 6)
+        if (lid.x == WG - 1u) { base = atomicAdd(&counters[1], inclusive); }
+        if (lid.x == 0u) { atomicAdd(&counters[16], readsTotal); }
         workgroupBarrier();
-    }
-    let inclusive = sh[lid.x];
-    let readsTotal = wg_reduce_u32(reads, lid.x, 0u);                // arcsScanned, one atomic per workgroup (the sabotage witness, Step 6)
-    if (lid.x == WG - 1u) { base = atomicAdd(&counters[1], inclusive); }
-    if (lid.x == 0u) { atomicAdd(&counters[16], readsTotal); }
-    workgroupBarrier();
-    if (won == 1u) {
-        atomicStore(&depth[v], claim);                               // no claim race: the list holds v once and the sweep is vertex-parallel
-        frontierOut[base + inclusive - 1u] = v;
+        if (won == 1u) {
+            atomicStore(&depth[v], claim);                               // no claim race: the list holds v once and the sweep is vertex-parallel
+            frontierOut[base + inclusive - 1u] = v;
+        }
+        workgroupBarrier();                                              // sh and base are reused by the next block
     }
 }
 `;

@@ -74,12 +74,14 @@ function argumentOf(fn: () => void): string | null {
 }
 
 describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwise", () => {
-    it("COMPACT_PARAMS is a 16-byte uniform: count @0, outIndex @4, countIndex @8, pad0 @12", () => {
+    it("COMPACT_PARAMS is a 16-byte uniform: count @0, outIndex @4, countIndex @8, stride @12", () => {
         expect(COMPACT_PARAMS.name).toBe("CompactParams");
         expect(COMPACT_PARAMS.layout).toBe("uniform");
         expect(COMPACT_PARAMS.byteLength).toBe(16);
-        expect(COMPACT_PARAMS.fields.map((f) => f[0])).toEqual(["count", "outIndex", "countIndex", "pad0"]);
-        expect(["count", "outIndex", "countIndex", "pad0"].map((f) => COMPACT_PARAMS.offsetOf(f))).toEqual([0, 4, 8, 12]);
+        expect(COMPACT_PARAMS.fields.map((f) => f[0])).toEqual(["count", "outIndex", "countIndex", "stride"]);
+        expect(["count", "outIndex", "countIndex", "stride"].map((f) => COMPACT_PARAMS.offsetOf(f))).toEqual([
+            0, 4, 8, 12,
+        ]);
     });
 
     it("compact: the ladder under the four flag patterns equals compactOracle on out and on the count word, two runs bitwise equal, 2 x scan levels dispatches", async (t) => {
@@ -128,7 +130,11 @@ describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwi
                     expect(second.count, `${label}: count twice`).toBe(want.length);
                     const survivors = sortedU32(first.out.subarray(0, first.count));
                     expectBitwiseEqual(survivors, want, `${label}: survivors vs oracle`);
-                    expectBitwiseEqual(survivors, sortedU32(second.out.subarray(0, second.count)), `${label}: sorted twice`);
+                    expectBitwiseEqual(
+                        survivors,
+                        sortedU32(second.out.subarray(0, second.count)),
+                        `${label}: sorted twice`,
+                    );
                     for (let i = first.count; i < count; i++) {
                         expect(first.out[i], `${label}: out[${i}] past the prefix`).toBe(POISON);
                     }
@@ -178,19 +184,17 @@ describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwi
             const queue = dedupeQueue(count, "distinct");
             const block = block24(7);
             block[1] = 1000;
-            const cases: { readonly capacity: number; readonly indirect: boolean; readonly considered: number }[] = [
-                { capacity: count, indirect: false, considered: 1000 },
-                { capacity: 500, indirect: false, considered: 500 },
-                { capacity: count, indirect: true, considered: 1000 },
+            const cases: { readonly capacity: number; readonly considered: number }[] = [
+                { capacity: count, considered: 1000 },
+                { capacity: 500, considered: 500 },
             ];
             for (const c of cases) {
-                const label = `capacity ${c.capacity}${c.indirect ? " indirect" : ""}`;
+                const label = `capacity ${c.capacity}`;
                 const run = await runDedupe(ctx, queue, count, {
                     block,
                     outIndex: 7,
                     countIndex: 1,
                     capacity: c.capacity,
-                    indirect: c.indirect,
                 });
                 const want = sortedU32(dedupeOracle(queue.subarray(0, c.considered)));
                 expect(run.count, `${label}: count word`).toBe(c.considered);
@@ -207,7 +211,9 @@ describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwi
         requireGpu(t);
         const ctx = await acquire({ label: "compact-empty" });
         try {
-            const compact = await runCompact(ctx, new Uint32Array(0), new Uint32Array(0), { block: Uint32Array.of(42) });
+            const compact = await runCompact(ctx, new Uint32Array(0), new Uint32Array(0), {
+                block: Uint32Array.of(42),
+            });
             expect(compact.dispatches).toBe(0);
             expect(compact.out).toHaveLength(0);
             expect(compact.count).toBe(42);
@@ -229,7 +235,6 @@ describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwi
         const out8 = uploadBuffer(ctx, new Uint32Array(8), "compact/out8");
         const four = uploadBuffer(ctx, new Uint32Array(4), "compact/four");
         const one = uploadBuffer(ctx, new Uint32Array(1), "compact/one");
-        const args = uploadBuffer(ctx, new Uint32Array(8), "compact/args");
         try {
             const planner = await prepareCompact(scope);
             const encoder = ctx.device.createCommandEncoder();
@@ -268,8 +273,6 @@ describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwi
             expect(dedupeWith({ countIndex: 4 })).toBe("countIndex");
             expect(dedupeWith({ countIndex: 0 })).toBe("countIndex");
             expect(dedupeWith({ countIndex: 1, counters: b8 })).toBe("counters");
-            expect(argumentOf(() => planner.recordDedupeIndirect(pass, record, bindingOf(args), 0, 2))).toBe("filterSlot");
-            expect(argumentOf(() => planner.recordDedupeIndirect(pass, record, bindingOf(args), 2, 0))).toBe("claimSlot");
             expect(planner.lastDispatches).toBe(0);
             // the boundaries are accepted: 8 words into an 8-word out, the count word beside the output word
             expect(compactWith(8)).toBeNull();
@@ -284,7 +287,6 @@ describe("compact / dedupe (spec 6 row 4; P8-T3): equals the oracle, twice bitwi
             out8.destroy();
             four.destroy();
             one.destroy();
-            args.destroy();
             ctx.dispose();
         }
     });

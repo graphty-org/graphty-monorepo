@@ -26,8 +26,8 @@
 
 import { U32_MAX } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
-import { plan1d } from "../kernel/dispatch.js";
-import { type BoundKernel, INDIRECT_ARGS_STRIDE, type Kernel } from "../kernel/kernel.js";
+import { plan1d, planGridStride } from "../kernel/dispatch.js";
+import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { COMPACT_PARAMS, kernelSpec } from "../kernels.js";
 import { type Binding } from "../types/memory.js";
 import { type ReduceScope } from "./reduce.js";
@@ -86,23 +86,6 @@ export interface CompactPlanner {
      * @param record - the buffers, the count and the count word
      */
     recordDedupe(pass: GPUComputePassEncoder, record: DedupeRecord): void;
-    /**
-     * Records the claim and the filter as INDIRECT dispatches from two 16-byte slots of `args` (the form the SSSP
-     * driver uses: the slots are written on the device by the finalize kernel, `count` is the capacity the device
-     * count word is clamped to).
-     * @param pass - the compute pass
-     * @param record - the buffers, the capacity and the count word
-     * @param args - the args buffer range (usage INDIRECT | STORAGE)
-     * @param claimSlot - the 16-byte slot of the claim's (x, y, 1)
-     * @param filterSlot - the 16-byte slot of the filter's (x, y, 1)
-     */
-    recordDedupeIndirect(
-        pass: GPUComputePassEncoder,
-        record: DedupeRecord,
-        args: Binding,
-        claimSlot: number,
-        filterSlot: number,
-    ): void;
     /** Dispatches the last record*() issued: compact 0 for count 0, else the scan's `2 x levels - 1` plus one (`2 x levels`); dedupe 0 for a direct count 0, else 2. */
     readonly lastDispatches: number;
 }
@@ -182,7 +165,7 @@ function checkCompactArguments(r: CompactRecord): void {
 }
 
 /**
- * The argument checks of recordDedupe() and recordDedupeIndirect(): the count, the two entry buffers (`out` holds at
+ * The argument checks of recordDedupe(): the count, the two entry buffers (`out` holds at
  * most one entry per owner word, so it is checked against `min(count, owner words)`: the SSSP piles of P8-T9 dedupe
  * a raw half of `arcCount` capacity into an `n`-word pile), the output word, and -- with a device count -- a count
  * word that is inside `counters`, is not the output word (the filter's atomicAdd would corrupt the count other
@@ -205,28 +188,20 @@ function checkDedupeArguments(r: DedupeRecord): void {
             value: r.countIndex,
         });
     }
-    if (r.counters.buffer !== r.outCount.buffer || r.counters.offset !== r.outCount.offset || r.counters.size !== r.outCount.size) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", "dedupe: counters must be the same range as outCount when countIndex names a device word", {
-            argument: "counters",
-            value: r.counters.size,
-            expected: r.outCount.size,
-        });
-    }
-}
-
-/**
- * The E_INVALID_ARGUMENT of a 16-byte slot outside an args binding (checked before either dispatch is recorded).
- * @param name - the argument name
- * @param slot - the slot index
- * @param args - the args binding
- */
-function checkSlot(name: string, slot: number, args: Binding): void {
-    if (!Number.isInteger(slot) || slot < 0 || (slot + 1) * INDIRECT_ARGS_STRIDE > args.size) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `dedupe: args ${name} ${slot} is outside the binding`, {
-            argument: name,
-            value: slot,
-            expected: `0 <= ${name} < ${Math.floor(args.size / INDIRECT_ARGS_STRIDE)}`,
-        });
+    if (
+        r.counters.buffer !== r.outCount.buffer ||
+        r.counters.offset !== r.outCount.offset ||
+        r.counters.size !== r.outCount.size
+    ) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            "dedupe: counters must be the same range as outCount when countIndex names a device word",
+            {
+                argument: "counters",
+                value: r.counters.size,
+                expected: r.outCount.size,
+            },
+        );
     }
 }
 
@@ -288,7 +263,7 @@ class CompactPlannerImpl implements CompactPlanner {
             count: r.count,
             outIndex: r.outIndex,
             countIndex: U32_MAX,
-            pad0: 0,
+            stride: 0,
         });
         const bound = this.scatter.bind({
             queue: r.queue,
@@ -313,48 +288,25 @@ class CompactPlannerImpl implements CompactPlanner {
             this.dispatches = 0;
             return;
         }
-        const plan = plan1d(r.count, this.scope.workgroupSize, this.scope.caps);
-        const bound = this.bindDedupe(r);
+        const plan = planGridStride(r.count, this.scope.workgroupSize, this.scope.caps);
+        const bound = this.bindDedupe(r, plan.stride ?? this.scope.workgroupSize);
         this.claim.dispatch(pass, bound.claim, plan, [bound.offset]);
         this.filter.dispatch(pass, bound.filter, plan, [bound.offset]);
         this.dispatches = 2;
     }
 
     /**
-     * Records the claim and the filter as indirect dispatches (see the interface).
-     * @param pass - the compute pass
-     * @param r - the record
-     * @param args - the args buffer range
-     * @param claimSlot - the claim's slot
-     * @param filterSlot - the filter's slot
-     */
-    recordDedupeIndirect(
-        pass: GPUComputePassEncoder,
-        r: DedupeRecord,
-        args: Binding,
-        claimSlot: number,
-        filterSlot: number,
-    ): void {
-        checkDedupeArguments(r);
-        checkSlot("claimSlot", claimSlot, args);
-        checkSlot("filterSlot", filterSlot, args);
-        const bound = this.bindDedupe(r);
-        this.claim.dispatchIndirect(pass, bound.claim, args, claimSlot, [bound.offset]);
-        this.filter.dispatchIndirect(pass, bound.filter, args, filterSlot, [bound.offset]);
-        this.dispatches = 2;
-    }
-
-    /**
      * One params record (both kernels read the same values) and the two bind groups.
      * @param r - the record
+     * @param stride - the grid-stride plan's stride (entries per pass over the grid)
      * @returns the bound kernels and the record's dynamic offset
      */
-    private bindDedupe(r: DedupeRecord): BoundDedupe {
+    private bindDedupe(r: DedupeRecord, stride: number): BoundDedupe {
         const params = this.scope.params(COMPACT_PARAMS, {
             count: r.count,
             outIndex: r.outIndex,
             countIndex: r.countIndex,
-            pad0: 0,
+            stride,
         });
         return {
             claim: this.claim.bind({ queue: r.queue, owner: r.owner, counters: r.counters, P: params.binding }),

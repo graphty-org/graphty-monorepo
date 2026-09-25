@@ -9,10 +9,10 @@
 export const dedupeClaimWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
 fn dedupe_claim(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    let i = linear_id(wid, lid.x);
     var count = P.count;
     if (P.countIndex != U32_MAX) { count = min(atomicLoad(&counters[P.countIndex]), P.count); }   // a device-side count, clamped to the capacity
-    if (i >= count) { return; }
-    atomicStore(&owner[queue[i]], i);
+    for (var i = linear_id(wid, lid.x); i < count; i = i + P.stride) {   // grid-stride; no barrier anywhere
+        atomicStore(&owner[queue[i]], i);
+    }
 }
 `;

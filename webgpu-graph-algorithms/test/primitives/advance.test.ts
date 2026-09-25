@@ -16,7 +16,6 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
 import { algorithmScope } from "../../src/algorithms/scope.js";
-import { MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { GraphResidency } from "../../src/memory/residency.js";
@@ -280,12 +279,9 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
             expect(advance.windows.map((w) => [w.arcBase, w.arcEnd])).toEqual([[0, karate.arcCount]]);
             const encoder = ctx.device.createCommandEncoder();
             const pass = encoder.beginComputePass();
-            expect(argumentOf(() => advance.record(pass, frontier, MAX_LEVELS_PER_SUBMIT))).toBe("level");
-            expect(argumentOf(() => advance.record(pass, frontier, -1))).toBe("level");
-            expect(argumentOf(() => advance.record(pass, frontier, 0.5))).toBe("level");
             const other = await prepareFrontier(scope, karate.nodeCount + 1, karate.arcCount);
-            expect(argumentOf(() => advance.record(pass, other.frontier, 0))).toBe("frontier");
-            expect(argumentOf(() => advance.record(pass, frontier, MAX_LEVELS_PER_SUBMIT - 1))).toBeNull();
+            expect(argumentOf(() => advance.record(pass, other.frontier))).toBe("frontier");
+            expect(argumentOf(() => advance.record(pass, frontier))).toBeNull();
             pass.end();
         } finally {
             scope.dispose();

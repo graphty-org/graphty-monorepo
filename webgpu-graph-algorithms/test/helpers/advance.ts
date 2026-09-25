@@ -97,7 +97,7 @@ export async function runAdvance(
             const batch = new CommandBatch(ctx, "advance-test");
             const pass = batch.pass("advance");
             planner.recordFinalize(pass, 0, 0, FIELDS);
-            advance.record(pass, frontier, 0);
+            advance.record(pass, frontier);
             if (options?.role1 === true) {
                 planner.recordFinalize(pass, 1, 0, FIELDS);
             }

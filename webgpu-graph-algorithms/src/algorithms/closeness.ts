@@ -11,9 +11,9 @@
  * frontier regions that swap by the level's parity, `flags`), bit `s` of word `v` meaning "source `s` has reached /
  * is at / is next at `v`"; a level is, all host-recorded, `closeness-reduce` role 0 (the boundary: `done` from the
  * previous level's compacted count, the level's claims folded into the exact 64-bit per-source sums at `level + 1`),
- * `compact` of the flags into the frontier list, `indirect-finalize` sizing the sweep from the list's count, two
- * `fill`s zeroing the level's next region and the flags (AFTER the compaction that consumed them), and the indirect
- * `closeness-sweep` (the block-mapped expansion with the claim inline). `MAX_LEVELS_PER_SUBMIT` levels per submit and
+ * `compact` of the flags into the frontier list, two `fill`s zeroing the level's next region and the flags (AFTER
+ * the compaction that consumed them), and `closeness-sweep` (the block-mapped expansion with the claim inline, a
+ * direct grid-stride dispatch looping to the list's count). `MAX_LEVELS_PER_SUBMIT` levels per submit and
  * one readback per submit (the `done` word and the 512-byte `perSource` block together, so the finished batch needs
  * no extra map); the host folds `sumHi x 2^32 + sumLo` into `1 / sum` in f64 and stores f32. The weighted route
  * (`weighted` true on a snapshot whose column is not all ones) is one `sssp` per source with the sums reduced on the
@@ -40,15 +40,13 @@ import { MAX_LEVELS_PER_SUBMIT } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
-import { plan1d } from "../kernel/dispatch.js";
-import { INDIRECT_ARGS_STRIDE } from "../kernel/kernel.js";
+import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import {
     FILL_PARAMS,
     FRONTIER_COUNTERS,
     FRONTIER_PARAMS,
     graphBindings,
     graphOverrides,
-    INDIRECT_PARAMS,
     kernelSpec,
 } from "../kernels.js";
 import { prepareCompact } from "../primitives/compact.js";
@@ -198,16 +196,15 @@ async function sweepRoute(
         );
         const perSourceBytes = 4 * PER_SOURCE_WORDS;
         const perSource = bindingOf(scope.scratch(perSourceBytes, "per-source"), perSourceBytes);
-        const args = bindingOf(scope.indirect(INDIRECT_ARGS_STRIDE, "args"), INDIRECT_ARGS_STRIDE);
         await ctx.allocator.check();
         const compact = await prepareCompact(reusingScratch(scope));
         const sweep = await ctx.pipelines.kernel(kernelSpec("closeness-sweep", graphOverrides(core, null)));
         const reduce = await ctx.pipelines.kernel(kernelSpec("closeness-reduce"));
-        const finalize = await ctx.pipelines.kernel(kernelSpec("indirect-finalize"));
         const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
         const graph = graphBindings(core, null);
         const onePlan = plan1d(1, wg, ctx.caps);
         const regionPlan = plan1d(bitsBase, wg, ctx.caps);
+        const sweepPlan = planGridStride(n, wg, ctx.caps); // the list holds at most n entries; the sweep loops to the count word
         const recordFill = (pass: GPUComputePassEncoder, dst: Binding, count: number, mode: 0 | 1): void => {
             const params = scope.params(FILL_PARAMS, { count, value: 0, mode, pad0: 0 });
             fill.dispatch(pass, fill.bind({ dst, P: params.binding }), plan1d(count, wg, ctx.caps), [params.offset]);
@@ -243,8 +240,6 @@ async function sweepRoute(
                 // the records every level of the submit shares (the ring wraps, so they are written per submit)
                 const boundary = scope.params(FRONTIER_PARAMS, { role: 0, n, bitsBase });
                 const boundBoundary = reduce.bind({ counters, perSource, bits, P: boundary.binding });
-                const indirect = scope.params(INDIRECT_PARAMS, { countIndex: W.frontierCount, wg, slot: 0, pad0: 0 });
-                const boundFinalize = finalize.bind({ counters, args, P: indirect.binding });
                 const clear = scope.params(FILL_PARAMS, { count: bitsBase, value: 0, mode: 0, pad0: 0 });
                 // parity 0 sweeps region 1 into region 2, parity 1 region 2 into region 1: the next region is cleared
                 const boundClearNext = [region(2), region(1)].map((dst) => fill.bind({ dst, P: clear.binding }));
@@ -257,6 +252,7 @@ async function sweepRoute(
                         arcBase: 0,
                         arcEnd: s.arcCount,
                         mode,
+                        stride: sweepPlan.stride ?? wg,
                     });
                     return {
                         bound: sweep.bind({ ...graph, frontierList, counters, bits, perSource, P: params.binding }),
@@ -274,10 +270,9 @@ async function sweepRoute(
                         outCount: counters,
                         outIndex: W.frontierCount,
                     });
-                    finalize.dispatch(pass, boundFinalize, onePlan, [indirect.offset]);
                     fill.dispatch(pass, boundClearNext[parity], regionPlan, [clear.offset]);
                     fill.dispatch(pass, boundClearFlags, regionPlan, [clear.offset]);
-                    sweep.dispatchIndirect(pass, boundSweep[parity].bound, args, 0, [boundSweep[parity].offset]);
+                    sweep.dispatch(pass, boundSweep[parity].bound, sweepPlan, [boundSweep[parity].offset]);
                 }
                 batch.endPass();
                 const doneRequest = batch.readback(counters.buffer, counters.offset + 4 * W.done, 4);

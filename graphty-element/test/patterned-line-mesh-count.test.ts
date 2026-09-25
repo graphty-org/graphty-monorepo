@@ -24,7 +24,8 @@ import { PatternedLineRenderer, type PatternType } from "../src/meshes/Patterned
  * graphs and stories render unchanged.
  *
  * These tests pin both halves: the spacing rule is the historical one and stays unbounded, and
- * an explicit count overrides it for every pattern type and spaces evenly.
+ * an explicit count overrides it for every discrete pattern type and spaces evenly. Connected
+ * patterns (zigzag, sinewave) ignore it and always tile the whole line.
  */
 
 /** EdgeMesh.createLine converts a style line width to a pattern element width this way. */
@@ -112,6 +113,44 @@ describe("patterned line element count", () => {
 
             assert.closeTo(lastGap, firstGap, 1e-9, "the last gap does not match the rest");
         });
+    });
+
+    describe("connected patterns (zigzag, sinewave) always reach the line end", () => {
+        /** The fixed length of one connected segment, `PatternedLineMesh.SEGMENT_LENGTH`. */
+        const SEGMENT = 0.75;
+        const LENGTH = 20;
+        let scene: Scene;
+
+        beforeEach(() => {
+            scene = new Scene(new NullEngine());
+        });
+
+        for (const pattern of ["zigzag", "sinewave"] as const) {
+            for (const patternCount of [undefined, 12, 40]) {
+                test(`${pattern} with patternCount ${String(patternCount)}`, () => {
+                    const start = new Vector3(0, 0, 0);
+                    const line = PatternedLineRenderer.create(
+                        pattern,
+                        start,
+                        new Vector3(LENGTH, 0, 0),
+                        8,
+                        "#ffffff",
+                        1,
+                        scene,
+                        false,
+                        patternCount,
+                    );
+
+                    const last = line.meshes[line.meshes.length - 1];
+                    const lastStart = last.position.subtract(start).length();
+
+                    assert.isBelow(lastStart, LENGTH, "the last segment starts past the line end");
+                    assert.isAtLeast(lastStart + SEGMENT, LENGTH, "the last segment stops short of the line end");
+
+                    line.dispose();
+                });
+            }
+        }
     });
 
     describe("the material leak this suite also guards", () => {

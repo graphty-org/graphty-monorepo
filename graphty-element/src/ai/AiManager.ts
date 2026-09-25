@@ -11,6 +11,7 @@ import { AiController, type ExecutionResult } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
 // Import built-in commands
+import { listAlgorithms, runAlgorithm } from "./commands/AlgorithmCommands";
 import { setCameraPosition, zoomToNodes } from "./commands/CameraCommands";
 import { setDimension, setLayout } from "./commands/LayoutCommands";
 import { setImmersiveMode } from "./commands/ModeCommands";
@@ -189,6 +190,10 @@ export class AiManager {
         // Schema exploration commands
         this.registerCommand(sampleData);
         this.registerCommand(describeProperty);
+
+        // Algorithm commands
+        this.registerCommand(listAlgorithms);
+        this.registerCommand(runAlgorithm);
 
         // Layout commands
         this.registerCommand(setLayout);

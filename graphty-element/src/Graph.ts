@@ -45,9 +45,12 @@ const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
  */
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 import { measureBounds } from "./camera/bounds.js";
+import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
 import type { CameraState, DrawingMode, GraphBounds } from "./camera/types.js";
-import { type CameraController, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { OrbitCameraController } from "./cameras/OrbitCameraController";
+import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { registeredAlgorithmByKey } from "./catalog/registry";
@@ -611,7 +614,7 @@ export class Graph implements GraphContext {
                 }
 
                 if (event.shouldZoomToFit) {
-                    this.updateManager.enableZoomToFit();
+                    this.autoFrame();
                 }
 
                 // Run algorithms if runAlgorithmsOnLoad is true. Each is queued, not awaited.
@@ -630,7 +633,7 @@ export class Graph implements GraphContext {
         this.eventManager.addListener("layout-initialized", (event) => {
             if (event.type === "layout-initialized") {
                 if (event.shouldZoomToFit) {
-                    this.updateManager.enableZoomToFit();
+                    this.autoFrame();
                 }
             }
         });
@@ -835,6 +838,7 @@ export class Graph implements GraphContext {
             // The view the graph OPENS in reaches the scene here, before anything can be drawn in
             // the wrong one. See `applyOpeningViewMode` for why this line is where it is.
             this.applyOpeningViewMode();
+            this.applyStartingCameraDistance();
 
             // The default layout is built in the constructor, before a consumer can have asked
             // for 2D, so it was given a Z axis. An opening 2D is not a transition and never
@@ -927,7 +931,7 @@ export class Graph implements GraphContext {
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
                             // Force a final zoom to fit after layout has truly settled
-                            this.updateManager.enableZoomToFit();
+                            this.autoFrame();
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -1982,11 +1986,33 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set the active camera mode (e.g., "arcRotate", "universal").
-     * @param mode - Camera mode key to activate
+     * Activate the camera that belongs to the current view mode: `"2d"` in 2D, `"orbit"` in 3D.
+     *
+     * A camera belongs to one view mode, and switching between them is `setViewMode`'s job: it
+     * also rebuilds the meshes and the layout for the new mode. A camera from the other mode is
+     * refused rather than activated, because activating it would leave the scene drawing through
+     * one mode's camera while recording the other, and `setViewMode` would then take the scene
+     * for already being where it was asked to go.
+     * @param mode - Camera key to activate
      * @param options - Queue options for operation ordering
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the camera does not belong to the view
+     * mode the graph is in (or is going to, once queued view-mode changes run).
      */
     async setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void> {
+        // The configured view mode, not the scene's: `setViewMode` writes it before queueing its
+        // switch, so it is the mode this call will land in once the queue reaches it.
+        const { viewMode } = this.styles.config.graph;
+        const belongs = cameraForViewMode(viewMode);
+        if (mode !== belongs) {
+            const whose = belongs === undefined ? "" : `, whose camera is "${belongs}"`;
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `the "${mode}" camera does not belong to the "${viewMode}" view mode${whose}. Call setViewMode to change view mode; it switches the camera with it`,
+                source: "view",
+                details: { mode, viewMode, ...(belongs === undefined ? {} : { expected: belongs }) },
+            });
+        }
+
         if (options?.skipQueue) {
             this.camera.activateCamera(mode);
             return;
@@ -2549,6 +2575,65 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
+     * first settlement -- unless the configuration placed the camera itself with
+     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     */
+    private autoFrame(): void {
+        if (this.styles.config.graph.startingCameraDistance === undefined) {
+            this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Set how far the camera stands from the graph, and stop the element framing the graph on its
+     * own. Undefined hands framing back to zoom-to-fit.
+     *
+     * The 3D orbit camera is moved to the distance (floored at its minimum zoom distance). The 2D
+     * camera's half-width becomes the half-extent the 3D camera's field of view covers at that
+     * distance, so switching view mode keeps a comparable framing.
+     * @param distance - The distance, in scene units, or undefined for automatic framing.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the distance is not a finite number.
+     */
+    setStartingCameraDistance(distance: number | undefined): void {
+        if (distance !== undefined && !Number.isFinite(distance)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `startingCameraDistance must be a finite number, not ${String(distance)}`,
+                source: "view",
+                details: { name: "startingCameraDistance", value: distance },
+            });
+        }
+
+        this.styles.config.graph.startingCameraDistance = distance;
+        this.applyStartingCameraDistance();
+    }
+
+    /**
+     * Place both cameras from the configured `startingCameraDistance`, when there is one.
+     */
+    private applyStartingCameraDistance(): void {
+        const distance = this.styles.config.graph.startingCameraDistance;
+        if (distance === undefined) {
+            return;
+        }
+
+        const orbit = this.camera.getController("orbit");
+        if (orbit instanceof OrbitCameraController) {
+            orbit.cameraDistance = orbit.clampDistance(distance);
+            orbit.updateCameraPosition();
+
+            const twoD = this.camera.getController("2d");
+            if (twoD instanceof TwoDCameraController) {
+                // The 2D camera keeps its half-width across a resize, so that is the side matched:
+                // it is the half-extent the orbit camera's vertical fov gives at this distance.
+                twoD.config.initialOrthoSize = orbit.cameraDistance * Math.tan(orbit.camera.fov / 2);
+                twoD.updateOrtho(twoD.config.initialOrthoSize);
+            }
+        }
+    }
+
+    /**
      * Set the view mode.
      * This controls the camera type, input handling, and rendering approach.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
@@ -2628,8 +2713,13 @@ export class Graph implements GraphContext {
         const sceneMode = this.scene.metadata?.viewMode as ViewMode | undefined;
         const sceneIsTwoD = this.scene.metadata?.twoD === true;
 
-        // Skip if the scene already draws what was asked for
-        if (sceneMode === mode) {
+        // Skip if the scene already draws what was asked for -- in that mode's own camera. A
+        // scene that records the mode while another mode's camera draws has drifted, and falls
+        // through so the camera is brought back.
+        const modeCamera = cameraForViewMode(mode);
+        const drawsThroughModeCamera =
+            modeCamera === undefined || this.camera.getActiveController() === this.camera.getController(modeCamera);
+        if (sceneMode === mode && drawsThroughModeCamera) {
             return;
         }
 
@@ -3596,7 +3686,7 @@ export class Graph implements GraphContext {
         }
 
         // Resolve preset if needed
-        const resolvedState = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+        const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
@@ -3676,6 +3766,7 @@ export class Graph implements GraphContext {
                     computeWorldMatrix: (force: boolean) => void;
                 };
                 cameraDistance: number;
+                clampDistance: (distance: number) => number;
                 updateCameraPosition: () => void;
             };
 
@@ -3715,15 +3806,15 @@ export class Graph implements GraphContext {
                 orbitController.pivot.rotationQuaternion = quat;
             }
 
-            // Set camera distance if provided
+            // Set camera distance if provided, floored the way every orbit distance is
             if (state.cameraDistance !== undefined) {
-                orbitController.cameraDistance = state.cameraDistance;
+                orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
             } else if (state.position && state.target) {
                 // Calculate distance from position to target
                 const dx = state.position.x - state.target.x;
                 const dy = state.position.y - state.target.y;
                 const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
             }
 
             // Update the pivot's world matrix and camera position
@@ -3811,8 +3902,9 @@ export class Graph implements GraphContext {
      * Required because cameraDistance is not a scene node property
      * @param orbitController - Orbit camera controller instance
      * @param orbitController.cameraDistance - Current camera distance from pivot
+     * @param orbitController.clampDistance - The controller's distance rule (the zoom floor)
      * @param orbitController.updateCameraPosition - Function to update camera position
-     * @param targetDistance - Target camera distance to animate to
+     * @param requestedDistance - Camera distance to animate to, before the zoom floor applies
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
@@ -3820,13 +3912,17 @@ export class Graph implements GraphContext {
     private async animateCameraDistance(
         orbitController: {
             cameraDistance: number;
+            clampDistance: (distance: number) => number;
             updateCameraPosition: () => void;
         },
-        targetDistance: number,
+        requestedDistance: number,
         frameCount: number,
         fps: number,
         easing?: string,
     ): Promise<void> {
+        // The same floor the immediate path applies, so an animation never ends below it.
+        const targetDistance = orbitController.clampDistance(requestedDistance);
+
         // Create dummy object to animate
         const dummy = { value: orbitController.cameraDistance };
 
@@ -3895,6 +3991,7 @@ export class Graph implements GraphContext {
                 computeWorldMatrix: (force: boolean) => void;
             };
             cameraDistance: number;
+            clampDistance: (distance: number) => number;
             updateCameraPosition: () => void;
         };
 

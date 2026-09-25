@@ -1410,12 +1410,13 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * How far the camera starts from the graph.
+     * How far the camera starts from the graph, in scene units.
      * @remarks
-     * It is carried in the element's configuration document. NOTHING READS IT YET -- no camera
-     * is placed from it today, and that was true before this property existed; the property
-     * makes the setting reachable again rather than newly effective. A graph that has settled is
-     * framed by `zoomToFit()`.
+     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
+     * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
+     * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
+     * running graph moves the camera.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -1432,12 +1433,20 @@ export class Graphty extends LitElement {
      */
     set startingCameraDistance(value: number | undefined) {
         const oldValue = this.#startingCameraDistance;
-        this.#startingCameraDistance = value;
 
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "graph.startingCameraDistance", value);
+        try {
+            // A removed attribute arrives as null, and means "no distance": frame to fit again.
+            this.#graph.setStartingCameraDistance(value ?? undefined);
+        } catch (error: unknown) {
+            console.error(
+                "<graphty-element>: the starting camera distance was refused. Keeping the one already set.",
+                error,
+            );
+
+            return;
         }
 
+        this.#startingCameraDistance = value;
         this.requestUpdate("startingCameraDistance", oldValue);
     }
 
@@ -2910,10 +2919,14 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Set the camera mode.
+     * Activate the camera of the current view mode: `"orbit"` in 3D, `"2d"` in 2D.
+     * @remarks
+     * A camera from the other view mode is refused; change view mode with `viewMode` or
+     * `setViewMode`, which switches the camera with it.
      * @param mode - Camera mode key
      * @param options - Queue options
      * @returns Promise that resolves when camera mode is set
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the camera belongs to another view mode
      * @since 1.5.0
      */
     async setCameraMode(

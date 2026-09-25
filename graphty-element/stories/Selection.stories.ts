@@ -50,7 +50,6 @@ const selectionEdgeData = [
  */
 const setUpSelectionDemo = (element: Graphty, viewMode: ViewMode): void => {
     element.viewMode = viewMode;
-    element.startingCameraDistance = 20;
     setLayoutPreSteps(element, 2000);
 
     void element.session.styles.add({

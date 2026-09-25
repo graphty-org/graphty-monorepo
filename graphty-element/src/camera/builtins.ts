@@ -14,7 +14,9 @@
  * times the longest side: every one of those is what the element computed before, so no picture
  * moves. They disagree with each other -- the orbit controller's own framing pads 5 percent and
  * the 2D controller's pads 10 percent -- and this file does not average them, because averaging
- * them would change what a saved screenshot looks like. A plugin picks its own.
+ * them would change what a saved screenshot looks like. A plugin picks its own. The one
+ * exception is the isometric `beta`: it was 0.615, the elevation above the horizon, in a field
+ * measured down from the pole, and no picture depended on it because nothing applied it.
  *
  * THESE ARE NOT REGISTERED. A built-in id is reserved and `registerCameraView` refuses one, so
  * the table below is looked up first and the registry second, which is what keeps a registration
@@ -52,8 +54,13 @@ const DIAGONAL_OFFSET = 0.577;
 /** How far a straight-on view sits from the box, as a multiple of its longest side. */
 const STRAIGHT_ON_DISTANCE = 1.5;
 
-/** The vertical angle of a classic isometric view, in radians: about 35.264 degrees. */
-const ISOMETRIC_BETA = 0.615;
+/**
+ * The polar angle of a classic isometric view, in radians: acos(1/sqrt(3)), about 54.736 degrees
+ * down from +y, which puts the viewer 35.264 degrees above the horizon on the cube's diagonal.
+ * `beta` follows the ArcRotate convention (see `CameraState`), so it is measured from the pole,
+ * not from the horizon.
+ */
+const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
 
 /**
  * Frame everything: an angled view in three dimensions, straight on in two.
@@ -188,4 +195,35 @@ const BUILT_IN_CAMERA_VIEWS: Readonly<Record<string, (input: CameraViewInput) =>
  */
 export function builtInCameraView(id: string): ((input: CameraViewInput) => CameraState) | undefined {
     return Object.hasOwn(BUILT_IN_CAMERA_VIEWS, id) ? BUILT_IN_CAMERA_VIEWS[id] : undefined;
+}
+
+/**
+ * Turn an orbit state given as angles into the position the element's cameras are placed from.
+ *
+ * `alpha`, `beta` and `radius` follow Babylon's ArcRotate convention: the viewer stands at
+ * target + radius * (cos(alpha) sin(beta), cos(beta), sin(alpha) sin(beta)). A state that already
+ * carries a position or a pivot rotation, or lacks an angle or a distance (`radius`, or
+ * `cameraDistance`), is returned unchanged.
+ * @param state - The state a caller or a camera view asked for.
+ * @returns The same state, with `position` (and `cameraDistance` from `radius`) filled in.
+ */
+export function orbitAnglesToPosition(state: CameraState): CameraState {
+    const { alpha, beta } = state;
+    const radius = state.radius ?? state.cameraDistance;
+    if (alpha === undefined || beta === undefined || radius === undefined || state.position || state.pivotRotation) {
+        return state;
+    }
+
+    const target = state.target ?? { x: 0, y: 0, z: 0 };
+
+    return {
+        ...state,
+        target,
+        position: {
+            x: target.x + radius * Math.cos(alpha) * Math.sin(beta),
+            y: target.y + radius * Math.cos(beta),
+            z: target.z + radius * Math.sin(alpha) * Math.sin(beta),
+        },
+        cameraDistance: state.cameraDistance ?? radius,
+    };
 }

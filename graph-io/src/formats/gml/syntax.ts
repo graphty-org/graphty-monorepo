@@ -112,6 +112,9 @@ export class GmlTokens {
     /** The number of tokens. */
     count = 0;
 
+    /** Called by stringOf() with each named entity it cannot decode and the token's line, when set. */
+    onUnknownEntity: ((entity: string, line: number) => void) | null = null;
+
     /**
      * Create an empty token list over a text.
      * @param text - the source text
@@ -159,7 +162,12 @@ export class GmlTokens {
      * @returns the body with character references decoded
      */
     stringOf(i: number): string {
-        return decodeGmlString(this.textOf(i));
+        const text = this.textOf(i);
+        if (text.indexOf("&") < 0) {
+            return text;
+        }
+        const report = this.onUnknownEntity;
+        return decodeGmlString(text, report === null ? undefined : (entity) => { report(entity, this.line[i]); });
     }
 
     /**

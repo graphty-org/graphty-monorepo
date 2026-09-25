@@ -27,7 +27,8 @@ export class OrbitInputController {
             this.isPointerDown = true;
             this.lastX = evt.clientX;
             this.lastY = evt.clientY;
-            this.canvas.focus(); // Ensure canvas gets focus for keyboard
+            // Take keyboard focus on a click, without scrolling the host page
+            this.canvas.focus({ preventScroll: true });
         }
     };
 
@@ -117,8 +118,6 @@ export class OrbitInputController {
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
-
-        this.canvas.focus();
 
         if (!this.hammer) {
             this.attachMouseTouch();

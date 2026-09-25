@@ -2,6 +2,8 @@
  * @file Utility functions for building graph data structures from graphty-element Graph
  */
 
+import { GraphtyError } from "../../errors";
+
 /**
  * The key an `@graphty/algorithms` result is matched back onto the element's edges by: the two
  * endpoint ids, in the orientation the record declared.
@@ -17,6 +19,36 @@
  */
 export function edgePairKey(source: string | number, target: string | number): string {
     return `${String(source)}:${String(target)}`;
+}
+
+/**
+ * Refuse a node id option that names no node in the graph.
+ *
+ * `@graphty/algorithms` answers a query about a missing node with an empty result rather than an
+ * error, so without this check an unknown id publishes zeros as if they were a measurement.
+ * @param algorithm - The algorithm's key, for the message.
+ * @param option - The option name the id came in on.
+ * @param value - The id the caller passed.
+ * @param nodeIds - Every node id in the graph.
+ * @returns The id as the string the algorithms package keys nodes by.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when no node has that id.
+ */
+export function requireNodeOption(
+    algorithm: string,
+    option: string,
+    value: string | number,
+    nodeIds: readonly (string | number)[],
+): string {
+    const id = String(value);
+    if (!nodeIds.some((nodeId) => String(nodeId) === id)) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "run",
+            message: `${algorithm}: the ${option} option names node "${id}", which is not in the graph.`,
+            details: { algorithm, option, value },
+        });
+    }
+    return id;
 }
 
 /**

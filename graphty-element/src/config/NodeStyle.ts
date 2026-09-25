@@ -91,7 +91,8 @@ export const NodeShapes = z.enum([
 export const NodeStyle = z.strictObject({
     shape: z
         .strictObject({
-            size: z.number().positive().optional(),
+            // 0 is legal and draws the smallest visible node; hide a node with `visible: false`.
+            size: z.number().nonnegative().optional(),
             type: NodeShapes.optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync

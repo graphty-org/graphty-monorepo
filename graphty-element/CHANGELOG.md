@@ -1,3 +1,32 @@
+## 2.1.0 (2026-09-24)
+
+### 🚀 Features
+
+- **graphty-element:** the WebGPU accelerator proves the device before it is attached ([68d932a4](https://github.com/graphty-org/graphty-monorepo/commit/68d932a4))
+- **graphty-element:** turn down an accelerator that computes the wrong answer ([f1d44234](https://github.com/graphty-org/graphty-monorepo/commit/f1d44234))
+- **graphty-element:** a GPU can be unavailable because it computes wrong answers ([1f1fde12](https://github.com/graphty-org/graphty-monorepo/commit/1f1fde12))
+
+### 🩹 Fixes
+
+- **graphty-element:** stop reheating a simulation the bridge has just loaded ([6d5257ee](https://github.com/graphty-org/graphty-monorepo/commit/6d5257ee))
+- **graphty-element:** let the fake accelerator compute the layout it was asked for ([1af02ff0](https://github.com/graphty-org/graphty-monorepo/commit/1af02ff0))
+- **graphty-element:** settle the fake-accelerator stories in five frames, not thirty ([9c5c6a23](https://github.com/graphty-org/graphty-monorepo/commit/9c5c6a23))
+- **graphty-element:** know every GPU flag value CI sets, so the config loads on macOS and Windows ([e646d599](https://github.com/graphty-org/graphty-monorepo/commit/e646d599))
+- **graphty-element:** spend owed pre-steps a chunk at a time on a simulation ([1a32aa98](https://github.com/graphty-org/graphty-monorepo/commit/1a32aa98))
+- **graphty-element:** publish only the device facts a backend actually named ([9d63d5dd](https://github.com/graphty-org/graphty-monorepo/commit/9d63d5dd))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.3
+- Updated @graphty/remote-logger to 1.3.6
+- Updated graph-format to 1.0.4
+- Updated algorithms to 2.0.2
+- Updated layout to 1.9.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.1 (2026-09-24)
 
 ### 🩹 Fixes

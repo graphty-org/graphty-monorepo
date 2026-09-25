@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-format",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Frozen CSR graph data format over typed arrays, shared by CPU and WebGPU graph algorithms",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",

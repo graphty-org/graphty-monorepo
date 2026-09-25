@@ -108,6 +108,8 @@ export const ELEMENT_TYPE_CODE = "E_GML_ELEMENT_TYPE";
 export const FLAG_TYPE_CODE = "E_GML_FLAG_TYPE";
 /** Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), or one repeated. */
 export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
+/** Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity; it is kept as written. */
+export const UNKNOWN_ENTITY_CODE = "W_GML_UNKNOWN_ENTITY";
 /** Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1). */
 export const PRECISION_CODE = SHARED_PRECISION_CODE;
 /** Issue code: the sink already holds a column of the name with another declaration; renamed `<name>#<key>`. */
@@ -342,6 +344,15 @@ class GmlImport {
      */
     run(tokens: GmlTokens): void {
         this.tokens = tokens;
+        tokens.onUnknownEntity = (entity, line) => {
+            this.report.warnOnce(
+                "parse-error",
+                UNKNOWN_ENTITY_CODE,
+                `unknown character entity ${entity} is kept as written`,
+                { line, element: entity },
+                `${UNKNOWN_ENTITY_CODE}:${entity}`,
+            );
+        };
         this.scan();
         this.push();
     }
@@ -438,7 +449,7 @@ class GmlImport {
                     continue;
                 }
             } else {
-                if (key === "source" || key === "target") {
+                if (key === "source" || key === "target" || key === "directed") {
                     continue;
                 }
                 if (key === weightFrom) {
@@ -717,7 +728,7 @@ class GmlImport {
             this.report.error(
                 "validation-error",
                 FLAG_TYPE_CODE,
-                `graph flag "${name}" must be the integer 0 or 1, found ${describeValue(t, v)}`,
+                `flag "${name}" must be the integer 0 or 1, found ${describeValue(t, v)}`,
                 { line: t.line[v], element: name },
             );
             return null;
@@ -727,7 +738,7 @@ class GmlImport {
             this.report.warning(
                 "validation-error",
                 FLAG_VALUE_CODE,
-                `graph flag "${name}" is ${n}; read as ${n !== 0 ? "1" : "0"}`,
+                `flag "${name}" is ${n}; read as ${n !== 0 ? "1" : "0"}`,
                 { line: t.line[v], element: name },
             );
         }
@@ -931,12 +942,15 @@ class GmlImport {
             let sourceTok = -1;
             let targetTok = -1;
             let weightTok = -1;
+            let directedTok = -1;
             for (let p = open + 1; p < close; p = t.nextPair(p)) {
                 const key = t.textOf(p);
                 if (key === "source") {
                     sourceTok = this.structuralToken(sourceTok, p, "source");
                 } else if (key === "target") {
                     targetTok = this.structuralToken(targetTok, p, "target");
+                } else if (key === "directed") {
+                    directedTok = this.structuralToken(directedTok, p, "directed");
                 } else if (key === options.weightFrom) {
                     weightTok = p + 1;
                 }
@@ -952,13 +966,12 @@ class GmlImport {
             const before = sink.edgeCount;
             const sourceNew = sink.indexOf(source) === INVALID_INDEX;
             const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
-            edge = this.requireResolver().addEdge(
-                source,
-                target,
-                this.headerDirected ? "directed" : "undirected",
-                weight,
-                { line, element },
-            );
+            // an edge-level `directed` key overrides the graph's flag for that edge (mixed graphs)
+            const directed = this.readFlag(directedTok, "directed") ?? this.headerDirected;
+            edge = this.requireResolver().addEdge(source, target, directed ? "directed" : "undirected", weight, {
+                line,
+                element,
+            });
             report.counts.edges += sink.edgeCount - before;
             // endpoints the file never declares (addMissingNodes) are nodes of the sink too
             report.counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
@@ -971,7 +984,7 @@ class GmlImport {
         try {
             for (let p = open + 1; p < close; p = t.nextPair(p)) {
                 const key = t.textOf(p);
-                if (key === "source" || key === "target" || key === options.weightFrom) {
+                if (key === "source" || key === "target" || key === "directed" || key === options.weightFrom) {
                     continue;
                 }
                 const plan = this.edgePlans.get(key);

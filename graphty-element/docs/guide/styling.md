@@ -89,6 +89,16 @@ Two spelling rules catch everyone once:
   and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A string
   literal takes single quotes: `'server'`.
 
+**An edge's endpoints are `data.source` and `data.target`**, the ids of the nodes it leaves and
+reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
+`data.source == 'A'` selects the edges leaving `A`, and `{ match: "has", path: "data.target" }`
+matches every edge.
+
+The same expression works outside a style layer, and matches the same elements there:
+`session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter
+`{ kind: "expression", where }` (nodes) or `{ kind: "edges", where }` (edges) all evaluate it
+with the same engine.
+
 An algorithm's results are read the same way, under the id of the run that produced them:
 
 ```typescript

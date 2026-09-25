@@ -21,6 +21,7 @@ import {
     REPEATED_KEY_CODE,
     ROLE_TAKEN_CODE,
     SECOND_GRAPH_CODE,
+    UNKNOWN_ENTITY_CODE,
 } from "../../../src/formats/gml/importer.js";
 import {
     LIST_START_MARKER,
@@ -416,6 +417,47 @@ describe("gmlImporter: structure and flags", () => {
         expect(report.issues[1].category).toBe("validation-error");
         expect(report.issues[1].message).toContain('the string "n1"');
         expect(ids(snapshot)).toEqual([4]);
+    });
+});
+
+describe("gmlImporter: edge-level direction and entities", () => {
+    const MIXED = 'graph [ directed 0 node [ id 1 label "caf&eacute;" ] node [ id 2 ] edge [ source 1 target 2 directed 1 ] ]';
+
+    it("honours an edge-level directed key instead of storing it as a column", async () => {
+        const { snapshot, report } = await importGml(MIXED);
+        expect(snapshot.directed).toBe(true);
+        expect(edges(snapshot)).toEqual(["1-2"]);
+        expect(snapshot.edges.get("directed")).toBeNull();
+        expect(codes(report)).toEqual([]);
+    });
+
+    it("expands the undirected edges of a mixed file around a directed one", async () => {
+        const { snapshot } = await importGml(
+            "graph [ directed 0 edge [ source 1 target 2 ] edge [ source 2 target 3 directed 1 ] ]",
+        );
+        expect(snapshot.directed).toBe(true);
+        expect(edges(snapshot)).toEqual(["1-2", "2-1", "2-3"]);
+    });
+
+    it("reports an edge directed flag that is not an integer and uses the graph's direction", async () => {
+        const { snapshot, report } = await importGml('graph [ directed 0 edge [ source 1 target 2 directed "yes" ] ]');
+        expect(snapshot.directed).toBe(false);
+        expect(snapshot.edgeCount).toBe(1);
+        expect(codes(report)).toEqual([FLAG_TYPE_CODE]);
+    });
+
+    it("decodes the Latin-1 HTML entities", async () => {
+        const { snapshot, report } = await importGml(MIXED);
+        expect(column(snapshot, "nodes", "label")[0]).toBe("caf\u00e9");
+        expect(codes(report)).toEqual([]);
+    });
+
+    it("reports a named entity it cannot decode and keeps it as written", async () => {
+        const { snapshot, report } = await importGml(
+            'graph [ node [ id 1 label "a&bogus;" ] node [ id 2 label "b&bogus;" ] ]',
+        );
+        expect(column(snapshot, "nodes", "label")).toEqual(["a&bogus;", "b&bogus;"]);
+        expect(report.issues.map((i) => [i.code, i.element, i.line])).toEqual([[UNKNOWN_ENTITY_CODE, "&bogus;", 1]]);
     });
 });
 

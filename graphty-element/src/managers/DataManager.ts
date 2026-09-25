@@ -159,6 +159,8 @@ export class DataManager implements Manager {
      * compiled, answered `undefined` for the edge whose id is `"0"`, and said nothing about it.
      */
     edges = new Map<string, Edge>();
+    /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
+    edgeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
     edgeCache = new EdgeMap();
 
@@ -549,6 +551,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodes.clear();
         this.edges.clear();
+        this.edgeVersion++;
         this.nodeCache.clear();
         this.edgeCache.clear();
 
@@ -730,6 +733,7 @@ export class DataManager implements Manager {
         this.edgesByIndex[edgeIndex] = edge;
         this.edgeCache.set(edge.srcId, edge.dstId, edge);
         this.edges.set(edge.id, edge);
+        this.edgeVersion++;
     }
 
     /**
@@ -874,6 +878,7 @@ export class DataManager implements Manager {
      */
     private teardownEdge(edge: Edge, edgeIndex: number): void {
         this.edges.delete(edge.id);
+        this.edgeVersion++;
         this.edgeCache.delete(edge.srcId, edge.dstId, edge);
         this.edgesByIndex[edgeIndex] = undefined;
         edge.index = INVALID_INDEX;
@@ -1676,6 +1681,7 @@ export class DataManager implements Manager {
         // Remove all nodes and edges
         this.nodes.clear();
         this.edges.clear();
+        this.edgeVersion++;
         this.nodeCache.clear();
         this.edgeCache.clear();
 

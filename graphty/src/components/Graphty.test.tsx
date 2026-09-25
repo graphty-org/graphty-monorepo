@@ -128,6 +128,17 @@ describe("Graphty", () => {
         );
     });
 
+    it("turns on the element's label declutter", async () => {
+        const { container } = render(<Graphty layers={[]} />);
+        const graphtyElement = container.querySelector("graphty-element") as unknown as {
+            layoutBehavior?: { labels?: { declutter?: boolean } };
+        };
+
+        await vi.waitFor(() => {
+            expect(graphtyElement.layoutBehavior?.labels?.declutter).toBe(true);
+        });
+    });
+
     it("has proper styling", () => {
         const { container } = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector<HTMLElement>("graphty-element");

@@ -1171,13 +1171,16 @@ export class Graphty extends LitElement {
      * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
      * the picture was taken. `layout.stepMultiplier`, `layout.minDelta` and
      * `layout.zoomStepInterval` pace the rest of it, and `node.pinOnDrag` decides whether a node
-     * a reader drags stays where they put it.
+     * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
+     * label whose words would be drawn over another label's, keeping a selected node's label
+     * first and then the label of the node with more edges; it takes effect on the next frame.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
      * @example
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
+     * element.layoutBehavior = { labels: { declutter: true } };
      * ```
      * @returns The behaviour settings, or undefined when none have been set on this element
      */

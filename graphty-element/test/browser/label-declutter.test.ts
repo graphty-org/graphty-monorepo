@@ -16,6 +16,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 const WIDTH = 640;
 const HEIGHT = 480;
@@ -237,6 +238,24 @@ describe("node labels do not overlap", () => {
         g.setLayoutBehavior({ labels: { declutter: false } });
         g.scene.render();
         assert.deepEqual([...drawnLabels(g).keys()], ["hub", "left", "right"], "turned off: every label is back");
+    });
+
+    it("keeps a hidden label hidden when its animation starts", async () => {
+        // The element starts every label's animation once the layout settles, and again 100 ms
+        // after init for a layout that settled at once. Neither moves a node or the camera, so
+        // the pass does not run again afterwards: a start that showed a label the pass had hidden
+        // left it drawn over the one it lost to, and whether that happened depended on whether
+        // the timer fired before or after the pass.
+        const g = await draw(PILED);
+        const label = RichTextLabel.createLabel(g.scene, { text: "A LONG LABEL FOR THIS NODE" });
+        const mesh = label.labelMesh;
+        assert.isOk(mesh);
+        mesh.isVisible = false;
+
+        label.startAnimation();
+
+        assert.isFalse(mesh.isVisible, "starting the animation showed a label the declutter pass had hidden");
+        label.dispose();
     });
 
     it("does not re-run the pass on a frame where nothing moved, and does when something did", async () => {

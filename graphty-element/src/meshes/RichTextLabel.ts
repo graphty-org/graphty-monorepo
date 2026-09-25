@@ -1128,10 +1128,12 @@ export class RichTextLabel {
 
         this.animationStarted = true;
 
-        // If no animator (animation: "none"), just ensure the label is visible
+        // No animator (animation: "none"): nothing to start. `isVisible` is deliberately left
+        // alone: it is LabelDeclutter's switch, and this runs on the layout settling and on a
+        // timer after init -- after the declutter pass on some loads and before it on others --
+        // with nothing that makes the pass run again, so showing the label here re-drew labels
+        // the pass had hidden, on some loads only.
         if (!this.animator) {
-            this.mesh.isVisible = true;
-
             if (this.material.diffuseTexture) {
                 this.material.diffuseTexture.hasAlpha = true;
             }

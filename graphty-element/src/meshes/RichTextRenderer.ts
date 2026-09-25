@@ -1,5 +1,5 @@
 import type { TextSegment } from "./RichTextLabel.ts";
-import { measureLine } from "./RichTextParser.ts";
+import { measureLine } from "./RichTextParser";
 
 interface RenderOptions {
     textAlignment: "left" | "center" | "right";

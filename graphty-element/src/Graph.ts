@@ -874,7 +874,7 @@ export class Graph implements GraphContext {
 
             // For layouts that settle immediately, start animations after a short delay
             setTimeout(() => {
-                if (this.layoutManager.isSettled && !this.layoutManager.running) {
+                if (!this.layoutManager.running) {
                     for (const node of this.dataManager.nodes.values()) {
                         node.label?.startAnimation();
                     }
@@ -2831,11 +2831,13 @@ export class Graph implements GraphContext {
      * Set whether the layout engine should run.
      *
      * Resuming a simulation layout that had settled restarts it, so "play" moves nodes again;
-     * pausing stops the per-frame stepping and nothing else.
+     * pausing stops the per-frame stepping and nothing else. A pause holds until
+     * `setRunning(true)`: loading data, setting a layout, an accelerator attaching or a drag
+     * never resume it.
      * @param running - True to start the layout, false to stop it
      */
     setRunning(running: boolean): void {
-        this.layoutManager.running = running;
+        this.layoutManager.setPaused(!running);
     }
 
     /**

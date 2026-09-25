@@ -138,7 +138,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.width`             | a number                                     |
 | `edge.opacity`           | 0 to 1                                       |
 | `edge.style`             | `solid`, `dash`, `dot`, `zigzag`, ...        |
-| `edge.patternCount`      | how many dots or dashes to draw, 2 or more   |
+| `edge.patternCount`      | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`         | true or false (a bezier)                     |
 | `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
 | `edge.arrowHeadSize`     | a number, 1 being the element's own size     |

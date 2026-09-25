@@ -2,19 +2,39 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees.
 
-**Goal:** Land design phase P8 inside `webgpu-graph-algorithms/`: the `Frontier` queue with its sized and chunked edge queue and device-side argument finalisation, the `compact` / `dedupe` primitive, the `advance` primitive in its block-mapped and workgroup-per-row tiers with a subgroup twin, breadth-first search in its two-phase, fused and bottom-up forms with the per-level choice made on the device, weighted single-source shortest paths over a near-far queue, Bellman-Ford with negative-cycle detection, closeness / harmonic / eccentricity over a bit-parallel multi-source search, window-aware advance, the four independent CPU oracles, and the `bfs` benchmark group with T-10 recorded on both runner classes (gate G8).
+**Goal:** Land design phase P8 inside `webgpu-graph-algorithms/`: the `Frontier` queue with its sized edge queue and device-side argument finalisation, the `compact` / `dedupe` primitive, the `advance` primitive in its block-mapped and workgroup-per-row tiers with a subgroup twin, breadth-first search in its two-phase, fused and bottom-up forms with the per-level choice made on the device, weighted single-source shortest paths over a near-far queue, Bellman-Ford with negative-cycle detection, closeness centrality over a bit-parallel multi-source search, window-aware advance, the four independent CPU oracles, the four accelerator members the published seam already declares (`breadthFirstSearch`, `sssp`, `bellmanFord`, `closenessCentrality`), and the `bfs` benchmark group with T-10 as a contract on the reference card and a recorded figure on the T4 lane (gate G8).
 
-**Architecture:** Everything in this phase is a queue of vertices that grows and shrinks, and the host is not allowed to watch it. A traversal's per-level decisions -- how many workgroups to run, whether to expand into an edge queue or fuse the expansion into the contraction, whether to sweep forward from the frontier or backward from the unvisited set -- are made by a one-workgroup kernel that reads device counters and writes indirect dispatch arguments, because a road-network graph has thousands of levels and a per-level `mapAsync` would be slower than running the whole thing on the CPU. The host records 32 levels into one command buffer, submits, and reads four bytes. Every kernel is a body in `src/wgsl/<id>.wgsl.ts` registered in `src/kernels.ts`; every driver is a file under `src/algorithms/` that may import `src/context.ts`, `src/memory/**`, `src/kernel/**`, `src/kernels.ts` and `src/primitives/**` and nothing above it (`webgpu-graph-algorithms/eslint.config.js`, `webgpu-graph-algorithms/test/layers.test.ts`). The dependency direction is unchanged: the GPU package imports `@graphty/graph-format` only.
+**Architecture:** Everything in this phase is a queue of vertices that grows and shrinks, and the host is not allowed to watch it. A traversal's per-level decisions -- how many workgroups to run, whether to expand into an edge queue or fuse the expansion into the contraction, whether to sweep forward from the frontier or backward from the unvisited set -- are made by a one-workgroup kernel that reads device counters and writes indirect dispatch arguments, because a road-network graph has thousands of levels and a per-level `mapAsync` would be slower than running the whole thing on the CPU. The host records 32 levels into one command buffer, submits, and reads four bytes. Every kernel is a body in `src/wgsl/<id>.wgsl.ts` registered in `src/kernels.ts`; every driver is a file under `src/algorithms/` that may import `src/context.ts`, `src/memory/**`, `src/kernel/**`, `src/kernels.ts` and `src/primitives/**` and nothing above it (`webgpu-graph-algorithms/eslint.config.js`, `webgpu-graph-algorithms/test/layers.test.ts`). The dependency direction is unchanged: the GPU package imports `@graphty/graph-format` at runtime and `@graphty/algorithms` / `@graphty/layout` as types only (`src/types/accelerator.ts`).
 
-**Tech Stack:** TypeScript 5.9 (strict), WGSL, WebGPU via `webgpu` (Dawn) in Node 22 and Chromium (Playwright) in the browser, `@graphty/graph-format` snapshots, vitest 3.2 (node / node-limits / browser projects, v8 coverage), fast-check, pnpm 10 workspace, vite 7 library bundle, ESLint 9 flat config, knip, GitHub Actions (ubuntu-latest lavapipe + SwiftShader lane; `gpu-linux-t4` lane).
+**Tech Stack:** TypeScript 5.9 (strict), WGSL, WebGPU via `webgpu` 0.4.0 (Dawn) in Node 22 and Chromium (Playwright) in the browser, `@graphty/graph-format` snapshots, vitest 3.2 (node / node-device-errors / node-limits / browser projects, v8 coverage), fast-check, pnpm 10 workspace, vite 7 library bundle, ESLint 9 flat config, knip, GitHub Actions (ubuntu-latest lavapipe + SwiftShader lane; `gpu-linux-t4` lane; the `hosts.yml` matrix).
 
-**Spec:** `design/webgpu/webgpu-acceleration-plan.md` -- 4.6 line 1292 (the frontier row of the chunking table, whose `E_TOO_LARGE` this phase lifts), 5.4 lines 1464-1487 (indirect dispatch and the finalize kernel as the device-side selector), 6 row 2 line 1569 (`scan`), 6 row 4 line 1571 (`compact` / `dedupe`), 6 row 7 line 1574 (`Frontier` and the overflow rule), 6 row 8 line 1575 (`advance`), 6 lines 1581-1598 (subgroup variants) and lines 1599-1604 (the determinism policy), 8.1 line 2568 (the frontier family row), 8.4 lines 2627-2723 (BFS, SSSP, Bellman-Ford, closeness), 8.8 lines 2792-2794 (priority order 4, 5, 6), 8.10 lines 2842-2848 (the binding budgets), 3.3 lines 798-801 (the public signatures) and lines 821-823 (`GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult`), 9.7 lines 3269-3273 (result-shape parity), 10.1 (the BFS scratch column), 10.3 (the BFS row), 10.4 line 3415 (T-10) and line 3417 (T-12), 11.3 lines 3484-3501 (test kinds), 11.6 item 4 (the browser smoke), 11.9 lines 3699-3764 (the four sensitivity mechanisms), 13 row P8 line 4215 (the deliverables and gate G8). The design is normative; every departure is in section 0.5.
+**Spec:** `design/webgpu/webgpu-acceleration-plan.md` -- 4.6 (the frontier row of the chunking table, whose `E_TOO_LARGE` this phase lifts), 5.4 lines 1473-1494 (indirect dispatch and the finalize kernel as the device-side selector), 6 row 2 (`scan`), 6 row 4 line 1579 (`compact` / `dedupe`), 6 row 7 (`Frontier` and the overflow rule), 6 row 8 (`advance`), 6 "Subgroup variants" and "Determinism policy", 8.1 (the frontier family row), 8.4 lines 2636-2732 (BFS, SSSP, Bellman-Ford, closeness), 8.8 (priority order 4, 5, 6), 8.10 lines 2837-2865 (the binding budgets), 3.3 lines 807-810 (the public signatures) and lines 830-832 (`GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult`), 9.2 (the seam; superseded in part by `algorithms/src/indexed/accelerator.ts`, which IS the seam), 9.7 (result-shape parity), 10.1 (the BFS scratch column), 10.3 (the BFS row), 10.4 (T-10, T-12), 11.3 lines 3537-3553 (test kinds), 11.6 item 4 (the browser smoke), 11.9 (the four sensitivity mechanisms), 13 row P8 line 4268 (the deliverables and gate G8). The design is normative; every departure is in section 0.5. `design/webgpu/superseded-parts-of-the-design.md` lists the parts of the design that are dead; nothing this phase cites is among them except 6 row 4's phase cell (P8 alone, as this plan says) and the P4 row's `compact`.
 
-**Plans of record for the earlier phases:** `design/webgpu/plans/2026-09-15-webgpu-p0.md` through `-p3.md`, `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, and `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md` (design phase P7, whose residency and scope work this phase consumes).
+**Plans of record for the earlier phases:** `design/webgpu/plans/2026-09-15-webgpu-p0.md` through `-p3.md`, `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`, `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md` (design phase P7: residency views, `algorithmScope`, the accelerator members), `design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md` (design phase P4: `exclusiveScan`, `planIndirect`, `indirect-finalize`, the degree tiers, windowed execution) and `design/webgpu/plans/2026-09-20-webgpu-p5-fruchterman-reingold.md`. The P4 and P5 plans are the standard of detail every heavy task below is written to.
 
-**Gate:** G8 (design 13 row P8, line 4215). The record is `webgpu-graph-algorithms/docs/decisions/G8.md`, written by the last task beside the existing G0-G3.
+**Gate:** G8 (design 13 row P8, line 4268). The record is `webgpu-graph-algorithms/docs/decisions/G8.md`, written by the last task beside the existing G0, G1, G2, G3, G4, G5, G6-algorithms and G7, from the template in appendix 7.4.
 
 **Tasks in this document:** P8-T1 .. P8-T17. **P8-T1, P8-T2 and P8-T3 are independent of each other and of everything else and may run first, in parallel.** P8-T2 needs no GPU at all. After them the chain is P8-T4 -> P8-T5 -> P8-T6 (the first working traversal) -> P8-T7 -> P8-T8 -> P8-T9 -> P8-T11; P8-T10 and P8-T12 hang off the chain where noted; P8-T13 gathers, P8-T14 and P8-T15 run in parallel after it, P8-T16 any time after P8-T4, P8-T17 last. Within the phase no two tasks own the same file, with one exception stated as PD-2: `src/kernels.ts` is appended to by nine tasks (P8-T3 through P8-T11), which is why that whole run is sequential.
+
+## What changed after this was written (amended 2026-09-24)
+
+The plan was written on 2026-09-23 against a repository that moved the next day. Its engineering stands; the facts around it were wrong, and the fixes below are folded into the sections they name. Each letter is the assessment item that found it.
+
+- (a) Both entry criteria are MET: design phases P4 (PR #16) and P7 are on master, and so is P5. Section 0.1 now counts what is on master; section 0.2 says "met".
+- (b) The accelerator interface this phase extends is NOT a structural mirror of the package's own: `src/types/accelerator.ts` imports the real `AlgorithmAccelerator` from `@graphty/algorithms` and `test/types/conformance.test-d.ts` holds the two equal. That interface already declares `breadthFirstSearch`, `sssp`, `bellmanFord` and `closenessCentrality` with fixed option and result types (`algorithms/src/indexed/accelerator.ts` lines 108-112). The plan had invented option types of its own (`direction`, `maxLevels`, `delta`, `weighted` on SSSP, `maxRounds`, `harmonic`, `wassermanFaust`, `sources`). PD-19 conforms to the seam and lists every invented option as NOT offered; P8-T1, P8-T9, P8-T10, P8-T11 and P8-T13 are rewritten to it.
+- (c) graphty-element already calls the seam by these names (`graphty-element/src/algorithms/BFSAlgorithm.ts` line 141, `DijkstraAlgorithm.ts` line 136) and falls through to the CPU because the members do not exist; its `./webgpu` entry forwards every callable member of `createAccelerator`'s object by name (`graphty-element/webgpu.ts` `forwardMembers`), so shipping the members moves the app's two traversal panels onto the GPU with no element change. Gate item 11 and P8-T13 Step 4 add the test that proves the path.
+- (d) `order` is now deterministic (PD-14 amended): grouped by level and ascending by node index within a level, produced by one stable radix sort, so the reader-visible visit-order number never changes run to run.
+- (e) The device self-check (`src/primitives/verify.ts`, `docs/decisions/device-self-check.md`) runs at the first algorithm on a device, compiles two pipelines and maps two extra staging buffers. Every new public entry point awaits `assertDeviceComputes(ctx)` first; every test that counts `mapAsync` calls or pipelines awaits `verifyDevice(ctx)` and resets the counter before counting (gate item 7, P8-T6 Step 4).
+- (f) `design/decisions/2026-09-24-performance-targets-belong-to-a-card-class.md`: T-10 is a contract on the reference card (RTX 4070 SUPER, class `nvidia-lovelace-driver580`) and a RECORDED figure on `gpu-linux-t4`, where a regression is caught against that class's own pinned baseline (P8-T14 Step 3).
+- (g) `scripts/bench-compare.js` fails a row only when its median AND its minimum both exceed 1.35x the pinned best of every session AND both rose by at least 2.5 ms; the group list is eight, not three; the session-append step refuses a session missing any group. The append script existed only in the appendices of G3 and G4; P8-T14 Step 2 commits it as `scripts/bench-append-session.js` with the nine-group list.
+- (h) The timestamp tick on master is 1,024 ns on Dawn (`webgpu` 0.4.0, Ubuntu 22.04.5); the runtime bump is not merged, so every number this phase records names that runtime (appendix 7.4's header).
+- (i) No sabotage row is checked by a timing. The bottom-up early exit is pinned to the `arcsScanned` counter word (P8-T8 Step 6); the near / far split is caught by the differential itself (P8-T9 Step 6).
+- (j) P8-T3's file list says three registry entries for three kernels and calls itself the first of the NINE appends; `dedupe-filter` binds four buffers and the table says four.
+- (k) The counters block word is the singular current `level` (PD-8); Beamer's alpha is derived from the graph as `max(1, floor(arcCount / nodeCount))` with the ratio-2 case worked out (PD-21) and no constant for it; the shortest-path delta is computed on the host from the weight vector actually used, and a snapshot with no weight column never reaches it (PD-22).
+- (l) The Windows leg of `hosts.yml` installs Microsoft's redistributable renderer 1.0.21 before it runs, because the in-box one computes multi-workgroup prefix sums wrongly and the self-check refuses it; `compact` is a prefix sum, so this phase inherits both the exposure and the protection (Global Constraints).
+- (m) Every test that compares a readback to an expectation says which buffer it reads (Global Constraints; the differential steps name the buffer).
+
+Three further decisions a builder would otherwise have had to make were settled while amending, each in its task: the edge-queue overflow rule is a fused retry of the level rather than a chunked re-dispatch (PD-23, P8-T4 Step 5); the SSSP far pile is re-bucketed by a pass-through role of the relax kernel rather than by `compact` over flags nobody produces (PD-20, P8-T9 Step 3); BFS `parent` and SSSP `predArc` both come from one post-pass kernel, `sssp-pred`, in two modes (PD-24, P8-T6 Step 3). The closeness driver needs a bit-parallel claim the plan's kernel table implied but did not list; it is `closeness-sweep`, the fifteenth kernel (P8-T4 Step 2).
 
 ## Global Constraints
 
@@ -23,59 +43,70 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 - Never run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` (global rule; in a subagent the last five block forever on an unanswered prompt as surely as the first three). Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. Every commit in this plan is made by the owner running `tools/commit-changes.sh`; a task's "Commit" step means "leave the working tree in the described state and tell the owner which subject to commit".
 - Never add a `Co-Authored-By` or `Claude-Session` trailer to any commit message, script or file.
 - Plain ASCII in every file this plan creates or edits; `--` for dashes, straight quotes. `LC_ALL=C grep -nP '[^\x00-\x7F]'` over the touched files is a step of P8-T17.
-- Never run `sudo`; nothing here needs it. Servers only on ports 9000-9999 (the package's coverage preview is 9058).
-- Spec rules for every phase (design 13 lines 4189-4202): (a) the gate is a list of tests and recorded MEASURED numbers green on the default lane AND the GPU lane before the next phase starts; (b) a phase adds only the primitives its slice needs; (c) every [X] number the phase touches is replaced by a measured one in `benchmarks/results/`; (d) nothing lands with `eslint-disable`, `@ts-expect-error` (outside negative type tests), non-ASCII, or a CPU fallback; (f) every phase that adds a kernel adds its sabotage mutations, its `inspect()` stage comparisons and its noise-floor row (design 11.9), and the gate lists them.
+- Never run `sudo`; nothing here needs it. Servers only on ports 9000-9999 and only through servherd (the package's coverage preview reads `PORT`).
+- Spec rules for every phase (design 13): (a) the gate is a list of tests and recorded MEASURED numbers green on the default lane AND the GPU lane before the next phase starts; (b) a phase adds only the primitives its slice needs; (c) every [X] number the phase touches is replaced by a measured one in `benchmarks/results/`; (d) nothing lands with `eslint-disable`, `@ts-expect-error` (outside negative type tests), non-ASCII, or a CPU fallback; (f) every phase that adds a kernel adds its sabotage mutations, its `inspect()` stage comparisons and its noise-floor row (design 11.9), and the gate lists them.
 - Project rule (root `CLAUDE.md`): never create a fallback when WebGPU is absent. `src/` contains no CPU path and no software-adapter acceptance; the package throws.
-- No `eslint-disable`, `@ts-expect-error` (outside negative type tests) or `@ts-ignore`; never lower a coverage threshold (the `node` project is 80 lines / 80 functions / 75 branches / 80 statements, `webgpu-graph-algorithms/vitest.config.ts`).
+- No `eslint-disable`, `@ts-expect-error` (outside negative type tests) or `@ts-ignore`; never a type assertion to silence a type error; never lower a coverage threshold (the `node` project is 80 lines / 80 functions / 75 branches / 80 statements, `webgpu-graph-algorithms/vitest.config.ts`). Never widen a tolerance to get a green; never skip or retry a test.
+- A test nobody has seen fail proves nothing: every task's failing-test-first step names the message the run prints before the code exists, and every sabotage row is a mutation the builder has watched go red.
 - Layer rule (design 3.2, `webgpu-graph-algorithms/CLAUDE.md`): device < context < memory < kernel < kernels.ts < primitives < algorithms / layouts < accelerator. `src/wgsl/**` is imported only by `src/kernels.ts`. Enforced by `webgpu-graph-algorithms/eslint.config.js` and `webgpu-graph-algorithms/test/layers.test.ts`.
-- WGSL rules (`webgpu-graph-algorithms/CLAUDE.md` "WGSL Conventions"): a body never contains `@group(` or `override `, has exactly one `@compute` entry point, reaches every barrier and every subgroup builtin in UNIFORM control flow, parenthesises every hash expression fully, uses `nbr` rather than the reserved word `target`, and never types a constant the prelude interpolates (`WG`, `MAX_WORKGROUPS_PER_DIM`, `U32_MAX`, `INVALID_INDEX`).
-- Bind-group rule: group 0 = the graph (`rowPtr`, `colIdx`, `weights` or a dummy, `perm` or a dummy), group 1 = algorithm state, group 2 = the params uniform through the `UniformRing`, group 3 = cold arrays; never more than 8 storage buffers per stage. A kernel that needs a ninth is SPLIT, never given a raised limit as a requirement.
+- WGSL rules (`webgpu-graph-algorithms/CLAUDE.md` "WGSL Conventions"): a body never contains `@group(` or `override `, has exactly one `@compute` entry point, reaches every barrier and every subgroup builtin in UNIFORM control flow, parenthesises every hash expression fully, uses `nbr` rather than the reserved word `target`, and never types a constant the prelude interpolates (`WG`, `MAX_WORKGROUPS_PER_DIM`, `U32_MAX`, `INVALID_INDEX`, and from P8-T1 `F32_INF_BITS`).
+- Bind-group rule: group 0 = the graph (`rowPtr`, `colIdx`, `weights` or a dummy, `perm` or a dummy -- FOUR storage slots whenever a kernel binds the graph, and `test/kernel/bind-group-budget.test.ts` counts all four), group 1 = algorithm state, group 2 = the params uniform through the `UniformRing`, group 3 = cold arrays; never more than 8 storage buffers per stage. A kernel that needs a ninth is SPLIT, never given a raised limit as a requirement. A storage binding's offset is a multiple of 256 (`STORAGE_ALIGN`; `Kernel.bind` rejects the rest), so a four-byte word of a block is reached by binding the whole block and indexing.
+- The device self-check: every public compute entry point this phase adds begins `ctx.assertReady(); await assertDeviceComputes(ctx);` (`src/primitives/verify.ts`), exactly as `pageRank`, `connectedComponents` and `degree` do. A test that counts `mapAsync` calls, pipelines or buffers awaits `verifyDevice(ctx)` and resets its counter BEFORE the call it measures, as `test/algorithms/pagerank.test.ts` line 310 does.
+- Readbacks name their buffer: every differential step below says which device buffer the comparison reads (`depth`, `dist`, the counters block, the sorted `order`, an edge queue), never "the result"; a test that reads a value back through a different array than the one the kernel wrote is a test of the copy, not of the kernel.
+- No timing assertion anywhere in the suites: a sabotage row is caught by a wrong value, a dispatch count or a counter word. Wall times are recorded by the benchmark group and compared by `bench:compare` only.
+- The Windows host leg (`.github/workflows/hosts.yml`): the software renderer that ships with Windows computes multi-workgroup prefix sums wrongly, the lane installs Microsoft's redistributable renderer 1.0.21 first (`scripts/install-redist-warp.sh`), and the device self-check refuses the in-box one. `compact` is an `exclusiveScan` plus a scatter, so every frontier rebuild and every closeness level in this phase runs a prefix sum and inherits both that exposure and that protection; nothing here works around either.
 - Test placement: the `node` project's include glob names its directories literally (`test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts`). A new directory is invisible to the runner. Every test file this plan creates goes in one of those directories or in `test/limits/` (the `node-limits` project) or `test/browser/`.
-- Temporary files under `./tmp/`; write a script file instead of repeating an inline one-liner.
-- The design is the specification. Where this plan departs from it, the departure is in section 0.5 with its reason and, where it changes a design statement, a `design/decisions/2026-09-23-<slug>.md` record written by P8-T16.
+- Temporary files under `./tmp/` of the worktree (gitignored); write a script file instead of repeating an inline one-liner.
+- The design is the specification. Where this plan departs from it, the departure is in section 0.5 with its reason and, where it changes a design statement, a `design/decisions/2026-09-24-<slug>.md` record written by P8-T16.
 
 ---
 
 ## 0. Read this first
 
-### 0.1 Where the repository stands (2026-09-22)
+### 0.1 Where the repository stands (2026-09-24, master at `6dbabfc0`)
+
+Every row was counted on master with the command in its evidence column; branch `feat/gpu-p8` is master's tip.
 
 | Fact | Evidence |
 | --- | --- |
-| Master carries design phases P0-P3: the device layer, the context, the memory and kernel layers, `reduce`, thread-per-row `segmentedReduce`, and ForceAtlas2 on the exact all-pairs tier. | `git log --oneline -- webgpu-graph-algorithms/`; `ls webgpu-graph-algorithms/src/` |
-| `src/primitives/` on master holds TWO files, `reduce.ts` and `segmented-reduce.ts`. There is no `scan`, `histogram`, `radix-sort`, `compact`, `frontier` or `advance`. | `ls webgpu-graph-algorithms/src/primitives/` |
-| `src/algorithms/` on master holds ONE file, `degree.ts`. | `ls webgpu-graph-algorithms/src/algorithms/` |
-| `planGridStride` and `planIndirect` are throwing stubs with their final signatures. | `webgpu-graph-algorithms/src/kernel/dispatch.ts`, the two `E_UNSUPPORTED` bodies at the end of the file |
-| `KernelId` is a closed union of ten ids and `KERNELS` is frozen; the registry is append-only and every entry carries `phase: "P1" \| "P2" \| "P3"`. | `webgpu-graph-algorithms/src/kernels.ts`, the `KernelId` declaration and the `REGISTRY` object |
-| No `.wgsl.ts` body on master uses an atomic. The package's first atomics arrive with design phase P7. | `grep -rn 'atomic<\|atomicLoad\|atomicStore\|atomicAdd\|atomicMin\|atomicCompareExchangeWeak' webgpu-graph-algorithms/src/wgsl/` (the only hits are prose in `fa2-attraction.wgsl.ts`) |
-| `GraphResidency.view()` accepts `outDegree`, `inDegree`, `degreeOrder` and `reverseDegreeOrder` and rejects `reverse`, `coo`, `edgeList` and `mate` by name. | `webgpu-graph-algorithms/src/memory/residency.ts`, the `view()` switch |
-| The scan, histogram, counting sort, stable radix sort, `planIndirect` and the `indirect-finalize` kernel exist, complete and tested, on branch `feat/gpu-p4` (design phase P4). They are NOT on master. | `git ls-tree -r --name-only feat/gpu-p4 -- webgpu-graph-algorithms/src/primitives webgpu-graph-algorithms/src/wgsl` |
-| The `reverse()` / `edgeList()` residency, `packViews`, grid-stride dispatch, the `core-shape.ts` helpers and `algorithmScope()` exist on branch `feat/webgpu-spmv-wcc` (design phase P7). They are NOT on master. | `git ls-tree -r --name-only feat/webgpu-spmv-wcc -- webgpu-graph-algorithms/src` |
-| The three vitest projects are `node`, `node-limits` and `browser`; `test/limits/` contains only `README.md`, so `node-limits` has no test until P4 or P7 lands one. | `webgpu-graph-algorithms/vitest.config.ts`; `ls webgpu-graph-algorithms/test/limits/` |
-| `benchmarks/run.ts` registers three groups: `upload`, `roundtrip`, `layout-exact`. The checked-in baselines are `gpu-linux-t4.json`, `nvidia-lovelace-driver580.json` and `noise-floor.json`. | `webgpu-graph-algorithms/benchmarks/run.ts`; `ls webgpu-graph-algorithms/benchmarks/results/` |
-| `test/helpers/graphs.ts` already provides every fixture generator this phase needs, including `rmatEdges(scale, edgeFactor, seed)`, `gridEdges(w, h)`, `pathEdges(n)`, `starEdges(leaves)` and `snapshotOf`. | `grep -n '^export ' webgpu-graph-algorithms/test/helpers/graphs.ts` |
-| `test/helpers/sabotage.ts` holds the `Mutation` record, the `SABOTAGE` registry keyed by `KernelId`, and `test/sabotage/coverage.test.ts` asserts every `find` string occurs exactly once in the live body. | `webgpu-graph-algorithms/test/helpers/sabotage.ts`; `webgpu-graph-algorithms/test/sabotage/coverage.test.ts` |
-| `webgpu-graph-algorithms/docs/decisions/` holds G0, G1, G2 and G3. There is no G7 and no G8. | `ls webgpu-graph-algorithms/docs/decisions/` |
+| Master carries design phases P0-P5 and P7 (the device layer, the context, memory and kernel layers, `reduce`, `segmentedReduce` with its three tiers, ForceAtlas2 on the exact and grid tiers, `exclusiveScan`, `histogram` / `countingSortByKey`, `radixSort`, the grid pyramid, Fruchterman-Reingold and the spring-electrical preset, `spmvPull`, PageRank, the power-iteration family, Afforest connected components) and the M-series integration (the seam in `@graphty/algorithms`, the element's `./webgpu` entry, the app). | `git log --oneline -- webgpu-graph-algorithms/`; `ls webgpu-graph-algorithms/src/` |
+| `src/primitives/` holds TEN files: `core-shape.ts`, `grid-pyramid.ts`, `grid.ts`, `histogram.ts`, `radix-sort.ts`, `reduce.ts`, `scan.ts`, `segmented-reduce.ts`, `spmv.ts`, `verify.ts`. There is no `compact`, `frontier` or `advance`. | `ls webgpu-graph-algorithms/src/primitives/` |
+| `src/algorithms/` holds SIX files: `components.ts`, `degree.ts`, `pagerank.ts`, `power-iteration.ts`, `scope.ts`, `spectral.ts`. There is no `bfs`, `sssp`, `bellman-ford` or `closeness`. | `ls webgpu-graph-algorithms/src/algorithms/` |
+| `plan1d`, `plan2d`, `planGridStride`, `planIndirect` and `groupsOf` are real, tested functions. | `webgpu-graph-algorithms/src/kernel/dispatch.ts` lines 104-178 |
+| `KernelId` is a closed union of THIRTY ids and `KERNELS` is frozen; the registry is append-only and every entry carries `phase: "P1" \| "P2" \| "P3" \| "P4" \| "P7"`. `src/wgsl/` holds thirty bodies. | `webgpu-graph-algorithms/src/kernels.ts` lines 60-97; `ls webgpu-graph-algorithms/src/wgsl/ \| wc -l` |
+| NINE bodies already use atomics (`counting-scatter`, `fa2-stats-finalize`, `grid-centroid`, `histogram`, `radix-hist`, `wcc-compress`, `wcc-link-edges`, `wcc-link-sample`, `wcc-sample`); `wcc-link-edges` carries the bounded `atomicCompareExchangeWeak` loop this phase's Bellman-Ford copies. | `grep -l 'atomicLoad\|atomicStore\|atomicAdd\|atomicMin\|atomicOr\|atomicCompareExchangeWeak' webgpu-graph-algorithms/src/wgsl/*.ts` (a plain `grep -l atomic` also matches the prose of two more bodies) |
+| `GraphResidency.view()` accepts `reverse`, `edgeList` (both with `packViews`), `outDegree`, `inDegree`, `degreeOrder` and `reverseDegreeOrder`, and rejects `coo` and `mate` by name ("not uploaded before P11"). On an undirected snapshot `reverse` aliases the forward core at zero upload cost. The `edgeList` view binds `src`, `dst` and, when the snapshot has a weight column, `weights`; `edgeToArc` is a core array `core(s, [...])` can bind. | `webgpu-graph-algorithms/src/memory/residency.ts` lines 405-470, 548-580 |
+| `src/primitives/core-shape.ts` exports `degreeTiersOf`, `rowCountOf`, `arcCountOf`, `windowBinding`, `assertNotWindowed`, `assertWholeCore`, `coreOfView` and `MID_TIER_LANES`; `src/algorithms/scope.ts` exports `algorithmScope(ctx, label, slots)` returning an `AlgorithmScope extends ReduceScope` whose scratch comes from one `Lease`. | `grep -n '^export' webgpu-graph-algorithms/src/primitives/core-shape.ts webgpu-graph-algorithms/src/algorithms/scope.ts` |
+| The vitest projects are `node`, `node-device-errors`, `node-limits` and `browser`; `test/limits/` holds SEVEN tests (`binding-2gib`, `dispatch-2d-100m`, `layout-1m`, `oom-scope`, `pagerank-1m`, `vendor-features`, `windowed-200mb`) plus its README. | `webgpu-graph-algorithms/vitest.config.ts`; `ls webgpu-graph-algorithms/test/limits/` |
+| `benchmarks/run.ts` registers EIGHT groups: `upload`, `roundtrip`, `layout-exact`, `pagerank`, `wcc`, `layout-fr`, `layout-grid`, `attraction-scale`. The checked-in baselines are `gpu-linux-t4.json`, `nvidia-lovelace-driver580.json` and `noise-floor.json`. `scripts/bench-compare.js` compares against the pinned BEST of every session, at 1.35x with a 2.5 ms floor on both the median and the minimum. No script in the repository appends a session to a baseline file; the procedure lives in G3.md and G4.md appendix A only. | `webgpu-graph-algorithms/benchmarks/run.ts` lines 41-50; `ls webgpu-graph-algorithms/benchmarks/results/ webgpu-graph-algorithms/scripts/` |
+| `test/helpers/graphs.ts` provides `KARATE_EDGES`, `gridEdges(w, h)`, `pathEdges(n)`, `starEdges(leaves)`, `cycleEdges(n)`, `completeEdges(n)`, `randomEdges(n, m, seed)`, `randomEdgesLoose(n, m, seed)`, `rmatEdges(scale, edgeFactor, seed)`, `snapshotOf`, `csrSnapshotOf`, `FIXTURE_NAMES` and `fixture(...)`. | `grep -n '^export' webgpu-graph-algorithms/test/helpers/graphs.ts` |
+| `test/helpers/sabotage.ts` holds the `Mutation` record, the `SABOTAGE` registry keyed by `KernelId`, `SABOTAGE_PHASES` (`P1`, `P2`, `P3`, `P7`, `P4`), `SABOTAGE_EXEMPT` (`fill`, `fa2-to-scene`, `wcc-sample`), `sabotagedBody` and `withSabotage`; `test/sabotage/coverage.test.ts` asserts every non-exempt kernel of a listed phase has at least three rows and every `find` string occurs exactly once in the live body. | `webgpu-graph-algorithms/test/helpers/sabotage.ts`; `webgpu-graph-algorithms/test/sabotage/coverage.test.ts` lines 27-40 |
+| `test/kernel/bind-group-budget.test.ts` pins every kernel's storage-binding count in `STORAGE_COUNTS` (thirty rows, group 0's four slots included: `degree: 5`, `spmv-pull: 8`, `indirect-finalize: 2`); `test/helpers/override-matrix.ts` pins the compile-matrix case count per phase in `EXPECTED_CASES_BY_PHASE` (`P1: 53, P2: 148, P3: 157, P4: 40, P7: 69`); `test/kernel/registry.test.ts` pins every entry's bindings in `TABLE`. | the three files |
+| `test/helpers/leak-counter.ts` counts `createBuffer`, `destroy` and `mapAsync` per device (`LeakCounter.wrap`, `mapAsyncCalls`, `resetMapAsync`); `test/algorithms/pagerank.test.ts` line 304-313 and `test/algorithms/spectral.test.ts` line 385-400 settle the device self-check with `await verifyDevice(own)` before counting. | the three files |
+| `src/primitives/verify.ts` runs the self-check once per device at the first compute entry point (`assertDeviceComputes`), throws `E_DEVICE_INCORRECT` with no opt-out, and is awaited by `degree`, `pageRank`, `connectedComponents`, `runPowerIteration`, `calibrateLayout` and every layout `load()`. | `grep -rn assertDeviceComputes webgpu-graph-algorithms/src/` |
+| `src/types/accelerator.ts` `import type`s `AlgorithmAccelerator`, `BfsResultLike`, `SsspResultLike`, `BellmanFordResultLike`, `ScoresResultLike`, `HitsOptionsLike` and the rest from `@graphty/algorithms` and re-exports them; `createAccelerator` (`src/accelerator.ts`) carries three layout members, seven algorithm members (`pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents`, `weaklyConnectedComponents`), `release` and `dispose`, each algorithm member calling `ctx.assertReady()` then its driver. | the two files |
+| The seam (`algorithms/src/indexed/accelerator.ts`) declares `breadthFirstSearch(s, source, options?: BfsOptions)`, `sssp(s, source, options?: SsspOptions)`, `bellmanFord(s, source, options?: SsspOptions)` and `closenessCentrality(s, options?: HitsOptionsLike)`; `BfsOptions` is `{ maxDepth?: number }` (`algorithms/src/indexed/bfs.ts`), `SsspOptions` is `{ cutoff?: number, weights?: NumericVector }` (`algorithms/src/indexed/dijkstra.ts`), `HitsOptionsLike` is `{ maxIterations?, tolerance?, weighted? }`. The dispatcher `accelerated(acc)` forwards `breadthFirstSearch` and `sssp` (decorating the latter with `pathTo` / `pathEdges` through `walkPredArcs`) and has NO method for `bellmanFord` or `closenessCentrality`: those two are reachable only on the accelerator object itself until their CPU ports land. | `algorithms/src/indexed/accelerator.ts` lines 108-112, 173-181, 204-225 |
+| graphty-element's `BFSAlgorithm` calls `this.accelerated("breadthFirstSearch", "undirected")` then `dispatch.breadthFirstSearch(s, sourceIndex)` with no options and publishes each reached node's `level` and its position in `order`; `DijkstraAlgorithm` calls `dispatch.sssp(s, sourceIndex)` with no options and walks `pathTo` / `pathEdges`. `graphty-element/src/acceleration/narrow.ts` forwards exactly the six dispatcher members (`pageRank`, `sssp`, `breadthFirstSearch`, `connectedComponents`, `weaklyConnectedComponents`, `minimumSpanningTree`); `graphty-element/webgpu.ts` `forwardMembers` copies every callable member of the peer's accelerator by name. `graphty-element/test/browser/webgpu-layout.test.ts` already asserts a PageRank run on a real device reports `caveats.precision === "f32"`. | the four files |
+| `webgpu-graph-algorithms/docs/decisions/` holds G0, G1, G2, G3, G4, G5, G6-algorithms, G7 and `device-self-check.md`. There is no G8. | `ls webgpu-graph-algorithms/docs/decisions/` |
+| `benchmarks/results/gpu-linux-t4.json` and `nvidia-lovelace-driver580.json` hold sessions from the `webgpu` 0.4.0 runtime on Ubuntu 22.04.5 (G4.md header); the profiler's tick is 1,024 ns on Dawn and 100 us in Chromium (`src/kernel/profiler.ts` line 7). The runtime bump (`webgpu` above 0.4.0, Ubuntu 24.04) is NOT on master. | `grep -n '"webgpu"' webgpu-graph-algorithms/package.json` (`"webgpu": "0.4.0"`) |
 
-### 0.2 Entry criteria -- NOT met today, and exactly two things are missing
+### 0.2 Entry criteria -- MET
 
-P8 is the only unbuilt phase whose primitives are all already written; none of them are on master.
-
-| Criterion | Status | What it is, and where it is |
+| Criterion | Status | Where it is |
 | --- | --- | --- |
-| Design phase P4 merged (`exclusiveScan`, `histogram` / `countingSortByKey`, `radixSort`, `planIndirect`, the `indirect-finalize` kernel, the `degreeOrder()` tiers of `segmentedReduce`, windowed upload execution and the `node-limits` project) | **NOT MET** | branch `feat/gpu-p4`, worktree `.worktrees/gpu-p4`. P8 uses `exclusiveScan` for `compact`, `planIndirect` and the finalize kernel for every level's dispatch arguments, and the degree tiers for `advance`'s workgroup-per-row tier. |
-| Design phase P7 merged (`reverse()` and `edgeList()` residency with `packViews`, grid-stride dispatch, `src/primitives/core-shape.ts`, `src/algorithms/scope.ts`) | **NOT MET** | branch `feat/webgpu-spmv-wcc`, worktree `.worktrees/webgpu-spmv-wcc`; the plan is `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md`. P8 uses `reverse()` for the bottom-up sweep, `edgeList()` for Bellman-Ford, `algorithmScope()` for every driver, and `core-shape.ts` for the windowed core. |
-| Design phase M3 (the package in the monorepo, releasing) | **MET** | `webgpu-graph-algorithms/package.json` is a workspace project with its own `project.json`. |
-| Design's phase order admits P8 after P7 | **MET** | design 13 line 4224: `P7 (SpMV + WCC) -> P8 (frontier) -> P9 (BC + APSP)`. |
+| Design phase P4 merged (`exclusiveScan`, `histogram` / `countingSortByKey`, `radixSort`, `planIndirect`, the `indirect-finalize` kernel, the `degreeOrder()` tiers, windowed execution, the `node-limits` project) | **MET** (PR #16, 2026-09-21) | `src/primitives/scan.ts`, `radix-sort.ts`, `core-shape.ts`, `src/wgsl/indirect-finalize.wgsl.ts`; G4.md. P8 uses `exclusiveScan` for `compact`, `radixSort` for `order`, `planIndirect` and the finalize arithmetic for every level's dispatch arguments, and the degree tiers for `advance`'s workgroup-per-row tier. |
+| Design phase P7 merged (`reverse()` and `edgeList()` residency with `packViews`, grid-stride dispatch, `core-shape.ts`, `scope.ts`, the accelerator's algorithm members) | **MET** (2026-09-20) | `src/memory/residency.ts`, `src/algorithms/scope.ts`, `src/accelerator.ts`; G7.md. P8 uses `reverse()` for the bottom-up sweep, `edgeList()` for Bellman-Ford, `algorithmScope()` for every driver and `assertWholeCore` / `windowBinding` for the windowed core. |
+| The seam in `@graphty/algorithms` declares the four members with their option and result types | **MET** | `algorithms/src/indexed/accelerator.ts`; the conformance cross-compile `test/types/conformance.test-d.ts`. |
+| Design's phase order admits P8 after P7 | **MET** | design 13: `P7 (SpMV + WCC) -> P8 (frontier) -> P9 (BC + APSP)`. |
 
-**Do not start P8-T4 or later before both branches are on master.** P8-T1, P8-T2 and P8-T3 can be written and reviewed against master today: P8-T1 adds types only, P8-T2 adds CPU code and needs no device, and P8-T3's only dependency is `exclusiveScan`, so it can be written against the branch and its test run in the P4 worktree before P4 merges. Every other task compiles against helpers that do not exist on master and will fail at `tsc` if scheduled early.
+Nothing blocks P8-T4. The worktree is `.worktrees/gpu-p8` on branch `feat/gpu-p8`, master's tip.
 
 ### 0.3 Execution order
 
 ```
-merge feat/gpu-p4 (P4)  and  merge feat/webgpu-spmv-wcc (P7)   [in either order]
-        -> P8 (this plan)  -> P9 (betweenness + all-pairs)  -> P11 (structure + community)
-P8-T1, P8-T2, P8-T3 may be written against the branches before either merge.
+P4 (merged) and P7 (merged) -> P8 (this plan) -> P9 (betweenness + all-pairs) -> P11 (structure + community)
+P8-T1, P8-T2, P8-T3 first, in parallel; then the chain P8-T4 .. P8-T11; P8-T12 beside P8-T9 .. P8-T11;
+P8-T13; then P8-T14 and P8-T15 in parallel; P8-T16 any time after P8-T4; P8-T17 last.
 ```
 
 P9 and P11 both consume this phase's `Frontier` and `advance`: betweenness is a tagged multi-source form of the same forward sweep, and k-core peeling is the same queue with a different claim. Nothing in the remaining half of the design's algorithm work starts before P8 lands.
@@ -85,223 +116,384 @@ P9 and P11 both consume this phase's `Frontier` and `advance`: betweenness is a 
 | Id | Decision | Task |
 | --- | --- | --- |
 | PD-1 | The primitives ship as `prepareFrontier` / `prepareAdvance` / `prepareCompact` planners over a `ReduceScope`, the shape every existing primitive uses, not as the design's free functions | P8-T3, P8-T4, P8-T5 |
-| PD-2 | Nine tasks append to `src/kernels.ts` (P8-T3 through P8-T11); they are therefore sequential, and each adds its ids to `KernelId` and a `phase: "P8"` member to the entry union | P8-T4 |
+| PD-2 | Nine tasks append to `src/kernels.ts` (P8-T3 through P8-T11); they are therefore sequential, and each adds its ids to `KernelId`, a `phase: "P8"` member to the entry union (once, P8-T4), its `STORAGE_COUNTS` row, its `TABLE` row and its share of `EXPECTED_CASES_BY_PHASE.P8` | P8-T4 |
 | PD-3 | `frontier-finalize` is a NEW kernel beside `indirect-finalize`, because the selector reads several counters and writes several slots | P8-T4 |
-| PD-4 | Fourteen P8 kernel ids, their binding counts at or below design 8.10's with every difference named in its row, and the four closed unions they widen | P8-T4 |
+| PD-4 | Fifteen P8 kernel ids, their binding counts with group 0's four slots counted as the budget test counts them, every difference from design 8.10 named in its row, and the closed unions they widen | P8-T4 |
 | PD-5 | The BFS contract phase ships NO workgroup hash culling, so it needs no `dedupe`; the atomic claim already dedupes exactly. `dedupe` ships for the near-far queue | P8-T6 |
-| PD-6 | `depth` is `array<atomic<u32>>`; the claim is `atomicMin(&depth[v], level)` and the invocation that observes `INVALID_INDEX` is the winner. No compare-exchange, no retry loop | P8-T6 |
-| PD-7 | 32 levels per submit, one four-byte readback per submit; `MAX_LEVELS_PER_SUBMIT = 32` lands in `src/constants.ts` | P8-T6 |
-| PD-8 | `switches`, `levels`, `visitedCount` and the frontier degree sums are words of ONE counters block, read back with the result in one copy | P8-T4, P8-T8 |
+| PD-6 | `depth` is `array<atomic<u32>>`; the claim is `atomicMin(&depth[v], level + 1)` and the invocation that observes `INVALID_INDEX` is the winner. No compare-exchange, no retry loop | P8-T6 |
+| PD-7 | 32 levels per submit, one four-byte readback per submit; `MAX_LEVELS_PER_SUBMIT = 32` lands in `src/constants.ts`. The gate's `mapAsync` bound is read as `ceil(levels / 32) + 1`: one map per submit plus ONE for the result batch, which stages every result array into one slot | P8-T6 |
+| PD-8 | Every counter of the phase is a word of ONE 24-word storage block, `FrontierCounters`, whose byte layout P8-T4 fixes; `level` is the singular current level; `switches`, `visitedCount`, `levels` and the SSSP words are read back with the result in one copy | P8-T4, P8-T8 |
 | PD-9 | `dist` is `array<atomic<u32>>` holding f32 bit patterns under `atomicMin`, and the result is bitwise reproducible -- which is what makes the f32 oracle an exact check rather than a tolerance | P8-T9 |
 | PD-10 | The Dijkstra oracle ships in TWO precisions; `dist` is compared BITWISE against the f32 oracle and with a derived tolerance against the f64 one | P8-T2, P8-T9 |
-| PD-11 | `predArc` is a second pass over the settled frontier, never packed into the distance atomic | P8-T9 |
+| PD-11 | `predArc` is a second pass over the settled distances, never packed into the distance atomic | P8-T9 |
 | PD-12 | Bellman-Ford's signed relax uses a BOUNDED compare-exchange retry with a device "retry exhausted" flag, never an unbounded loop | P8-T10 |
-| PD-13 | Closeness, harmonic closeness and eccentricity are one driver over one bit-parallel multi-source sweep, 32 sources per `u32` word; the weighted case is repeated near-far | P8-T11 |
-| PD-14 | `order` and `parent` are set-deterministic, not bitwise; the run-twice check applies to `depth`, `dist` and every counter, and to `order` as a per-level set | P8-T6, P8-T17 |
+| PD-13 | Closeness is one driver over one bit-parallel multi-source sweep, 32 sources per `u32` word; the weighted case is one `sssp` per source reduced on the host | P8-T11 |
+| PD-14 | `depth`, `dist`, `parent`, `predArc`, `order` and every counter are bitwise reproducible: `order` is one stable radix sort of the node indices by `depth`, `parent` and `predArc` are the smallest attaining predecessor. Only the raw edge queue and the raw near / far piles are set-deterministic, and they are internal | P8-T6, P8-T17 |
 | PD-15 | Every new test file goes in a directory the `node` include glob already names | P8-T2 |
 | PD-16 | The accelerator members and the barrel export land in ONE task, after every driver is green; never a throwing stub | P8-T13 |
-| PD-17 | The `bfs` baselines are captured on BOTH runner classes before the benchmark commit lands | P8-T14 |
+| PD-17 | The `bfs` baselines are captured on BOTH runner classes before the benchmark commit lands; the reference card's figure is the contract and the T4's is recorded | P8-T14 |
 | PD-18 | The unvisited vertex list and the unvisited counters that Beamer's test is against are rebuilt exactly once per submit by a flags kernel plus `compact`, and maintained between rebuilds by subtraction inside `frontier-finalize` | P8-T8 |
+| PD-19 | The four public members conform to the seam TYPE FOR TYPE: `BfsOptions` (`maxDepth`), `SsspOptions` (`cutoff`, `weights`) for both `sssp` and `bellmanFord`, `HitsOptionsLike` for `closenessCentrality`; the result types are the design's `GpuBfsResult` / `GpuSsspResult` / `GpuBellmanFordResult` / `GpuScoresResult`, which satisfy the seam's `*Like` shapes. No option the plan invented is offered, and nothing named harmonic, eccentricity or Wasserman-Faust ships | P8-T1, P8-T13 |
+| PD-20 | The SSSP far pile is re-bucketed by the relax kernel's pass-through role, not by `compact`; the near pile is one pile (no 16 subpartitions); `dedupe` runs on both piles between rounds | P8-T9 |
+| PD-21 | Beamer's alpha is derived on the host as `max(1, floor(arcCount / nodeCount))` and passed as a uniform; there is no `BEAMER_ALPHA` constant. `BEAMER_BETA = 24` stays | P8-T8 |
+| PD-22 | The shortest-path delta is computed on the host from the weight vector the run actually uses (`options.weights` narrowed to f32, else the snapshot's column); a snapshot with no weight column has `flags.allWeightsOne` and never reaches the near-far path | P8-T9 |
+| PD-23 | The edge-queue overflow rule is a FUSED RETRY of the overflowing level, chosen by `frontier-finalize`'s edge-queue role, not a chunked re-dispatch; `edgeCountUnclamped` is the detector and `overflowLevels` the witness | P8-T4, P8-T5 |
+| PD-24 | `sssp-pred` is one body in two modes (`MODE` override: 0 = f32 distances, 1 = u32 depths) and two outputs (`P.predKind`: arc index or node index); it produces `predArc` for `sssp` and `bellmanFord` and `parent` for `breadthFirstSearch`, so no claim kernel writes a parent | P8-T6, P8-T9 |
+| PD-25 | `closenessCentrality` reads `weighted` (default: the snapshot's `flags.weighted`), and `maxIterations` / `tolerance` are accepted for the seam's type and documented as inapplicable to an exact traversal; `iterations` reports the source batches run, `converged` is always true | P8-T11 |
+| PD-26 | The BFS tuning that tests need (`direction`, `alpha`, `beta`, `fusedMax`, `edgeCapacity`, `levelsPerSubmit`, `onLevel`) is an `@internal` second entry point `bfsWithTuning` in `src/algorithms/bfs.ts`, never a public option | P8-T6 |
 
 ### 0.5 Departures from the design (all of them)
 
 | Id | Departure | Reason |
 | --- | --- | --- |
-| DEP-P8-A | Design 6 rows 4, 7 and 8 (lines 1571, 1574, 1575) spell the primitives as free functions taking a `CommandBatch` (`compact(batch, flags, count, out, outCount)`, `advance(batch, graph, frontier, functor, tiers?)`). This phase ships them as `prepareCompact` / `prepareAdvance` planners returning an object with a synchronous `record(pass, ...)`, the shape `prepareScan`, `prepareHistogram`, `prepareCountingSort` and `prepareRadixSort` already use. | Pipeline creation is asynchronous and compilation must happen once, not per level. Every primitive that landed after the design was written resolved this the same way, and `src/primitives/**` never imports `src/context.ts`, so a planner over a `ReduceScope` is the only shape that compiles. The `Frontier` class of design 6 row 7 keeps its class spelling; only the free functions change. Recorded by P8-T16 as `design/decisions/2026-09-23-frontier-primitives-are-planners.md`. |
-| DEP-P8-B | Design 8.4 line 2640 names "Davidson's ownership dedupe as the exact safety net behind any workgroup hash culling" among the BFS deliverables. This phase ships no hash culling in BFS and therefore no dedupe in the BFS contract. `dedupe` still ships, and the near-far queue of P8-T9 is its caller. | The atomic claim of PD-6 is already an exact filter: for one level, exactly one invocation observes `INVALID_INDEX` at `depth[v]` and exactly that one appends `v`, so the next vertex frontier carries no duplicate and nothing is left for a safety net to catch. Hash culling is a bandwidth optimisation on the EDGE queue that this phase does not attempt; if a later phase adds it, the dedupe it needs is already built and tested. The consequence for the binding budget, so the kernel table of P8-T4 and design 8.10 cannot be read as contradicting each other: `bfs-contract` declares NO `owner` binding, and its two counters are words of the one counters block, so the kernel is five storage buffers where design 8.10's row is seven. Five is inside the budget, and the descriptor test expects five. Recorded by P8-T16 as `design/decisions/2026-09-23-bfs-claims-instead-of-culling.md`. |
-| DEP-P8-C | Design 5.4 describes ONE finalize kernel that is also the selector. This phase keeps P4's `indirect-finalize` for the single-count case and adds a second kernel, `frontier-finalize`, for the multi-candidate case. | P4's body reads one count from `counters[P.countIndex]` and writes one 16-byte slot. The frontier selector reads the frontier count, the frontier degree sum, the unvisited count and the previous level's two values, evaluates two thresholds, and writes three or more slots per level, most of them `(0, 0, 1)`. Widening P4's body would make every grid dispatch pay for BFS's uniform block and would put P4's sabotage rows at risk. Two bodies, one rule: P8-T4 asserts the two kernels agree on the `(x, y, 1)` arithmetic for the same count, so they cannot drift. |
-| DEP-P8-D | Design 8.1's frontier-family row (line 2568) lists "k-core peeling" among the family's algorithms. This phase does not build it. | Design 8.8 (line 2799) and design 13 (row P11) both assign k-core to P11, and design 13 rule (b) forbids a phase absorbing a later phase's work. The 8.1 row describes which primitives k-core will use, not when it lands. No decision record: the design already says P11 twice and 8.1 says nothing that contradicts it. |
-| DEP-P8-E | Design 4.6 line 1292 says the frontier family is not windowed in v1 and raises `E_TOO_LARGE`; design 13 row P8 lists "window-aware advance (lifting the `E_TOO_LARGE`)" as a P8 deliverable. This phase lifts it, so line 1292's "(v1: `E_TOO_LARGE`)" is stale from P8 onward. | The two design statements are in tension and design 13 is the later and more specific one. P8-T12 lifts it for `advance` only; `dedupe` and the near-far queue keep the refusal, because a windowed pass cannot see the whole `colIdx` and the near-far split needs it. Recorded by P8-T16 as `design/decisions/2026-09-23-advance-is-window-aware.md`. |
+| DEP-P8-A | Design 6 rows 4, 7 and 8 spell the primitives as free functions taking a `CommandBatch` (`compact(batch, flags, count, out, outCount)`, `advance(batch, graph, frontier, functor, tiers?)`). This phase ships them as `prepareCompact` / `prepareAdvance` planners returning an object with a synchronous `record(pass, ...)`, the shape `prepareScan`, `prepareHistogram`, `prepareCountingSort` and `prepareRadixSort` already use. | Pipeline creation is asynchronous and compilation must happen once, not per level. Every primitive that landed after the design was written resolved this the same way, and `src/primitives/**` never imports `src/context.ts`, so a planner over a `ReduceScope` is the only shape that compiles. The `Frontier` class of design 6 row 7 keeps its class spelling; only the free functions change. Recorded by P8-T16 as `design/decisions/2026-09-24-frontier-primitives-are-planners.md`. |
+| DEP-P8-B | Design 8.4 names "Davidson's ownership dedupe as the exact safety net behind any workgroup hash culling" among the BFS deliverables. This phase ships no hash culling in BFS and therefore no dedupe in the BFS contract. `dedupe` still ships, and the near-far queue of P8-T9 is its caller. | The atomic claim of PD-6 is already an exact filter: for one level, exactly one invocation observes `INVALID_INDEX` at `depth[v]` and exactly that one appends `v`, so the next vertex frontier carries no duplicate and nothing is left for a safety net to catch. Hash culling is a bandwidth optimisation on the EDGE queue that this phase does not attempt. `bfs-contract` therefore declares no `owner` binding (P8-T4's table). Recorded by P8-T16 as `design/decisions/2026-09-24-bfs-claims-instead-of-culling.md`. |
+| DEP-P8-C | Design 5.4 describes ONE finalize kernel that is also the selector. This phase keeps P4's `indirect-finalize` for the single-count case and adds a second kernel, `frontier-finalize`, for the multi-candidate case. | P4's body reads one count from `counters[P.countIndex]` and writes one 16-byte slot. The frontier selector reads five counters, evaluates three thresholds, and writes seven slots per level, most of them `(0, 0, 1)`. Widening P4's body would make every grid dispatch pay for BFS's uniform block and would put P4's sabotage rows at risk. Two bodies, one rule: P8-T4 asserts the two kernels agree on the `(x, y, 1)` arithmetic for the same count, so they cannot drift. No record: the design's own text admits either shape. |
+| DEP-P8-D | Design 8.1's frontier-family row lists "k-core peeling" among the family's algorithms. This phase does not build it. | Design 8.8 and design 13 (row P11) both assign k-core to P11, and design 13 rule (b) forbids a phase absorbing a later phase's work. No decision record. |
+| DEP-P8-E | Design 4.6 says the frontier family is not windowed in v1 and raises `E_TOO_LARGE`; design 13 row P8 lists "window-aware advance (lifting the `E_TOO_LARGE`)" as a P8 deliverable. This phase lifts it for `advance` (and therefore for the three BFS kernels and `sssp-pred`); `sssp-relax`, `bf-relax` and `closeness-sweep` keep the refusal. | The two design statements are in tension and design 13 is the later and more specific one. The near-far relax and the bit-parallel sweep need the whole `colIdx` bound. Recorded by P8-T16 as `design/decisions/2026-09-24-advance-is-window-aware.md`. |
+| DEP-P8-F | Design 13 row P8 lists "closeness / harmonic / eccentricity" and design 3.3 spells `ClosenessOptions`; the seam declares `closenessCentrality(s, options?: HitsOptionsLike)` only. This phase ships closeness alone, with the seam's option type, and drops the harmonic and eccentricity reductions and the `sources` / `wassermanFaust` options from the kernel, the driver and the oracle. | Nothing can call them: neither the seam nor the element's capability list names them, and a kernel that accumulates two words nobody reads is a body to sabotage and a noise row to keep for no consumer. Widening the seam is a one-way door this phase does not take; a later port that needs them adds the two accumulators to `closeness-reduce`. Recorded by P8-T16 inside `design/decisions/2026-09-24-frontier-members-conform-to-the-seam.md`, together with PD-19. |
+| DEP-P8-G | Design 6 row 7's overflow rule re-dispatches `expand` for "the remaining source range" from a device-recorded `chunkStart`. This phase detects the overflow the same way (`edgeCountUnclamped > capacity`) but recovers by running the FUSED kernel over the same frontier instead of a chunked re-expansion (PD-23). | The edge queue is filled by workgroup-granular atomic reservations whose order is not the frontier's order, so "the remaining source range" after a clamped write is not a range of frontier indices: some higher-indexed workgroups fit and some lower-indexed ones did not. An exact chunked re-dispatch would need a per-level exclusive scan of the frontier's degrees. The fused kernel claims from the frontier directly, needs no queue, is exact, and only pays the load imbalance the two-phase form exists to avoid on the one level that overflowed. Recorded by P8-T16 as `design/decisions/2026-09-24-edge-queue-overflow-is-a-fused-retry.md`. |
 
 ### 0.6 Phase map
 
 | Phase | Where | Entry criteria | Deliverable | Gate | Size |
 | --- | --- | --- | --- | --- | --- |
-| P8 frontier family | `webgpu-graph-algorithms/` | design phases P4 and P7 merged (section 0.2) -- NEITHER met today | `Frontier`, `compact` / `dedupe`, `advance`, BFS in three forms with the device-side per-level choice, near-far SSSP, Bellman-Ford, closeness / harmonic / eccentricity, window-aware advance, four oracles, the accelerator members, the `bfs` benchmarks | design G8 | design 13 row P8 says 10-14 ed; this plan's seventeen tasks sum to 21.5 ed |
+| P8 frontier family | `webgpu-graph-algorithms/` (plus ONE test file in `graphty-element/test/browser/`) | design phases P4 and P7 merged (section 0.2) -- both met | `Frontier`, `compact` / `dedupe`, `advance`, BFS in three forms with the device-side per-level choice, near-far SSSP, Bellman-Ford, closeness, window-aware advance, four oracles, the four seam members, the `bfs` benchmarks, the append-session script | design G8 | design 13 row P8 says 10-14 ed; this plan's seventeen tasks sum to 22.5 ed |
 
 Critical path: P8-T4 -> P8-T5 -> P8-T6 -> P8-T7 -> P8-T8 -> P8-T9 -> P8-T11 -> P8-T13 -> P8-T17.
 
-**Something works early.** P8-T6 is the first task that ends with a correct, usable, benchmarkable traversal: after it, `breadthFirstSearch` returns exact depths on every fixture on both adapters. Everything after it either makes that traversal faster (P8-T7 fused, P8-T8 direction-optimizing), adds a weight to it (P8-T9, P8-T10), or runs it many times at once (P8-T11). If the phase has to be cut in half, P8-T1..T6 plus P8-T13..T17 is a shippable PR and P8-T7..T12 is the second one.
+**Something works early.** P8-T6 is the first task that ends with a correct, usable, benchmarkable traversal: after it, `breadthFirstSearch` returns exact depths, a deterministic `order` and a deterministic `parent` on every fixture on both adapters. Everything after it either makes that traversal faster (P8-T7 fused, P8-T8 direction-optimizing), adds a weight to it (P8-T9, P8-T10), or runs it many times at once (P8-T11). If the phase has to be cut in half, P8-T1..T6 plus P8-T13..T17 is a shippable PR (with `sssp` routed only through its `allWeightsOne` case absent, so the member is NOT shipped in that half) and P8-T7..T12 is the second one.
 
-**The three that can be done first, independently, and in parallel:** P8-T1 (types and constants), P8-T2 (the four CPU oracles and the traversal check helpers -- no GPU, no device, no branch dependency), P8-T3 (`compact` / `dedupe`, whose only dependency is P4's `exclusiveScan`).
+| Task | What it is | Heavy | ed |
+| --- | --- | --- | --- |
+| P8-T1 | the P8 result types, the seam option types re-exported, six constants | no | 0.5 |
+| P8-T2 | four f64 oracles, the f32 Dijkstra twin, the traversal check helpers, the oracle self-tests | no | 1.5 |
+| P8-T3 | `compact` and `dedupe`: three bodies, one planner file, the differential suite | yes | 1.5 |
+| P8-T4 | `Frontier`, the counters block, the multi-candidate args buffer, `frontier-finalize`, the registry opening | yes | 2.0 |
+| P8-T5 | `advance`: the block-mapped body, the workgroup-per-row tier, the subgroup twin, the edge queue and its overflow detector | yes | 3.0 |
+| P8-T6 | two-phase BFS: contract, the predecessor pass in depth mode, the `order` sort, the host loop, the differential suite -- **first working traversal** | yes | 2.5 |
+| P8-T7 | the fused expand-contract kernel, the device-side per-level selection and the overflow retry | yes | 1.0 |
+| P8-T8 | direction-optimizing: the unvisited list and its counters, the bitset, the bottom-up sweep over `reverse()`, Beamer's test, `switches` | yes | 2.5 |
+| P8-T9 | near-far SSSP: the f32-bit-pattern atomic distance, the near / far piles with the pass-through re-bucketing, `cutoff` and `weights`, the predecessor pass, the two routings | yes | 2.5 |
+| P8-T10 | Bellman-Ford over `edgeList()` with the bounded compare-exchange and the negative-cycle round | yes | 1.0 |
+| P8-T11 | closeness over the bit-parallel multi-source sweep | yes | 1.5 |
+| P8-T12 | window-aware advance, lifting the frontier family's `E_TOO_LARGE` | yes | 1.0 |
+| P8-T13 | four accelerator members, the barrel, the conformance lines, the element's seam test | no | 1.0 |
+| P8-T14 | the `bfs` benchmark group, the append-session script, two baselines, T-10 on both runner classes | no | 1.0 |
+| P8-T15 | the sabotage matrix (at least 45 mutations), the twins, the browser smoke, the `node-limits` tests | no | 1.5 |
+| P8-T16 | five decision records and the design index | no | 0.5 |
+| P8-T17 | the full green check on two adapters plus the browser, and the G8 record | no | 0.5 |
+| | **total** | | **22.5** |
 
-| Task | What it is | ed |
-| --- | --- | --- |
-| P8-T1 | the P8 result and option types, six constants | 0.5 |
-| P8-T2 | four f64 oracles, the f32 Dijkstra twin, the traversal check helpers, the oracle self-tests | 1.5 |
-| P8-T3 | `compact` and `dedupe`: two bodies, one planner file, the differential suite | 1.5 |
-| P8-T4 | `Frontier`, the counters block, the multi-candidate args buffer, `frontier-finalize`, the registry opening | 2.0 |
-| P8-T5 | `advance`: the block-mapped body, the workgroup-per-row tier, the subgroup twin, the chunked edge queue and its overflow rule | 3.0 |
-| P8-T6 | two-phase BFS: expand, contract, the host loop, the differential suite -- **first working traversal** | 2.0 |
-| P8-T7 | the fused expand-contract kernel and the device-side per-level selection | 1.0 |
-| P8-T8 | direction-optimizing: the unvisited list and its counters, the bitset, the bottom-up sweep over `reverse()`, Beamer's test, `switches` | 2.5 |
-| P8-T9 | near-far SSSP: the f32-bit-pattern atomic distance, the delta piles, the predecessor pass, the two routings | 2.5 |
-| P8-T10 | Bellman-Ford over `edgeList()` with the bounded compare-exchange and the negative-cycle round | 1.0 |
-| P8-T11 | closeness, harmonic closeness and eccentricity over the bit-parallel multi-source sweep | 1.5 |
-| P8-T12 | window-aware advance, lifting the frontier family's `E_TOO_LARGE` | 1.0 |
-| P8-T13 | six accelerator members, the barrel, three test files | 0.5 |
-| P8-T14 | the `bfs` benchmark group and two baselines, T-10 on both runner classes | 1.0 |
-| P8-T15 | the sabotage matrix (at least 42 mutations), the twins, the browser smoke, the `node-limits` tests | 1.5 |
-| P8-T16 | three decision records and the design index | 0.5 |
-| P8-T17 | the full green check on two adapters plus the browser, and the G8 record | 0.5 |
-| | **total** | **21.5** |
-
-21.5 ed against the design's 10-14. The gap is the same kind the P7 plan found and is worth knowing before scheduling, not after: the design cell was written before anyone enumerated fourteen WGSL bodies of which seven carry atomics and three carry a workgroup scan, four independent CPU references, roughly seventy test cases across six suites, forty-two sabotage mutations, and a benchmark group re-baselined on two runner classes. Nine of the seventeen tasks are on one sequential chain and each ends in a green check on both adapters, which design 13 rule (a) requires. The owner's call, in the pull request: accept 21.5 and let the design cell stand as the estimate it was, or split the phase at P8-T6 as section 0.6 describes. The tasks and their order are the same either way.
+22.5 ed against the design's 10-14. The gap is the same kind the P7 plan found and is worth knowing before scheduling, not after: the design cell was written before anyone enumerated fifteen WGSL bodies of which nine carry atomics and four carry a workgroup scan, four independent CPU references, roughly eighty test cases across seven suites, forty-five sabotage mutations, and a benchmark group re-baselined on two runner classes. Nine of the seventeen tasks are on one sequential chain and each ends in a green check on both adapters, which design 13 rule (a) requires. The owner's call, in the pull request: accept 22.5 and let the design cell stand as the estimate it was, or split the phase at P8-T6 as above. The tasks and their order are the same either way.
 
 ### 0.7 What P8 does NOT do
 
 - No betweenness centrality, no edge betweenness, no all-pairs shortest paths. Those are design phase P9 and they consume this phase's `Frontier` and `advance` unchanged.
 - No k-core, no triangle counting, no label propagation, no Louvain (DEP-P8-D).
 - No new primitive beyond `compact` / `dedupe`, `Frontier` and `advance` (design 13 rule (b)). In particular it does not build `cooToCsr`, which is P11's.
-- It does not touch `algorithms/`, `layout/`, `graphty-element/` or `graphty/`. The `AlgorithmAccelerator` it extends is the GPU package's own structural mirror in `src/types/accelerator.ts`.
+- No harmonic closeness, no eccentricity, no source list, no Wasserman-Faust switch (DEP-P8-F); no `direction`, `maxLevels`, `delta`, `maxRounds` or SSSP `weighted` option (PD-19). What a caller can pass is exactly what the seam's `BfsOptions`, `SsspOptions` and `HitsOptionsLike` spell.
+- It changes NO SOURCE in `algorithms/`, `layout/`, `graphty-element/` or `graphty/`. It adds one TEST file's worth of cases to `graphty-element/test/browser/webgpu-layout.test.ts` (P8-T13 Step 4), because the element's seam is what the members exist for and nothing else proves the path. The `AlgorithmAccelerator` it extends is the real one from `@graphty/algorithms`.
 - It does not change the layout slice. `src/layouts/**` is untouched.
+- It does not widen the seam: no member is added to `AlgorithmAccelerator`, `AcceleratedAlgorithms` or the element's `ALGORITHM_MEMBERS`. `bellmanFord` and `closenessCentrality` are therefore reachable on the accelerator object only, which is where the seam put them.
 
 ---
 
 ## Phase P8: the frontier family
 
-**Entry criteria:** design phases P4 and P7 merged to master (section 0.2). Work on branch `feat/webgpu-frontier` in a worktree (`git worktree add .worktrees/webgpu-frontier -b feat/webgpu-frontier master`, run by the owner -- a subagent must never run `git worktree`); every commit through `tools/commit-changes.sh` with scope `webgpu-graph-algorithms`; the phase lands with the `gpu` label so `gpu.yml` runs on it.
+**Entry criteria:** design phases P4 and P7 merged to master (section 0.2; both are). Work on branch `feat/gpu-p8` in the worktree `.worktrees/gpu-p8` (created by the owner -- a subagent must never run `git worktree`); every commit through `tools/commit-changes.sh` with scope `webgpu-graph-algorithms` (P8-T13 Step 4's element test: scope `graphty-element`; P8-T16: scope `docs`); the phase lands with the `gpu` label so `gpu.yml` runs on it.
 
 **Step 0 of the phase** (a fresh worktree has no `node_modules` and no `dist/`, both gitignored). Export the two path variables FIRST -- every Run line below begins `cd $WT` or `cd $PKG`, and they are shell variables, not prose placeholders:
 
-    export WT=/home/apowers/Projects/graphty-monorepo/.worktrees/webgpu-frontier
+    export WT=/home/apowers/Projects/graphty-monorepo/.worktrees/gpu-p8
     export PKG=$WT/webgpu-graph-algorithms
 
-then `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph-format:build`. Every later command reads `graph-format/dist/`.
+then `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run-many -t build --projects=graph-format,algorithms,layout`. Every later command reads `graph-format/dist/`, and the type-level tests resolve `@graphty/algorithms` and `@graphty/layout` through their `dist/`.
 
 **The local run environments** (`webgpu-graph-algorithms/CLAUDE.md`, used verbatim in every Run line):
 
     # NVIDIA (the hardware lane the parity and timing numbers come from)
-    export GPU_NV='LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware'
+    export GPU_NV='LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware XDG_RUNTIME_DIR=/tmp'
     # lavapipe (what CI's default lane runs)
     export GPU_LLVM='GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json XDG_RUNTIME_DIR=/tmp'
+
+The box is shared: run `uptime` before believing a red result that looks like a timeout, and write the load average next to every timing you record.
 
 ---
 
 ### Task P8-T1: The P8 result and option types, and the six constants
 
-**Independent. May run first, in parallel with P8-T2 and P8-T3, against master.**
+**Independent. May run first, in parallel with P8-T2 and P8-T3.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
 
-**Spec:** design 3.3 lines 798-801 (the four public signatures) and lines 821-823 (`GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult`); design 8.4 lines 2627-2723 (which option each algorithm carries); design 9.7 lines 3268-3270 (what the result must let a caller check).
+**Spec:** design 3.3 lines 807-810 (the four public signatures) and lines 830-832 (`GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult`); the seam `algorithms/src/indexed/accelerator.ts` lines 47-63 (`BfsResultLike`, `SsspResultLike`, `BellmanFordResultLike`) and 108-112 (the four members); `algorithms/src/indexed/bfs.ts` line 16 (`BfsOptions`); `algorithms/src/indexed/dijkstra.ts` line 32 (`SsspOptions`); design 9.7 (what the result must let a caller check).
 
 **Files:**
-- Create: `$PKG/src/types/traversal.ts` (the `Gpu*Result` shapes verbatim from design 3.3 and the GPU-side option records)
+- Create: `$PKG/src/types/traversal.ts` (the `Gpu*Result` shapes verbatim from design 3.3; the option types RE-EXPORTED from `@graphty/algorithms`, never redeclared)
+- Modify: `$PKG/src/types/accelerator.ts` (add `BfsOptions` and `SsspOptions` to the `import type` list from `@graphty/algorithms` and to the `export type` block, beside `HitsOptionsLike`)
 - Modify: `$PKG/src/constants.ts` (append the six P8 constants; never reorder the file)
+- Modify: `$PKG/src/kernel/prelude.ts` (interpolate `F32_INF_BITS` beside `U32_MAX`, the way `U32_MAX` and `MAX_WORKGROUPS_PER_DIM` are interpolated from `src/constants.ts`), `$PKG/test/kernel/wgsl.test.ts` (add `0x7F800000u` to the literal grep so no body types the constant)
 - Modify: `$PKG/test/device/constants.test.ts` (pin the six new values)
 - NOT touched: `src/index.ts` and `test/index.test.ts` (P8-T13 owns the barrel), `src/kernels.ts` (P8-T4)
 
-**Interfaces produced:** `GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult`, `GpuClosenessResult`, `BfsOptions`, `SsspOptions`, `BellmanFordOptions`, `ClosenessOptions` from `src/types/traversal.js`.
+**Interfaces produced:** `GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult` from `src/types/traversal.js`; `BfsOptions`, `SsspOptions` re-exported from `src/types/accelerator.js`; `MAX_LEVELS_PER_SUBMIT`, `FUSED_FRONTIER_MAX`, `FRONTIER_CANDIDATES`, `BEAMER_BETA`, `SSSP_DELTA_FACTOR`, `F32_INF_BITS` from `src/constants.js`.
 
-- [ ] **Step 1: The result types, spelled from design 3.3 lines 821-823 without change**
+- [ ] **Step 1: The failing test first**
 
-The three result interfaces are the design's text verbatim. `depth`, `parent` and `order` are `U32` with `INVALID_INDEX` for unreached and for the root's parent; `dist` is `F32` with `+Infinity` for unreached; `switches` is the device counter of design 8.4, so a test can assert a direction change happened. `GpuClosenessResult` has no design line of its own, because design 3.3 routes `closenessCentrality` through `GpuScoresResult`: use `GpuScoresResult` and add nothing, so a later harmonic or eccentricity caller reads the same shape. Write the JSDoc of each field to say what the sentinel means -- a consumer who reads `parent[root] === 4294967295` and guesses is the failure this prevents.
+Add to `$PKG/test/device/constants.test.ts` one `it` pinning `MAX_LEVELS_PER_SUBMIT === 32`, `FUSED_FRONTIER_MAX === 4096`, `FRONTIER_CANDIDATES === 7`, `BEAMER_BETA === 24`, `SSSP_DELTA_FACTOR === 32`, `F32_INF_BITS === 0x7f800000`, and one asserting `F32_INF_BITS === new Uint32Array(new Float32Array([Infinity]).buffer)[0]` (the constant is derived, not remembered).
 
-- [ ] **Step 2: The option records**
+Run: `cd $PKG && pnpm exec vitest run --project=node test/device/constants.test.ts`
+Expected: FAIL with `SyntaxError: The requested module '../../src/constants.js' does not provide an export named 'MAX_LEVELS_PER_SUBMIT'` (vitest prints the first missing name).
 
-`BfsOptions` carries `direction?: "top-down" | "auto"` (default `"auto"`: the device chooses per level; `"top-down"` disables the bottom-up candidate entirely and exists so a test can compare the two paths), `maxLevels?: number` and `weighted?: boolean` is ABSENT -- BFS is unweighted by definition and a caller who wants weights calls `sssp`. `SsspOptions` carries `delta?: number` (default: the device computes `32 * avgWeight / avgDegree`, design 8.4) and `weighted?: boolean`. `BellmanFordOptions` carries `maxRounds?: number`. `ClosenessOptions` carries `harmonic?: boolean`, `wassermanFaust?: boolean` and `sources?: readonly number[]`. Every member is `readonly` and spelled `?: T | undefined`, because `tsconfig.strict-consumer.json` compiles with `exactOptionalPropertyTypes`.
+- [ ] **Step 2: The result types, spelled from design 3.3 lines 830-832 without change**
 
-- [ ] **Step 3: The six constants**
+```ts
+export interface GpuBfsResult {
+    readonly depth: U32;          // INVALID_INDEX = unreached
+    readonly parent: U32;         // INVALID_INDEX = the source and unreached; otherwise the SMALLEST node index u with depth[u] + 1 == depth[v] and an arc u -> v (PD-24)
+    readonly order: U32;          // length visitedCount: the reached nodes grouped by depth, ascending by index within a depth (PD-14)
+    readonly visitedCount: number;
+    readonly levels: number;      // max depth + 1; 1 for a source with no out-arcs
+    readonly switches: number;    // direction changes (a device counter, design 8.4); 0 on a top-down-only run
+}
+export interface GpuSsspResult {
+    readonly dist: F32;           // +Infinity = unreached (and beyond `cutoff`)
+    readonly predArc: U32;        // INVALID_INDEX = the source and unreached; otherwise the SMALLEST arc index a with colIdx[a] == v and fround(dist[src(a)] + w(a)) == dist[v]
+    readonly reachedCount: number;
+}
+export interface GpuBellmanFordResult extends GpuSsspResult {
+    readonly hasNegativeCycle: boolean;   // when true, dist and predArc are the values of the last round, not shortest paths
+}
+```
+
+`GpuBfsResult` satisfies the seam's `BfsResultLike` (`depth`, `parent`, `order`, `visitedCount`) with two extra fields; `GpuSsspResult` satisfies `SsspResultLike` (`dist: NumericVector` admits `F32`; `predArc: U32`); `GpuBellmanFordResult` satisfies `BellmanFordResultLike`. Closeness returns the existing `GpuScoresResult` of `src/types/algorithms.ts` (`scores: F32`, `iterations`, `converged`, `precision: "f32"`), which satisfies `ScoresResultLike`. Write the JSDoc of each field to say what the sentinel means -- a consumer who reads `parent[root] === 4294967295` and guesses is the failure this prevents.
+
+- [ ] **Step 3: PD-19 -- the option types are the seam's, re-exported, and nothing else**
+
+`src/types/traversal.ts` declares NO option type. `src/types/accelerator.ts` adds `BfsOptions` and `SsspOptions` to its `import type { ... } from "@graphty/algorithms"` list and to the `export type { ... }` block, exactly as `HitsOptionsLike` travels today, so the package's public surface spells them and `test/types/conformance.test-d.ts` can hold them equal to the seam's. The public functions of design 3.3 therefore read:
+
+```ts
+breadthFirstSearch(ctx, s, source, options?: BfsOptions & GpuRunOptions): Promise<GpuBfsResult>     // BfsOptions = { maxDepth?: number }
+sssp(ctx, s, source, options?: SsspOptions & GpuRunOptions): Promise<GpuSsspResult>                  // SsspOptions = { cutoff?: number, weights?: NumericVector }
+bellmanFord(ctx, s, source, options?: SsspOptions & GpuRunOptions): Promise<GpuBellmanFordResult>
+closenessCentrality(ctx, s, options?: HitsOptionsLike & GpuRunOptions): Promise<GpuScoresResult>     // HitsOptionsLike = { maxIterations?, tolerance?, weighted? }
+```
+
+What each option means on the device: `maxDepth` is the level cap, exactly the CPU port's -- a node at depth `maxDepth` is reached and not expanded (`algorithms/src/indexed/bfs.ts` line 43), so `visitedCount` includes it; `cutoff` is the CPU port's `dv <= cutoff` guard on every relaxation (`dijkstra.ts` line 121), so a node whose shortest distance exceeds it is unreached; `weights` is a per-ARC vector `arcCount` long that REPLACES the snapshot's column for this run (narrowed to `Float32Array` on the host when it is not one already, the way `personalizedPageRank` narrows an f64 vector) and is scanned once on the host for the routing flags the snapshot's own column carries in `s.flags`; `weighted` on closeness is PD-25's. `GpuRunOptions.dest` is `depth` for BFS, `dist` for SSSP and Bellman-Ford, `scores` for closeness.
+
+Explicitly NOT offered, because the seam does not spell them and a member the dispatcher forwards options into blindly must not read a key the CPU port ignores: `direction` (in-neighbour traversal is the snapshot's `transpose()`; Beamer's per-level direction is the device's choice, PD-26 keeps a test seam for it), `maxLevels` (that is `maxDepth`), `delta` (derived, PD-22), a BFS or SSSP `weighted` flag (the weight column and `weights` decide), `maxRounds` (Bellman-Ford's bound is `n - 1`, the algorithm's own), `harmonic`, `wassermanFaust`, `sources` (DEP-P8-F). Widening the seam is a one-way door this phase does not take.
+
+- [ ] **Step 4: The six constants**
 
 Append to `$PKG/src/constants.ts`, each with a JSDoc naming its design line:
 
 | Constant | Value | Why |
 | --- | --- | --- |
-| `MAX_LEVELS_PER_SUBMIT` | 32 | design 8.4: 32 levels per submit, one four-byte readback per submit (PD-7) |
-| `FUSED_FRONTIER_MAX` | 4096 | design 8.4 and 6 row 8: the fused expand-contract variant's threshold, Merrill's "fleeting iterations" |
-| `BEAMER_ALPHA` | 14 | design 8.4 gives `alpha = m / n` as the rule and Beamer's 14 / 24 as the published pair; the default is the computed ratio and this is the fallback for a graph with no nodes, where `m / n` is undefined. 14 is that pair's alpha, as 24 in the row below is its beta |
-| `BEAMER_BETA` | 24 | design 8.4: switch back when `next * 24 < unvisited` |
-| `SSSP_DELTA_FACTOR` | 32 | design 8.4: `delta = 32 * avgWeight / avgDegree` |
-| `NEAR_SUBPARTITIONS` | 16 | design 8.4: "a two-level near queue with 16 subpartitions" |
+| `MAX_LEVELS_PER_SUBMIT` | 32 | design 8.4: 32 levels per submit, one four-byte readback per submit (PD-7); also the SSSP rounds per submit and the closeness levels per submit |
+| `FUSED_FRONTIER_MAX` | 4096 | design 8.4 and 6 row 8: the fused expand-contract variant's threshold, Merrill's "fleeting iterations"; the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX` |
+| `FRONTIER_CANDIDATES` | 7 | the indirect slots per level (P8-T4 Step 4: expand, contract, fused, fill-bits, bitset-build, bottom-up, fused-retry); the args buffer is `MAX_LEVELS_PER_SUBMIT x FRONTIER_CANDIDATES x 16` bytes |
+| `BEAMER_BETA` | 24 | design 8.4: switch back to top-down when `frontierCount * 24 < unvisitedCount` and the frontier is shrinking |
+| `SSSP_DELTA_FACTOR` | 32 | design 8.4: `delta = 32 * avgWeight / avgDegree` (PD-22) |
+| `F32_INF_BITS` | `0x7f800000` | the bit pattern of `+Infinity`, the unreached sentinel of `dist` (PD-9); interpolated into the prelude as `const F32_INF_BITS: u32 = 2139095040u;` so no body types it |
 
-Do not add a constant for `+Infinity`'s bit pattern: `0x7F800000` belongs in the prelude beside `INVALID_INDEX`, and P8-T9 puts it there.
+There is deliberately no `BEAMER_ALPHA` (PD-21: alpha is derived from the graph) and no `NEAR_SUBPARTITIONS` (PD-20: the near pile is one pile). The `atomicCompareExchangeWeak` retry bound of P8-T10 is a module-level `const` of `src/algorithms/bellman-ford.ts`, as `MAX_STEPS` is of `components.ts`.
 
-Run: `cd $PKG && pnpm exec vitest run --project=node test/device/constants.test.ts && pnpm exec tsc --noEmit -p tsconfig.json`
-Expected: PASS and clean. knip reports the eight exports of `src/types/traversal.ts` as unused; that is expected until P8-T13 exports them through the barrel, and `knip.config.ts` must NOT be edited to silence it.
+Run: `cd $PKG && pnpm exec vitest run --project=node test/device/constants.test.ts test/kernel/wgsl.test.ts && pnpm exec tsc --noEmit -p tsconfig.json`
+Expected: PASS and clean. knip reports the three result types of `src/types/traversal.ts` and the two re-exports as unused; that is expected until P8-T13 exports them through the barrel, and `knip.config.ts` must NOT be edited to silence it.
 
-- [ ] **Step 4: Commit (owner)** -- `feat(webgpu-graph-algorithms): the frontier family's result types and constants`.
+- [ ] **Step 5: Commit (owner)** -- `feat(webgpu-graph-algorithms): the frontier family's result types and constants`.
 
 ---
 
 ### Task P8-T2: The four CPU oracles and the traversal check helpers
 
-**Independent. Needs NO GPU and no device. May run first, in parallel with P8-T1 and P8-T3, against master.**
+**Independent. Needs NO GPU and no device. May run first, in parallel with P8-T1 and P8-T3.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
 
-**Spec:** design 11.3 row "Algorithm differential" lines 3489-3490 (the oracle rule: independent, index-based, never derived from the kernel, and kept even after `indexed.*` exists as a second oracle, because a GPU tested only against the CPU package shares its design and its bugs); design 11.9 item 3 (tolerances are derived, not chosen); design 13 row P8 (the three named oracles: FIFO BFS, binary-heap Dijkstra, Bellman-Ford).
+**Spec:** design 11.3 row "Algorithm differential" (the oracle rule: independent, index-based, never derived from the kernel, and kept even after `indexed.*` exists as a second oracle, because a GPU tested only against the CPU package shares its design and its bugs); design 11.9 item 3 (tolerances are derived, not chosen); design 13 row P8 (the three named oracles: FIFO BFS, binary-heap Dijkstra, Bellman-Ford).
 
 **Files:**
-- Create: `$PKG/test/oracle/traversal.ts` (FIFO BFS, binary-heap Dijkstra in f64 AND f32, Bellman-Ford, and the closeness / harmonic / eccentricity reduction over the BFS rows)
+- Create: `$PKG/test/oracle/traversal.ts` (FIFO BFS, binary-heap Dijkstra in f64 AND f32, Bellman-Ford, and the closeness reduction over the BFS rows)
 - Create: `$PKG/test/helpers/traversal-check.ts` (the invariant checkers every differential test calls)
 - Create: `$PKG/test/oracle/traversal.test.ts` (the oracles check THEMSELVES against analytic answers)
+- Consumes: `test/helpers/graphs.ts` (`pathEdges`, `starEdges`, `gridEdges`, `completeEdges`, `snapshotOf`), `@graphty/graph-format` (`INVALID_INDEX`, the snapshot's `rowPtr` / `colIdx` / `weights`)
 - NOT touched: anything under `src/`
 
-**Interfaces produced:** `bfsOracle(csr, source)`, `dijkstraOracle(csr, source, precision: "f64" | "f32")`, `bellmanFordOracle(csr, source)`, `closenessOracle(csr, options)`, and from the check helper `expectLevelConsistent(result, csr, source)`, `expectOrderGroupedByLevel(result)`, `expectTriangleInequality(dist, csr)`, `expectPredArcAttains(result, csr)`.
+**Interfaces produced:** `bfsOracle(s, source, maxDepth?)`, `dijkstraOracle(s, source, precision: "f64" | "f32", options?: { cutoff?, weights? })`, `bellmanFordOracle(s, source, weights?)`, `closenessOracle(s, weighted)`, and from the check helper `expectLevelConsistent(result, s, source)`, `expectOrderGroupedByLevel(result)`, `expectTriangleInequality(dist, s, weights?)`, `expectPredArcAttains(dist, predArc, s, weights?)`, `expectSmallestPredecessor(...)`.
 
-- [ ] **Step 1: The oracles, written from the algorithm, never from a kernel**
+- [ ] **Step 1: The failing test first**
 
-Each takes the CSR arrays as plain typed arrays (`rowPtr`, `colIdx`, `weights`) and a source index, and returns plain arrays. Tens of lines each; do not import anything from `src/`.
+Create `test/oracle/traversal.test.ts` with the cases of Step 4 importing from `../oracle/traversal.js` and `../helpers/traversal-check.js`.
 
-- FIFO BFS: a `Uint32Array` queue, `depth` filled with the invalid sentinel, one pass per pop. It returns `depth`, `parent` (the FIRST discoverer, so the oracle's parent is a valid one and the test compares by the level rule, not by equality) and `order`.
-- Binary-heap Dijkstra: a standard array-backed heap. **PD-10: it takes a `precision` argument.** With `"f64"` it accumulates in JavaScript numbers. With `"f32"` it rounds every partial sum through `Math.fround` at each relaxation, which is exactly what one f32 add in the kernel does. The f32 run is the one the GPU must match bitwise (see P8-T9 PD-9); the f64 run is the one that says how far f32 has drifted, which is the noise-floor measurement design 11.9 item 3 requires.
-- Bellman-Ford: `n - 1` full relaxation rounds over every arc plus one more round that sets the negative-cycle flag if anything still improves.
-- Closeness: run the FIFO BFS from each source in the list, then reduce the rows -- `sum d` for closeness, `sum 1/d` for harmonic, `max d` for eccentricity -- with unreached vertices excluded from the sum and counted for the Wasserman-Faust scaling.
+Run: `cd $PKG && pnpm exec vitest run --project=node test/oracle/traversal.test.ts`
+Expected: FAIL with `Error: Failed to load url ../oracle/traversal.js` (the module does not exist yet).
 
-- [ ] **Step 2: The check helpers, which are what makes a nondeterministic result testable**
+- [ ] **Step 2: The oracles, written from the algorithm, never from a kernel**
 
-Design 6 line 1599 fixes the determinism policy: `depth` and `dist` are exact and reproducible, `parent` and `order` are set-deterministic only. So the differential tests never compare `parent` or `order` to the oracle's; they check properties:
+Each takes a `GraphSnapshot` (its `rowPtr`, `colIdx`, `weights`, `nodeCount`, `arcCount`) and a source index, and returns plain typed arrays. Tens of lines each; do not import anything from `src/`.
 
-- `expectLevelConsistent`: for every reached `v` that is not the source, `depth[parent[v]] === depth[v] - 1` AND an arc from `parent[v]` to `v` exists in the CSR. For the source, `parent === INVALID_INDEX`. For every unreached `v`, both are the sentinel.
-- `expectOrderGroupedByLevel`: `depth[order[i]]` is non-decreasing in `i`, `order` is a permutation of the reached set, and its length is `visitedCount`.
-- `expectTriangleInequality`: over every arc `(u, v, w)`, `dist[v] <= dist[u] + w` within one unit in the last place of `dist[v]`. This is the invariant design 11.3 names and it catches a relaxation the kernel dropped without needing an oracle at all.
-- `expectPredArcAttains`: `predArc[v]` names an arc `(u, v, w)` with `Math.fround(dist[u] + w) === dist[v]`.
+- FIFO BFS: a `Uint32Array` queue, `depth` filled with `INVALID_INDEX`, one pass per pop, honouring `maxDepth` as `indexed.breadthFirstSearch` does (a node at `maxDepth` is reached, not expanded). It returns `depth`, `parent` as the FIRST discoverer (the FIFO parent, which the level rule accepts but PD-24's smallest-predecessor rule does not equal: the test compares `parent` by `expectSmallestPredecessor`, not by equality) and `order` in FIFO order (which the GPU's sorted `order` does not equal either: the test compares `order` by `expectOrderGroupedByLevel` plus set equality per level).
+- Binary-heap Dijkstra: a standard array-backed heap. **PD-10: it takes a `precision` argument.** With `"f64"` it accumulates in JavaScript numbers. With `"f32"` it rounds every partial sum through `Math.fround` at each relaxation, which is exactly what one f32 add in the kernel does. It honours `cutoff` (`dv <= cutoff`) and a `weights` override. The f32 run is the one the GPU must match bitwise (P8-T9 PD-9); the f64 run is the one that says how far f32 has drifted, which is the noise-floor measurement design 11.9 item 3 requires.
+- Bellman-Ford: `n - 1` full relaxation rounds over every arc in f32 (`Math.fround` per add, so the tie rule of `expectPredArcAttains` holds bitwise) plus one more round that sets the negative-cycle flag if anything still improves; returns `dist` and the flag.
+- Closeness: run the FIFO BFS from every source (or the f32 Dijkstra when `weighted`), then `score[s] = reached_s / sumDist_s` with `reached_s` the nodes at distance `> 0`, `0` when nothing is reached, then the Wasserman-Faust scaling `* reached_s / (n - 1)` -- the formula P8-T11 Step 1 fixes as the parity target. Return `Float64Array`.
 
-- [ ] **Step 3: The oracles check themselves**
+- [ ] **Step 3: The check helpers, which are what makes a set-deterministic intermediate testable**
 
-`test/oracle/traversal.test.ts` runs each oracle against answers computable by hand, so a bug in the oracle is caught before it is trusted to judge a kernel: on `pathEdges(n)` the depths are `0..n-1` and closeness is the known harmonic sum; on `starEdges(k)` every leaf is at depth 2 from another leaf and eccentricity is 2; on `gridEdges(w, h)` the depth of `(x, y)` from the corner is `x + y`; on `completeEdges(n)` every non-source depth is 1; on a planted negative cycle Bellman-Ford's flag is true and on the same graph with the cycle's weight raised it is false. Also assert what PD-10 exists for: on a path of 2,000 unit-ish random weights the f32 and f64 Dijkstra results differ, and record the relative spread -- that number is the noise floor P8-T9 derives its tolerance from and P8-T17 records.
+Design 6's determinism policy fixes what is bitwise and what is a set; PD-14 makes every PUBLIC array bitwise, so the helpers check the properties the CPU oracle cannot supply by equality:
+
+- `expectLevelConsistent(result, s, source)`: for every reached `v` that is not the source, `depth[parent[v]] === depth[v] - 1` AND an arc from `parent[v]` to `v` exists in the CSR. For the source, `parent === INVALID_INDEX`. For every unreached `v`, both are the sentinel.
+- `expectSmallestPredecessor(result, s)`: `parent[v]` is the SMALLEST `u` over all arcs `u -> v` with `depth[u] + 1 === depth[v]` (PD-24), computed by a plain loop over every arc. This is what makes `parent` bitwise reproducible and it is asserted, not assumed.
+- `expectOrderGroupedByLevel(result)`: `depth[order[i]]` is non-decreasing in `i`, `order[i] < order[i + 1]` within one depth (PD-14), `order` is a permutation of the reached set, and its length is `visitedCount`.
+- `expectTriangleInequality(dist, s, weights?)`: over every arc `(u, v, w)`, `dist[v] <= fround(dist[u] + w)`. This is the invariant design 11.3 names and it catches a relaxation the kernel dropped without needing an oracle at all.
+- `expectPredArcAttains(dist, predArc, s, weights?)`: `predArc[v]` names an arc `(u, v, w)` with `Math.fround(dist[u] + w) === dist[v]`, and it is the SMALLEST such arc index (PD-24); the source and the unreached carry `INVALID_INDEX`.
+
+- [ ] **Step 4: The oracles check themselves**
+
+`test/oracle/traversal.test.ts` runs each oracle against answers computable by hand, so a bug in the oracle is caught before it is trusted to judge a kernel: on `pathEdges(n)` the depths are `0..n-1` and closeness of an end node is `(n-1) / (n(n-1)/2) * 1 = 2/n`; on `starEdges(k)` every leaf is at depth 2 from another leaf; on `gridEdges(w, h)` the depth of `(x, y)` from the corner is `x + y`; on `completeEdges(n)` every non-source depth is 1 and every closeness is 1; with `maxDepth: 2` on the star from a leaf `visitedCount === k + 1` and nothing is at depth 3; on a planted negative cycle Bellman-Ford's flag is true and on the same graph with the cycle's weight raised it is false; `cutoff` on a weighted path leaves the nodes beyond it at `+Infinity`. Also assert what PD-10 exists for: on a path of 2,000 weights drawn uniformly from `[0.1, 10]` (seeded) the f32 and f64 Dijkstra results differ, and PRINT the relative spread as `[traversal-oracle] f32-vs-f64 path2000 rel=<x>` -- that number is the noise floor P8-T9 derives its tolerance from and P8-T15 Step 6 records.
 
 Run: `cd $PKG && pnpm exec vitest run --project=node test/oracle/traversal.test.ts`
 Expected: PASS, with no device acquired (the file imports nothing from `test/setup/gpu.ts`). If the run prints the `[gpu] adapter` line, something imported a device helper and the task's independence is gone.
 
-- [ ] **Step 4: Commit (owner)** -- `test(webgpu-graph-algorithms): the traversal oracles and the level-consistency checks`.
+- [ ] **Step 5: Commit (owner)** -- `test(webgpu-graph-algorithms): the traversal oracles and the level-consistency checks`.
 
 ---
 
 ### Task P8-T3: The `compact` and `dedupe` primitive
 
-**Independent of P8-T1 and P8-T2. Its only dependency is P4's `exclusiveScan`, so it can be written and run in the P4 worktree before P4 merges.**
+**Independent of P8-T1 and P8-T2. Its only dependency is P4's `exclusiveScan`, which is on master.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
 
-**Spec:** design 6 row 4 line 1571 (both signatures and the race-free two-dispatch ownership rule); design 11.3 row "Primitive differential" (the adversarial sizes).
+**Spec:** design 6 row 4 line 1579 (both signatures and the race-free two-dispatch ownership rule); design 11.3 row "Primitive differential" (the adversarial sizes); `design/decisions/2026-09-20-compact-lands-with-the-frontier-phase.md`.
 
 **Files:**
-- Create: `$PKG/src/wgsl/compact-scatter.wgsl.ts`, `$PKG/src/wgsl/dedupe-claim.wgsl.ts`, `$PKG/src/wgsl/dedupe-filter.wgsl.ts` (three bodies, not four -- Step 1 says why there is no separate flagging kernel)
+- Create: `$PKG/src/wgsl/compact-scatter.wgsl.ts`, `$PKG/src/wgsl/dedupe-claim.wgsl.ts`, `$PKG/src/wgsl/dedupe-filter.wgsl.ts` (three bodies; Step 3 says why there is no flagging kernel)
 - Create: `$PKG/src/primitives/compact.ts`
-- Modify: `$PKG/src/kernels.ts` (four entries; the first of the six appends -- see PD-2 in P8-T4, and if P8-T4 has already landed, append after its ids)
-- Create: `$PKG/test/oracle/compact.ts`, `$PKG/test/primitives/compact.test.ts`
-- Modify: `$PKG/test/helpers/override-matrix.ts` (the new override axes)
+- Modify: `$PKG/src/kernels.ts` (THREE entries and `COMPACT_PARAMS`; the first of the NINE appends of PD-2 -- if P8-T4 has already landed, append after its ids)
+- Modify: `$PKG/test/kernel/bind-group-budget.test.ts` (`"compact-scatter": 5, "dedupe-claim": 3, "dedupe-filter": 4`), `$PKG/test/kernel/registry.test.ts` (three `TABLE` rows), `$PKG/test/kernel/wgsl-compile.test.ts` (three pins of 1), `$PKG/test/helpers/override-matrix.ts` (P8's share: 3 -- the `P8` key is created by whichever of P8-T3 / P8-T4 lands first)
+- Create: `$PKG/test/oracle/compact.ts`, `$PKG/test/primitives/compact.test.ts`, `$PKG/test/sabotage/compact.test.ts`
+- Modify: `$PKG/test/helpers/sabotage.ts` (nine rows under the three ids; `COMPACT_TEST`)
+- Consumes: `ReduceScope` and `prepareScan` / `ScanPlanner` (`src/primitives/scan.ts` lines 29-41: `record(pass, src, count, out)` returns the total's `{ binding, index }`), `plan1d`, `kernelSpec`, `Kernel`, `Binding`, `UniformBlock`; `testReduceScope` (`test/helpers/segmented-reduce.ts` line 73), `bindingOf` / `readU32` / `uploadBuffer` (`test/helpers/device.ts`), `expectBitwiseEqual` (`test/helpers/matchers.ts`), `gpuScale` (`test/setup/gpu.ts`)
 
-**Interfaces produced:** `prepareCompact(scope: ReduceScope): Promise<CompactPlanner>` with `record(pass, { flags, count, out, outCount })` and `recordDedupe(pass, { queue, count, owner, out, outCount })`.
+**Interfaces produced:** `COMPACT_PARAMS` (`CompactParams`, uniform, 16 B: `count` @0, `outIndex` @4, `countIndex` @8, `pad0` @12); `prepareCompact(scope: ReduceScope): Promise<CompactPlanner>` with `record(pass, { queue, flags, count, out, outCount, outIndex })` (order-preserving; `count` host-known) and `recordDedupe(pass, { queue, count, countIndex, counters, owner, out, outCount, outIndex })` (last-writer-wins; the entry count is the device word `counters[countIndex]` clamped to `count`, or `count` itself when `countIndex` is `U32_MAX`); `compactOracle(queue, flags)`, `dedupeOracle(queue)`.
 
-- [ ] **Step 1: The compaction, which is a scan with two dispatches around it**
+- [ ] **Step 1: The failing test first**
 
-`compact` is flag, scan, scatter, and only the last two need a kernel of their own. The flags binding is one `u32` per input element, 0 or 1, and both callers in this phase (the near pile and the far pile of P8-T9) write their flags in the kernel that produced the queue, so nothing here needs a predicate-evaluating pass. The planner records `exclusiveScan(flags) -> offsets` with its total, then `compact-scatter`: `if (flags[i] != 0u) { out[offsets[i]] = queue[i]; }` and one lane writes the total into `outCount`. There is deliberately no separate flagging kernel: the design's signature takes `flags` already materialised, and a body nothing calls is dead code knip will flag.
+Create `test/primitives/compact.test.ts` (the shape of `test/primitives/scan.test.ts`: `testReduceScope(ctx)`, a pass on a plain encoder, `readU32`) with the cases of Step 5.
 
-- [ ] **Step 2: The dedupe, and why it is two dispatches**
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/compact.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/primitives/compact.js`.
 
-Design 6 row 4 is explicit and the reason matters more than the code: a plain store read back in the SAME dispatch is a data race and a dynamic error under WGSL 6.5.7. So `dedupe-claim` does `atomicStore(&owner[queue[i]], i)` for every entry and ends; `dedupe-filter`, a separate dispatch, does `if (atomicLoad(&owner[queue[i]]) == i) { append queue[i]; }`. Between two dispatches the relaxed atomics make last-writer-wins well defined, and exactly one index per distinct vertex survives. `owner` is `array<atomic<u32>>` sized `n` and must be reset between calls -- reuse the existing `fill` kernel for that rather than adding a zeroing body, and note in the JSDoc that the reset is the caller's, recorded into the same pass.
+- [ ] **Step 2: The struct and the bindings**
 
-- [ ] **Step 3: The oracle and the differential suite**
+`COMPACT_PARAMS = UniformBlock.define("CompactParams", [["count", "u32"], ["outIndex", "u32"], ["countIndex", "u32"], ["pad0", "u32"]])`. `outIndex` exists because the count a caller wants written is usually a WORD of a larger block (P8-T8 and P8-T11 bind the `FrontierCounters` block as `outCount`), and a four-byte binding at a 256-unaligned offset is rejected by `Kernel.bind`; so `outCount` is always bound whole and indexed. `countIndex` exists because `dedupe`'s callers (the SSSP piles of P8-T9) only know their entry count on the device: when it is not `U32_MAX` the two dedupe kernels read `min(counters[countIndex], P.count)` -- the device word clamped to the capacity `P.count` -- and `compact-scatter`, whose callers all know `n`, reads `P.count` alone.
 
-`test/oracle/compact.ts` is `Array.prototype.filter` for compact and a `Set` walk keeping first occurrences for dedupe. The suite runs both at sizes 0, 1, 255, 256, 257, 4097 and `4 * gpuScale()`, with: all flags 0, all flags 1, alternating, a single 1 at the last index; for dedupe, all-distinct, all-identical, and a queue where the same vertex appears 1,000 times. Compact's output is order-preserving and therefore bitwise reproducible -- assert the run-twice bitwise check on it. Dedupe's SURVIVING SET is fixed but WHICH index survives is last-writer-wins, so assert set equality against the oracle and assert the run-twice check on the output's sorted form, not its raw form. Getting that distinction wrong here is the most likely way this task ships a flaky test.
+| Id | Bindings (group, slot, name, kind, type) | Storage count |
+| --- | --- | --- |
+| `compact-scatter` | (1,0) `queue` ro `array<u32>`; (1,1) `flags` ro `array<u32>`; (1,2) `offsets` ro `array<u32>`; (1,3) `out` rw `array<u32>`; (1,4) `outCount` rw `array<u32>`; (2,0) `P` `CompactParams` | 5 |
+| `dedupe-claim` | (1,0) `queue` ro `array<u32>`; (1,1) `owner` rw `array<atomic<u32>>`; (1,2) `counters` ro `array<atomic<u32>>` (the count source); (2,0) `P` | 3 |
+| `dedupe-filter` | (1,0) `queue` ro `array<u32>`; (1,1) `owner` ro `array<atomic<u32>>`; (1,2) `out` rw `array<u32>`; (1,3) `outCount` rw `array<atomic<u32>>` (the count source AND the output word: one block, two indices); (2,0) `P` | 4 |
 
-Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/compact.test.ts` then the same with `$GPU_NV`.
-Expected: PASS on both. `u32` outputs bitwise identical between the two adapters (design 11.5).
+None binds the graph group, so `bind-group-budget.test.ts` pins 5, 3 and 4 and the compile matrix pins one case each; `needs: []`, `phase: "P8"`.
 
-- [ ] **Step 4: Commit (owner)** -- `feat(webgpu-graph-algorithms): the compact and dedupe primitive`.
+- [ ] **Step 3: The three bodies**
+
+`compact` is flag, scan, scatter, and only the last two need a kernel of their own. The flags binding is one `u32` per input element, 0 or 1, written by the kernel that produced the queue (`bfs-unvisited-flags` in P8-T8, `closeness-sweep` in P8-T11), so nothing here needs a predicate-evaluating pass; a body nothing calls is dead code knip flags. The total is the last offset plus the last flag, so no extra binding reaches into the scan's scratch:
+
+```ts
+export const compactScatterWgsl = /* wgsl */ `
+@compute @workgroup_size(WG)
+fn compact_scatter(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let i = linear_id(wid, lid.x);
+    if (i == 0u) { outCount[P.outIndex] = offsets[P.count - 1u] + flags[P.count - 1u]; }   // the exclusive scan's total; the planner never dispatches for count 0
+    if (i >= P.count) { return; }                                                          // no barrier follows
+    if (flags[i] != 0u) { out[offsets[i]] = queue[i]; }
+}
+`;
+```
+
+`dedupe` is two dispatches, and the reason matters more than the code: a plain store read back in the SAME dispatch is a data race and a dynamic error under WGSL 6.5.7. `dedupe-claim` does `atomicStore(&owner[queue[i]], i)` for every entry and ends; `dedupe-filter`, a separate dispatch, keeps the entry iff `atomicLoad(&owner[queue[i]]) == i`. Between two dispatches the relaxed atomics make last-writer-wins well defined, and exactly one index per distinct vertex survives. `owner` is `array<atomic<u32>>` sized `n` and needs NO reset between calls: a stale word is only ever read by a lane whose vertex a current lane has just overwritten, so garbage and stale values are unreachable -- say so in the JSDoc, because the design's row implies a reset and a `fill` over `n` per round is the dispatch that saving buys.
+
+```ts
+export const dedupeClaimWgsl = /* wgsl */ `
+@compute @workgroup_size(WG)
+fn dedupe_claim(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let i = linear_id(wid, lid.x);
+    var count = P.count;
+    if (P.countIndex != U32_MAX) { count = min(atomicLoad(&counters[P.countIndex]), P.count); }   // a device-side count, clamped to the capacity
+    if (i >= count) { return; }
+    atomicStore(&owner[queue[i]], i);
+}
+`;
+export const dedupeFilterWgsl = /* wgsl */ `
+var<workgroup> sh: array<u32, WG>;
+var<workgroup> base: u32;
+
+@compute @workgroup_size(WG)
+fn dedupe_filter(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let i = linear_id(wid, lid.x);
+    var count = P.count;
+    if (P.countIndex != U32_MAX) { count = min(atomicLoad(&outCount[P.countIndex]), P.count); }   // the same count source as the claim
+    var keep = 0u;
+    var v = 0u;
+    if (i < count) { v = queue[i]; keep = select(0u, 1u, atomicLoad(&owner[v]) == i); }   // guarded work into locals
+    sh[lid.x] = keep;
+    workgroupBarrier();                                                                   // every lane, unconditionally (3.5 rule 1)
+    for (var s = 1u; s < WG; s = s * 2u) {                                                // Hillis-Steele inclusive scan of keep
+        var t = 0u;
+        if (lid.x >= s) { t = sh[lid.x - s]; }
+        workgroupBarrier();
+        sh[lid.x] = sh[lid.x] + t;
+        workgroupBarrier();
+    }
+    let inclusive = sh[lid.x];
+    if (lid.x == WG - 1u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }         // ONE atomic per workgroup: the block's aggregate
+    workgroupBarrier();
+    if (keep == 1u) { out[base + inclusive - 1u] = v; }
+}
+`;
+```
+
+The scan and the barrier placement are `scan-block`'s, verbatim, so the sabotage rows of P4 have a twin here and a reader can diff the two.
+
+- [ ] **Step 4: The planner**
+
+`prepareCompact` compiles the three kernels and `prepareScan(scope)` once. `record(pass, { queue, flags, count, out, outCount, outIndex })`: validates `count` (a non-negative integer below 2^32), `queue.size >= 4 count`, `flags.size >= 4 count`, `out.size >= 4 count` (`E_INVALID_ARGUMENT { argument }`), then for `count === 0` writes nothing and records ONE `fill` of the single word `outCount[outIndex]`... which is a four-byte write at an unaligned offset and impossible; so for `count === 0` the planner records nothing and DOCUMENTS that `outCount[outIndex]` keeps its prior value -- every caller in this phase zeroes its counters block before the pass (P8-T4's `reset`, P8-T8's `writeBuffer`). Otherwise: `offsets = scope.scratch(4 * count, "compact/offsets")`, `scan.record(pass, flags, count, offsets)`, then `compact-scatter` over `plan1d(count, wg, caps)` with `P = { count, outIndex }`. `recordDedupe(pass, { queue, count, countIndex, counters, owner, out, outCount, outIndex })`: `owner.size >= 4 n` is the caller's promise (the planner cannot see `n`); records `dedupe-claim` then `dedupe-filter` over `plan1d(count)` when `countIndex` is `U32_MAX` (nothing for `count === 0`), and over the caller's indirect slot otherwise (`recordDedupeIndirect(pass, args, claimSlot, filterSlot, ...)`, the form P8-T9 uses, where `count` is the capacity the device word is clamped to). Both expose `lastDispatches` (scan levels + 1; 2).
+
+- [ ] **Step 5: The oracle and the differential suite**
+
+`test/oracle/compact.ts` is `Array.prototype.filter` for compact and a `Set` walk keeping first occurrences for dedupe. The suite runs both at sizes 0, 1, 255, 256, 257, 4097 and `4 * gpuScale() * 65536`, with: all flags 0, all flags 1, alternating, a single 1 at the last index; for dedupe, all-distinct, all-identical, and a queue where the same vertex appears 1,000 times, with `owner` NEVER cleared between the cases of one context (that is the no-reset claim of Step 3, tested). Every comparison reads back the `out` buffer and the `outCount` word by their own bindings. Compact's output is order-preserving and therefore bitwise reproducible -- assert the run-twice bitwise check on `out`. Dedupe's SURVIVING SET is fixed but WHICH index survives is last-writer-wins, so assert set equality against the oracle and assert the run-twice check on the output's sorted form, not its raw form. Getting that distinction wrong here is the most likely way this task ships a flaky test. Add the `outIndex` and `countIndex` cases: bind a 24-word buffer as `outCount` / `counters` with `outIndex: 7` and assert word 7 alone changed; write 1,000 into word 1 of that buffer, pass `countIndex: 1` with `count: 4097` over a 4,097-entry queue and assert only the first 1,000 entries were considered; pass `count: 500` with the same word and assert the clamp (500 considered).
+
+- [ ] **Step 6: The sabotage rows (three per kernel, design 13 rule (f))**
+
+Append to `SABOTAGE` (`const COMPACT_TEST = "test/primitives/compact.test.ts";`):
+
+```ts
+    "compact-scatter": Object.freeze([
+        { name: "flag-test-inverted", find: "if (flags[i] != 0u) { out[offsets[i]] = queue[i]; }", replace: "if (flags[i] == 0u) { out[offsets[i]] = queue[i]; }", minFactor: 10, test: COMPACT_TEST },
+        { name: "total-from-offsets-only", find: "offsets[P.count - 1u] + flags[P.count - 1u]", replace: "offsets[P.count - 1u]", minFactor: 10, test: COMPACT_TEST },
+        { name: "last-element-skipped", find: "if (i >= P.count) { return; }", replace: "if (i >= P.count - 1u) { return; }", minFactor: 10, test: COMPACT_TEST },
+    ]),
+    "dedupe-claim": Object.freeze([
+        { name: "claims-own-slot", find: "atomicStore(&owner[queue[i]], i);", replace: "atomicStore(&owner[i], i);", minFactor: 10, test: COMPACT_TEST },
+        { name: "claims-zero", find: "atomicStore(&owner[queue[i]], i);", replace: "atomicStore(&owner[queue[i]], 0u);", minFactor: 10, test: COMPACT_TEST },
+        { name: "last-entry-unclaimed", find: "if (i >= count) { return; }", replace: "if (i >= count - 1u) { return; }", minFactor: 10, test: COMPACT_TEST },
+    ]),
+    "dedupe-filter": Object.freeze([
+        { name: "keeps-everything", find: "select(0u, 1u, atomicLoad(&owner[v]) == i)", replace: "1u", minFactor: 10, test: COMPACT_TEST },
+        { name: "inclusive-off-by-one", find: "out[base + inclusive - 1u] = v;", replace: "out[base + inclusive] = v;", minFactor: 10, test: COMPACT_TEST },
+        { name: "aggregate-from-lane-zero", find: "if (lid.x == WG - 1u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }", replace: "if (lid.x == 0u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }", minFactor: 10, test: COMPACT_TEST },
+    ]),
+```
+
+`test/sabotage/compact.test.ts`: the find-once loop over the three ids and, per row, `withSabotage` running the 4097-entry alternating case (compact) and the 1,000-repeat case (dedupe) and asserting the bitwise / set report's worst `>= minFactor`. Watch each go red once.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/compact.test.ts test/sabotage/compact.test.ts test/sabotage/coverage.test.ts test/kernel/registry.test.ts test/kernel/bind-group-budget.test.ts test/kernel/wgsl-compile.test.ts` then the same with `$GPU_NV`.
+Expected: PASS on both. `u32` outputs bitwise identical between the two adapters (design 11.5); every row reports `Infinity` (a bitwise or set miss).
+
+- [ ] **Step 7: Commit (owner)** -- `feat(webgpu-graph-algorithms): the compact and dedupe primitive`.
 
 ---
 
@@ -311,150 +503,343 @@ Expected: PASS on both. `u32` outputs bitwise identical between the two adapters
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
 
-**Spec:** design 6 row 7 line 1574 (the class, the two vertex queues, the counters, the args buffer and the overflow rule); design 5.4 lines 1464-1487 (the finalize kernel, the selector role, `k x candidates` slots, and the measured fact that a same-pass write-then-indirect-read works on Dawn); design 8.10 line 2846 (`BFS finalizeArgs` binds two storage buffers: the counters block and the args).
+**Spec:** design 6 row 7 (the class, the two vertex queues, the counters, the args buffer and the overflow rule); design 5.4 lines 1473-1494 (the finalize kernel, the selector role, `k x candidates` slots, and the measured fact that a same-pass write-then-indirect-read works on Dawn); design 8.10 ("BFS `finalizeArgs`" binds two storage buffers: the counters block and the args).
 
 **Files:**
-- Create: `$PKG/src/primitives/frontier.ts` (the `Frontier` class and `prepareFrontier`)
+- Create: `$PKG/src/primitives/frontier.ts` (the `Frontier` class, `FrontierScope`, `prepareFrontier`)
 - Create: `$PKG/src/wgsl/frontier-finalize.wgsl.ts`
-- Modify: `$PKG/src/kernels.ts` (**PD-2 and PD-3 and PD-4 live here**)
-- Modify: `$PKG/src/constants.ts` is NOT touched (P8-T1 did it)
-- Create: `$PKG/test/primitives/frontier.test.ts`
-- Modify: `$PKG/test/helpers/override-matrix.ts`
+- Modify: `$PKG/src/kernels.ts` (**PD-2, PD-3, PD-4 and PD-8 live here**: `FRONTIER_COUNTERS`, `FRONTIER_PARAMS`, the `frontier-finalize` entry, `"P8"` in the `phase` union)
+- Modify: `$PKG/src/algorithms/scope.ts` (`AlgorithmScope` gains `indirect(byteLength, label): GPUBuffer`, one line over `lease.acquire` with `STORAGE | INDIRECT | COPY_DST | COPY_SRC`, the usage `src/layouts/repulsion-grid.ts` line 241 already uses for its `hubArgs`)
+- Modify: `$PKG/test/kernel/bind-group-budget.test.ts` (`"frontier-finalize": 2`), `$PKG/test/kernel/registry.test.ts` (one `TABLE` row), `$PKG/test/kernel/wgsl-compile.test.ts` (one pin of 1), `$PKG/test/helpers/override-matrix.ts` (`EXPECTED_CASES_BY_PHASE.P8`: created here at 1 if P8-T3 has not landed, else raised by 1), `$PKG/test/kernel/struct-block.test.ts` (the two new blocks' offsets)
+- Create: `$PKG/test/primitives/frontier.test.ts`, `$PKG/test/sabotage/frontier.test.ts`
+- Modify: `$PKG/test/helpers/sabotage.ts` (three rows; `FRONTIER_TEST`)
+- Consumes: `UniformBlock.define` with `{ layout: "storage" }` (`src/kernel/struct-block.ts` line 177; the pattern of `FA2_PARTIAL` in `src/kernels.ts` line 214), `Kernel.dispatchIndirect(pass, bound, args, slot, dynamicOffsets)` and `INDIRECT_ARGS_STRIDE = 16` (`src/kernel/kernel.ts` lines 26, 284), `planIndirect` (`src/kernel/dispatch.ts` line 160), `indirectFinalizeWgsl` (`src/wgsl/indirect-finalize.wgsl.ts`, the arithmetic copied verbatim), `test/helpers/indirect.ts` (`INDIRECT_COUNTS`, `expectedIndirectArgs`), the constants of P8-T1
 
-- [ ] **Step 1: PD-2 -- how nine tasks share one registry file**
+**Interfaces produced:** `FRONTIER_COUNTERS` (storage block, 96 B), `FRONTIER_PARAMS` (uniform, 64 B), `FrontierScope extends ReduceScope { indirect(byteLength, label): GPUBuffer }`, `class Frontier`, `prepareFrontier(scope, n, arcCount, edgeCapacity?): Promise<FrontierPlanner>` with `frontier`, `recordFinalize(pass, role, level, fields)`; the slot numbering `SLOT_EXPAND = 0`, `SLOT_CONTRACT = 1`, `SLOT_FUSED = 2`, `SLOT_FILL_BITS = 3`, `SLOT_BITSET = 4`, `SLOT_BOTTOM_UP = 5`, `SLOT_FUSED_RETRY = 6`, and the word indices `W.frontierCount = 0` ... exported from `frontier.ts` as one frozen record so no driver types a number.
 
-`src/kernels.ts` declares `KernelId` as a closed union and freezes `REGISTRY`. Nine tasks of this phase append to it -- P8-T3, P8-T4, P8-T5, P8-T6, P8-T7, P8-T8, P8-T9, P8-T10 and P8-T11 -- and that is why that run is sequential and why no two of them may execute at once. The rule for each: add the new ids to the END of the `KernelId` union, add the entries to the END of `REGISTRY`, add `"P8"` to the `phase` union of `KernelEntry` ONCE (this task does it), and never renumber or rename an existing id. `test/kernel/bind-group-budget.test.ts` and the compile matrix pick the entries up from the registry with no further edit.
+- [ ] **Step 1: The failing test first**
 
-- [ ] **Step 2: PD-4 -- the fourteen P8 kernel ids and their binding counts**
+Create `test/primitives/frontier.test.ts` with the cases of Step 7.
 
-State the whole table here so every later task has one place to check its count against design 8.10, and so the descriptor test of design 11.3 has a per-kernel expectation rather than a promise.
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/frontier.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/primitives/frontier.js`.
 
-| Id | Task | Storage bindings | Design 8.10 row |
-| --- | --- | --- | --- |
-| `compact-scatter` | P8-T3 | queue, flags, offsets, out, outCount (5) | -- (a primitive) |
-| `dedupe-claim` | P8-T3 | queue, owner (2) | -- |
-| `dedupe-filter` | P8-T3 | queue, owner, out, outCount (3) | -- |
-| `frontier-finalize` | P8-T4 | counters, args (2) | "BFS `finalizeArgs`", 2 |
-| `advance-expand` | P8-T5 | rowPtr, colIdx, frontierIn, counters, edgeQueue (5) | "BFS expand", 7 -- the frontier count, both edge counts and the chunk cursor are words of `counters` |
-| `bfs-contract` | P8-T6 | edgeQueue, counters, depth, parent, frontierOut (5) | "BFS contract", 7 -- no `owner` (DEP-P8-B), and the two counts are words of `counters` |
-| `bfs-fused` | P8-T7 | rowPtr, colIdx, frontierIn, counters, depth, parent, frontierOut (7) | "BFS fused expand-contract", 8 -- it reads `frontierCount` and appends into `nextFrontierCount`, both words of the one block |
-| `bfs-bottom-up` | P8-T8 | revRowPtr, revColIdx, unvisitedList, counters, frontierBits, depth, parent, frontierOut (8) | "BFS bottom-up", 8 -- `unvisitedCount` is a word of `counters`; the sweep emits a vertex list instead of design 8.10's `nextBits`, which is what keeps it at 8 (P8-T8 Step 2) |
-| `bfs-bitset-build` | P8-T8 | frontierIn, counters, frontierBits (3) | -- (the vertex list to bitset hand-off) |
-| `bfs-unvisited-flags` | P8-T8 | rowPtr, revRowPtr, depth, flags, counters (5) | -- (the unvisited list's producer, P8-T8 Step 1) |
-| `sssp-relax` | P8-T9 | rowPtr, colIdx, weights, dist, pred, nearIn, nearOut, farQueue (8) | "SSSP near-far relax", 8 |
-| `sssp-pred` | P8-T9 | rowPtr, colIdx, weights, dist, pred, frontier (6) | "SSSP predecessor pass", 6 |
-| `bf-relax` | P8-T10 | edgeSrc, edgeDst, edgeWeight, dist, pred, flags (6) | -- (design 8.4's edge-parallel relax) |
-| `closeness-reduce` | P8-T11 | depthK, counts, out (3) | -- |
+- [ ] **Step 2: PD-2 and PD-4 -- how nine tasks share one registry file, and the fifteen kernels**
 
-The SSSP relax row is at exactly 8 and stays there only because the queue counters and `delta` share the first 16 bytes of the `nearOut` buffer as an offset binding, which design 8.10 states and P8-T9 must honour.
+`src/kernels.ts` declares `KernelId` as a closed union and freezes `REGISTRY`. Nine tasks of this phase append to it -- P8-T3, P8-T4, P8-T5, P8-T6, P8-T7, P8-T8, P8-T9, P8-T10 and P8-T11 -- and that is why that run is sequential and why no two of them may execute at once. The rule for each: add the new ids to the END of the `KernelId` union, add the entries to the END of `REGISTRY`, add `"P8"` to the `phase` union of `KernelEntry` ONCE (this task does it), add the id's row to `STORAGE_COUNTS`, `TABLE` and the compile pins, raise `EXPECTED_CASES_BY_PHASE.P8` by the number the generator reports, and never renumber or rename an existing id.
 
-Two rules make this table an expectation the descriptor test can assert rather than a copy of design 8.10. First, EVERY frontier counter -- the frontier count, the next frontier's count, the degree sums, the edge counts, the chunk cursor, the level, the unvisited numbers -- is a word of the one `FrontierCounters` block of Step 3, so a kernel that touches any of them binds `counters` once and a row that design 8.10 spells with two or three separate counters is one or two bindings SHORTER here. Storage counters cannot be split into per-word bindings even if that were wanted: `Kernel.bind` rejects a binding whose offset is not a multiple of 256 bytes (`src/kernel/kernel.ts`, `STORAGE_ALIGN`), and a four-byte word is not 256-aligned. Second, `bfs-contract` has no `owner` binding at all (DEP-P8-B). A count BELOW the design's is inside the budget and is not a departure needing a record; the last column names the design's number so every difference is visible in one place. The descriptor test asserts the count in this table's third column.
+The table below is the expectation `test/kernel/bind-group-budget.test.ts` asserts (its third column IS the `STORAGE_COUNTS` value), counted the way that test counts: group 0's four slots are four storage bindings whenever a kernel binds the graph. Design 8.10 counted two graph slots (`rowPtr`, `colIdx`); the last column names its number so every difference is visible in one place.
+
+| Id | Task | Storage bindings | Count | Design 8.10 row and why it differs |
+| --- | --- | --- | --- | --- |
+| `compact-scatter` | P8-T3 | queue, flags, offsets, out, outCount | 5 | -- (a primitive) |
+| `dedupe-claim` | P8-T3 | queue, owner, counters | 3 | -- |
+| `dedupe-filter` | P8-T3 | queue, owner, out, outCount | 4 | -- |
+| `frontier-finalize` | P8-T4 | counters, args | 2 | "BFS `finalizeArgs`", 2 |
+| `advance-expand` | P8-T5 | rowPtr, colIdx, weights\|dummy, perm\|dummy, frontierIn, counters, edgeQueue | 7 | "BFS expand", 7 -- the frontier count, both edge counts and the degree sum are words of `counters`; the two dummies replace the design's two count buffers |
+| `bfs-contract` | P8-T6 | edgeQueue, counters, depth, frontierOut | 4 | "BFS contract", 7 -- no `owner` (DEP-P8-B), no `parent` (PD-24), the two counts are words of `counters` |
+| `sssp-pred` | P8-T6 | rowPtr, colIdx, weights\|dummy, perm\|dummy, dist, pred | 6 | "SSSP predecessor pass", 6 -- no `frontier`: it runs over every row; in `MODE 1` `dist` is the depth array and `pred` receives node indices (PD-24) |
+| `bfs-fused` | P8-T7 | rowPtr, colIdx, weights\|dummy, perm\|dummy, frontierIn, counters, depth, frontierOut | 8 | "BFS fused expand-contract", 8 -- exactly at the budget; `parent` is NOT written here (PD-24), which is what makes room for the two dummies |
+| `bfs-bottom-up` | P8-T8 | rowPtr, colIdx, weights\|dummy, perm\|dummy (the REVERSE core through `coreOfView`), sweepIn, counters, depth, frontierOut | 8 | "BFS bottom-up", 8 -- `unvisitedList` and `frontierBits` are two regions of the one read-only `sweepIn` buffer (P8-T8 Step 2); the sweep emits a vertex list, never a second bitset |
+| `bfs-bitset-build` | P8-T8 | frontierIn, counters, bits | 3 | -- (the vertex list to bitset hand-off) |
+| `bfs-unvisited-flags` | P8-T8 | outDegree, inDegree, depth, flags, counters | 5 | -- (the unvisited list's producer; the two degree VIEWS, not the graph group) |
+| `sssp-relax` | P8-T9 | rowPtr, colIdx, weights, perm\|dummy, dist, counters, queueIn, queueOut | 8 | "SSSP near-far relax", 8 -- no `pred` (PD-11); the piles' counts, the threshold and the delta are words of `counters`; `nearOut` and `farOut` are the two halves of ONE `queueOut` buffer (P8-T9 Step 2), which is what keeps the kernel at eight with the perm dummy |
+| `bf-relax` | P8-T10 | edgeSrc, edgeDst, edgeToArc, weights, dist, flags | 6 | -- (design 8.4's edge-parallel relax over `edgeList()`) |
+| `closeness-sweep` | P8-T11 | rowPtr, colIdx, weights\|dummy, perm\|dummy, frontierList, counters, bits, perSource | 8 | -- (the bit-parallel claim design 8.4 describes and the 2026-09-23 table omitted) |
+| `closeness-reduce` | P8-T11 | counters, perSource, bits, frontierList | 4 | -- (its seed role writes the batch's frontier) |
+
+Two rules make this table an expectation the descriptor test can assert rather than a copy of design 8.10. First, EVERY counter of the phase -- the frontier count, the next frontier's count, the degree sums, the edge counts, the level, the unvisited numbers, the SSSP piles' counts and threshold -- is a word of the one `FrontierCounters` block of Step 3, so a kernel that touches any of them binds `counters` once and a row that design 8.10 spells with two or three separate counters is one or two bindings SHORTER here. Storage counters cannot be split into per-word bindings even if that were wanted: `Kernel.bind` rejects a binding whose offset is not a multiple of 256 bytes (`STORAGE_ALIGN`), and a four-byte word is not 256-aligned. Second, no claim kernel writes a parent (PD-24), which is what keeps `bfs-fused` and `bfs-bottom-up` at eight with the four graph slots. A count BELOW the design's is inside the budget and is not a departure needing a record.
+
+The compile-matrix pins (`test/kernel/wgsl-compile.test.ts`), by the generator's rule ("defaults, the product of the declared overrides, and the `USE_PERM` / `HAS_WEIGHTS` pair when the kernel binds group 0"): a kernel without group 0 and without overrides pins 1; a group-0 kernel without declared overrides pins 5 (`degree`'s count); `advance-expand` with `TIER {0, 1}` pins 9 (as `spmv-pull`'s tier axis scales); `sssp-pred` with `MODE {0, 1}` pins 9. `EXPECTED_CASES_BY_PHASE.P8` is the sum the generator prints at each append, pinned then; the builder writes the number the test reports, never a guess, and this paragraph is the cross-check.
 
 - [ ] **Step 3: The counters block, and the kernel that writes each word (PD-8)**
 
-One `UniformBlock.define("FrontierCounters", [...], { layout: "storage" })`, the same storage-mode block pattern `FA2_PARTIAL` uses. Sixteen `u32` words, in byte order: `frontierCount`, `nextFrontierCount`, `frontierDegreeSum`, `prevFrontierCount`, `prevDegreeSum`, `unvisitedCount`, `unvisitedDegreeSum`, `unvisitedListLen`, `edgeCount`, `edgeCountUnclamped`, `chunkStart`, `level`, `visitedCount`, `switches`, `direction`, `done`.
+One `UniformBlock.define("FrontierCounters", [...], { layout: "storage" })`, the same storage-mode block pattern `FA2_PARTIAL` uses. Twenty-four `u32` words, 96 bytes, byte offset = 4 x index:
 
-The block is what the HOST decodes the readback with -- field names and byte offsets, one copy. A kernel that updates a word updates it atomically, so it declares its binding as `array<atomic<u32>>` and indexes by the field's byte offset divided by four: a struct of plain `u32` cannot be the target of an `atomicAdd`, and that is a compile error worth expecting rather than discovering. Nothing here is a uniform, because a uniform cannot be written on the device and the whole point of design 5.4 is that the host never sees these values inside a submit. `switches` and `visitedCount` are read back WITH the result in one copy, which is why they live in this block and not in separate buffers.
+| Index | Byte | Word | Written by | Read by |
+| --- | --- | --- | --- | --- |
+| 0 | @0 | `frontierCount` | `frontier-finalize` (role 0, rotated from `nextFrontierCount`); `Frontier.reset` seeds 1 | `frontier-finalize` (dispatch sizes, both direction tests), `advance-expand`, `bfs-fused`, `bfs-bitset-build` (the loop bound); SSSP: the near pile's count |
+| 1 | @4 | `nextFrontierCount` | `bfs-contract`, `bfs-fused`, `bfs-bottom-up`, `sssp-relax` (the workgroup-aggregated `atomicAdd` that reserves each block's append span) | `frontier-finalize` |
+| 2 | @8 | `frontierDegreeSum` | `advance-expand`, `bfs-fused`: one `atomicAdd` per workgroup for the block's aggregate | `frontier-finalize` (Beamer's `m_f`) |
+| 3 | @12 | `prevFrontierCount` | `frontier-finalize` (role 0, rotated) | `frontier-finalize` (growing / shrinking) |
+| 4 | @16 | `prevDegreeSum` | `frontier-finalize` (role 0, rotated) | `frontier-finalize` (the unvisited subtraction, PD-18) |
+| 5 | @20 | `unvisitedCount` | `bfs-unvisited-flags` exactly, once per submit; `frontier-finalize` by subtraction at every boundary | `frontier-finalize` (the switch-back test) |
+| 6 | @24 | `unvisitedDegreeSum` | same two | `frontier-finalize` (Beamer's `m_u`) |
+| 7 | @28 | `unvisitedListLen` | `bfs-unvisited-flags` exactly, once per submit | `frontier-finalize` (the bottom-up dispatch size), `bfs-bottom-up` (the loop bound) |
+| 8 | @32 | `edgeCount` | `advance-expand`, workgroup-granular, CLAMPED at `edgeCapacity` by role 1 | `frontier-finalize` (the contract's dispatch size), `bfs-contract` (the loop bound) |
+| 9 | @36 | `edgeCountUnclamped` | `advance-expand`, workgroup-granular, never clamped | `frontier-finalize` (the overflow test, PD-23) |
+| 10 | @40 | `overflowLevels` | `frontier-finalize` (role 1, on overflow) | the host, with the result; the overflow test asserts it |
+| 11 | @44 | `level` | `frontier-finalize` (role 0, `+= 1`) | every claim kernel: `level + 1` is the value a claim writes into `depth`; the host: `levels = level` at the end |
+| 12 | @48 | `visitedCount` | `frontier-finalize` (role 0, `+= nextFrontierCount`); `reset` seeds 1 | the host, with the result |
+| 13 | @52 | `switches` | `frontier-finalize` (role 0, on a direction change, P8-T8) | the host, with the result; the differential asserts it |
+| 14 | @56 | `direction` | `frontier-finalize` (role 0) | `frontier-finalize` at the next boundary |
+| 15 | @60 | `done` | `frontier-finalize` (role 0: the rotated count is 0, or `level >= maxDepth`; role 2 for SSSP) | the HOST: the four bytes read back once per submit |
+| 16 | @64 | `arcsScanned` | `bfs-bottom-up`, one `atomicAdd` per workgroup of its lanes' in-arc reads | the sabotage check of P8-T8 Step 6, through `bfsWithTuning`'s counters readback |
+| 17 | @68 | `fusedLevels` | `frontier-finalize` (role 0, when it chose the fused slot; role 1, when it chose the retry) | P8-T7 Step 3's "each path chosen at least once" |
+| 18 | @72 | `twoPhaseLevels` | `frontier-finalize` (role 1, when it chose the contract) | same |
+| 19 | @76 | `bottomUpLevels` | `frontier-finalize` (role 0, when it chose bottom-up) | same, and P8-T8 |
+| 20 | @80 | `farCount` | `frontier-finalize` (role 2, rotated from `nextFarCount`) | `sssp-relax` in its pass-through role (the loop bound) |
+| 21 | @84 | `nextFarCount` | `sssp-relax` (the far half's aggregated append) | `frontier-finalize` (role 2) |
+| 22 | @88 | `thresholdBits` | `frontier-finalize` (role 2: `+= delta` when the near pile empties); the host seeds `delta` | `sssp-relax` (the near / far test), as `bitcast<f32>` |
+| 23 | @92 | `deltaBits` | the host, at reset (PD-22) | `frontier-finalize` (role 2) |
 
-Every word and the kernel that writes it:
+The block is what the HOST decodes the readback with (`FRONTIER_COUNTERS.read(view)` gives named fields) -- field names and byte offsets, one copy. Every kernel declares the binding as `array<atomic<u32>>` and indexes by the field's index: a struct of plain `u32` cannot be the target of an `atomicAdd`, and that is a compile error worth expecting rather than discovering. Nothing here is a uniform, because a uniform cannot be written on the device and the whole point of design 5.4 is that the host never sees these values inside a submit. The words nothing writes until P8-T8 / P8-T9 (5, 6, 7, 13, 16, 19, 20-23) are declared now because the block's byte layout is what the single result copy decodes and growing it later would re-cut every readback offset; each reads as zero until then.
 
-| Word | Written by | Read by |
-| --- | --- | --- |
-| `frontierCount` | `frontier-finalize` in its level-boundary role, rotated from `nextFrontierCount`; `Frontier.reset` seeds it to 1 | `frontier-finalize` (the dispatch size and both direction tests), `advance-expand`, `bfs-fused`, `bfs-bitset-build` (the loop bound) |
-| `nextFrontierCount` | `bfs-contract`, `bfs-fused` and `bfs-bottom-up`, the workgroup-aggregated `atomicAdd` that reserves each block's append span | `frontier-finalize` |
-| `frontierDegreeSum` | `advance-expand` and `bfs-fused`, one `atomicAdd` per workgroup for the block's aggregate (P8-T5 Step 1) | `frontier-finalize` (Beamer's `m_f`) |
-| `prevFrontierCount`, `prevDegreeSum` | `frontier-finalize`, rotated at the level boundary | `frontier-finalize` (growing / shrinking, and the unvisited subtraction of P8-T8 Step 1) |
-| `unvisitedCount`, `unvisitedDegreeSum`, `unvisitedListLen` | `bfs-unvisited-flags` exactly, once per submit; `frontier-finalize` by subtraction at every level boundary in between (P8-T8 Step 1) | `frontier-finalize` (Beamer's `m_u`, the switch-back test, the bottom-up dispatch size), `bfs-bottom-up` (the loop bound) |
-| `edgeCount`, `edgeCountUnclamped` | `advance-expand`, workgroup-granular (Step 5) | `frontier-finalize` (the contract's dispatch size and the overflow test), `bfs-contract` (the loop bound) |
-| `chunkStart` | `frontier-finalize`, when the unclamped total exceeded the capacity (Step 5) | `advance-expand` |
-| `level` | `frontier-finalize`, incremented at the level boundary | every claim kernel -- it is the value written into `depth` |
-| `visitedCount` | `frontier-finalize`, `+= frontierCount` at the level boundary | the host, with the result |
-| `switches` | `frontier-finalize`, on a direction change (P8-T8 Step 4) | the host, with the result; the differential test asserts it |
-| `direction` | `frontier-finalize` | `frontier-finalize` at the next level |
-| `done` | `frontier-finalize`, set when the rotated `frontierCount` is zero | the HOST: these are the four bytes read back once per submit |
+The params block every P8 kernel except the three primitives of P8-T3 and `bf-relax` binds, `UniformBlock.define("FrontierParams", [...])` (uniform, 80 B): `role` @0, `slotBase` @4 (`level x FRONTIER_CANDIDATES`), `wg` @8, `alpha` @12, `beta` @16, `fusedMax` @20, `edgeCapacity` @24, `maxDepth` @28, `n` @32, `mode` @36 (0 auto, 1 top-down only), `cutoffBits` @40, `arcBase` @44, `arcEnd` @48, `predKind` @52 (0 arc, 1 node), `bitsBase` @56 (the word where `frontierBits` starts inside `sweepIn`), `source` @60, `stride` @64 (a grid-stride plan's stride), `firstOfSubmit` @68 (1 on the first boundary of a submit: skip the unvisited subtraction, P8-T8), `pad0` @72, `pad1` @76. `test/kernel/struct-block.test.ts` pins both blocks' offsets.
 
-Three words have no writer until P8-T8 adds `bfs-unvisited-flags`, and `switches` none until P8-T8 adds the switch. They are declared here anyway, because the block's byte layout is what the single result copy decodes and growing it later would re-cut every readback offset; each reads as zero until then, and P8-T8 Step 4 is the only reader that cares.
-
-- [ ] **Step 4: The `Frontier` class**
+- [ ] **Step 4: The `Frontier` class and the slot layout**
 
 ```ts
+export const SLOT = Object.freeze({ expand: 0, contract: 1, fused: 2, fillBits: 3, bitset: 4, bottomUp: 5, fusedRetry: 6 });   // FRONTIER_CANDIDATES = 7
+export const W = Object.freeze({ frontierCount: 0, nextFrontierCount: 1, /* ... the 24 names of Step 3 ... */ deltaBits: 23 });
+export interface FrontierScope extends ReduceScope { indirect(byteLength: number, label: string): GPUBuffer; }
 export class Frontier {
     readonly vertices: readonly [Binding, Binding];   // two n-slot u32 queues
-    readonly counters: Binding;                       // the FrontierCounters block -- every count in the phase is a word of it
-    readonly args: Binding;                           // INDIRECT | STORAGE | COPY_DST, levels x candidates slots
-    readonly edgeQueue: Binding;                      // capacity entries, see Step 5
+    readonly counters: Binding;                       // the FrontierCounters block, 96 B, array<atomic<u32>>
+    readonly args: Binding;                           // INDIRECT | STORAGE | COPY_DST, MAX_LEVELS_PER_SUBMIT x FRONTIER_CANDIDATES x 16 B
+    readonly edgeQueue: Binding;                      // edgeCapacity entries of u32 (the target vertex of an arc)
     readonly edgeCapacity: number;
-    swap(): void;
-    reset(pass: GPUComputePassEncoder, source: number): void;
+    get input(): Binding;   get output(): Binding;    // vertices[side], vertices[1 - side]
+    swap(): void;                                     // flips side; a host-side index between two cached bind-group sets
+    reset(queue: GPUQueue, source: number, seed: Partial<Record<keyof typeof W, number>>): void;   // queue.writeBuffer of the 96 B block (zero except frontierCount 1, visitedCount 1 and the caller's seed words) and of vertices[0][0] = source, ordered before the submit
 }
+export async function prepareFrontier(scope: FrontierScope, n: number, arcCount: number, edgeCapacity?: number): Promise<FrontierPlanner>;
 ```
 
-There is deliberately no pair of standalone count buffers: `frontier-finalize` binds two things (the block and the args, design 8.10), so a count it cannot reach is a count the device-side selector cannot act on. `swap()` therefore flips only the two vertex queues; the counts rotate inside the block, which Step 3 describes. Every buffer comes from ONE `Lease` so `dispose()` releases them together (design 4.4). `reset` records `fill` dispatches, never an encoder clear, so a reset is inside the caller's pass and costs no extra submit. `swap()` is a host-side index flip between two cached bind-group sets -- and it must be two BUFFERS, not two ranges of one buffer, for the reason the P7 plan recorded: `Kernel.bind` compares access modes before it tests ranges and rejects one buffer bound `storage-ro` and `storage` in one dispatch even for disjoint ranges.
+There is deliberately no pair of standalone count buffers: `frontier-finalize` binds two things (the block and the args, design 8.10), so a count it cannot reach is a count the device-side selector cannot act on. `swap()` therefore flips only the two vertex queues; the counts rotate inside the block. Every buffer comes from the scope's ONE lease so the algorithm's `dispose()` releases them together (design 4.4). `reset` is a `queue.writeBuffer`, which `connectedComponents` already uses for its changed flag: a queue write is ordered before the batch that follows, costs no dispatch, and the `fill` dispatches the earlier draft asked for cannot write a four-byte word anyway. The two vertex queues must be two BUFFERS, not two ranges of one buffer, for the reason the P7 plan recorded: `Kernel.bind` compares access modes before it tests ranges and rejects one buffer bound `storage-ro` and `storage` in one dispatch even for disjoint ranges.
 
-- [ ] **Step 5: The edge queue and the overflow rule**
+`edgeCapacity = min(arcCount, floor(caps.limits.maxStorageBufferBindingSize / 4))` unless the caller passes one (the test's fake). At the 1M node / 10M edge tier (20M arcs undirected) that is 80 MB, under the spec-default 128 MiB binding limit, so no overflow is possible there and the retry path is dead code on real hardware -- which is exactly why design 13's gate tests it with a FAKED 4,096-entry capacity.
 
-`edgeCapacity = min(arcCount, floor(caps.limits.maxStorageBufferBindingSize / 4))`. At the 1M node / 10M edge tier that is 20M entries = 80 MB, under every device's binding limit, so no overflow is possible there and the chunk path is dead code on real hardware -- which is exactly why design 13's gate tests it with a FAKED 4,096-entry capacity. The rule: `advance-expand` appends with a workgroup-granular `atomicAdd` on `edgeCount`, clamps its writes to the capacity, and also adds into `edgeCountUnclamped`; `frontier-finalize` compares the two and, when the unclamped total is larger, writes `chunkStart` and records another expand dispatch for the remaining source range. At most `ceil(arcCount / capacity)` chunks per level, all recorded in the same batch. Silent truncation is never possible, and the `edgeCountUnclamped` word is what makes that statement checkable rather than a promise.
+- [ ] **Step 5: PD-23 -- the overflow rule is a fused retry**
+
+`advance-expand` appends with a workgroup-granular `atomicAdd` on `edgeCount`, clamps its writes to `edgeCapacity` (a lane whose position is at or past the capacity writes nothing), and adds the same aggregate into `edgeCountUnclamped`. `frontier-finalize` in its edge-queue role compares the two: when the unclamped total is larger, the level's edge queue is incomplete in a way no chunk boundary describes (DEP-P8-G), so the role writes `(0, 0, 1, 0)` into the contract slot, real args from `frontierCount` into the fused-retry slot, and `overflowLevels += 1`; the fused kernel then claims the whole level from the frontier directly, exactly as it does for a small frontier, and the partial edge queue is never read. Silent truncation is never possible, and the `edgeCountUnclamped` word is what makes that statement checkable rather than a promise. `edgeCount` itself is left as the clamped value for the record.
 
 - [ ] **Step 6: `frontier-finalize`, the selector**
 
-One workgroup, one lane, no barrier after the early return (rule 1 of the WGSL conventions: the early return keys on `workgroup_id` and uniforms only). It is recorded TWICE per level in two roles chosen by a uniform field, because a level's dispatch sizes become known at two different moments. In the LEVEL-BOUNDARY role it rotates the counts (`prevFrontierCount`, `prevDegreeSum` take the values just finished, `frontierCount` takes `nextFrontierCount`, and `nextFrontierCount` and `frontierDegreeSum` are zeroed), increments `level`, adds the finished frontier into `visitedCount`, subtracts it from the unvisited words, sets `done` when the new count is zero, and writes the args of the candidates that expand a vertex frontier. In the EDGE-QUEUE role it only turns `edgeCount` into the contract's args. In both roles it reads the counters block, evaluates the candidate rule for the level, and writes `(x, y, 1, count)` into the chosen 16-byte slot and `(0, 0, 1, 0)` into every other slot of that level. The `(x, y)` arithmetic is P4's `indirect-finalize` arithmetic verbatim: `groups = ceil(count / wg)` computed as `count / wg + select(0u, 1u, count % wg != 0u)` -- never `(count + wg - 1) / wg`, which wraps for a count above `2^32 - wg` -- then the 2D split at `MAX_WORKGROUPS_PER_DIM`. **DEP-P8-C's anti-drift check:** the test asserts that for 2,000 counts spanning 0 to `2^32 - 1`, `frontier-finalize` and P4's `indirect-finalize` write identical `(x, y)` pairs, and that both agree with the host's `planIndirect`.
+One workgroup, one lane, no barrier after the early return (rule 1 of the WGSL conventions: the early return keys on `local_invocation_id` only). It is recorded TWICE per level in two roles chosen by `P.role`, because a level's dispatch sizes become known at two different moments; P8-T9 adds roles 2 and 3 for the SSSP piles. The `(x, y)` arithmetic is P4's `indirect-finalize` arithmetic verbatim -- `groups = count / P.wg + select(0u, 1u, count % P.wg != 0u)`, never `(count + wg - 1) / wg`, which wraps for a count above `2^32 - wg`, then the 2D split at `MAX_WORKGROUPS_PER_DIM`. **DEP-P8-C's anti-drift check:** Step 7 asserts that for the 2,000 counts of `INDIRECT_COUNTS`-style ladders spanning 0 to `2^32 - 1`, `frontier-finalize` and P4's `indirect-finalize` write identical `(x, y)` pairs, and that both agree with the host's `planIndirect`.
 
-In this task the candidate rule is the trivial one: candidate 0 always, `(0, 0, 1)` into the rest. P8-T7 adds the fused threshold, P8-T8 adds Beamer's test. Landing the selector empty first is deliberate: it means P8-T6 can ship a correct BFS before any of the selection logic exists, and every later task changes one branch of one kernel with the whole differential suite already standing behind it.
+```ts
+export const frontierFinalizeWgsl = /* wgsl */ `
+fn write_slot(slot: u32, count: u32) {
+    let groups = count / P.wg + select(0u, 1u, count % P.wg != 0u);   // ceil(count / wg) without the u32 wrap (indirect-finalize's rule)
+    var x = groups;
+    var y = 1u;
+    if (groups > MAX_WORKGROUPS_PER_DIM) {
+        x = MAX_WORKGROUPS_PER_DIM;
+        y = (groups + MAX_WORKGROUPS_PER_DIM - 1u) / MAX_WORKGROUPS_PER_DIM;
+    }
+    let base = 4u * (P.slotBase + slot);                               // 16-byte slots: (x, y, 1, count)
+    args[base] = x; args[base + 1u] = y; args[base + 2u] = 1u; args[base + 3u] = count;
+}
+fn zero_slot(slot: u32) {
+    let base = 4u * (P.slotBase + slot);
+    args[base] = 0u; args[base + 1u] = 0u; args[base + 2u] = 1u; args[base + 3u] = 0u;
+}
+
+@compute @workgroup_size(WG)
+fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
+    if (lid.x != 0u) { return; }                                       // one lane; no barrier follows (3.5 rule 1)
+    if (P.role == 0u) {                                                // the level boundary
+        let finished = atomicLoad(&counters[0]);
+        let next = atomicLoad(&counters[1]);
+        let degSum = atomicLoad(&counters[2]);
+        atomicStore(&counters[3], finished);                           // prevFrontierCount
+        atomicStore(&counters[4], degSum);                             // prevDegreeSum
+        atomicStore(&counters[0], next);                               // the rotation
+        atomicStore(&counters[1], 0u);
+        atomicStore(&counters[2], 0u);
+        atomicStore(&counters[8], 0u);                                 // edgeCount
+        atomicStore(&counters[9], 0u);                                 // edgeCountUnclamped
+        atomicStore(&counters[12], atomicLoad(&counters[12]) + next);  // visitedCount
+        atomicStore(&counters[5], atomicLoad(&counters[5]) - next);    // unvisitedCount (exact)
+        atomicStore(&counters[6], atomicLoad(&counters[6]) - degSum);  // unvisitedDegreeSum (one level stale, PD-18)
+        let level = atomicLoad(&counters[11]) + 1u;
+        atomicStore(&counters[11], level);
+        let done = (next == 0u) || (level >= P.maxDepth);
+        atomicStore(&counters[15], select(0u, 1u, done));
+        var direction = 0u;                                            // P8-T8 replaces this line with Beamer's test
+        if (done) {
+            for (var s = 0u; s < 7u; s = s + 1u) { zero_slot(s); }
+        } else if (direction == 1u) {                                  // unreachable until P8-T8
+            zero_slot(0u); zero_slot(1u); zero_slot(2u); zero_slot(6u);
+            write_slot(3u, (P.n + 31u) / 32u); write_slot(4u, next); write_slot(5u, atomicLoad(&counters[7]));
+            atomicStore(&counters[19], atomicLoad(&counters[19]) + 1u);
+        } else if (next < P.fusedMax) {                                // P8-T7 makes this branch reachable (fusedMax is 0 until then)
+            zero_slot(0u); zero_slot(1u); zero_slot(3u); zero_slot(4u); zero_slot(5u); zero_slot(6u);
+            write_slot(2u, next);
+            atomicStore(&counters[17], atomicLoad(&counters[17]) + 1u);
+        } else {
+            zero_slot(2u); zero_slot(3u); zero_slot(4u); zero_slot(5u);
+            write_slot(0u, next);                                      // slots 1 and 6 are role 1's
+        }
+        atomicStore(&counters[14], direction);
+    } else if (P.role == 1u) {                                         // the edge queue is filled
+        let clamped = min(atomicLoad(&counters[8]), P.edgeCapacity);
+        atomicStore(&counters[8], clamped);
+        if (atomicLoad(&counters[9]) > P.edgeCapacity) {               // PD-23: the fused retry
+            zero_slot(1u); write_slot(6u, atomicLoad(&counters[0]));
+            atomicStore(&counters[10], atomicLoad(&counters[10]) + 1u);
+            atomicStore(&counters[17], atomicLoad(&counters[17]) + 1u);
+        } else {
+            write_slot(1u, clamped); zero_slot(6u);
+            if (clamped != 0u) { atomicStore(&counters[18], atomicLoad(&counters[18]) + 1u); }
+        }
+    }
+}
+`;
+```
+
+In this task the candidate rule is the trivial one: `fusedMax` is passed as 0 and `mode` as 1, so slot 0 always, `(0, 0, 1)` into the rest, and role 1 chooses the contract or the retry. P8-T7 sets the real `fusedMax` and P8-T8 writes Beamer's test into the `direction` line. Landing the selector with the branches present but unreachable is deliberate: it means P8-T6 can ship a correct BFS before any of the selection logic is exercised, every later task changes one line of one kernel with the whole differential suite already standing behind it, and the compile matrix proves the whole body compiles from day one.
+
+Registry entry: `id: "frontier-finalize"`, `entryPoint: "frontier_finalize"`, bindings `(1,0) counters storage array<atomic<u32>>`, `(1,1) args storage array<u32>`, `(2,0) P uniform FrontierParams`; `overrideDecls: []`, `needs: []`, `phase: "P8"`. `prepareFrontier.recordFinalize(pass, role, level, fields)` writes one `FRONTIER_PARAMS` record through `scope.params` with `slotBase = level * FRONTIER_CANDIDATES` and dispatches `plan1d(1, wg, caps)`.
 
 - [ ] **Step 7: The tests, which need no traversal**
 
-`test/primitives/frontier.test.ts` drives the machinery with a synthetic counters buffer and no graph at all: seed a frontier and read the queue back; `swap()` twice returns to the start; `reset` zeroes every word of the counters block and seeds `frontierCount` to 1; write a count into the counters block, record `frontier-finalize`, read the args back and compare with `planIndirect`; the 2,000-count agreement check of Step 6; a count of 17,000,000 produces `x = 65535, y = 260` and dispatches (design 13's gate item "the indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe)"), which this task can run because it needs no real frontier -- only a counters word and an empty kernel to dispatch. Run it on lavapipe specifically, because that is the adapter the gate names.
+`test/primitives/frontier.test.ts` drives the machinery with a synthetic counters buffer and no graph at all, every readback naming its buffer: seed a frontier with `reset(queue, 7, {})` and read `vertices[0]` back (`readU32` over the queue buffer) and the counters block (`FRONTIER_COUNTERS.read` over the 96-byte readback: every word 0 except `frontierCount === 1` and `visitedCount === 1`); `swap()` twice returns to the start; write a count into word 1 through `queue.writeBuffer`, record role 0 with `mode 1, fusedMax 0`, read the args back and compare slot 0 with `planIndirect(count)` and slots 1-6 with `(0, 0, 1, 0)`; the 2,000-count agreement check of Step 6 against `expectedIndirectArgs` (reusing `test/helpers/indirect.ts`'s ladder, extended to 2,000 counts including `U32_MAX`); role 1 with `edgeCount 4096, edgeCountUnclamped 50000, edgeCapacity 4096` writes `(0,0,1,0)` into slot 1, `planIndirect(frontierCount)` into slot 6 and `overflowLevels === 1`, and with `edgeCountUnclamped 4096` the reverse; `maxDepth 3` at `level 2` sets `done`; a count of 17,000,000 produces `x = 65535, y = 2` (66,407 workgroups of 256 split in two rows) and, dispatched through `fill` mode 1 over a poisoned 17M-word buffer as `test/kernel/indirect.test.ts` does, leaves no poison word -- design 13's gate item "the indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe)", which this task can run because it needs no real frontier. Run it on lavapipe specifically, because that is the adapter the gate names. Run-twice bitwise on the args buffer.
 
-Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/frontier.test.ts` then the same with `$GPU_NV`.
-Expected: PASS on both; the 17M case green on lavapipe.
+`test/sabotage/frontier.test.ts` and the rows (`FRONTIER_TEST = "test/primitives/frontier.test.ts"`, plus P8-T6's for the third):
+
+```ts
+    "frontier-finalize": Object.freeze([
+        { name: "ceil-wraps", find: "count / P.wg + select(0u, 1u, count % P.wg != 0u)", replace: "(count + P.wg - 1u) / P.wg", minFactor: 10, test: FRONTIER_TEST },
+        { name: "second-row-floored", find: "(groups + MAX_WORKGROUPS_PER_DIM - 1u) / MAX_WORKGROUPS_PER_DIM", replace: "groups / MAX_WORKGROUPS_PER_DIM", minFactor: 10, test: FRONTIER_TEST },
+        { name: "rotation-dropped", find: "atomicStore(&counters[0], next);                               // the rotation", replace: "atomicStore(&counters[0], 0u);", minFactor: 10, test: "test/algorithms/bfs.test.ts" },
+    ]),
+```
+
+The first is caught by the `U32_MAX` count (the wrapped ceil gives 0 groups), the second by the 17M poison case, the third by every depth of P8-T6's suite beyond level 1. Watch each go red.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/frontier.test.ts test/sabotage/frontier.test.ts test/kernel` then the same with `$GPU_NV`.
+Expected: PASS on both; the 17M case green on lavapipe; the third sabotage row is deferred to P8-T6's run and its `find` string is asserted present by `test/sabotage/coverage.test.ts`.
 
 - [ ] **Step 8: Commit (owner)** -- `feat(webgpu-graph-algorithms): the frontier queue and the device-side dispatch selector`.
 
 ---
 
-### Task P8-T5: The `advance` primitive -- block-mapped expansion, the workgroup tier, the subgroup twin
+### Task P8-T5: The `advance` primitive -- block-mapped expansion, the subgroup twin, the edge queue and its overflow detector
 
-**Depends on P8-T3 and P8-T4. The largest single task in the phase.**
+**Depends on P8-T4. The largest single task in the phase.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
 
-**Spec:** design 6 row 8 line 1575 (the block-mapped structure, the workgroup-per-row tier, the subgroup tier, the workgroup-granular append, the degree-sum counter); design 6 lines 1581-1598 (the subgroup rule and the twin discipline); design 8.10 "BFS expand" (7 bindings).
+**Spec:** design 6 row 8 (the block-mapped structure, the workgroup-per-row tier, the subgroup tier, the workgroup-granular append, the degree-sum counter); design 6 "Subgroup variants" (the subgroup rule and the twin discipline); design 8.10 "BFS expand" (7 bindings).
 
 **Files:**
 - Create: `$PKG/src/wgsl/advance-expand.wgsl.ts`
 - Create: `$PKG/src/primitives/advance.ts`
-- Modify: `$PKG/src/kernels.ts`
-- Create: `$PKG/test/oracle/advance.ts`, `$PKG/test/primitives/advance.test.ts`
-- Modify: `$PKG/test/helpers/override-matrix.ts`, `$PKG/test/helpers/sabotage.ts`
+- Modify: `$PKG/src/kernels.ts` (one entry, `needs: ["subgroups"]`)
+- Modify: `$PKG/test/kernel/bind-group-budget.test.ts` (`"advance-expand": 7`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pin 5: the graph pair times the defaults; no declared override), `$PKG/test/helpers/override-matrix.ts` (`P8` raised by the generator's count)
+- Create: `$PKG/test/oracle/advance.ts`, `$PKG/test/primitives/advance.test.ts`, `$PKG/test/sabotage/advance.test.ts`
+- Modify: `$PKG/test/helpers/sabotage.ts` (five rows; `ADVANCE_TEST`)
+- Consumes: `Frontier`, `FrontierScope`, `SLOT`, `W` (`src/primitives/frontier.ts`), `graphBindings` / `graphOverrides` / `kernelSpec` (`src/kernels.ts` lines 992-1075), `Kernel.dispatchIndirect`, `CoreBinding` and `assertNotWindowed` (`src/primitives/core-shape.ts` line 115; P8-T12 removes the call), the prelude's `linear_id`, `group_id` and the subgroup helpers' elected-lane slot idiom (`src/kernel/prelude.ts` lines 165-175)
 
-- [ ] **Step 1: The block-mapped body, and the uniformity trap it walks into**
+**Interfaces produced:** `prepareAdvance(scope: FrontierScope, core: CoreBinding): Promise<AdvancePlanner>` with `record(pass, frontier: Frontier, level: number, params: { arcBase, arcEnd })` (an indirect dispatch from `SLOT.expand` of `level`; `edgeCount`, `edgeCountUnclamped` and `frontierDegreeSum` land in the block) and `readonly kernel: Kernel` (so `bfs-fused` can share its bind groups' shape); `advanceOracle(s, frontier)`.
 
-Each workgroup loads up to `WG` frontier vertices, reads their degrees, runs a workgroup-memory exclusive scan of those degrees, and then every invocation strips the range `[local, aggregate)` by binary search (`upper_bound`) over the scanned degrees to find which source vertex its arc belongs to. The trap: the guarded loads (`if (i < count)`) must write into locals and the workgroup scan must run UNCONDITIONALLY after the guard, because `workgroupBarrier` inside the guard is rejected by Tint with "must only be called from uniform control flow". This is rule 1 of the package's WGSL conventions and it is the single most likely reason this body will not compile on the first try. Write the guarded load as `let deg = select(0u, rowPtr[v + 1u] - rowPtr[v], i < count);` and scan `deg` for every lane.
+- [ ] **Step 1: The failing test first**
 
-The append is workgroup-granular: one `atomicAdd` on `edgeCount` per workgroup for the whole block's aggregate, then every lane writes at its own offset within the reserved span. One atomic per 256 arcs, not one per arc. The same block's aggregate is added into `frontierDegreeSum` in the counters block, which is the number `frontier-finalize` needs for Beamer's test in P8-T8 -- produce it now even though nothing reads it yet, because retrofitting a counter into a tiered kernel later means re-proving three tiers.
+Create `test/primitives/advance.test.ts` with the cases of Step 5.
 
-- [ ] **Step 2: The tiers, and the one override axis**
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/advance.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/primitives/advance.js`.
 
-`TIER` override: 0 = block-mapped (the default, every frontier), 1 = workgroup-per-row for rows above 1,024 arcs. The row set for tier 1 comes from `degreeTiersOf(residency.view(s, "degreeOrder"))` (P4's helper in `src/primitives/core-shape.ts`), whose `segmentOffsets` is `[0, hiEnd, midEnd, lowEnd, n]`. When the frontier is small, a per-frontier degree check is cheaper than consulting the tiers -- design 6 row 8 allows either; this phase uses the tier view when the frontier exceeds `FUSED_FRONTIER_MAX` and the per-frontier check below it, and states so in the JSDoc. The subgroup variant is `needs: ["subgroups"]` on the same entry with the workgroup scan replaced by `subgroupExclusiveAdd` plus a cross-subgroup fixup; the subgroup index comes from an elected-lane `atomicAdd` and `subgroupBroadcast`, never from `@builtin(subgroup_id)`, which Chromium lacks.
+- [ ] **Step 2: The block-mapped body, and the uniformity trap it walks into**
 
-- [ ] **Step 3: The chunked expansion**
+Each workgroup loads up to `WG` frontier vertices, reads their degrees (clipped to the bound arc window, so P8-T12 changes nothing in the body), runs a workgroup-memory inclusive scan of those degrees, and then every invocation strips the range `[0, aggregate)` by binary search (`upper_bound`) over the scanned degrees to find which source vertex its arc belongs to. The trap: the guarded loads (`if (i < count)`) must write into locals and the workgroup scan must run UNCONDITIONALLY after the guard, because `workgroupBarrier` inside the guard is rejected by Tint with "must only be called from uniform control flow". This is rule 1 of the package's WGSL conventions and it is the single most likely reason this body will not compile on the first try. The aggregate is read with `workgroupUniformLoad`, which makes it a uniform value (and carries its own barrier), so a strip loop bounded by it is uniform control flow -- this body needs no barrier inside the loop, but `bfs-fused` (P8-T7), which copies the loop textually, does.
 
-Implement the overflow rule P8-T4 Step 5 specified: clamp the writes, always add into `edgeCountUnclamped`, and read `chunkStart` from the counters block as the first frontier index this dispatch is responsible for. Record `ceil(arcCount / edgeCapacity)` expand slots per level in the args buffer; on real hardware all but the first get `(0, 0, 1)` every time.
+```ts
+export const advanceExpandWgsl = /* wgsl */ `
+var<workgroup> sh: array<u32, WG>;          // the block's degrees, then their inclusive scan
+var<workgroup> rowStart: array<u32, WG>;    // the first bound arc of each entry's row
+var<workgroup> base: u32;                   // the block's reserved span in the edge queue
 
-- [ ] **Step 4: The oracle and the differential suite**
+@compute @workgroup_size(WG)
+fn advance_expand(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let g = group_id(wid);
+    let i = g * WG + lid.x;                                          // this lane's frontier entry
+    let count = atomicLoad(&counters[0]);                            // frontierCount
+    var deg = 0u;
+    var start = 0u;
+    if (i < count) {                                                 // guarded loads into locals (3.5 rule 1)
+        let v = frontierIn[i];
+        let lo = max(rowPtr[v], P.arcBase);                          // the row clipped to the bound window (P8-T12)
+        let hi = min(rowPtr[v + 1u], P.arcEnd);
+        start = lo;
+        deg = select(0u, hi - lo, hi > lo);
+    }
+    sh[lid.x] = deg;
+    rowStart[lid.x] = start;
+    workgroupBarrier();
+    for (var s = 1u; s < WG; s = s * 2u) {                           // Hillis-Steele inclusive scan; every lane runs every round
+        var t = 0u;
+        if (lid.x >= s) { t = sh[lid.x - s]; }
+        workgroupBarrier();
+        sh[lid.x] = sh[lid.x] + t;
+        workgroupBarrier();
+    }
+    let aggregate = workgroupUniformLoad(&sh[WG - 1u]);              // uniform; includes a barrier
+    if (lid.x == 0u) {
+        base = atomicAdd(&counters[8], aggregate);                   // edgeCount: ONE reservation per workgroup, not one per arc
+        atomicAdd(&counters[9], aggregate);                          // edgeCountUnclamped: the overflow detector (PD-23)
+        atomicAdd(&counters[2], aggregate);                          // frontierDegreeSum: Beamer's m_f (P8-T8)
+    }
+    workgroupBarrier();
+    for (var p = lid.x; p < aggregate; p = p + WG) {                 // strip [0, aggregate): lane j takes j, j + WG, ...
+        var lo = 0u;                                                 // upper_bound: the first k with sh[k] > p owns arc p
+        var hi = WG;
+        loop {
+            if (lo >= hi) { break; }
+            let mid = (lo + hi) / 2u;
+            if (sh[mid] > p) { hi = mid; } else { lo = mid + 1u; }
+        }
+        let k = lo;
+        var exclusive = 0u;
+        if (k > 0u) { exclusive = sh[k - 1u]; }
+        let arc = rowStart[k] + (p - exclusive);
+        let q = base + p;
+        if (q < P.edgeCapacity) { edgeQueue[q] = colIdx[arc - P.arcBase]; }   // the clamp of PD-23; the queue holds the target vertex only (PD-24)
+    }
+}
+`;
+```
 
-`test/oracle/advance.ts` is a nested loop: for each vertex in the frontier, for each arc, emit the arc. The kernel's edge queue is a MULTISET in an order the schedule chooses, so the test sorts both sides before comparing -- and asserts the run-twice check on the SORTED form plus on `edgeCount` and `frontierDegreeSum` raw, which are order-independent sums. Fixtures: the empty frontier (records nothing and leaves both counters 0), a single-vertex frontier, the whole vertex set of `karate`, a `starEdges(10000)` hub as the only frontier entry (tier 1), `gridEdges(100, 100)` at every level, and `rmatEdges(16, 10, 1)`. Each at `TIER` 0 and 1 and with the subgroup twin in-process, asserting the three agree bitwise on the sorted queue.
+The queue holds one word per arc, the target vertex: the contract needs nothing else once `parent` comes from the post-pass (PD-24), and that halves the queue against a `(u, v)` pair and is what keeps 20M arcs at 80 MB.
 
-Then the gate's overflow case: construct a `Frontier` with `edgeCapacity` FAKED to 4,096 and expand a level whose degree sum is 50,000. Assert the chunked path produces the same multiset as the unchunked one, `edgeCountUnclamped === 50000`, and the number of chunks is `ceil(50000 / 4096)`.
+Registry entry: `id: "advance-expand"`, `entryPoint: "advance_expand"`, bindings: the four graph slots (group 0), `(1,0) frontierIn storage-ro array<u32>`, `(1,1) counters storage array<atomic<u32>>`, `(1,2) edgeQueue storage array<u32>`, `(2,0) P uniform FrontierParams`; `overrideDecls: []`; `needs: ["subgroups"]`; `phase: "P8"`. Storage count 7.
 
-- [ ] **Step 5: The sabotage rows (at least three, design 13 rule (f))**
+- [ ] **Step 3: The workgroup-per-row tier and the subgroup twin**
 
-Add to `test/helpers/sabotage.ts`: the workgroup scan replaced by an inclusive one (every lane reads the wrong source); the binary search's `upper_bound` turned into a `lower_bound` (off by one at every block boundary); the per-workgroup `atomicAdd` replaced by a per-lane one (the aggregate reserved once per lane, so the queue interleaves); the last block's rows skipped (`count - 1` instead of `count`); `edgeCountUnclamped` not incremented (the overflow test stops detecting overflow). Each must fail `test/primitives/advance.test.ts` by at least 10x, and `test/sabotage/coverage.test.ts` will assert each `find` string occurs exactly once in the live body.
+Design 6 row 8's "WORKGROUP_PER_ROW tier for rows above 1,024 arcs" is the structure of `bfs-fused` (P8-T7): one workgroup per frontier entry, every lane striding that entry's row with the claim inline. It is the small-frontier kernel, and a hub-only frontier -- the 10,000-degree star's level 0 -- is a small frontier: the gate's "a single row through the workgroup tier" is that dispatch. The block-mapped body above is the large-frontier kernel, and inside a block it already balances a hub row over all `WG` lanes (a 10k-degree entry costs its block 40 strips, never one lane 10,000 reads), so a second row-per-workgroup variant of `advance-expand` would duplicate `bfs-fused`'s loop for no consumer; `advance-expand` therefore declares NO `TIER` override, and the tier choice IS the fused / two-phase choice of P8-T7. Say this in the JSDoc so the design's three-way row is traceable.
 
-Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/advance.test.ts` then `$GPU_NV`, then `GRAPHTY_GPU_NO_SUBGROUPS=1` with each.
+The subgroup twin (`needs: ["subgroups"]`; the composer compiles it when the device has the feature and the plain body otherwise) replaces the Hillis-Steele scan with `subgroupExclusiveAdd(deg)` for the in-subgroup prefix and `subgroupAdd(deg)` for the subgroup's total; the elected lane takes a slot from a workgroup atomic counter and `subgroupBroadcast`s it (the prelude's idiom at lines 173-175 -- never `@builtin(subgroup_id)`, which Chromium lacks), writes the total into `sgTotal[slot]`, `workgroupBarrier()`, then every lane sums `sgTotal[0 .. slot)` serially (`SG_SLOTS` is at most `WG / SUBGROUP_MIN = 64`) and adds it to its prefix. Because slots are taken in atomic order rather than lane order, the twin stores the inclusive values and row starts at `sh[slot * sgSize + sgLane]` and `rowStart[...]` under the same index, so `sh` stays monotone in the index the binary search walks; the arcs land in the queue in a different order than the plain twin's -- which is why the suite compares SORTED queues, never raw ones. `sgSize` is `@builtin(subgroup_size)` at runtime; `SUBGROUP_MAX` only sizes scratch.
+
+- [ ] **Step 4: The planner**
+
+`prepareAdvance(scope, core)` compiles `kernelSpec("advance-expand", graphOverrides(core, null))` once and caches two bound kernels per `Frontier` side (`frontierIn = frontier.input`, `edgeQueue`, `counters`, the graph bindings from `graphBindings(core, null)`). `record(pass, frontier, level, { arcBase, arcEnd })` writes one `FRONTIER_PARAMS` record (`role 0` unused, `edgeCapacity = frontier.edgeCapacity`, the window) and calls `kernel.dispatchIndirect(pass, bound, frontier.args, level * FRONTIER_CANDIDATES + SLOT.expand, [params.offset])`. Until P8-T12 it calls `assertNotWindowed(core, "advance")` first and passes `arcBase 0, arcEnd arcCount`.
+
+- [ ] **Step 5: The oracle and the differential suite**
+
+`test/oracle/advance.ts` is a nested loop: for each vertex in the frontier, for each arc, emit the target. The kernel's edge queue is a MULTISET in an order the schedule chooses, so the test sorts both sides before comparing -- and asserts the run-twice check on the SORTED queue plus on `edgeCount`, `edgeCountUnclamped` and `frontierDegreeSum` raw, which are order-independent sums. Every case reads the `edgeQueue` buffer (`readU32` over `frontier.edgeQueue`, the first `edgeCount` words) and the counters block by its own binding, and drives `frontier-finalize` role 0 (`mode 1, fusedMax 0`) to write the expand slot before the indirect dispatch. Fixtures: the empty frontier (records nothing and leaves the three counters 0), a single-vertex frontier, the whole vertex set of `KARATE_EDGES`, a `starEdges(10000)` hub as the only frontier entry, `gridEdges(100, 100)` at every level of a real BFS (the oracle's levels), and `rmatEdges(16, 10, 1)` with the whole vertex set. Each with the subgroup twin in-process (a second context from `acquire({ subgroups: false })`), asserting the two agree bitwise on the sorted queue.
+
+Then the gate's overflow case (PD-23): construct a `Frontier` with `edgeCapacity` FAKED to 4,096 and expand the star's hub. Assert `edgeCountUnclamped === 10000` (the counters block), `edgeCount === 10000` before role 1 and `4096` after it, the first 4,096 queue words are a sub-multiset of the oracle's (sorted comparison), and role 1 wrote `(0, 0, 1, 0)` into `SLOT.contract`, real args into `SLOT.fusedRetry` and `overflowLevels === 1`.
+
+- [ ] **Step 6: The sabotage rows (five, design 13 rule (f))**
+
+```ts
+    "advance-expand": Object.freeze([
+        { name: "scan-round-dropped", find: "for (var s = 1u; s < WG; s = s * 2u) {                           // Hillis-Steele inclusive scan; every lane runs every round", replace: "for (var s = 1u; s < WG; s = s * 4u) {", minFactor: 10, test: ADVANCE_TEST },
+        { name: "lower-bound-not-upper", find: "if (sh[mid] > p) { hi = mid; } else { lo = mid + 1u; }", replace: "if (sh[mid] >= p) { hi = mid; } else { lo = mid + 1u; }", minFactor: 10, test: ADVANCE_TEST },
+        { name: "per-lane-reservation", find: "if (lid.x == 0u) {\n        base = atomicAdd(&counters[8], aggregate);", replace: "{\n        base = atomicAdd(&counters[8], aggregate);", minFactor: 10, test: ADVANCE_TEST },
+        { name: "last-entry-skipped", find: "if (i < count) {                                                 // guarded loads into locals (3.5 rule 1)", replace: "if (i + 1u < count) {", minFactor: 10, test: ADVANCE_TEST },
+        { name: "unclamped-not-counted", find: "atomicAdd(&counters[9], aggregate);", replace: "atomicAdd(&counters[9], 0u);", minFactor: 10, test: ADVANCE_TEST },
+    ]),
+```
+
+The first gives every lane the wrong source; the second is off by one at every block boundary; the third reserves the aggregate once per lane so the queue interleaves and `edgeCount` explodes; the fourth drops the last entry of every block; the fifth is caught ONLY by the overflow case, which is why that case is in the suite. Each must fail `test/primitives/advance.test.ts` (a sorted-queue or counter miss reports `Infinity`), and `test/sabotage/coverage.test.ts` asserts each `find` string occurs exactly once in the live body. Watch each go red.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/advance.test.ts test/sabotage/advance.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_NV`, then `GRAPHTY_GPU_NO_SUBGROUPS=1` with each.
 Expected: PASS everywhere; the sorted queues bitwise identical across all four runs.
 
-- [ ] **Step 6: Commit (owner)** -- `feat(webgpu-graph-algorithms): the block-mapped advance primitive and its chunked edge queue`.
+- [ ] **Step 7: Commit (owner)** -- `feat(webgpu-graph-algorithms): the block-mapped advance primitive and its edge queue`.
 
 ---
 
@@ -464,68 +849,160 @@ Expected: PASS everywhere; the sorted queues bitwise identical across all four r
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
 
-**Spec:** design 8.4 lines 2629-2670 (the two-phase workhorse, the atomic claim and why it is not a compare-exchange, the 32-levels-per-submit host loop and why a per-level readback is disqualifying); design 8.10 "BFS contract" (7 bindings); design 9.7 line 3269 (the parity rule); design 3.3 line 798 (the signature).
+**Spec:** design 8.4 (the two-phase workhorse, the atomic claim and why it is not a compare-exchange, the 32-levels-per-submit host loop and why a per-level readback is disqualifying); design 8.10 "BFS contract" and "SSSP predecessor pass"; design 9.7 (the parity rule); design 3.3 line 807 (the signature); the seam's `BfsOptions` (`maxDepth`).
 
 **Files:**
-- Create: `$PKG/src/wgsl/bfs-contract.wgsl.ts`
+- Create: `$PKG/src/wgsl/bfs-contract.wgsl.ts`, `$PKG/src/wgsl/sssp-pred.wgsl.ts` (PD-24: the one post-pass, landed here in its depth mode; P8-T9 exercises its f32 mode)
 - Create: `$PKG/src/algorithms/bfs.ts`
-- Modify: `$PKG/src/kernels.ts`
-- Create: `$PKG/test/algorithms/bfs.test.ts`
-- Modify: `$PKG/test/helpers/sabotage.ts`, `$PKG/src/kernel/prelude.ts` (the `F32_INF_BITS` constant is P8-T9's; this task adds nothing to the prelude)
+- Modify: `$PKG/src/kernels.ts` (two entries; `sssp-pred` declares `MODE` (`u32`, default 0))
+- Modify: `$PKG/test/kernel/bind-group-budget.test.ts` (`"bfs-contract": 4, "sssp-pred": 6`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pins 1 and 9), `$PKG/test/helpers/override-matrix.ts`
+- Create: `$PKG/test/algorithms/bfs.test.ts`, `$PKG/test/sabotage/bfs.test.ts`
+- Modify: `$PKG/test/helpers/sabotage.ts` (six rows; `BFS_TEST`)
+- Consumes: `prepareFrontier`, `prepareAdvance`, `prepareRadixSort` (`src/primitives/radix-sort.ts` line 99: `record(pass, keys, vals, count, bits, scratch)` returns the pair the result lives in; `radixHistBytes`), `algorithmScope` (extended in P8-T4), `assertDeviceComputes`, `CommandBatch` (`pass`, `endPass`, `copy`, `readback`, `submit`), `FILL_PARAMS` and the `fill` kernel, `planGridStride`, `FRONTIER_COUNTERS.read`, `assertWholeCore`, the oracles and checks of P8-T2, `LeakCounter` and `verifyDevice` for the readback count
 
-- [ ] **Step 1: PD-6 -- the claim, and why there is no retry loop**
+**Interfaces produced:** `breadthFirstSearch(ctx, s, source, options?: BfsOptions & GpuRunOptions): Promise<GpuBfsResult>` (public from P8-T13); `bfsWithTuning(ctx, s, source, options, tuning: BfsTuning)` (`@internal`, PD-26) with `BfsTuning = { direction?: "auto" | "top-down"; alpha?: number; beta?: number; fusedMax?: number; edgeCapacity?: number; levelsPerSubmit?: number; onLevel?: (level: number, counters: UniformValues, frontier: U32) => void }` and `breadthFirstSearch = (ctx, s, source, o) => bfsWithTuning(ctx, s, source, o, {})`.
 
-`depth` is `array<atomic<u32>>` initialised to `INVALID_INDEX` by a `fill` dispatch, with `depth[source] = 0`. The contract phase, over the edge queue, does:
+- [ ] **Step 1: The failing test first**
 
-```
-let old = atomicMin(&depth[v], level);
-if (old == INVALID_INDEX) {
-    parent[v] = u;
-    append v to frontierOut;
+Create `test/algorithms/bfs.test.ts` with the fixture loop of Step 5 against `bfsOracle`.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/algorithms/bfs.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/algorithms/bfs.js`.
+
+- [ ] **Step 2: PD-6 -- the claim, and why there is no retry loop**
+
+`depth` is `array<atomic<u32>>` initialised to `INVALID_INDEX` by a `fill` dispatch (mode 0, value `INVALID_INDEX`), then `depth[source] = 0` by `queue.writeBuffer` after that batch's submit. The contract phase, over the edge queue, does:
+
+```ts
+export const bfsContractWgsl = /* wgsl */ `
+var<workgroup> sh: array<u32, WG>;
+var<workgroup> base: u32;
+
+@compute @workgroup_size(WG)
+fn bfs_contract(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let i = linear_id(wid, lid.x);
+    let count = atomicLoad(&counters[8]);                            // edgeCount, clamped by role 1
+    let claim = atomicLoad(&counters[11]) + 1u;                      // the depth this level assigns
+    var won = 0u;
+    var v = 0u;
+    if (i < count) {                                                 // guarded work into locals
+        v = edgeQueue[i];
+        let old = atomicMin(&depth[v], claim);
+        won = select(0u, 1u, old == INVALID_INDEX);                  // PD-6: the unique winner
+    }
+    sh[lid.x] = won;
+    workgroupBarrier();
+    for (var s = 1u; s < WG; s = s * 2u) {                           // Hillis-Steele inclusive scan of won
+        var t = 0u;
+        if (lid.x >= s) { t = sh[lid.x - s]; }
+        workgroupBarrier();
+        sh[lid.x] = sh[lid.x] + t;
+        workgroupBarrier();
+    }
+    let inclusive = sh[lid.x];
+    if (lid.x == WG - 1u) { base = atomicAdd(&counters[1], inclusive); }   // nextFrontierCount: one reservation per workgroup
+    workgroupBarrier();
+    if (won == 1u) { frontierOut[base + inclusive - 1u] = v; }
 }
+`;
 ```
 
-The invocation that observes `INVALID_INDEX` is the unique winner, because `atomicMin` is a single atomic read-modify-write and only the first one at this level can see the sentinel. Design 8.4 is explicit about why this is not `atomicCompareExchangeWeak`: WGSL 17.8.5 says it "may spuriously fail on some implementations", so a compare-exchange claim needs a retry loop, and a vertex could go unclaimed for its level if the loop is bounded. `atomicMin` has no such failure mode. `parent[v]` is a plain (non-atomic) store from the winner only, so it never races.
+The invocation that observes `INVALID_INDEX` is the unique winner, because `atomicMin` is a single atomic read-modify-write and only the first one at this level can see the sentinel; a second lane at the same level observes `claim`, a vertex already at a smaller depth returns that depth and keeps it. Design 8.4 is explicit about why this is not `atomicCompareExchangeWeak`: WGSL 17.8.5 says it "may spuriously fail on some implementations", so a compare-exchange claim needs a retry loop, and a vertex could go unclaimed for its level if the loop is bounded. `atomicMin` has no such failure mode. Nothing here writes a parent (PD-24). Registry: `(1,0) edgeQueue ro array<u32>`, `(1,1) counters rw array<atomic<u32>>`, `(1,2) depth rw array<atomic<u32>>`, `(1,3) frontierOut rw array<u32>`, `(2,0) P FrontierParams`; storage count 4; no graph group.
 
-- [ ] **Step 2: PD-5 -- why no dedupe here**
+- [ ] **Step 3: PD-24 -- `parent` from one post-pass, and PD-5, why no dedupe here**
+
+`parent[v]` is the SMALLEST `u` with `depth[u] + 1 == depth[v]` and an arc `u -> v`, written after the traversal by `sssp-pred` in its depth mode, one thread per row, `atomicMin` on `pred[v]` (filled with `INVALID_INDEX` first). That makes `parent` bitwise reproducible (the CPU's FIFO parent is a valid predecessor but not this one, so the tests compare by the level rule and `expectSmallestPredecessor`, never by equality), removes a binding from every claim kernel, and gives `sssp` its `predArc` from the same body in `MODE 0`:
+
+```ts
+export const ssspPredWgsl = /* wgsl */ `
+@compute @workgroup_size(WG)
+fn sssp_pred(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let u = linear_id(wid, lid.x);
+    if (u >= P.n) { return; }                                        // no barrier follows
+    let du = dist[u];
+    if (MODE == 1u) { if (du == INVALID_INDEX) { return; } } else { if (du == F32_INF_BITS) { return; } }
+    let end = min(rowPtr[u + 1u], P.arcEnd);
+    for (var a = max(rowPtr[u], P.arcBase); a < end; a = a + 1u) {
+        let v = colIdx[a - P.arcBase];
+        if (v == P.source) { continue; }                             // the source keeps INVALID_INDEX whatever attains it (a zero-weight arc could)
+        var attains = false;
+        if (MODE == 1u) {
+            attains = (du + 1u) == dist[v];                          // depth mode: BFS parent
+        } else {
+            let w = select(1.0, weights[a - P.arcBase], HAS_WEIGHTS);
+            attains = bitcast<u32>(bitcast<f32>(du) + w) == dist[v];   // f32 mode: one f32 add, compared as the bit pattern PD-9 stores
+        }
+        if (attains) { atomicMin(&pred[v], select(a, u, P.predKind == 1u)); }
+    }
+}
+`;
+```
+
+`FrontierParams` carries `source` at @60 (P8-T4's block already declares it). Registry: the four graph slots, `(1,0) dist ro array<u32>` (the traversal's atomic array, bound plain across dispatches), `(1,1) pred rw array<atomic<u32>>`, `(2,0) P`; `overrideDecls: [{ name: "MODE", type: "u32", default: 0 }]`; storage count 6; compile pin 9.
 
 The edge queue contains duplicates: a vertex with three frontier neighbours appears three times. All three run the claim; exactly one wins; exactly one appends. The output vertex frontier is duplicate-free by construction, so design 8.4's ownership dedupe has nothing to remove (DEP-P8-B). Say this in the driver's JSDoc, because the next reader will otherwise wonder where the dedupe went.
 
-- [ ] **Step 3: The host loop (PD-7)**
+- [ ] **Step 4: The host loop (PD-7) and the deterministic `order` (PD-14)**
 
 ```
-for each submit:
-    batch = new CommandBatch(...)
-    pass = batch.pass("bfs")
-    for level in 0 .. MAX_LEVELS_PER_SUBMIT - 1:
-        record frontier-finalize (the level-boundary role: rotates the counts, writes this level's expansion args)
-        record advance-expand   (indirect, this level's expand slot)
-        record frontier-finalize (the edge-queue role: turns edgeCount into the contract's args)
-        record bfs-contract     (indirect, this level's contract slot)
+ctx.assertReady(); await assertDeviceComputes(ctx);
+validate source (an integer in [0, n), else E_INVALID_ARGUMENT { argument: "source" }), dest (a U32 of length n, or absent), signal
+core = ctx.residency.core(s); assertWholeCore(core, ...) until P8-T12
+scope = algorithmScope(ctx, "breadthFirstSearch", RING_SLOTS)       // RING_SLOTS = 12 params records per level x MAX_LEVELS_PER_SUBMIT + 8
+planner = await prepareFrontier(scope, n, arcCount, tuning.edgeCapacity); advance = await prepareAdvance(scope, core); contract, pred, fill = pipelines
+depth = scope.scratch(4n); setup batch: fill depth with INVALID_INDEX; submit; await; queue.writeBuffer(depth, 4 * source, [0])
+frontier.reset(queue, source, {})
+for each submit (while not done):
+    batch = new CommandBatch(ctx, "breadthFirstSearch/levels"); pass = batch.pass("bfs")
+    for level in 0 .. levelsPerSubmit - 1:
+        planner.recordFinalize(pass, 0, level, fields)              // the level boundary: rotates the counts, chooses, writes this level's slots
+        advance.record(pass, frontier, level, window)                // indirect, SLOT.expand
+        planner.recordFinalize(pass, 1, level, fields)              // the edge-queue role: clamps edgeCount, writes SLOT.contract or SLOT.fusedRetry
+        contract.dispatchIndirect(pass, boundFor(frontier.side), frontier.args, level * 7 + SLOT.contract, [params])
         frontier.swap()
     batch.endPass()
-    readback 4 bytes: counters.done
-    batch.submit()
+    request = batch.readback(frontier.counters.buffer, 4 * W.done, 4)   // the four bytes
+    submitted = batch.submit(); bytes = await submitted.readback; ctx.assertReady(); signal check (E_ABORTED with batchId)
+    onProgress(levelsRecordedSoFar, n)
+    if (submits > n + 1) throw E_VALIDATION (a traversal has at most n levels; an unset done flag is a kernel bug, never a hang)
+result batch: keys = scope.scratch(4n); batch.copy(depth -> keys); vals = fill mode 1 (iota); radixSort.record(pass, keys, vals, n, 32, scratch) -> sorted;
+              pred = fill INVALID_INDEX; sssp-pred MODE 1, predKind 1 over planGridStride(n) with source; four readback requests: depth (4n), pred (4n), sorted.vals (4n), counters (96)
+              submit; ONE mapAsync (the batch stages every request into one slot, CommandBatch.readback / submit)
+levels = counters.frontierCount === 0 ? counters.level : counters.level + 1      // done by an empty frontier, or by maxDepth with a reached-but-unexpanded level
+order = new Uint32Array(resultBytes, valsOffset, counters.visitedCount)           // grouped by depth (the sort key), ascending by index within a depth (the iota values, stable sort), INVALID_INDEX keys last
 ```
 
-An empty frontier makes every following level's args `(0, 0, 1)`, so the extra recorded levels are no-ops and the loop is correct without knowing the diameter -- that is the property design 5.4 exists for. The `signal` is checked between submits, never inside one. `onProgress(level, maxLevels)` fires per submit. At the end, one copy brings back `depth`, `parent`, `order` and the counters block.
+An empty frontier makes every following level's args `(0, 0, 1)`, so the extra recorded levels are no-ops and the loop is correct without knowing the diameter -- that is the property design 5.4 exists for. `maxDepth` is a `FrontierParams` field (`U32_MAX` when absent) that role 0 turns into `done` once `level >= maxDepth`. The `signal` is checked between submits, never inside one. `onProgress(levels so far, n)` fires per submit. `visitedCount`, `levels`, `switches` come from the counters block. `order` costs four stable radix passes over `n` words (about 17 dispatches; sub-millisecond at 1M on the card) and buys a reader-visible number that never changes run to run, which is what graphty-element publishes per node (`BFSAlgorithm.ts` line 152) -- the CPU's FIFO order is deterministic too, but it is a different deterministic order, and design 9.7's "grouped by level" is the parity both satisfy.
 
-`order` is produced by the contract phase's append order and is therefore grouped by level but arbitrary within a level (PD-14). `visitedCount` and `levels` come from the counters block.
+`bfsWithTuning`'s `levelsPerSubmit` (default `MAX_LEVELS_PER_SUBMIT`) and `onLevel` are the `inspect()` seam of design 11.9 item 2 (P8-T15 Step 2): with `levelsPerSubmit: 1` the driver reads the whole 96-byte block and the output frontier after every level and hands them to `onLevel`, which the test compares against the oracle's per-level frontier as a set. Nothing public exposes it.
 
-- [ ] **Step 4: The differential suite**
+- [ ] **Step 5: The differential suite**
 
-Against `bfsOracle` from P8-T2, on the fixture list design 11.3 names: the empty graph, one node, one self-loop, `KARATE_EDGES`, `gridEdges(30, 30)`, `pathEdges(500)`, `starEdges(10000)`, `completeEdges(64)`, `randomEdges` and `randomEdgesLoose` with self-loops and parallels, `rmatEdges(14, 10, 7)`, directed and undirected, from several sources including an isolated vertex. For each: `depth` EXACT (`toEqual` on the typed array, not a tolerance -- these are `u32`); `expectLevelConsistent`; `expectOrderGroupedByLevel`; `visitedCount` equals the oracle's reached count; the run-twice bitwise check on `depth` and on the counters; `validate({ checksum: true })` on the snapshot afterwards, which proves no kernel wrote into a view.
+Against `bfsOracle` from P8-T2, on the fixture list design 11.3 names: the empty graph (`n === 0` is `E_INVALID_ARGUMENT` for any source), one node, one self-loop, `KARATE_EDGES`, `gridEdges(30, 30)`, `pathEdges(500)`, `starEdges(10000)`, `completeEdges(64)`, `randomEdges` and `randomEdgesLoose` with self-loops and parallels, `rmatEdges(14, 10, 7)`, directed and undirected, from several sources including an isolated vertex and the LAST index. For each, reading the named buffers of Step 4: `depth` EXACT (`toEqual` on the typed array, not a tolerance -- these are `u32`); `expectLevelConsistent` and `expectSmallestPredecessor` on `parent`; `expectOrderGroupedByLevel` on `order` plus set equality per level with the oracle's; `visitedCount` and `levels` equal the oracle's; `maxDepth: 2` on the star and on the grid (`visitedCount` equals the oracle's under the same cap; no depth exceeds 2); the run-twice bitwise check on `depth`, `parent`, `order` and the counters block; `validate({ checksum: true })` on the snapshot afterwards, which proves no kernel wrote into a view.
 
-Then the gate's two named fixtures: `gridEdges(1000, 1000)` -- a million nodes and roughly 2,000 levels, which is what the `mapAsync` bound is about -- asserting through `test/helpers/leak-counter.ts` that the `mapAsync` count is at most `levels / 32 + 1`; and the 10,000-degree star, which puts a single row through the workgroup tier.
+Then the gate's two named fixtures: `gridEdges(1000, 1000)` scaled by `gpuScale()` (the full 1,000 x 1,000 is P8-T15's `node-limits` case) -- a high-diameter grid whose level count is `w + h - 1`, which is what the `mapAsync` bound is about -- asserting through `test/helpers/leak-counter.ts`, after `await verifyDevice(own); counter.resetMapAsync();` on an adopted device exactly as `pagerank.test.ts` lines 304-313 do, that `counter.mapAsyncCalls === Math.ceil(levels / MAX_LEVELS_PER_SUBMIT) + 1` (PD-7: one per submit, one for the result batch); and the 10,000-degree star from the hub, which puts a single row through the workgroup tier (`bfs-fused`, P8-T7; until then the block-mapped expand strips it in 40 rounds and the assertion is the same depths).
 
-- [ ] **Step 5: The sabotage rows**
+- [ ] **Step 6: The sabotage rows**
 
-`atomicMin` replaced by a plain `min` and store (the claim stops being exclusive, several vertices append); `old == INVALID_INDEX` replaced by `old > level` (correct-looking, but a vertex re-appends at every later level and `order` explodes); `parent[v] = u` moved outside the winner branch (a loser overwrites the winner's parent, breaking level consistency); the level counter not incremented (every depth becomes 0 or invalid). Each fails `test/algorithms/bfs.test.ts` by at least 10x.
+```ts
+    "bfs-contract": Object.freeze([
+        { name: "claim-not-a-min", find: "let old = atomicMin(&depth[v], claim);", replace: "let old = atomicExchange(&depth[v], claim);", minFactor: 10, test: BFS_TEST },
+        { name: "same-level-claimants-append", find: "won = select(0u, 1u, old == INVALID_INDEX);", replace: "won = select(0u, 1u, old >= claim);", minFactor: 10, test: BFS_TEST },
+        { name: "claim-is-the-level", find: "let claim = atomicLoad(&counters[11]) + 1u;", replace: "let claim = atomicLoad(&counters[11]);", minFactor: 10, test: BFS_TEST },
+    ]),
+    "sssp-pred": Object.freeze([
+        { name: "same-depth-attains", find: "attains = (du + 1u) == dist[v];", replace: "attains = du == dist[v];", minFactor: 10, test: BFS_TEST },
+        { name: "largest-predecessor", find: "atomicMin(&pred[v], select(a, u, P.predKind == 1u));", replace: "atomicMax(&pred[v], select(a, u, P.predKind == 1u));", minFactor: 10, test: BFS_TEST },
+        { name: "last-row-skipped", find: "if (u >= P.n) { return; }                                        // no barrier follows", replace: "if (u + 1u >= P.n) { return; }", minFactor: 10, test: BFS_TEST },
+    ]),
+```
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bfs.test.ts` then `$GPU_LLVM`.
-Expected: PASS on both, `depth` bitwise identical between the two adapters.
+The first makes a later level overwrite a smaller depth (`depth` miss); the second appends every same-level claimant (duplicates: `visitedCount` and `order` miss); the third shifts every depth from level 1 on; the fourth breaks level consistency; the fifth fails `expectSmallestPredecessor` on the grid; the sixth fails level consistency from the last-index source on the path. `test/sabotage/bfs.test.ts` runs the rows plus P8-T4's `rotation-dropped` on `gridEdges(30, 30)` and `pathEdges(500)`; every one reports a bitwise miss. Watch each go red.
 
-- [ ] **Step 6: Commit (owner)** -- `feat(webgpu-graph-algorithms): breadth-first search on the GPU frontier`.
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bfs.test.ts test/sabotage/bfs.test.ts test/sabotage/frontier.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_LLVM`.
+Expected: PASS on both, `depth`, `parent` and `order` bitwise identical between the two adapters (design 11.5).
+
+- [ ] **Step 7: Commit (owner)** -- `feat(webgpu-graph-algorithms): breadth-first search on the GPU frontier`.
 
 ---
 
@@ -533,50 +1010,263 @@ Expected: PASS on both, `depth` bitwise identical between the two adapters.
 
 **Depends on P8-T6.**
 
-**Spec:** design 8.4 lines 2634-2636 (the fused variant for frontiers below 4,096 entries, Merrill's fleeting iterations); design 6 row 8 (both variants recorded for every level, the threshold as a uniform, the unselected slot gets `(0, 0, 1)`, never a host choice); design 8.10 "BFS fused expand-contract" (8 bindings).
+**Spec:** design 8.4 (the fused variant for frontiers below 4,096 entries, Merrill's fleeting iterations); design 6 row 8 (both variants recorded for every level, the threshold as a uniform, the unselected slot gets `(0, 0, 1)`, never a host choice; the workgroup-per-row tier); design 8.10 "BFS fused expand-contract" (8 bindings).
 
-**Files:** Create `$PKG/src/wgsl/bfs-fused.wgsl.ts`; modify `$PKG/src/kernels.ts`, `$PKG/src/wgsl/frontier-finalize.wgsl.ts`, `$PKG/src/algorithms/bfs.ts`, `$PKG/test/algorithms/bfs.test.ts`, `$PKG/test/helpers/sabotage.ts`.
+**Files:** Create `$PKG/src/wgsl/bfs-fused.wgsl.ts`; modify `$PKG/src/kernels.ts` (one entry), `$PKG/src/algorithms/bfs.ts`, `$PKG/test/kernel/bind-group-budget.test.ts` (`"bfs-fused": 8`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pin 5), `$PKG/test/helpers/override-matrix.ts`, `$PKG/test/algorithms/bfs.test.ts`, `$PKG/test/sabotage/bfs.test.ts`, `$PKG/test/helpers/sabotage.ts`. Consumes P8-T4's selector (the `fusedMax` branch and role 1's retry branch, both already in the body), `graphBindings`, `Kernel.dispatchIndirect`, `SLOT.fused` and `SLOT.fusedRetry`.
 
-- [ ] **Step 1: The fused body.** The block-mapped expansion of P8-T5 with the claim of P8-T6 applied inline instead of appending to an edge queue -- one dispatch, no edge queue traffic, which is the whole win for a tiny frontier. It reuses the same workgroup scan and the same `upper_bound` strip; keep the two bodies' shared arithmetic textually identical so a reader can diff them.
-- [ ] **Step 2: The selector branch.** In `frontier-finalize`, add: `if (frontierCount < FUSED_MAX) { write args into the fused slot; zero the expand and contract slots } else { the reverse }`. `FUSED_MAX` is a uniform field, not a compile-time constant, so a test can set it to 0 or to `U32_MAX` and force either path without recompiling.
-- [ ] **Step 3: Both paths agree.** Run the whole P8-T6 suite three times: threshold 0 (never fused), threshold `U32_MAX` (always fused), and the real default. All three produce identical `depth` and equal `order` as a per-level set. Then, on `rmatEdges(14, 10, 7)` at the real default, read the counters back per submit and assert BOTH paths were chosen at least once -- design 13's gate item "the device-side selection picks each at least once on an RMAT fixture". Record which levels chose which in the gate record.
-- [ ] **Step 4: Three sabotage rows** on the fused body (the claim moved outside the guard; the scan made inclusive; the frontier count read from the wrong slot) and one on the selector (the comparison inverted, so the fused path runs on a 10M-entry frontier and overruns its workgroup budget).
+- [ ] **Step 1: The failing test first.** Add to `test/algorithms/bfs.test.ts` the three-threshold run and the counter assertions of Step 4, driven through `bfsWithTuning({ fusedMax })`.
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bfs.test.ts` then `$GPU_LLVM`.
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/algorithms/bfs.test.ts -t fused`
+Expected: FAIL with `AssertionError: expected 0 to be greater than 0` on `fusedLevels` (the driver still passes `fusedMax 0` and the fused kernel does not exist).
+
+- [ ] **Step 2: The fused body -- the workgroup-per-row tier with the claim inline**
+
+One workgroup per frontier entry, every lane striding that entry's row, the claim of P8-T6 applied inline instead of appending to an edge queue -- one dispatch, no edge queue traffic, which is the whole win for a tiny frontier, and the "workgroup-per-row tier" of design 6 row 8 (P8-T5 Step 3). The strip loop's bound is a `workgroupUniformLoad`, so the barriers of the per-strip append are in uniform control flow; the plain body has two barriers per strip plus the scan's, and a trailing barrier before `sh` and `base` are reused:
+
+```ts
+export const bfsFusedWgsl = /* wgsl */ `
+var<workgroup> sh: array<u32, WG>;
+var<workgroup> wdeg: u32;
+var<workgroup> wstart: u32;
+var<workgroup> base: u32;
+
+@compute @workgroup_size(WG)
+fn bfs_fused(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let g = group_id(wid);                                           // one workgroup per frontier entry
+    let claim = atomicLoad(&counters[11]) + 1u;
+    if (lid.x == 0u) {
+        var d = 0u;
+        var a0 = 0u;
+        if (g < atomicLoad(&counters[0])) {
+            let u = frontierIn[g];
+            a0 = max(rowPtr[u], P.arcBase);
+            let a1 = min(rowPtr[u + 1u], P.arcEnd);
+            d = select(0u, a1 - a0, a1 > a0);
+        }
+        wdeg = d;
+        wstart = a0;
+        atomicAdd(&counters[2], d);                                  // frontierDegreeSum, so Beamer's test (P8-T8) sees fused levels too
+    }
+    let deg = workgroupUniformLoad(&wdeg);                           // uniform: the loop below may hold barriers
+    let start = workgroupUniformLoad(&wstart);
+    for (var p0 = 0u; p0 < deg; p0 = p0 + WG) {                      // strip the row WG arcs at a time
+        let p = p0 + lid.x;
+        var won = 0u;
+        var v = 0u;
+        if (p < deg) {                                               // guarded claim into locals
+            v = colIdx[start + p - P.arcBase];
+            let old = atomicMin(&depth[v], claim);
+            won = select(0u, 1u, old == INVALID_INDEX);
+        }
+        sh[lid.x] = won;
+        workgroupBarrier();
+        for (var s = 1u; s < WG; s = s * 2u) {                       // Hillis-Steele inclusive scan of won (bfs-contract's, verbatim)
+            var t = 0u;
+            if (lid.x >= s) { t = sh[lid.x - s]; }
+            workgroupBarrier();
+            sh[lid.x] = sh[lid.x] + t;
+            workgroupBarrier();
+        }
+        let inclusive = sh[lid.x];
+        if (lid.x == WG - 1u) { base = atomicAdd(&counters[1], inclusive); }
+        workgroupBarrier();
+        if (won == 1u) { frontierOut[base + inclusive - 1u] = v; }
+        workgroupBarrier();                                          // sh and base are reused by the next strip
+    }
+}
+`;
+```
+
+Keep the claim line and the scan textually identical to `bfs-contract`'s so a reader can diff them. Registry: the four graph slots, `(1,0) frontierIn ro array<u32>`, `(1,1) counters rw array<atomic<u32>>`, `(1,2) depth rw array<atomic<u32>>`, `(1,3) frontierOut rw array<u32>`, `(2,0) P`; storage count 8 -- at the budget, which is why no `parent` lives here (PD-24).
+
+- [ ] **Step 3: The selector branch and the driver.** P8-T4's body already holds `else if (next < P.fusedMax)`; the driver now passes `fusedMax = tuning.fusedMax ?? FUSED_FRONTIER_MAX` instead of 0, records `bfs-fused` twice per level -- `dispatchIndirect(..., SLOT.fused)` and `dispatchIndirect(..., SLOT.fusedRetry)`, the same bound kernel -- after the contract, and the level sequence becomes: finalize 0, expand, finalize 1, contract, fused, fused-retry, swap. `FUSED_MAX` is a uniform field, not a compile-time constant, so a test can set it to 0 or to `U32_MAX` and force either path without recompiling.
+
+- [ ] **Step 4: Both paths agree, and the selection is pinned to counters.** Run the whole P8-T6 suite three times through `bfsWithTuning`: `fusedMax 0` (never fused), `fusedMax U32_MAX` (always fused), and the default. All three produce identical `depth`, `parent` and `order` (bitwise, PD-14). Then, on `rmatEdges(14, 10, 7)` at the default, read the counters block back with the result and assert BOTH paths were chosen: `fusedLevels > 0` and `twoPhaseLevels > 0` -- design 13's gate item "the device-side selection picks each at least once on an RMAT fixture" -- and, exactly, that `fusedLevels` equals the number of levels whose oracle frontier size is below 4,096 and `twoPhaseLevels` the number at or above it (the oracle's `depth` gives every level's size; level 0's size is 1). Record which levels chose which in the gate record. Then the gate's overflow item (PD-23): `bfsWithTuning({ edgeCapacity: 4096 })` on `starEdges(10000)` from the hub and on `rmatEdges(14, 10, 7)`: `depth` exact, `overflowLevels > 0` (1 on the star), and every level's `fusedLevels + twoPhaseLevels + bottomUpLevels === levels`.
+
+- [ ] **Step 5: Three sabotage rows on the fused body and one on the selector**
+
+```ts
+    "bfs-fused": Object.freeze([
+        { name: "claim-outside-the-guard", find: "if (p < deg) {                                               // guarded claim into locals", replace: "if (true) {", minFactor: 10, test: BFS_TEST },
+        { name: "fused-scan-round-dropped", find: "for (var s = 1u; s < WG; s = s * 2u) {                       // Hillis-Steele inclusive scan of won (bfs-contract's, verbatim)", replace: "for (var s = 1u; s < WG; s = s * 4u) {", minFactor: 10, test: BFS_TEST },
+        { name: "fused-claim-is-the-level", find: "let claim = atomicLoad(&counters[11]) + 1u;\n    if (lid.x == 0u) {", replace: "let claim = atomicLoad(&counters[11]);\n    if (lid.x == 0u) {", minFactor: 10, test: BFS_TEST },
+    ]),
+```
+
+and on `frontier-finalize`: `{ name: "fused-threshold-inverted", find: "} else if (next < P.fusedMax) {", replace: "} else if (next >= P.fusedMax) {", minFactor: 10, test: BFS_TEST }`. The first claims past the row's end (the robustness clamp makes it a claim on the wrong vertex); the second breaks the appends; the third shifts every fused depth; the fourth leaves every depth right and is caught ONLY by Step 4's exact `fusedLevels` count against the oracle's level sizes -- a counter assertion, never a timing. The `find` strings of the first three occur once each in the fused body (the scan comment differs from `bfs-contract`'s on purpose). Watch each go red.
+
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bfs.test.ts test/sabotage/bfs.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_LLVM`.
 Expected: PASS; the "each path chosen at least once" assertion green on the RMAT fixture.
 
-- [ ] **Step 5: Commit (owner)** -- `feat(webgpu-graph-algorithms): the fused BFS level and the device-side per-level choice`.
+- [ ] **Step 6: Commit (owner)** -- `feat(webgpu-graph-algorithms): the fused BFS level and the device-side per-level choice`.
 
 ---
 
 ### Task P8-T8: Direction-optimizing BFS -- the unvisited set, the bitset, the bottom-up sweep, Beamer's test
 
-**Depends on P8-T7, and on P8-T3's `compact`. Needs P7's `reverse()` residency.**
+**Depends on P8-T7, and on P8-T3's `compact`. Uses P7's `reverse()` residency and the `outDegree` / `inDegree` views.**
 
-**Spec:** design 8.4 lines 2641-2652 (Beamer's constants, the switch conditions, the bitset frontier, the non-zero-degree unvisited list the sweep iterates, the bulk non-atomic path above 40% of `n`, and the rule that the switch is evaluated on the device from counters the advance already produces); design 8.10 "BFS bottom-up" (8 bindings).
+**Spec:** design 8.4 (Beamer's constants, the switch conditions, the bitset frontier, the non-zero-degree unvisited list the sweep iterates, and the rule that the switch is evaluated on the device from counters the advance already produces); design 8.10 "BFS bottom-up" (8 bindings).
 
-**Files:** Create `$PKG/src/wgsl/bfs-bottom-up.wgsl.ts`, `$PKG/src/wgsl/bfs-bitset-build.wgsl.ts`, `$PKG/src/wgsl/bfs-unvisited-flags.wgsl.ts`; modify `$PKG/src/kernels.ts`, `$PKG/src/wgsl/frontier-finalize.wgsl.ts`, `$PKG/src/algorithms/bfs.ts`, `$PKG/test/algorithms/bfs.test.ts`, `$PKG/test/helpers/sabotage.ts`. NOT touched: `$PKG/src/primitives/compact.ts` -- this task CALLS `prepareCompact` from P8-T3 and adds nothing to it.
+**Files:** Create `$PKG/src/wgsl/bfs-bottom-up.wgsl.ts`, `$PKG/src/wgsl/bfs-bitset-build.wgsl.ts`, `$PKG/src/wgsl/bfs-unvisited-flags.wgsl.ts`; modify `$PKG/src/kernels.ts` (three entries), `$PKG/src/wgsl/frontier-finalize.wgsl.ts` (the `direction` line), `$PKG/src/algorithms/bfs.ts`, `$PKG/test/kernel/bind-group-budget.test.ts` (`"bfs-bottom-up": 8, "bfs-bitset-build": 3, "bfs-unvisited-flags": 5`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pins 5, 1, 1), `$PKG/test/helpers/override-matrix.ts`, `$PKG/test/algorithms/bfs.test.ts`, `$PKG/test/sabotage/bfs.test.ts`, `$PKG/test/helpers/sabotage.ts`. NOT touched: `$PKG/src/primitives/compact.ts` -- this task CALLS `prepareCompact` from P8-T3 and adds nothing to it. Consumes `coreOfView` (`src/primitives/core-shape.ts` line 155) for the reverse core, `residency.view(s, "reverse")`, `view(s, "outDegree")`, `view(s, "inDegree")`, the prelude's `mask_bit` and `wg_reduce_u32` (with `combine_u`'s sum code), `SLOT.fillBits` / `SLOT.bitset` / `SLOT.bottomUp`, `W.*`.
 
-- [ ] **Step 1: The unvisited set, which is the thing Beamer's test is against (PD-18)**
+- [ ] **Step 1: The failing test first.** Add to `test/algorithms/bfs.test.ts` the `switches > 0` assertion on `rmatEdges(16, 10, 3)` and the unvisited-bookkeeping assertions of Step 5.
 
-A bottom-up level sweeps the vertices that have NOT been reached, so this task must first produce four things that nothing earlier in the phase produces: `unvisitedList` (the unvisited vertices with a non-zero in-degree -- what the sweep iterates), `unvisitedListLen` (what sizes the sweep's dispatch), `unvisitedDegreeSum` (the out-degree sum of the unvisited vertices, Beamer's `m_u`) and `unvisitedCount`. They are produced two ways and both are needed.
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/algorithms/bfs.test.ts -t direction`
+Expected: FAIL with `AssertionError: expected 0 to be greater than 0` on `switches`.
 
-*Exactly, once per submit.* A new kernel, `bfs-unvisited-flags`, grid-strides over the vertices. For each `v` it writes `flags[v] = 1` when `depth[v] == INVALID_INDEX` and `revRowPtr[v + 1] - revRowPtr[v] != 0`, else 0, and adds into three counter words: `v`'s OUT-degree into `unvisitedDegreeSum` and one into `unvisitedCount` for every unvisited vertex, one into `unvisitedListLen` for every flagged one. All three adds are workgroup-aggregated, one atomic per workgroup and not one per vertex, the same discipline as `advance-expand`. Then `prepareCompact` from P8-T3 turns `flags` into `unvisitedList`. The three words are zeroed by a `fill` dispatch recorded immediately before, in the same pass. `flags` and `unvisitedList` are two more `n`-word allocations and `compact`'s own `outCount` is a four-byte one; all three are taken by the BFS driver from the lease the `Frontier` already holds, so they are released with it, and the `Frontier` class of P8-T4 does not change. Step 5 asserts `compact`'s count equals `unvisitedListLen`, which costs nothing and cross-checks the compaction.
+- [ ] **Step 2: The unvisited set, which is the thing Beamer's test is against (PD-18)**
 
-The host records this rebuild ONCE at the top of every submit, before the 32 levels, unconditionally -- never per level, never gated on the direction, so it needs no candidate slot and costs one pass over `n` per 32 levels. On the 1000 x 1000 grid that is about 60 rebuilds across a 2,000-level traversal; on an RMAT graph of diameter 10 it is one.
+A bottom-up level sweeps the vertices that have NOT been reached, so this task must first produce four things that nothing earlier in the phase produces: `unvisitedList` (the unvisited vertices with a non-zero in-degree -- what the sweep iterates), `unvisitedListLen` (word 7, what sizes the sweep's dispatch), `unvisitedDegreeSum` (word 6, the out-degree sum of the unvisited vertices, Beamer's `m_u`) and `unvisitedCount` (word 5). They are produced two ways and both are needed.
 
-*By subtraction, at every level in between.* Inside a submit the unvisited set only shrinks, and `frontier-finalize` already holds the numbers that say by how much: in its level-boundary role it does `unvisitedCount -= prevFrontierCount` and `unvisitedDegreeSum -= prevDegreeSum`. `prevDegreeSum` is the degree sum of the frontier the previous level expanded, which `advance-expand` measured while expanding it (P8-T5 Step 1), so while every level is top-down the subtraction is exact. Two things make it the "unvisited degree estimate" the design calls it rather than an exact count: both numbers are one level stale, because a frontier's degree sum is only known once it has been expanded; and a bottom-up level expands nothing, so `unvisitedDegreeSum` stops falling while bottom-up runs and overstates the set afterwards. The bias is one-directional -- an overstated `m_u` makes the switch INTO bottom-up harder, never easier -- and the next submit's rebuild makes both exact again. Say that in the kernel's JSDoc, with this paragraph's reason.
+*Exactly, once per submit.* `bfs-unvisited-flags` grid-strides over the vertices (`planGridStride(n)`; `P.stride` is the plan's stride):
+
+```ts
+export const bfsUnvisitedFlagsWgsl = /* wgsl */ `
+@compute @workgroup_size(WG)
+fn bfs_unvisited_flags(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let first = linear_id(wid, lid.x);
+    var cnt = 0u;
+    var degSum = 0u;
+    var len = 0u;
+    for (var v = first; v < P.n; v = v + P.stride) {                 // no barrier inside: the trip count is per lane
+        let unv = depth[v] == INVALID_INDEX;
+        let listed = unv && (inDegree[v] != 0u);
+        flags[v] = select(0u, 1u, listed);
+        cnt = cnt + select(0u, 1u, unv);
+        degSum = degSum + select(0u, outDegree[v], unv);             // the OUT-degree: Beamer's m_u counts the edges top-down would examine
+        len = len + select(0u, 1u, listed);
+    }
+    let c = wg_reduce_u32(cnt, lid.x, 0u);                           // the prelude's workgroup sum (combine_u's sum code); uniform: after the loop
+    let d = wg_reduce_u32(degSum, lid.x, 0u);
+    let l = wg_reduce_u32(len, lid.x, 0u);
+    if (lid.x == 0u) {                                               // ONE atomic per word per workgroup
+        atomicAdd(&counters[5], c);
+        atomicAdd(&counters[6], d);
+        atomicAdd(&counters[7], l);
+    }
+}
+`;
+```
+
+(`wg_reduce_u32`'s op code is `combine_u`'s sum code in `src/kernel/prelude.ts`; the builder reads it there rather than trusting the `0u` above.) Bindings: `(1,0) outDegree ro array<u32>`, `(1,1) inDegree ro array<u32>`, `(1,2) depth ro array<u32>`, `(1,3) flags rw array<u32>`, `(1,4) counters rw array<atomic<u32>>`, `(2,0) P`; storage count 5; the two degree VIEWS rather than the graph group, because in-degree needs the reverse row pointer and the view is the same upload on an undirected snapshot. Then `prepareCompact.record(pass, { queue: iota, flags, count: n, out: sweepIn[0 .. n), outCount: compactCount, outIndex: 0 })` turns `flags` into `unvisitedList` -- `queue` is an `iota` scratch (`fill` mode 1, once at setup) so `compact` needs no identity special case -- and `compactCount` is a one-word scratch that Step 5 compares with word 7. The three words are zeroed by `queue.writeBuffer` (12 bytes at offset 20) before the submit. `flags`, `sweepIn` (`roundUp(n, 64) + ceil(n / 32)` words: `unvisitedList` at word 0, `frontierBits` at word `bitsBase = roundUp(n, 64)`, so the bits region's byte offset is 256-aligned and `fill` can bind it alone), `iota` and `compactCount` are taken from the algorithm's lease, so they are released with it, and the `Frontier` class of P8-T4 does not change.
+
+The host records this rebuild ONCE at the top of every submit, before the levels, unconditionally -- never per level, never gated on the direction, so it needs no candidate slot and costs one pass over `n` per 32 levels. On the 1000 x 1000 grid that is about 63 rebuilds across a 1,999-level traversal; on an RMAT graph of diameter 10 it is one. The first boundary of each submit carries `P.firstOfSubmit = 1` and skips its subtraction, because the rebuild already excluded the vertices that boundary would subtract; every other boundary subtracts.
+
+*By subtraction, at every level in between.* Inside a submit the unvisited set only shrinks, and `frontier-finalize` already holds the numbers that say by how much: in its level-boundary role it does `unvisitedCount -= next` (exact: the vertices just claimed) and `unvisitedDegreeSum -= frontierDegreeSum` (the degree sum of the frontier just EXPANDED, which `advance-expand` or `bfs-fused` measured while expanding it). Two things make the degree sum the "unvisited degree estimate" the design calls it rather than an exact count: it is one level stale, because a frontier's degree sum is only known once it has been expanded; and a bottom-up level expands nothing, so `unvisitedDegreeSum` stops falling while bottom-up runs and overstates the set afterwards. The bias is one-directional -- an overstated `m_u` makes the switch INTO bottom-up harder, never easier -- and the next submit's rebuild makes it exact again. Say that in the kernel's JSDoc, with this paragraph's reason.
 
 Because the list is up to 32 levels stale it holds vertices that have since been claimed. The sweep skips them on the `depth[v] == INVALID_INDEX` test it has to make anyway, so staleness costs a few wasted reads and can never produce a wrong depth.
 
-- [ ] **Step 2: The bitset and the hand-off.** ONE `n/32`-word bitset, rebuilt per level rather than ping-ponged. `bfs-bitset-build` turns the vertex-list frontier into `frontierBits` with `atomicOr`, and takes the bulk non-atomic path when `frontierCount >= 0.4 * n` (the plain store is safe there because the kernel is writing whole words it owns). The bottom-up sweep appends the vertices it claims to `frontierOut` as a plain vertex list, exactly as the contract phase does, and writes NO second bitset: the next level's bits come from `bfs-bitset-build` running over that list, which is a recorded candidate of every level anyway. That leaves one representation of a frontier in the whole phase -- a vertex list plus a count -- makes the bottom-up-to-top-down hand-off free, and is what keeps the sweep inside the eight storage buffers design 8.10 gives it: with design 8.10's `nextBits` gone there is room for `frontierOut` and for the counters block (P8-T4 Step 2).
-- [ ] **Step 3: The bottom-up sweep.** Over `reverse()` (the forward arrays when the snapshot is undirected, which P7's residency already aliases at zero upload cost), one invocation per entry of `unvisitedList[0 .. unvisitedListLen)`. An entry whose `depth` is no longer `INVALID_INDEX` returns at once (Step 1's staleness). The rest scan their in-neighbours and stop at the FIRST one in `frontierBits`: that is the early exit that makes bottom-up cheap and it must be a real `break`, not a full scan with a flag. The winner writes `depth[v]` (an `atomicStore`, because `depth` is `array<atomic<u32>>` for the top-down kernels -- but no claim race is possible here, since the list holds each vertex exactly once and the sweep is vertex-parallel), writes `parent[v] = u` and appends `v` to `frontierOut` through the workgroup-aggregated `atomicAdd` on `nextFrontierCount`.
-- [ ] **Step 4: The switch, on the device.** In `frontier-finalize`'s level-boundary role: switch to bottom-up when `frontierDegreeSum > unvisitedDegreeSum / alpha` AND the frontier is growing (`frontierCount > prevFrontierCount`); switch back when `frontierCount * BEAMER_BETA < unvisitedCount` AND it is shrinking. `alpha = arcCount / nodeCount` is computed on the host and passed as a uniform; `BEAMER_ALPHA` (14, Beamer's published value) is the fallback for a graph with no nodes, where that ratio is undefined. Increment `switches` on every change and write `direction` for the next level. Every counter the test reads is a word of the block, and P8-T4 Step 3's table names the kernel that writes each: the two frontier numbers come from `advance-expand` and the contract, the two unvisited numbers from Step 1 above.
-- [ ] **Step 5: Proof.** `direction: "top-down"` disables the bottom-up candidate; run the whole suite in both modes and assert identical `depth`. On `rmatEdges(16, 10, 3)` assert `switches > 0` at the default and `switches === 0` under `"top-down"` -- design 13's gate item. Add the RMAT fixture to the run-twice check: `switches` is a device counter over a deterministic rule, so it is reproducible and must be asserted as such. Assert the unvisited bookkeeping directly too, because a switch decided from wrong counters is a switch that fires at the wrong level and no depth comparison would notice: after the first submit's rebuild on `gridEdges(30, 30)`, `unvisitedCount === n - 1` and `unvisitedDegreeSum === arcCount - outDegree(source)`; on a fixture with isolated vertices `unvisitedListLen` excludes them while `unvisitedCount` counts them; `unvisitedListLen` equals `compact`'s scratch `outCount` on every rebuild; and on the 1000 x 1000 grid the rebuild count is `ceil(levels / 32)`, which the leak counter's dispatch record shows.
-- [ ] **Step 6: Six sabotage rows, three on the sweep and three on the unvisited kernel** (design 13 rule (f) asks three per kernel). On the sweep and the selector: the early `break` removed, so bottom-up costs the same as top-down but still gives the right answer -- that one must be caught by a TIMING or dispatch-count assertion rather than by a wrong depth, so say in the row that its check is the benchmark's, not the differential's; `atomicOr` replaced by a plain store in the bitset build; the growing / shrinking comparison inverted, so the two directions thrash and `switches` exceeds `levels`. On `bfs-unvisited-flags`: every vertex flagged instead of only the unvisited ones, so the list never shrinks and `unvisitedDegreeSum` never falls and the switch fires at the wrong level; the in-degree test inverted, so isolated vertices fill the list and the sweep scans rows that cannot be claimed; the degree sum accumulating the IN-degree instead of the out-degree, which is Beamer's ratio measured against the wrong quantity and is invisible on any undirected fixture -- so that row's check runs on a directed one. All three are caught by Step 5's counter assertions, which is why those are assertions and not prose.
+- [ ] **Step 3: The bitset and the hand-off.** ONE `ceil(n / 32)`-word bitset, rebuilt per level rather than ping-ponged, zeroed by a `fill` over the bits region (its own indirect slot, `SLOT.fillBits`, so a top-down level skips it) and then written by `bfs-bitset-build`:
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bfs.test.ts` then `$GPU_LLVM`.
-Expected: PASS; `switches > 0` on RMAT; identical depths in all three modes.
+```ts
+export const bfsBitsetBuildWgsl = /* wgsl */ `
+@compute @workgroup_size(WG)
+fn bfs_bitset_build(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let i = linear_id(wid, lid.x);
+    if (i >= atomicLoad(&counters[0])) { return; }                   // frontierCount; no barrier follows
+    let v = frontierIn[i];
+    atomicOr(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));
+}
+`;
+```
+
+Bindings `(1,0) frontierIn ro array<u32>`, `(1,1) counters rw array<atomic<u32>>`, `(1,2) bits rw array<atomic<u32>>` (the whole `sweepIn` buffer; `P.bitsBase` addresses the region), storage count 3. The design's "bulk non-atomic path when the frontier is >= 40% of n" iterates WORDS of a frontier that is already a bitset; this frontier is a vertex list, so a word-owning store has nothing to iterate and `atomicOr` per vertex is the whole kernel -- one sentence in the JSDoc. The bottom-up sweep appends the vertices it claims to `frontierOut` as a plain vertex list, exactly as the contract phase does, and writes NO second bitset: the next level's bits come from `bfs-bitset-build` running over that list, which is a recorded candidate of every level anyway. That leaves one representation of a frontier in the whole phase -- a vertex list plus a count -- makes the bottom-up-to-top-down hand-off free, and is what keeps the sweep inside eight storage buffers with the four graph slots.
+
+- [ ] **Step 4: The bottom-up sweep.** Over `reverse()` (`coreOfView(residency.view(s, "reverse"), arcCount)` -- the forward arrays when the snapshot is undirected, which P7's residency already aliases at zero upload cost), one invocation per entry of `unvisitedList[0 .. unvisitedListLen)`:
+
+```ts
+export const bfsBottomUpWgsl = /* wgsl */ `
+var<workgroup> sh: array<u32, WG>;
+var<workgroup> base: u32;
+
+@compute @workgroup_size(WG)
+fn bfs_bottom_up(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let i = linear_id(wid, lid.x);
+    let len = atomicLoad(&counters[7]);                              // unvisitedListLen
+    let claim = atomicLoad(&counters[11]) + 1u;
+    var won = 0u;
+    var v = 0u;
+    var reads = 0u;
+    if (i < len) {                                                   // guarded work into locals
+        v = sweepIn[i];
+        if (atomicLoad(&depth[v]) == INVALID_INDEX) {                // a stale entry, claimed since the rebuild, is skipped
+            let end = min(rowPtr[v + 1u], P.arcEnd);
+            for (var a = max(rowPtr[v], P.arcBase); a < end; a = a + 1u) {   // in-neighbours through the reverse core
+                reads = reads + 1u;
+                let u = colIdx[a - P.arcBase];
+                if (mask_bit(sweepIn[P.bitsBase + (u >> 5u)], u)) { won = 1u; break; }   // the early exit: a real break, never a flag
+            }
+        }
+    }
+    sh[lid.x] = won;
+    workgroupBarrier();
+    for (var s = 1u; s < WG; s = s * 2u) {                           // Hillis-Steele inclusive scan of won (bfs-contract's)
+        var t = 0u;
+        if (lid.x >= s) { t = sh[lid.x - s]; }
+        workgroupBarrier();
+        sh[lid.x] = sh[lid.x] + t;
+        workgroupBarrier();
+    }
+    let inclusive = sh[lid.x];
+    let readsTotal = wg_reduce_u32(reads, lid.x, 0u);                // arcsScanned, one atomic per workgroup (the sabotage witness, Step 6)
+    if (lid.x == WG - 1u) { base = atomicAdd(&counters[1], inclusive); }
+    if (lid.x == 0u) { atomicAdd(&counters[16], readsTotal); }
+    workgroupBarrier();
+    if (won == 1u) {
+        atomicStore(&depth[v], claim);                               // no claim race: the list holds v once and the sweep is vertex-parallel
+        frontierOut[base + inclusive - 1u] = v;
+    }
+}
+`;
+```
+
+Bindings: the four graph slots of the REVERSE core, `(1,0) sweepIn ro array<u32>`, `(1,1) counters rw array<atomic<u32>>`, `(1,2) depth rw array<atomic<u32>>`, `(1,3) frontierOut rw array<u32>`, `(2,0) P`; storage count 8. The sweep binds `sweepIn` read-only while `bfs-bitset-build` and `compact` bind the same buffer read-write in OTHER dispatches, which `Kernel.bind` allows (its access-mode check is per dispatch).
+
+- [ ] **Step 5: The switch, on the device (PD-21), and the proof.** In `frontier-finalize`'s role 0, the `var direction = 0u;` line of P8-T4 becomes:
+
+```
+    var direction = atomicLoad(&counters[14]);
+    if (P.mode == 1u) {
+        direction = 0u;                                                 // top-down only (the test seam)
+    } else if (direction == 0u) {
+        if (degSum > atomicLoad(&counters[6]) / P.alpha && next > finished) { direction = 1u; }   // m_f > m_u / alpha and growing
+    } else {
+        if (next * P.beta < atomicLoad(&counters[5]) && next < finished) { direction = 0u; }      // next * beta < unvisited and shrinking
+    }
+    if (direction != atomicLoad(&counters[14])) { atomicStore(&counters[13], atomicLoad(&counters[13]) + 1u); }   // switches
+```
+
+`alpha = max(1, floor(arcCount / nodeCount))` is computed on the host and passed as the `alpha` uniform (`tuning.alpha` overrides it); `beta = BEAMER_BETA` (`tuning.beta` overrides). Why the derived alpha is the design's rule and why there is no constant: with `alpha = m / n` the test reads "the frontier's edges exceed the unvisited edges divided by the average degree", which is about the number of unvisited VERTICES bottom-up would have to touch. On a sparse graph whose arc-to-node ratio is 2 -- a path or a cycle, undirected -- alpha is 2 and bottom-up is entered only when the frontier's edges exceed HALF the unvisited edges, which on a path is the last two levels; Beamer's published 14 would enter it seven times earlier, on a graph where a bottom-up level costs a read of every unvisited vertex for a frontier of one, and that is the wrong direction to err in. On an RMAT graph at edge factor 10 (ratio 20 undirected) the derived value is 20 and the switch fires at the peak levels, which Step 5's model shows. `next * P.beta` is a u32 product; it wraps above 178M vertices, and `n` is below that on every device this package admits, so the wrap is noted, not guarded. The words the test reads are all in the block, and P8-T4 Step 3's table names the kernel that writes each.
+
+Proof, every assertion on a counter word read from the block: `bfsWithTuning({ direction: "top-down" })` disables the bottom-up candidate; run the whole suite in both modes and assert identical `depth`, `parent`, `order`. On `rmatEdges(16, 10, 3)` assert `switches > 0` at the default and `switches === 0` under `"top-down"` -- design 13's gate item -- and, exactly, two things against a twenty-line host model of Beamer's rule that replays the selector from the oracle's per-level frontier sizes and degree sums with the same one-level staleness and the same per-submit rebuild (`expectedDirections(levelSizes, levelDegreeSums, n, arcCount, alpha, beta, levelsPerSubmit)` in `test/helpers/traversal-check.ts`): at the production cadence (`levelsPerSubmit` 32, no `onLevel`) the result's `switches` equals the model's count, and at `levelsPerSubmit: 1` (where `onLevel` hands back the block after every level, and the model is run with 1 so the rebuild cadence matches) the per-level `direction` words equal the model's sequence. Add the RMAT fixture to the run-twice check: `switches` is a device counter over a deterministic rule, so it is reproducible and must be asserted as such. Assert the unvisited bookkeeping directly too, because a switch decided from wrong counters is a switch that fires at the wrong level and no depth comparison would notice: after the first submit's rebuild on `gridEdges(30, 30)` (read through `onLevel` at level 0), `unvisitedCount === n - 1` and `unvisitedDegreeSum === arcCount - outDegree(source)`; on a fixture with isolated vertices (`snapshotOf(edges, { nodeCount: n + 5 })`) `unvisitedListLen` excludes them while `unvisitedCount` counts them; `unvisitedListLen` equals `compactCount` on every rebuild; and on the scaled grid the rebuild count -- the number of `onProgress` calls -- is `ceil(levels / 32)`.
+
+- [ ] **Step 6: Six sabotage rows, three on the sweep and the bitset, three on the unvisited kernel (design 13 rule (f)), none a timing**
+
+```ts
+    "bfs-bottom-up": Object.freeze([
+        { name: "early-exit-removed", find: "{ won = 1u; break; }", replace: "{ won = 1u; }", minFactor: 10, test: BFS_TEST },
+        { name: "stale-entries-claimed", find: "if (atomicLoad(&depth[v]) == INVALID_INDEX) {                // a stale entry, claimed since the rebuild, is skipped", replace: "if (true) {", minFactor: 10, test: BFS_TEST },
+        { name: "bottom-up-claim-is-the-level", find: "let claim = atomicLoad(&counters[11]) + 1u;\n    var won = 0u;\n    var v = 0u;\n    var reads = 0u;", replace: "let claim = atomicLoad(&counters[11]);\n    var won = 0u;\n    var v = 0u;\n    var reads = 0u;", minFactor: 10, test: BFS_TEST },
+    ]),
+    "bfs-bitset-build": Object.freeze([
+        { name: "or-is-a-store", find: "atomicOr(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));", replace: "atomicStore(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));", minFactor: 10, test: BFS_TEST },
+        { name: "bit-of-the-wrong-word", find: "(v >> 5u)", replace: "(v >> 4u)", minFactor: 10, test: BFS_TEST },
+        { name: "last-frontier-entry-unset", find: "if (i >= atomicLoad(&counters[0])) { return; }                   // frontierCount; no barrier follows", replace: "if (i + 1u >= atomicLoad(&counters[0])) { return; }", minFactor: 10, test: BFS_TEST },
+    ]),
+    "bfs-unvisited-flags": Object.freeze([
+        { name: "everyone-listed", find: "let listed = unv && (inDegree[v] != 0u);", replace: "let listed = (inDegree[v] != 0u);", minFactor: 10, test: BFS_TEST },
+        { name: "in-degree-test-inverted", find: "let listed = unv && (inDegree[v] != 0u);", replace: "let listed = unv && (inDegree[v] == 0u);", minFactor: 10, test: BFS_TEST },
+        { name: "in-degree-summed", find: "select(0u, outDegree[v], unv)", replace: "select(0u, inDegree[v], unv)", minFactor: 10, test: BFS_TEST },
+    ]),
+```
+
+and on `frontier-finalize`: `{ name: "growing-test-inverted", find: "&& next > finished) { direction = 1u; }", replace: "&& next < finished) { direction = 1u; }", minFactor: 10, test: BFS_TEST }`.
+
+The early exit is the row a differential can never catch, because the answer stays right, and it is NOT routed to a timing: its check is the `arcsScanned` word. `bfsWithTuning({ alpha: U32_MAX, beta: 0 })` on `completeEdges(256)` from vertex 0 forces bottom-up at the first boundary (`m_u / U32_MAX` is 0, the frontier of 255 is growing) and never switches back; every unvisited vertex's reverse row is sorted by target (graph-format invariant I4), so its FIRST in-neighbour is vertex 0, the whole frontier: with the exit, `arcsScanned === 255` for 255 claims; without it, 65,025. The check `arcsScanned <= 2 * bottomUpClaimed` (each claim allowed one extra read) passes the real kernel at a factor of 0.5 and fails the mutant at 127.5, and `test/sabotage/bfs.test.ts` reports that ratio as the row's factor. The stale-entry and claim-value rows are depth misses; the bitset rows lose or misplace bits so a level goes unclaimed (depth miss); the three unvisited rows are caught by Step 5's counter assertions (`unvisitedListLen`, and the degree sum on a DIRECTED fixture -- `pathEdges` built directed from vertex 0, whose in-degree 0 differs from its out-degree 1 -- which is why that row's check runs on a directed one); the growing-test row is caught by the direction model. Watch each go red.
+
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bfs.test.ts test/sabotage/bfs.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_LLVM`.
+Expected: PASS; `switches > 0` on RMAT; identical depths in all modes; every row red under `withSabotage`.
 
 - [ ] **Step 7: Commit (owner)** -- `feat(webgpu-graph-algorithms): direction-optimizing BFS with a device-side switch`.
 
@@ -584,98 +1274,268 @@ Expected: PASS; `switches > 0` on RMAT; identical depths in all three modes.
 
 ### Task P8-T9: Weighted single-source shortest paths over the near-far queue
 
-**Depends on P8-T5 and P8-T6 (the frontier and the host-loop shape) and on P8-T3 (`compact`).**
+**Depends on P8-T5 and P8-T6 (the frontier, the host-loop shape, `sssp-pred`) and on P8-T3 (`dedupe`).**
 
-**Spec:** design 8.4 lines 2671-2681 (Davidson's near-far, the f32 bit pattern under `atomicMin`, the delta rule, the 16 near subpartitions, the two routings, the predecessor pass, the near-empty device flag); design 8.10 "SSSP near-far relax" (8 bindings, with the counters and `delta` inside the `nearOut` header) and "SSSP predecessor pass" (6).
+**Spec:** design 8.4 (Davidson's near-far, the f32 bit pattern under `atomicMin`, the delta rule, the two routings, the predecessor pass, the near-empty device flag); design 8.10 "SSSP near-far relax" (8 bindings); design 3.3 line 808; the seam's `SsspOptions` (`cutoff`, `weights`).
 
-**Files:** Create `$PKG/src/wgsl/sssp-relax.wgsl.ts`, `$PKG/src/wgsl/sssp-pred.wgsl.ts`, `$PKG/src/algorithms/sssp.ts`; modify `$PKG/src/kernels.ts`, `$PKG/src/kernel/prelude.ts` (add `F32_INF_BITS = 0x7F800000u` beside `INVALID_INDEX`), `$PKG/test/helpers/sabotage.ts`; create `$PKG/test/algorithms/sssp.test.ts`.
+**Files:** Create `$PKG/src/wgsl/sssp-relax.wgsl.ts`, `$PKG/src/algorithms/sssp.ts`; modify `$PKG/src/kernels.ts` (one entry), `$PKG/src/wgsl/frontier-finalize.wgsl.ts` (roles 2 and 3), `$PKG/src/primitives/frontier.ts` (`reset` seeds the SSSP words), `$PKG/test/kernel/bind-group-budget.test.ts` (`"sssp-relax": 8`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pin 5), `$PKG/test/helpers/override-matrix.ts`, `$PKG/test/helpers/sabotage.ts`; create `$PKG/test/algorithms/sssp.test.ts`, `$PKG/test/sabotage/sssp.test.ts`. Consumes `prepareFrontier`, `prepareCompact.recordDedupe` (with `countIndex`, P8-T3), `bfsWithTuning` (the unit-weight route), `sssp-pred` in `MODE 0`, `graphBindings(core, null, weightsBinding)` (`src/kernels.ts` line 1036: the third argument replaces the weights slot), `residency.upload`-style scratch for an `options.weights` vector (a `Lease.storage` plus `queue.writeBuffer`), `dijkstraOracle` in both precisions, `expectTriangleInequality`, `expectPredArcAttains`, `noiseFloorFor` / `recordNoiseRow` (`test/helpers/noise-floor.ts`).
 
-- [ ] **Step 1: PD-9 -- distances as bit patterns, and why the result is bitwise reproducible**
+**Interfaces produced:** `sssp(ctx, s, source, options?: SsspOptions & GpuRunOptions): Promise<GpuSsspResult>` (public from P8-T13); `ssspWithTuning(ctx, s, source, options, tuning: { roundsPerSubmit?, delta?, onRound? })` (`@internal`, the test seam, PD-26's shape).
 
-`dist` is `array<atomic<u32>>` holding the IEEE-754 bit patterns of the f32 distances, `0x7F800000` (+Inf) for unreached. `atomicMin` on the bit patterns is exactly `min` on the values, because for non-negative IEEE-754 floats the unsigned bit-pattern order is the value order. That is the whole trick and it needs no float atomic, which WGSL does not have.
+- [ ] **Step 1: The failing test first.** Create `test/algorithms/sssp.test.ts` with the fixture loop of Step 6.
 
-The consequence is worth stating because it changes how this task is TESTED: every candidate value is one f32 add, `dist[u] + w`; the near-far loop keeps relaxing until both piles are empty, so every path is eventually offered; and the settled value is the minimum of a fixed set of f32 numbers. A minimum is order-independent. So `dist` is bitwise reproducible run to run, bitwise identical across adapters, and -- PD-10 -- bitwise equal to the f32 Dijkstra oracle of P8-T2. The differential test compares `dist` with `toEqual` on a `Uint32Array` view of both, not with a tolerance. The f64 oracle is compared with a tolerance, and that tolerance is DERIVED: it is whatever spread P8-T2 Step 3 measured between f32 and f64 on the same fixture, times ten, recorded in `benchmarks/results/noise-floor.json`. On a 2,000-hop path the f32 drift is around `1e-4` relative, which is looser than design 9.7's `1e-5`; if the measurement confirms that, the tolerance is re-fixed by a recorded owner decision in the pull request and never quietly loosened in the test file (design 10.4's rule, restated in 11.9 item 3).
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/algorithms/sssp.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/algorithms/sssp.js`.
 
-- [ ] **Step 2: The two routings, checked before any device work**
+- [ ] **Step 2: PD-9 -- distances as bit patterns, and why the result is bitwise reproducible**
 
-`flags.allWeightsOne` (graph-format's snapshot flag, `graph-format/src/snapshot/validate.ts`) routes to `breadthFirstSearch` and converts the `u32` depths to `f32` distances -- not a fallback, a better algorithm for the input. `flags.nonNegativeWeights === false` throws `E_UNSUPPORTED { feature: "sssp.negativeWeights", hint: "use bellmanFord" }`. Both are host-side checks before the first dispatch, and both are tested.
+`dist` is `array<atomic<u32>>` holding the IEEE-754 bit patterns of the f32 distances, `F32_INF_BITS` (`+Inf`) for unreached, filled by `fill` and `dist[source] = 0` by `queue.writeBuffer`. `atomicMin` on the bit patterns is exactly `min` on the values, because for non-negative IEEE-754 floats the unsigned bit-pattern order is the value order: `+0` is `0x00000000`, every sum of non-negatives under round-to-nearest is `+0` or positive (never `-0`, `0x80000000`), and `flags.nonNegativeWeights` (or the host scan of `options.weights`) is what guarantees the operands. That is the whole trick and it needs no float atomic, which WGSL does not have.
 
-- [ ] **Step 3: The near-far structure**
+The consequence changes how this task is TESTED: every candidate value is one f32 add, `dist[u] + w`; the near-far loop keeps relaxing until both piles are empty, so every path is eventually offered; and the settled value is the minimum of a fixed set of f32 numbers. A minimum is order-independent. So `dist` is bitwise reproducible run to run, bitwise identical across adapters, and -- PD-10 -- bitwise equal to the f32 Dijkstra oracle of P8-T2, PROVIDED the device's f32 add is correctly rounded, which `Math.fround(a + b)` on two f32 operands is (an f64 sum of two f32 values is exact to 2p + 2 bits, so the double rounding is innocuous). The differential test compares `dist` with `toEqual` on a `Uint32Array` view of both, not with a tolerance. The f64 oracle is compared with a tolerance, and that tolerance is DERIVED: it is whatever spread P8-T2 Step 4 measured between f32 and f64 on the same fixture, times ten, recorded in `benchmarks/results/noise-floor.json` by P8-T15 Step 6 and read through `noiseFloorFor("sssp-relax.f32-vs-f64")`. On a 2,000-hop path the f32 drift is around `1e-4` relative, which is looser than design 9.7's `1e-5`; if the measurement confirms that, the tolerance is re-fixed by a recorded owner decision in the pull request and never quietly loosened in the test file (design 10.4's rule, restated in 11.9 item 3). If a device is found whose add is not correctly rounded, the f32 comparison drops to the derived tolerance and the finding goes in G8 (risk RP-3); nothing else changes.
 
-`delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree` computed on the host from the snapshot's totals unless `options.delta` overrides it, and passed in the header block. A relaxation whose new distance is below `nearThreshold` appends to the near pile, otherwise to the far pile. The near pile is two-level with `NEAR_SUBPARTITIONS` (16) subpartitions. When the near pile empties, the threshold advances by `delta` and the far pile is split by `compact` into the new near pile and the remaining far pile. The near-empty test is a device flag turned into a zero indirect dispatch, so a batch's extra recorded rounds are no-ops -- the same property the BFS loop relies on. Duplicates ARE possible here (a vertex can be relaxed several times before it settles), which is where `dedupe` from P8-T3 earns its place.
+- [ ] **Step 3: The two routings and the weight vector, checked before any device work (PD-22)**
 
-- [ ] **Step 4: PD-11 -- the predecessor pass**
+The run's weight vector is `options.weights` when given (a `NumericVector`, `arcCount` long or `E_INVALID_ARGUMENT { argument: "weights" }`; narrowed to a `Float32Array` when it is not one, uploaded into a lease buffer, and bound in the graph group's `weights` slot through `graphBindings(core, null, binding)`), else the snapshot's column. The flags of the run are the snapshot's `s.flags` for the column and a one-pass host scan of the override otherwise (`allOne`, `nonNegative`, `finite`, `sum`): `allWeightsOne` (or no weight vector at all) routes to `bfsWithTuning` with `maxDepth = floor(cutoff)` (unit weights make `dv <= cutoff` a depth bound) and converts: `dist[v] = depth[v]` as f32, `+Inf` where `INVALID_INDEX`, `predArc` from `sssp-pred` in `MODE 1` with `predKind 0` (the smallest arc into `v` from depth `depth[v] - 1`), `reachedCount = visitedCount` -- not a fallback, a better algorithm for the input; `nonNegativeWeights === false` throws `E_UNSUPPORTED { feature: "sssp.negativeWeights", hint: "use bellmanFord" }`; `finiteWeights === false` throws `E_UNSUPPORTED { feature: "sssp.nonFiniteWeights" }` (the bit-pattern order is undefined for NaN). All host-side before the first dispatch, all tested. `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree` with `avgWeight = sum / arcCount` (the f64 sum of the vector in use) and `avgDegree = arcCount / n`; it is written into the counters block as `deltaBits` and `thresholdBits` (the first bucket is `[0, delta)`), `prevThresholdBits` (word 4, unused by BFS) as `0`; `tuning.delta` overrides it for tests. A snapshot with no weight column never reaches this line: it is `allWeightsOne` by definition. `cutoff` is `+Inf` when absent and travels as `P.cutoffBits`.
 
-After the queues empty, one pass over every settled vertex: for each in-arc `(u, v, w)`, if `fround(dist[u] + w) == dist[v]` then `atomicMin(&pred[v], arc)`. Ties differ from the CPU oracle's choice, so the test asserts `expectPredArcAttains` from P8-T2 rather than equality. Packing the arc index into the distance atomic is impossible: WGSL has no 64-bit atomic, and a two-word "atomic" is not atomic (the design records the same finding for the minimum spanning tree in section 8.5).
+- [ ] **Step 4: PD-20 -- the near-far structure, and why the far pile is not compacted**
 
-- [ ] **Step 5: The differential suite.** The P8-T6 fixture list with weights: uniform random in `[0.1, 10]`, integer weights, a graph containing zero-weight arcs (the gate names it), a graph whose weights span six orders of magnitude, directed and undirected, unreachable components. For each: `dist` bitwise equal to the f32 oracle; within the derived tolerance of the f64 oracle; `expectTriangleInequality`; `expectPredArcAttains`; `reachedCount` correct; the run-twice bitwise check; the `allWeightsOne` route asserted to produce exactly what `breadthFirstSearch` produces on the same graph; `E_UNSUPPORTED` on a negative weight.
-- [ ] **Step 6: Three sabotage rows** (the comparison in the near / far split inverted, so everything lands in one pile and the answer is right but the round count explodes -- again a dispatch-count check, state it; `atomicMin` replaced by a plain store; `dist[u] + w` replaced by `dist[u]`, which turns the answer into hop counts and fails the f32-exactness check immediately; the predecessor pass's equality replaced by `<=`, so `predArc` names an arc that does not attain).
+The queue buffers: `queueOut` of `2 x cap` words with `cap = roundUp(arcCount, 64)` (the near half at word 0, the far half at word `cap`, so the far half's byte offset is 256-aligned and `dedupe` can bind it alone), and two `n`-word deduped piles `nearIn` and `farIn` (the `Frontier`'s two vertex queues serve as `nearIn` and `farIn`, so the `Frontier` class is reused as is: `vertices[0]` is `nearIn`, `vertices[1]` is `farIn`, and `swap()` is never called). `8 x cap` bytes above `maxStorageBufferBindingSize` is `E_TOO_LARGE { path: "sssp.queue" }` up front (DEP-P8-E: the relax is never windowed). The words of the block in their SSSP reading: `frontierCount` (0) = the deduped near count, `nextFrontierCount` (1) = the near half's appends (unclamped; the detector), `prevDegreeSum` (4) = `prevThresholdBits`, `level` (11) = rounds, `direction` (14) = the round's mode (0 near, 1 far), `done` (15) = 1 finished / 2 a pile overflowed, `farCount` (20) = the deduped far count, `nextFarCount` (21) = the far half's appends, `thresholdBits` (22), `deltaBits` (23).
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/sssp.test.ts` then `$GPU_LLVM`.
+A round: `frontier-finalize` role 2 looks at the two halves. Near half non-empty: zero word 0, set mode 0, write the dedupe slots (`SLOT 0` claim, `SLOT 1` filter over the near half, count word 1, capacity `cap`, output `nearIn` with count word 0). Near half empty and far half not: `prevThreshold = threshold; threshold += delta` (an f32 add on the bit patterns, in the one lane), zero word 20, set mode 1, write the dedupe slots (`SLOT 3`, `SLOT 4`) over the far half into `farIn` with count word 20. Both empty: `done = 1`. Either half above `cap`: `done = 2` (the host raises `E_TOO_LARGE { path: "sssp.pile" }`; a pile that overflows `arcCount` entries is duplicates beyond what one round can produce, so this is a detector, not a path). Then `dedupe-claim`, `dedupe-filter` (P8-T3's, reading their count from the device word `P.countIndex` names). Then role 3 sizes the relax: mode 0 writes `SLOT 2` from word 0 and zeroes word 1 (the near half restarts); mode 1 writes `SLOT 5` from word 20 and zeroes word 21 (the far half restarts, because the pass-through re-appends what stays far). Then `sssp-relax` is dispatched twice, `SLOT 2` in role 0 over `nearIn` and `SLOT 5` in role 1 over `farIn`; one of them runs. Six dispatches per round, `MAX_LEVELS_PER_SUBMIT` rounds per submit, one four-byte readback of `done` per submit. Why no `compact`: the far pile is re-bucketed by the relax kernel's pass-through role, which reads each entry's settled distance and re-appends it to the near or the far half, and drops an entry whose distance fell below the PREVIOUS threshold (it was appended to near at that improvement and relaxed there). A compaction would need per-entry flags evaluated against a threshold that only exists at split time, so nobody could have written them earlier; one pass over the far pile does the same work in one dispatch instead of a flags pass, a scan and a scatter. The near pile is ONE pile: the sixteen sub-partitions of design 8.4 are a bucket-ordering refinement inside the near band that changes no answer, and they are left for a measurement to ask for.
+
+```ts
+export const ssspRelaxWgsl = /* wgsl */ `
+@compute @workgroup_size(WG)
+fn sssp_relax(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let first = linear_id(wid, lid.x);
+    let count = min(atomicLoad(&counters[select(0u, 20u, P.role == 1u)]), P.n);   // the deduped near or far pile
+    let threshold = bitcast<f32>(atomicLoad(&counters[22]));
+    let cutoff = bitcast<f32>(P.cutoffBits);
+    for (var i = first; i < count; i = i + P.stride) {                // no barrier anywhere: the loops may be per lane
+        let u = queueIn[i];
+        let du = bitcast<f32>(atomicLoad(&dist[u]));
+        if (P.role == 1u) {                                            // the pass-through (PD-20): re-bucket a far entry
+            if (du < bitcast<f32>(atomicLoad(&counters[4]))) { continue; }   // below the previous threshold: relaxed in an earlier bucket
+            if (du < threshold) {
+                let q = atomicAdd(&counters[1], 1u);
+                if (q < P.edgeCapacity) { queueOut[q] = u; }
+            } else {
+                let q = atomicAdd(&counters[21], 1u);
+                if (q < P.edgeCapacity) { queueOut[P.edgeCapacity + q] = u; }
+            }
+            continue;
+        }
+        let end = rowPtr[u + 1u];
+        for (var a = rowPtr[u]; a < end; a = a + 1u) {                 // the whole row: never windowed (DEP-P8-E)
+            let v = colIdx[a];
+            let nd = du + select(1.0, weights[a], HAS_WEIGHTS);         // ONE f32 add (PD-9)
+            if (nd > cutoff) { continue; }                             // SsspOptions.cutoff: the CPU port's dv <= cutoff
+            let bits = bitcast<u32>(nd);
+            let old = atomicMin(&dist[v], bits);                       // exact on non-negative floats
+            if (bits < old) {                                          // this lane improved v, so it owns the append
+                if (nd < threshold) {
+                    let q = atomicAdd(&counters[1], 1u);
+                    if (q < P.edgeCapacity) { queueOut[q] = v; }
+                } else {
+                    let q = atomicAdd(&counters[21], 1u);
+                    if (q < P.edgeCapacity) { queueOut[P.edgeCapacity + q] = v; }
+                }
+            }
+        }
+    }
+}
+`;
+```
+
+Bindings: the four graph slots (`weights` real, `HAS_WEIGHTS` true on every weighted run; the unit-weight case never reaches this kernel), `(1,0) dist rw array<atomic<u32>>`, `(1,1) counters rw array<atomic<u32>>`, `(1,2) queueIn ro array<u32>`, `(1,3) queueOut rw array<u32>`, `(2,0) P FrontierParams` (`edgeCapacity = cap`, `stride`, `n`, `cutoffBits`, `role`); storage count 8. The appends are per improving relaxation, one atomic each: inside a per-lane arc loop no workgroup aggregation is possible without the uniform-strip structure of `bfs-fused`, and Davidson's kernel appends per thread too; the block-mapped form is the optimisation P9 may ask for.
+
+- [ ] **Step 5: PD-11 -- the predecessor pass**
+
+After the piles empty, one pass of `sssp-pred` in `MODE 0` with `predKind 0` and the run's weights bound: for each `u` with a finite distance and each out-arc `(u, v, w)`, if `bitcast<u32>(dist[u] + w) == dist[v]` then `atomicMin(&pred[v], a)`. The smallest attaining arc index is what `walkPredArcs` in the seam's dispatcher walks (it recovers `u` through `arcSourceIn`), and since the CPU port's `predArc` is the arc of the LAST relaxation rather than the smallest attaining one, the test asserts `expectPredArcAttains` (which also asserts smallest) rather than equality. Packing the arc index into the distance atomic is impossible: WGSL has no 64-bit atomic, and a two-word "atomic" is not atomic.
+
+- [ ] **Step 6: The differential suite.** The P8-T6 fixture list with weights: uniform random in `[0.1, 10]`, integer weights 1..10, a graph containing zero-weight arcs (the gate names it), a graph whose weights span six orders of magnitude, directed and undirected, unreachable components, a `cutoff` at an integer distance that some node attains exactly (the `<=` case) and `weights` given as an `F64` override that differs from the column. For each, reading the `dist` buffer as a `Uint32Array` and the `pred` buffer: `dist` bitwise equal to the f32 oracle; within the derived tolerance of the f64 oracle; `expectTriangleInequality`; `expectPredArcAttains`; `reachedCount` correct; the run-twice bitwise check on `dist`, `pred` and the counters; the `allWeightsOne` route asserted to produce exactly what `breadthFirstSearch` produces on the same graph (`dist` is `depth` as f32, `predArc` attains); `E_UNSUPPORTED` on a negative weight and on a NaN weight; `E_INVALID_ARGUMENT` on a short `weights`. A round-count assertion, exact and derived: on `pathEdges(64)` with every weight 2 (`delta = 32 x 2 / 2 = 32`, so a bucket holds sixteen hops), `level` (rounds) reads `64 + 4` -- one near round per hop plus one far pass-through per bucket boundary -- through the counters block.
+
+- [ ] **Step 7: Four sabotage rows, none a timing**
+
+```ts
+    "sssp-relax": Object.freeze([
+        { name: "min-is-a-store", find: "let old = atomicMin(&dist[v], bits);", replace: "let old = atomicExchange(&dist[v], bits);", minFactor: 10, test: SSSP_TEST },
+        { name: "hop-counts", find: "let nd = du + select(1.0, weights[a], HAS_WEIGHTS);", replace: "let nd = du + 1.0;", minFactor: 10, test: SSSP_TEST },
+        { name: "cutoff-exclusive", find: "if (nd > cutoff) { continue; }", replace: "if (nd >= cutoff) { continue; }", minFactor: 10, test: SSSP_TEST },
+        { name: "far-never-returns", find: "if (du < threshold) {\n                let q = atomicAdd(&counters[1], 1u);", replace: "if (false) {\n                let q = atomicAdd(&counters[1], 1u);", minFactor: 10, test: SSSP_TEST },
+    ]),
+```
+
+and on `sssp-pred`: `{ name: "attains-is-le", find: "attains = bitcast<u32>(bitcast<f32>(du) + w) == dist[v];", replace: "attains = bitcast<u32>(bitcast<f32>(du) + w) <= dist[v];", minFactor: 10, test: SSSP_TEST }`. The first and second are bitwise misses on `dist`; the third fails the fixture whose cutoff is attained exactly (an integer cutoff on integer weights makes that deterministic); the fourth leaves every far entry in the far pile forever, so on the weight-2 path only the first bucket is reached and 48 nodes stay at `+Inf` -- the differential catches it, so no round-count timing is needed anywhere; the fifth names a non-attaining arc. Watch each go red.
+
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/sssp.test.ts test/sabotage/sssp.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_LLVM`.
 Expected: PASS on both; `dist` bitwise identical across the two adapters AND equal to the f32 oracle.
 
-- [ ] **Step 7: Commit (owner)** -- `feat(webgpu-graph-algorithms): near-far single-source shortest paths`.
+- [ ] **Step 8: Commit (owner)** -- `feat(webgpu-graph-algorithms): near-far single-source shortest paths`.
 
 ---
 
 ### Task P8-T10: Bellman-Ford with negative-cycle detection
 
-**Depends on P8-T9 (the result type and the oracle) and on P7's `edgeList()` residency. Needs no frontier at all, so it may be written in parallel with P8-T7 and P8-T8 provided its `src/kernels.ts` append is applied after theirs.**
+**Depends on P8-T9 (the result type, the routing helpers, the f32 oracle) and on P7's `edgeList()` residency. Needs no frontier, so it may be written in parallel with P8-T7 and P8-T8 provided its `src/kernels.ts` append is applied after theirs.**
 
-**Spec:** design 8.4 lines 2681-2685 (edge-parallel relax over `edgeList()` both directions on undirected, `n - 1` rounds with a changed flag every 8, one more round for the negative-cycle flag, and the note that signed floats need a compare-exchange loop on the bit pattern); design 3.3 line 823.
+**Spec:** design 8.4 (edge-parallel relax over `edgeList()` both directions on undirected, `n - 1` rounds with a changed flag every 8, one more round for the negative-cycle flag, and the note that signed floats need a compare-exchange loop on the bit pattern); design 3.3 line 809; the seam's `SsspOptions`.
 
-**Files:** Create `$PKG/src/wgsl/bf-relax.wgsl.ts`, `$PKG/src/algorithms/bellman-ford.ts`, `$PKG/test/algorithms/bellman-ford.test.ts`; modify `$PKG/src/kernels.ts`, `$PKG/test/helpers/sabotage.ts`.
+**Files:** Create `$PKG/src/wgsl/bf-relax.wgsl.ts`, `$PKG/src/algorithms/bellman-ford.ts`, `$PKG/test/algorithms/bellman-ford.test.ts`, `$PKG/test/sabotage/bellman-ford.test.ts`; modify `$PKG/src/kernels.ts` (one entry, `BF_PARAMS`, `BF_FLAGS`), `$PKG/test/kernel/bind-group-budget.test.ts` (`"bf-relax": 6`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pin 3: defaults plus the `UNDIRECTED` axis), `$PKG/test/helpers/override-matrix.ts`, `$PKG/test/kernel/struct-block.test.ts`, `$PKG/test/helpers/sabotage.ts`. Consumes `residency.view(s, "edgeList")` (`src`, `dst`, `edgeCount`), `residency.core(s, ["rowPtr", "colIdx", "weights", "edgeToArc"])` for `edgeToArc`, the P8-T9 routing helpers (shared from `src/algorithms/sssp.ts`: `resolveWeights`, the BFS route, the pred pass), `wcc-link-edges`'s bounded CAS idiom (`src/wgsl/wcc-link-edges.wgsl.ts`), `planGridStride`.
 
-- [ ] **Step 1: PD-12 -- why the compare-exchange must be bounded.** `atomicMin` on bit patterns works only for non-negative floats; with a negative distance the bit-pattern order reverses. So the relax is a compare-exchange loop on the bit pattern: read, compute, compare as floats, try to exchange. WGSL 17.8.5 allows `atomicCompareExchangeWeak` to fail spuriously, so an unbounded loop can in principle spin; bound it (16 attempts is generous -- contention is per-vertex, not global) and set a `retryExhausted` word in the flags block if the bound is ever hit. The driver then runs one extra round rather than returning a wrong answer, and the test asserts the word stays 0 on every fixture so the bound is known to be adequate rather than assumed. This is the same discipline the connected-components link loop of design phase P7 uses.
-- [ ] **Step 2: The rounds.** `n - 1` rounds over `edgeList()` (each edge once, correct for directed and undirected alike), a device `changed` flag checked every 8 rounds so the loop can stop early, then one more round that sets `hasNegativeCycle` if anything still improves. The flag words share one small block, as the binding budget requires.
-- [ ] **Step 3: Proof.** Against `bellmanFordOracle`: the P8-T9 fixture list plus graphs with negative but acyclic weights, a planted negative cycle (the gate's item), a negative cycle unreachable from the source (the flag must be FALSE -- this is the case a naive implementation gets wrong), and a zero-weight cycle (also false). `dist` compared to the f64 oracle within the derived tolerance and cross-checked against `sssp` on the same graph when all weights are non-negative. Run-twice bitwise on `dist` and on the flags.
-- [ ] **Step 4: Three sabotage rows** (the extra detection round deleted; the compare-exchange result ignored, so a lost update goes unnoticed; the `n - 1` bound made `n - 2`, which fails only on a path fixture -- so the path fixture must be in the list, and that is the point of naming it).
+**Interfaces produced:** `bellmanFord(ctx, s, source, options?: SsspOptions & GpuRunOptions): Promise<GpuBellmanFordResult>`; `bellmanFordWithTuning(ctx, s, source, options, { maxRetries?, roundsPerBatch? })` returning `{ result, retryExhaustedRounds }` (`@internal`).
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bellman-ford.test.ts` then `$GPU_LLVM`.
+- [ ] **Step 1: The failing test first.** Create `test/algorithms/bellman-ford.test.ts` with the cases of Step 4.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/algorithms/bellman-ford.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/algorithms/bellman-ford.js`.
+
+- [ ] **Step 2: PD-12 -- the structs, the body, and why the compare-exchange must be bounded**
+
+`BF_PARAMS` (`BfParams`, uniform, 16 B): `edgeCount` @0, `stride` @4, `maxRetries` @8, `cutoffBits` @12. `BF_FLAGS` (`BfFlags`, storage, 16 B): `changed` @0, `retryExhausted` @4, `pad0` @8, `pad1` @12. `atomicMin` on bit patterns works only for non-negative floats; with a negative distance the bit-pattern order reverses. So the relax is a compare-exchange loop on the bit pattern: read, compute, compare as floats, try to exchange. WGSL 17.8.5 allows `atomicCompareExchangeWeak` to fail spuriously, so an unbounded loop can in principle spin; the bound is `MAX_RETRIES = 16` (a module-level `const`; contention is per vertex, not global), and a lane that exhausts it sets `retryExhausted`. The driver then treats the batch as changed and runs on, so a lost update is retried by the next round that examines every edge anyway; a bound hit in the decision round is `E_VALIDATION`, never a guess. This is the discipline the connected-components link loop uses (`MAX_STEPS` in `components.ts`).
+
+```ts
+export const bfRelaxWgsl = /* wgsl */ `
+fn relax(v: u32, nd: f32) {
+    var cur = atomicLoad(&dist[v]);
+    var tries = 0u;
+    loop {
+        if (!(nd < bitcast<f32>(cur))) { break; }                     // no improvement; +Inf is greater than every finite nd
+        let r = atomicCompareExchangeWeak(&dist[v], cur, bitcast<u32>(nd));
+        if (r.exchanged) { atomicStore(&flags[0], 1u); break; }        // changed
+        cur = r.old_value;
+        tries = tries + 1u;
+        if (tries >= P.maxRetries) { atomicStore(&flags[1], 1u); break; }   // retryExhausted (PD-12)
+    }
+}
+
+@compute @workgroup_size(WG)
+fn bf_relax(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+    let first = linear_id(wid, lid.x);
+    let cutoff = bitcast<f32>(P.cutoffBits);
+    let inf = bitcast<f32>(F32_INF_BITS);
+    for (var e = first; e < P.edgeCount; e = e + P.stride) {          // each logical edge once (edgeList)
+        let u = edgeSrc[e];
+        let v = edgeDst[e];
+        let w = weights[edgeToArc[e]];                                 // the edge's weight through its forward arc
+        let du = bitcast<f32>(atomicLoad(&dist[u]));
+        if (du != inf) {
+            let nd = du + w;
+            if (nd <= cutoff) { relax(v, nd); }
+        }
+        if (UNDIRECTED) {                                              // the other direction of an undirected edge
+            let dv = bitcast<f32>(atomicLoad(&dist[v]));
+            if (dv != inf) {
+                let nd = dv + w;
+                if (nd <= cutoff) { relax(u, nd); }
+            }
+        }
+    }
+}
+`;
+```
+
+Bindings: `(1,0) edgeSrc ro`, `(1,1) edgeDst ro`, `(1,2) edgeToArc ro`, `(1,3) weights ro` (the run's vector: the core's column or the uploaded override, both arc-indexed), `(1,4) dist rw array<atomic<u32>>`, `(1,5) flags rw array<atomic<u32>>` (the `BfFlags` block), `(2,0) P BfParams`; `overrideDecls: [{ name: "UNDIRECTED", type: "bool", default: false }]`; storage count 6; no graph group. `finiteWeights === false` is `E_UNSUPPORTED` here too; a vector with no negative entry is legal and gives `sssp`'s answer (Step 4 cross-checks it); a snapshot with no weight column takes the BFS route of P8-T9 (there is nothing negative to relax).
+
+- [ ] **Step 3: The rounds.** `dist` filled with `F32_INF_BITS`, `dist[source] = 0`. Batches of `ROUNDS_PER_BATCH = 8` rounds over `planGridStride(edgeCount)`, `flags` zeroed by `queue.writeBuffer` before each batch, both words read back after it (one `mapAsync` per batch); the loop stops when `changed === 0` (no negative cycle can reach the source: a reachable negative cycle changes something every round) or when `rounds >= n - 1`, in which case ONE more round runs and `changed` after it is `hasNegativeCycle`. `retryExhausted` in any batch counts as changed and is tallied for the test; set in the decision round it is `E_VALIDATION { label: "bellmanFord/retry" }`. Then the pred pass (P8-T9 Step 5, the same kernel and bindings) and the readback of `dist`, `pred` and the flags in one batch. With `hasNegativeCycle` the result carries the last round's `dist` and `predArc` and says so.
+
+- [ ] **Step 4: Proof.** Against `bellmanFordOracle` (f32) and the f64 Dijkstra where weights are non-negative: the P8-T9 fixture list plus graphs with negative but acyclic weights (directed), a planted negative cycle (the gate's item), a negative cycle unreachable from the source (the flag must be FALSE -- this is the case a naive implementation gets wrong), a zero-weight cycle (also false), an undirected graph with a negative edge (which IS a negative cycle of length two, and the flag must say so) and `cutoff`. `dist` bitwise against the f32 oracle, within the derived tolerance of the f64 one, and cross-checked bitwise against `sssp` on the same graph when all weights are non-negative; `expectPredArcAttains`; run-twice bitwise on `dist`, `pred` and the flags; `retryExhaustedRounds === 0` on every fixture, so the bound is known to be adequate rather than assumed. Every readback names its buffer.
+
+- [ ] **Step 5: Three sabotage rows**
+
+```ts
+    "bf-relax": Object.freeze([
+        { name: "exchange-result-ignored", find: "if (r.exchanged) { atomicStore(&flags[0], 1u); break; }", replace: "{ atomicStore(&flags[0], 1u); break; }", minFactor: 10, test: BF_TEST },
+        { name: "improvement-test-inverted", find: "if (!(nd < bitcast<f32>(cur))) { break; }", replace: "if (nd < bitcast<f32>(cur)) { break; }", minFactor: 10, test: BF_TEST },
+        { name: "reverse-direction-dropped", find: "if (UNDIRECTED) {", replace: "if (false) {", minFactor: 10, test: BF_TEST },
+    ]),
+```
+
+The first loses updates under contention (a `dist` miss on the star and the RMAT fixture); the second relaxes only when NOT improving (everything but the source stays `+Inf`); the third fails every undirected fixture. The `n - 2` round bound of the earlier draft is a driver mutation, not a kernel one: `test/algorithms/bellman-ford.test.ts` asserts on the directed `pathEdges(64)` that the round count reported by `bellmanFordWithTuning` is at most `n - 1` and that `dist` is exact, which is the check an off-by-one in the driver fails. Watch each go red.
+
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/bellman-ford.test.ts test/sabotage/bellman-ford.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_LLVM`.
 Expected: PASS on both.
 
-- [ ] **Step 5: Commit (owner)** -- `feat(webgpu-graph-algorithms): Bellman-Ford with negative-cycle detection`.
+- [ ] **Step 6: Commit (owner)** -- `feat(webgpu-graph-algorithms): Bellman-Ford with negative-cycle detection`.
 
 ---
 
 ### Task P8-T11: Closeness, harmonic closeness and eccentricity
 
-**Depends on P8-T6 (and benefits from P8-T8 but does not require it).**
+**Depends on P8-T6 (and P8-T3's `compact`); benefits from P8-T8 but does not require it. What ships: closeness ALONE (DEP-P8-F, PD-19); the title is the 2026-09-23 plan's and the harmonic and eccentricity reductions are dropped, not deferred.**
 
-**Spec:** design 8.4 lines 2686-2690 (32 sources per `u32` word as a bit-parallel frontier for unweighted graphs, repeated near-far for weighted, per-source rows reduced on the device without materialising `n x n`, batch size from `maxBufferSize`); design 3.3 line 801; design 9.7 (`1e-5`, integer distances before division).
+**Spec:** design 8.4 (32 sources per `u32` word as a bit-parallel frontier for unweighted graphs, repeated near-far for weighted, per-source rows reduced on the device without materialising `n x n`, batch size from `maxBufferSize`); design 3.3 line 810; design 9.7 (`1e-5`, integer distances before division); the seam's `closenessCentrality(s, options?: HitsOptionsLike)`.
 
-**Files:** Create `$PKG/src/wgsl/closeness-reduce.wgsl.ts`, `$PKG/src/algorithms/closeness.ts`, `$PKG/test/algorithms/closeness.test.ts`; modify `$PKG/src/kernels.ts`, `$PKG/src/algorithms/bfs.ts` (export the internal level driver so the multi-source form reuses it rather than copying it), `$PKG/test/helpers/sabotage.ts`.
+**Files:** Create `$PKG/src/wgsl/closeness-sweep.wgsl.ts`, `$PKG/src/wgsl/closeness-reduce.wgsl.ts`, `$PKG/src/algorithms/closeness.ts`, `$PKG/test/algorithms/closeness.test.ts`, `$PKG/test/sabotage/closeness.test.ts`; modify `$PKG/src/kernels.ts` (two entries), `$PKG/test/kernel/bind-group-budget.test.ts` (`"closeness-sweep": 8, "closeness-reduce": 4`), `$PKG/test/kernel/registry.test.ts`, `$PKG/test/kernel/wgsl-compile.test.ts` (pins 5 and 1), `$PKG/test/helpers/override-matrix.ts`, `$PKG/test/helpers/sabotage.ts`. Consumes `prepareCompact.record`, P4's `indirect-finalize` (`INDIRECT_PARAMS`: `countIndex`, `wg`, `slot`), `fill`, `sssp` (the weighted case), the legacy `closenessCentrality` of `@graphty/algorithms` (built in Step 0) as the parity target on karate, `closenessOracle`.
 
-- [ ] **Step 1: PD-13 -- one driver, three outputs.** The three measures are three reductions of the same distance rows: `n_reached / sum d` for closeness, `sum 1/d` for harmonic, `max d` for eccentricity. Build one driver returning all three and let the three public entry points select; the alternative -- three drivers each running its own sweep -- costs three times the traversal for the same rows.
-- [ ] **Step 2: The bit-parallel sweep.** 32 sources per `u32` word: `frontierBits[v]` has bit `s` set when `v` is in source `s`'s frontier this level. One advance visits every arc once for all 32 sources at once, which is where the win is. The claim becomes `atomicOr` on a per-source visited word plus a per-source depth write, and the per-source row is reduced into the running accumulators as soon as its level completes, so nothing `n x k` is ever materialised beyond the 32-source batch. Batch count is `ceil(sources / 32)` and the batch size is capped by `maxBufferSize` exactly as design 8.4 says.
-- [ ] **Step 3: The weighted case** is repeated near-far: call the P8-T9 driver once per source and reduce on the host between calls. Slow and correct; it is the design's own answer and this phase does not improve on it.
-- [ ] **Step 4: Proof.** Against `closenessOracle`: `pathEdges(n)` and `starEdges(k)` have closed-form answers and both are asserted analytically, not just differentially; `KARATE_EDGES` against the oracle; a disconnected graph, where the Wasserman-Faust scaling and the "unreached excluded" rule are the only thing separating a right answer from a plausible one; `sources` given explicitly and compared against the same sources on the CPU. Tolerance `1e-5` relative, which is generous because the distances are integers and only the division is floating point. Run-twice bitwise on the integer sums before the division -- expose them through `inspect()` so the check is on an exact quantity.
-- [ ] **Step 5: Three sabotage rows** (an unreached vertex counted as distance 0; the harmonic reciprocal taken before the unreached filter, producing an infinity; the bit-parallel word indexed by source instead of by `source / 32`).
+**Interfaces produced:** `closenessCentrality(ctx, s, options?: HitsOptionsLike & GpuRunOptions): Promise<GpuScoresResult>`.
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/closeness.test.ts` then `$GPU_LLVM`.
+- [ ] **Step 1: The failing test first.** Create `test/algorithms/closeness.test.ts` with the cases of Step 5.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/algorithms/closeness.test.ts`
+Expected: FAIL with `Error: Failed to load url ../../src/algorithms/closeness.js`.
+
+- [ ] **Step 2: PD-13 and PD-25 -- one driver, one output, the seam's options.** `score[s] = reached_s / sumDist_s`, scaled by `reached_s / (n - 1)` (the Wasserman-Faust rule for a disconnected graph), `0` when nothing is reached, computed in f64 on the host from exact integer sums and stored as `F32` with `precision: "f32"` -- the formula the legacy `closenessCentrality` of `@graphty/algorithms` produces by default, which is what graphty-element's closeness panel shows today, so a future `indexed.closenessCentrality` port has one number to match. `weighted` defaults to `s.flags.weighted`; when true, the run is one `sssp` per source with the per-source sums reduced on the host (design 8.4's own answer, slow and correct; `nonNegativeWeights === false` is `E_UNSUPPORTED`). `maxIterations` and `tolerance` are accepted for the seam's type and have no effect: an exact traversal has neither, and the JSDoc says so. `iterations` reports the source batches run, `converged` is always `true`. `dest` is `scores`.
+
+- [ ] **Step 3: The bit-parallel sweep.** Sources are taken 32 per batch (`ceil(n / 32)` batches). The batch's state is one `bits` buffer of four regions of `bitsBase = roundUp(n, 64)` words each -- `visited` at 0, `frontier` at `bitsBase`, `next` at `2 x bitsBase`, `flags` at `3 x bitsBase` (each region's byte offset is 256-aligned, so `fill` and `compact` can bind one alone) -- with bit `s` of word `v` meaning "source `s` has reached / is at / is next at `v`"; a `frontierList` of `n` words with its count in `counters[0]`; and `perSource`, 128 words: `newCount[32]` @0, `reached[32]` @32, `sumLo[32]` @64, `sumHi[32]` @96. The sweep is `advance-expand`'s block-mapped expansion (P8-T5 Step 2, the scan and the strip copied textually) with the claim inline: for the arc `(u, x)`, `mask = frontier[u] & ~visited[x]`; if non-zero, `old = atomicOr(&visited[x], mask)`, `fresh = mask & ~old`; if non-zero, `atomicOr(&next[x], fresh)`, `flags[x] = 1`, and one `atomicAdd` on a WORKGROUP-memory `local[s]` per set bit of `fresh` (`firstTrailingBit` and `b & (b - 1u)`), flushed after the strip loop by lanes 0..31 into `perSource.newCount` -- one global atomic per source per workgroup, never one per arc. The loop's bound is the `workgroupUniformLoad` aggregate, so the flush's barrier is uniform. Bindings: the four graph slots, `(1,0) frontierList ro array<u32>`, `(1,1) counters rw array<atomic<u32>>`, `(1,2) bits rw array<atomic<u32>>`, `(1,3) perSource rw array<atomic<u32>>`, `(2,0) P` (`bitsBase`, `arcBase 0`, `arcEnd arcCount`; never windowed); storage count 8. The frontier and next regions swap by parity through `P.mode`, so no copy runs between levels.
+
+`closeness-reduce`, one lane, two roles by `P.role`: role 0 (per level, after the sweep) sets `done = (counters[0] == 0)`, then for each `s`: `reached[s] += newCount[s]`, `sum[s] += newCount[s] x (level + 1)` in 64 bits (`sumLo` / `sumHi` with the 16-bit-split product, because `count x level` exceeds 2^32 on a long path and an exact integer is what design 9.7 asks for before the division), `newCount[s] = 0`, and `level += 1`; role 1 (once per batch, the seed) writes for `s` in `0 .. min(32, n - batchStart)`: bit `s` into `visited[source_s]` and `frontier[source_s]`, `frontierList[s] = source_s`, `counters[0] = k`, `level = 0`. Bindings `(1,0) counters rw`, `(1,1) perSource rw`, `(1,2) bits rw`, `(1,3) frontierList rw`, `(2,0) P`; storage count 4 (the seed role is why it is not 2).
+
+A level, all host-recorded, `MAX_LEVELS_PER_SUBMIT` per submit with one four-byte readback of `done`, in this order because the flags must be compacted before they are cleared: `closeness-reduce` role 0; `compact.record(pass, { queue: iota, flags: bits[flags region], count: n, out: frontierList, outCount: counters, outIndex: 0 })`; `indirect-finalize` (`countIndex 0`, the sweep's slot); `fill` the OLD frontier region (it becomes next) and the `flags` region to 0; `closeness-sweep` (indirect). A batch: `fill` all four regions and `perSource` to 0, `closeness-reduce` role 1 (the seed), the levels until `done`, one readback of `perSource` (512 B) folded into the host's score loop. Cost, stated so nobody is surprised: closeness is `O(n x m)` on any device; at 1M nodes it is 31,250 batches of a full multi-source traversal, minutes on the card, and no target in design 10.4 asks for less.
+
+- [ ] **Step 4: The weighted case** is repeated `sssp`: one call per source, the sums reduced on the host between calls. Slow and correct; it is the design's own answer and this phase does not improve on it.
+
+- [ ] **Step 5: Proof.** Against `closenessOracle` (reading `perSource` back by its binding and comparing the INTEGER sums and reached counts per source exactly, then the f64 scores within `1e-5` relative): `pathEdges(n)` and `starEdges(k)` have closed-form answers and both are asserted analytically, not just differentially; `KARATE_EDGES` against the oracle AND against the legacy `closenessCentrality` from `@graphty/algorithms` on the same graph as an object graph (the parity target of Step 2); a disconnected graph, where the Wasserman-Faust scaling and the "unreached excluded" rule are the only thing separating a right answer from a plausible one; a graph of 70 nodes (three batches, one partial); `weighted: true` on the weighted karate against the f64 oracle within the derived SSSP tolerance; `maxIterations: 1` changes nothing (asserted). Run-twice bitwise on `perSource` -- an exact quantity -- and on `scores`.
+
+- [ ] **Step 6: Three sabotage rows per kernel**
+
+```ts
+    "closeness-sweep": Object.freeze([
+        { name: "already-visited-recounted", find: "let fresh = mask & ~old;", replace: "let fresh = mask;", minFactor: 10, test: CLOSENESS_TEST },
+        { name: "next-bits-not-set", find: "atomicOr(&bits[2u * P.bitsBase + x], fresh);", replace: "atomicOr(&bits[2u * P.bitsBase + x], 0u);", minFactor: 10, test: CLOSENESS_TEST },
+        { name: "source-word-not-bit", find: "let s = firstTrailingBit(b);", replace: "let s = 0u;", minFactor: 10, test: CLOSENESS_TEST },
+    ]),
+    "closeness-reduce": Object.freeze([
+        { name: "distance-is-the-level", find: "let d = level + 1u;", replace: "let d = level;", minFactor: 10, test: CLOSENESS_TEST },
+        { name: "reached-not-accumulated", find: "atomicLoad(&perSource[32u + s]) + c", replace: "atomicLoad(&perSource[32u + s])", minFactor: 10, test: CLOSENESS_TEST },
+        { name: "carry-dropped", find: "select(0u, 1u, lo < before)", replace: "0u", minFactor: 10, test: CLOSENESS_TEST },
+    ]),
+```
+
+The `find` strings name the lines the bodies must contain (the 64-bit add is `let before = lo; lo = lo + p; hi = hi + select(0u, 1u, lo < before);`); the carry row is caught by the analytic `pathEdges(70000)` case scaled by `gpuScale()` only when `n^2 / 2` exceeds 2^32, so that case runs unscaled on hardware and the row's test names it. Watch each go red.
+
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/algorithms/closeness.test.ts test/sabotage/closeness.test.ts test/sabotage/coverage.test.ts test/kernel` then `$GPU_LLVM`.
 Expected: PASS on both.
 
-- [ ] **Step 6: Commit (owner)** -- `feat(webgpu-graph-algorithms): closeness, harmonic closeness and eccentricity`.
+- [ ] **Step 7: Commit (owner)** -- `feat(webgpu-graph-algorithms): closeness centrality over the bit-parallel multi-source sweep`.
 
 ---
 
 ### Task P8-T12: Window-aware advance
 
-**Depends on P8-T5. May run in parallel with P8-T9, P8-T10 and P8-T11 -- it touches no kernel registry entry, only the advance driver and the core-shape helpers.**
+**Depends on P8-T5. May run in parallel with P8-T9, P8-T10 and P8-T11 -- it touches no kernel registry entry, only the advance driver, the BFS driver's window loop and the core-shape helpers.**
 
-**Spec:** design 4.6 line 1292 (the row this task rewrites) and design 13 row P8 ("window-aware advance (lifting the `E_TOO_LARGE`)"); P4's `windowBinding(core, name, w)` and `assertNotWindowed(core, primitive)` in `src/primitives/core-shape.ts`.
+**Spec:** design 4.6 (the row this task rewrites) and design 13 row P8 ("window-aware advance (lifting the `E_TOO_LARGE`)"); P4's `windowBinding(core, name, w)` and `assertNotWindowed(core, primitive)` in `src/primitives/core-shape.ts` lines 98-130; `design/decisions/2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md` (the windowed pattern `degree` uses: one dispatch per window, `arcBase` / `arcEnd` in the params, `accumulate`).
 
-**Files:** Modify `$PKG/src/primitives/advance.ts`, `$PKG/src/wgsl/advance-expand.wgsl.ts` (the rebase term), `$PKG/design`-side nothing; create `$PKG/test/limits/advance-windowed.test.ts`; modify `$PKG/test/primitives/advance.test.ts`.
+**Files:** Modify `$PKG/src/primitives/advance.ts` (the window loop), `$PKG/src/algorithms/bfs.ts` (per-window dispatches of `advance-expand`, `bfs-fused`, `bfs-bottom-up` and `sssp-pred`, one indirect slot per window: `FRONTIER_CANDIDATES` grows to `7 x windows` for a windowed core, the args buffer with it); create `$PKG/test/limits/advance-windowed.test.ts`; modify `$PKG/test/primitives/advance.test.ts`, `$PKG/test/algorithms/bfs.test.ts`, `$PKG/test/helpers/sabotage.ts`, `$PKG/test/limits/README.md`. Consumes `windowsOf` and `degreeFakedLimitRun` (`test/helpers/degree-check.ts` lines 57, 227: the faked-limit technique), `fakeCaps` (`test/helpers/caps-tables.ts`), `withResidency` (`degree-check.ts` line 205).
 
-- [ ] **Step 1: What "windowed" means here.** When `colIdx` exceeds `maxStorageBufferBindingSize`, P4's residency binds it as a series of arc windows and a kernel reads `colIdx[arc - P.arcBase]`. For a row-walking kernel that is one dispatch per window. For `advance` it is the same, with one extra rule: a frontier vertex's row may straddle two windows, so the expansion for a window emits only the arcs inside it and the per-window dispatches accumulate into the same edge queue. The degree sum counter must be accumulated across windows, not overwritten, or the selector reads a fraction of the real value.
-- [ ] **Step 2: Replace the refusal.** `advance.ts` currently calls `assertNotWindowed(core, "advance")`; delete the call and implement the window loop. `dedupe` and the near-far relax KEEP their refusal (DEP-P8-E): the near-far split needs the whole arc array bound.
-- [ ] **Step 3: Proof.** The cheap, decisive test is a FAKED limit: `test/primitives/advance.test.ts` binds a core with `maxStorageBufferBindingSize` faked to 1 MiB on a 100k-node graph, producing at least 8 windows, and asserts the sorted edge queue equals the unwindowed run's -- the same technique P4 used for windowed `degree`. Include a hub row longer than one window, because that is the case the rebase term exists for. Then one real test in `test/limits/advance-windowed.test.ts`: a graph whose `colIdx` genuinely exceeds the device's binding limit, run on the NVIDIA lane.
-- [ ] **Step 4: One sabotage row** -- the rebase term ignored (`colIdx[arc]` instead of `colIdx[arc - P.arcBase]`), which is invisible on the first window and wrong on every later one. P4's `degree` row already has this mutation; add the advance twin beside it.
+- [ ] **Step 1: The failing test first.** Add to `test/primitives/advance.test.ts` the faked-limit case of Step 4.
 
-Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/primitives/advance.test.ts && eval $GPU_NV pnpm exec vitest run --project=node-limits test/limits/advance-windowed.test.ts`
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/primitives/advance.test.ts -t windowed`
+Expected: FAIL with `WebGpuGraphError: E_TOO_LARGE` from `assertNotWindowed(core, "advance")`.
+
+- [ ] **Step 2: What "windowed" means here.** When `colIdx` exceeds `maxStorageBufferBindingSize`, P4's residency binds it as a series of arc windows and a kernel reads `colIdx[arc - P.arcBase]`. For a row-walking kernel that is one dispatch per window. For `advance` it is the same, with one extra rule already built into P8-T5's body: a frontier vertex's row may straddle two windows, so each window's dispatch clips every row to `[arcBase, arcEnd)` (`max` / `min` on the row bounds) and emits only the arcs inside it; the per-window dispatches accumulate into the same edge queue through the same `edgeCount` reservation, and `frontierDegreeSum` accumulates across windows rather than being overwritten, or the selector reads a fraction of the real value. The claim kernels are idempotent across windows (`atomicMin`; the bottom-up sweep's `depth[v] == INVALID_INDEX` entry test), so a vertex claimed in window 1 is skipped in window 2.
+
+- [ ] **Step 3: Replace the refusal.** `advance.ts` calls `assertNotWindowed(core, "advance")`; delete the call and record one expand dispatch per window (`windowBinding(core, "colIdx", w)`, one `FRONTIER_PARAMS` record per window with its `arcBase` / `arcEnd`, one indirect slot per window). The BFS driver does the same for `bfs-fused`, `bfs-bottom-up` and `sssp-pred`. `sssp-relax`, `bf-relax` and `closeness-sweep` KEEP their refusal (`assertWholeCore`, DEP-P8-E): the near-far split and the bit-parallel claim need the whole arc array bound.
+
+- [ ] **Step 4: Proof.** The cheap, decisive test is a FAKED limit: `test/primitives/advance.test.ts` binds a core with `maxStorageBufferBindingSize` faked to 1 MiB on a 100k-node graph (`gpuScale()`d), producing at least 8 windows, and asserts the sorted edge queue (the `edgeQueue` buffer) and the three counter words equal the unwindowed run's -- the same technique P4 used for windowed `degree`. Include a hub row longer than one window, because that is the case the clip exists for. `test/algorithms/bfs.test.ts` repeats the faked-limit run for the whole traversal (`depth`, `parent`, `order` bitwise equal to the unwindowed run). Then one real test in `test/limits/advance-windowed.test.ts`: a graph whose `colIdx` genuinely exceeds the device's binding limit, run on the NVIDIA lane (`randomEdges` at the size `test/limits/windowed-200mb.test.ts` uses), `depth` exact against the oracle.
+
+- [ ] **Step 5: One sabotage row** -- the clip ignored (`let lo = max(rowPtr[v], P.arcBase);` -> `let lo = rowPtr[v];` in `advance-expand`), which is invisible on the first window and wrong on every later one; its `test` is the faked-limit case. P4's `degree` row `rebase-ignored` already has this shape; add the advance twin beside it. Watch it go red.
+
+Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/primitives/advance.test.ts test/algorithms/bfs.test.ts test/sabotage/advance.test.ts && eval $GPU_NV pnpm exec vitest run --project=node-limits test/limits/advance-windowed.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit (owner)** -- `feat(webgpu-graph-algorithms): window-aware advance`.
+- [ ] **Step 6: Commit (owner)** -- `feat(webgpu-graph-algorithms): window-aware advance`.
 
 ---
 
@@ -683,37 +1543,78 @@ Expected: PASS.
 
 **Depends on P8-T6, P8-T9, P8-T10, P8-T11 and P8-T12 -- every driver green.**
 
-**Spec:** design 3.3 lines 798-801; design 9.2 (the `AlgorithmAccelerator` mirror); `webgpu-graph-algorithms/CLAUDE.md` step 5 of "Adding an Algorithm / a Kernel".
+**Spec:** design 3.3 lines 807-810; the seam `algorithms/src/indexed/accelerator.ts` lines 108-112 (the four members, verbatim); `webgpu-graph-algorithms/CLAUDE.md` step 5 of "Adding an Algorithm / a Kernel"; `graphty-element/src/algorithms/BFSAlgorithm.ts` line 141 and `DijkstraAlgorithm.ts` line 136 (the callers), `graphty-element/webgpu.ts` `forwardMembers` (why no element change is needed).
 
-**Files:** Modify `$PKG/src/accelerator.ts`, `$PKG/src/types/accelerator.ts`, `$PKG/src/index.ts`, `$PKG/test/index.test.ts` (move `breadthFirstSearch`, `sssp`, `bellmanFord`, `closenessCentrality` out of the never-exported list and into the value list), `$PKG/test/types/public-api.test-d.ts`, `$PKG/test/accelerator.test.ts`.
+**Files:** Modify `$PKG/src/accelerator.ts`, `$PKG/src/types/accelerator.ts` (the `GpuAccelerator` surface gains the four methods), `$PKG/src/index.ts`, `$PKG/test/index.test.ts` (move `breadthFirstSearch`, `sssp`, `bellmanFord`, `closenessCentrality` into `VALUE_EXPORTS` and add `bfsWithTuning`, `ssspWithTuning`, `bellmanFordWithTuning` to `NEVER_EXPORTED`), `$PKG/test/types/public-api.test-d.ts`, `$PKG/test/types/conformance.test-d.ts` (the four seam lines of Step 2), `$PKG/test/accelerator.test.ts`, `$PKG/CLAUDE.md` (the inventory line: eleven algorithm members); `$WT/graphty-element/test/browser/webgpu-layout.test.ts` (Step 4: two cases, scope `graphty-element`). Consumes `createAccelerator`'s existing member shape (`ctx.assertReady()` then the driver), `test/types/conformance.test-d.ts`'s `expectTypeOf` lines for the layout members (the pattern), `graphty-element/test/browser/webgpu-layout.test.ts`'s PageRank case (line 337: `gpu.session.runs.start("pagerank")`, `run.caveats.precision === "f32"`).
 
-- [ ] **Step 1: PD-16 -- six members, no stubs.** `breadthFirstSearch`, `sssp`, `bellmanFord`, `closenessCentrality`, and the two aliases the closeness driver already computes (`harmonicCentrality`, `eccentricity`) go on the object `createAccelerator` returns, each calling `ctx.assertReady()` first, exactly as `forceAtlas2` does. The accelerator never carries a member that throws `E_UNSUPPORTED`: a member exists when its algorithm ships, and a consumer's feature detection is `typeof accel.sssp === "function"`.
-- [ ] **Step 2: The barrel and its two tests.** `src/index.ts` exports the four public functions and the types from `src/types/traversal.ts`. `test/index.test.ts` asserts the exact value list, so the four names must move from `NEVER_EXPORTED` to `VALUE_EXPORTS` in the same commit -- a split commit leaves the suite red.
-- [ ] **Step 3: knip must be clean here.** P8-T1's eight unused type exports become used at this step.
+- [ ] **Step 1: PD-16 and PD-19 -- four members, no stubs, the seam's types.** `breadthFirstSearch(gs, source, o?: BfsOptions)`, `sssp(gs, source, o?: SsspOptions)`, `bellmanFord(gs, source, o?: SsspOptions)` and `closenessCentrality(gs, o?: HitsOptionsLike)` go on the object `createAccelerator` returns, each calling `ctx.assertReady()` first and then its driver, exactly as `pageRank` does. The accelerator never carries a member that throws `E_UNSUPPORTED`: a member exists when its algorithm ships, and a consumer's feature detection is `typeof accel.sssp === "function"`. Nothing named harmonic or eccentricity exists (DEP-P8-F).
 
-Run: `cd $PKG && pnpm run build:all && pnpm run lint && (cd $WT && pnpm exec knip) && eval $GPU_NV pnpm run test:node`
-Expected: all clean; knip reports nothing for this package.
+- [ ] **Step 2: The conformance lines, which are what (b) of the change log is about.** Add to `test/types/conformance.test-d.ts`, beside the layout members' lines:
 
-- [ ] **Step 4: Commit (owner)** -- `feat(webgpu-graph-algorithms): the traversal accelerator members and the barrel`.
+```ts
+expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator>();
+expectTypeOf<BfsOptions | undefined>().toEqualTypeOf<Parameters<NonNullable<AlgorithmAccelerator["breadthFirstSearch"]>>[2]>();
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<NonNullable<AlgorithmAccelerator["sssp"]>>[2]>();
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<NonNullable<AlgorithmAccelerator["bellmanFord"]>>[2]>();
+expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<NonNullable<AlgorithmAccelerator["closenessCentrality"]>>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatchTypeOf<BfsResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+```
+
+with `BfsOptions`, `SsspOptions`, `HitsOptionsLike` and the `*Like` results imported from `@graphty/algorithms` by name. The file compiles twice (`tsc --noEmit -p tsconfig.json` and the strict-consumer leg after `build:all`); a GPU member whose option type drifted from the seam's by one key fails here, which is the check the 2026-09-23 plan lacked.
+
+- [ ] **Step 3: The barrel and its tests.** `src/index.ts` exports the four public functions and the three result types from `src/types/traversal.ts`; `test/index.test.ts` asserts the exact value list, so the four names must move from `NEVER_EXPORTED` to `VALUE_EXPORTS` in the same commit -- a split commit leaves the suite red. `test/accelerator.test.ts` gains one case per member (the member exists, is a function, and on karate returns the driver's result). knip must be clean here: P8-T1's unused exports become used.
+
+- [ ] **Step 4: The element's seam, proved (change-log item (c)).** graphty-element needs NO source change: `graphty-element/webgpu.ts` copies every callable member of `createAccelerator`'s object onto the element's accelerator by name, `narrow.ts` already lists `breadthFirstSearch` and `sssp`, and `BFSAlgorithm` / `DijkstraAlgorithm` already dispatch through them. What is missing is the proof, so add two cases to `graphty-element/test/browser/webgpu-layout.test.ts` beside "labels a PageRank run computed on the device as single precision", in the same `describe.skipIf(!GPU_LANE)` block and with the same helpers:
+
+```ts
+it("labels a breadth-first search computed on the device as single precision, and its levels are the CPU's", ...)
+    // gpu.session.runs.start("bfs") -> run.status === "succeeded", run.caveats.precision === "f32";
+    // the same run on the `acceleration="off"` element (cpu) has precision "f64" and, per node, the same `level`
+    // and the same `order` -- bitwise, because PD-14 makes the GPU order deterministic and level-grouped; the CPU's
+    // FIFO order differs within a level, so the assertion on `order` is "grouped by level and a permutation of the
+    // CPU's per-level set", which is what a reader of the panel sees preserved
+it("labels a Dijkstra run computed on the device as single precision, and its route costs the CPU's", ...)
+    // gpu.session.runs.start("dijkstra") -> precision "f32"; `distance` per node equal to the cpu element's within
+    // 1e-5 relative; `onPath` and `graph.cost` identical
+```
+
+The file runs only when `GRAPHTY_BROWSER_GPU` names hardware (its header says why: SwiftShader is slower than the CPU path and never attached), so these cases run on the GPU lane (`gpu.yml` runs the element's browser project there) and on the dev box; on the five CI shards the file skips as it does today. Gate item 11 cites them. Scope of the commit: `graphty-element`.
+
+Run: `cd $PKG && pnpm run build:all && pnpm run lint && (cd $WT && pnpm exec knip) && eval $GPU_NV pnpm run test:node && cd $WT/graphty-element && LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_BROWSER_GPU=nvidia pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts`
+Expected: all clean; knip reports nothing for this package; the two element cases green on the card.
+
+- [ ] **Step 5: Commit (owner)** -- `feat(webgpu-graph-algorithms): the traversal accelerator members and the barrel`, then `test(graphty-element): prove the seam reaches the GPU traversal members`.
 
 ---
 
-### Task P8-T14: The `bfs` benchmark group and T-10 on both runner classes
+### Task P8-T14: The `bfs` benchmark group, the append-session script and T-10 on both runner classes
 
 **Depends on P8-T13. Parallel with P8-T15.**
 
-**Spec:** design 10.4 line 3415 (T-10: BFS on a 1M-node / 10M-edge RMAT of diameter about 10 in 100 ms or less; a 1000 x 1000 grid of roughly 2,000 levels in 1.5 s or less with `mapAsync` calls at most `levels / 32 + 1`); design 10.3's BFS row (2-5 ms at 100k / 1M, 10-30 ms at 1M / 10M, both marked [X] and therefore replaced by a measurement here, design 13 rule (c)); design 11.7 (the baseline files and `bench:compare`).
+**Spec:** design 10.4 (T-10: BFS on a 1M-node / 10M-edge RMAT of diameter about 10 in 100 ms or less; a 1000 x 1000 grid of roughly 2,000 levels in 1.5 s or less with `mapAsync` calls at most `ceil(levels / 32) + 1`, PD-7); design 10.3's BFS row (2-5 ms at 100k / 1M, 10-30 ms at 1M / 10M, both marked [X] and therefore replaced by a measurement here, design 13 rule (c)); design 11.7 (the baseline files and `bench:compare`); `design/decisions/2026-09-24-performance-targets-belong-to-a-card-class.md`; `scripts/bench-compare.js`'s header (the 1.35x rule, the 2.5 ms floor, the pinned best); G3.md and G4.md appendix A (the append procedure this task turns into a script).
 
-**Files:** Create `$PKG/benchmarks/bfs.bench.ts`; modify `$PKG/benchmarks/run.ts` (one line in `GROUPS`), `$PKG/benchmarks/results/nvidia-lovelace-driver580.json`, `$PKG/benchmarks/results/gpu-linux-t4.json`, `$PKG/test/benchmarks.test.ts`.
+**Files:** Create `$PKG/benchmarks/bfs.bench.ts`, `$PKG/scripts/bench-append-session.js`; modify `$PKG/benchmarks/run.ts` (one line in `GROUPS`: `bfs`), `$PKG/benchmarks/results/nvidia-lovelace-driver580.json`, `$PKG/benchmarks/results/gpu-linux-t4.json`, `$PKG/test/benchmarks.test.ts` (the group list, the append script's four refusals), `$PKG/package.json` (`"bench:append": "node scripts/bench-append-session.js"`), `$PKG/scripts/bench-compare.js` (its header's "append procedure: docs/decisions/G3.md appendix A" now names the script), `$PKG/README.md` (the T-table rows), `$PKG/CLAUDE.md` (the benchmark group list). Consumes `bench` / `BenchResult` / `appendSession` / `BenchSession` (`benchmarks/harness.ts` lines 261-350), `TIERS`, `rmatEdges`, `gridEdges`, `snapshotOf` (`benchmarks/datasets.ts`), `benchmarks/wcc.bench.ts` (the group shape), `LeakCounter`.
 
-- [ ] **Step 1: The rows.** BFS on the RMAT ladder (100k / 1M and 1M / 10M) top-down and direction-optimizing, BFS on the 1000 x 1000 grid with the `mapAsync` count reported beside the wall time, SSSP on the same two RMAT tiers, and the fused-versus-two-phase level counts. Report wall time around the whole call including upload, as design 10.4 requires, and the profiler time per pass when `timestamp-query` was granted.
-- [ ] **Step 2: PD-17 -- both runner classes before the commit.** Capture on the RTX 4070 SUPER locally and on the T4 lane through a labelled pull request, and land both baseline files in the same commit as the benchmark file. A baseline captured on one class and merged makes `bench:compare` fail on the other for a week.
-- [ ] **Step 3: Replace the [X] numbers.** Design 10.3's BFS column and design 10.1's "BFS scratch" column are extrapolations. Record what was measured, and if a measurement misses T-10, do NOT relax the target: design 10.4's rule is that the owner either re-fixes it in a recorded decision in the pull request or the phase continues with the miss recorded. Write the number either way.
+- [ ] **Step 1: The failing test first.** Add to `test/benchmarks.test.ts` a `describe("scripts/bench-append-session.js")` with the four refusals of Step 3 and the group list `["upload", "roundtrip", "layout-exact", "pagerank", "wcc", "layout-fr", "layout-grid", "attraction-scale", "bfs"]`.
 
-Run: `cd $PKG && eval $GPU_NV pnpm run bench bfs && pnpm run bench:compare`
-Expected: the table prints; `bench:compare` finds no tracked median above 3x its baseline.
+Run: `cd $PKG && pnpm exec vitest run --project=node test/benchmarks.test.ts -t append-session`
+Expected: FAIL with `Error: Cannot find module '.../scripts/bench-append-session.js'`.
 
-- [ ] **Step 4: Commit (owner)** -- `perf(webgpu-graph-algorithms): the BFS and SSSP benchmarks and the T-10 baselines`.
+- [ ] **Step 2: The rows.** BFS on the RMAT ladder (`TIERS` at 100k / 1M and 1M / 10M) top-down (`bfsWithTuning({ direction: "top-down" })`) and direction-optimizing (the public `breadthFirstSearch`), BFS on the 1000 x 1000 grid with the `mapAsync` count measured through `LeakCounter` and PRINTED beside the wall time (`[bfs] grid1000 levels=<L> mapAsync=<k>` -- the benchmark row's name carries the level count; the count itself is asserted by `test/limits/bfs-large.test.ts`, never by the benchmark), SSSP on the same two RMAT tiers with random weights in `[0.1, 10]`, and the fused / two-phase / bottom-up level counts from the counters block printed per row. Report wall time around the whole call including upload, as design 10.4 requires (`teardown` releases the snapshot so the next run re-uploads, as `wcc.bench.ts` does), and the profiler time per pass when `timestamp-query` was granted, which on Dawn is in 1,024 ns ticks (`src/kernel/profiler.ts`).
+
+- [ ] **Step 3: The append script, committed.** `scripts/bench-append-session.js` is the G4 appendix A script (`tmp/p4/t14/append-session.mjs`) made real: `node scripts/bench-append-session.js <out file> <results file>` appends the LAST session of `benchmarks/out/<class>.json` to `benchmarks/results/<class>.json`, sorted by date, and REFUSES (exit 1, a sentence naming the reason) a file with no session, a session that ran on a software adapter (`gpu.software`), a session missing any of the nine groups (`REQUIRED_GROUPS`, `bfs` included -- `bench:compare` reads the last session, so it must carry every row), and a session whose date is already in the results file. Plain JavaScript beside `bench-compare.js`, documented in its header with the same "why" style, and the four refusals are cases of `test/benchmarks.test.ts` against fixture files under `test/fixtures/bench/`. The G3 / G4 appendices stay as history; nothing sends a builder to a gitignored scratch directory again.
+
+- [ ] **Step 4: PD-17 -- both runner classes before the commit, and which figure is which.** T-10 is a CONTRACT on the reference card (the RTX 4070 SUPER, class `nvidia-lovelace-driver580`): `<= 100 ms` at 1M / 10M RMAT and `<= 1.5 s` on the grid, and a miss there is not relaxed -- the owner either re-fixes the target in a recorded decision in the pull request or the phase continues with the miss recorded (design 10.4). On `gpu-linux-t4` the same rows are RECORDED figures: the record states them, `README.md`'s T4 table carries them, and a regression on that class is caught by `bench:compare` against the T4's own pinned best, not by the reference card's target. Capture on the card locally (`pnpm run bench bfs`), append with the script, then push the branch with the `gpu` label so `gpu.yml` runs `pnpm run bench` on the T4 and uploads `benchmarks/out/gpu-linux-t4.json` as the `gpu-results-<run>` artifact; download it, append with the script, and land BOTH baseline files in the same commit as the benchmark file. A baseline captured on one class and merged alone makes `bench:compare` report every `bfs` row as `new (no baseline)` on the other, which is not a failure but is a gap the record must not have.
+
+- [ ] **Step 5: Replace the [X] numbers.** Design 10.3's BFS column and design 10.1's "BFS scratch" column are extrapolations. Record what was measured, with the load average beside every local timing and the runtime named (`webgpu` 0.4.0, Ubuntu 22.04.5, driver 580.173.02 on the card; the T4's driver from the lane's `gpu-report.json`).
+
+Run: `cd $PKG && eval $GPU_NV pnpm run bench bfs && node scripts/gpu-report.js > gpu-report.json && pnpm run bench:compare && node scripts/bench-append-session.js benchmarks/out/nvidia-lovelace-driver580.json benchmarks/results/nvidia-lovelace-driver580.json`
+Expected: the table prints; `bench:compare` reports every `bfs` row `new (no baseline)` on the first run and, once the baseline is appended, `ok` -- a row goes `REGRESSION` only when its median AND minimum both exceed 1.35x the pinned best of every session AND both rose by at least 2.5 ms; the append prints the session's date, class, result count and the nine groups.
+
+- [ ] **Step 6: Commit (owner)** -- `perf(webgpu-graph-algorithms): the BFS and SSSP benchmarks, the append-session script and the T-10 baselines`.
 
 ---
 
@@ -721,19 +1622,24 @@ Expected: the table prints; `bench:compare` finds no tracked median above 3x its
 
 **Depends on P8-T13. Parallel with P8-T14.**
 
-**Spec:** design 11.9 items 1, 2 and 4 (sabotage, per-kernel inspection, run twice); design 6 lines 1581-1598 (the twin discipline and the three subgroup sizes); design 11.6 item 4 (the browser smoke runs one PageRank, one BFS and one connected-components on karate against the oracle); design 12.3 (`GRAPHTY_GPU_NO_SUBGROUPS=1`).
+**Spec:** design 11.9 items 1, 2 and 4 (sabotage, per-kernel inspection, run twice); design 6 "Subgroup variants" (the twin discipline and the three subgroup sizes); design 11.6 item 4 (the browser smoke runs one PageRank, one BFS and one connected-components on karate against the oracle; `test/browser/algorithms.test.ts` says its BFS case "is P8's and is deliberately absent"); design 12.3 (`GRAPHTY_GPU_NO_SUBGROUPS=1`).
 
-**Files:** Create `$PKG/test/sabotage/frontier.test.ts`, `$PKG/test/sabotage/traversal.test.ts`, `$PKG/test/limits/bfs-large.test.ts`; modify `$PKG/test/browser/skeleton.test.ts` or add `$PKG/test/browser/traversal.test.ts`, `$PKG/test/noise-floor.test.ts`, `$WT/.github/workflows/ci.yml` (extend the no-subgroups twin pass, which today names only `test/primitives test/layouts`, to `test/algorithms`).
+**Files:** Create `$PKG/test/limits/bfs-large.test.ts`, `$PKG/test/limits/sssp-1m.test.ts`; modify `$PKG/test/browser/algorithms.test.ts` (the BFS case), `$PKG/test/helpers/sabotage.ts` (`SABOTAGE_PHASES` gains `"P8"`; every P8 row was written by the task that wrote the kernel), `$PKG/test/sabotage/coverage.test.ts` (the phase list assertion), `$PKG/test/noise-floor.test.ts`, `$PKG/benchmarks/results/noise-floor.json`, `$PKG/test/limits/README.md`, `$WT/.github/workflows/ci.yml` (nothing: the no-subgroups twin pass at line 342 already covers `test/primitives test/layouts test/algorithms`). Consumes `withSabotage`, `SABOTAGE`, `SABOTAGE_EXEMPT`, `sabotagedBody` (`test/helpers/sabotage.ts`), `acquireBrowser` / `requireBrowserGpu` (`test/setup/browser.ts`), `writeNoiseFixture` / `recordNoiseRow` (`test/helpers/noise-floor.ts`), `bfsWithTuning`'s `onLevel` (the inspect seam), `test/limits/pagerank-1m.test.ts` (the limits-test shape).
 
-- [ ] **Step 1: Run every mutation.** The rows were written by the tasks that wrote the kernels, each beside the test it must break; this task runs them all and closes the gaps `test/sabotage/coverage.test.ts` reports. At least three per kernel across fourteen kernels is 42 mutations. A mutation that SURVIVES is a bug in the test suite and blocks the gate exactly as a failing test does -- if one survives, the fix is a better test, never a weaker mutation.
-- [ ] **Step 2: The `inspect()` stage comparisons.** Expose, behind `GRAPHTY_GPU_INSPECT=1`, the per-level frontier contents, the edge queue, the counters block and the per-level `depth` snapshot, and compare them level by level against the oracle's own per-level state. This is what catches a wrong expansion that a wrong contraction happens to cancel; end-to-end depth equality would average it away.
-- [ ] **Step 3: The twins at three subgroup sizes.** `advance` is the only P8 kernel with a subgroup variant. Run its suite against both variants in the same process (a second context from `acquire({ subgroups: false })`) on lavapipe (size 8), SwiftShader (size 4) and NVIDIA (size 32), asserting bitwise-identical sorted queues -- these are `u32`, so "within a tolerance" does not arise.
-- [ ] **Step 4: The browser smoke.** Add BFS on karate against the oracle to the browser project, which is design 11.6 item 4's BFS half.
-- [ ] **Step 5: The `node-limits` tests.** The 1M / 10M RMAT BFS (a real 80 MB edge queue) and the 17M-entry synthetic frontier from P8-T4 Step 7 re-run at full size.
-- [ ] **Step 6: The noise-floor rows.** Append to `benchmarks/results/noise-floor.json`: the f32-versus-f64 Dijkstra spread from P8-T2, per fixture; the cross-adapter spread of `dist` (expected to be exactly zero -- record the zero, because a later non-zero is then a finding rather than a surprise).
+- [ ] **Step 1: Run every mutation, and gate the phase.** Add `"P8"` to `SABOTAGE_PHASES` and update `coverage.test.ts`'s pinned list; from then on every non-exempt P8 kernel (none of the fifteen is exempt) needs at least three rows or the suite is red. The rows were written by the tasks that wrote the kernels, each beside the test it must break; this task runs them all (`test/sabotage/{compact,frontier,advance,bfs,sssp,bellman-ford,closeness}.test.ts`) and closes the gaps `coverage.test.ts` reports. Three per kernel across fifteen kernels is 45 mutations; the tasks wrote 48 (three per kernel, five on `advance-expand`, four on `sssp-relax`, and the three selector rows on `frontier-finalize` beyond its own three). A mutation that SURVIVES is a bug in the test suite and blocks the gate exactly as a failing test does -- if one survives, the fix is a better test, never a weaker mutation. Every row's check is a value, a set, a counter word or a dispatch count; the record lists any row whose factor is not `Infinity` with its measured factor.
 
-Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/sabotage && eval $GPU_NV pnpm exec vitest run --project=node-limits && pnpm run test:browser:ci`
-Expected: every mutation caught; limits green; browser green (exit 124 with `numFailedTests === 0` counts as green, design 11.6).
+- [ ] **Step 2: The `inspect()` stage comparisons.** Through `bfsWithTuning({ levelsPerSubmit: 1, onLevel })` and `ssspWithTuning({ roundsPerSubmit: 1, onRound })`, compare level by level against the oracle's own per-level state on `gridEdges(30, 30)`, `rmatEdges(14, 10, 7)` and the weighted karate: the frontier as a SET equals the oracle's vertices at that depth, the counters block's `frontierCount` equals that set's size, `frontierDegreeSum` equals the oracle's degree sum of the previous level, `unvisitedCount` and `unvisitedDegreeSum` after each rebuild equal the oracle's complement (P8-T8 Step 5). This is what catches a wrong expansion that a wrong contraction happens to cancel; end-to-end depth equality would average it away. `GRAPHTY_GPU_INSPECT=1` (`ctx.debug.inspect`) additionally makes the drivers keep the per-level readbacks in a `stages` array on the tuning result for a human to print; nothing public exposes either.
+
+- [ ] **Step 3: The twins at three subgroup sizes.** `advance-expand` is the only P8 kernel with a subgroup variant. Run its suite against both variants in the same process (a second context from `acquire({ subgroups: false })`) on lavapipe (size 8), SwiftShader (size 4, the browser project's `compile-matrix.test.ts` case) and NVIDIA (size 32), asserting bitwise-identical SORTED queues -- these are `u32`, so "within a tolerance" does not arise. The CI twin pass (`GRAPHTY_GPU_NO_SUBGROUPS=1` over `test/primitives test/layouts test/algorithms`) covers the new suites without a workflow edit.
+
+- [ ] **Step 4: The browser smoke.** Add to `test/browser/algorithms.test.ts` the BFS case design 11.6 item 4 names: `breadthFirstSearch` on karate from vertex 0 in Chromium, `depth` identical to `bfsOracle`'s, `order` grouped by level, `switches === 0`; and one `sssp` case on the weighted karate, `dist` bitwise equal to the f32 oracle. Update the file's header (the "deliberately absent" sentence).
+
+- [ ] **Step 5: The `node-limits` tests.** `test/limits/bfs-large.test.ts`: the 1000 x 1000 grid unscaled from the corner (1,999 levels; `depth` against the oracle; `mapAsyncCalls === Math.ceil(levels / MAX_LEVELS_PER_SUBMIT) + 1` after `verifyDevice` and a reset, the gate's T-10 accounting) and the 1M / 10M RMAT BFS (a real 80 MB edge queue; `depth` against the oracle; `switches > 0`). `test/limits/sssp-1m.test.ts`: the 1M / 10M RMAT with random weights, `dist` bitwise against the f32 oracle, `expectTriangleInequality`. Mark both in `test/limits/README.md`.
+
+- [ ] **Step 6: The noise-floor rows.** Append to `benchmarks/results/noise-floor.json` through `recordNoiseRow`: the f32-versus-f64 Dijkstra spread from P8-T2 per weighted fixture (`sssp-relax.f32-vs-f64`, the basis of P8-T9's derived tolerance); the cross-adapter spread of `dist` and of `depth` (expected to be exactly zero -- record the zero, because a later non-zero is then a finding rather than a surprise); the `advance-expand` twin spread (zero). `test/noise-floor.test.ts` checks the committed rows on every run. The runtime line of every row: `webgpu` 0.4.0 on Ubuntu 22.04.5.
+
+Run: `cd $PKG && eval $GPU_LLVM pnpm exec vitest run --project=node test/sabotage && eval $GPU_NV pnpm exec vitest run --project=node-limits && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js`
+Expected: every mutation caught; limits green; browser green (exit 124 with `numFailedTests === 0` counts as green, design 11.6). Write the load average beside the limits timings.
 
 - [ ] **Step 7: Commit (owner)** -- `test(webgpu-graph-algorithms): the frontier sabotage matrix, the twins and the browser traversal smoke`.
 
@@ -743,15 +1649,15 @@ Expected: every mutation caught; limits green; browser green (exit 124 with `num
 
 **May run any time after P8-T4.**
 
-**Files:** Create `$WT/design/decisions/2026-09-23-frontier-primitives-are-planners.md`, `$WT/design/decisions/2026-09-23-bfs-claims-instead-of-culling.md`, `$WT/design/decisions/2026-09-23-advance-is-window-aware.md`; modify `$WT/design/decisions/README.md`.
+**Files:** Create `$WT/design/decisions/2026-09-24-frontier-primitives-are-planners.md`, `$WT/design/decisions/2026-09-24-bfs-claims-instead-of-culling.md`, `$WT/design/decisions/2026-09-24-advance-is-window-aware.md`, `$WT/design/decisions/2026-09-24-frontier-members-conform-to-the-seam.md` (PD-19 and DEP-P8-F together: what the design's `ClosenessOptions` / `BellmanFordOptions` said, what the seam declares, why the seam wins, every invented option as not offered, and what would reverse it -- a seam widening, which is its own decision), `$WT/design/decisions/2026-09-24-edge-queue-overflow-is-a-fused-retry.md` (DEP-P8-G); modify `$WT/design/decisions/README.md` (five index rows) and `$WT/design/webgpu/superseded-parts-of-the-design.md` (one entry per record, in that file's "The design says / What is true instead / Decided by" shape, for design 3.3's option types, 6 row 7's overflow rule, 4.6's frontier row, 6 rows 4 / 7 / 8's free-function spellings, and 13 row P8's "closeness / harmonic / eccentricity").
 
-- [ ] **Step 1.** One file per departure of section 0.5 that changes a design statement (A, B and E; C and D are resolved inside the design's own text and need none). Each states what the design says, what the package does, the evidence, and what would have to change to go back. Follow the shape of the three records already in the directory.
-- [ ] **Step 2.** Add the three to the README index.
+- [ ] **Step 1.** One file per departure of section 0.5 that changes a design statement (A, B, E, F and G; C and D are resolved inside the design's own text and need none). Each states the decision, the date, who made it, what it changes, the argument that was rejected, and what would have to change to go back -- the shape `design/decisions/README.md` asks for and the 2026-09-20 records use.
+- [ ] **Step 2.** Add the five to the README index and the superseded-parts index.
 
-Run: `cd $WT && LC_ALL=C grep -nP '[^\x00-\x7F]' design/decisions/2026-09-23-*.md`
+Run: `cd $WT && LC_ALL=C grep -nP '[^\x00-\x7F]' design/decisions/2026-09-24-*.md design/decisions/README.md design/webgpu/superseded-parts-of-the-design.md`
 Expected: no output.
 
-- [ ] **Step 3: Commit (owner)** -- `docs: record the three frontier-phase departures`.
+- [ ] **Step 3: Commit (owner)** -- `docs: record the five frontier-phase departures`.
 
 ---
 
@@ -759,37 +1665,25 @@ Expected: no output.
 
 **Last.**
 
-**Files:** Create `$PKG/docs/decisions/G8.md`; modify `$PKG/CLAUDE.md` (the "Verified Platform Facts" section gains whatever this phase measured that a later phase would otherwise rediscover).
+**Files:** Create `$PKG/docs/decisions/G8.md` from the template of appendix 7.4; modify `$PKG/CLAUDE.md` (the inventory lines, the "Verified Platform Facts" section gains a "Settled at G8" table with whatever this phase measured that a later phase would otherwise rediscover: the f32 add's correct rounding on both adapters, the `workgroupUniformLoad` idiom, the per-batch single `mapAsync`), `$PKG/README.md` (the T-10 rows in both tables).
 
 - [ ] **Step 1: The full green check, both adapters plus the browser.**
 
 ```
+uptime                                                    # the load average goes into the record beside every timing
 cd $PKG && pnpm run build:all && pnpm run lint && (cd $WT && pnpm exec knip)
 eval $GPU_LLVM pnpm run test:node && eval $GPU_LLVM pnpm run coverage
 eval $GPU_NV   pnpm run test:node && eval $GPU_NV pnpm exec vitest run --project=node-limits
-pnpm run test:browser:ci
-eval $GPU_LLVM GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/algorithms
-LC_ALL=C grep -rnP '[^\x00-\x7F]' src test benchmarks docs
+GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
+eval $GPU_NV GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_GPU_REQUIRE=nvidia node scripts/run-browser-project.js
+eval $GPU_LLVM GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms
+cd $WT/graphty-element && LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_BROWSER_GPU=nvidia pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts
+cd $WT && LC_ALL=C grep -rnP '[^\x00-\x7F]' webgpu-graph-algorithms/src webgpu-graph-algorithms/test webgpu-graph-algorithms/benchmarks webgpu-graph-algorithms/docs webgpu-graph-algorithms/scripts design/decisions/2026-09-24-*.md
 ```
 
-Expected: green throughout; coverage at or above 80 / 80 / 75 / 80; no non-ASCII; the default-lane wall time inside T-12's 15 minutes (record it -- this phase adds roughly seventy test cases and T-12 is the budget that says when that stops being free).
+Expected: green throughout; coverage at or above 80 / 80 / 75 / 80; no non-ASCII; the default-lane wall time inside T-12's 15 minutes (record it -- this phase adds roughly eighty test cases and T-12 is the budget that says when that stops being free).
 
-- [ ] **Step 2: Write G8.md** against design 13 row P8's gate list, item by item with its evidence, in the shape of the existing G0-G3 records:
-
-| G8 item (design 13 row P8, line 4215) | Evidence |
-| --- | --- |
-| BFS `depth` exact and parent / order level-consistent on all fixtures including the 1000 x 1000 grid and a 10k-degree star | `test/algorithms/bfs.test.ts` |
-| The fused and two-phase kernels agree and the device-side selection picks each at least once on an RMAT fixture | `test/algorithms/bfs.test.ts` (P8-T7 Step 3) |
-| The direction-optimizing path agrees with top-down and `switches > 0` on an RMAT fixture | `test/algorithms/bfs.test.ts` (P8-T8 Step 5) |
-| A level whose degree sum exceeds a FAKED 4,096-entry edge-frontier capacity gives exact depths | `test/primitives/advance.test.ts` (P8-T5 Step 4) |
-| SSSP `dist` within tolerance including zero weights, `predArc` attains `dist`, `E_UNSUPPORTED` on negative weights, `flags.allWeightsOne` routes to BFS | `test/algorithms/sssp.test.ts` -- and note that `dist` is compared BITWISE against the f32 oracle, which is stronger than the gate asks |
-| Bellman-Ford detects a planted negative cycle | `test/algorithms/bellman-ford.test.ts` |
-| `mapAsync` count at most `levels / 32 + 1` on the grid fixture | `test/algorithms/bfs.test.ts` through `test/helpers/leak-counter.ts` |
-| The indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe) | `test/primitives/frontier.test.ts` and `test/limits/bfs-large.test.ts` |
-| The subgroup tier identical on and off at sizes 4 / 8 / 32 | P8-T15 Step 3 |
-| T-10 recorded | `benchmarks/results/*.json`, the session named in the record |
-
-Also record, as the design's own gate rules require: the sabotage matrix run and its count, the `inspect()` stage comparisons, every tolerance traced to its noise-floor row, and any target that was missed together with the owner's decision about it.
+- [ ] **Step 2: Write G8.md** from appendix 7.4, every `{{OPEN: ...}}` replaced by a measured number or left in place with the reason it is still open; section 2's twelve items each with its evidence; section 3 with the reference card's T-10 as the contract and the T4's as the recorded figure; section 4 with every tolerance traced to its noise-floor row; section 7 with the sabotage count, the `inspect()` comparisons run, every target missed and the owner's decision about it, and the 22.5-ed question of section 0.6.
 
 - [ ] **Step 3: Commit (owner)** -- `docs(webgpu-graph-algorithms): the G8 gate record for the frontier family`.
 
@@ -800,50 +1694,154 @@ Also record, as the design's own gate rules require: the sabotage matrix run and
 ### 7.1 The owner's command sheet, in order
 
 ```
-# once, before anything
-git worktree add .worktrees/webgpu-frontier -b feat/webgpu-frontier master
-export WT=/home/apowers/Projects/graphty-monorepo/.worktrees/webgpu-frontier
+# once, before anything (the worktree exists: .worktrees/gpu-p8 on feat/gpu-p8)
+export WT=/home/apowers/Projects/graphty-monorepo/.worktrees/gpu-p8
 export PKG=$WT/webgpu-graph-algorithms
-cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph-format:build
+cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run-many -t build --projects=graph-format,algorithms,layout
 
 # the two environments every Run line uses
-export GPU_NV='LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware'
+export GPU_NV='LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware XDG_RUNTIME_DIR=/tmp'
 export GPU_LLVM='GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json XDG_RUNTIME_DIR=/tmp'
 
-# the per-task commit, seventeen times, with the subject the task names
+# the per-task commit, eighteen times (P8-T13 makes two), with the subject the task names
 cd $WT && ./tools/commit-changes.sh --dry-run
 cd $WT && ./tools/commit-changes.sh
+
+# the T4 baseline (P8-T14 Step 4): push with the `gpu` label, download the gpu-results-<run> artifact, then
+cd $PKG && node scripts/bench-append-session.js <artifact>/benchmarks/out/gpu-linux-t4.json benchmarks/results/gpu-linux-t4.json
 ```
 
-Every commit is scoped `webgpu-graph-algorithms` except P8-T16's, which is scoped `docs`.
+Every commit is scoped `webgpu-graph-algorithms` except P8-T13's second (`graphty-element`) and P8-T16's (`docs`).
 
 ### 7.2 Verification matrix
 
 | Kernel or driver | Independent reference | Differential fixtures | Run-twice | Sabotage rows | Noise-floor row |
 | --- | --- | --- | --- | --- | --- |
-| `compact` | `Array.filter` | sizes 0..4097, all-0, all-1, alternating | bitwise | 3 | none (u32, exact) |
-| `dedupe` | `Set` walk | all-distinct, all-identical, 1000x repeat | bitwise on the sorted form | 3 | none |
-| `frontier-finalize` | `planIndirect` and P4's `indirect-finalize` | 2,000 counts to `2^32 - 1`; 17M | bitwise | 2 | none |
-| `advance-expand` | nested edge loop | empty, single, karate, 10k star, 100x100 grid, RMAT; tiers 0 and 1; subgroup twin | bitwise on the sorted queue | 5 | none |
-| `bfs-contract` | FIFO BFS | the full design 11.3 fixture list | `depth` bitwise, `order` as a per-level set | 4 | none |
-| `bfs-fused` | the two-phase path | the same list at three thresholds | bitwise | 4 | none |
-| `bfs-bottom-up` | the top-down path | RMAT, grid, star, directed | bitwise incl. `switches` | 3 | none |
-| `bfs-unvisited-flags` | the oracle's reached set, complemented | RMAT, grid, a fixture with isolated vertices, a directed one; `unvisitedListLen` against `compact`'s own count | bitwise on all three counters | 3 | none |
-| `sssp-relax` / `sssp-pred` | heap Dijkstra in f32 AND f64 | weighted list incl. zero weights and a six-decade weight range | bitwise | 4 | f32-vs-f64 spread per fixture |
-| `bf-relax` | Bellman-Ford | negative acyclic, planted cycle, unreachable cycle, zero cycle | bitwise | 3 | shares the SSSP row |
-| `closeness-reduce` | per-source BFS reduction | path and star analytically, karate, disconnected | bitwise on the integer sums | 3 | none |
+| `compact` | `Array.filter` | sizes 0..4097 and scaled, all-0, all-1, alternating, last-only; `outIndex`, `countIndex` | bitwise | 3 | none (u32, exact) |
+| `dedupe` | `Set` walk | all-distinct, all-identical, 1000x repeat, no reset between calls | bitwise on the sorted form | 3 + 3 | none |
+| `frontier-finalize` | `planIndirect` and P4's `indirect-finalize` | 2,000 counts to `2^32 - 1`; 17M; both roles; `maxDepth` | bitwise on the args | 3 + 3 (the selector rows of P8-T7 / P8-T8) | none |
+| `advance-expand` | nested edge loop | empty, single, karate, 10k star, 100x100 grid, RMAT; the overflow detector; subgroup twin; windowed | bitwise on the sorted queue and the three counters | 5 + 1 (windowed) | twin: zero |
+| `bfs-contract` + `sssp-pred` (depth mode) | FIFO BFS + the smallest-predecessor loop | the full design 11.3 fixture list, `maxDepth`, the last-index source | `depth`, `parent`, `order`, counters: all bitwise | 3 + 3 | `depth` cross-adapter: zero |
+| `bfs-fused` | the two-phase path | the same list at three thresholds; the overflow retry | bitwise | 3 | none |
+| `bfs-bottom-up`, `bfs-bitset-build`, `bfs-unvisited-flags` | the top-down path; the oracle's complement; the host model of Beamer's rule | RMAT, grid, star, directed, isolated vertices; `completeEdges(256)` for `arcsScanned` | bitwise incl. `switches`, `direction` per level and the three unvisited words | 3 + 3 + 3 | none |
+| `sssp-relax` + `sssp-pred` (f32 mode) | heap Dijkstra in f32 AND f64 | weighted list incl. zero weights, six-decade range, `cutoff` attained exactly, an `F64` `weights` override; the round count on the weight-2 path | `dist`, `pred`, counters: bitwise | 4 + 1 | f32-vs-f64 spread per fixture; `dist` cross-adapter: zero |
+| `bf-relax` | Bellman-Ford (f32) and `sssp` where non-negative | negative acyclic, planted cycle, unreachable cycle, zero cycle, undirected negative edge, `cutoff` | bitwise incl. the flags | 3 | shares the SSSP row |
+| `closeness-sweep`, `closeness-reduce` | per-source BFS reduction; the legacy CPU function on karate | path and star analytically, karate, disconnected, 70 nodes (a partial batch), weighted karate | bitwise on the integer `perSource` words | 3 + 3 | none |
 
 ### 7.3 Risk register for this plan
 
 | Id | Risk | Mitigation |
 | --- | --- | --- |
-| RP-1 | Neither entry criterion is met: this phase cannot start until two other branches merge, and both are large. | Section 0.2 states it as the first thing anyone reads, and the three independent starter tasks are the ones that can proceed meanwhile. |
-| RP-2 | The block-mapped expansion does not compile because a barrier sits inside a guard. This is the most common WGSL failure in this package and it costs hours when it is diagnosed as a logic bug. | P8-T5 Step 1 names it before the code, with the `select`-based fix written out. |
-| RP-3 | `dist` turns out NOT to be bitwise reproducible, which would invalidate PD-9 and PD-10 and the exactness of the SSSP test. | The argument is written out in P8-T9 Step 1 and it rests on one claim -- that every candidate value is eventually offered -- which the near-far loop guarantees by running until both piles empty. If a measurement contradicts it, the f32 comparison drops to the derived tolerance and the finding goes in G8; nothing else in the phase changes. |
-| RP-4 | Design 9.7's `1e-5` for `dist` is tighter than f32 accumulation allows on a high-diameter fixture. | P8-T2 Step 3 measures the spread before any kernel exists, so the number is known at the start of the phase rather than discovered by a red test at the end. Re-fixing is an owner decision in the pull request, never a quiet edit to a test file. |
-| RP-5 | Nine tasks append to `src/kernels.ts`, so nothing in the middle of the phase can run in parallel. | PD-2 states the rule; the parallel opportunities are at the two ends (P8-T1 / T2 / T3 at the start, P8-T14 / T15 at the finish) and are marked. |
-| RP-6 | The bottom-up early exit can be deleted without any test noticing, because the answer stays right. | P8-T8 Step 6 says so explicitly and routes that mutation's check to the benchmark and the dispatch count rather than to the differential test. The same applies to the near / far split mutation in P8-T9. |
-| RP-7 | Seventy new test cases push the default lane past T-12's 15 minutes on lavapipe. | P8-T17 Step 1 records the wall time; the large fixtures are sized by `gpuScale()` and the genuinely large ones live in `node-limits`, which the default lane does not run. |
+| RP-1 | The seam changes under the phase (a port of `bellmanFord` or `closenessCentrality` lands in `@graphty/algorithms` with a different option type). | P8-T13's conformance lines fail the strict-consumer compile the moment the types diverge, and the fix is in the GPU member, never a mirror. |
+| RP-2 | The block-mapped expansion does not compile because a barrier sits inside a guard, or the strip loop's bound is judged non-uniform. This is the most common WGSL failure in this package and it costs hours when it is diagnosed as a logic bug. | P8-T5 Step 2 names it before the code, with the `select`-based guard and the `workgroupUniformLoad` bound written out. |
+| RP-3 | `dist` turns out NOT to be bitwise reproducible (an adapter whose f32 add is not correctly rounded), which would invalidate PD-9 and PD-10 and the exactness of the SSSP test. | The argument is written out in P8-T9 Step 2 and it rests on two claims -- every candidate is eventually offered, which the near-far loop guarantees, and the add is correctly rounded, which is measured on both adapters. If a measurement contradicts it, the f32 comparison drops to the derived tolerance and the finding goes in G8; nothing else in the phase changes. |
+| RP-4 | Design 9.7's `1e-5` for `dist` is tighter than f32 accumulation allows on a high-diameter fixture. | P8-T2 Step 4 measures the spread before any kernel exists, so the number is known at the start of the phase rather than discovered by a red test at the end. Re-fixing is an owner decision in the pull request, never a quiet edit to a test file. |
+| RP-5 | Nine tasks append to `src/kernels.ts`, so nothing in the middle of the phase can run in parallel. | PD-2 states the rule; the parallel opportunities are at the two ends (P8-T1 / T2 / T3 at the start, P8-T14 / T15 at the finish) and P8-T12 beside P8-T9..T11. |
+| RP-6 | A mutation whose answer stays right (the bottom-up early exit, the fused threshold, the growing test) survives because nothing measures it. | Each is pinned to a counter word the tests read from the block (`arcsScanned`, `fusedLevels`, the `direction` sequence) -- never a timing (change-log item (i)). |
+| RP-7 | Eighty new test cases push the default lane past T-12's 15 minutes on lavapipe. | P8-T17 Step 1 records the wall time; the large fixtures are sized by `gpuScale()` and the genuinely large ones live in `node-limits`, which the default lane does not run. |
+| RP-8 | The 1.35x / 2.5 ms `bench:compare` gate reads the `bfs` rows as `new` on the class whose baseline was not appended, and a later regression there goes unseen. | PD-17: both classes' sessions land in one commit (P8-T14 Step 4), through the committed append script. |
+| RP-9 | The device self-check's two extra `mapAsync` calls make the gate's readback count red on a fresh device. | Every counting test awaits `verifyDevice` and resets the counter first (Global Constraints; P8-T6 Step 5). |
+
+### 7.4 The G8 record template (the shape of G4.md, G5.md and G7.md; `{{OPEN: ...}}` marks every number P8-T17 measures)
+
+```
+# G8 -- The frontier family: BFS, SSSP, Bellman-Ford, closeness (spec 13 row P8)
+
+Recorded by: Task P8-T17 of `design/webgpu/plans/2026-09-23-webgpu-p8-frontier.md` (amended 2026-09-24),
+{{OPEN: date}} (every measurement below ran on the dev box on {{OPEN: dates}} local time; the benchmark session
+date is UTC). The owner signs section 7. Commits: the eighteen of the P8 PR (`tools/commit-changes.sh`;
+{{OPEN: short hashes once committed}}).
+Environment: `@graphty/webgpu-graph-algorithms` {{OPEN: version}} over `@graphty/algorithms` {{OPEN}} and
+`@graphty/graph-format` {{OPEN}}, Node {{OPEN}}, pnpm {{OPEN}}, vitest 3.2.x, the `webgpu` npm package 0.4.0
+(Dawn; timestamp queries in 1,024 ns ticks), Ubuntu 22.04.5 LTS, NVIDIA driver {{OPEN}} (GeForce RTX 4070 SUPER),
+Mesa lavapipe {{OPEN}}, Playwright {{OPEN}} with Chromium {{OPEN}}. THE RUNTIME LINE IS LOAD-BEARING: the
+`webgpu` bump and the Ubuntu 24.04 move are not on master, and every number here belongs to the older runtime;
+a re-measurement on the newer one is a new session, never an edit of these. Every command ran from
+`webgpu-graph-algorithms/` in the worktree `.worktrees/gpu-p8` (branch `feat/gpu-p8`, based on `6dbabfc0`);
+the logs are under `tmp/p8/t17/` (gitignored). Load average at each timed run: {{OPEN: uptime per leg}}.
+
+The rule of this record (spec 10.4): every number is measured and names the command or the file it came from;
+a missed target is never relaxed here -- it is re-fixed by an owner decision in section 7, or the phase stays open.
+
+GATE STATUS: {{OPEN: N of 12 items GREEN on the dev box; the lane run id and commit}}.
+
+## 0. What the phase built (the deliverable of spec 13 row P8)
+
+{{OPEN: the inventory in G4's shape: the four primitives / classes, the four drivers, the four seam members,
+fifteen kernels named, N sabotage rows, N noise-floor rows, N derived tolerances, the append script}}
+The departures are DEP-P8-A .. G (section 0.5 of the plan) and the five decision records of P8-T16.
+
+## 1. Adapters exercised
+
+| Adapter | Runtime | adapter class | runner class | subgroups | how it was run |
+| --- | --- | --- | --- | --- | --- |
+| NVIDIA GeForce RTX 4070 SUPER, Dawn (driver {{OPEN}}) | node | nvidia-lovelace-node | nvidia-lovelace-driver580 | 32 / 32 | `$GPU_NV pnpm exec vitest run --project=node` (also `GRAPHTY_GPU_NO_SUBGROUPS=1` over `test/primitives test/layouts test/algorithms`, and `--project=node-limits`) |
+| Mesa lavapipe, Dawn | node | mesa-software-node | -- (never timed) | 8 / 8 | `$GPU_LLVM pnpm exec vitest run --project=node --coverage` |
+| Chromium on SwiftShader | browser | google-swiftshader-browser | -- | 4 / 4 | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js` |
+| Chromium on the RTX 4070 SUPER | browser | nvidia-lovelace-browser | -- | 32 / 32 | `$GPU_NV GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_GPU_REQUIRE=nvidia node scripts/run-browser-project.js` |
+| GitHub gpu-linux-t4 (NVIDIA Tesla T4; driver {{OPEN}}) | node + browser | nvidia-turing-node / -browser | gpu-linux-t4 | 32 / 32 | `gpu.yml` run {{OPEN: id}} on commit {{OPEN}}: {{OPEN: steps and counts}} |
+| graphty-element's browser project on the RTX 4070 SUPER | browser | -- | -- | -- | `graphty-element/test/browser/webgpu-layout.test.ts`: the BFS and Dijkstra seam cases {{OPEN: passed}} |
+
+## 2. The G8 checklist (spec 13 row P8), each item mapped to its evidence
+
+| # | Item | Evidence | NVIDIA / lavapipe |
+| --- | --- | --- | --- |
+| 1 | BFS `depth` exact and `parent` / `order` level-consistent on all fixtures incl. the 1000 x 1000 grid and a 10k-degree star; `parent` the smallest predecessor and `order` grouped-then-ascending (PD-14) | `test/algorithms/bfs.test.ts`, `test/limits/bfs-large.test.ts` | {{OPEN: counts}} |
+| 2 | The fused and two-phase kernels agree and the device-side selection picks each at least once on an RMAT fixture; `fusedLevels` / `twoPhaseLevels` equal the oracle's level-size counts | `test/algorithms/bfs.test.ts` (P8-T7 Step 4) | {{OPEN: the levels chosen fused / two-phase}} |
+| 3 | The direction-optimizing path agrees with top-down and `switches > 0` on an RMAT fixture; the `direction` sequence equals the host model's | `test/algorithms/bfs.test.ts` (P8-T8 Step 5) | {{OPEN: switches, the switch levels}} |
+| 4 | A level whose degree sum exceeds a FAKED 4,096-entry edge-frontier capacity gives exact depths (the fused retry, PD-23), `overflowLevels` as expected | `test/primitives/advance.test.ts`, `test/algorithms/bfs.test.ts` | {{OPEN}} |
+| 5 | SSSP `dist` bitwise equal to the f32 oracle (stronger than the gate's tolerance) incl. zero weights, within the derived tolerance of the f64 oracle, `predArc` attains and is the smallest, `cutoff` and `weights` honoured, `E_UNSUPPORTED` on negative weights, `allWeightsOne` routes to BFS | `test/algorithms/sssp.test.ts` | {{OPEN: the derived tolerance and its noise row}} |
+| 6 | Bellman-Ford detects a planted negative cycle and says false for an unreachable one and a zero cycle; `retryExhaustedRounds === 0` everywhere | `test/algorithms/bellman-ford.test.ts` | {{OPEN}} |
+| 7 | `mapAsync` count `== ceil(levels / 32) + 1` on the grid fixture, counted after `verifyDevice` and a reset (PD-7) | `test/algorithms/bfs.test.ts`, `test/limits/bfs-large.test.ts` | {{OPEN: levels, submits, calls}} |
+| 8 | The indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe: x 65535, y 2, no poison word) | `test/primitives/frontier.test.ts` | {{OPEN}} |
+| 9 | The subgroup tier identical on and off at sizes 4 / 8 / 32 | P8-T15 Step 3 | {{OPEN: the three runs}} |
+| 10 | T-10 recorded: a contract on the reference card, a recorded figure on the T4 (section 3) | `benchmarks/results/*.json`, the sessions named in section 3 | {{OPEN}} |
+| 11 | The seam reaches the GPU members: graphty-element's `BFSAlgorithm` and `DijkstraAlgorithm` runs report `precision: "f32"` on a real device and agree with the CPU element | `graphty-element/test/browser/webgpu-layout.test.ts` | {{OPEN: the run}} |
+| 12 | Closeness on karate equals the legacy CPU function; the analytic path and star cases hold; the exact integer sums round-trip | `test/algorithms/closeness.test.ts` | {{OPEN}} |
+
+## 3. T-10 (spec 10.4; `benchmarks/results/nvidia-lovelace-driver580.json`, session {{OPEN: date}}; `gpu-linux-t4.json`, session {{OPEN: date}}, run {{OPEN: id}})
+
+| Row | Reference card (the CONTRACT) | Target | Pass | Tesla T4 (RECORDED; regressions against its own pinned best) | Load average |
+| --- | --- | --- | --- | --- | --- |
+| bfs auto at 1M/10M RMAT (wall incl. upload) | {{OPEN}} ms | <= 100 ms | {{OPEN}} | {{OPEN}} ms | {{OPEN}} |
+| bfs top-down at 1M/10M RMAT | {{OPEN}} ms | -- | -- | {{OPEN}} ms | {{OPEN}} |
+| bfs at 100k/1M RMAT (auto / top-down) | {{OPEN}} / {{OPEN}} ms | -- (10.3's [X] 2-5 ms replaced) | -- | {{OPEN}} | {{OPEN}} |
+| bfs grid 1000x1000 (1,999 levels; mapAsync {{OPEN}}) | {{OPEN}} ms | <= 1.5 s | {{OPEN}} | {{OPEN}} ms | {{OPEN}} |
+| sssp at 100k/1M and 1M/10M | {{OPEN}} / {{OPEN}} ms | -- | -- | {{OPEN}} | {{OPEN}} |
+
+`bench:compare` on the lane: {{OPEN: every bfs row `new (no baseline)` on the first run, then `ok`}}.
+Profiler per pass (1,024 ns ticks): {{OPEN: expand / contract / fused / bottom-up / finalize per level at 1M}}.
+
+## 4. Cross-adapter results (spec 11.5, 11.9; `benchmarks/results/noise-floor.json`, recordedAt {{OPEN}})
+
+{{OPEN: the rows: sssp-relax f32-vs-f64 per fixture (the basis of the derived tolerance), depth / dist / order
+cross-adapter (zero), the advance-expand twin (zero); every P8 tolerance and the row it traces to}}
+
+## 5. Coverage (spec 11.8; the default-lane run of Step 1)
+
+| lines | functions | branches | statements | threshold | wall time (lavapipe, --coverage) | load average |
+| --- | --- | --- | --- | --- | --- | --- |
+| {{OPEN}} | {{OPEN}} | {{OPEN}} | {{OPEN}} | 80 / 80 / 75 / 80 | {{OPEN}} s (T-12: <= 15 min) | {{OPEN}} |
+
+## 6. Baselines committed
+
+- `benchmarks/results/nvidia-lovelace-driver580.json`: {{OPEN: the session}} carrying all nine groups, appended with `scripts/bench-append-session.js`.
+- `benchmarks/results/gpu-linux-t4.json`: {{OPEN: the session, from artifact gpu-results-<run>}}, all nine groups.
+- `benchmarks/results/noise-floor.json`: {{OPEN: N rows, N tolerances}}.
+- `README.md`, `CLAUDE.md`, `test/limits/README.md`: {{OPEN: the lines}}.
+
+## 7. Findings, owner decisions, re-fixed targets
+
+| Id | Finding | Owner decision |
+| --- | --- | --- |
+| G8-F1 | The sabotage matrix: {{OPEN: N rows run, N reporting Infinity, the measured factors of the counter-pinned rows: arcsScanned ratio, fusedLevels, direction}} | none needed |
+| G8-F2 | The derived SSSP f64 tolerance {{OPEN: value}} against design 9.7's 1e-5 | {{OPEN: re-fix or keep}} |
+| G8-F3 | T-10 on the T4: {{OPEN: the figures, recorded not enforced (2026-09-24 decision)}} | none needed |
+| G8-F4 | The plan sums to 22.5 ed against the design's 10-14 (plan section 0.6) | {{OPEN: owner}} |
+| {{OPEN: G8-F5 ..}} | {{OPEN}} | {{OPEN}} |
+
+Signed off: {{OPEN: owner, 2026-MM-DD}}.
+```
 
 ## 8. Self-review
 
@@ -851,13 +1849,13 @@ Every commit is scoped `webgpu-graph-algorithms` except P8-T16's, which is scope
 
 | Design 13 row P8 deliverable | Task |
 | --- | --- |
-| `Frontier` with the sized / chunked edge queue | P8-T4 (the class and the capacity rule), P8-T5 (the chunked expansion) |
-| `advance` (block_mapped + workgroup tier + subgroup variant) | P8-T5 |
+| `Frontier` with the sized / chunked edge queue | P8-T4 (the class and the capacity rule; the overflow rule is the fused retry, PD-23), P8-T5 (the detector) |
+| `advance` (block_mapped + workgroup tier + subgroup variant) | P8-T5 (block-mapped and the twin), P8-T7 (the workgroup-per-row tier is `bfs-fused`'s structure) |
 | `dedupe` | P8-T3 |
 | bitset | P8-T8 |
-| the multi-candidate indirect args and the device-side `finalizeArgs` selector | P8-T4, extended by P8-T7 and P8-T8 |
+| the multi-candidate indirect args and the device-side `finalizeArgs` selector | P8-T4, extended by P8-T7, P8-T8 and P8-T9 |
 | BFS (+ direction-optimizing, `switches` as a device counter, `atomicMin` claims) | P8-T6, P8-T7, P8-T8 |
-| closeness / harmonic / eccentricity | P8-T11 |
+| closeness / harmonic / eccentricity | P8-T11 (closeness; harmonic and eccentricity dropped, DEP-P8-F) |
 | SSSP near-far with the two-pass predecessor | P8-T9 |
 | Bellman-Ford | P8-T10 |
 | window-aware advance (lifting the `E_TOO_LARGE`) | P8-T12 |
@@ -865,12 +1863,16 @@ Every commit is scoped `webgpu-graph-algorithms` except P8-T16's, which is scope
 | `bfs` benchmarks | P8-T14 |
 | gate G8 | P8-T17 |
 
-Design 6 row 4's `compact` is not in the P8 row but is in row 4's "pulled in by" list and is required by P8-T9's far-pile split: P8-T3.
+Design 6 row 4's `compact` is not in the P8 row but is in row 4's "pulled in by" list and is required by P8-T8's unvisited list and P8-T11's frontier list: P8-T3.
 
 ### 8.2 Placeholder scan
 
-No task says "TBD", "as appropriate" or "etc.". Every Run line names a real script from `webgpu-graph-algorithms/package.json` (`build:all`, `lint`, `test:node`, `test:browser:ci`, `bench`, `bench:compare`) or a real vitest project (`node`, `node-limits`, `browser`). Every helper named in a task exists today on master, on `feat/gpu-p4` or on `feat/webgpu-spmv-wcc`, and section 0.2 says which.
+No task says "TBD", "as appropriate" or "etc.". Every Run line names a real script from `webgpu-graph-algorithms/package.json` (`build:all`, `lint`, `test:node`, `test:limits`, `coverage`, `bench`, `bench:compare`, `scripts/run-browser-project.js`) or a real vitest project (`node`, `node-limits`, `browser`). Every helper named in a task exists today on master under that name (section 0.1 lists the greps), except the ones a task creates and names as produced. The `{{OPEN: ...}}` markers live only in appendix 7.4, which is the template P8-T17 fills.
 
 ### 8.3 Type consistency across the tasks
 
-`GpuBfsResult`, `GpuSsspResult` and `GpuBellmanFordResult` are declared once, in P8-T1, spelled from design 3.3 lines 821-823. P8-T6, P8-T9, P8-T10 and P8-T13 consume them and none redeclares. `GpuScoresResult` for closeness comes from P7's `src/types/algorithms.ts` and is not redeclared here (P8-T1 Step 1). `Frontier`, `CompactPlanner` and `AdvancePlanner` are each declared in exactly one file under `src/primitives/` and imported everywhere else. The counters block is defined once, in `src/kernels.ts` by P8-T4, and every kernel that reads a counter reads that block.
+`GpuBfsResult`, `GpuSsspResult` and `GpuBellmanFordResult` are declared once, in P8-T1, spelled from design 3.3 lines 830-832. `BfsOptions`, `SsspOptions` and `HitsOptionsLike` are never declared in this package: they are `import type`d from `@graphty/algorithms` and re-exported by `src/types/accelerator.ts`, and `test/types/conformance.test-d.ts` holds the members' parameter types equal to the seam's. P8-T6, P8-T9, P8-T10, P8-T11 and P8-T13 consume them and none redeclares. `GpuScoresResult` for closeness comes from `src/types/algorithms.ts` and is not redeclared. `Frontier`, `CompactPlanner` and `AdvancePlanner` are each declared in exactly one file under `src/primitives/` and imported everywhere else. The counters block and the params block are defined once, in `src/kernels.ts` by P8-T4 (grown by nothing later: every field a later task reads is declared there), and every kernel that reads a counter reads that block by index through the `W` record of `src/primitives/frontier.ts`.
+
+### 8.4 The arithmetic, checked
+
+Fifteen kernels (section 0.4 PD-4 and the table of P8-T4 Step 2: three primitives' bodies, one selector, one expansion, three BFS claims, two BFS helpers, one predecessor pass, one relax, one Bellman-Ford relax, two closeness). Nine appends to `src/kernels.ts` (P8-T3 .. P8-T11). Seven indirect slots per level (`FRONTIER_CANDIDATES`). Twenty-four words in the counters block, 96 bytes; twenty fields in the params block, 80 bytes. Forty-eight sabotage rows against a floor of forty-five. Six constants. Five decision records. Eighteen commits. Twelve gate items. 22.5 engineer-days.

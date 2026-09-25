@@ -4,7 +4,7 @@ import * as z4 from "zod/v4/core";
 import { publishFormatDescriptor } from "../catalog/formatRegistry";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
-import type { RegisterOptions } from "../catalog/pluginRegistry";
+import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { FormatDescriptor } from "../catalog/types";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
@@ -38,7 +38,9 @@ interface FormatStatics {
 }
 
 type DataSourceClass = (new (opts: object) => DataSource) & FormatStatics;
-const dataSourceRegistry = new Map<string, DataSourceClass>();
+// Shared with every other copy of graphty-element on the page, so a plugin registered through one
+// reaches them all.
+const dataSourceRegistry = new SharedImplementationMap<DataSourceClass>("format");
 
 /**
  * The keys in an options object that belong to the ELEMENT rather than to the format.
@@ -325,7 +327,21 @@ export abstract class DataSource {
 
                     if (!response.ok) {
                         lastStatus = response.status;
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const { status } = response;
+                        // A client error (404, 401, 403...) will answer the same on every retry,
+                        // so fail at once and say the same call cannot succeed. 408 and 429 are
+                        // the two client statuses that mean "try again later".
+                        if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+                            throw new GraphtyError({
+                                code: "E_FETCH_FAILED",
+                                message: `Failed to fetch from ${url}: HTTP ${status}`,
+                                source: "data",
+                                recoverable: false,
+                                details: { url, attempts: attempt + 1, status },
+                            });
+                        }
+
+                        throw new Error(`HTTP error! status: ${status}`);
                     }
 
                     return response;
@@ -339,6 +355,10 @@ export abstract class DataSource {
                     throw error;
                 }
             } catch (error) {
+                if (error instanceof GraphtyError) {
+                    throw error;
+                }
+
                 const isLastAttempt = attempt === retries - 1;
 
                 if (isLastAttempt) {
@@ -605,7 +625,7 @@ export abstract class DataSource {
         }
 
         if (FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type)) {
-            if (dataSourceRegistry.has(type)) {
+            if (dataSourceRegistry.hasOwn(type)) {
                 throw new GraphtyError({
                     code: "E_DUPLICATE_PLUGIN",
                     message:

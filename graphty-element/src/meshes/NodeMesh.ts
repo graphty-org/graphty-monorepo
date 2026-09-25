@@ -10,6 +10,7 @@ import {
     StandardMaterial,
 } from "@babylonjs/core";
 
+import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
@@ -92,7 +93,9 @@ interface GradientColor {
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Static factory class for node mesh creation
 export class NodeMesh {
-    private static shapeCreators = new Map<string, ShapeCreator>();
+    // Shared with every other copy of graphty-element on the page, so a shape registered through
+    // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
+    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
         NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));

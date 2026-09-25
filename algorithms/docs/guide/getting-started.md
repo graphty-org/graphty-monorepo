@@ -115,4 +115,4 @@ console.log(ranks); // Map of node -> rank value
 
 - [Installation Guide](./installation.md) - Detailed setup instructions
 - [Graph Data Structure](./graph.md) - Learn about the Graph API
-- [API Reference](/api/) - Complete API documentation
+- [API Reference](../api/) - Complete API documentation

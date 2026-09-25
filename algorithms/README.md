@@ -54,9 +54,8 @@ _Note: Optimizations activate automatically for graphs ≥10K nodes to avoid con
 
 ### Learn More
 
-- 📖 [Performance Guide](docs/PERFORMANCE_GUIDE.md) - Detailed optimization explanations
-- 🔄 [Migration Guide](docs/MIGRATION_GUIDE.md) - Upgrading from older versions
-- 💾 [Memory vs Speed Tradeoffs](docs/PERFORMANCE_GUIDE.md#memory-vs-speed-tradeoffs) - Making the right choices
+- 📖 [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
+- 💾 [Memory Optimization](docs/guide/performance.md#memory-optimization) - Making the right choices
 
 ## Installation
 
@@ -1050,68 +1049,68 @@ The library includes comprehensive examples demonstrating each algorithm. You ca
 
 - **[Browse Interactive HTML Examples](https://graphty.app/algorithms/examples/)** - Visual demonstrations with step-by-step execution
 - **[View Performance Benchmarks](https://graphty.app/algorithms/benchmarks/)** - Comparative analysis of algorithm performance
-- **[Explore Code Examples](https://github.com/graphty-org/algorithms/tree/main/examples)** - Implementation examples for each algorithm
+- **[Explore Code Examples](https://github.com/graphty-org/graphty-monorepo/tree/master/algorithms/examples)** - Implementation examples for each algorithm
 
 ### Basic Algorithms
 
-- [BFS Traversal](https://github.com/graphty-org/algorithms/blob/main/examples/bfs-example.js) - Breadth-first search and shortest paths
-- [DFS Traversal](https://github.com/graphty-org/algorithms/blob/main/examples/dfs-example.js) - Depth-first search and applications
-- [Dijkstra's Algorithm](https://github.com/graphty-org/algorithms/blob/main/examples/dijkstra-example.js) - Weighted shortest paths
-- [Bellman-Ford](https://github.com/graphty-org/algorithms/blob/main/examples/bellman-ford-example.js) - Shortest paths with negative weights
-- [Floyd-Warshall](https://github.com/graphty-org/algorithms/blob/main/examples/floyd-warshall-example.js) - All pairs shortest paths
+- [BFS Traversal](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/bfs-example.js) - Breadth-first search and shortest paths
+- [DFS Traversal](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/dfs-example.js) - Depth-first search and applications
+- [Dijkstra's Algorithm](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/dijkstra-example.js) - Weighted shortest paths
+- [Bellman-Ford](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/bellman-ford-example.js) - Shortest paths with negative weights
+- [Floyd-Warshall](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/floyd-warshall-example.js) - All pairs shortest paths
 
 ### Centrality Measures
 
-- [Degree Centrality](https://github.com/graphty-org/algorithms/blob/main/examples/degree-centrality-example.js) - Node importance by connections
-- [Betweenness Centrality](https://github.com/graphty-org/algorithms/blob/main/examples/betweenness-centrality-example.js) - Bridge nodes
-- [Closeness Centrality](https://github.com/graphty-org/algorithms/blob/main/examples/closeness-centrality-example.js) - Central nodes
-- [PageRank](https://github.com/graphty-org/algorithms/blob/main/examples/pagerank-example.js) - Node ranking algorithm
-- [Eigenvector Centrality](https://github.com/graphty-org/algorithms/blob/main/examples/eigenvector-centrality-example.js) - Influence from important nodes
-- [Katz Centrality](https://github.com/graphty-org/algorithms/blob/main/examples/katz-centrality-example.js) - Weighted path counting
-- [HITS Algorithm](https://github.com/graphty-org/algorithms/blob/main/examples/hits-algorithm-example.js) - Hub and authority scores
+- [Degree Centrality](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/degree-centrality-example.js) - Node importance by connections
+- [Betweenness Centrality](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/betweenness-centrality-example.js) - Bridge nodes
+- [Closeness Centrality](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/closeness-centrality-example.js) - Central nodes
+- [PageRank](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/pagerank-example.js) - Node ranking algorithm
+- [Eigenvector Centrality](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/eigenvector-centrality-example.js) - Influence from important nodes
+- [Katz Centrality](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/katz-centrality-example.js) - Weighted path counting
+- [HITS Algorithm](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/hits-algorithm-example.js) - Hub and authority scores
 
 ### Graph Structure
 
-- [Connected Components](https://github.com/graphty-org/algorithms/blob/main/examples/connected-components-example.js) - Find graph components
-- [Kruskal's MST](https://github.com/graphty-org/algorithms/blob/main/examples/kruskal-example.js) - Minimum spanning tree
-- [Prim's MST](https://github.com/graphty-org/algorithms/blob/main/examples/prim-example.js) - Alternative MST algorithm
+- [Connected Components](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/connected-components-example.js) - Find graph components
+- [Kruskal's MST](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/kruskal-example.js) - Minimum spanning tree
+- [Prim's MST](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/prim-example.js) - Alternative MST algorithm
 
 ### Community Detection
 
-- [Louvain Method](https://github.com/graphty-org/algorithms/blob/main/examples/louvain-example.js) - Modularity-based communities
-- [Leiden Algorithm](https://github.com/graphty-org/algorithms/blob/main/examples/leiden-community.ts) - Improved Louvain
-- [Label Propagation](https://github.com/graphty-org/algorithms/blob/main/examples/label-propagation.ts) - Fast community detection
-- [Girvan-Newman](https://github.com/graphty-org/algorithms/blob/main/examples/girvan-newman-example.js) - Hierarchical communities
+- [Louvain Method](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/louvain-example.js) - Modularity-based communities
+- [Leiden Algorithm](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/leiden-community.ts) - Improved Louvain
+- [Label Propagation](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/label-propagation.ts) - Fast community detection
+- [Girvan-Newman](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/girvan-newman-example.js) - Hierarchical communities
 
 ### Clustering
 
-- [Hierarchical Clustering](https://github.com/graphty-org/algorithms/blob/main/examples/hierarchical-clustering.ts) - Graph clustering
-- [K-Core Decomposition](https://github.com/graphty-org/algorithms/blob/main/examples/k-core-decomposition.ts) - Core analysis
-- [Spectral Clustering](https://github.com/graphty-org/algorithms/blob/main/examples/spectral-clustering-example.js) - Eigenvalue-based clustering
-- [MCL Clustering](https://github.com/graphty-org/algorithms/blob/main/examples/mcl-clustering-example.js) - Markov clustering
+- [Hierarchical Clustering](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/hierarchical-clustering.ts) - Graph clustering
+- [K-Core Decomposition](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/k-core-decomposition.ts) - Core analysis
+- [Spectral Clustering](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/spectral-clustering-example.js) - Eigenvalue-based clustering
+- [MCL Clustering](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/mcl-clustering-example.js) - Markov clustering
 
 ### Matching
 
-- [Bipartite Matching](https://github.com/graphty-org/algorithms/blob/main/examples/bipartite-matching-example.js) - Job assignment, dating apps
-- [Graph Isomorphism](https://github.com/graphty-org/algorithms/blob/main/examples/graph-isomorphism-example.js) - Structural equivalence
+- [Bipartite Matching](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/bipartite-matching-example.js) - Job assignment, dating apps
+- [Graph Isomorphism](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/graph-isomorphism-example.js) - Structural equivalence
 
 ### Link Prediction
 
-- [Common Neighbors](https://github.com/graphty-org/algorithms/blob/main/examples/common-neighbors-example.js) - Friend suggestions
-- [Adamic-Adar](https://github.com/graphty-org/algorithms/blob/main/examples/adamic-adar-example.js) - Weighted predictions
+- [Common Neighbors](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/common-neighbors-example.js) - Friend suggestions
+- [Adamic-Adar](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/adamic-adar-example.js) - Weighted predictions
 
 ### Advanced Algorithms
 
-- [A\* Pathfinding](https://github.com/graphty-org/algorithms/blob/main/examples/astar-pathfinding.ts) - Heuristic pathfinding
-- [Flow Algorithms](https://github.com/graphty-org/algorithms/blob/main/examples/flow-algorithms.ts) - Maximum flow and applications
-- [Ford-Fulkerson Flow](https://github.com/graphty-org/algorithms/blob/main/examples/ford-fulkerson-flow.ts) - Maximum flow implementation
-- [Minimum Cut](https://github.com/graphty-org/algorithms/blob/main/examples/min-cut.ts) - Graph partitioning
+- [A\* Pathfinding](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/astar-pathfinding.ts) - Heuristic pathfinding
+- [Flow Algorithms](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/flow-algorithms.ts) - Maximum flow and applications
+- [Ford-Fulkerson Flow](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/ford-fulkerson-flow.ts) - Maximum flow implementation
+- [Minimum Cut](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/min-cut.ts) - Graph partitioning
 
 ### Research Algorithms
 
-- [SynC Clustering](https://github.com/graphty-org/algorithms/blob/main/examples/sync-example.js) - Deep learning based clustering
-- [TeraHAC](https://github.com/graphty-org/algorithms/blob/main/examples/terahac-example.js) - Scalable hierarchical clustering
-- [GRSBM](https://github.com/graphty-org/algorithms/blob/main/examples/grsbm-example.js) - Explainable community detection
+- [SynC Clustering](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/sync-example.js) - Deep learning based clustering
+- [TeraHAC](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/terahac-example.js) - Scalable hierarchical clustering
+- [GRSBM](https://github.com/graphty-org/graphty-monorepo/blob/master/algorithms/examples/grsbm-example.js) - Explainable community detection
 
 ## Advanced Usage Examples
 
@@ -1482,7 +1481,7 @@ test/
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please open an issue or a pull request on [GitHub](https://github.com/graphty-org/graphty-monorepo).
 
 ### Commit Convention
 
@@ -1501,5 +1500,5 @@ MIT © Adam Powers
 
 ## Related Projects
 
-- [@graphty/layout](https://github.com/graphty-org/layout) - Graph layout algorithms
-- [@graphty/graphty-element](https://github.com/graphty-org/graphty-element) - 3D graph visualization web component
+- [@graphty/layout](https://github.com/graphty-org/graphty-monorepo/tree/master/layout) - Graph layout algorithms
+- [@graphty/graphty-element](https://github.com/graphty-org/graphty-monorepo/tree/master/graphty-element) - 3D graph visualization web component

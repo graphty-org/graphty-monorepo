@@ -3817,13 +3817,13 @@ The performance numbers are compelling: **6,000x faster at 50,000 edges**. This 
 - [WebGPU Shading Language (WGSL)](https://www.w3.org/TR/WGSL/)
 - [WebGPU Fundamentals](https://webgpufundamentals.org/)
 - [BabylonJS WebGPU Documentation](https://doc.babylonjs.com/setup/support/webGPU)
-- [WebGPU Compute Shaders Tutorial](https://developer.chrome.com/docs/web-platform/webgpu/compute-shaders)
+- [WebGPU Compute Shaders Tutorial](https://developer.chrome.com/docs/capabilities/web-apis/gpu-compute)
 - [Safari 26 WebGPU Announcement](https://webkit.org/blog/) - iOS Safari 26 shipped with WebGPU
 
 **WebGL 2.0** (Fallback):
 
 - [WebGL 2.0 Spec](https://www.khronos.org/registry/webgl/specs/latest/2.0/)
-- [BabylonJS Shader Material Documentation](https://doc.babylonjs.com/divingDeeper/materials/shaders/shaderMaterial)
+- [BabylonJS Shader Material Documentation](https://doc.babylonjs.com/features/featuresDeepDive/materials/shaders/shaderMaterial)
 
 **Graphics Programming**:
 

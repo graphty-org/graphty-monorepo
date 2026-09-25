@@ -31,9 +31,6 @@ export default defineConfig({
     // Use /algorithms/docs/ for GitHub Pages project site deployment
     base: "/algorithms/docs/",
 
-    // Ignore dead links during build (API pages link to generated docs)
-    ignoreDeadLinks: true,
-
     vue: {
         template: {
             compilerOptions: {
@@ -48,8 +45,7 @@ export default defineConfig({
         nav: [
             { text: "Guide", link: "/guide/getting-started" },
             { text: "API", link: "/api/" },
-            // Points to interactive examples at /algorithms/
-            { text: "Examples", link: "/examples/" },
+            { text: "Examples", link: "https://graphty.app/algorithms/examples/" },
         ],
 
         sidebar: {
@@ -84,25 +80,11 @@ export default defineConfig({
             "/api/": [
                 { text: "Overview", link: "/api/" },
                 {
-                    text: "Core",
+                    text: "Reference",
                     items: [
-                        { text: "Graph", link: "/api/graph" },
-                        { text: "Types", link: "/api/types" },
-                    ],
-                },
-                {
-                    text: "Algorithms",
-                    items: [
-                        { text: "Traversal", link: "/api/traversal" },
-                        { text: "Shortest Path", link: "/api/shortest-path" },
-                        { text: "Centrality", link: "/api/centrality" },
-                        { text: "Components", link: "/api/components" },
-                        { text: "MST", link: "/api/mst" },
-                        { text: "Community", link: "/api/community" },
-                        { text: "Clustering", link: "/api/clustering" },
-                        { text: "Flow", link: "/api/flow" },
-                        { text: "Matching", link: "/api/matching" },
-                        { text: "Link Prediction", link: "/api/link-prediction" },
+                        { text: "Graph", link: "/api/generated/core/graph/classes/Graph" },
+                        { text: "Types", link: "/api/generated/types/" },
+                        { text: "Functions", link: "/api/generated/index/" },
                     ],
                 },
                 {

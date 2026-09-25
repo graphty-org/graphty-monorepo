@@ -24,10 +24,10 @@ features:
     linkText: Documentation
   - title: layout
     details: Graph layout algorithms. Force-directed, geometric, hierarchical, and spectral layouts in 2D/3D.
-    link: /layout/
-    linkText: Documentation
+    link: /layout/api/generated/
+    linkText: API Reference
   - title: Live Examples
     details: Try interactive demos - Storybook components, algorithm visualizations, and layout examples.
-    link: https://graphty.app/storybook/element/
+    link: https://graphty.app/storybook/graphty-element/
     linkText: Open Storybook
 ---

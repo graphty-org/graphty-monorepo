@@ -15,13 +15,13 @@ const graph = new Graph<string>();
 const directed = new Graph<string>({ directed: true });
 ```
 
-- [Graph API Reference](./graph.md) - Complete Graph class documentation
+- [Graph API Reference](./generated/core/graph/classes/Graph.md) - Complete Graph class documentation
 
 ### Types
 
 TypeScript type definitions for algorithm inputs and outputs.
 
-- [Types Reference](./types.md) - All type definitions
+- [Types Reference](./generated/types/) - All type definitions
 
 ## Algorithm Categories
 
@@ -35,7 +35,7 @@ Visit nodes in a systematic order.
 - `bidirectionalSearch()` - Bidirectional BFS
 - `topologicalSort()` - Topological ordering (DAG)
 
-[Traversal API Reference](./traversal.md)
+[Traversal functions in the generated TypeDoc](./generated/index/)
 
 ### Shortest Path
 
@@ -46,7 +46,7 @@ Find optimal paths between nodes.
 - `floydWarshall()` - All pairs shortest paths
 - `aStar()` - Heuristic-guided search
 
-[Shortest Path API Reference](./shortest-path.md)
+[Shortest Path functions in the generated TypeDoc](./generated/index/)
 
 ### Centrality
 
@@ -60,7 +60,7 @@ Measure node importance.
 - `hits()` - Hub/Authority scores
 - `katzCentrality()` - Influence with base score
 
-[Centrality API Reference](./centrality.md)
+[Centrality functions in the generated TypeDoc](./generated/index/)
 
 ### Connected Components
 
@@ -72,7 +72,7 @@ Find connected subgraphs.
 - `isConnected()` - Check connectivity
 - `isStronglyConnected()` - Check strong connectivity
 
-[Components API Reference](./components.md)
+[Components functions in the generated TypeDoc](./generated/index/)
 
 ### Minimum Spanning Tree
 
@@ -82,7 +82,7 @@ Find minimum-weight spanning trees.
 - `prim()` - Prim's algorithm
 - `minimumSpanningTree()` - Auto-selects best algorithm
 
-[MST API Reference](./mst.md)
+[MST functions in the generated TypeDoc](./generated/index/)
 
 ### Community Detection
 
@@ -94,7 +94,7 @@ Identify node communities.
 - `kCliqueCommunities()` - Overlapping communities
 - `modularity()` - Partition quality measure
 
-[Community API Reference](./community.md)
+[Community functions in the generated TypeDoc](./generated/index/)
 
 ### Clustering
 
@@ -107,7 +107,7 @@ Analyze local graph structure.
 - `kCore()` - K-core subgraph
 - `coreNumber()` - Core decomposition
 
-[Clustering API Reference](./clustering.md)
+[Clustering functions in the generated TypeDoc](./generated/index/)
 
 ### Flow Algorithms
 
@@ -118,7 +118,7 @@ Network flow and cuts.
 - `edmondsKarp()` - BFS-based flow
 - `minCut()` - Minimum cut
 
-[Flow API Reference](./flow.md)
+[Flow functions in the generated TypeDoc](./generated/index/)
 
 ### Matching
 
@@ -128,7 +128,7 @@ Bipartite matching algorithms.
 - `hungarianAlgorithm()` - Weighted matching
 - `hopcroftKarp()` - Fast bipartite matching
 
-[Matching API Reference](./matching.md)
+[Matching functions in the generated TypeDoc](./generated/index/)
 
 ### Link Prediction
 
@@ -140,7 +140,7 @@ Predict missing or future edges.
 - `preferentialAttachment()` - Degree-based
 - `resourceAllocation()` - Resource distribution
 
-[Link Prediction API Reference](./link-prediction.md)
+[Link Prediction functions in the generated TypeDoc](./generated/index/)
 
 ## Data Structures
 

@@ -117,6 +117,7 @@
         "Styles/Label::Badge",
         "Styles/Label::Border",
         "Styles/Label::CornerRadius",
+        "Styles/Label::Declutter",
         "Styles/Label::Default",
         "Styles/Label::DepthFade",
         "Styles/Label::EmojiLabels",

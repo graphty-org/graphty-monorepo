@@ -240,7 +240,7 @@ export const CommunityStructureWithPath: Story = {
  * Demonstrates multi-dimensional edge styling where:
  * - Edge colour follows the value along viridis (dark purple = weak, yellow = strong)
  * - Edge width scales with the value, 0.2 to 20
- * - The arrow head takes the same colour as its line
+ * - The arrow head takes the same colour as its line, and grows with the same strength (1x to 3x)
  *
  * All three channels read the same field, `data.value`, which every edge in this dataset carries
  * with a strength from 1 to 10, read against 0 to 10 as the 1.x story read `value / 10`.
@@ -270,6 +270,9 @@ export const CombinedEdgeFlow: Story = {
                 "edge.color": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },
                 "edge.width": { by: "data.value", scale: "linear", domain: [0, 10], range: [0.2, 20] },
                 "edge.arrowHeadColor": { by: "data.value", scale: "linear", palette: "viridis", domain: [0, 10] },
+                // Arrow heads are sized independently of the line, so a 20-wide edge would end in a
+                // default-sized head; scale the head with the same strength so it reads at every width.
+                "edge.arrowHeadSize": { by: "data.value", scale: "linear", domain: [0, 10], range: [1, 3] },
             },
         });
 

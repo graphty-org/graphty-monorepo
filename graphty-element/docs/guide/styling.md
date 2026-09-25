@@ -61,15 +61,32 @@ if (!verdict.ok) {
 
 ## Selectors
 
-A selector says which elements a layer is about. There are four kinds, and they are spelled out
+A selector says which elements a layer is about. There are five kinds, and they are spelled out
 rather than implied:
 
 ```typescript
 { match: "everything" }                          // every node, or every edge
 { match: "has", path: "results.degree.value" }   // every element that carries a value there
 { match: "ids", nodes: ["alice", "bob"] }        // exactly these
+{ match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
 ```
+
+### The top N
+
+`{ match: "top", path, n }` paints the `n` highest elements by one field a run published, such as
+"label the ten best-connected nodes". The path is a run's field, `results.<run>.<field>`: build it
+with `session.results.path(run, field)`. The layer follows the run: it reads the run's values each
+time it paints, so after a re-run the top is taken again from the new values.
+
+**Ties are never split.** Elements with equal values are painted as a group or not at all, and a
+group is painted only when ALL of it fits inside `n`. So a top-10 layer never paints more than
+ten elements, but it can paint fewer -- and it paints none on a graph whose highest value is
+shared by more than ten elements (every node of a ring has the same degree). To find out why, ask
+the run: `result.top(field, n)` returns the same elements, plus `leftOut` (the tie group that did
+not fit) and `reason` (a sentence saying so). A `{ top }` selection target
+(`session.selection.apply({ top: { run, field, n } })`) uses the same rule, so a layer and a
+selection never disagree about which elements are the top `n`.
 
 ### The expression language
 

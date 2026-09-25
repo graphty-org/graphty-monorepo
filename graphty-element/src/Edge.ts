@@ -779,10 +779,10 @@ export class Edge {
      * cached SOURCE meshes -- and Babylon disposes a source mesh's instances with it. That is why
      * node spheres and 3D solid edge lines vanished on a dataset clear while roughly sixty grey
      * ARROWHEADS stayed on the canvas, in rosettes where the previous dataset's edges had
-     * converged. Arrowheads are deliberately not cached (`EdgeMesh.createArrowHead` carries a
-     * "PERFORMANCE FIX: Create individual meshes for all arrow types" note): they are built bare
-     * against the scene and parented to the `graph-root` TransformNode, which outlives every
-     * dataset, so nothing ever disposed them. The same was true of the patterned-line meshes
+     * converged. Arrowheads are not in the MeshCache (today each is an instance of a per-scene
+     * batch that `FilledArrowRenderer.instanceOf` frees with its last head): they are parented
+     * to the `graph-root` TransformNode, which outlives every dataset, so nothing but this
+     * dispose frees them. The same was true of the patterned-line meshes
      * (dot/dash/star/...), 2D lines, bezier curves and all three RichTextLabels.
      *
      * Every dispose is guarded with `isDisposed()` -- matching the idiom already used in
@@ -1127,7 +1127,7 @@ export class Edge {
                         ].includes(arrowType)
                     ) {
                         // Filled arrows use shader-based billboarding via lineDirection uniform
-                        FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                        FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
                     } else if (geometry.needsRotation) {
                         // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
                         // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
@@ -1207,7 +1207,7 @@ export class Edge {
                     ].includes(arrowType)
                 ) {
                     // Filled arrows use shader-based billboarding via lineDirection uniform
-                    FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                    FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
                 } else if (geometry.needsRotation) {
                     // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
                     // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
@@ -1278,7 +1278,7 @@ export class Edge {
                             ].includes(tailType)
                         ) {
                             // Filled arrows use shader-based billboarding via lineDirection uniform
-                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh as Mesh, reversedDirection);
+                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh, reversedDirection);
                         } else if (tailGeometry.needsRotation) {
                             // Other arrow types need explicit rotation
                             // Triangle in XY plane with tip at origin, pointing in +X direction

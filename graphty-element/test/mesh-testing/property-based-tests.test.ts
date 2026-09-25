@@ -269,7 +269,7 @@ describe("Property-Based Tests", () => {
                             nextStyleId(),
                             { type, width: 1, color, size, opacity },
                             ctx.scene,
-                        ) as Mesh;
+                        );
 
                         assert.isNotNull(cap);
                         assert.isAbove(cap.getTotalVertices(), 0);

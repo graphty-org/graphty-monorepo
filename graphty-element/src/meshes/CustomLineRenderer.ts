@@ -11,6 +11,8 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import { PerSceneMaterials } from "./PerSceneMaterials";
+
 interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
     directions: number[]; // Tangent directions
@@ -52,9 +54,26 @@ interface CustomLineOptions {
 export class CustomLineRenderer {
     private static shadersRegistered = false;
 
-    // Shared callback optimization: Track all active materials
-    private static activeMaterials = new Set<ShaderMaterial>();
-    private static registeredScene: Scene | null = null;
+    /**
+     * Every line material, grouped by scene, each scene's group given that scene's render size
+     * once per frame. See {@link PerSceneMaterials} for the defect (issue #45).
+     */
+    private static readonly resolutionTracked = new PerSceneMaterials((scene, materials) => {
+        const engine = scene.getEngine();
+        const resolution = new Vector2(engine.getRenderWidth(), engine.getRenderHeight());
+        for (const material of materials) {
+            material.setVector2("resolution", resolution);
+        }
+    });
+
+    /**
+     * Number of line materials receiving per-frame resolution updates.
+     * @param scene - Count only this scene's materials; omit for every scene
+     * @returns Count of tracked materials
+     */
+    static getActiveMaterialCount(scene?: Scene): number {
+        return this.resolutionTracked.count(scene);
+    }
 
     /**
      * Register custom line shaders
@@ -275,41 +294,6 @@ void main(void) {
         }
 
         this.shadersRegistered = true;
-    }
-
-    /**
-     * Register the shared resolution update callback
-     * This callback updates ALL line materials at once, instead of having one callback per material.
-     * This dramatically improves performance when rendering many edges.
-     * @param scene - The Babylon.js scene to register the callback on
-     */
-    private static registerResolutionCallback(scene: Scene): void {
-        // If already registered on this scene, skip
-        if (this.registeredScene === scene) {
-            return;
-        }
-
-        // Track which scene we're registered on
-        this.registeredScene = scene;
-
-        const engine = scene.getEngine();
-
-        scene.onBeforeRenderObservable.add(() => {
-            // Query resolution once per frame
-            const renderWidth = engine.getRenderWidth();
-            const renderHeight = engine.getRenderHeight();
-            const resolution = new Vector2(renderWidth, renderHeight);
-
-            // Update all active materials in one batch
-            for (const material of this.activeMaterials) {
-                try {
-                    material.setVector2("resolution", resolution);
-                } catch {
-                    // Material was disposed, remove from set
-                    this.activeMaterials.delete(material);
-                }
-            }
-        });
     }
 
     /**
@@ -754,9 +738,8 @@ void main(void) {
         // NOTE: All patterns are handled by PatternedLineMesh
         // CustomLineRenderer only renders solid lines
 
-        // Register material for shared resolution updates
-        this.activeMaterials.add(shaderMaterial);
-        this.registerResolutionCallback(scene);
+        // Register material for its own scene's resolution updates
+        this.resolutionTracked.add(shaderMaterial);
 
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;
@@ -872,9 +855,8 @@ void main(void) {
         shaderMaterial.setFloat("dashLength", 3.0); // Default (unused for solid)
         shaderMaterial.setFloat("gapLength", 2.0); // Default (unused for solid)
 
-        // Register material for shared resolution updates
-        this.activeMaterials.add(shaderMaterial);
-        this.registerResolutionCallback(scene);
+        // Register material for its own scene's resolution updates
+        this.resolutionTracked.add(shaderMaterial);
 
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;

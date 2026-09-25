@@ -21,6 +21,11 @@ element.nodeData = [{ id: "a" }, { id: "b" }];
 element.edgeData = [{ source: "a", target: "b" }];
 ```
 
+Assigning either property REPLACES what it describes. A node missing from a new `nodeData` array
+is removed along with the edges attached to it; a node that is still there keeps its position and,
+for now, its OLD data -- a changed field on a retained node is not applied. `edgeData` replaces
+edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
+
 ## Loading from URL
 
 Load graph data from a remote JSON file:
@@ -52,6 +57,41 @@ fileInput.addEventListener("change", async (e) => {
     await graph.loadFromFile(file);
 });
 ```
+
+## Replacing the Graph
+
+A load ADDS to the graph unless you pass `replace: true`. A replacing load reads the whole source
+first and swaps the graph only once it has parsed, so a malformed or empty file rejects and leaves
+the current graph exactly as it was:
+
+```typescript
+try {
+    const { loadId } = await graph.loadFromFile(file, { replace: true });
+} catch (error) {
+    // The previous graph is still on screen.
+    console.error(error.code, error.message);
+}
+```
+
+`replace` is accepted by `loadFromFile`, `loadFromUrl` and, as a third argument, by
+`addDataFromSource(type, opts, { replace: true })`. A source that holds no nodes and no edges at
+all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
+the format's schema, `data-loading-error-summary` still reports why. A replacing load that stops at
+the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
+keeps the current graph.
+
+When loads overlap, the one that STARTED last wins. Once a replacing load has started, every
+load started before it adds nothing more and rejects with `E_SUPERSEDED`, even if its source
+finishes later; it emits no `data-loading-error`, because nothing was wrong with its source.
+A load starts when you call it: `loadFromFile` and `loadFromUrl` take their place, and their
+`loadId`, before they read the file or fetch the URL, so a slow read cannot overtake a later call.
+`clearData()` abandons every load in flight the same way, so a load finishing after it does not
+bring its data back.
+
+Assigning the `dataSource` / `dataSourceConfig` pair a second time starts a replacing load of the
+new source in the same way. Assigning the pair already loaded -- the same type and the same config
+object -- starts no load, so a host that re-assigns its props on every render does not reload.
+If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 

@@ -27,8 +27,8 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 
 | Property                 | Attribute                  | Type                           | Default     | Description                    |
 | ------------------------ | -------------------------- | ------------------------------ | ----------- | ------------------------------ |
-| `nodeData`               | `node-data`                | `Array<object>`                | `[]`        | Array of node objects          |
-| `edgeData`               | `edge-data`                | `Array<object>`                | `[]`        | Array of edge objects          |
+| `nodeData`               | `node-data`                | `Array<object>`                | `[]`        | Array of node objects; assigning replaces the nodes |
+| `edgeData`               | `edge-data`                | `Array<object>`                | `[]`        | Array of edge objects; assigning replaces the edges |
 | `layout`                 | `layout`                   | `string`                       | `'ngraph'`  | Layout algorithm name          |
 | `layoutConfig`           | `layout-config`            | `object`                       | `{}`        | Layout algorithm options       |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
@@ -437,6 +437,12 @@ Load data from external sources:
 element.dataSource = "url";
 element.dataSourceConfig = { url: "https://example.com/graph.json" };
 ```
+
+Assigning the pair again, with or without `clearData()` first, loads the new source. The first
+load adds to the graph; a later one replaces it once the new source has parsed, so a bad file
+leaves the current graph on screen and reports `data-loading-error`. Every event about a load
+carries its `loadId`. To await a load instead, call `loadFromUrl`, `loadFromFile` or
+`addDataFromSource`, which resolve to `{ loadId }` and take a `replace` option.
 
 See [Data Sources](./data-sources) for available data source types.
 

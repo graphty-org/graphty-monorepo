@@ -1023,6 +1023,40 @@ describe("a third party's file format", () => {
     );
 
     it(
+        "still says why every row was rejected when no row survived, and fails with E_EMPTY_LOAD",
+        async () => {
+            const summary = nextEvent<DataLoadingErrorSummaryEvent>("data-loading-error-summary");
+
+            const failure: unknown = await element
+                .addDataFromSource(ROSTER_FORMAT, { data: "person gil\nperson hal\n" })
+                .then(() => null, (error: unknown) => error);
+
+            assert.isTrue(isGraphtyError(failure) && failure.code === "E_EMPTY_LOAD");
+            assert.strictEqual((await summary).totalErrors, 2, "both rejected rows are reported");
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    it(
+        "keeps the current graph when a replacing load stops at the error limit",
+        async () => {
+            await loadRoster({ data: ROSTER });
+
+            const failure: unknown = await element
+                .addDataFromSource(
+                    ROSTER_FORMAT,
+                    { data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 },
+                    { replace: true },
+                )
+                .then(() => null, (error: unknown) => error);
+
+            assert.isTrue(isGraphtyError(failure) && failure.code === "E_PARSE_FAILED");
+            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the partial read did not replace the roster");
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    it(
         "surfaces a parse failure as an error the host can catch and see",
         async () => {
             const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");

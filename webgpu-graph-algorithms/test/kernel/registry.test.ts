@@ -767,6 +767,37 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P8",
         storageCount: 6,
     },
+    "closeness-sweep": {
+        entryPoint: "closeness_sweep",
+        bindings: withGraph([
+            [1, 0, "frontierList", "storage-ro", "array<u32>"],
+            [1, 1, "counters", "storage", "array<atomic<u32>>"],
+            [1, 2, "bits", "storage", "array<atomic<u32>>"],
+            [1, 3, "perSource", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 8,
+    },
+    "closeness-reduce": {
+        entryPoint: "closeness_reduce",
+        bindings: [
+            [1, 0, "counters", "storage", "array<atomic<u32>>"],
+            [1, 1, "perSource", "storage", "array<atomic<u32>>"],
+            [1, 2, "bits", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 3,
+    },
 };
 
 const P1_IDS: readonly KernelId[] = ["degree", "reduce", "fill", "fa2-repulsion-exact", "fa2-speed-finalize"];

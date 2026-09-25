@@ -17,8 +17,8 @@
  * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
  * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
  * sssp-relax rows and three f32-mode sssp-pred rows measured by test/sabotage/sssp.test.ts, P8-T10 the three bf-relax
- * rows measured by test/sabotage/bellman-ford.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its
- * rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * rows measured by test/sabotage/bellman-ford.test.ts, P8-T11 the three closeness-sweep and three closeness-reduce rows
+ * measured by test/sabotage/closeness.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -60,6 +60,7 @@ const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
 const SSSP_TEST = "test/algorithms/sssp.test.ts";
 const BF_TEST = "test/algorithms/bellman-ford.test.ts";
+const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1322,6 +1323,62 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "if (false) {",
             minFactor: 10,
             test: BF_TEST,
+        },
+    ]),
+    "closeness-sweep": Object.freeze([
+        {
+            // a claim is counted without its atomicOr result: every lane whose SIMD group loaded the visited word
+            // together counts the vertex (the funnel's middle layer reaches one vertex from four lanes of every
+            // subgroup at once; newCount, reached and sum then overshoot)
+            name: "already-visited-recounted",
+            find: "let fresh = mask & ~old;",
+            replace: "let fresh = mask;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the won bits never reach the next region: the level-1 list is compacted from the flags but every
+            // frontier mask is 0, so nothing at distance 2 or beyond is ever claimed
+            name: "next-bits-not-set",
+            find: "atomicOr(&bits[nextBase + x], fresh);",
+            replace: "atomicOr(&bits[nextBase + x], 0u);",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // every fresh bit is tallied to source 0: the other sources' counts stay 0 and source 0's overshoot
+            name: "source-word-not-bit",
+            find: "let s = firstTrailingBit(b);",
+            replace: "let s = 0u;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+    ]),
+    "closeness-reduce": Object.freeze([
+        {
+            // the claims of a level are summed at the level instead of the distance (one short everywhere)
+            name: "distance-is-the-level",
+            find: "let d = level + 1u;",
+            replace: "let d = level;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // reached never accumulates (stays 0 for every source)
+            name: "reached-not-accumulated",
+            find: "atomicLoad(&perSource[32u + s]) + c",
+            replace: "atomicLoad(&perSource[32u + s])",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the carry of the 64-bit add is dropped: caught by the hand-seeded role-0 dispatch alone (no runnable
+            // fixture's per-source sum crosses 2^32), whose BigInt sum reads 4295028736n instead of 8589996032n
+            name: "carry-dropped",
+            find: "select(0u, 1u, lo < before)",
+            replace: "0u",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
         },
     ]),
 });

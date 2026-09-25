@@ -12,7 +12,8 @@
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
  * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
- * blocks. This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
+ * blocks; P8-T11 adds closeness-sweep and closeness-reduce. This file is the only importer of src/wgsl/** (spec 3.2;
+ * test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -28,6 +29,8 @@ import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
 import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
 import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
+import { closenessReduceWgsl } from "./wgsl/closeness-reduce.wgsl.js";
+import { closenessSweepWgsl } from "./wgsl/closeness-sweep.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
 import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
@@ -109,7 +112,9 @@ export type KernelId =
     | "bfs-bitset-build"
     | "bfs-unvisited-flags"
     | "sssp-relax"
-    | "bf-relax";
+    | "bf-relax"
+    | "closeness-sweep"
+    | "closeness-reduce";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -1296,6 +1301,43 @@ const BF_RELAX: KernelEntry = {
     phase: "P8",
 };
 
+/** `closeness-sweep` (design 8.4 "32 sources per u32 word"; P8-T11, PD-13 / DEP-P8-E): one level of the bit-parallel multi-source BFS -- `advance-expand`'s block-mapped strip over the compacted frontier list with the claim inline (`atomicOr` on the visited word of the four-region `bits` buffer, the won bits into the level's next region and the flags region, one workgroup-memory tally per source flushed by one `atomicAdd` per source per workgroup into `perSource`); 8 storage bindings (the four graph slots, `frontierList` read-only, `counters`, `bits` and `perSource` as `array<atomic<u32>>`) -- exactly at the budget; the inlined Hillis-Steele scan, so `needs: []`. */
+const CLOSENESS_SWEEP: KernelEntry = {
+    id: "closeness-sweep",
+    body: closenessSweepWgsl,
+    entryPoint: "closeness_sweep",
+    bindings: GRAPH_SLOTS.concat(
+        decl(1, 0, "frontierList", "storage-ro", "array<u32>"),
+        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "bits", "storage", "array<atomic<u32>>"),
+        decl(1, 3, "perSource", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ),
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `closeness-reduce` (design 8.4, 9.7; P8-T11, PD-13): the one-lane bookkeeping of the sweep -- role 0 the level boundary (`done` from the previous level's compacted count, `newCount` folded into `reached` and the 64-bit `sum` at `level + 1` with the 16-bit split product and the carry, `level` advanced), role 1 the seed of a batch (the sources' bits into `visited` and the level-0 frontier region, their flags, `counters[0] = k`, `level = U32_MAX`); 3 storage bindings (`counters` and `perSource` as `array<atomic<u32>>`, `bits` plain: one lane writes the seed). */
+const CLOSENESS_REDUCE: KernelEntry = {
+    id: "closeness-reduce",
+    body: closenessReduceWgsl,
+    entryPoint: "closeness_reduce",
+    bindings: [
+        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 1, "perSource", "storage", "array<atomic<u32>>"),
+        decl(1, 2, "bits", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1305,7 +1347,8 @@ const BF_RELAX: KernelEntry = {
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"` and P8-T10 `"bf-relax"`, so every member of `KernelId` is present and the assertion is exact.
+ * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, so every member of
+ * `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1351,6 +1394,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-unvisited-flags": BFS_UNVISITED_FLAGS,
     "sssp-relax": SSSP_RELAX,
     "bf-relax": BF_RELAX,
+    "closeness-sweep": CLOSENESS_SWEEP,
+    "closeness-reduce": CLOSENESS_REDUCE,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

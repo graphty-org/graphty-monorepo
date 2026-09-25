@@ -60,6 +60,8 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "bfs-unvisited-flags": 5,
     "sssp-relax": 8,
     "bf-relax": 6,
+    "closeness-sweep": 8,
+    "closeness-reduce": 3,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

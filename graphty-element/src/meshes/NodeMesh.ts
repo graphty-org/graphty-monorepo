@@ -37,6 +37,9 @@ type ShapeCreator = (size: number, scene?: Scene) => Mesh;
  * and is ample for a node-sized mesh; raising it multiplies the ceiling described on
  * MAX_GRADIENT_TEXTURES_PER_SCENE by the square of the change.
  */
+/** The smallest size a node mesh is built at; a size of 0 draws this, never hidden. */
+const MIN_NODE_SIZE = 1e-3;
+
 const GRADIENT_TEXTURE_SIZE = 128;
 
 /**
@@ -233,7 +236,10 @@ export class NodeMesh {
             throw new TypeError(`unknown shape: ${createOptions.shape.type}`);
         }
 
-        const size = createOptions.shape.size ?? options.size;
+        // Babylon's MeshBuilder reads a size of 0 as "not set" and draws a 1-unit mesh, so a node
+        // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
+        // smallest visible node for every shape creator, built-in or registered (#117).
+        const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
         return creator(size, scene);
     }
 

@@ -10,6 +10,7 @@ import type {
     ApspResultLike,
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
+    BfsOptions,
     BfsResultLike,
     CommunityResultLike,
     CorenessResultLike,
@@ -20,6 +21,7 @@ import type {
     MstResultLike,
     PageRankResultLike,
     ScoresResultLike,
+    SsspOptions,
     SsspResultLike,
 } from "@graphty/algorithms";
 import type { F32, F64, GraphSnapshot } from "@graphty/graph-format";
@@ -61,6 +63,7 @@ export type {
     ApspResultLike,
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
+    BfsOptions,
     BfsResultLike,
     CommunityResultLike,
     CorenessResultLike,
@@ -71,6 +74,7 @@ export type {
     MstResultLike,
     PageRankResultLike,
     ScoresResultLike,
+    SsspOptions,
     SsspResultLike,
 };
 

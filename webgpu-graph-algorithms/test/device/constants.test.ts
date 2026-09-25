@@ -6,9 +6,11 @@
 
 import {
     ARC_WINDOW_ALIGN,
+    BEAMER_BETA,
     DEFAULT_STAGING_SLOTS,
     DEFAULT_WARN_UNRELEASED_SNAPSHOTS,
     EXACT_MAX_NODES,
+    F32_INF_BITS,
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
     FA2_DISTANCE_FLOOR,
@@ -17,6 +19,8 @@ import {
     FR_DEFAULTS,
     FR_REHEAT_FRACTION,
     FR_START_TEMPERATURE,
+    FRONTIER_CANDIDATES,
+    FUSED_FRONTIER_MAX,
     GRID_BBOX_MARGIN,
     GRID_COARSEST_SIDE,
     GRID_EXTENT_FLOOR,
@@ -26,6 +30,7 @@ import {
     LAYOUT_TUNING_DEFAULTS,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
+    MAX_LEVELS_PER_SUBMIT,
     MAX_WORKGROUPS_PER_DIM,
     OOM_SCOPE_THRESHOLD_BYTES,
     PARTIAL_BYTES,
@@ -36,6 +41,7 @@ import {
     PROFILER_QUERY_SLOTS,
     RADIX_BINS,
     SE_DEFAULTS,
+    SSSP_DELTA_FACTOR,
     STATE_HEADER_BYTES,
     STORAGE_ALIGN,
     TRACE_RECORD_BYTES,
@@ -235,5 +241,19 @@ describe("constants.ts (contract 3.2)", () => {
         expect(Object.isFrozen(SE_DEFAULTS)).toBe(true);
         expect(FR_START_TEMPERATURE).toBe(0.1);
         expect(FR_REHEAT_FRACTION).toBe(0.7);
+    });
+
+    it("pins the frontier-family constants (design 8.4, 6 row 8; P8-T1 PD-7, PD-9, PD-21, PD-22)", () => {
+        expect(MAX_LEVELS_PER_SUBMIT).toBe(32);
+        expect(FUSED_FRONTIER_MAX).toBe(4096);
+        expect(FRONTIER_CANDIDATES).toBe(7);
+        expect(BEAMER_BETA).toBe(24);
+        expect(SSSP_DELTA_FACTOR).toBe(32);
+        expect(F32_INF_BITS).toBe(0x7f800000);
+    });
+
+    it("F32_INF_BITS is the bit pattern of +Infinity, derived rather than remembered", () => {
+        expect(F32_INF_BITS).toBe(new Uint32Array(new Float32Array([Infinity]).buffer)[0]);
+        expect(new Float32Array(new Uint32Array([F32_INF_BITS]).buffer)[0]).toBe(Infinity);
     });
 });

@@ -1180,8 +1180,9 @@ export class Node {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
         const scene = this.mesh.getScene();
-        // Labels that would overlap on screen are thinned out before every frame; see LabelDeclutter.
-        LabelDeclutter.track(scene, this.context.getDataManager(), this);
+        // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
+        // LabelDeclutter.
+        LabelDeclutter.track(scene, this.context, this);
         return new RichTextLabel(scene, labelOptions);
     }
 

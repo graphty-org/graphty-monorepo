@@ -2,9 +2,10 @@
  * @file Node labels that would overlap on screen are not drawn on top of each other.
  *
  * Every node label is its own plane, and nothing used to check whether two of them landed in the
- * same place, so two labelled nodes near each other drew their words over one another. The
- * element now thins them out before every frame: the label of the node with more edges is kept
- * and the one it would cover is hidden.
+ * same place, so two labelled nodes near each other drew their words over one another. With the
+ * graph's `labels.declutter` behaviour on, the element thins them out: the label of the node with
+ * more edges is kept and the one it would cover is hidden. It is off by default, and off means
+ * every label a style asks for is drawn.
  *
  * The rectangles here are measured independently of the pass: from each label's world bounding
  * box after a frame, projected through the scene's own transform.
@@ -14,6 +15,7 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
 
 const WIDTH = 640;
 const HEIGHT = 480;
@@ -42,7 +44,10 @@ describe("node labels do not overlap", () => {
         container?.remove();
     });
 
-    async function draw(nodes: { id: string; position: { x: number; y: number; z: number } }[]): Promise<Graph> {
+    async function draw(
+        nodes: { id: string; position: { x: number; y: number; z: number } }[],
+        declutter = true,
+    ): Promise<Graph> {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
         container.style.height = `${String(HEIGHT)}px`;
@@ -50,6 +55,10 @@ describe("node labels do not overlap", () => {
         const g = new Graph(container);
         graph = g;
         await g.init();
+        if (declutter) {
+            g.setLayoutBehavior({ labels: { declutter: true } });
+        }
+
         await g.addNodes(nodes);
         await g.addEdges(EDGES);
         await g.setLayout("fixed", { dim: 3 });
@@ -75,16 +84,19 @@ describe("node labels do not overlap", () => {
     /**
      * Which labels are drawn, and where.
      * @param g - The graph.
+     * @param ids - The nodes to look at.
+     * @param words - Measure the label's words rather than its whole plane.
      * @returns The screen rectangle of every label on screen, by node id.
      */
-    function drawnLabels(g: Graph): Map<string, Rect> {
+    function drawnLabels(g: Graph, ids = ["hub", "left", "right"], words = false): Map<string, Rect> {
         const camera = g.scene.activeCamera;
         assert.isNotNull(camera);
         const viewport = camera.viewport.toGlobal(g.engine.getRenderWidth(), g.engine.getRenderHeight());
         const drawn = new Map<string, Rect>();
 
-        for (const id of ["hub", "left", "right"]) {
-            const mesh = g.getNode(id)?.label?.labelMesh;
+        for (const id of ids) {
+            const label = g.getNode(id)?.label;
+            const mesh = label?.labelMesh;
             assert.isOk(mesh, `node ${id} has a label`);
             if (!mesh.isEnabled() || !mesh.isVisible) {
                 continue;
@@ -98,12 +110,20 @@ describe("node labels do not overlap", () => {
                 ys.push(p.y);
             }
 
-            drawn.set(id, {
-                left: Math.min(...xs),
-                right: Math.max(...xs),
-                top: Math.min(...ys),
-                bottom: Math.max(...ys),
-            });
+            const plane = { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+            if (words && label) {
+                const text = label.textBounds;
+                const w = plane.right - plane.left;
+                const h = plane.bottom - plane.top;
+                drawn.set(id, {
+                    left: plane.left + text.left * w,
+                    right: plane.left + text.right * w,
+                    top: plane.top + text.top * h,
+                    bottom: plane.top + text.bottom * h,
+                });
+            } else {
+                drawn.set(id, plane);
+            }
         }
 
         return drawn;
@@ -179,6 +199,95 @@ describe("node labels do not overlap", () => {
         for (let i = 0; i < rects.length; i++) {
             for (let j = i + 1; j < rects.length; j++) {
                 assert.isFalse(overlaps(rects[i], rects[j]), "no two drawn labels overlap");
+            }
+        }
+    });
+
+    function passOf(g: Graph): LabelDeclutter {
+        const found: unknown = g.scene.metadata?.labelDeclutter;
+        if (!(found instanceof LabelDeclutter)) {
+            assert.fail("a labelled scene has a declutter pass");
+        }
+
+        return found;
+    }
+
+    const PILED = [
+        { id: "hub", position: { x: 0, y: 0, z: 0 } },
+        { id: "left", position: { x: -0.3, y: 0.1, z: 0 } },
+        { id: "right", position: { x: 0.3, y: -0.1, z: 0 } },
+    ];
+
+    it("hides no label when labels.declutter is off, which is the default", async () => {
+        const g = await draw(PILED, false);
+
+        assert.isFalse(g.styles.config.behavior.labels.declutter, "off unless a consumer turns it on");
+        assert.deepEqual([...drawnLabels(g).keys()], ["hub", "left", "right"]);
+        assert.strictEqual(passOf(g).passes, 0, "an element that was never asked to declutter never measures");
+    });
+
+    it("shows and hides labels as the setting is toggled while the graph is drawn", async () => {
+        const g = await draw(PILED, false);
+        assert.deepEqual([...drawnLabels(g).keys()], ["hub", "left", "right"]);
+
+        g.setLayoutBehavior({ labels: { declutter: true } });
+        g.scene.render();
+        assert.deepEqual([...drawnLabels(g).keys()], ["hub"], "turned on: only the hub's label is drawn");
+
+        g.setLayoutBehavior({ labels: { declutter: false } });
+        g.scene.render();
+        assert.deepEqual([...drawnLabels(g).keys()], ["hub", "left", "right"], "turned off: every label is back");
+    });
+
+    it("does not re-run the pass on a frame where nothing moved, and does when something did", async () => {
+        const g = await draw(PILED);
+        const pass = passOf(g);
+
+        const before = pass.passes;
+        for (let at = 0; at < 20; at++) {
+            g.scene.render();
+        }
+        assert.strictEqual(pass.passes, before, "a still camera over a still layout is placed once");
+
+        assert.isTrue(g.selectNode("left"));
+        await g.operationQueue.waitForCompletion();
+        g.scene.render();
+        assert.isAbove(pass.passes, before, "a selection change places the labels again");
+
+        const afterSelect = pass.passes;
+        const hub = g.getNode("hub");
+        assert.isOk(hub);
+        hub.mesh.position.x += 5;
+        g.scene.render();
+        assert.isAbove(pass.passes, afterSelect, "a node that moved places the labels again");
+    });
+
+    it("never draws two labels whose words overlap, and keeps the selected one", async () => {
+        // A tight grid of forty labelled nodes: plenty of collisions to resolve.
+        const nodes = [];
+        const ids: string[] = [];
+        for (let i = 0; i < 40; i++) {
+            const id = `n${String(i).padStart(2, "0")}`;
+            ids.push(id);
+            nodes.push({ id, position: { x: (i % 8) * 0.8, y: Math.floor(i / 8) * 0.6, z: 0 } });
+        }
+
+        const g = await draw(nodes);
+        assert.isTrue(g.selectNode("n17"));
+        await g.operationQueue.waitForCompletion();
+        g.scene.render();
+
+        const drawn = drawnLabels(g, ids, true);
+        const entries = [...drawn.entries()];
+        assert.isTrue(drawn.has("n17"), "the selected node's label is drawn");
+        assert.isAbove(drawn.size, 1, "more than one label is drawn");
+        assert.isBelow(drawn.size, ids.length, "some label was hidden");
+        for (let i = 0; i < entries.length; i++) {
+            for (let j = i + 1; j < entries.length; j++) {
+                assert.isFalse(
+                    overlaps(entries[i][1], entries[j][1]),
+                    `the words of ${entries[i][0]} and ${entries[j][0]} overlap`,
+                );
             }
         }
     });

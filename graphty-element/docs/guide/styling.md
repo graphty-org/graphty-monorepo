@@ -152,10 +152,27 @@ Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glow
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.
 
-Node labels that would overlap on screen are not drawn on top of each other. Before each frame
-the element keeps the label of a selected node first, then of the node with more edges, and hides
-any label that would cover one it has already kept. A hidden label comes back as soon as its node
-is clear, for example after the layout moves it. Nothing in the style changes when this happens.
+### Labels that would overlap
+
+By default every label a style asks for is drawn, so labelled nodes that sit close together on
+screen draw their words over each other. Turn on `labels.declutter` in the element's behaviour
+configuration to thin them out:
+
+```javascript
+element.layoutBehavior = { labels: { declutter: true } };
+```
+
+With it on, the element keeps the label of a selected node first, then the label of the node
+with more edges, and hides any label whose words would cover the words of a label it has already
+kept. Only the words count: two labels whose padding or background overlap, but whose text does
+not, are both drawn. A hidden label comes back as soon as its node is clear, for example after
+the camera or the layout moves. Nothing in the style changes when this happens, and setting
+`declutter` back to `false` shows every label again on the next frame.
+
+The element works this out again only when something that decides it changes -- the camera, the
+size of the viewport, a label, a node's position or visibility, the selection or the edges -- so a
+still graph pays almost nothing for it. On a camera that is moving it costs roughly 1 to 1.5 ms a
+frame per thousand labels. A saved configuration carries the setting as `behavior.labels.declutter`.
 
 ### A tooltip on a node
 

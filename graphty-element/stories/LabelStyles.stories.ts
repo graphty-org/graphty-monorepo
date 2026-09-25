@@ -1501,19 +1501,21 @@ export const UnicodeText: Story = {
 };
 
 /**
- * Labels that would land on top of each other are not all drawn.
+ * Labels that would land on top of each other are not all drawn, when the element is asked.
  *
- * Every cat is labelled at 64px, so several labels cross on screen. Before each frame the element
- * keeps the label of the better-connected node (then the node id, so the choice is stable) and
- * hides any label that would cover one already kept. Nothing about the style changes: a hidden
- * label is still built, and comes back when its node moves clear.
+ * Every cat is labelled at 128px, so several labels' words cross on screen. With the element's
+ * `labels.declutter` behaviour turned on, it keeps the label of the better-connected node (then
+ * the node id, so the choice is stable) and hides any label whose words would cover the words of
+ * one already kept. Nothing about the style changes: a hidden label is still built, and comes
+ * back when its node moves clear. Every other story leaves the behaviour at its default, off.
  */
 export const Declutter: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
-            node: { "node.labelStyle": { sizePx: 64 } },
+            node: { "node.labelStyle": { sizePx: 128 } },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+            declutterLabels: true,
         }),
     },
     play: async ({ canvasElement }) => {
@@ -1550,12 +1552,19 @@ export const Declutter: Story = {
                 ys.push(p.y);
             }
 
+            // The words, not the padded plane: two planes may overlap in their margins while the
+            // words drawn on them do not, and it is the words the pass keeps apart.
+            const left = Math.min(...xs);
+            const top = Math.min(...ys);
+            const width = Math.max(...xs) - left;
+            const height = Math.max(...ys) - top;
+            const words = node.label?.textBounds ?? { left: 0, right: 1, top: 0, bottom: 1 };
             shown.push({
                 id: String(node.id),
-                left: Math.min(...xs),
-                right: Math.max(...xs),
-                top: Math.min(...ys),
-                bottom: Math.max(...ys),
+                left: left + words.left * width,
+                right: left + words.right * width,
+                top: top + words.top * height,
+                bottom: top + words.bottom * height,
             });
         }
 
@@ -1566,8 +1575,8 @@ export const Declutter: Story = {
                 .map((b) => `${a.id} / ${b.id}`),
         );
 
-        await holds(crossing.length === 0, `Styles/Label Declutter: drawn labels overlap: ${crossing.join(", ")}`);
-        await holds(hidden > 0, "Styles/Label Declutter: sixty-four point labels on twenty cats hid none");
+        await holds(crossing.length === 0, `Styles/Label Declutter: the words of drawn labels overlap: ${crossing.join(", ")}`);
+        await holds(hidden > 0, "Styles/Label Declutter: 128-pixel labels on twenty cats hid none");
         await holds(shown.length > 1, `Styles/Label Declutter: only ${String(shown.length)} label is drawn`);
         await assertDistinctPicture(scene, "Styles/Label");
     },

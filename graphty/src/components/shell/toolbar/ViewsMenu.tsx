@@ -103,8 +103,6 @@ export interface ViewsMenuProps {
     readonly onOpenChange: (opened: boolean) => void;
     /** The size profile in force; the trigger is 36 x 28 or 40 x 32. */
     readonly profile: CanvasToolbarProfile;
-    /** Whether the minimap is shown; the row is checked when it is. */
-    readonly minimapShown: boolean;
     /** Whether the legend is shown. */
     readonly legendShown: boolean;
     /**
@@ -131,8 +129,6 @@ export interface ViewsMenuProps {
     readonly onResetView: () => void;
     /** Top (7), Front (1), Side (3). */
     readonly onViewPreset: (preset: ViewPresetId) => void;
-    /** Toggle the minimap. The same action the M binding fires. */
-    readonly onToggleMinimap: () => void;
     /** Toggle the toolbar. No binding fires this -- the palette row does. */
     readonly onToggleToolbar: () => void;
     /** Toggle the legend. The same action the L binding fires. */
@@ -291,7 +287,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         opened,
         onOpenChange,
         profile,
-        minimapShown,
         legendShown,
         legendAvailable = true,
         toolbarShown,
@@ -301,7 +296,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         visibleEdgeCount = 0,
         onResetView,
         onViewPreset,
-        onToggleMinimap,
         onToggleToolbar,
         onToggleLegend,
         onEnterVr,
@@ -440,13 +434,9 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
 
                 <ViewsMenuSeparator />
 
-                <ViewsMenuRow
-                    label="Minimap"
-                    checked={minimapShown}
-                    glyph={minimapShown ? <UiGlyph name="check" size={glyphSize} /> : undefined}
-                    keyChip={keyChipFor("toggleMinimap")}
-                    onSelect={onToggleMinimap}
-                />
+                {/* Unshipped until graphty-element publishes node positions and camera
+                    changes for it to project (#293). */}
+                <ViewsMenuRow label="Minimap" coming />
                 <ViewsMenuRow
                     label="Toolbar"
                     checked={toolbarShown}

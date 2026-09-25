@@ -1103,6 +1103,59 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
     });
 
+    /* Two runs stacked on node colour: each run-made layer is scoped `{match:"has"}` to the
+       elements its run measured, so a cover test that only believed `{match:"everything"}`
+       never reported one run's colours hidden under another's. */
+    describe("a layer above that selects every element this one does", () => {
+        /**
+         * A session whose selector source can enumerate the elements a column holds a value for,
+         * which is what a real session's source does for a run's column.
+         * @returns the harness.
+         */
+        function measuredStyles(): Harness {
+            return makeStyles({
+                elements: {
+                    ...ELEMENTS,
+                    measured: (path: Path) =>
+                        NODES.flatMap((row, index) => (row[path] === undefined || row[path] === null ? [] : [index])),
+                },
+            });
+        }
+
+        it("says the lower block is painted over when the layer above selects all of its elements", async () => {
+            const { styles } = measuredStyles();
+
+            await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+            await styles.add(
+                layerSpec("Route colour", {
+                    selector: { match: "has", path: "results.route.onPath" },
+                    set: { "node.color": "#00ff00" },
+                }),
+            );
+
+            const [lower, upper] = styles.legend();
+
+            assert.include(lower?.departures, 'painted over by "Route colour"');
+            assert.notInclude(upper?.departures ?? [], 'painted over by "By betweenness"');
+        });
+
+        it("says nothing when the layer above selects only some of them", async () => {
+            const { styles } = measuredStyles();
+
+            await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+            await styles.add(
+                layerSpec("Group colour", {
+                    selector: { match: "has", path: "results.louvain.group" },
+                    set: { "node.color": "#00ff00" },
+                }),
+            );
+
+            const [lower] = styles.legend();
+
+            assert.notInclude(lower?.departures ?? [], 'painted over by "Group colour"');
+        });
+    });
+
     it("has nothing to say in a session with nothing prepared to paint from", async () => {
         const styles = createStylesApi({ elements: ELEMENTS, runs: RUN_SOURCE });
         await styles.encode({ run: "betweenness", channel: "node.color" });

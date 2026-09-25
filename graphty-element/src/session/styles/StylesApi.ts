@@ -1020,6 +1020,29 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
+        // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
+        // lists, and each is put to the compiled test of the layer above. Every other shape would
+        // need a walk over the whole graph, and a legend is read on every style change.
+        covers: (above, below) => {
+            if (below.selector.match !== "has") {
+                return false;
+            }
+
+            const rows = sources.elements.measured?.(below.selector.path, below.target);
+            const test = byId.get(above.id)?.selector.test;
+
+            if (rows === undefined || rows.length === 0 || test === undefined) {
+                return false;
+            }
+
+            for (let at = 0; at < rows.length; at++) {
+                if (test !== null && !test(rows[at])) {
+                    return false;
+                }
+            }
+
+            return true;
+        },
     };
 
     /**

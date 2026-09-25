@@ -195,7 +195,10 @@ losses and format rules, in addition to the table:
   a count the sink cannot reserve is fatal); `*Arcs` / `*Edges` sections give per-section
   direction; time intervals map to the spells role; vertex / line parameters are plain columns read
   through the 5.1 text grammar (`2.0` stays f64, lexical forms of a string column are kept); a
-  `.paj` project file's `*Partition` / `*Vector` sections are skipped with an issue. Nodes are
+  `.paj` project file's `*Partition` / `*Vector` objects become the node columns `partition` (i32)
+  and `vector` (f64) (a second one `partition#2`, ...; their Pajek names in
+  `meta.extra.pajek.objects`), and other project sections (`*Events`, ...) are skipped with a
+  warning; a two-mode `*Vertices N N1` reads its `*Matrix` as N1 rows of N - N1 columns. Nodes are
   always written 1..N (`W_ID_RENUMBERED`: the id text is kept as the label of a node without a
   label value, a node with one loses its id; `W_PAJEK_LABEL_GAINED` when a line's parameters force
   a label); `sanitizeIds: "mangle"` also writes every renumbered vertex's original id as a

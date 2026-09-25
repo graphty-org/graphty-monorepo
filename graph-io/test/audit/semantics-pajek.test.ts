@@ -310,24 +310,23 @@ describe("Pajek quirks from PajekDataSource, NetworkX pajek.py and research note
         expect(byLabel.snapshot.edgeCount).toBe(1);
     });
 
-    it("DEFECT: a .paj project with a *Partition after the network must not abort on the partition's *Vertices line", async () => {
+    it("a .paj project with a *Partition after the network reads it, not the partition's *Vertices line as a network", async () => {
         // Pajek project files (.paj, an advertised extension) write every partition / vector as
-        // "*Partition name" followed by its own "*Vertices N" and N value lines. The importer marks
-        // *Partition unsupported and skips its lines, but then reads that *Vertices as a second
-        // network and aborts the whole import, so no .paj with a partition or vector can be read.
+        // "*Partition name" followed by its own "*Vertices N" and N value lines.
         const paj =
             '*Network n\n*Vertices 2\n1 "a"\n2 "b"\n*Edges\n1 2\n*Partition C1\n*Vertices 2\n1\n2\n*Vector v\n*Vertices 2\n0.5\n0.3\n';
         const { snapshot, report } = await parse(paj);
         expect(snapshot.ids.toArray()).toEqual([1, 2]);
         expect(snapshot.edgeCount).toBe(1);
-        expect(report.issues.filter((i) => i.code === "E_PAJEK_UNSUPPORTED_SECTION")).toHaveLength(2);
-        expect(report.issues.map((i) => i.code)).not.toContain("W_MULTIPLE_GRAPHS");
+        expect(report.issues).toEqual([]);
+        expect(snapshot.nodes.get("partition")?.value(1)).toBe(2);
+        expect(snapshot.nodes.get("vector")?.value(0)).toBe(0.5);
     });
 
     it("reports a vertex count mismatch, an endpoint outside 1..N and a bad weight token, each explicitly", async () => {
         const mismatch = await parse('*Vertices 3\n1 "a"\n2 "b"\n*Edges\n1 2\n');
         expect(mismatch.snapshot.nodeCount).toBe(3);
-        expect(mismatch.report.issues.map((i) => i.code)).toContain("E_PAJEK_VERTEX_COUNT");
+        expect(mismatch.report.issues.map((i) => i.code)).toContain("W_PAJEK_VERTEX_COUNT");
         const outside = await parse('*Vertices 2\n1 "a"\n2 "b"\n*Edges\n1 3\n');
         expect(outside.snapshot.edgeCount).toBe(0);
         expect(outside.report.issues.map((i) => i.code)).toContain("E_UNKNOWN_NODE");

@@ -2,9 +2,10 @@
  * The lexical layer of the Pajek NET format shared by the importer and the exporter (research
  * note 07 section 2.5): the line tokenizer (whitespace-separated tokens, double quotes group
  * spaces and are removed, no escape mechanism), the section headers (`*Vertices N [N1]`,
- * `*Arcs [:k ["name"]]`, `*Edges`, `*Arcslist`, `*Edgeslist`, `*Matrix`, `*Network name` and the
- * project-file sections the importer does not read), the vertex shape keywords, the time interval
- * tokens `[1-5,7-*]` that map to the spells role, and the column names both sides agree on.
+ * `*Arcs [:k ["name"]]`, `*Edges`, `*Arcslist`, `*Edgeslist`, `*Matrix`, `*Network name`,
+ * `*Partition name`, `*Vector name` and the project-file sections the importer does not read), the
+ * vertex shape keywords, the time interval tokens `[1-5,7-*]` that map to the spells role, the
+ * `&#dddd;` character references of labels, and the column names both sides agree on.
  */
 
 /** The node column holding the vertex label (role label). */
@@ -28,11 +29,49 @@ export const VALUE_COLUMN = "value";
 /** The `weightFrom` default: Pajek's third column is the line value (design section 8.4). */
 export const VALUE_FIELD = "value";
 
-/** The vertex shape keywords of the Pajek manual. */
-export const SHAPES: ReadonlySet<string> = new Set(["ellipse", "box", "diamond", "triangle", "cross", "empty"]);
+/** The node column holding the values of a `*Partition` object (i32). */
+export const PARTITION_COLUMN = "partition";
+
+/** The node column holding the values of a `*Vector` object (f64). */
+export const VECTOR_COLUMN = "vector";
+
+/**
+ * The vertex shape keywords of the Pajek manual, lower-cased; a file may write them in any case
+ * (use isShapeKeyword()).
+ */
+export const SHAPES: ReadonlySet<string> = new Set([
+    "ellipse",
+    "box",
+    "diamond",
+    "triangle",
+    "cross",
+    "empty",
+    "house",
+    "man",
+    "woman",
+]);
+
+/**
+ * Whether a token is a vertex shape keyword, in any case (`Ellipse`, `BOX`).
+ * @param token - the token
+ * @returns true for a shape keyword
+ */
+export function isShapeKeyword(token: string): boolean {
+    return SHAPES.has(token.toLowerCase());
+}
 
 /** The section keywords the importer reads, lower-cased. */
-type SectionKind = "network" | "vertices" | "arcs" | "edges" | "arcslist" | "edgeslist" | "matrix" | "unsupported";
+type SectionKind =
+    | "network"
+    | "vertices"
+    | "arcs"
+    | "edges"
+    | "arcslist"
+    | "edgeslist"
+    | "matrix"
+    | "partition"
+    | "vector"
+    | "unsupported";
 
 /**
  * The parameter key the exporter writes a node's original id under when `sanitizeIds: "mangle"`
@@ -67,6 +106,8 @@ const SECTION_KINDS: ReadonlyMap<string, SectionKind> = new Map([
     ["arcslist", "arcslist"],
     ["edgeslist", "edgeslist"],
     ["matrix", "matrix"],
+    ["partition", "partition"],
+    ["vector", "vector"],
 ]);
 
 const INTEGER_TEXT = /^[+-]?[0-9]+$/;
@@ -76,7 +117,9 @@ const TIME_POINT =
 /**
  * Split one line into tokens: runs of non-whitespace, with double quotes grouping whitespace
  * into one token and removed from it (the shlex rule NetworkX applies; Pajek has no escapes, so a
- * quote never appears inside a token). An empty quoted string `""` is one empty token.
+ * quote never appears inside a token). An empty quoted string `""` is one empty token. A token
+ * that starts with `[` runs to the next `]` whatever whitespace it holds (when no other `[` comes
+ * first), so a time set written `[ 1, 3 ]` is one token.
  * @param line - the line without its terminator
  * @returns the tokens, or null when a quote is not closed before the end of the line
  */
@@ -91,6 +134,15 @@ export function tokenize(line: string): string[] | null {
             quoted = !quoted;
             started = true;
             continue;
+        }
+        if (!quoted && !started && c === 91) {
+            const close = line.indexOf("]", i);
+            if (close > i && line.lastIndexOf("[", close) === i) {
+                current += line.slice(i, close + 1);
+                started = true;
+                i = close;
+                continue;
+            }
         }
         if (!quoted && (c === 32 || c === 9 || c === 13 || c === 12 || c === 11)) {
             if (started) {
@@ -190,6 +242,8 @@ export function parseSectionHeader(line: string): SectionHeader | null {
             }
             break;
         case "network":
+        case "partition":
+        case "vector":
             if (i < tokens.length) {
                 name = tokens.slice(i).join(" ");
                 i = tokens.length;
@@ -238,18 +292,19 @@ export function isIntervalToken(token: string): boolean {
 
 /**
  * Parse a Pajek time interval token into spells: `[1-5,7-*]` is `[[1, 5], [7, Infinity]]`, a
- * single time point `[3]` is `[[3, 3]]`, and `*` at either end is the corresponding infinity.
+ * single time point `[3]` is `[[3, 3]]`, `*` at either end is the corresponding infinity, blanks
+ * around the parts are ignored and an empty `[]` is no spell at all.
  * @param token - a token isIntervalToken() accepted
- * @returns the spells as [start, end] pairs
+ * @returns the spells as [start, end] pairs (empty for `[]`)
  */
 export function parseIntervals(token: string): [number, number][] {
     const body = token.slice(1, -1);
     if (body.trim().length === 0) {
-        throw new Error(`empty time interval ${token}`);
+        return [];
     }
     const spells: [number, number][] = [];
     for (const part of body.split(",")) {
-        const match = TIME_POINT.exec(part.trim());
+        const match = TIME_POINT.exec(part.replace(/\s+/g, ""));
         if (match === null) {
             throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
         }
@@ -269,6 +324,37 @@ export function parseIntervals(token: string): [number, number][] {
         spells.push([start, end]);
     }
     return spells;
+}
+
+const CHARACTER_REFERENCE = /&#(?:[xX]([0-9a-fA-F]{1,6})|([0-9]{1,7}));/g;
+
+/**
+ * Decode the `&#dddd;` and `&#xhhhh;` character references of a label, as Pajek does; a reference
+ * outside the Unicode range is left as written.
+ * @param text - the label as written
+ * @returns the decoded label
+ */
+export function decodeCharacterReferences(text: string): string {
+    if (!text.includes("&#")) {
+        return text;
+    }
+    return text.replace(CHARACTER_REFERENCE, (whole, hex: string | undefined, dec: string | undefined) => {
+        const code = hex === undefined ? Number(dec) : Number.parseInt(hex, 16);
+        return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    });
+}
+
+/**
+ * Protect a label whose text would read back as a character reference: the `&` of every
+ * `&#...;` run is written as `&#38;`, the inverse of decodeCharacterReferences().
+ * @param text - the label text
+ * @returns the text to write
+ */
+export function encodeCharacterReferences(text: string): string {
+    if (!text.includes("&#")) {
+        return text;
+    }
+    return text.replace(CHARACTER_REFERENCE, (whole) => `&#38;${whole.slice(1)}`);
 }
 
 /**
@@ -300,7 +386,7 @@ export function isParameterKey(text: string): boolean {
     if (text.length === 0 || /[\s"]/.test(text) || text.startsWith("[") || text.startsWith("*")) {
         return false;
     }
-    if (SHAPES.has(text)) {
+    if (isShapeKeyword(text)) {
         return false;
     }
     return !/^[+-]?(\.[0-9]|[0-9])/.test(text);

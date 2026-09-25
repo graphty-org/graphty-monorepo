@@ -9,7 +9,8 @@
  * fa2-to-scene; M8b-T3 adds the seven P7 entries: spmv-pull, pr-scale, pr-finalize, wcc-link-sample,
  * wcc-link-edges, wcc-compress and wcc-sample. P4-T1 adds indirect-finalize; the other P4 entries follow, one task
  * each (the P4 plan, PD-1). P8-T3 opens the P8 run of nine appends (the P8 plan, PD-2) with compact-scatter,
- * dedupe-claim and dedupe-filter. This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
+ * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks.
+ * This file is the only importer of src/wgsl/** (spec 3.2; test/layers.test.ts).
  */
 
 import { STATE_HEADER_BYTES } from "./constants.js";
@@ -30,6 +31,7 @@ import { fa2SpeedFinalizeWgsl } from "./wgsl/fa2-speed-finalize.wgsl.js";
 import { fa2StatsFinalizeWgsl } from "./wgsl/fa2-stats-finalize.wgsl.js";
 import { fa2ToSceneWgsl } from "./wgsl/fa2-to-scene.wgsl.js";
 import { fillWgsl } from "./wgsl/fill.wgsl.js";
+import { frontierFinalizeWgsl } from "./wgsl/frontier-finalize.wgsl.js";
 import { gridCellKeyWgsl } from "./wgsl/grid-cell-key.wgsl.js";
 import { gridCentroidWgsl } from "./wgsl/grid-centroid.wgsl.js";
 import { gridCentroidHubWgsl } from "./wgsl/grid-centroid-hub.wgsl.js";
@@ -86,7 +88,8 @@ export type KernelId =
     | "grid-near-field"
     | "compact-scatter"
     | "dedupe-claim"
-    | "dedupe-filter";
+    | "dedupe-filter"
+    | "frontier-finalize";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -342,6 +345,85 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
     ["outIndex", "u32"],
     ["countIndex", "u32"],
     ["pad0", "u32"],
+]);
+
+/**
+ * `FrontierCounters` (storage, 96 B; design 6 row 7, P8-T4, PD-8): EVERY counter of the frontier family is a word of
+ * this one block, byte offset 4 x index, because a four-byte word is never a legal storage-binding offset and the
+ * device-side selector must reach every count it acts on through one binding; every kernel binds it as
+ * `array<atomic<u32>>` and indexes by the `W` record of src/primitives/frontier.ts, and the host decodes the result
+ * copy with `FRONTIER_COUNTERS.read`. `frontierCount` @0 (role 0 rotates it in from word 1; never seeded),
+ * `nextFrontierCount` @4 (the claim kernels' append span; the BFS seed is 1), `frontierDegreeSum` @8,
+ * `prevFrontierCount` @12, `prevDegreeSum` @16, `unvisitedCount` @20, `unvisitedDegreeSum` @24,
+ * `unvisitedListLen` @28 (P8-T8), `edgeCount` @32 (clamped by role 1), `edgeCountUnclamped` @36 (the overflow
+ * detector, PD-23), `overflowLevels` @40, `level` @44 (the current level; the seed is U32_MAX so the first boundary
+ * lands on 0), `visitedCount` @48, `switches` @52, `direction` @56, `done` @60 (the four bytes the host reads per
+ * submit), `arcsScanned` @64, `fusedLevels` @68, `twoPhaseLevels` @72, `bottomUpLevels` @76, `farCount` @80,
+ * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92 (P8-T9). The words nothing writes before P8-T8 / P8-T9
+ * are declared now because the byte layout is what the single result copy decodes.
+ */
+export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
+    "FrontierCounters",
+    [
+        ["frontierCount", "u32"],
+        ["nextFrontierCount", "u32"],
+        ["frontierDegreeSum", "u32"],
+        ["prevFrontierCount", "u32"],
+        ["prevDegreeSum", "u32"],
+        ["unvisitedCount", "u32"],
+        ["unvisitedDegreeSum", "u32"],
+        ["unvisitedListLen", "u32"],
+        ["edgeCount", "u32"],
+        ["edgeCountUnclamped", "u32"],
+        ["overflowLevels", "u32"],
+        ["level", "u32"],
+        ["visitedCount", "u32"],
+        ["switches", "u32"],
+        ["direction", "u32"],
+        ["done", "u32"],
+        ["arcsScanned", "u32"],
+        ["fusedLevels", "u32"],
+        ["twoPhaseLevels", "u32"],
+        ["bottomUpLevels", "u32"],
+        ["farCount", "u32"],
+        ["nextFarCount", "u32"],
+        ["thresholdBits", "u32"],
+        ["deltaBits", "u32"],
+    ],
+    { layout: "storage" },
+);
+
+/**
+ * `FrontierParams` (uniform, 80 B; P8-T4): the params block every P8 kernel except the three compact / dedupe
+ * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `slotBase` @4 (`level x FRONTIER_CANDIDATES`),
+ * `wg` @8 (the consumers' workgroup size), `alpha` @12, `beta` @16 (Beamer's thresholds, P8-T8), `fusedMax` @20,
+ * `edgeCapacity` @24, `maxDepth` @28, `n` @32, `mode` @36 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key
+ * rule), `cutoffBits` @40, `arcBase` @44, `arcEnd` @48 (the bound arc window), `predKind` @52 (0 arc, 1 node),
+ * `bitsBase` @56, `source` @60, `stride` @64 (a grid-stride plan's stride), `firstOfSubmit` @68 (the boundary's index
+ * inside its submit, clamped to 2: the unvisited-count subtraction runs at >= 1, the degree-sum one at >= 2),
+ * `iteration` @72 (an `sssp-pred` hop pass, P8-T9), `pad1` @76.
+ */
+export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
+    ["role", "u32"],
+    ["slotBase", "u32"],
+    ["wg", "u32"],
+    ["alpha", "u32"],
+    ["beta", "u32"],
+    ["fusedMax", "u32"],
+    ["edgeCapacity", "u32"],
+    ["maxDepth", "u32"],
+    ["n", "u32"],
+    ["mode", "u32"],
+    ["cutoffBits", "u32"],
+    ["arcBase", "u32"],
+    ["arcEnd", "u32"],
+    ["predKind", "u32"],
+    ["bitsBase", "u32"],
+    ["source", "u32"],
+    ["stride", "u32"],
+    ["firstOfSubmit", "u32"],
+    ["iteration", "u32"],
+    ["pad1", "u32"],
 ]);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
@@ -987,6 +1069,23 @@ const DEDUPE_FILTER: KernelEntry = {
     phase: "P8",
 };
 
+/** `frontier-finalize` (design 5.4, 8.10 "BFS finalizeArgs"; P8-T4, PD-3): the one-lane level-boundary selector that rotates the counters block and writes the level's seven indirect slots (role 0), then clamps the edge count and sizes the contract or the fused-retry slot (role 1); 2 storage bindings (the block as `array<atomic<u32>>`, the args). */
+const FRONTIER_FINALIZE: KernelEntry = {
+    id: "frontier-finalize",
+    body: frontierFinalizeWgsl,
+    entryPoint: "frontier_finalize",
+    bindings: [
+        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 1, "args", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -994,7 +1093,8 @@ const DEDUPE_FILTER: KernelEntry = {
  * `entryOf` is the E_INVALID_ARGUMENT the contract documents for a JS caller's unknown id. P1-T4 landed the five
  * P1 entries, P2-T2 `"segmented-reduce"`, and P3-T2 `"fa2-stats-finalize"`, `"fa2-attraction"`, `"fa2-integrate"`
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
- * dedupe entries, so every member of `KernelId` is present and the assertion is exact.
+ * dedupe entries and P8-T4 `"frontier-finalize"`, so every member of `KernelId` is present and the assertion is
+ * exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1030,6 +1130,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "compact-scatter": COMPACT_SCATTER,
     "dedupe-claim": DEDUPE_CLAIM,
     "dedupe-filter": DEDUPE_FILTER,
+    "frontier-finalize": FRONTIER_FINALIZE,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

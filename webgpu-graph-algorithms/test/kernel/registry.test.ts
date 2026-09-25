@@ -21,6 +21,7 @@ import {
     FA2_STATE,
     FA2_TRACE,
     FILL_PARAMS,
+    FRONTIER_PARAMS,
     graphBindings,
     graphOverrides,
     GRID_LEVEL_PARAMS,
@@ -607,6 +608,20 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P8",
         storageCount: 4,
+    },
+    "frontier-finalize": {
+        entryPoint: "frontier_finalize",
+        bindings: [
+            [1, 0, "counters", "storage", "array<atomic<u32>>"],
+            [1, 1, "args", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 2,
     },
 };
 

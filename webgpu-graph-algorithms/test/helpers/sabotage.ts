@@ -12,7 +12,8 @@
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
- * by test/sabotage/compact.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts
+ * ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -49,6 +50,7 @@ const GRID_TEST = "test/primitives/grid.test.ts";
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
+const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -926,6 +928,59 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "if (lid.x == 0u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }",
             minFactor: 10,
             test: COMPACT_TEST,
+        },
+    ]),
+    // P8-T4: every row is measured by frontierReport (test/helpers/frontier.ts) through the frontier test; the
+    // rotation and fused-slot rows are measured again by the BFS suites of P8-T6 / P8-T7 once those land
+    "frontier-finalize": Object.freeze([
+        {
+            // the ceil that wraps above 2^32 - wg: the largest u32 count yields 0 groups (caught by the ladder)
+            name: "ceil-wraps",
+            find: "count / P.wg + select(0u, 1u, count % P.wg != 0u)",
+            replace: "(count + P.wg - 1u) / P.wg",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // the second row of the 2D split floored: a group count that is not a multiple of the per-dimension
+            // limit loses its last row (the ladder, and the 17M poison case)
+            name: "second-row-floored",
+            find: "(groups + MAX_WORKGROUPS_PER_DIM - 1u) / MAX_WORKGROUPS_PER_DIM",
+            replace: "groups / MAX_WORKGROUPS_PER_DIM",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // the rotation writes 0: the first boundary rotates nothing in and every traversal is the source alone
+            name: "rotation-dropped",
+            find: "atomicStore(&counters[0], next);                               // the rotation",
+            replace: "atomicStore(&counters[0], 0u);",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // the fused slot sized per invocation: a fused level of `next` entries expands only its first ceil(next / wg)
+            name: "fused-slot-per-invocation",
+            find: "write_slot_groups(2u, next, next);",
+            replace: "write_slot(2u, next);",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // a boundary that finds done set keeps counting: level and visitedCount move on every recorded level past the end
+            name: "done-boundary-keeps-counting",
+            find: "if (atomicLoad(&counters[15]) != 0u) {                         // done already: a no-op level the host recorded past the end",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // role 1 counts a two-phase level whether or not role 0 chose one
+            name: "role-1-counts-every-level",
+            find: "if (args[4u * P.slotBase] == 0u) {                             // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to size, nothing to count",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: FRONTIER_TEST,
         },
     ]),
 });

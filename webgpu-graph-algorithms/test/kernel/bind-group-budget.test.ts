@@ -50,6 +50,7 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "compact-scatter": 5,
     "dedupe-claim": 3,
     "dedupe-filter": 4,
+    "frontier-finalize": 2,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

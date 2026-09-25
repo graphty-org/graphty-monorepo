@@ -117,6 +117,56 @@ const FA2_PARTIAL_FIELDS: readonly UniformField[] = [
     ["swingTraction", "vec2f"],
     ["dispFree", "vec2f"],
 ];
+/** The 24 words of the P8 counters block (the P8 plan, P8-T4 Step 3), in index order. */
+const FRONTIER_COUNTERS_FIELDS: readonly UniformField[] = [
+    ["frontierCount", "u32"],
+    ["nextFrontierCount", "u32"],
+    ["frontierDegreeSum", "u32"],
+    ["prevFrontierCount", "u32"],
+    ["prevDegreeSum", "u32"],
+    ["unvisitedCount", "u32"],
+    ["unvisitedDegreeSum", "u32"],
+    ["unvisitedListLen", "u32"],
+    ["edgeCount", "u32"],
+    ["edgeCountUnclamped", "u32"],
+    ["overflowLevels", "u32"],
+    ["level", "u32"],
+    ["visitedCount", "u32"],
+    ["switches", "u32"],
+    ["direction", "u32"],
+    ["done", "u32"],
+    ["arcsScanned", "u32"],
+    ["fusedLevels", "u32"],
+    ["twoPhaseLevels", "u32"],
+    ["bottomUpLevels", "u32"],
+    ["farCount", "u32"],
+    ["nextFarCount", "u32"],
+    ["thresholdBits", "u32"],
+    ["deltaBits", "u32"],
+];
+/** The twenty fields of the P8 params block (P8-T4 Step 3). */
+const FRONTIER_PARAMS_FIELDS: readonly UniformField[] = [
+    ["role", "u32"],
+    ["slotBase", "u32"],
+    ["wg", "u32"],
+    ["alpha", "u32"],
+    ["beta", "u32"],
+    ["fusedMax", "u32"],
+    ["edgeCapacity", "u32"],
+    ["maxDepth", "u32"],
+    ["n", "u32"],
+    ["mode", "u32"],
+    ["cutoffBits", "u32"],
+    ["arcBase", "u32"],
+    ["arcEnd", "u32"],
+    ["predKind", "u32"],
+    ["bitsBase", "u32"],
+    ["source", "u32"],
+    ["stride", "u32"],
+    ["firstOfSubmit", "u32"],
+    ["iteration", "u32"],
+    ["pad1", "u32"],
+];
 
 describe("UniformBlock.define", () => {
     it("lays out every field type at its WGSL size and alignment (scalars 4 / 4, vec2 8 / 8, vec4 16 / 16)", () => {
@@ -467,5 +517,27 @@ describe("the generated blocks of 3.10.2", () => {
         expect(partial.wgsl).toBe(
             "struct Fa2Partial {\n    sum: vec4f,\n    min: vec4f,\n    max: vec4f,\n    swingTraction: vec2f,\n    dispFree: vec2f,\n}",
         );
+    });
+
+    it("FrontierCounters (storage, 96 B: 24 words at 4 x index) and FrontierParams (80 B: twenty words at 4 x index), P8-T4", () => {
+        const counters = UniformBlock.define("FrontierCounters", FRONTIER_COUNTERS_FIELDS, { layout: "storage" });
+        expect(FRONTIER_COUNTERS_FIELDS).toHaveLength(24);
+        expect(counters.layout).toBe("storage");
+        expect(counters.byteLength).toBe(96);
+        FRONTIER_COUNTERS_FIELDS.forEach(([name], index) => {
+            expect(counters.offsetOf(name), name).toBe(4 * index);
+        });
+        expect(counters.offsetOf("done")).toBe(60);
+        expect(counters.offsetOf("level")).toBe(44);
+        expect(counters.wgsl).not.toContain("@size");
+        const params = UniformBlock.define("FrontierParams", FRONTIER_PARAMS_FIELDS);
+        expect(FRONTIER_PARAMS_FIELDS).toHaveLength(20);
+        expect(params.layout).toBe("uniform");
+        expect(params.byteLength).toBe(80);
+        FRONTIER_PARAMS_FIELDS.forEach(([name], index) => {
+            expect(params.offsetOf(name), name).toBe(4 * index);
+        });
+        expect(params.offsetOf("firstOfSubmit")).toBe(68);
+        expect(params.wgsl).not.toContain("@size");
     });
 });

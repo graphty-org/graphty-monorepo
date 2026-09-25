@@ -76,8 +76,8 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * wcc-compress 1 + wcc-sample 1; P4 = indirect-finalize 1 + scan-block 1 + scan-add 1 + histogram 1 + counting-scatter 1 +
  * radix-hist 1 + radix-scatter 1 + grid-cell-key 1 + grid-centroid 1 + grid-centroid-hub 1 + grid-downsample 1 +
  * grid-far-field 4 (1 + 3 LAW) + grid-near-field 25 (1 + 2 SWING_MODE x 2 STRONG_GRAVITY x 2 GRAVITY_CENTER x 3
- * LAW; P4-T13); P8 = compact-scatter 1 + dedupe-claim 1 + dedupe-filter 1 (P8-T3; the later P8 tasks raise it by
- * the number the generator reports). The
+ * LAW; P4-T13); P8 = compact-scatter 1 + dedupe-claim 1 + dedupe-filter 1 (P8-T3) + frontier-finalize 1 (P8-T4; the
+ * later P8 tasks raise it by the number the generator reports). The
  * LAW != 0 x LINLOG / DISTRIBUTED combinations compile
  * and no factory emits them: the matrix is a superset by design.
  */
@@ -87,7 +87,7 @@ export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" 
     P3: 157,
     P4: 40,
     P7: 69,
-    P8: 3,
+    P8: 4,
 });
 
 /** The standard overrides the composer fills from the device; never part of a variant's identity. */

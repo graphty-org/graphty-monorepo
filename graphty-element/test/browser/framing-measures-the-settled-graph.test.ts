@@ -29,7 +29,6 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
-import { FRAMING_MARGIN } from "../../src/managers/UpdateManager";
 
 /**
  * Enough nodes and edges that the force layout moves them a measurable distance per step, so a box
@@ -82,7 +81,7 @@ describe("framing the graph", () => {
     let framings: Framing[];
 
     /**
-     * Where the layout engine has the nodes right now, boxed the way the element boxes them, margin included.
+     * Where the layout engine has the nodes right now, boxed the way the element boxes them.
      * @returns The corners of that box, or undefined when nothing is placed yet.
      */
     function whereTheLayoutPutTheNodes(): Box | undefined {
@@ -103,7 +102,7 @@ describe("framing the graph", () => {
             }
 
             const at = engine.getNodePosition(node);
-            const half = node.size / 2 + FRAMING_MARGIN;
+            const half = node.size / 2;
             const position = new Vector3(at.x, at.y, at.z ?? 0);
 
             min ??= position.clone();

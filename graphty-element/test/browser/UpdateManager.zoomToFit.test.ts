@@ -3,15 +3,15 @@
  *
  * A label plane's size depends on its text, font size and the machine's font metrics. When the
  * framing box included label meshes, editing one label moved the camera pivot and distance, and
- * the same layout framed differently on two machines. The box is now the visible nodes plus a
- * fixed margin, so it is a function of node positions and sizes only.
+ * the same layout framed differently on two machines. The box is now the visible nodes out to their
+ * size, so it is a function of node positions and sizes only.
  */
 
 import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
-import { FRAMING_MARGIN, nodeFramingBox } from "../../src/managers/UpdateManager";
+import { nodeFramingBox } from "../../src/managers/UpdateManager";
 
 /** Three nodes at fixed places, so the only thing that can change the framing is the labels. */
 const NODES = [
@@ -141,7 +141,7 @@ describe("zoom-to-fit framing", () => {
         });
     }
 
-    it("frames the visible nodes plus a fixed margin", async () => {
+    it("frames the visible nodes out to their size and no further", async () => {
         const framing = await frame();
         const expected = nodeFramingBox(graph.getNodes());
         assert.isDefined(expected);
@@ -151,10 +151,12 @@ describe("zoom-to-fit framing", () => {
             assert.closeTo(framing.max[axis], expected.max[axis], 1e-6);
         }
 
-        // Node a sits at x = -4 and is size 1, so the box reaches half a node plus the margin past it.
+        // Node a sits at x = -4 and is size 1, so the box reaches half a node past it. Nothing
+        // more: a margin on top is paid by every graph, labelled or not, and pulled a two-node
+        // graph's camera from 6.0 to 8.6 units out, shrinking everything drawn on it.
         const half = (graph.getNode("a")?.size ?? 0) / 2;
-        assert.closeTo(framing.min.x, -4 - half - FRAMING_MARGIN, 1e-4);
-        assert.closeTo(framing.max.y, 3 + half + FRAMING_MARGIN, 1e-4);
+        assert.closeTo(framing.min.x, -4 - half, 1e-4);
+        assert.closeTo(framing.max.y, 3 + half, 1e-4);
     });
 
     it("frames the same box with labels as without them", async () => {

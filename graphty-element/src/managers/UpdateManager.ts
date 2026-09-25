@@ -16,17 +16,13 @@ import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 
 /**
- * How far past the nodes a framing reaches, in world units, on every side.
+ * The box the camera is framed on: every visible node, where it is in world space, out to its size.
+ * A function of node positions and sizes only, never of label text: a label plane's size depends on
+ * its text, font and the machine's font metrics, so framing labels made editing one move the camera.
  *
- * Room for a typical label, FIXED rather than measured: a label plane's size depends on its text,
- * font and the machine's font metrics, so framing the labels themselves made editing one label
- * move the whole camera and made the same layout frame differently on two machines.
- */
-export const FRAMING_MARGIN = 1;
-
-/**
- * The box the camera is framed on: every visible node, where it is in world space, plus
- * {@link FRAMING_MARGIN}. A function of node positions and sizes only, never of label text.
+ * NO MARGIN on top. A fixed one is paid by every graph, labelled or not, and on a small graph it is
+ * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
+ * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
  * @returns The corners, or undefined when no node is visible.
  */
@@ -49,7 +45,7 @@ export function nodeFramingBox(nodes: Iterable<Node>): { min: Vector3; max: Vect
         node.mesh.computeWorldMatrix(true);
 
         const pos = node.mesh.getAbsolutePosition();
-        const half = node.size / 2 + FRAMING_MARGIN;
+        const half = node.size / 2;
 
         min ??= pos.clone().setAll(Infinity);
         max ??= pos.clone().setAll(-Infinity);

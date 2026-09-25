@@ -4,6 +4,7 @@
  * check green for the constants nothing in src/ reads before P1).
  */
 
+import { bfsRingSlots } from "../../src/algorithms/bfs.js";
 import {
     ARC_WINDOW_ALIGN,
     BEAMER_BETA,
@@ -250,6 +251,24 @@ describe("constants.ts (contract 3.2)", () => {
         expect(BEAMER_BETA).toBe(24);
         expect(SSSP_DELTA_FACTOR).toBe(32);
         expect(F32_INF_BITS).toBe(0x7f800000);
+    });
+
+    it("pins the BFS ring arithmetic (P8-T12): 304 at one window, 1,200 at eight, 4 x levels per extra window once the level submit is the larger batch (a fifth per-window kernel must change this pin), and never below the result batch's 34 + w at any cadence", () => {
+        expect(bfsRingSlots(1, MAX_LEVELS_PER_SUBMIT)).toBe(304);
+        expect(bfsRingSlots(8, MAX_LEVELS_PER_SUBMIT)).toBe(1200);
+        // the result batch (two fills, the 32-bit radix sort's four passes of at most eight records, sssp-pred per
+        // window) is 34 + w at most and flushes in its own submit: at cadence 1 or 2 it can be the larger batch
+        expect(bfsRingSlots(1, 1)).toBe(35);
+        expect(bfsRingSlots(1, 2)).toBe(35);
+        for (const levels of [1, 2, 3, 7, MAX_LEVELS_PER_SUBMIT]) {
+            for (let w = 1; w <= 64; w++) {
+                expect(bfsRingSlots(w, levels)).toBeGreaterThanOrEqual(34 + w);
+                expect(bfsRingSlots(w, levels)).toBeGreaterThanOrEqual((5 + 4 * w) * levels + 16);
+                if (levels >= 3) {
+                    expect(bfsRingSlots(w + 1, levels) - bfsRingSlots(w, levels)).toBe(4 * levels);
+                }
+            }
+        }
     });
 
     it("F32_INF_BITS is the bit pattern of +Infinity, derived rather than remembered", () => {

@@ -1057,6 +1057,15 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             minFactor: 10,
             test: ADVANCE_TEST,
         },
+        {
+            // the row is not clipped to the bound window (P8-T12; the twin of degree's rebase-ignored): invisible on the
+            // first window, wrong on every later one -- the windowed star hub of advanceReport re-counts the whole row
+            name: "clip-ignored",
+            find: "let lo = max(rowPtr[v], P.arcBase);",
+            replace: "let lo = rowPtr[v];",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
     ]),
     // P8-T6: every row is measured by bfsReport (test/helpers/bfs.ts) through the BFS test
     "bfs-contract": Object.freeze([

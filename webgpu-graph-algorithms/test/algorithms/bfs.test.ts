@@ -18,12 +18,15 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 import { type TestContext } from "vitest";
 
 import { type BfsTuning, bfsWithTuning, breadthFirstSearch } from "../../src/algorithms/bfs.js";
+import { type AlgorithmScope } from "../../src/algorithms/scope.js";
 import { FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
 import { GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
 import { type UniformValues } from "../../src/kernel/struct-block.js";
+import { GraphResidency } from "../../src/memory/residency.js";
 import { verifyDevice } from "../../src/primitives/verify.js";
 import { type BfsOptions } from "../../src/types/accelerator.js";
+import { type PlanCaps } from "../../src/types/context.js";
 import { type GpuBfsResult } from "../../src/types/traversal.js";
 import { levelsOf } from "../helpers/advance.js";
 import {
@@ -36,11 +39,14 @@ import {
     STRIDE_PATH_NODES,
     unvisitedListLenAt,
 } from "../helpers/bfs.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
+import { withResidency } from "../helpers/degree-check.js";
 import { readU32 } from "../helpers/device.js";
 import {
     completeEdges,
     type EdgeSpec,
     gridEdges,
+    hubbedRandom,
     KARATE_EDGES,
     pathEdges,
     randomEdges,
@@ -104,6 +110,19 @@ async function expectRejection(promise: Promise<unknown>, code: string): Promise
     }
     expect(caught).toMatchObject({ code });
     return caught as WebGpuGraphError;
+}
+
+/** The context with its caps replaced (the driver's binding-limit check reads `ctx.caps`, the residency its own). */
+function withCaps(ctx: GpuContext, caps: PlanCaps): GpuContext {
+    return new Proxy(ctx, {
+        get(target, key, receiver): unknown {
+            if (key === "caps") {
+                return caps;
+            }
+            const value: unknown = Reflect.get(target, key, receiver);
+            return typeof value === "function" ? value.bind(target) : value;
+        },
+    });
 }
 
 /** The reached nodes of `order` grouped by depth, each group sorted ascending. */
@@ -622,6 +641,97 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(unvisitedListLenAt(isolated, isolatedDepth, 0)).toBe(n - 1);
         ctx.release(isolated);
     }, 300_000);
+
+    it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row straddling two) the traversal from the hub and from a leaf gives depth, parent, order and the counts bitwise equal to the unwindowed run's and the oracle's -- at the default cadence, at cadence 1 and with bottom-up forced -- with no ring overrun; a directed snapshot whose reverse adjacency exceeds the binding limit is E_TOO_LARGE before any device work", async (t) => {
+        const ctx = await context(t);
+        const scale = gpuScale();
+        const limit = Math.max(256, 256 * Math.round((2 ** 20 * scale) / 256));
+        // the planner needs rowPtr inside the binding too: the largest row count whose rowPtr fits (262,143 at 1 MiB)
+        const n = limit / 4 - 1;
+        const s = hubbedRandom(n, 10 * n, Math.ceil(300_000 * scale), 20);
+        const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: limit });
+        const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+        try {
+            const faked = withResidency(ctx, residency);
+            const core = residency.core(s);
+            expect(core.plan).toBe("windowed");
+            const windows = core.windows ?? [];
+            expect(windows.length, "windows").toBeGreaterThanOrEqual(8);
+            expect(
+                windows.filter((w) => w.rowFirst <= 0 && w.rowLast >= 0).length,
+                "windows the hub row spans",
+            ).toBeGreaterThanOrEqual(2);
+            // alpha U32_MAX makes Beamer's test switch to bottom-up on the first growing level, so the sweep runs
+            // per window of the reverse core too (the forward core's windows, on this undirected snapshot)
+            const variants: readonly (readonly [string, BfsTuning])[] = [
+                ["default cadence", {}],
+                ["cadence 1", { levelsPerSubmit: 1 }],
+                ["bottom-up forced", { alpha: U32_MAX }],
+            ];
+            for (const source of [0, n - 1]) {
+                const want = bfsOracle(s, source);
+                for (const [name, tuning] of variants) {
+                    const label = `windowed from ${source}, ${name}`;
+                    // both runs hand their scope out, and neither ring may have wrapped over a record its batch still
+                    // read (the unwindowed run at cadence 1 is where a result batch larger than the ring shows)
+                    const held: { whole: AlgorithmScope | null; windowed: AlgorithmScope | null } = {
+                        whole: null,
+                        windowed: null,
+                    };
+                    const whole = await bfsWithTuning(ctx, s, source, undefined, {
+                        ...tuning,
+                        onScope: (scope) => {
+                            held.whole = scope;
+                        },
+                    });
+                    const windowed = await bfsWithTuning(faked, s, source, undefined, {
+                        ...tuning,
+                        onScope: (scope) => {
+                            held.windowed = scope;
+                        },
+                    });
+                    expect(held.whole?.ringOverruns(), `${label}: ring overruns of the unwindowed run`).toBe(0);
+                    expect(
+                        held.windowed?.ringOverruns(),
+                        `${label}: ring overruns over ${windows.length} windows`,
+                    ).toBe(0);
+                    expectBitwiseEqual(windowed.depth, want.depth, `${label}: depth (the depth buffer) vs the oracle`);
+                    expectBitwiseEqual(windowed.depth, whole.depth, `${label}: depth vs the unwindowed run`);
+                    expectBitwiseEqual(
+                        windowed.parent,
+                        whole.parent,
+                        `${label}: parent (the pred buffer) vs the unwindowed run`,
+                    );
+                    expectBitwiseEqual(
+                        windowed.order,
+                        whole.order,
+                        `${label}: order (the sorted vals buffer) vs the unwindowed run`,
+                    );
+                    expect(windowed.visitedCount, `${label}: visitedCount`).toBe(whole.visitedCount);
+                    expect(windowed.levels, `${label}: levels`).toBe(whole.levels);
+                    expect(windowed.switches, `${label}: switches`).toBe(whole.switches);
+                    if (tuning.alpha === U32_MAX) {
+                        expect(windowed.switches, `${label}: the sweep ran`).toBeGreaterThanOrEqual(1);
+                    }
+                }
+            }
+        } finally {
+            residency.destroyAll();
+        }
+        ctx.release(s);
+        // the reverse view of a directed snapshot is never windowed (spec 4.3): refused up front, no device work
+        const directed = snapshotOf(KARATE_EDGES, { directed: true, label: "karate-directed-tiny-limit" });
+        const tiny = withCaps(ctx, fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 }));
+        const err = await expectRejection(breadthFirstSearch(tiny, directed, 0), "E_TOO_LARGE");
+        expect(err.details).toMatchObject({
+            needed: 4 * directed.arcCount,
+            limit: 256,
+            path: "windowed",
+            algorithm: "breadthFirstSearch",
+        });
+        expect(ctx.residency.stats().snapshots).toBe(1);
+        ctx.release(directed);
+    }, 600_000);
 
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);

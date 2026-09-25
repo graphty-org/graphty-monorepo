@@ -8,7 +8,8 @@
  * the sabotage suite measures, bitwise (ratioOf(|a - b|, 0): any mismatch is Infinity) over the sorted queue and the
  * three counters of the reversed karate vertex set (the reversed order is what makes a lower-bound search read the
  * wrong row at every block boundary: on an index-ordered frontier `rowStart[k - 1] + deg[k - 1]` IS `rowStart[k]`),
- * a few grid levels, the star hub, and the overflow case with the faked capacity.
+ * a few grid levels, the star hub, the overflow case with the faked capacity, and the star hub over arc windows under
+ * a faked binding limit (P8-T12: the row straddles two windows, so an ignored clip re-counts it).
  */
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
@@ -18,6 +19,7 @@ import { U32_MAX } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { CommandBatch } from "../../src/kernel/batch.js";
 import { FRONTIER_COUNTERS } from "../../src/kernels.js";
+import { GraphResidency } from "../../src/memory/residency.js";
 import { type AdvancePlanner, prepareAdvance } from "../../src/primitives/advance.js";
 import {
     type FrontierFinalizeFields,
@@ -26,7 +28,9 @@ import {
     SLOT,
 } from "../../src/primitives/frontier.js";
 import { advanceOracle } from "../oracle/advance.js";
+import { fakeCaps } from "./caps-tables.js";
 import { sortedU32 } from "./compact.js";
+import { withResidency } from "./degree-check.js";
 import { readU32 } from "./device.js";
 import { bitwiseReports, type CounterWord, decodeCounters, POISON, slotOf, ZERO_SLOT } from "./frontier.js";
 import { gridEdges, KARATE_EDGES, snapshotOf, starEdges } from "./graphs.js";
@@ -67,9 +71,11 @@ export async function runAdvance(
     frontiers: readonly ArrayLike<number>[],
     options?: AdvanceOptions,
 ): Promise<AdvanceRun[]> {
-    const scope = algorithmScope(ctx, "advance-test", 8);
+    // the ring holds the finalize records and one advance record PER WINDOW of the core (P8-T12); the run asserts
+    // no reservation wrapped over a dirty record, the overrun the counter exists to name
+    const core = ctx.residency.core(s);
+    const scope = algorithmScope(ctx, "advance-test", 4 + (core.windows?.length ?? 1));
     try {
-        const core = ctx.residency.core(s);
         const planner: FrontierPlanner = await prepareFrontier(scope, s.nodeCount, s.arcCount, options?.edgeCapacity);
         const advance: AdvancePlanner = await prepareAdvance(scope, core);
         const { frontier } = planner;
@@ -91,11 +97,12 @@ export async function runAdvance(
             const batch = new CommandBatch(ctx, "advance-test");
             const pass = batch.pass("advance");
             planner.recordFinalize(pass, 0, 0, FIELDS);
-            advance.record(pass, frontier, 0, { arcBase: 0, arcEnd: s.arcCount });
+            advance.record(pass, frontier, 0);
             if (options?.role1 === true) {
                 planner.recordFinalize(pass, 1, 0, FIELDS);
             }
             scope.flush();
+            expect(scope.ringOverruns(), "advance-test ring overruns").toBe(0);
             await batch.submit().readback;
             const block = await readU32(
                 ctx,
@@ -231,6 +238,29 @@ export async function advanceReport(ctx: GpuContext): Promise<CheckReport> {
     const star = snapshotOf(starEdges(10_000));
     const [hub] = await runAdvance(ctx, star, [[0]]);
     reports.push(...differentialReports("star-hub", hub, star, [0]));
+
+    // the hub over arc windows (P8-T12): the smallest faked binding limit that still holds the star's rowPtr splits
+    // the 10,000-arc hub row across two windows (9,984 arcs fit the first), the case the clip exists for; the
+    // clip-ignored row re-counts the whole row in the second window
+    const limit = 4 * (star.nodeCount + 1);
+    const residency = new GraphResidency(
+        ctx.device,
+        fakeCaps(ctx.caps, { maxStorageBufferBindingSize: limit }),
+        ctx.allocator,
+        {
+            warnUnreleasedSnapshots: 2,
+        },
+    );
+    try {
+        const hubWindows = residency.core(star).windows?.filter((w) => w.rowFirst <= 0 && w.rowLast >= 0) ?? [];
+        if (hubWindows.length < 2) {
+            throw new Error("advance sabotage precondition: the hub row must straddle two windows");
+        }
+        const [windowedHub] = await runAdvance(withResidency(ctx, residency), star, [[0]]);
+        reports.push(...differentialReports("star-hub-windowed", windowedHub, star, [0]));
+    } finally {
+        residency.destroyAll();
+    }
 
     const oracle = sortedU32(advanceOracle(star, [0]));
     const [overflow] = await runAdvance(ctx, star, [[0]], { edgeCapacity: 4096, role1: true });

@@ -18,6 +18,8 @@ export interface AlgorithmScope extends FrontierScope {
     flush(): void;
     /** Destroys the ring and releases every scratch buffer of the lease; idempotent. */
     dispose(): void;
+    /** The ring's `overruns` so far: reservations that wrapped over a record the batch being recorded still reads (0 on a correctly sized ring; P8-T12). */
+    ringOverruns(): number;
 }
 
 /**
@@ -55,5 +57,6 @@ export function algorithmScope(ctx: GpuContext, label: string, slots: number): A
             ring.destroy();
             lease.release();
         },
+        ringOverruns: () => ring.overruns,
     };
 }

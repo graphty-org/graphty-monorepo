@@ -7,8 +7,9 @@
  * `wg_scan_u32` takes its Hillis-Steele form) agrees bitwise on the sorted queue. The word past `edgeCount` keeps its
  * poison, so the kernel writes exactly the reserved span. The overflow case (PD-23) fakes a 4,096-entry capacity
  * under the 10,000-degree star hub: the unclamped word is the detector, role 1 clamps `edgeCount`, zeroes the
- * contract slot and sizes the fused-retry slot. A bad level, window or frontier is E_INVALID_ARGUMENT naming it
- * before anything is recorded.
+ * contract slot and sizes the fused-retry slot. The windowed case (P8-T12, DEP-P8-E lifted) fakes the binding limit
+ * so the core is bound as arc windows (the hub row straddling two of them) and holds the per-window expansion equal
+ * to the whole-core one. A bad level or frontier is E_INVALID_ARGUMENT naming it before anything is recorded.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -18,16 +19,19 @@ import { algorithmScope } from "../../src/algorithms/scope.js";
 import { MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
+import { GraphResidency } from "../../src/memory/residency.js";
 import { prepareAdvance } from "../../src/primitives/advance.js";
 import { prepareFrontier, SLOT } from "../../src/primitives/frontier.js";
 import { advanceReport, expectSubMultiset, levelsOf, runAdvance } from "../helpers/advance.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
 import { sortedU32 } from "../helpers/compact.js";
+import { withResidency } from "../helpers/degree-check.js";
 import { POISON, slotOf, ZERO_SLOT } from "../helpers/frontier.js";
-import { gridEdges, KARATE_EDGES, rmatEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
+import { gridEdges, hubbedRandom, KARATE_EDGES, rmatEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { advanceOracle } from "../oracle/advance.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 /** The star hub's degree; the overflow case fakes a capacity below it. */
 const HUB_DEGREE = 10_000;
@@ -188,6 +192,52 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         expect(slotOf(fits.args, 0, SLOT.fusedRetry)).toEqual([...ZERO_SLOT]);
     });
 
+    it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row longer than one window) the sorted edge queue (edgeQueue buffer) and the counters block of the hub alone and of the whole vertex set equal the unwindowed run's and the oracle, twice", async (t) => {
+        const ctx = await context(t);
+        const scale = gpuScale();
+        const limit = Math.max(256, 256 * Math.round((2 ** 20 * scale) / 256));
+        // the planner needs rowPtr inside the binding too: the largest row count whose rowPtr fits (262,143 at 1 MiB)
+        const n = limit / 4 - 1;
+        const s = hubbedRandom(n, 10 * n, Math.ceil(300_000 * scale), 20);
+        const frontiers = [[0], iota(n)];
+        const whole = await runAdvance(ctx, s, frontiers);
+        const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: limit });
+        const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+        try {
+            const faked = withResidency(ctx, residency);
+            const core = residency.core(s);
+            expect(core.plan).toBe("windowed");
+            const windows = core.windows ?? [];
+            expect(windows.length, "windows").toBeGreaterThanOrEqual(8);
+            expect(
+                windows.filter((w) => w.rowFirst <= 0 && w.rowLast >= 0).length,
+                "windows the hub row spans",
+            ).toBeGreaterThanOrEqual(2);
+            const windowed = await runAdvance(faked, s, frontiers);
+            const again = await runAdvance(faked, s, frontiers);
+            frontiers.forEach((list, k) => {
+                const want = sortedU32(advanceOracle(s, list));
+                expectBitwiseEqual(sortedU32(whole[k].queue), want, `whole[${k}]: the sorted edge queue vs the oracle`);
+                expectBitwiseEqual(
+                    sortedU32(windowed[k].queue),
+                    want,
+                    `windowed[${k}]: the sorted edge queue (edgeQueue buffer) over ${windows.length} windows vs the oracle`,
+                );
+                expect(windowed[k].counters, `windowed[${k}]: the counters block vs the unwindowed run`).toEqual(
+                    whole[k].counters,
+                );
+                expect(windowed[k].tail, `windowed[${k}]: the word past edgeCount`).toBe(whole[k].tail);
+                expectBitwiseEqual(sortedU32(again[k].queue), want, `windowed[${k}]: the sorted edge queue, run twice`);
+                expect(again[k].counters, `windowed[${k}]: the counters block, run twice`).toEqual(
+                    windowed[k].counters,
+                );
+            });
+        } finally {
+            residency.destroyAll();
+        }
+        ctx.release(s);
+    }, 300_000);
+
     it("the sabotage check passes on the real kernel (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await advanceReport(ctx);
@@ -195,7 +245,7 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         assertCheckPasses(report);
     }, 120_000);
 
-    it("a level outside the submit, a window outside the core or reversed, or a frontier of another n is E_INVALID_ARGUMENT naming it before anything is recorded", async (t) => {
+    it("a level outside the submit or a frontier of another n is E_INVALID_ARGUMENT naming it before anything is recorded; an unwindowed core is one window over every arc", async (t) => {
         const ctx = await context(t);
         const karate = snapshotOf(KARATE_EDGES);
         const scope = algorithmScope(ctx, "advance-errors", 8);
@@ -203,20 +253,15 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
             const core = ctx.residency.core(karate);
             const { frontier } = await prepareFrontier(scope, karate.nodeCount, karate.arcCount);
             const advance = await prepareAdvance(scope, core);
-            const whole = { arcBase: 0, arcEnd: karate.arcCount };
+            expect(advance.windows.map((w) => [w.arcBase, w.arcEnd])).toEqual([[0, karate.arcCount]]);
             const encoder = ctx.device.createCommandEncoder();
             const pass = encoder.beginComputePass();
-            expect(argumentOf(() => advance.record(pass, frontier, MAX_LEVELS_PER_SUBMIT, whole))).toBe("level");
-            expect(argumentOf(() => advance.record(pass, frontier, -1, whole))).toBe("level");
-            expect(argumentOf(() => advance.record(pass, frontier, 0.5, whole))).toBe("level");
-            expect(argumentOf(() => advance.record(pass, frontier, 0, { arcBase: -1, arcEnd: 4 }))).toBe("arcBase");
-            expect(
-                argumentOf(() => advance.record(pass, frontier, 0, { arcBase: 0, arcEnd: karate.arcCount + 1 })),
-            ).toBe("arcEnd");
-            expect(argumentOf(() => advance.record(pass, frontier, 0, { arcBase: 5, arcEnd: 4 }))).toBe("arcEnd");
+            expect(argumentOf(() => advance.record(pass, frontier, MAX_LEVELS_PER_SUBMIT))).toBe("level");
+            expect(argumentOf(() => advance.record(pass, frontier, -1))).toBe("level");
+            expect(argumentOf(() => advance.record(pass, frontier, 0.5))).toBe("level");
             const other = await prepareFrontier(scope, karate.nodeCount + 1, karate.arcCount);
-            expect(argumentOf(() => advance.record(pass, other.frontier, 0, whole))).toBe("frontier");
-            expect(argumentOf(() => advance.record(pass, frontier, MAX_LEVELS_PER_SUBMIT - 1, whole))).toBeNull();
+            expect(argumentOf(() => advance.record(pass, other.frontier, 0))).toBe("frontier");
+            expect(argumentOf(() => advance.record(pass, frontier, MAX_LEVELS_PER_SUBMIT - 1))).toBeNull();
             pass.end();
         } finally {
             scope.dispose();

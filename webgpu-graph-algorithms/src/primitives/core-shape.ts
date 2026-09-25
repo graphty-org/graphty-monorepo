@@ -107,6 +107,40 @@ export function windowBinding(core: CoreBinding, name: "colIdx" | "weights" | "a
     return { buffer, offset: w.offset, size: 4 * (w.end - w.start), window: w };
 }
 
+/** One dispatch of a frontier-walking kernel over a core (P8-T12): the arc range it owns and the core with its arc-indexed arrays bound to that window (the core itself, over every arc, when it is not windowed). */
+export interface CoreWindow {
+    readonly arcBase: number;
+    readonly arcEnd: number;
+    readonly core: CoreBinding;
+}
+
+/**
+ * The per-window dispatches of a kernel that walks rows named by a FRONTIER rather than by a row range (P8-T12:
+ * `advance-expand`, `bfs-fused`, `bfs-bottom-up`, `sssp-pred`): every window sees every frontier entry and clips
+ * each row to `[arcBase, arcEnd)`, so the ranges must PARTITION `[0, arcCount)` or a row is expanded twice. P4's
+ * windows do not: `planArcWindows` opens a window at the previous window's end aligned DOWN to 64 arcs, so two
+ * consecutive windows overlap by up to 63 arcs at an unaligned row boundary (the overlap belongs to the earlier
+ * window's rows, which a row-range dispatch such as `degree` never revisits). Here a window owns `[start, next
+ * window's start)` -- the last one `[start, end)` -- which is inside its binding (`next.start <= end`) and
+ * partitions the arcs exactly; a window whose owned range is empty dispatches, harmlessly, over nothing.
+ * @param core - the core (windowed or not)
+ * @returns one entry per window, in arc order; exactly one entry over `[0, arcCount)` when the core is not windowed
+ */
+export function coreWindows(core: CoreBinding): readonly CoreWindow[] {
+    if (core.windows === null) {
+        return [{ arcBase: 0, arcEnd: arcCountOf(core), core }];
+    }
+    return core.windows.map((w, k, all) => ({
+        arcBase: w.start,
+        arcEnd: k + 1 < all.length ? all[k + 1].start : w.end,
+        core: {
+            ...core,
+            colIdx: windowBinding(core, "colIdx", w),
+            weights: core.weights === null ? null : windowBinding(core, "weights", w),
+        },
+    }));
+}
+
 /**
  * Rejects a windowed core: the pull cannot accumulate its affine epilogue across windows (DEP-P4-B).
  * @param core - the core

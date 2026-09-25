@@ -28,6 +28,10 @@ Files, planned and landed, and the gate that lands each:
   distributional comparison at 262,144, and the 1M grid run with its `msPerIteration`.
   The 1M 200-iteration comparison is the owner's `benchmarks/layout-run.ts` run, never a
   lane's.
+- `advance-windowed.test.ts` (G8, landed): `breadthFirstSearch` over the 2.5M-node / 50M-arc
+  snapshot of `windowed-200mb.test.ts` at the default limits, its core in two arc windows
+  (P8-T12: every frontier-walking kernel dispatched once per window); `depth` exact against
+  the FIFO oracle, `parent` and `order` by their rules, twice.
 - `apsp-bound.test.ts` (G9): APSP exact / weighted inside the binding-size bound
   of spec 8.7 and `E_TOO_LARGE` above it.
 

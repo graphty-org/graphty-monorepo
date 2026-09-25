@@ -2,8 +2,8 @@
  * Spec 11.9 item 1 for the `advance-expand` kernel (P8-T5): every SABOTAGE row is spliced into the normative body
  * and compiled on a FRESH context, and the SAME check that passes on the real kernel -- advanceReport: the sorted
  * edge queue and the three counters against the nested-loop oracle over the reversed karate vertex set, the grid's
- * levels and the star hub, plus the overflow case with the faked capacity, all bitwise (any mismatch is Infinity) --
- * fails on the mutant by at least minFactor. The first block is the coverage loop of test/sabotage/coverage.test.ts
+ * levels and the star hub, plus the overflow case with the faked capacity and the star hub over arc windows under a
+ * faked binding limit (P8-T12), all bitwise (any mismatch is Infinity) -- fails on the mutant by at least minFactor. The first block is the coverage loop of test/sabotage/coverage.test.ts
  * applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15).
  */
 
@@ -21,13 +21,14 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."
 const ROWS = SABOTAGE[ID] ?? [];
 
 describe("sabotage: advance-expand (spec 11.9 item 1; P8-T5)", () => {
-    it("has five rows naming the advance test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has six rows naming the advance test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect(ROWS.map((m) => m.name)).toEqual([
             "scan-result-dropped",
             "lower-bound-not-upper",
             "per-lane-reservation",
             "last-entry-skipped",
             "unclamped-not-counted",
+            "clip-ignored",
         ]);
         const { body } = KERNELS[ID];
         const names = new Set<string>();

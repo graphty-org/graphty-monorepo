@@ -1670,7 +1670,10 @@ it("labels a breadth-first search computed on the device as single precision, an
     // FIFO order differs within a level, so the assertion on `order` is "grouped by level and a permutation of the
     // CPU's per-level set", which is what a reader of the panel sees preserved
 it("labels a Dijkstra run computed on the device as single precision, and its route costs the CPU's", { timeout: SETTLE_MS }, ...)
-    // gpu.session.runs.start("dijkstra") -> precision "f32"; `distance` per node equal to the cpu element's within
+    // gpu.session.runs.start("shortest-path", { method: "dijkstra", source, target }) -> precision "f32"
+    // ("dijkstra" is only a legacyKey of the `shortest-path` descriptor, graphty-element/src/catalog/algorithms.ts;
+    // RunsApi.descriptorFor matches canonical keys only, so runs.start("dijkstra") throws E_UNKNOWN_ALGORITHM
+    // before any accelerator is consulted -- every existing browser test spells it this way); `distance` per node equal to the cpu element's within
     // 1e-5 relative; `graph.cost` equal within the same tolerance; the GPU's `onPath` nodes and edges form ONE valid
     // path from the source to the target whose edge weights sum to that cost -- NOT node-for-node `onPath` equality
     // with the CPU element: the two backends break ties differently by design (the CPU port's predArc is the relaxing
@@ -1893,7 +1896,7 @@ The departures are DEP-P8-A .. G (section 0.5 of the plan) and the five decision
 | 8 | The indirect finalize clamps above 65,535 workgroups (a synthetic 17M frontier on lavapipe: x 65535, y 2, no poison word) | `test/primitives/frontier.test.ts` | {{OPEN}} |
 | 9 | The subgroup tier identical on and off at sizes 4 / 8 / 32 | P8-T15 Step 3 | {{OPEN: the three runs}} |
 | 10 | T-10 recorded: a contract on the reference card, a recorded figure on the T4 (section 3) | `benchmarks/results/*.json`, the sessions named in section 3 | {{OPEN}} |
-| 11 | The seam reaches the GPU members: graphty-element's `BFSAlgorithm` and `DijkstraAlgorithm` runs report `precision: "f32"` on a real device and agree with the CPU element | `graphty-element/test/browser/webgpu-layout.test.ts` | {{OPEN: the run}} |
+| 11 | The seam reaches the GPU members: graphty-element's `BFSAlgorithm` and `DijkstraAlgorithm` runs report `precision: "f32"` on a real device and agree with the CPU element (the Dijkstra run is started as `runs.start("shortest-path", { method: "dijkstra", source, target })`; `"dijkstra"` is a legacy alias the runs API rejects) | `graphty-element/test/browser/webgpu-layout.test.ts` | {{OPEN: the run}} |
 | 12 | Closeness on karate equals the legacy CPU function; the analytic path and star cases hold; the exact integer sums round-trip | `test/algorithms/closeness.test.ts` | {{OPEN}} |
 
 ## 3. T-10 (spec 10.4; `benchmarks/results/nvidia-lovelace-driver580.json`, session {{OPEN: date}}; `gpu-linux-t4.json`, session {{OPEN: date}}, run {{OPEN: id}})

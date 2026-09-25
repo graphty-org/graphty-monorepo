@@ -1,10 +1,10 @@
 # @graphty/graphty-element
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
-[![CI/CD](https://github.com/graphty-org/graphty-element/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-element/actions/workflows/ci.yml)
+[![CI/CD](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-element/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-element?branch=master)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty-element/)
-[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/element/)
+[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/graphty-element/)
 
 A Web Component for 3D/2D graph visualization built with Lit and Babylon.js.
 
@@ -52,7 +52,7 @@ npm install @graphty/graphty-element @babylonjs/core lit
 - [Getting Started Guide](https://graphty.app/docs/graphty-element/guide/getting-started)
 - [Installation](https://graphty.app/docs/graphty-element/guide/installation)
 - [API Reference](https://graphty.app/docs/graphty-element/api/)
-- [Interactive Examples (Storybook)](https://graphty.app/storybook/element/)
+- [Interactive Examples (Storybook)](https://graphty.app/storybook/graphty-element/)
 
 ## Features
 

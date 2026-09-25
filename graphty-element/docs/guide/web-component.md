@@ -299,7 +299,7 @@ await document.querySelector("#graph").session.styles.add({
 });
 ```
 
-See the [styling guide](/guide/styling) for selectors, channels and the rest of the vocabulary.
+See the [styling guide](./styling) for selectors, channels and the rest of the vocabulary.
 
 ## View Modes
 
@@ -583,6 +583,6 @@ See the **[JavaScript API Guide](./javascript-api)** for the complete `Graph` cl
 
 ## Interactive Examples
 
-- [Default Graph](https://graphty.app/storybook/element/?path=/story/graphty--graphty) - Basic configuration
-- [View Modes](https://graphty.app/storybook/element/?path=/story/viewmode--switch-view-modes) - 2D/3D switching
-- [Layouts](https://graphty.app/storybook/element/?path=/story/layout-3d--circular) - Different layout algorithms
+- [Default Graph](https://graphty.app/storybook/graphty-element/?path=/story/graphty--graphty) - Basic configuration
+- [View Modes](https://graphty.app/storybook/graphty-element/?path=/story/viewmode--switch-view-modes) - 2D/3D switching
+- [Layouts](https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular) - Different layout algorithms

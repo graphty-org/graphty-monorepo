@@ -462,7 +462,7 @@ initGraph();
 
 ## Interactive Examples
 
-- [Data Loading](https://graphty.app/storybook/element/?path=/story/data--basic) - Data management
-- [Selection](https://graphty.app/storybook/element/?path=/story/selection--mode-3-d) - Selection handling
-- [Algorithms](https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree-centrality) - Algorithm execution
-- [Camera](https://graphty.app/storybook/element/?path=/story/camera-controls--three-d) - Camera control
+- [Data Loading](https://graphty.app/storybook/graphty-element/?path=/story/data--basic) - Data management
+- [Selection](https://graphty.app/storybook/graphty-element/?path=/story/selection--mode-3-d) - Selection handling
+- [Algorithms](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-centrality--degree) - Algorithm execution
+- [Camera](https://graphty.app/storybook/graphty-element/?path=/story/camera-controls--three-d) - Camera control

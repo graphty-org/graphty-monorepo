@@ -74,10 +74,17 @@ jobs:
             pull-requests: write
             id-token: write
         steps:
+            # The release pushes its version commit and tags straight to master, which the
+            # "Protect master" ruleset allows only for deploy keys. So the checkout (and every
+            # git push after it) goes over SSH with the repo's release deploy key rather than
+            # GITHUB_TOKEN, which a repository ruleset cannot exempt. npm trusted publishing is
+            # unaffected: it proves this workflow's identity with the OIDC token (id-token:
+            # write above), not with the git credential. GitHub API calls in this job still use
+            # GITHUB_TOKEN.
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-                  token: ${{ secrets.GITHUB_TOKEN }}
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
             - uses: pnpm/action-setup@v4
 

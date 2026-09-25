@@ -167,4 +167,4 @@ const customGraph = new Graph<CustomId>();
 
 - [Traversal Algorithms](./traversal.md) - BFS, DFS, and more
 - [Shortest Path](./shortest-path.md) - Dijkstra, Bellman-Ford
-- [API Reference](/api/graph) - Complete Graph API
+- [API Reference](../api/generated/core/graph/classes/Graph.md) - Complete Graph API

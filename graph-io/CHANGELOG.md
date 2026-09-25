@@ -1,3 +1,13 @@
+## 0.3.2 (2026-09-25)
+
+### 🩹 Fixes
+
+- **graph-io:** importers report what they drop instead of losing it silently ([#62](https://github.com/graphty-org/graphty-monorepo/issues/62), [#63](https://github.com/graphty-org/graphty-monorepo/issues/63), [#64](https://github.com/graphty-org/graphty-monorepo/issues/64), [#65](https://github.com/graphty-org/graphty-monorepo/issues/65))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.1 (2026-09-24)
 
 ### 🧱 Updated Dependencies

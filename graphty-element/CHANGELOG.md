@@ -1,3 +1,39 @@
+## 2.2.1 (2026-09-25)
+
+### 🩹 Fixes
+
+- **graphty-element:** a label's animation no longer undoes the declutter decision ([cca39906](https://github.com/graphty-org/graphty-monorepo/commit/cca39906))
+- **graphty-element:** size the Combined Edge Flow story's arrowheads with edge strength ([e0969765](https://github.com/graphty-org/graphty-monorepo/commit/e0969765))
+- **graphty-element:** glow strength per style, and labels no longer overlap ([#129](https://github.com/graphty-org/graphty-monorepo/issues/129), [#5](https://github.com/graphty-org/graphty-monorepo/issues/5))
+- **graphty-element:** arrowheads follow the line, diagonals keep width, patterns fill edges ([#122](https://github.com/graphty-org/graphty-monorepo/issues/122), [#124](https://github.com/graphty-org/graphty-monorepo/issues/124), [#126](https://github.com/graphty-org/graphty-monorepo/issues/126))
+
+### 🔥 Performance
+
+- **graphty-element:** label declutter is an option, off by default, and runs only on change ([#5](https://github.com/graphty-org/graphty-monorepo/issues/5))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.0 (2026-09-25)
+
+### 🚀 Features
+
+- **graphty-element:** a query engine and text search behind Explore and edge endpoints ([#51](https://github.com/graphty-org/graphty-monorepo/issues/51), [#3](https://github.com/graphty-org/graphty-monorepo/issues/3))
+
+### 🩹 Fixes
+
+- **graphty-element:** csv import detects tab, semicolon and pipe delimiters, and reads .tsv ([#107](https://github.com/graphty-org/graphty-monorepo/issues/107))
+- **graphty-element:** undo, redo and select-all accept Cmd on macOS; the canvas stops taking focus ([#77](https://github.com/graphty-org/graphty-monorepo/issues/77), [#78](https://github.com/graphty-org/graphty-monorepo/issues/78))
+- **graphty-element:** the default highlight stands out from default nodes and edges ([#33](https://github.com/graphty-org/graphty-monorepo/issues/33), [#0072](https://github.com/graphty-org/graphty-monorepo/issues/0072))
+- **graphty-element:** max flow and min cut check their source and sink ([#116](https://github.com/graphty-org/graphty-monorepo/issues/116))
+- **graphty-element:** a node of size 0 draws as the smallest node ([#117](https://github.com/graphty-org/graphty-monorepo/issues/117))
+- **graphty:** overlays close pop-outs, layer drags move one layer, runs keep their layers ([#184](https://github.com/graphty-org/graphty-monorepo/issues/184), [#164](https://github.com/graphty-org/graphty-monorepo/issues/164), [#163](https://github.com/graphty-org/graphty-monorepo/issues/163), [#6](https://github.com/graphty-org/graphty-monorepo/issues/6), [#4](https://github.com/graphty-org/graphty-monorepo/issues/4))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.1.0 (2026-09-24)
 
 ### 🚀 Features

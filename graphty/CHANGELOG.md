@@ -1,3 +1,36 @@
+## 0.8.4 (2026-09-25)
+
+### 🔥 Performance
+
+- **graphty-element:** label declutter is an option, off by default, and runs only on change ([#5](https://github.com/graphty-org/graphty-monorepo/issues/5))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.2.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.3 (2026-09-25)
+
+### 🚀 Features
+
+- **graphty-element:** a query engine and text search behind Explore and edge endpoints ([#51](https://github.com/graphty-org/graphty-monorepo/issues/51), [#3](https://github.com/graphty-org/graphty-monorepo/issues/3))
+
+### 🩹 Fixes
+
+- **graphty:** overlays close pop-outs, layer drags move one layer, runs keep their layers ([#184](https://github.com/graphty-org/graphty-monorepo/issues/184), [#164](https://github.com/graphty-org/graphty-monorepo/issues/164), [#163](https://github.com/graphty-org/graphty-monorepo/issues/163), [#6](https://github.com/graphty-org/graphty-monorepo/issues/6), [#4](https://github.com/graphty-org/graphty-monorepo/issues/4))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.8.6
+- Updated graphty-element to 2.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.2 (2026-09-24)
 
 ### 🩹 Fixes

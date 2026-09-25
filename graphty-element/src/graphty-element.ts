@@ -471,7 +471,7 @@ export class Graphty extends LitElement {
      * properties can be used in style selectors and accessed via `node.data`.
      * @since 1.0.0
      * @see {@link edgeData} for edge data
-     * @see {@link https://graphty.app/storybook/element/?path=/story/graphty--default | Basic Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/graphty--graphty | Basic Examples}
      * @example HTML attribute (JSON string)
      * ```html
      * <graphty-element
@@ -1123,7 +1123,7 @@ export class Graphty extends LitElement {
      * - `fixed`: Pre-defined positions from node data
      * @since 1.0.0
      * @see {@link layoutConfig} for layout-specific options
-     * @see {@link https://graphty.app/storybook/element/?path=/story/layout--default | Layout Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular | Layout Examples}
      * @example
      * ```typescript
      * // Set force-directed layout
@@ -1192,13 +1192,16 @@ export class Graphty extends LitElement {
      * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
      * the picture was taken. `layout.stepMultiplier`, `layout.minDelta` and
      * `layout.zoomStepInterval` pace the rest of it, and `node.pinOnDrag` decides whether a node
-     * a reader drags stays where they put it.
+     * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
+     * label whose words would be drawn over another label's, keeping a selected node's label
+     * first and then the label of the node with more edges; it takes effect on the next frame.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
      * @example
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
+     * element.layoutBehavior = { labels: { declutter: true } };
      * ```
      * @returns The behaviour settings, or undefined when none have been set on this element
      */
@@ -1330,7 +1333,7 @@ export class Graphty extends LitElement {
      *
      * VR and AR modes require WebXR support in the browser.
      * @since 1.0.0
-     * @see {@link https://graphty.app/storybook/element/?path=/story/viewmode--default | View Mode Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/viewmode--switch-view-modes | View Mode Examples}
      * @example
      * ```typescript
      * element.viewMode = "2d";  // Switch to 2D orthographic view

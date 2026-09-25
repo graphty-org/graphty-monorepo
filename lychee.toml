@@ -1,0 +1,21 @@
+# Link checking for this repository, with lychee (https://lychee.cli.rs).
+#
+# Read by tools/check-links.sh (every pull request in CI, and the pre-push gate) and by
+# .github/workflows/links-weekly.yml (every external link, once a week). URL patterns that are
+# never worth checking live in .lycheeignore, each with the reason.
+
+# Check #anchors against the headings / ids of the target page
+include_fragments = "anchor-only"
+
+# VitePress links pages without an extension (./getting-started -> getting-started.md) and GitHub
+# Pages serves /docs/x from docs/x.html
+fallback_extensions = ["md", "html"]
+
+no_progress = true
+max_retries = 2
+timeout = 30
+max_concurrency = 16
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) lychee (graphty-monorepo link check)"
+
+# Rate limiting and bot walls are "unknown", not "dead": these codes never fail a run
+accept = ["100..=103", "200..=299", "403", "429"]

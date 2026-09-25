@@ -151,14 +151,14 @@ await element.session.styles.add({
 });
 ```
 
-See the [styling guide](/guide/styling) for the whole vocabulary.
+See the [styling guide](./styling) for the whole vocabulary.
 
 ## Interactive Examples
 
 See these concepts in action:
 
-- [Default Graph](https://graphty.app/storybook/element/?path=/story/graphty--graphty) - Basic graph visualization
-- [Data Loading](https://graphty.app/storybook/element/?path=/story/data--basic) - Loading data from various sources
+- [Default Graph](https://graphty.app/storybook/graphty-element/?path=/story/graphty--graphty) - Basic graph visualization
+- [Data Loading](https://graphty.app/storybook/graphty-element/?path=/story/data--basic) - Loading data from various sources
 
 ## What's Next?
 

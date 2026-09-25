@@ -1300,7 +1300,7 @@ describe("AppShell", () => {
             expect(columns.split(" ")[0]).toBe(`${ACTIVITY_RAIL_WIDTH}px`);
         });
 
-        it("leaves the main row unclipped, so the Help menu may stand outside the rail", () => {
+        it("leaves the main row unclipped", () => {
             renderShell();
 
             expect(getComputedStyle(screen.getByTestId("shell-main-row")).overflow).toBe("visible");
@@ -1375,16 +1375,44 @@ describe("AppShell", () => {
             expect(screen.getByRole("tabpanel", { name: "AI providers" })).toBeInTheDocument();
         });
 
-        it("opens the Help menu as a sibling of the rail, not as one of its children", () => {
+        it("opens the Help menu from the Help button, drawn outside the clipping rail", async () => {
+            renderShell();
+
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+
+            fireEvent.click(help);
+
+            const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });
+            const rail = screen.getByRole("navigation", { name: "Activity rail" });
+
+            expect(help).toHaveAttribute("aria-expanded", "true");
+            expect(rail).not.toContainElement(menu);
+        });
+
+        it("closes the Help menu when the Help button is clicked again", async () => {
+            renderShell();
+
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+
+            fireEvent.click(help);
+            await screen.findByRole("menu");
+            fireEvent.click(help);
+
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
+        });
+
+        it("closes the Help menu on a click outside it", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await screen.findByRole("menu");
+            fireEvent.mouseDown(screen.getByTestId("shell-body-row"));
 
-            const menu = screen.getByRole("menu");
-            const rail = screen.getByRole("navigation", { name: "Activity rail" });
-
-            expect(rail).not.toContainElement(menu);
-            expect(screen.getByTestId("shell-main-row")).toContainElement(menu);
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
         });
 
         it("leaves Help hovered rather than active while its menu is open", () => {
@@ -1400,11 +1428,11 @@ describe("AppShell", () => {
     });
 
     describe("the Help menu's destinations", () => {
-        it("opens the keyboard shortcuts surface from its first row", () => {
+        it("opens the keyboard shortcuts surface from its first row", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
 
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
         });
@@ -1413,27 +1441,30 @@ describe("AppShell", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: "Send feedback" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Send feedback" }));
 
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
     });
 
     describe("the Escape ladder", () => {
-        it("closes the Help menu on rung 2", () => {
+        it("closes the Help menu on rung 2", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await screen.findByRole("menu");
             fireEvent.keyDown(window, { key: "Escape" });
 
-            expect(screen.queryByRole("menu")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
         });
 
-        it("closes the keyboard shortcuts surface on the same rung", () => {
+        it("closes the keyboard shortcuts surface on the same rung", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             fireEvent.keyDown(window, { key: "Escape" });
 
             expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
@@ -1489,7 +1520,7 @@ describe("AppShell", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
 
             act(() => {

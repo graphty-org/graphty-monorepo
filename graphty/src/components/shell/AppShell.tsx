@@ -147,7 +147,6 @@ import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
     ACTIVITIES_REQUIRING_DATA,
     ACTIVITY_RAIL_WIDTH,
-    CANVAS_MENU_Z_INDEX,
     canvasToolbarProfile,
     SCREEN_TOO_SMALL_DETAIL_FONT_SIZE,
     SCREEN_TOO_SMALL_GAP,
@@ -211,7 +210,7 @@ import { PresentPanel } from "./panel/PresentPanel";
 import { SettingsOverlay } from "./panel/SettingsOverlay";
 import { StylePanel } from "./panel/StylePanel";
 import { ActivityRail } from "./rail/ActivityRail";
-import { HelpMenu, type HelpMenuRowId } from "./rail/HelpMenu";
+import type { HelpMenuRowId } from "./rail/HelpMenu";
 import { communityHeadline, communityReading, communityResultBody } from "./readings/communityReading";
 import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } from "./readings/graphSummaryReading";
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
@@ -2815,8 +2814,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 // rail is not covered by Settings -- it starts at the rail's right
                 // edge -- so this row stays clickable while Settings is open, and
                 // without this the menu opened underneath it and read as a dead button.
+                // The Help item is the menu's Mantine target, so the menu toggles itself
+                // through its onOpenChange; toggling here as well would cancel it out.
                 setSettingsOpen(false);
-                setHelpOpen((open) => !open);
 
                 return;
             }
@@ -5226,6 +5226,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         activeActivity={panelActivity}
                         disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
                         onActivityClick={handleActivityClick}
+                        helpMenu={{
+                            opened: helpOpen,
+                            onOpenChange: setHelpOpen,
+                            onSelect: handleHelpSelect,
+                            moreSuggestionsCount: 0,
+                            alreadyRunCount: 0,
+                        }}
                     />
                 </Box>
 
@@ -5346,21 +5353,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             setShortcutsOpen(false);
                         }}
                     />
-                </Box>
-
-                {/* The Help menu is a sibling of the rail, not a child of it: the rail
-                    clips its own overflow. It lands at left 56, bottom 4 with the menu
-                    z-index (spec 02 section 1.3). */}
-                <Box style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: CANVAS_MENU_Z_INDEX }}>
-                    <Box style={{ position: "absolute", inset: 0, pointerEvents: "auto", display: "contents" }}>
-                        <HelpMenu
-                            opened={helpOpen}
-                            onOpenChange={setHelpOpen}
-                            onSelect={handleHelpSelect}
-                            moreSuggestionsCount={0}
-                            alreadyRunCount={0}
-                        />
-                    </Box>
                 </Box>
             </Box>
 

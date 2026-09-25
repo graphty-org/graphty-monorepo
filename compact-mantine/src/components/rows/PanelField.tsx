@@ -1,4 +1,4 @@
-import { Box, type ComboboxData, NumberInput, Select, TextInput } from "@mantine/core";
+import { ActionIcon, Box, type ComboboxData, NumberInput, Select, type SelectProps, TextInput } from "@mantine/core";
 import { useMediaQuery, useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useRef } from "react";
 
@@ -13,6 +13,7 @@ import type {
     GestureEndHandler,
     GestureStartHandler,
 } from "../../types/events";
+import { useControlAnnotation } from "../../utils/control-annotation";
 import { isRtl, useDirection } from "../../utils/rtl";
 
 // RT-2 in VOCAB section 11, rebased onto Mantine per section 4 of the hardening
@@ -104,6 +105,7 @@ export interface PanelFieldProps
         | "min"
         | "onChange"
         | "onClick"
+        | "onReset"
         | "placeholder"
         | "size"
         | "step"
@@ -162,6 +164,30 @@ export interface PanelFieldProps
      * choices you present yourself, and use `onClick` to open your own panel.
      */
     data?: ComboboxData;
+    /**
+     * Whether the reader can type into a drop-down to narrow its choices.
+     * Only used when `data` is given.
+     * @default false
+     */
+    searchable?: boolean;
+    /**
+     * Draws one choice in an open drop-down, in place of its words.
+     *
+     * Mantine's own `Select` hook, passed through unchanged. Use it to draw a
+     * palette's colour strip beside its name. Only used when `data` is given.
+     */
+    renderOption?: SelectProps["renderOption"];
+    /**
+     * Called when the reader presses the reset drawn inside the field.
+     *
+     * Given, a reset button is drawn at the end of the field while it holds a
+     * value, and pressing it is how the reader says "no value here" rather
+     * than "an empty value" -- which is why the field does not clear itself:
+     * clear your value (pass `null`) in this handler. A field whose `value`
+     * is `null` holds nothing and draws no reset; an empty string is a value
+     * and does.
+     */
+    onReset?: ActivationHandler;
     /**
      * A short unit shown after the value, in the secondary text colour, at the
      * end of the same box -- "%", "px" per second, a count of links.
@@ -246,6 +272,15 @@ export interface PanelFieldProps
      */
     disabled?: boolean;
     /**
+     * One sentence saying why the field is off, shown only while `disabled` is
+     * true.
+     *
+     * It is appended to the field's tooltip after a full stop -- "Caption.
+     * This channel cannot be set" -- and joins its accessible description, the
+     * same contract every other control in the library keeps.
+     */
+    disabledReason?: string;
+    /**
      * Whether the value can be read but not changed.
      *
      * Defaults to true for a field that is given a `value` and no `onChange`,
@@ -326,6 +361,9 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         defaultValue,
         onChange,
         data,
+        searchable = false,
+        renderOption,
+        onReset,
         unit,
         width = PANEL_GRID.FIELD,
         bound = false,
@@ -340,6 +378,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         onScrubEnd,
         onClick,
         disabled = false,
+        disabledReason,
         readOnly,
         boundDescription,
         pendingDescription,
@@ -395,26 +434,28 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
     // unavailable to a screen reader, so each one also joins the field's
     // accessible description. This is Mantine's `description` element, hidden
     // from sight but wired to the input with aria-describedby by Input.Wrapper.
-    const descriptions: string[] = [];
-    if (mixed) {
-        descriptions.push(labels.mixed);
-    }
-
+    //
     // The per-field props are overrides of the shared strings rather than the
     // only way to set them, so a field that says nothing about its own states
-    // still announces them in whatever language LabelsProvider was given.
-    const boundText = boundDescription ?? labels.fieldBound;
-    const pendingText = pendingDescription ?? labels.fieldPending;
+    // still announces them in whatever language LabelsProvider was given. The
+    // disabled reason goes last, and into the tooltip, as on every control.
+    const annotation = useControlAnnotation({
+        name: label,
+        enabledTitle: title ?? label,
+        disabled,
+        disabledReason,
+        extraDescriptions: [
+            mixed ? labels.mixed : undefined,
+            bound ? (boundDescription ?? labels.fieldBound) : undefined,
+            pending ? (pendingDescription ?? labels.fieldPending) : undefined,
+        ],
+    });
+    const { description } = annotation;
 
-    if (bound && boundText !== "") {
-        descriptions.push(boundText);
-    }
-
-    if (pending && pendingText !== "") {
-        descriptions.push(pendingText);
-    }
-
-    const description = descriptions.length > 0 ? descriptions.join(". ") : undefined;
+    // A field holds a value unless it was handed `null`, or, keeping its own
+    // state, it is empty. An empty string handed in is a value.
+    const holdsValue = value === undefined ? currentValue !== "" : value !== null;
+    const showsReset = onReset !== undefined && holdsValue;
 
     const wantsScrub = onScrubStart !== undefined || onScrub !== undefined || onScrubEnd !== undefined;
     // A coarse pointer never scrubs: there the glyph is a target, not a handle.
@@ -633,9 +674,10 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
 
     const hasUnit = unit !== undefined;
     // The chevron of a drop-down lives inside the box, after the value. The
-    // trailing slot at the end of the row belongs to the row's own control.
+    // trailing slot at the end of the row belongs to the row's own control, so
+    // the field's own reset is drawn inside the box too, after everything else.
     const rightSection =
-        hasUnit || showsChevron ? (
+        hasUnit || showsChevron || showsReset ? (
             <>
                 {hasUnit && (
                     <Box
@@ -660,6 +702,29 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
                         <UiGlyph name="chevronDown" size={PANEL_GRID.GLYPH} />
                     </Box>
                 )}
+                {showsReset && (
+                    <ActionIcon
+                        variant="subtle"
+                        // The 24px target WCAG 2.5.8 asks for, the same as
+                        // every other reset in the panel.
+                        size={PANEL_GRID.TRAIL}
+                        c={PANEL_INK.CHROME}
+                        data-testid="panel-field-reset"
+                        disabled={disabled || isReadOnly}
+                        aria-label={labels.resetToDefault(label)}
+                        onClick={onReset}
+                        style={{
+                            flex: "0 0 auto",
+                            marginInlineStart: hasUnit || showsChevron ? INLINE_GAP : 0,
+                            // The section itself lets presses through to the
+                            // input, so the chevron and the unit still open and
+                            // focus the field; the reset alone takes them.
+                            pointerEvents: "auto",
+                        }}
+                    >
+                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                )}
             </>
         ) : undefined;
 
@@ -677,11 +742,14 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         trailingFixed += INLINE_GAP;
     }
 
+    if (showsReset) {
+        trailingFixed += PANEL_GRID.TRAIL + (hasUnit || showsChevron ? INLINE_GAP : 0);
+    }
+
     const rightSectionWidth =
         rightSection === undefined ? undefined : `calc(${String(unit?.length ?? 0)}ch + ${String(trailingFixed)}px)`;
 
     const leftSectionPointerEvents: React.CSSProperties["pointerEvents"] = canScrub ? "auto" : "none";
-    const rightSectionPointerEvents: React.CSSProperties["pointerEvents"] = "none";
 
     const common = {
         // Before the spread, so that a caller who supplies their own test id on
@@ -712,7 +780,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         },
         rightSection,
         rightSectionWidth,
-        rightSectionPointerEvents,
+        rightSectionPointerEvents: "none" as const,
         rightSectionProps: {
             style: {
                 insetInlineEnd: 0,
@@ -761,7 +829,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
             // input, so that hovering the glyph shows it too -- and so that it
             // does not become the input's accessible description, which would
             // make a screen reader read every field's name twice.
-            title: title ?? label,
+            title: annotation.title,
             "data-testid": "panel-field",
             "data-kind": kind,
             "data-bound": bound ? "true" : undefined,
@@ -811,6 +879,8 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
             <Select
                 {...common}
                 data={data}
+                searchable={searchable}
+                renderOption={renderOption}
                 value={hidesValue || valueText === "" ? null : valueText}
                 onChange={(next) => {
                     handleChange(next ?? "");

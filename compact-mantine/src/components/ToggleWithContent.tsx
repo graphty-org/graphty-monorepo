@@ -1,12 +1,13 @@
-import { Box, Checkbox, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Box, Checkbox, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useId } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels } from "../i18n";
-import { FieldGlyph } from "../icons";
-import type { ChangeHandler } from "../types/events";
+import { FieldGlyph, UiGlyph } from "../icons";
+import type { ActivationHandler, ChangeHandler } from "../types/events";
 import { useControlAnnotation } from "../utils/control-annotation";
+import { holdsSomething, TrailingSlot } from "./rows/TrailingSlot";
 
 // Contract sections 1.1, 1.5, 2.3, 3 and 7 were applied to this file: the
 // value-first change handler with the event second, the forwarded focus and
@@ -121,6 +122,31 @@ export interface ToggleWithContentProps {
      * documents.
      */
     boundDescription?: string;
+    /**
+     * Whether the state shown is a default the reader has not set here.
+     *
+     * Pass the default as `checked` and set this while the value is unset:
+     * the word is drawn in the italic default ink `StyleSelect` uses, and no
+     * reset is offered.
+     * @default false
+     */
+    inherited?: boolean;
+    /**
+     * Called when the reader presses the reset beside the toggle.
+     *
+     * Given, a reset button is drawn while the value is set (not `inherited`),
+     * which is how the reader gets back to "unset" -- false is a value, not
+     * the absence of one.
+     */
+    onReset?: ActivationHandler;
+    /**
+     * A control drawn in the fixed 24px trailing slot at the end of the
+     * toggle's row, such as a button that binds the value to data.
+     *
+     * With nothing given, no slot is drawn and the toggle keeps exactly the
+     * layout it has without this prop.
+     */
+    trailing?: React.ReactNode;
     /** Called when the checkbox takes focus. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the checkbox loses focus. */
@@ -166,6 +192,9 @@ export interface ToggleWithContentProps {
  * @param props.disabledReason - One sentence saying why the toggle is off, drawn only while it is off
  * @param props.bound - Whether the boolean comes from a data attribute rather than being set by hand
  * @param props.boundDescription - What a screen reader says about a bound toggle, defaulting to `fieldBound`
+ * @param props.inherited - Whether the state shown is a default the reader has not set here
+ * @param props.onReset - Called when the reader presses the reset, drawn while the value is set
+ * @param props.trailing - A control drawn in the trailing slot at the end of the toggle's row
  * @param props.onFocus - Called when the checkbox takes focus
  * @param props.onBlur - Called when the checkbox loses focus
  * @param props.children - The controls shown only while the feature is on
@@ -187,6 +216,9 @@ export function ToggleWithContent({
     disabledReason,
     bound = false,
     boundDescription,
+    inherited = false,
+    onReset,
+    trailing,
     onFocus,
     onBlur,
     children,
@@ -215,6 +247,14 @@ export function ToggleWithContent({
     // The minimum widths of zero are what let a label longer than the panel
     // shrink and ellipsise rather than pushing the row wider, which is what a
     // translation of a short English word usually does.
+    // Disabled ink wins; an inherited value reads in the default ink.
+    let labelInk: string = PANEL_INK.VALUE;
+    if (disabled) {
+        labelInk = PANEL_INK.DISABLED;
+    } else if (inherited) {
+        labelInk = PANEL_INK.CHROME;
+    }
+
     const controlStyles: Record<"root" | "body" | "labelWrapper" | "label", React.CSSProperties> = {
         root: { minWidth: 0 },
         body: { alignItems: "center", minWidth: 0 },
@@ -226,7 +266,8 @@ export function ToggleWithContent({
             paddingInlineStart: INLINE_GAP,
             fontSize: "var(--mantine-font-size-sm)",
             lineHeight: LABEL_LINE_HEIGHT,
-            color: disabled ? PANEL_INK.DISABLED : PANEL_INK.VALUE,
+            color: labelInk,
+            fontStyle: inherited ? "italic" : undefined,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -250,6 +291,14 @@ export function ToggleWithContent({
         disabledReason,
         extraDescriptions: bound ? [boundText] : undefined,
     });
+
+    const showsReset = onReset !== undefined && !inherited;
+    const holdsTrailing = holdsSomething(trailing);
+    // Decided by what the caller CAN draw beside the checkbox, never by what is
+    // drawn right now: if the wrapper came and went with the reset, the
+    // checkbox would change parent, React would remount it, and a keyboard user
+    // who pressed Space on an inherited toggle would lose focus to the page.
+    const hasRow = bound || onReset !== undefined || holdsTrailing;
 
     // Accessibility: the APG "Disclosure (Show/Hide)" pattern, carried by a
     // checkbox rather than by a plain button, because the control both records
@@ -289,12 +338,14 @@ export function ToggleWithContent({
             data-checked={isChecked ? "true" : "false"}
             data-disabled={disabled ? "true" : undefined}
             data-bound={bound ? "true" : undefined}
+            data-inherited={inherited ? "true" : undefined}
             style={{ display: "flex", flexDirection: "column", gap: INLINE_GAP }}
         >
-            {/* The row wrapper is added only when there is a marker to sit
-                beside the checkbox, so an ordinary toggle keeps the exact DOM
-                it has always had and no existing layout or snapshot moves. */}
-            {bound
+            {/* The row wrapper is added only when the caller asked for something
+                that can sit beside the checkbox, so an ordinary toggle keeps the
+                exact DOM it has always had and no existing layout or snapshot
+                moves. */}
+            {hasRow
                 ? (
                     <Box
                         data-testid="toggle-with-content-row"
@@ -307,18 +358,41 @@ export function ToggleWithContent({
                             follows the data" across every control that can say
                             it. It is aria-hidden, so the meaning travels in the
                             description rather than in a picture. */}
-                        <Box
-                            component="span"
-                            data-testid="toggle-with-content-bound"
-                            style={{
-                                flex: "0 0 auto",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                color: PANEL_INK.CHROME,
-                            }}
-                        >
-                            <FieldGlyph name="attribute" filled />
-                        </Box>
+                        {bound && (
+                            <Box
+                                component="span"
+                                data-testid="toggle-with-content-bound"
+                                style={{
+                                    flex: "0 0 auto",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    color: PANEL_INK.CHROME,
+                                }}
+                            >
+                                <FieldGlyph name="attribute" filled />
+                            </Box>
+                        )}
+                        {showsReset && (
+                            <ActionIcon
+                                variant="subtle"
+                                size={PANEL_GRID.TRAIL}
+                                c={PANEL_INK.CHROME}
+                                data-testid="toggle-with-content-reset"
+                                disabled={disabled}
+                                aria-label={labels.resetToDefault(label)}
+                                onClick={onReset}
+                                // Pushes the reset and the trailing slot to
+                                // the row's end, as on every other row.
+                                style={{ flex: "0 0 auto", marginInlineStart: "auto" }}
+                            >
+                                <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                            </ActionIcon>
+                        )}
+                        {holdsTrailing && (
+                            <Box style={{ marginInlineStart: showsReset ? undefined : "auto" }}>
+                                <TrailingSlot>{trailing}</TrailingSlot>
+                            </Box>
+                        )}
                     </Box>
                 )
                 : checkbox}

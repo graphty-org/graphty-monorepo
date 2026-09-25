@@ -1,8 +1,10 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "@storybook/test";
 import { useState } from "react";
 
 import {
+    AdvancedButton,
     LabelsProvider,
     StyleNumberInput,
 } from "../src";
@@ -175,5 +177,27 @@ export const RightToLeft: Story = {
                 </div>
             </DirectionProvider>
         );
+    },
+};
+
+/**
+ * The number follows a data attribute, with the button that opens the binding
+ * in the trailing slot. The filled attribute glyph sits inside the box and a
+ * screen reader hears "Bound to a data attribute".
+ */
+export const BoundWithTrailing: Story = {
+    args: {
+        label: "Size",
+        value: 2,
+        defaultValue: 1,
+        bound: true,
+        trailing: <AdvancedButton label="Bind to data" />,
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByRole("textbox", { name: "Size" })).toHaveAccessibleDescription(
+            "Bound to a data attribute",
+        );
+        await expect(canvas.getByRole("button", { name: "Bind to data" })).toBeInTheDocument();
     },
 };

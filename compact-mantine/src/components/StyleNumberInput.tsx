@@ -4,9 +4,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels, useLocale, useNumberParser } from "../i18n";
-import { UiGlyph } from "../icons";
+import { FieldGlyph, UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
+import { holdsSomething, TrailingSlot } from "./rows/TrailingSlot";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
 // the older half of the library, brought to the same standard as the row types.
@@ -126,6 +127,31 @@ export interface StyleNumberInputProps {
      * until now this component had nowhere to put it.
      */
     disabledReason?: string;
+    /**
+     * Whether the number comes from a data attribute rather than being typed
+     * in once.
+     *
+     * The control draws the filled attribute glyph inside its box -- the same
+     * glyph `PanelField` fills in -- and announces the `boundDescription`.
+     * @default false
+     */
+    bound?: boolean;
+    /**
+     * What a screen reader says about a bound control. Only used when `bound`
+     * is set.
+     *
+     * Defaults to the `fieldBound` string from `LabelsProvider`. Pass an empty
+     * string to say nothing.
+     */
+    boundDescription?: string;
+    /**
+     * A control drawn in the fixed 24px trailing slot after the number box
+     * and its reset, such as a button that binds the value to data.
+     *
+     * With nothing given, no slot is drawn and the control is laid out
+     * exactly as it is without this prop.
+     */
+    trailing?: React.ReactNode;
     /** Called when the control takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /**
@@ -173,6 +199,9 @@ export interface StyleNumberInputProps {
  * @param props.hideControls - Whether to leave out the up and down steppers, which are left out by default
  * @param props.disabled - Whether the control cannot be used at all
  * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
+ * @param props.bound - Whether the number comes from a data attribute
+ * @param props.boundDescription - What a screen reader says about a bound control
+ * @param props.trailing - A control drawn in the trailing slot
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus, after the number has been committed
  * @returns The number box, and its reset button when a number has been entered
@@ -204,6 +233,9 @@ export function StyleNumberInput({
     hideControls = true,
     disabled = false,
     disabledReason,
+    bound = false,
+    boundDescription,
+    trailing,
     onFocus,
     onBlur,
 }: StyleNumberInputProps): React.JSX.Element {
@@ -215,7 +247,12 @@ export function StyleNumberInput({
     // its own `aria-describedby` and overwrites anything passed in -- measured
     // against @mantine/core 8.3.10 -- and the description element is then
     // styled out of sight, exactly as PanelField does it.
-    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
+    const annotation = useControlAnnotation({
+        name: label,
+        disabled,
+        disabledReason,
+        extraDescriptions: bound ? [boundDescription ?? labels.fieldBound] : undefined,
+    });
     const parseNumber = useNumberParser();
     const decimalSeparator = useDecimalSeparator();
 
@@ -310,6 +347,7 @@ export function StyleNumberInput({
             align="flex-end"
             title={annotation.title}
             data-disabled={disabled ? "true" : undefined}
+            data-bound={bound ? "true" : undefined}
         >
             <NumberInput
                 data-testid="style-number-input-field"
@@ -325,6 +363,8 @@ export function StyleNumberInput({
                 decimalScale={decimalScale}
                 decimalSeparator={decimalSeparator}
                 suffix={suffix}
+                leftSection={bound ? <FieldGlyph name="attribute" filled /> : undefined}
+                leftSectionPointerEvents={bound ? "none" : undefined}
                 hideControls={hideControls}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
@@ -361,6 +401,7 @@ export function StyleNumberInput({
                     <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
                 </ActionIcon>
             )}
+            {holdsSomething(trailing) && <TrailingSlot>{trailing}</TrailingSlot>}
         </Group>
     );
 }

@@ -486,3 +486,34 @@ describe("StyleNumberInput", () => {
         });
     });
 });
+
+describe("StyleNumberInput bound state and trailing slot", () => {
+    it("announces a bound value with the fieldBound words", () => {
+        renderInput(<StyleNumberInput label="Size" defaultValue={1} bound />);
+        expect(screen.getByRole("textbox", { name: "Size" })).toHaveAccessibleDescription("Bound to a data attribute");
+        expect(screen.getByTestId("style-number-input")).toHaveAttribute("data-bound", "true");
+    });
+
+    it("takes a more specific bound description, and an empty one says nothing", () => {
+        const { unmount } = renderInput(
+            <StyleNumberInput label="Size" defaultValue={1} bound boundDescription="Follows Degree" />,
+        );
+        expect(screen.getByRole("textbox", { name: "Size" })).toHaveAccessibleDescription("Follows Degree");
+        unmount();
+
+        renderInput(<StyleNumberInput label="Size" defaultValue={1} bound boundDescription="" />);
+        expect(screen.getByRole("textbox", { name: "Size" })).toHaveAccessibleDescription("");
+    });
+
+    it("renders its trailing node, and reserves no slot without one", () => {
+        const { unmount } = renderInput(
+            <StyleNumberInput label="Size" defaultValue={1} trailing={<button type="button">Bind</button>} />,
+        );
+        expect(screen.getByRole("button", { name: "Bind" })).toBeInTheDocument();
+        expect(screen.getByTestId("trailing-slot")).toBeInTheDocument();
+        unmount();
+
+        renderInput(<StyleNumberInput label="Size" defaultValue={1} />);
+        expect(screen.queryByTestId("trailing-slot")).not.toBeInTheDocument();
+    });
+});

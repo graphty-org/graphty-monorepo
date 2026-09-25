@@ -1,11 +1,11 @@
-import { Box, Checkbox, Switch, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Box, Checkbox, Switch, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels } from "../../i18n";
-import { FieldGlyph } from "../../icons";
-import type { ChangeHandler } from "../../types/events";
+import { FieldGlyph, UiGlyph } from "../../icons";
+import type { ActivationHandler, ChangeHandler } from "../../types/events";
 import { useControlAnnotation } from "../../utils/control-annotation";
 import { useDevWarning } from "../../utils/dev-warning";
 import { TrailingSlot } from "./TrailingSlot";
@@ -187,6 +187,25 @@ export interface ToggleRowProps {
      * documents.
      */
     boundDescription?: string;
+    /**
+     * Whether the state shown is a default the reader has not set here.
+     *
+     * A boolean that a layer may leave unset has three states: unset, true and
+     * false. Pass the default as `checked` and set this while the value is
+     * unset: the word is drawn in the italic default ink `StyleSelect` uses,
+     * and no reset is offered. Clicking reports the new state as usual.
+     * @default false
+     */
+    inherited?: boolean;
+    /**
+     * Called when the reader presses the reset beside the toggle.
+     *
+     * Given, a reset button is drawn while the value is set (not `inherited`),
+     * and pressing it is how the reader gets back to "unset" -- false is a
+     * value, not the absence of one. Clear your value and pass `inherited`
+     * again.
+     */
+    onReset?: ActivationHandler;
     /** Called when the control takes focus. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. */
@@ -226,6 +245,8 @@ export interface ToggleRowProps {
  * @param props.disabledReason - One sentence saying why the toggle is off, drawn only while it is off
  * @param props.bound - Whether the boolean comes from a data attribute rather than being set by hand
  * @param props.boundDescription - What a screen reader says about a bound row, defaulting to `fieldBound`
+ * @param props.inherited - Whether the state shown is a default the reader has not set here
+ * @param props.onReset - Called when the reader presses the reset, drawn while the value is set
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
  * @returns The toggle row
@@ -248,6 +269,8 @@ export function ToggleRow({
     disabledReason,
     bound = false,
     boundDescription,
+    inherited = false,
+    onReset,
     onFocus,
     onBlur,
 }: ToggleRowProps): React.JSX.Element {
@@ -273,6 +296,14 @@ export function ToggleRow({
     // minimum widths of zero are what let a label longer than the row shrink
     // and ellipsise instead of pushing the slot out of the panel, which is what
     // a translation of an English word usually does.
+    // Disabled ink wins; an inherited value reads in the default ink.
+    let labelInk: string = PANEL_INK.VALUE;
+    if (disabled) {
+        labelInk = PANEL_INK.DISABLED;
+    } else if (inherited) {
+        labelInk = PANEL_INK.CHROME;
+    }
+
     const controlStyles: Record<"root" | "body" | "labelWrapper" | "label", React.CSSProperties> = {
         root: { flex: "1 1 auto", minWidth: 0 },
         body: { alignItems: "center", minWidth: 0 },
@@ -284,7 +315,8 @@ export function ToggleRow({
             paddingInlineStart: INLINE_GAP,
             fontSize: "var(--mantine-font-size-sm)",
             lineHeight: LABEL_LINE_HEIGHT,
-            color: disabled ? PANEL_INK.DISABLED : PANEL_INK.VALUE,
+            color: labelInk,
+            fontStyle: inherited ? "italic" : undefined,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -341,6 +373,7 @@ export function ToggleRow({
             data-checked={isChecked ? "true" : "false"}
             data-disabled={disabled ? "true" : undefined}
             data-bound={bound ? "true" : undefined}
+            data-inherited={inherited ? "true" : undefined}
             style={{
                 display: "flex",
                 alignItems: "center",
@@ -385,6 +418,23 @@ export function ToggleRow({
                 <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
             )}
             {boundMarker}
+            {/* Drawn only while there is a value of the reader's own to take
+                away, the same rule and the same 24px button the style
+                controls use. */}
+            {onReset !== undefined && !inherited && (
+                <ActionIcon
+                    variant="subtle"
+                    size={PANEL_GRID.TRAIL}
+                    c={PANEL_INK.CHROME}
+                    data-testid="toggle-row-reset"
+                    disabled={disabled}
+                    aria-label={labels.resetToDefault(label)}
+                    onClick={onReset}
+                    style={{ flex: "0 0 auto" }}
+                >
+                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                </ActionIcon>
+            )}
             <TrailingSlot>{trailing}</TrailingSlot>
         </Box>
     );

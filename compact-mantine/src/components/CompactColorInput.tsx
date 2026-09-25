@@ -16,11 +16,12 @@ import React, { useEffect, useId, useMemo, useState } from "react";
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels, useLocale, useNumberParser } from "../i18n";
-import { UiGlyph } from "../icons";
+import { FieldGlyph, UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
 import { Popout } from "./popout";
+import { holdsSomething, TrailingSlot } from "./rows/TrailingSlot";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
 // the older half of the library, brought to the same standard as the row types.
@@ -102,6 +103,15 @@ const SIX_DIGIT_HEX = /^#[0-9A-F]{6}$/iu;
 const DECIMAL_SAMPLE = 1.1;
 
 /**
+ * How many digits after the point a fraction is shown to as a percentage.
+ *
+ * Enough for any opacity a reader could see, and few enough that the
+ * floating-point noise in `0.07 * 100` (7.000000000000001) never reaches the
+ * box.
+ */
+const PERCENT_DIGITS = 4;
+
+/**
  * Which end of the joined run of controls an element sits at.
  */
 type JoinPosition = "start" | "middle" | "end";
@@ -156,17 +166,28 @@ export interface CompactColorInputProps {
     /** The colour shown, in italics, while the reader has chosen none of their own. */
     defaultColor: string;
     /**
-     * The opacity as a percentage from 0 to 100, when you drive the control
-     * from your own state. `undefined` means the reader has set none and the
-     * control is showing `defaultOpacity`.
+     * The opacity, when you drive the control from your own state: a
+     * percentage from 0 to 100, or a fraction from 0 to 1 under
+     * `opacityScale="fraction"`. `undefined` means the reader has set none and
+     * the control is showing `defaultOpacity`.
      */
     opacity?: number | undefined;
     /**
      * The opacity shown, in italics, while the reader has set none of their
-     * own.
-     * @default 100
+     * own, in the same scale as `opacity`.
+     * @default 100, or 1 under `opacityScale="fraction"`
      */
     defaultOpacity?: number;
+    /**
+     * The scale `opacity`, `defaultOpacity` and every opacity this control
+     * reports are written in.
+     *
+     * `"percent"` is 0 to 100. `"fraction"` is 0 to 1, the scale most
+     * rendering code stores, so a caller holding a fraction converts nothing.
+     * The box shows a percentage either way.
+     * @default "percent"
+     */
+    opacityScale?: "percent" | "fraction";
     /**
      * Called when the colour changes, and with `undefined` when the control is
      * reset to its default.
@@ -266,6 +287,41 @@ export interface CompactColorInputProps {
      * disabled ink, and until now this component had nowhere to put it.
      */
     disabledReason?: string;
+    /**
+     * Whether the colour half comes from a data attribute rather than being
+     * chosen by hand.
+     *
+     * The hex box draws the filled attribute glyph, and the swatch and the hex
+     * box announce `boundDescription`. The opacity half is unaffected and stays
+     * editable.
+     * @default false
+     */
+    colorBound?: boolean;
+    /**
+     * Whether the opacity half comes from a data attribute rather than being
+     * set by hand.
+     *
+     * The opacity box draws the filled attribute glyph and announces
+     * `boundDescription`. The colour half is unaffected and stays editable.
+     * @default false
+     */
+    opacityBound?: boolean;
+    /**
+     * What a screen reader says about a bound half. Only used when
+     * `colorBound` or `opacityBound` is set.
+     *
+     * Defaults to the `fieldBound` string from `LabelsProvider`. Pass an empty
+     * string to say nothing.
+     */
+    boundDescription?: string;
+    /**
+     * A control drawn in the fixed 24px trailing slot after the colour and its
+     * reset, such as a button that binds the colour to data.
+     *
+     * With nothing given, no slot is drawn and the control is laid out
+     * exactly as it is without this prop.
+     */
+    trailing?: React.ReactNode;
     /** Called when the hex box or the opacity box takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /**
@@ -300,6 +356,7 @@ export interface CompactColorInputProps {
  * @param props.defaultColor - The colour shown while the reader has chosen none of their own
  * @param props.opacity - The opacity as a percentage, when you drive the control from your own state
  * @param props.defaultOpacity - The opacity shown while the reader has set none of their own
+ * @param props.opacityScale - Whether opacities are percentages or fractions from 0 to 1
  * @param props.onColorChange - Called with the new colour, or with `undefined` when the control is reset
  * @param props.onOpacityChange - Called with the new opacity, or with `undefined` when the control is reset
  * @param props.onChange - Called once per gesture with both halves of the colour, whichever of them moved
@@ -307,6 +364,10 @@ export interface CompactColorInputProps {
  * @param props.showOpacity - Whether to offer an opacity box beside the colour
  * @param props.disabled - Whether the control cannot be used at all
  * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
+ * @param props.colorBound - Whether the colour half comes from a data attribute
+ * @param props.opacityBound - Whether the opacity half comes from a data attribute
+ * @param props.boundDescription - What a screen reader says about a bound half
+ * @param props.trailing - A control drawn in the trailing slot
  * @param props.onFocus - Called when the hex box or the opacity box takes focus
  * @param props.onBlur - Called when the hex box or the opacity box loses focus
  * @returns The joined colour control, and its reset button when something has been set
@@ -328,7 +389,8 @@ export function CompactColorInput({
     color,
     defaultColor,
     opacity,
-    defaultOpacity = MAX_OPACITY,
+    defaultOpacity,
+    opacityScale = "percent",
     onColorChange,
     onOpacityChange,
     onChange,
@@ -336,6 +398,10 @@ export function CompactColorInput({
     showOpacity = true,
     disabled = false,
     disabledReason,
+    colorBound = false,
+    opacityBound = false,
+    boundDescription,
+    trailing,
     onFocus,
     onBlur,
 }: CompactColorInputProps): React.JSX.Element {
@@ -351,7 +417,29 @@ export function CompactColorInput({
     // passed in (measured against @mantine/core 8.3.10), so those two take the
     // sentence through `description` with the description element styled out of
     // sight -- the route PanelField already uses.
-    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
+    // One annotation per half, so a bound colour is announced on the swatch
+    // and the hex box and a bound opacity on the opacity box, each on its own.
+    // The title depends only on the disabled reason, so the two agree on it.
+    const boundText = boundDescription ?? labels.fieldBound;
+    const annotation = useControlAnnotation({
+        name: label,
+        disabled,
+        disabledReason,
+        extraDescriptions: colorBound ? [boundText] : undefined,
+    });
+    const opacityAnnotation = useControlAnnotation({
+        name: label,
+        disabled,
+        disabledReason,
+        extraDescriptions: opacityBound ? [boundText] : undefined,
+    });
+
+    // The box always shows a percentage; the caller's scale is converted at
+    // the edge, on the way in and on the way out, and nowhere else.
+    const isFraction = opacityScale === "fraction";
+    const toPercent = (value: number): number =>
+        isFraction ? Number((value * MAX_OPACITY).toFixed(PERCENT_DIGITS)) : value;
+    const fromPercent = (percent: number): number => (isFraction ? percent / MAX_OPACITY : percent);
 
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
@@ -375,7 +463,7 @@ export function CompactColorInput({
     const isDefault = isColorDefault && (!showOpacity || isOpacityDefault);
 
     const displayColor = chosenColor ?? defaultColor;
-    const displayOpacity = chosenOpacity ?? defaultOpacity;
+    const displayOpacity = toPercent(chosenOpacity ?? defaultOpacity ?? fromPercent(MAX_OPACITY));
 
     // What the two boxes are showing, which is not the committed value while
     // the reader is part-way through typing.
@@ -403,7 +491,7 @@ export function CompactColorInput({
         const nextColor = carriesAlpha ? picked.slice(0, HEXA_ALPHA_START).toUpperCase() : picked.toUpperCase();
         const movesOpacity = carriesAlpha && showOpacity;
         const nextOpacity = movesOpacity
-            ? parseAlphaFromHexa(picked.slice(HEXA_ALPHA_START, HEXA_LENGTH))
+            ? fromPercent(parseAlphaFromHexa(picked.slice(HEXA_ALPHA_START, HEXA_LENGTH)))
             : chosenOpacity;
 
         setChosenColor(nextColor);
@@ -491,9 +579,10 @@ export function CompactColorInput({
 
         const clamped = Math.min(MAX_OPACITY, Math.max(MIN_OPACITY, typed));
         if (clamped !== displayOpacity) {
-            setChosenOpacity(clamped, event);
+            const next = fromPercent(clamped);
+            setChosenOpacity(next, event);
             // Both halves, every time -- see the hex commit above.
-            onChange?.(chosenColor, clamped, event);
+            onChange?.(chosenColor, next, event);
         }
 
         setOpacityDraft(clamped);
@@ -588,13 +677,16 @@ export function CompactColorInput({
                     data-testid="compact-color-input-hex"
                     disabled={disabled}
                     description={annotation.description}
+                    data-bound={colorBound ? "true" : undefined}
+                    leftSection={colorBound ? <FieldGlyph name="attribute" filled /> : undefined}
+                    leftSectionPointerEvents={colorBound ? "none" : undefined}
                     value={hexDraft}
                     onChange={handleHexChange}
                     onFocus={onFocus}
                     onBlur={handleHexBlur}
                     aria-label={labels.colorHexValue}
                     data-is-default={isColorDefault ? "true" : "false"}
-                    w={HEX_WIDTH}
+                    w={colorBound ? HEX_WIDTH + PANEL_GRID.GLYPH_SLOT : HEX_WIDTH}
                     styles={{
                         input: {
                             ...joinedCorners(hexPosition),
@@ -626,7 +718,10 @@ export function CompactColorInput({
                         <NumberInput
                             data-testid="compact-color-input-opacity"
                             disabled={disabled}
-                            description={annotation.description}
+                            description={opacityAnnotation.description}
+                            data-bound={opacityBound ? "true" : undefined}
+                            leftSection={opacityBound ? <FieldGlyph name="attribute" filled /> : undefined}
+                            leftSectionPointerEvents={opacityBound ? "none" : undefined}
                             value={opacityDraft}
                             onChange={handleOpacityChange}
                             onFocus={onFocus}
@@ -638,7 +733,7 @@ export function CompactColorInput({
                             suffix="%"
                             aria-label={labels.opacity}
                             data-is-default={isOpacityDefault ? "true" : "false"}
-                            w={OPACITY_WIDTH}
+                            w={opacityBound ? OPACITY_WIDTH + PANEL_GRID.GLYPH_SLOT : OPACITY_WIDTH}
                             styles={{
                                 input: {
                                     ...joinedCorners("end"),
@@ -679,6 +774,8 @@ export function CompactColorInput({
                     <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
                 </ActionIcon>
             )}
+
+            {holdsSomething(trailing) && <TrailingSlot>{trailing}</TrailingSlot>}
 
             {/* One hidden sentence, pointed at by the swatch button. The two
                 boxes beside it carry the same words through Input.Wrapper's own

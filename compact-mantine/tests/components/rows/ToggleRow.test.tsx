@@ -604,3 +604,71 @@ describe("ToggleRowGroup", () => {
         }
     });
 });
+
+describe("ToggleRow three states", () => {
+    /**
+     * A caller holding an unset, true or false value, the way a style layer
+     * holds a boolean channel.
+     * @param props - Component props
+     * @param props.onReset - Spy called when the reset is pressed
+     * @returns The row driven from a three-state value
+     */
+    function ThreeState({ onReset }: { onReset: () => void }): React.JSX.Element {
+        const [value, setValue] = React.useState<boolean | undefined>(undefined);
+        return (
+            <ToggleRow
+                label="Wireframe"
+                checked={value ?? false}
+                inherited={value === undefined}
+                onChange={(next) => {
+                    setValue(next);
+                }}
+                onReset={() => {
+                    onReset();
+                    setValue(undefined);
+                }}
+            />
+        );
+    }
+
+    it("goes unset, true, false and back to unset through the reset", async () => {
+        const user = userEvent.setup();
+        const onReset = vi.fn();
+        renderRow(<ThreeState onReset={onReset} />);
+
+        const checkbox = screen.getByRole("checkbox", { name: "Wireframe" });
+        const reset = (): HTMLElement | null => screen.queryByRole("button", { name: "Reset Wireframe to default" });
+
+        // Unset: drawn in the inherited italic, no reset.
+        expect(screen.getByTestId("toggle-row")).toHaveAttribute("data-inherited", "true");
+        expect(screen.getByText("Wireframe")).toHaveStyle({ fontStyle: "italic" });
+        expect(reset()).toBeNull();
+
+        await user.click(checkbox);
+        expect(checkbox).toBeChecked();
+        expect(screen.getByTestId("toggle-row")).not.toHaveAttribute("data-inherited");
+        expect(screen.getByText("Wireframe")).not.toHaveStyle({ fontStyle: "italic" });
+        expect(reset()).toBeInTheDocument();
+
+        await user.click(checkbox);
+        expect(checkbox).not.toBeChecked();
+        // False is a value, not "unset": the reset stays.
+        expect(reset()).toBeInTheDocument();
+
+        await user.click(reset() as HTMLElement);
+        expect(onReset).toHaveBeenCalledTimes(1);
+        expect(reset()).toBeNull();
+        expect(screen.getByTestId("toggle-row")).toHaveAttribute("data-inherited", "true");
+    });
+
+    it("draws no reset without onReset", () => {
+        renderRow(<ToggleRow label="Wireframe" checked />);
+        expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+    });
+
+    it("keeps the trailing slot beside the reset", () => {
+        renderRow(<ToggleRow label="Wireframe" checked onReset={vi.fn()} trailing={<AdvancedButton label="More" />} />);
+        expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "More" })).toBeInTheDocument();
+    });
+});

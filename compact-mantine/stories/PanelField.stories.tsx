@@ -1,5 +1,6 @@
 import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import React from "react";
 
 import {
@@ -403,4 +404,97 @@ export const WithLabels: Story = {
             </Stack>
         </PanelLabelsProvider>
     ),
+};
+
+/**
+ * A drop-down with too many choices to scan: `searchable` lets the reader type
+ * to narrow it. Typing "ag" leaves the two attributes that contain it.
+ */
+export const SearchableSelect: Story = {
+    render: function SearchableSelectStory(): React.JSX.Element {
+        const [value, setValue] = React.useState<string | null>(null);
+
+        return (
+            <PanelField
+                label="Attribute"
+                glyph="attribute"
+                kind="select"
+                searchable
+                data={["degree", "age", "average", "name", "community"]}
+                value={value}
+                placeholder="Choose"
+                onChange={(next) => {
+                    setValue(String(next));
+                }}
+            />
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const input = canvas.getByRole("textbox", { name: "Attribute" });
+        await userEvent.click(input);
+        await userEvent.type(input, "ag");
+
+        const page = within(canvasElement.ownerDocument.body);
+        const options = await page.findAllByRole("option");
+        await expect(options.map((option) => option.textContent)).toEqual(["age", "average"]);
+    },
+};
+
+/**
+ * A value that may be left unset. The reset inside the field is drawn while it
+ * holds a value -- an empty string included, which is a value -- and pressing
+ * it hands the caller `onReset`, who clears the value to `null`.
+ */
+export const Resettable: Story = {
+    render: function ResettableStory(): React.JSX.Element {
+        const [value, setValue] = React.useState<string | null>("{{id}}");
+
+        return (
+            <Stack gap={PANEL_GRID.TRAIL_GAP}>
+                <PanelField
+                    label="Label"
+                    kind="text"
+                    width="fill"
+                    value={value}
+                    placeholder="not set"
+                    onChange={(next) => {
+                        setValue(String(next));
+                    }}
+                    onReset={() => {
+                        setValue(null);
+                    }}
+                />
+                <Text size="xs" c={PANEL_INK.CHROME} data-testid="resettable-readout">
+                    {`value: ${value === null ? "unset" : JSON.stringify(value)}`}
+                </Text>
+            </Stack>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.click(canvas.getByRole("button", { name: "Reset Label to default" }));
+        await expect(canvas.getByTestId("resettable-readout")).toHaveTextContent("value: unset");
+        await expect(canvas.queryByRole("button", { name: "Reset Label to default" })).toBeNull();
+    },
+};
+
+/**
+ * A field that cannot be used says why: the reason is appended to its tooltip
+ * after a full stop and joins what a screen reader announces.
+ */
+export const DisabledWithReason: Story = {
+    args: {
+        label: "Marker",
+        value: "",
+        disabled: true,
+        disabledReason: "The renderer does not draw markers yet",
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByRole("textbox", { name: "Marker" })).toHaveAccessibleDescription(
+            "The renderer does not draw markers yet",
+        );
+        await expect(canvas.getByTitle("Marker. The renderer does not draw markers yet")).toBeInTheDocument();
+    },
 };

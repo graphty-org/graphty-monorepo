@@ -517,3 +517,78 @@ describe("GradientEditor", () => {
         });
     });
 });
+
+describe("GradientEditor evenly spaced", () => {
+    const twoStops = [createColorStop(0, "#FF0000"), createColorStop(1, "#0000FF")];
+
+    it("hides the position sliders", () => {
+        renderGradientEditor(<GradientEditor stops={twoStops} evenlySpaced showDirection={false} />);
+        expect(screen.queryAllByTestId("gradient-editor-stop-position")).toHaveLength(0);
+        expect(screen.queryAllByRole("slider")).toHaveLength(0);
+        expect(screen.getAllByRole("textbox", { name: /color hex/i })).toHaveLength(2);
+    });
+
+    it("re-spreads the stops when one is added", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderGradientEditor(<GradientEditor stops={twoStops} evenlySpaced onChange={onChange} />);
+
+        await user.click(screen.getByRole("button", { name: /add/i }));
+
+        const stops = onChange.mock.calls[0][0] as { offset: number; color: string }[];
+        expect(stops.map((stop) => stop.offset)).toEqual([0, 0.5, 1]);
+        expect(stops.slice(0, 2).map((stop) => stop.color)).toEqual(["#FF0000", "#0000FF"]);
+    });
+
+    it("re-spreads unevenly spaced stops when a colour is edited", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderGradientEditor(
+            <GradientEditor
+                stops={[createColorStop(0, "#FF0000"), createColorStop(0.2, "#00FF00"), createColorStop(1, "#0000FF")]}
+                evenlySpaced
+                onChange={onChange}
+            />,
+        );
+
+        const hex = screen.getAllByRole("textbox", { name: /color hex/i })[1];
+        await user.clear(hex);
+        await user.type(hex, "FFFF00");
+        await user.tab();
+
+        const stops = onChange.mock.calls.at(-1)?.[0] as { offset: number; color: string }[];
+        expect(stops.map((stop) => [stop.offset, stop.color])).toEqual([
+            [0, "#FF0000"],
+            [0.5, "#FFFF00"],
+            [1, "#0000FF"],
+        ]);
+    });
+
+    it("re-spreads on removal and stops at minStops", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderGradientEditor(
+            <GradientEditor
+                defaultStops={[
+                    createColorStop(0, "#FF0000"),
+                    createColorStop(0.2, "#00FF00"),
+                    createColorStop(1, "#0000FF"),
+                ]}
+                evenlySpaced
+                minStops={2}
+                onChange={onChange}
+            />,
+        );
+
+        await user.click(screen.getAllByRole("button", { name: /remove/i })[0]);
+
+        const stops = onChange.mock.calls[0][0] as { offset: number; color: string }[];
+        expect(stops.map((stop) => [stop.offset, stop.color])).toEqual([
+            [0, "#00FF00"],
+            [1, "#0000FF"],
+        ]);
+        for (const button of screen.getAllByRole("button", { name: /remove/i })) {
+            expect(button).toBeDisabled();
+        }
+    });
+});

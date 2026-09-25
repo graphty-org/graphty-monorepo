@@ -75,6 +75,17 @@ const ANGLE_MAX = 360;
 const ANGLE_MARKS = [0, 90, 180, 270, 360];
 
 /**
+ * The stops with their offsets spread evenly from 0 to 1, in their current
+ * order. A lone stop sits at 0.
+ * @param stops - The stops to spread
+ * @returns A new array of stops
+ */
+function spreadEvenly(stops: ColorStop[]): ColorStop[] {
+    const gaps = Math.max(1, stops.length - 1);
+    return stops.map((stop, index) => ({ ...stop, offset: index / gaps }));
+}
+
+/**
  * Props for the GradientEditor component.
  */
 export interface GradientEditorProps {
@@ -149,6 +160,19 @@ export interface GradientEditorProps {
      * @default 5
      */
     maxStops?: number;
+    /**
+     * Whether the stops are a plain list of colours with no positions of
+     * their own.
+     *
+     * The position sliders are hidden, and every stop the editor reports sits
+     * at an even spacing from 0 to 1 in list order: adding a stop appends it
+     * and re-spreads the list, removing one re-spreads what is left, and a
+     * colour edit re-spreads stops that arrived unevenly spaced. Use it
+     * for a gradient whose colours are only ever spaced evenly, such as a
+     * label background. `minStops` and `maxStops` still apply.
+     * @default false
+     */
+    evenlySpaced?: boolean;
 }
 
 /**
@@ -184,6 +208,7 @@ export interface GradientEditorProps {
  * @param props.onChangeEnd - Called once when such a change settles, with the gradient it settled on
  * @param props.minStops - The fewest stops the reader can reduce the gradient to
  * @param props.maxStops - The most stops the reader can build up to
+ * @param props.evenlySpaced - Whether the stops are a plain list of colours with no positions of their own
  * @returns The list of stops, and the direction slider when it is asked for
  * @example
  * ```tsx
@@ -213,6 +238,7 @@ export function GradientEditor({
     onChangeEnd,
     minStops = DEFAULT_MIN_STOPS,
     maxStops = DEFAULT_MAX_STOPS,
+    evenlySpaced = false,
 }: GradientEditorProps): React.JSX.Element {
     const labels = useLabels();
     const formatNumber = useNumberFormatter({ maximumFractionDigits: 0 });
@@ -279,8 +305,12 @@ export function GradientEditor({
      * @param color - The colour to give it
      * @returns A new array of stops
      */
-    const withStopColor = (index: number, color: string): ColorStop[] =>
-        stopsValue.map((stop, i) => (i === index ? { ...stop, color } : stop));
+    const withStopColor = (index: number, color: string): ColorStop[] => {
+        const recoloured = stopsValue.map((stop, i) => (i === index ? { ...stop, color } : stop));
+        // Stops handed in unevenly spaced come out even on their first edit,
+        // so every change an evenly spaced editor reports keeps its promise.
+        return evenlySpaced ? spreadEvenly(recoloured) : recoloured;
+    };
 
     /**
      * The stops with one stop moved along the gradient.
@@ -300,6 +330,11 @@ export function GradientEditor({
      */
     const addStop = (event: React.MouseEvent<HTMLButtonElement>): void => {
         if (stopsValue.length >= maxStops) {
+            return;
+        }
+
+        if (evenlySpaced) {
+            setStops(spreadEvenly([...stopsValue, createColorStop(1, DEFAULT_GRADIENT_STOP_COLOR)]), event);
             return;
         }
 
@@ -323,10 +358,8 @@ export function GradientEditor({
             return;
         }
 
-        setStops(
-            stopsValue.filter((_, i) => i !== index),
-            event,
-        );
+        const remaining = stopsValue.filter((_, i) => i !== index);
+        setStops(evenlySpaced ? spreadEvenly(remaining) : remaining, event);
     };
 
     const atMax = stopsValue.length >= maxStops;
@@ -371,6 +404,7 @@ export function GradientEditor({
                                 }}
                                 showOpacity={false}
                             />
+                            {!evenlySpaced && (
                             <Box style={{ width: STOP_SLIDER_WIDTH }}>
                                 <Slider
                                     data-testid="gradient-editor-stop-position"
@@ -389,6 +423,7 @@ export function GradientEditor({
                                     thumbLabel={labels.colorStopPosition(ordinal)}
                                 />
                             </Box>
+                            )}
                             <ActionIcon
                                 variant="subtle"
                                 color="gray"

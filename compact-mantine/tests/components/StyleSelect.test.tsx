@@ -252,3 +252,82 @@ describe("StyleSelect", () => {
         });
     });
 });
+
+describe("StyleSelect search, bound state and trailing slot", () => {
+    const shapes = [
+        { value: "sphere", label: "Sphere" },
+        { value: "box", label: "Box" },
+        { value: "icosphere", label: "Icosphere" },
+        { value: "icosahedron", label: "Icosahedron" },
+    ];
+
+    it("filters the options by what is typed when searchable", async () => {
+        const user = userEvent.setup();
+        renderSelect(<StyleSelect label="Shape" defaultValue="sphere" options={shapes} searchable />);
+
+        const input = screen.getByRole("textbox", { name: "Shape" });
+        await user.click(input);
+        await user.clear(input);
+        await user.type(input, "ico");
+
+        const remaining = screen.getAllByRole("option", { hidden: true }).map((option) => option.textContent);
+        expect(remaining).toEqual(["Icosphere", "Icosahedron"]);
+    });
+
+    it("is not typable unless searchable", () => {
+        renderSelect(<StyleSelect label="Shape" defaultValue="sphere" options={shapes} />);
+        expect(screen.getByRole("textbox", { name: "Shape" })).toHaveAttribute("readonly");
+    });
+
+    it("draws each option through renderOption", async () => {
+        const user = userEvent.setup();
+        renderSelect(
+            <StyleSelect
+                label="Shape"
+                defaultValue="sphere"
+                options={shapes}
+                renderOption={({ option }) => <span data-testid="drawn-option">{`* ${option.label}`}</span>}
+            />,
+        );
+
+        await user.click(screen.getByRole("textbox", { name: "Shape" }));
+        expect(screen.getAllByTestId("drawn-option")).toHaveLength(4);
+        expect(screen.getByText("* Box")).toBeInTheDocument();
+    });
+
+    it("announces a bound value with the fieldBound words", () => {
+        renderSelect(<StyleSelect label="Shape" defaultValue="sphere" options={shapes} bound />);
+        expect(screen.getByRole("textbox", { name: "Shape" })).toHaveAccessibleDescription("Bound to a data attribute");
+        expect(screen.getByTestId("style-select")).toHaveAttribute("data-bound", "true");
+    });
+
+    it("takes a more specific bound description", () => {
+        renderSelect(
+            <StyleSelect label="Shape" defaultValue="sphere" options={shapes} bound boundDescription="Follows Degree" />,
+        );
+        expect(screen.getByRole("textbox", { name: "Shape" })).toHaveAccessibleDescription("Follows Degree");
+    });
+
+    it("says nothing about binding while unbound", () => {
+        renderSelect(<StyleSelect label="Shape" defaultValue="sphere" options={shapes} />);
+        expect(screen.getByRole("textbox", { name: "Shape" })).toHaveAccessibleDescription("");
+        expect(screen.getByTestId("style-select")).not.toHaveAttribute("data-bound");
+    });
+
+    it("renders its trailing node, and reserves no slot without one", () => {
+        const { unmount } = renderSelect(
+            <StyleSelect
+                label="Shape"
+                defaultValue="sphere"
+                options={shapes}
+                trailing={<button type="button">Bind</button>}
+            />,
+        );
+        expect(screen.getByRole("button", { name: "Bind" })).toBeInTheDocument();
+        expect(screen.getByTestId("trailing-slot")).toBeInTheDocument();
+        unmount();
+
+        renderSelect(<StyleSelect label="Shape" defaultValue="sphere" options={shapes} />);
+        expect(screen.queryByTestId("trailing-slot")).not.toBeInTheDocument();
+    });
+});

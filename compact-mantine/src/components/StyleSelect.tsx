@@ -1,12 +1,13 @@
-import { ActionIcon, Group, Select } from "@mantine/core";
+import { ActionIcon, Group, Select, type SelectProps } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels } from "../i18n";
-import { UiGlyph } from "../icons";
+import { FieldGlyph, UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
+import { holdsSomething, TrailingSlot } from "./rows/TrailingSlot";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
 // the older half of the library, brought to the same standard as the row types.
@@ -99,6 +100,48 @@ export interface StyleSelectProps {
      * nowhere to put it.
      */
     disabledReason?: string;
+    /**
+     * Whether the reader can type to narrow the list.
+     *
+     * Reach for it once the list is too long to scan: two dozen shapes, a
+     * column of data attributes. Typing filters the options by their words.
+     * @default false
+     */
+    searchable?: boolean;
+    /**
+     * Draws one option in the open list, in place of its words.
+     *
+     * Mantine's own `Select` hook, passed through unchanged: it is handed the
+     * option and whether it is the chosen one. Use it to draw a palette's
+     * colour strip beside its name. The closed control still shows the
+     * option's `label`.
+     */
+    renderOption?: SelectProps["renderOption"];
+    /**
+     * Whether the value comes from a data attribute rather than being chosen
+     * by hand.
+     *
+     * The control draws the filled attribute glyph inside its box -- the same
+     * glyph `PanelField` fills in -- and announces the `boundDescription`.
+     * @default false
+     */
+    bound?: boolean;
+    /**
+     * What a screen reader says about a bound control. Only used when `bound`
+     * is set.
+     *
+     * Defaults to the `fieldBound` string from `LabelsProvider`. Pass an empty
+     * string to say nothing.
+     */
+    boundDescription?: string;
+    /**
+     * A control drawn in the fixed 24px trailing slot after the dropdown and
+     * its reset, such as a button that binds the value to data.
+     *
+     * With nothing given, no slot is drawn and the control is laid out
+     * exactly as it is without this prop.
+     */
+    trailing?: React.ReactNode;
     /** Called when the control takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. Forwarded unchanged. */
@@ -126,6 +169,11 @@ export interface StyleSelectProps {
  * @param props.onChange - Called with the new choice, or with `undefined` when the control is reset
  * @param props.disabled - Whether the control cannot be used at all
  * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
+ * @param props.searchable - Whether the reader can type to narrow the list
+ * @param props.renderOption - Draws one option in the open list
+ * @param props.bound - Whether the value comes from a data attribute
+ * @param props.boundDescription - What a screen reader says about a bound control
+ * @param props.trailing - A control drawn in the trailing slot
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
  * @returns The dropdown, and its reset button when a choice has been made
@@ -153,6 +201,11 @@ export function StyleSelect({
     onChange,
     disabled = false,
     disabledReason,
+    searchable = false,
+    renderOption,
+    bound = false,
+    boundDescription,
+    trailing,
     onFocus,
     onBlur,
 }: StyleSelectProps): React.JSX.Element {
@@ -165,7 +218,12 @@ export function StyleSelect({
     // passed in -- measured against @mantine/core 8.3.10, not assumed -- and
     // the description element is then styled out of sight, exactly as
     // PanelField does it.
-    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
+    const annotation = useControlAnnotation({
+        name: label,
+        disabled,
+        disabledReason,
+        extraDescriptions: bound ? [boundDescription ?? labels.fieldBound] : undefined,
+    });
 
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
@@ -209,6 +267,7 @@ export function StyleSelect({
             align="flex-end"
             title={annotation.title}
             data-disabled={disabled ? "true" : undefined}
+            data-bound={bound ? "true" : undefined}
         >
             <Select
                 data-testid="style-select-field"
@@ -219,6 +278,10 @@ export function StyleSelect({
                 onFocus={onFocus}
                 onBlur={onBlur}
                 data={options}
+                searchable={searchable}
+                renderOption={renderOption}
+                leftSection={bound ? <FieldGlyph name="attribute" filled /> : undefined}
+                leftSectionPointerEvents={bound ? "none" : undefined}
                 rightSection={<UiGlyph name="chevronDown" size={PANEL_GRID.GLYPH} />}
                 rightSectionPointerEvents="none"
                 disabled={disabled}
@@ -257,6 +320,7 @@ export function StyleSelect({
                     <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
                 </ActionIcon>
             )}
+            {holdsSomething(trailing) && <TrailingSlot>{trailing}</TrailingSlot>}
         </Group>
     );
 }

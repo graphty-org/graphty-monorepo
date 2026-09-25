@@ -1,8 +1,10 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import {
+    AdvancedButton,
     LabelsProvider,
     StyleSelect,
 } from "../src";
@@ -156,5 +158,61 @@ export const RightToLeft: Story = {
                 </div>
             </DirectionProvider>
         );
+    },
+};
+
+const shapeOptions = [
+    { value: "sphere", label: "Sphere" },
+    { value: "box", label: "Box" },
+    { value: "cylinder", label: "Cylinder" },
+    { value: "icosphere", label: "Icosphere" },
+    { value: "icosahedron", label: "Icosahedron" },
+    { value: "torus", label: "Torus" },
+];
+
+/**
+ * A long list the reader can narrow by typing: `searchable` turns the box into
+ * a search field while the list is open. Typing "ico" leaves two shapes.
+ */
+export const Searchable: Story = {
+    args: {
+        label: "Shape",
+        defaultValue: "sphere",
+        options: shapeOptions,
+        searchable: true,
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const input = canvas.getByRole("textbox", { name: "Shape" });
+        await userEvent.click(input);
+        await userEvent.clear(input);
+        await userEvent.type(input, "ico");
+
+        const page = within(canvasElement.ownerDocument.body);
+        const options = await page.findAllByRole("option");
+        await expect(options.map((option) => option.textContent)).toEqual(["Icosphere", "Icosahedron"]);
+    },
+};
+
+/**
+ * The value follows a data attribute: the filled attribute glyph sits inside
+ * the box, a screen reader hears "Bound to a data attribute", and the trailing
+ * slot holds the button that opens the binding.
+ */
+export const Bound: Story = {
+    args: {
+        label: "Shape",
+        value: "box",
+        defaultValue: "sphere",
+        options: shapeOptions,
+        bound: true,
+        trailing: <AdvancedButton label="Bind to data" />,
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByRole("textbox", { name: "Shape" })).toHaveAccessibleDescription(
+            "Bound to a data attribute",
+        );
+        await expect(canvas.getByRole("button", { name: "Bind to data" })).toBeInTheDocument();
     },
 };

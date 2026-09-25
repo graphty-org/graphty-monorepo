@@ -650,3 +650,118 @@ describe("CompactColorInput", () => {
         });
     });
 });
+
+describe("CompactColorInput opacity as a fraction", () => {
+    it("shows 50% for an opacity of 0.5", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" opacity={0.5} opacityScale="fraction" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveValue("50%");
+    });
+
+    it("shows the fraction default as a percentage, 100% when none is given", () => {
+        const { unmount } = render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" opacityScale="fraction" defaultOpacity={0.3} />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveValue("30%");
+        unmount();
+
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" opacityScale="fraction" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveValue("100%");
+    });
+
+    it("emits 0.25 when 25% is typed", async () => {
+        const user = userEvent.setup();
+        const onOpacityChange = vi.fn();
+        const onChange = vi.fn();
+        render(
+            <TestWrapper>
+                <CompactColorInput
+                    defaultColor="#FF0000"
+                    opacityScale="fraction"
+                    onOpacityChange={onOpacityChange}
+                    onChange={onChange}
+                />
+            </TestWrapper>,
+        );
+
+        const input = screen.getByRole("textbox", { name: /opacity/i });
+        await user.clear(input);
+        await user.type(input, "25");
+        await user.tab();
+
+        expect(onOpacityChange.mock.calls[0][0]).toBe(0.25);
+        expect(onChange.mock.calls[0][1]).toBe(0.25);
+    });
+
+    it("keeps percentages by default", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" opacity={50} />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveValue("50%");
+    });
+});
+
+describe("CompactColorInput half-bound state and trailing slot", () => {
+    it("announces a bound colour on the colour half only", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput label="Fill" defaultColor="#FF0000" colorBound />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /hex/i })).toHaveAccessibleDescription("Bound to a data attribute");
+        expect(screen.getByRole("button", { name: /swatch/i })).toHaveAccessibleDescription(
+            "Bound to a data attribute",
+        );
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveAccessibleDescription("");
+    });
+
+    it("announces a bound opacity on the opacity half only", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput label="Fill" defaultColor="#FF0000" opacityBound boundDescription="Follows Age" />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toHaveAccessibleDescription("Follows Age");
+        expect(screen.getByRole("textbox", { name: /hex/i })).toHaveAccessibleDescription("");
+        expect(screen.getByRole("button", { name: /swatch/i })).toHaveAccessibleDescription("");
+    });
+
+    it("keeps both halves editable while one is bound", () => {
+        render(
+            <TestWrapper>
+                <CompactColorInput label="Fill" defaultColor="#FF0000" colorBound />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("textbox", { name: /hex/i })).toBeEnabled();
+        expect(screen.getByRole("textbox", { name: /opacity/i })).toBeEnabled();
+    });
+
+    it("renders its trailing node, and reserves no slot without one", () => {
+        const { unmount } = render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" trailing={<button type="button">Bind</button>} />
+            </TestWrapper>,
+        );
+        expect(screen.getByRole("button", { name: "Bind" })).toBeInTheDocument();
+        expect(screen.getByTestId("trailing-slot")).toBeInTheDocument();
+        unmount();
+
+        render(
+            <TestWrapper>
+                <CompactColorInput defaultColor="#FF0000" />
+            </TestWrapper>,
+        );
+        expect(screen.queryByTestId("trailing-slot")).not.toBeInTheDocument();
+    });
+});

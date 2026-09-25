@@ -7,6 +7,7 @@ import {
     CompactColorInput,
     compactTheme,
     IconGroupRow,
+    PanelField,
     PopoutManager,
     StyleNumberInput,
     StyleSelect,
@@ -32,13 +33,14 @@ import { LabelsProvider } from "../../src/i18n";
 // in action -- the shared component was wrong, so the shared component is fixed
 // and every caller gets the fix.
 //
-// The table below is deliberately one table rather than six suites, because the
-// whole value of the contract is that the six controls spell it IDENTICALLY. A
-// per-component test would let one of them drift into a colon, or into a
-// tooltip that never reaches a screen reader, without anything failing.
+// The table below is deliberately one table rather than a suite per control,
+// because the whole value of the contract is that the controls spell it
+// IDENTICALLY. A per-component test would let one of them drift into a colon,
+// or into a tooltip that never reaches a screen reader, without anything
+// failing.
 
 /**
- * Every provider the six controls need between them.
+ * Every provider the controls need between them.
  * @param props - Component props
  * @param props.children - The control under test
  * @returns The wrapped tree
@@ -144,6 +146,14 @@ const CASES: ReasonCase[] = [
         ),
         described: () => screen.getByRole("checkbox", { name: "Glow" }),
         enabledTitle: "Glow",
+    },
+    {
+        name: "PanelField",
+        label: "Caption",
+        reason: "This channel cannot be set",
+        render: (props) => <PanelField label="Caption" kind="text" value="Hello" onChange={() => undefined} {...props} />,
+        described: () => screen.getByRole("textbox", { name: "Caption" }),
+        enabledTitle: "Caption",
     },
     {
         name: "IconGroupRow",

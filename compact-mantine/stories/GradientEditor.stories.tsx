@@ -1,5 +1,6 @@
 import { Box, Code, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import {
@@ -248,5 +249,40 @@ export const RightToLeft: Story = {
                 </div>
             </DirectionProvider>
         );
+    },
+};
+
+/**
+ * A plain list of colours with no positions: `evenlySpaced` hides the position
+ * sliders and keeps every stop at an even spacing, so adding a colour
+ * re-spreads the list rather than squeezing a stop in at the end.
+ */
+export const EvenlySpaced: Story = {
+    render: function EvenlySpacedStory() {
+        const [stops, setStops] = useState<ColorStop[]>([
+            createColorStop(0, "#6366F1"),
+            createColorStop(1, "#06B6D4"),
+        ]);
+
+        return (
+            <Stack gap="xs">
+                <GradientEditor
+                    stops={stops}
+                    evenlySpaced
+                    showDirection={false}
+                    onChange={(next) => {
+                        setStops(next);
+                    }}
+                />
+                <Code data-testid="evenly-spaced-offsets">{stops.map((stop) => stop.offset).join(", ")}</Code>
+            </Stack>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.queryAllByRole("slider")).toHaveLength(0);
+
+        await userEvent.click(canvas.getByRole("button", { name: /add/i }));
+        await expect(canvas.getByTestId("evenly-spaced-offsets")).toHaveTextContent("0, 0.5, 1");
     },
 };

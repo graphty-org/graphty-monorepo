@@ -254,3 +254,93 @@ describe("ToggleWithContent", () => {
         });
     });
 });
+
+describe("ToggleWithContent three states and trailing slot", () => {
+    /**
+     * A caller holding an unset, true or false value.
+     * @param props - Component props
+     * @param props.onReset - Spy called when the reset is pressed
+     * @returns The toggle driven from a three-state value
+     */
+    function ThreeState({ onReset }: { onReset: () => void }): React.JSX.Element {
+        const [value, setValue] = React.useState<boolean | undefined>(undefined);
+        return (
+            <ToggleWithContent
+                label="Gradient"
+                checked={value ?? false}
+                inherited={value === undefined}
+                onChange={(next) => {
+                    setValue(next);
+                }}
+                onReset={() => {
+                    onReset();
+                    setValue(undefined);
+                }}
+            >
+                <div>Gradient settings</div>
+            </ToggleWithContent>
+        );
+    }
+
+    it("goes unset, true, false and back to unset through the reset", async () => {
+        const user = userEvent.setup();
+        const onReset = vi.fn();
+        renderToggle(<ThreeState onReset={onReset} />);
+
+        const checkbox = screen.getByRole("checkbox", { name: "Gradient" });
+        const reset = (): HTMLElement | null => screen.queryByRole("button", { name: "Reset Gradient to default" });
+
+        expect(screen.getByTestId("toggle-with-content")).toHaveAttribute("data-inherited", "true");
+        expect(screen.getByText("Gradient")).toHaveStyle({ fontStyle: "italic" });
+        expect(reset()).toBeNull();
+
+        await user.click(checkbox);
+        expect(checkbox).toBeChecked();
+        expect(screen.getByText("Gradient settings")).toBeInTheDocument();
+        expect(screen.getByText("Gradient")).not.toHaveStyle({ fontStyle: "italic" });
+        expect(reset()).toBeInTheDocument();
+
+        await user.click(checkbox);
+        expect(checkbox).not.toBeChecked();
+        expect(reset()).toBeInTheDocument();
+
+        await user.click(reset() as HTMLElement);
+        expect(onReset).toHaveBeenCalledTimes(1);
+        expect(reset()).toBeNull();
+    });
+
+    it("keeps keyboard focus on the same checkbox when it goes from inherited to set and back", async () => {
+        const user = userEvent.setup();
+        renderToggle(<ThreeState onReset={vi.fn()} />);
+
+        const checkbox = screen.getByRole("checkbox", { name: "Gradient" });
+        checkbox.focus();
+
+        await user.keyboard(" ");
+        expect(checkbox).toBeChecked();
+        expect(screen.getByRole("checkbox", { name: "Gradient" })).toBe(checkbox);
+        expect(document.activeElement).toBe(checkbox);
+
+        await user.click(screen.getByRole("button", { name: "Reset Gradient to default" }));
+        expect(screen.getByRole("checkbox", { name: "Gradient" })).toBe(checkbox);
+    });
+
+    it("renders its trailing node, and reserves no slot without one", () => {
+        const { unmount } = renderToggle(
+            <ToggleWithContent label="Glow" trailing={<button type="button">Bind</button>}>
+                <div>Glow settings</div>
+            </ToggleWithContent>,
+        );
+        expect(screen.getByRole("button", { name: "Bind" })).toBeInTheDocument();
+        expect(screen.getByTestId("trailing-slot")).toBeInTheDocument();
+        unmount();
+
+        renderToggle(
+            <ToggleWithContent label="Glow">
+                <div>Glow settings</div>
+            </ToggleWithContent>,
+        );
+        expect(screen.queryByTestId("trailing-slot")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("toggle-with-content-row")).not.toBeInTheDocument();
+    });
+});

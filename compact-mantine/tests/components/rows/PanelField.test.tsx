@@ -769,3 +769,96 @@ describe("PanelField", () => {
         });
     });
 });
+
+describe("PanelField search and reset", () => {
+    it("filters a searchable drop-down by what is typed", async () => {
+        const user = userEvent.setup();
+        renderField(
+            <PanelField
+                label="Attribute"
+                kind="select"
+                searchable
+                data={["degree", "age", "average", "name"]}
+                value={null}
+                onChange={vi.fn()}
+            />,
+        );
+
+        await user.click(fieldInput());
+        await user.type(fieldInput(), "ag");
+
+        const remaining = screen.getAllByRole("option", { hidden: true }).map((option) => option.textContent);
+        expect(remaining).toEqual(["age", "average"]);
+    });
+
+    it("draws each choice through renderOption", async () => {
+        const user = userEvent.setup();
+        renderField(
+            <PanelField
+                label="Palette"
+                kind="select"
+                data={["viridis", "magma"]}
+                value="viridis"
+                onChange={vi.fn()}
+                renderOption={({ option }) => <span data-testid="drawn-option">{option.label.toUpperCase()}</span>}
+            />,
+        );
+
+        await user.click(fieldInput());
+        expect(screen.getAllByTestId("drawn-option")).toHaveLength(2);
+        expect(screen.getByText("MAGMA")).toBeInTheDocument();
+    });
+
+    it("shows the reset only while the field holds a value", () => {
+        const { unmount } = renderField(
+            <PanelField label="Label" kind="text" value={null} onChange={vi.fn()} onReset={vi.fn()} />,
+        );
+        expect(screen.queryByRole("button", { name: "Reset Label to default" })).not.toBeInTheDocument();
+        unmount();
+
+        // An empty string is a value: it draws an empty label.
+        renderField(<PanelField label="Label" kind="text" value="" onChange={vi.fn()} onReset={vi.fn()} />);
+        expect(screen.getByRole("button", { name: "Reset Label to default" })).toBeInTheDocument();
+    });
+
+    it("fires onReset on click", async () => {
+        const user = userEvent.setup();
+        const onReset = vi.fn();
+        const onChange = vi.fn();
+        renderField(<PanelField label="Label" kind="text" value="{{id}}" onChange={onChange} onReset={onReset} />);
+
+        await user.click(screen.getByRole("button", { name: "Reset Label to default" }));
+        expect(onReset).toHaveBeenCalledTimes(1);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("takes presses on the reset only, so the chevron still reaches the drop-down", () => {
+        renderField(
+            <PanelField
+                label="Shape"
+                kind="select"
+                data={["sphere", "box"]}
+                value="sphere"
+                onChange={vi.fn()}
+                onReset={vi.fn()}
+            />,
+        );
+        const reset = screen.getByRole("button", { name: "Reset Shape to default" });
+        // Mantine carries the section's pointer-events as a variable on the
+        // input's wrapper, where its stylesheet reads it.
+        const wrapper = reset.closest<HTMLElement>(".mantine-Input-wrapper");
+        expect(wrapper?.style.getPropertyValue("--input-right-section-pointer-events")).toBe("none");
+        expect(reset).toHaveStyle({ pointerEvents: "auto" });
+    });
+
+    it("gives the reset the 24px target every other reset has", () => {
+        renderField(<PanelField label="Label" kind="text" value="x" onChange={vi.fn()} onReset={vi.fn()} />);
+        const reset = screen.getByRole("button", { name: "Reset Label to default" });
+        expect(reset.style.getPropertyValue("--ai-size")).toBe("24px");
+    });
+
+    it("draws no reset without onReset", () => {
+        renderField(<PanelField label="Label" kind="text" value="x" onChange={vi.fn()} />);
+        expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+    });
+});

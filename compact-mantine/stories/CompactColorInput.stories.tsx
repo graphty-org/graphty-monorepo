@@ -1,5 +1,6 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import {
@@ -171,5 +172,64 @@ export const RightToLeft: Story = {
                 </div>
             </DirectionProvider>
         );
+    },
+};
+
+/**
+ * `opacityScale="fraction"`: the caller holds opacity as 0 to 1, the scale
+ * most rendering code stores, and the box still shows a percentage. Typing 25
+ * reports 0.25.
+ */
+export const FractionOpacity: Story = {
+    render: function FractionOpacityStory() {
+        const [opacity, setOpacity] = useState<number | undefined>(0.5);
+
+        return (
+            <Stack gap="xs">
+                <CompactColorInput
+                    label="Fill"
+                    color="#5B8FF9"
+                    defaultColor="#5B8FF9"
+                    opacity={opacity}
+                    opacityScale="fraction"
+                    onOpacityChange={setOpacity}
+                />
+                <Text size="xs" c="dimmed" data-testid="fraction-readout">
+                    {`opacity: ${opacity === undefined ? "undefined" : String(opacity)}`}
+                </Text>
+            </Stack>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const input = canvas.getByRole("textbox", { name: /opacity/i });
+        await expect(input).toHaveValue("50%");
+
+        await userEvent.clear(input);
+        await userEvent.type(input, "25");
+        await userEvent.tab();
+        await expect(canvas.getByTestId("fraction-readout")).toHaveTextContent("opacity: 0.25");
+    },
+};
+
+/**
+ * One half bound, the other still the reader's: the opacity follows a data
+ * attribute and says so, while the colour stays an ordinary editable value.
+ */
+export const HalfBound: Story = {
+    args: {
+        label: "Fill",
+        color: "#E8590C",
+        defaultColor: "#5B8FF9",
+        opacity: 80,
+        opacityBound: true,
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByRole("textbox", { name: /opacity/i })).toHaveAccessibleDescription(
+            "Bound to a data attribute",
+        );
+        await expect(canvas.getByRole("textbox", { name: /hex/i })).toHaveAccessibleDescription("");
+        await expect(canvas.getByRole("textbox", { name: /hex/i })).toBeEnabled();
     },
 };

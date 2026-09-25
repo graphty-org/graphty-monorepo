@@ -1,5 +1,6 @@
 import { Box, DirectionProvider, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import React from "react";
 
 import {
@@ -404,4 +405,49 @@ export const TwoGroups: Story = {
             </ToggleRowGroup>
         </Box>
     ),
+};
+
+/**
+ * A boolean a layer may leave unset has three states. Unset draws the default
+ * in italics with no reset; a value of the reader's own, true or false, draws
+ * upright with a reset beside it, and the reset takes the row back to unset.
+ */
+export const InheritedAndReset: Story = {
+    render: function InheritedAndResetStory() {
+        const [value, setValue] = React.useState<boolean | undefined>(undefined);
+
+        return (
+            <Box>
+                <ToggleRow
+                    label="Wireframe"
+                    checked={value ?? false}
+                    inherited={value === undefined}
+                    onChange={(next) => {
+                        setValue(next);
+                    }}
+                    onReset={() => {
+                        setValue(undefined);
+                    }}
+                />
+                <Text size="xs" c={PANEL_INK.CHROME} data-testid="three-state-readout">
+                    {`value: ${value === undefined ? "unset" : String(value)}`}
+                </Text>
+            </Box>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const checkbox = canvas.getByRole("checkbox", { name: "Wireframe" });
+        const resetName = "Reset Wireframe to default";
+        await expect(canvas.queryByRole("button", { name: resetName })).toBeNull();
+
+        await userEvent.click(checkbox);
+        await expect(canvas.getByTestId("three-state-readout")).toHaveTextContent("value: true");
+        await userEvent.click(checkbox);
+        await expect(canvas.getByTestId("three-state-readout")).toHaveTextContent("value: false");
+
+        await userEvent.click(canvas.getByRole("button", { name: resetName }));
+        await expect(canvas.getByTestId("three-state-readout")).toHaveTextContent("value: unset");
+        await expect(canvas.queryByRole("button", { name: resetName })).toBeNull();
+    },
 };

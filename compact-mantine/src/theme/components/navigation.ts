@@ -1,5 +1,6 @@
 import { Anchor, Burger, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 
+import { contrastVar } from "../contrast";
 import {
     compactAnchorStyles,
     compactBurgerScale,
@@ -64,8 +65,11 @@ export const navigationComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactPaginationScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactPaginationScale, props?.size),
+                "--pagination-active-color": contrastVar(theme, props),
+            },
         }),
     }),
 
@@ -73,8 +77,11 @@ export const navigationComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactStepperScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactStepperScale, props?.size),
+                "--stepper-icon-color": contrastVar(theme, props),
+            },
         }),
     }),
 

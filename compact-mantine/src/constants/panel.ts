@@ -174,14 +174,12 @@ export const PANEL_INK = {
      * token to serve a selected item is what made a chip's label and a bar's
      * fill unreadable, so the two roles are two tokens.
      *
-     * Two pairings on this token are still short of WCAG AA, and neither can
-     * be fixed by moving it. A chip labelled in the secondary text colour
+     * One pairing on this token is still short of WCAG AA, and it cannot be
+     * fixed by moving it. A chip labelled in the secondary text colour
      * measures 4.43:1 in the dark scheme against the 4.5:1 for text; the same
-     * chip labelled in the primary text colour measures 7.33:1. An accent fill
-     * on this track measures 2.11:1 (dark) and 2.73:1 (light) against the 3:1
-     * for a shape that carries meaning; the same fill on the panel measures
-     * 3.12:1 and 3.56:1. Both are settled where they are drawn, by choosing
-     * the ink or the ground, not by another value here.
+     * chip labelled in the primary text colour measures 7.33:1, which is what
+     * the row draws. An accent fill on this track measures 3.53:1 (dark) and
+     * 3.86:1 (light), past the 3:1 for a shape that carries meaning.
      */
     RAISED: "light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5))",
     /**
@@ -228,16 +226,24 @@ export const PANEL_INK = {
     DIVIDER: "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2))",
     /**
      * accent: a checked box, the highlighted bin, a filled micro-bar, the Run
-     * button (#1971c2 in the dark scheme, #228be6 in the light one).
+     * button (#1971c2, blue-8, in the light scheme; #339af0, blue-5, in the
+     * dark one).
+     *
+     * The theme sets `primaryShade` so the fill stands at least 3:1 off the
+     * panel, a field and the raised surface in both schemes (WCAG 1.4.11):
+     * 3.86:1 or more in the light scheme, 3.53:1 or more in the dark one.
      *
      * This token and `ON_ACCENT` follow a consumer's own `primaryColor`;
      * `WARNING`, `SUCCESS` and `DANGER` are stock Mantine yellow, green and
-     * red. The theme replaces only the `dark` ramp and sets no `primaryColor`,
-     * so none of the five is overridden here, and a consumer who sets one gets
+     * red. The theme sets no `primaryColor`, so a consumer who sets one gets
      * it throughout.
      */
     ACCENT: "var(--mantine-primary-color-filled)",
-    /** text and glyphs drawn on the accent (#ffffff) */
+    /**
+     * text and glyphs drawn on the accent: white in the light scheme (5.02:1)
+     * and black in the dark one (7.02:1), chosen by the theme's `autoContrast`
+     * from the fill's luminance, so both pass WCAG 1.4.3's 4.5:1.
+     */
     ON_ACCENT: "var(--mantine-primary-color-contrast)",
     /** the warning glyph on a departure line (#fab005) */
     WARNING: "var(--mantine-color-yellow-6)",

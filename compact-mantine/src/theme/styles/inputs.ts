@@ -27,13 +27,14 @@ import type { CompactSizeScale, CompactVars } from "./size-scale";
  * button, checkbox and switch in this library gets -- so its contrast against
  * the field it sits on is what decides whether focus can be seen at all.
  *
- * Mantine's own default is `--mantine-primary-color-filled`, which is shade 6
- * in light but shade 8 in dark. Shade 8 measures 2.66:1 on the filled field
- * (#1971c2 on #2a3035) and 3.12:1 on the panel behind it, so in dark mode the
- * ring landed under the 3:1 WCAG 1.4.11 asks of a non-text indicator. Shade 5
- * is the same hue as whatever primary colour the consumer set, two steps
- * lighter, and measures 4.46:1 on the field and 5.23:1 on the panel. Light mode
- * keeps the filled colour, which already measures 3.20:1 and 3.56:1.
+ * Mantine's own default is `--mantine-primary-color-filled`. Stock Mantine
+ * fills shade 8 in dark, which measures 2.66:1 on the filled field (#1971c2 on
+ * #2a3035) and 3.12:1 on the panel behind it, under the 3:1 WCAG 1.4.11 asks
+ * of a non-text indicator. So the dark ring is pinned to shade 5 of whatever
+ * primary colour the consumer set: 4.46:1 on the field and 5.23:1 on the
+ * panel. compactTheme's own `primaryShade` fills shade 5 in dark too, so this
+ * only matters to a consumer who overrides the shade. Light mode keeps the
+ * filled colour (shade 8 in compactTheme), at 4.51:1 and 5.02:1.
  */
 const INPUT_FOCUS_BORDER = "light-dark(var(--mantine-primary-color-filled), var(--mantine-primary-color-5))";
 
@@ -140,6 +141,12 @@ export const compactDropdownStyles = {
         fontSize: 11,
         padding: "4px 8px",
         borderRadius: 4,
+        // Mantine paints the keyboard-selected option white on the primary
+        // fill and never reads autoContrast; that rule's white is read through
+        // this variable, so the option gets the scheme's contrast colour
+        // instead (black on the dark scheme's blue-5). Nothing else in an
+        // option reads --mantine-color-white.
+        "--mantine-color-white": "var(--mantine-primary-color-contrast)",
     },
     options: {
         // No gap between options for compact appearance

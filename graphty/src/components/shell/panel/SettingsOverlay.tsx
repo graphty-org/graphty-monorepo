@@ -1,4 +1,4 @@
-import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import { PANEL_GRID, PANEL_INK, SegmentedControl, UiGlyph } from "@graphty/compact-mantine";
 import {
     ACCELERATION_POLICIES,
     ACCELERATION_POLICY_DEFAULT,
@@ -6,8 +6,8 @@ import {
     DEFAULT_LIMITS,
     isAccelerationPolicy,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, Input, NumberInput, Overlay, SegmentedControl, Switch } from "@mantine/core";
-import React, { useEffect, useId, useState } from "react";
+import { ActionIcon, Box, Input, NumberInput, Overlay, Switch } from "@mantine/core";
+import React, { useEffect, useState } from "react";
 
 import { AiProviderSettings, type AiProviderSettingsProps } from "../../ai/AiProviderSettings";
 import { ColorSchemeToggle } from "../../ColorSchemeToggle";
@@ -220,13 +220,6 @@ function AccelerationSettingsPane({
     /** Reports a click. */
     readonly onChange: (policy: AccelerationPolicy) => void;
 }): React.JSX.Element {
-    /* Input.Wrapper names its child by putting its own id on a <label for>, and only a control
-       that reads the wrapper's context takes that id -- SegmentedControl does not, so the label
-       would point at nothing and the radiogroup would be announced with no name at all. The
-       label is drawn as a div (no dangling "for") and the group takes its name from the label
-       and its description from the sentence, both by id. */
-    const fieldId = useId();
-
     return (
         <Box
             data-testid="settings-acceleration"
@@ -237,16 +230,9 @@ function AccelerationSettingsPane({
                 maxWidth: FIELD_WIDTH,
             }}
         >
-            <Input.Wrapper
-                id={fieldId}
-                labelElement="div"
-                label={ACCELERATION_LABEL}
-                description={ACCELERATION_DESCRIPTION}
-            >
+            <Input.Wrapper label={ACCELERATION_LABEL} description={ACCELERATION_DESCRIPTION}>
                 <SegmentedControl
                     fullWidth
-                    aria-labelledby={`${fieldId}-label`}
-                    aria-describedby={`${fieldId}-description`}
                     value={policy}
                     data={ACCELERATION_POLICIES.map((entry) => ({
                         value: entry,

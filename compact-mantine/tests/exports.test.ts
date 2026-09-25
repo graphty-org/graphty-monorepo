@@ -229,6 +229,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutRegion",
     "StyleNumberInput",
     "StyleSelect",
+    "SegmentedControl",
     "ToggleWithContent",
 
     // Panel rows and the two atoms they are built from
@@ -378,6 +379,10 @@ describe("Package exports", () => {
 
             it("exports StyleNumberInput", () => {
                 expect(mainExports.StyleNumberInput).toBeDefined();
+            });
+
+            it("exports SegmentedControl", () => {
+                expect(mainExports.SegmentedControl).toBeDefined();
             });
 
             it("exports StyleSelect", () => {

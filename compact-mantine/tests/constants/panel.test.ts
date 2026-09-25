@@ -139,3 +139,16 @@ describe.each(SCHEMES)("PANEL_INK measured contrast (%s scheme)", (scheme) => {
         expect(disabled).toBeGreaterThan(1.5);
     });
 });
+
+describe.each(SCHEMES)("PANEL_INK accent contrast (%s scheme)", (scheme) => {
+    it("keeps text on the accent readable (WCAG 1.4.3, 4.5:1)", () => {
+        expect(contrast("ON_ACCENT", "ACCENT", scheme)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it.each(["PANEL", "SURFACE", "RAISED"] as const)(
+        "separates the accent fill from %s (WCAG 1.4.11, 3:1)",
+        (ground) => {
+            expect(contrast("ACCENT", ground, scheme)).toBeGreaterThanOrEqual(3);
+        },
+    );
+});

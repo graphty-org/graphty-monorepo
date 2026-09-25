@@ -1,5 +1,6 @@
 import { Checkbox, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 
+import { contrastVar, switchTrackColor } from "../contrast";
 import {
     compactCheckboxScale,
     compactControlLabelStyles,
@@ -55,8 +56,12 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactCheckboxScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactCheckboxScale, props?.size),
+                // An explicit iconColor still wins; see ../contrast.ts.
+                "--checkbox-icon-color": props?.iconColor ? undefined : contrastVar(theme, props),
+            },
         }),
         styles: {
             label: compactControlLabelStyles,
@@ -67,8 +72,11 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactSwitchScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactSwitchScale, props?.size),
+                "--switch-color": switchTrackColor(theme, props?.color),
+            },
         }),
         styles: {
             label: compactControlLabelStyles,
@@ -91,8 +99,12 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactRadioScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactRadioScale, props?.size),
+                // An explicit iconColor still wins; see ../contrast.ts.
+                "--radio-icon-color": props?.iconColor ? undefined : contrastVar(theme, props),
+            },
         }),
         styles: {
             label: compactControlLabelStyles,

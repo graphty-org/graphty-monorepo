@@ -104,6 +104,21 @@ Either way each edge keeps its own direction on its record, and the element logs
 how many edges it overrode. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
 
+## Dynamic GEXF
+
+A GEXF file with `mode="dynamic"` keeps its time data on each node's and edge's data, as the
+strings the file wrote:
+
+| In the file | On the record |
+| ----------- | ------------- |
+| `start`, `end`, `timestamp` on a node or edge | `start`, `end`, `timestamp` |
+| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true` |
+| `<spells><spell .../></spells>` | `spells`: a list of `{ start, end }` |
+| several timed `<attvalue>`s for one attribute | that attribute as a list of `{ value, start, end }` slices |
+
+An attribute with no timed `attvalue` keeps its plain value, so a static file reads as it always
+has. Timed `viz:*` elements (a position, colour or size that changes over time) are not read.
+
 ### JSON Format (Native)
 
 ```json

@@ -573,11 +573,9 @@ export class PatternedLineMesh {
     private calculateOptimalMeshCount(lineLength: number, patternDef: PatternDefinition): number {
         if (patternDef.connected) {
             // A connected pattern (zigzag, sinewave) tiles seamlessly, so its count follows the
-            // fixed segment length; the last segment is scaled to fit the remainder (clipLastSegment).
-            // An explicit count still wins, so `line.patternCount` controls every pattern type.
-            if (this.patternCount !== undefined) {
-                return Math.max(1, Math.floor(this.patternCount));
-            }
+            // fixed segment length; the last segment is clipped to the remainder (clipLastSegment).
+            // `line.patternCount` does NOT apply here: segments sit at fixed intervals, so any
+            // other count would stop the line short of its end or run it past the node.
             const segments = Math.ceil(lineLength / PatternedLineMesh.SEGMENT_LENGTH);
             return Math.max(1, segments);
         }

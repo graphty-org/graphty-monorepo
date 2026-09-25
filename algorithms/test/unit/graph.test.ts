@@ -284,6 +284,24 @@ describe("Graph", () => {
             expect(g.getEdge("A", "B")?.weight).toBe(2);
         });
 
+        for (const directed of [true, false]) {
+            it(`counts a repeated pair once when parallel edges are allowed (directed: ${String(directed)})`, () => {
+                const g = new Graph({ directed, allowParallelEdges: true });
+
+                g.addEdge("a", "b", 1);
+                g.addEdge("a", "b", 5);
+
+                expect(g.totalEdgeCount).toBe(1);
+                expect([...g.edges()]).toHaveLength(1);
+                expect(g.getEdge("a", "b")?.weight).toBe(5);
+                expect(g.clone().totalEdgeCount).toBe(1);
+
+                expect(g.removeEdge("a", "b")).toBe(true);
+                expect(g.totalEdgeCount).toBe(0);
+                expect([...g.edges()]).toHaveLength(0);
+            });
+        }
+
         it("should handle edge removal with non-existent nodes", () => {
             const g = new Graph();
             expect(g.removeEdge("X", "Y")).toBe(false);

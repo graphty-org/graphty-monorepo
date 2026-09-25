@@ -24,6 +24,10 @@ export interface Node {
 export interface GraphConfig {
     directed: boolean;
     allowSelfLoops: boolean;
+    /**
+     * When true, adding an edge between a pair that already has one REPLACES that edge (its
+     * weight and data) instead of throwing. The graph never holds two edges for one pair.
+     */
     allowParallelEdges: boolean;
 }
 

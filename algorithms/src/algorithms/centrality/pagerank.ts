@@ -116,6 +116,7 @@ export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankR
             dampingFactor: number;
             tolerance: number;
             maxIterations: number;
+            initialRanks?: Map<NodeId, number>;
             personalization?: Map<NodeId, number>;
             weight?: string;
         } = {
@@ -123,6 +124,10 @@ export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankR
             tolerance,
             maxIterations,
         };
+
+        if (initialRanks) {
+            deltaOptions.initialRanks = initialRanks;
+        }
 
         if (personalization) {
             deltaOptions.personalization = personalization;
@@ -143,8 +148,8 @@ export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankR
 
         return {
             ranks: result,
-            iterations: maxIterations, // For now, assume we used all iterations
-            converged: true,
+            iterations: deltaPageRank.iterations,
+            converged: deltaPageRank.converged,
         };
     }
 
@@ -277,7 +282,8 @@ export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankR
 
     return {
         ranks: result,
-        iterations: iteration + 1,
+        // The loop breaks before incrementing on convergence, and leaves at maxIterations otherwise.
+        iterations: converged ? iteration + 1 : iteration,
         converged,
     };
 }

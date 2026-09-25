@@ -1074,7 +1074,7 @@ export class Graph implements GraphContext {
      *
      * The settings take effect on the next layout the element runs. `preSteps` is read when a
      * layout starts, so setting it after a graph has already settled changes nothing that is
-     * already on screen.
+     * already on screen. `labels.declutter` is the exception: it takes effect on the next frame.
      * @param behavior - The fields to change. Anything omitted keeps its current value.
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
@@ -1085,6 +1085,7 @@ export class Graph implements GraphContext {
             ...behavior,
             layout: { ...current.layout, ...(behavior.layout ?? {}) },
             node: { ...current.node, ...(behavior.node ?? {}) },
+            labels: { ...current.labels, ...(behavior.labels ?? {}) },
         });
 
         this.styles.config.behavior = parsed;

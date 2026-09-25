@@ -53,6 +53,9 @@ describe("Automatic Layout Updates", () => {
                 node: {
                     pinOnDrag: false,
                 },
+                labels: {
+                    declutter: false,
+                },
             },
             data: {
                 knownFields: {

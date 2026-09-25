@@ -35,7 +35,7 @@ export class InputController {
     private prePointerObserverHandle: Observer<PointerInfoPre> | null = null;
 
     private pointerDownHandler = (): void => {
-        this.cam.canvas.focus();
+        this.cam.canvas.focus({ preventScroll: true });
     };
 
     private keyDownHandler = (e: KeyboardEvent): void => {

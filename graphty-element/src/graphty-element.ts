@@ -2363,6 +2363,10 @@ export class Graphty extends LitElement {
      * result shape derives. This is the verb for a run started with `{ style: false }`, or for
      * putting a picture back after a reader cleared it. Applying twice replaces the layer bound
      * to that run and channel rather than stacking a second one on it.
+     *
+     * It starts the style edits and returns at once. To wait for the picture -- for a
+     * screenshot, an export or a test -- await `waitForStableFrame()` after the call: it
+     * settles only once every suggested layer is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True if anything was applied, false when no finished run of that algorithm has
@@ -2372,6 +2376,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * await element.run('degree', undefined, { style: false });
      * element.applySuggestedStyles('degree');
+     * await element.waitForStableFrame();
      * ```
      */
     applySuggestedStyles(algorithmKey: string | string[]): boolean {

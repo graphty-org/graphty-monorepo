@@ -220,6 +220,21 @@ export class Graph implements GraphContext {
      */
     #resident: GraphSnapshot | null = null;
 
+    /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
+    readonly #teardown = new AbortController();
+
+    /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
+    #dataGeneration = new AbortController();
+
+    /** Bumped by every finished `data-add`; the post-load repaint compares it to the next. */
+    #dataAdds = 0;
+
+    /** The value of `#dataAdds` the last post-load repaint painted. */
+    #dataAddsPainted = 0;
+
+    /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
+    #suggestionsStacked: Promise<void> = Promise.resolve();
+
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
@@ -427,6 +442,9 @@ export class Graph implements GraphContext {
             if (event.type === "snapshot-dropped") {
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
+                // A repaint in flight is painting rows that no longer exist; stop it.
+                this.#dataGeneration.abort(new DOMException("The graph's data was cleared.", "AbortError"));
+                this.#dataGeneration = new AbortController();
             }
         });
 
@@ -434,13 +452,32 @@ export class Graph implements GraphContext {
         // over a dense index space, so it cannot paint a node the store has not taken yet; this is
         // the first moment it can, and it is the "everything changed, because the graph did"
         // boundary that no layer edit describes.
-        this.operationQueue.registerTrigger("data-add", () => ({
-            category: "style-apply",
-            execute: async () => {
-                await this.repaintFromSession();
-            },
-            description: "Repaint from the session style stack after data add",
-        }));
+        //
+        // ONE REPAINT PER RUN OF LOADS, NOT ONE PER LOAD. Every finished add queues this, but only
+        // the first to run after an add paints: it covers every add before it, and the rest find
+        // nothing new and return. Otherwise `addEdge` in a loop -- or a load of N records queued
+        // one at a time -- ran N whole-graph passes, which is quadratic. The check is made when
+        // the repaint RUNS, and recorded only once it has painted, so a repaint that something
+        // obsoletes or cancels cannot leave the next load unpainted.
+        this.operationQueue.registerTrigger("data-add", () => {
+            this.#dataAdds++;
+
+            return {
+                category: "style-apply",
+                execute: async (context) => {
+                    const adds = this.#dataAdds;
+
+                    if (this.#dataAddsPainted === adds) {
+                        return;
+                    }
+
+                    if (await this.repaintFromSession(context.signal)) {
+                        this.#dataAddsPainted = adds;
+                    }
+                },
+                description: "Repaint from the session style stack after data add",
+            };
+        });
 
         // Bring the paint up to date once a run has finished and its measurements exist. A layer
         // bound to `results.<runId>.<field>` reads a column the run has only just written, so the
@@ -657,6 +694,10 @@ export class Graph implements GraphContext {
      * Shuts down the graph, stopping animations and disposing all resources.
      */
     shutdown(): void {
+        // First, so a repaint queued behind a load or a run -- or one already painting -- stops
+        // rather than running against the store and session this is about to dispose.
+        this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
+
         // Stop any running camera animations
         try {
             const controller = this.camera.getActiveController();
@@ -1735,6 +1776,10 @@ export class Graph implements GraphContext {
      * already-applied layer kept that layer's place, and the place it had was the order the RUNS
      * FINISHED in -- so `applySuggestedStyles(["pagerank", "louvain"])` painted a PageRank
      * picture whenever PageRank happened to finish last, and a Louvain one whenever it did not.
+     *
+     * It starts the style edits and returns at once. To wait for the picture, await
+     * {@link Graph.waitForStableFrame} after the call: it settles only once every suggested layer
+     * is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True when at least one suggestion was applied, false when no finished run of that
@@ -1751,10 +1796,11 @@ export class Graph implements GraphContext {
                         ? this.session.styles.highlight(suggestion.spec)
                         : this.session.styles.encode(suggestion.spec).then((layer) => [layer]);
 
-                // Fire and forget with the refusal reported, for the reason the auto-apply policy
-                // gives: a style edit is a queued run, and a caller must not have to await the
-                // picture in order to have started the work. A refusal that reached nobody is what
-                // this whole system replaces, so it is announced rather than swallowed.
+                // Not returned, with the refusal reported: a style edit is a queued run, and a
+                // caller must not have to await the picture in order to have started the work.
+                // `waitForStableFrame()` is how a caller waits for it. A refusal that reached
+                // nobody is what this whole system replaces, so it is announced rather than
+                // swallowed.
                 applied.push(
                     edit.then(
                         (layers) => layers,
@@ -1774,7 +1820,18 @@ export class Graph implements GraphContext {
         }
 
         if (applied.length > 0) {
-            void this.#stackSuggestionsInOrder(applied);
+            // Kept, not dropped: the reordering moves are queued only after every edit above has
+            // landed, so `waitForStableFrame()` and `waitForSettled()` await this before the queue.
+            // Chained, so a second call does not replace the first one's promise.
+            const stacking = this.#stackSuggestionsInOrder(applied).catch((error: unknown) => {
+                this.eventManager.emitGraphError(
+                    this,
+                    error instanceof Error ? error : new Error(String(error)),
+                    "other",
+                    { component: "Graph.applySuggestedStyles" },
+                );
+            });
+            this.#suggestionsStacked = Promise.all([this.#suggestionsStacked, stacking]).then(() => undefined);
         }
 
         return applied.length > 0;
@@ -2226,20 +2283,42 @@ export class Graph implements GraphContext {
      *
      * It does nothing while no style pass is bound: a pass whose answer nothing draws is a pass
      * over the graph for no picture.
-     * @returns A promise that settles when the pass has finished.
+     *
+     * NOTHING AFTER TEARDOWN, AND NOTHING ACROSS A CLEAR. It is queued behind loads and runs, so
+     * it can come due after `dispose()` or while the data it started on is being cleared. Either
+     * one stops it, quietly: the graph it was painting is gone, and that is not an error.
+     * @param signal - The queue operation's own signal, when it runs as one.
+     * @returns True when the whole graph was painted, false when there was nothing to paint with
+     *     or the pass was stopped.
      */
-    private async repaintFromSession(): Promise<void> {
-        if (!this.stylePainter.owns) {
-            return;
+    private async repaintFromSession(signal?: AbortSignal): Promise<boolean> {
+        const stop = AbortSignal.any([
+            this.#teardown.signal,
+            this.#dataGeneration.signal,
+            ...(signal === undefined ? [] : [signal]),
+        ]);
+
+        if (stop.aborted || !this.stylePainter.owns) {
+            return false;
         }
 
-        // The elements this pass paints reach the renderer through the pass's own announcement,
-        // which `StylePainter.bind` subscribes to. Taking them here, after the await, is what
-        // handed the renderer somebody else's dirty set.
-        await this.session.paint.repaintAll(this.session.styles.compiled(), {
-            signal: new AbortController().signal,
-            report: () => undefined,
-        });
+        try {
+            // The elements this pass paints reach the renderer through the pass's own
+            // announcement, which `StylePainter.bind` subscribes to. Taking them here, after the
+            // await, is what handed the renderer somebody else's dirty set.
+            await this.session.paint.repaintAll(this.session.styles.compiled(), {
+                signal: stop,
+                report: () => undefined,
+            });
+        } catch (error: unknown) {
+            if (stop.aborted) {
+                return false;
+            }
+
+            throw error;
+        }
+
+        return true;
     }
 
     /**
@@ -3047,6 +3126,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
+        // Suggested styles first: their reordering moves reach the queue only once they are due.
+        await this.#suggestionsStacked;
         // Wait for operation queue to complete all operations
         await this.operationQueue.waitForCompletion();
     }
@@ -3141,7 +3222,9 @@ export class Graph implements GraphContext {
      */
     private async untilFrameIsStable(track: (id: symbol) => void): Promise<void> {
         // The queue first: a layout change or a data load that has not run yet is going to move
-        // the picture, so a frame that is final right now is final about the wrong graph.
+        // the picture, so a frame that is final right now is final about the wrong graph. Suggested
+        // styles before the queue, because they queue their reordering only once they are due.
+        await this.#suggestionsStacked;
         await this.operationQueue.waitForCompletion();
 
         if (this.updateManager.frameIsStable) {
@@ -4631,22 +4714,18 @@ export class Graph implements GraphContext {
      * Set graph data (delegates to data manager)
      * @param data - Graph data object
      * @param data.nodes - Array of node data objects
-     * @param data.edges - Array of edge data objects
+     * @param data.edges - Array of edge data objects. They load as one batch, so the endpoint
+     * spelling (source/target, src/dst or from/to) is decided once for all of them.
      */
     setData(data: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }): void {
-        // Add nodes
-        for (const nodeData of data.nodes) {
-            this.addNode(nodeData as AdHocData).catch((e: unknown) => {
-                console.error("Error adding node:", e);
-            });
-        }
-
-        // Add edges
-        for (const edgeData of data.edges) {
-            this.addEdge(edgeData as AdHocData).catch((e: unknown) => {
-                console.error("Error adding edge:", e);
-            });
-        }
+        // One batch of nodes and one of edges. One queued add per record put a layout update and
+        // a repaint behind each of them.
+        this.addNodes(data.nodes).catch((e: unknown) => {
+            console.error("Error adding nodes:", e);
+        });
+        this.addEdges(data.edges).catch((e: unknown) => {
+            console.error("Error adding edges:", e);
+        });
     }
 
     /**

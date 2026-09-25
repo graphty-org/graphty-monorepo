@@ -374,3 +374,32 @@ describe("session.styles", () => {
         harness.session.dispose();
     });
 });
+
+describe("a style edit across dispose()", () => {
+    /**
+     * How an edit settled.
+     * @param edit - The edit.
+     * @returns The rejection's name, or "resolved".
+     */
+    async function outcomeOf(edit: PromiseLike<unknown>): Promise<string> {
+        return Promise.resolve(edit).then(
+            () => "resolved",
+            (error: unknown) => (error instanceof Error || error instanceof DOMException ? error.name : "rejected"),
+        );
+    }
+
+    it("rejects an edit still pending when the session is disposed, rather than leaving it pending", async () => {
+        const harness = harnessOf();
+        const edit = harness.session.styles.add(hostLayer());
+        harness.session.dispose();
+
+        assert.strictEqual(await outcomeOf(edit), "AbortError");
+    });
+
+    it("rejects an edit issued after the session is disposed", async () => {
+        const harness = harnessOf();
+        harness.session.dispose();
+
+        assert.strictEqual(await outcomeOf(harness.session.styles.add(hostLayer())), "AbortError");
+    });
+});

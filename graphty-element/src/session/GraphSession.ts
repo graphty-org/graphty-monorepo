@@ -165,6 +165,8 @@ interface SessionParts {
     readonly visibility: SessionVisibilityApi;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
+    /** Cancels every style edit still pending, for `dispose()`. */
+    readonly stopStyleEdits: () => void;
     /** What the last style pass painted, which is what a renderer draws from. */
     readonly paint: ElementPaint;
     /** Everything `estimate` and `plan` read. */
@@ -224,6 +226,8 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly paint: ElementPaint;
 
+    /** Cancels every style edit still pending. */
+    private readonly stopStyleEdits: () => void;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -260,6 +264,7 @@ class Session implements ElementSession {
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
+        this.stopStyleEdits = parts.stopStyleEdits;
         this.paint = parts.paint;
         this.planning = parts.planning;
         this.watchers = parts.watchers;
@@ -491,6 +496,8 @@ class Session implements ElementSession {
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
+        // Style edits are runs the runs list does not hold, so they are cancelled on their own.
+        this.stopStyleEdits();
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
@@ -1253,6 +1260,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     );
     forgetPreparedBindings = painter.invalidate;
 
+    const teardown = new AbortController();
     const styles = createStylesApi({
         elements,
         base: elementBaseLayers(),
@@ -1275,6 +1283,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         onChange: (change) => {
             publish(watchers, "style:changed", change);
         },
+        disposed: teardown.signal,
     });
 
     stack = styles;
@@ -1308,6 +1317,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         selection,
         visibility,
         styles,
+        stopStyleEdits: () => {
+            teardown.abort(new DOMException("The session was disposed.", "AbortError"));
+        },
         paint: painter.paint,
         planning,
         watchers,

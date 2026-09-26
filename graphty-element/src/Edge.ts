@@ -382,16 +382,17 @@ export class Edge {
         // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
         if (graphRoot) {
-            // A batch parents its own mesh when it is built, once for every edge in it.
-            if (this.lineBatch !== null) {
-                // nothing to parent here
-            } else if (this.mesh instanceof PatternedLineMesh) {
-                // PatternedLineMesh is a wrapper with an array of meshes
-                for (const mesh of this.mesh.meshes) {
-                    mesh.parent = graphRoot;
+            // A batched line is not parented here: its batch parents its one mesh when it is
+            // built, which puts every edge in it under the same transform.
+            if (this.lineBatch === null) {
+                if (this.mesh instanceof PatternedLineMesh) {
+                    // PatternedLineMesh is a wrapper with an array of meshes
+                    for (const mesh of this.mesh.meshes) {
+                        mesh.parent = graphRoot;
+                    }
+                } else {
+                    this.mesh.parent = graphRoot;
                 }
-            } else {
-                this.mesh.parent = graphRoot;
             }
 
             if (this.arrowMesh) {
@@ -692,16 +693,17 @@ export class Edge {
         // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
         if (graphRoot) {
-            // A batch parents its own mesh when it is built, once for every edge in it.
-            if (this.lineBatch !== null) {
-                // nothing to parent here
-            } else if (this.mesh instanceof PatternedLineMesh) {
-                // PatternedLineMesh is a wrapper with an array of meshes
-                for (const mesh of this.mesh.meshes) {
-                    mesh.parent = graphRoot;
+            // A batched line is not parented here: its batch parents its one mesh when it is
+            // built, which puts every edge in it under the same transform.
+            if (this.lineBatch === null) {
+                if (this.mesh instanceof PatternedLineMesh) {
+                    // PatternedLineMesh is a wrapper with an array of meshes
+                    for (const mesh of this.mesh.meshes) {
+                        mesh.parent = graphRoot;
+                    }
+                } else {
+                    this.mesh.parent = graphRoot;
                 }
-            } else {
-                this.mesh.parent = graphRoot;
             }
 
             if (this.arrowMesh) {

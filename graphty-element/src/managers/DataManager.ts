@@ -14,7 +14,13 @@ import { DataSource, type DeclaredDirection } from "../data/DataSource";
 import { edgeIdOf } from "../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
-import { type DirectionOutcome, ingestDeclaredDirection, ingestEdge, ingestNode, resolveEdgeWeight } from "../data/ingest";
+import {
+    type DirectionOutcome,
+    ingestDeclaredDirection,
+    ingestEdge,
+    ingestNode,
+    resolveEdgeWeight,
+} from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../data/report";
 import { Edge, EdgeMap } from "../Edge";
@@ -23,6 +29,7 @@ import type { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import { DEFAULT_LIMITS } from "../session/limits";
 import type { DirectionProvenance } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -590,9 +597,16 @@ export class DataManager implements Manager {
         // create path to node ids
         const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
 
+        // The ids first, so the ceiling is checked against the nodes this batch would ADD (a
+        // re-supplied node costs nothing) and checked before any of them is created: a batch
+        // the renderer cannot hold is refused whole, not half-applied.
+        const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
+        const fresh = new Set(ids.filter((id) => !this.nodeCache.get(id)));
+        this.refuseAboveCeiling("nodes", this.nodes.size, fresh.size, DEFAULT_LIMITS.renderCeiling);
+
         // create nodes
-        for (const node of nodes) {
-            const nodeId = jmespath.search(node, query) as NodeIdType;
+        for (const [i, node] of nodes.entries()) {
+            const nodeId = ids[i];
 
             if (this.nodeCache.get(nodeId)) {
                 continue;
@@ -946,6 +960,11 @@ export class DataManager implements Manager {
                 }
             }
 
+            // Checked per edge rather than once per batch because only the repeat policy above
+            // knows how many of these records become edges. The edges before this one are held
+            // and consistent; this one, and the rest of the batch, are refused.
+            this.refuseAboveCeiling("edges", this.store.builder.edgeCount, 1, DEFAULT_LIMITS.edgesDrawn);
+
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
             // the scene is still catching up.
@@ -1237,7 +1256,11 @@ export class DataManager implements Manager {
             return false;
         }
 
-        const outcome: DirectionOutcome = ingestDeclaredDirection(this.store, declaration.directed, declaration.statedBy);
+        const outcome: DirectionOutcome = ingestDeclaredDirection(
+            this.store,
+            declaration.directed,
+            declaration.statedBy,
+        );
         if (outcome === "config-wins") {
             this.logger.info("File declares a direction the configuration has already settled", {
                 type,
@@ -1503,6 +1526,43 @@ export class DataManager implements Manager {
      */
     private heldCounts(): { nodes: number; edges: number } {
         return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
+    }
+
+    /**
+     * Refuse to grow past what the renderer can draw, instead of freezing the tab.
+     *
+     * WHY A REFUSAL AND NOT A DEGRADED DRAW. The design says that above the render ceiling the
+     * element draws a smaller render set, and above `edgesDrawn` it hides edges until the view
+     * narrows. Neither exists yet. What exists is a renderer that, past these counts, exhausts
+     * the renderer process and produces no further frame -- measured for issue #405 at 18,000
+     * nodes / 180,000 edges on an RTX 4070 SUPER, where the renderer process reached 4.7 GB and
+     * died while 17,000 / 170,000 loaded in 17 s. Until the degraded draw lands, the honest
+     * behaviour at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
+     * the number the element enforces rather than a number it merely publishes.
+     *
+     * `E_TOO_LARGE` is the code because the ceiling is a hard limit of this renderer, and the
+     * caller's remedy is the one that code names: load a subset.
+     * @param of - what is being counted
+     * @param held - how many the graph holds already
+     * @param adding - how many this call would add
+     * @param limit - the most the renderer can draw
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when `held + adding` is past the limit
+     */
+    private refuseAboveCeiling(of: "nodes" | "edges", held: number, adding: number, limit: number): void {
+        if (held + adding <= limit) {
+            return;
+        }
+
+        const { nodes, edges } = this.heldCounts();
+        throw new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "data",
+            message:
+                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
+                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
+                `this renderer can draw. Load a subset of the graph.`,
+            details: { limit, count: held + adding, of, graph: { nodes, edges } },
+        });
     }
 
     // Utility methods

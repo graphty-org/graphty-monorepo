@@ -340,6 +340,14 @@ Left unset -- the default -- a repeat is decided by the ordered endpoint pair al
 
 ## Large Dataset Tips
 
+The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (50,000) and
+`DEFAULT_LIMITS.edgesDrawn` edges (100,000), exported from `@graphty/graphty-element/session`. A
+load that would cross either fails with `E_TOO_LARGE`; `details` carry the limit, the count the
+load would have reached and the counts the graph holds. Past those figures the renderer runs out
+of memory rather than slowing down, so the error is the element declining what it cannot draw.
+Load a subset, or explore a large graph a neighbourhood at a time (see
+[Incremental Loading](#incremental-loading)).
+
 1. **Batch loading**: Load nodes before edges
 2. **Progressive loading**: Load in chunks for very large graphs
 3. **Simplify data**: Only include properties you need

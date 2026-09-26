@@ -248,27 +248,40 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
                 oracle: (k: number) => katzOracle(snapshot, { ...OPTS, ...KATZ, maxIterations: k }),
             },
         ];
-        for (const leg of legs) {
-            const full = leg.oracle(OPTS.maxIterations);
-            expect(full.converged, `${leg.label}: the oracle converges`).toBe(true);
-            const first = full.iterations;
-            expect(leg.oracle(first), `${leg.label}: oracle at the cap`).toMatchObject({
-                iterations: first,
-                converged: true,
-            });
-            const atCap = await leg.gpu(first);
-            expect({ iterations: atCap.iterations, converged: atCap.converged }, `${leg.label}: at the cap`).toEqual({
-                iterations: first,
-                converged: true,
-            });
-            expect(leg.oracle(first - 1).converged, `${leg.label}: oracle one below`).toBe(false);
-            const below = await leg.gpu(first - 1);
-            expect(
-                { iterations: below.iterations, converged: below.converged },
-                `${leg.label}: one below the cap`,
-            ).toEqual({ iterations: first - 1, converged: false });
+        try {
+            for (const leg of legs) {
+                // EACH SIDE AT ITS OWN FIRST CONVERGED ITERATION. Where f32 crosses the tolerance depends on the
+                // device's rounding (Katz on karate: 36 on NVIDIA and lavapipe, 35 on Apple Metal, as against the
+                // f64 oracle's 36), and how far the two may drift apart is the "within +-1" case above. What this
+                // case pins is the cap rule, on each side: the cap AT that iteration converges, one lower does not.
+                const full = leg.oracle(OPTS.maxIterations);
+                expect(full.converged, `${leg.label}: the oracle converges`).toBe(true);
+                const first = full.iterations;
+                expect(leg.oracle(first), `${leg.label}: oracle at the cap`).toMatchObject({
+                    iterations: first,
+                    converged: true,
+                });
+                expect(leg.oracle(first - 1).converged, `${leg.label}: oracle one below`).toBe(false);
+
+                const free = await leg.gpu(OPTS.maxIterations);
+                expect(free.converged, `${leg.label}: the GPU converges`).toBe(true);
+                const gpuFirst = free.iterations;
+                const atCap = await leg.gpu(gpuFirst);
+                expect(
+                    { iterations: atCap.iterations, converged: atCap.converged },
+                    `${leg.label}: at the cap`,
+                ).toEqual({ iterations: gpuFirst, converged: true });
+                const below = await leg.gpu(gpuFirst - 1);
+                expect(
+                    { iterations: below.iterations, converged: below.converged },
+                    `${leg.label}: one below the cap`,
+                ).toEqual({ iterations: gpuFirst - 1, converged: false });
+            }
+        } finally {
+            // released even when an expectation throws: the context is shared, and a karate left resident fails
+            // the residency count at the end of the windowed-core case below
+            ctx.release(snapshot);
         }
-        ctx.release(snapshot);
     });
 
     it("the top-10 order is identical on karate and random1k, for all three", async (t) => {

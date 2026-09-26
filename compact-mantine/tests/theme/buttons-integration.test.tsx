@@ -160,7 +160,11 @@ describe("Button Components Integration", () => {
             const root = container.querySelector(".mantine-ActionIcon-root");
             expect(root).toHaveAttribute("data-variant", "filled");
             expect(cssVar(root, "--ai-bg")).toBe("var(--mantine-color-blue-filled)");
-            expect(cssVar(root, "--ai-color")).toBe("var(--mantine-color-white)");
+            // White on the light scheme's blue-8, black on the dark scheme's
+            // blue-5; see src/theme/contrast.ts.
+            expect(cssVar(root, "--ai-color")).toBe(
+                "light-dark(var(--mantine-color-white), var(--mantine-color-black))",
+            );
             // ... and the compact sizing survives alongside it.
             expect(cssVar(root, "--ai-size")).toBe("24px");
         });

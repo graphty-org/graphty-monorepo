@@ -20,6 +20,7 @@ import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
+import { useDevWarning } from "../utils/dev-warning";
 import { Popout } from "./popout";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
@@ -174,6 +175,8 @@ export interface CompactColorInputProps {
      * The colour comes first, as `#RRGGBB` in upper case; the event that caused
      * the change is second and is absent for a change made from the picker,
      * which reports none.
+     *
+     * Not called when `onChange` is supplied.
      */
     onColorChange?: ChangeHandler<string | undefined>;
     /**
@@ -181,6 +184,8 @@ export interface CompactColorInputProps {
      * reset to its default.
      *
      * The percentage comes first; the event that caused the change is second.
+     *
+     * Not called when `onChange` is supplied.
      */
     onOpacityChange?: ChangeHandler<number | undefined>;
     /**
@@ -209,8 +214,9 @@ export interface CompactColorInputProps {
      * and its direction. `undefined` keeps its meaning from the props: the
      * reader has chosen nothing for that half and the default is showing.
      *
-     * Supplying this ALONGSIDE `onColorChange` or `onOpacityChange` makes every
-     * gesture write twice. Pick one route.
+     * When this is supplied, `onColorChange` and `onOpacityChange` are not
+     * called: one gesture makes one write. Passing both routes logs a
+     * development warning naming the conflict.
      * @example
      * ```tsx
      * <CompactColorInput
@@ -353,6 +359,17 @@ export function CompactColorInput({
     // sight -- the route PanelField already uses.
     const annotation = useControlAnnotation({name: label, disabled, disabledReason});
 
+    // onChange, when given, is the only route out. The older pair would be a
+    // second write for the same gesture, built from the same pre-gesture
+    // snapshot onChange exists to avoid.
+    const usesOnChange = onChange !== undefined;
+    useDevWarning(
+        usesOnChange && (onColorChange !== undefined || onOpacityChange !== undefined)
+            ? "CompactColorInput was given onChange together with onColorChange or onOpacityChange. " +
+                  "Only onChange is called; drop the other callbacks."
+            : undefined,
+    );
+
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
     // this component's word for "the reader has chosen nothing".
@@ -360,14 +377,14 @@ export function CompactColorInput({
         value: color,
         defaultValue: undefined,
         finalValue: undefined,
-        onChange: onColorChange,
+        onChange: usesOnChange ? undefined : onColorChange,
     });
 
     const [chosenOpacity, setChosenOpacity] = useUncontrolled<number | undefined>({
         value: opacity,
         defaultValue: undefined,
         finalValue: undefined,
-        onChange: onOpacityChange,
+        onChange: usesOnChange ? undefined : onOpacityChange,
     });
 
     const isColorDefault = chosenColor === undefined;
@@ -412,9 +429,10 @@ export function CompactColorInput({
             setChosenOpacity(nextOpacity);
         }
 
-        // One write for the whole gesture, AFTER both halves are settled. The
-        // two setters above report through onColorChange and onOpacityChange,
-        // which cannot carry a gesture that moved both: a controlled consumer
+        // One write for the whole gesture, AFTER both halves are settled. When
+        // onChange is absent the two setters above report through
+        // onColorChange and onOpacityChange, which cannot carry a gesture that
+        // moved both: a controlled consumer
         // rebuilds its next state from the props it is holding, both callbacks
         // see the same pre-gesture snapshot inside one React batch, and the
         // second write silently drops the first's colour. That is the race the

@@ -113,6 +113,14 @@ border at rest so that a column of them reads as a list of values rather than a
 grid of boxes. Keyboard focus still paints a visible ring; a mouse click does
 not, so the surface stays quiet under the pointer.
 
+The accent -- a filled `Button`, a checked box -- passes WCAG AA in both
+schemes: the theme sets `primaryShade: {light: 8, dark: 5}` and
+`autoContrast: true`, so the fill stands at least 3:1 off the panel and the text
+on it at least 4.5:1 (white in the light scheme, black in the dark one). Set
+your own `primaryColor` or `primaryShade` and you get yours instead. The one
+exception is a checked `Switch`: Mantine always paints its thumb white, so its
+track stays the darker light-scheme shade in both schemes.
+
 ### Components the theme restyles
 
 Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
@@ -208,6 +216,7 @@ examples, and every prop is documented in your editor.
 | `GradientEditor` | a multi-stop linear gradient: colours, positions, angle. Needs a `PopoutManager`. |
 | `StyleNumberInput` | a number that has a sensible default, and you want the panel to show at a glance whether the reader has overridden it. `undefined` means "not set" and shows the default in italics with no reset button. |
 | `StyleSelect` | the same idea for a dropdown. |
+| `SegmentedControl` | Mantine's `SegmentedControl`, outside a panel row. Put it inside an `Input.Wrapper` and it takes the wrapper's label and description as its accessible name and description; Mantine's own does not. |
 | `ToggleWithContent` | a feature is a yes or no that brings its own settings with it. Turning it off takes its settings off the screen. |
 
 ### Showing data

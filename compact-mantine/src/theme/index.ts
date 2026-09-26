@@ -11,6 +11,7 @@ import {
     navigationComponentExtensions,
     overlayComponentExtensions,
 } from "./components";
+import { compactVariantColorResolver } from "./contrast";
 import { compactFontSizes, compactRadius, compactSpacing } from "./tokens";
 
 declare module "@mantine/core" {
@@ -51,6 +52,34 @@ export const compactThemeOverride = createTheme({
     // giving up the design-tool look. Do not set this to "never": that resolves
     // to `outline: none` on every control in the library at once.
     focusRing: "auto",
+    // The default accent passes WCAG AA in both schemes. Stock Mantine fills
+    // blue-6 (light) and blue-8 (dark) with white text: 3.56:1 for the text in
+    // the light scheme, and 2.11:1 for the fill on the raised surface in the
+    // dark one. No single blue shade carries white text at 4.5:1 and still
+    // stands 3:1 off the dark panel, so the dark scheme uses a lighter fill
+    // with dark text on it:
+    //   light, blue-8 #1971c2, white text 5.02:1, fill 3.86:1 or more on panel,
+    //     field and raised surface;
+    //   dark, blue-5 #339af0, black text 7.02:1, fill 3.53:1 or more.
+    // autoContrast picks the text colour from the fill's luminance, so a
+    // consumer's own primaryColor still gets readable text.
+    // tests/constants/panel.test.ts measures every ratio above and fails if
+    // either moves.
+    primaryShade: { light: 8, dark: 5 },
+    autoContrast: true,
+    // Black text on fills brighter than this luminance, white below it.
+    // 0.18 is where the two meet: black and white both measure about 4.56:1
+    // on a fill of luminance 0.18, so whichever is picked clears 4.5:1 on any
+    // fill. Mantine's default, 0.3, puts white text on fills up to 0.3, which
+    // measures as low as 3:1 (a consumer colour whose shade 5 sits just under
+    // 0.3, for example).
+    luminanceThreshold: 0.18,
+    // Mantine's autoContrast judges text colour from the light-scheme shade
+    // only, which would put white text on the dark scheme's blue-5 (2.99:1).
+    // The resolver below, and the contrastVar / switchTrackColor calls in the
+    // component extensions, choose the text per scheme; see ./contrast.ts.
+    // tests/theme/accent-contrast.browser.test.tsx measures the painted result.
+    variantColorResolver: compactVariantColorResolver,
     // The panel grid, published on the theme so a consumer theming this
     // library reads the geometry rather than retyping it. It is the same
     // object as the exported PANEL_GRID constant.

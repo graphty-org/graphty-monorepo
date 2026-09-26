@@ -241,9 +241,8 @@ describe("SettingsOverlay", () => {
         });
 
         /* A segmented control is a radiogroup, and a radiogroup with no name is announced as
-           three unexplained words. Mantine's Input.Wrapper cannot name this one on its own --
-           SegmentedControl never takes the wrapper's input id -- so the association is made by
-           hand, and this board is what keeps it made. */
+           three unexplained words. compact-mantine's SegmentedControl takes its name and
+           description from the Input.Wrapper around it. */
         it("names the acceleration control and carries its explanation", () => {
             openPerformance();
 

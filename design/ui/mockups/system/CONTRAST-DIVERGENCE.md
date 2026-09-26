@@ -124,7 +124,7 @@ painted at the value it replaced on every board.
 | **selected ground / on-selected ink** | One ground, darker than its ink, in two spellings. Segmented and tab and icon-group: track `#2a3035`, selected segment `#374047`, contents in the primary ink `#d5d7da`. List row, rail item, active tab-as-row: selected ground `#28364e` on the `#1f2428` panel, contents still `#d5d7da`. There is no separate on-selected ink at all. Segment vs track = **1.26:1**; segment vs panel 1.48:1; `#d5d7da` on `#374047` = 7.33:1. List form: `#28364e` vs `#1f2428` = **1.29:1**; `#d5d7da` on `#28364e` = 8.43:1 | Three tokens where the mockups have one. `RAISED` = light-dark(gray-3, dark-5) -> `#dee2e6` / `#374047`, demoted to the chip and track role. `SELECTED` = light-dark(gray-7, dark-1) -> `#495057` / `#a3a8b1`, which inverts: a light patch in the dark scheme. `ON_SELECTED` = `--mantine-color-body` -> `#ffffff` / `#1f2428`, the label punched out of it. SELECTED vs its track = **5.59:1** dark / 7.35:1 light; vs the panel 6.56:1 / 8.18:1; ON_SELECTED on SELECTED 6.56:1 / 8.18:1 | 1.4.11, 3:1, for the boundary that distinguishes a control's state; then 1.4.3, 4.5:1, for the label on that ground. The mockup ground fails 1.4.11 at 1.26:1 and 1.29:1, with no exemption available: a selected segment is an operable control whose state is being drawn. Inverting the ground then forces the second token, because `#d5d7da` on `#a3a8b1` is only **1.66:1** |
 | **the ink ladder** | Four live levels plus no separate disabled token. Primary `#d5d7da`, secondary `#a3a8b1`, dimmed `#7a828e`, disabled-and-placeholder `#5f6873` -- one value doing both jobs. On the panel `#1f2428`: 10.86:1, 6.56:1, **4.03:1**, **2.77:1**. On a field `#2a3035`: 9.26:1, 5.59:1, **3.44:1**, **2.36:1**. Two of the four are under 4.5:1 on the panel; three of the four are under it on a field | Two live levels. `VALUE` = `--mantine-color-text` -> `#d5d7da` / `#000000`. `CHROME`, `PROSE` and `PLACEHOLDER` are the identical string light-dark(gray-7, dark-1) -> `#a3a8b1` / `#495057`. VALUE 10.86:1 dark / 21.00:1 light on the panel, 9.26:1 / 18.88:1 on a field; the shared step **5.59:1** dark / 7.35:1 light on a field. The mockups' third step survives as non-text only: `BORDER` and `DIVIDER` = light-dark(gray-6, dark-2) -> `#7a828e` / `#868e96`, 4.03:1 dark / 3.32:1 light on the panel. The fourth survives as the additive `DISABLED` = `--mantine-color-disabled-color` -> `#5f6873` / `#adb5bd`, exempt rather than compliant | 1.4.3, 4.5:1, for CHROME, PROSE and PLACEHOLDER. Placeholder text is ordinary text to WCAG and gets no exemption; that clause is what forces the collapse. BORDER and DIVIDER are held to 1.4.11's 3:1 instead, which is exactly why `#7a828e` could stay in the palette in a different role. DISABLED relies on the WCAG 2.2 inactive-component exemption and is measured but not required to pass |
 | **the field boundary** | A field is a borderless fill: `background: #2a3035` on the `#1f2428` panel, `border-radius: 4px`, and the palette says so in as many words -- "input border, none (theme.ts `--input-bd: none`)". Fill vs panel = **1.17:1**. A line appears only on focus: `box-shadow: 0 0 0 1px #5b8ff9`, which measures 4.29:1 on the field and 5.03:1 on the panel. The mockups record none of these numbers | `SURFACE` = light-dark(gray-1, dark-6) -> `#f1f3f5` / `#2a3035`. The dark value is the mockups' value, unchanged. SURFACE vs PANEL = **1.17:1** dark, **1.11:1** light, against a 3:1 requirement -- recorded and refused rather than fixed. One mechanism did change: `--input-bd` is `transparent`, not `none`, and `--input-bd-focus` moved from Mantine's filled primary to shade 5 in dark, lifting the focus border from 2.66:1 on the field to **4.46:1** | 1.4.11, 3:1, for the boundary of a component. No exemption is claimed; the pair is recorded as failing, with arithmetic in 4.3 showing that no token move can fix it. The focus indicator is held to the same 3:1, and that one was fixed |
-| **accent and the status colours** | Accent `#4a7ee8` (hover `#5b8ff9`, pressed `#3a6dd7`, tint `#28364e`), text on accent `#ffffff`; success `#61d095`, warning `#f7b731`, info `#33bfd7`, danger `#eb4949`. VOCAB is emphatic that the app's stock blue is not to be drawn: "Do not use those in the mockups; use `#4a7ee8`." `#4a7ee8` on the panel = 4.06:1, on a field 3.46:1, on the raised `#374047` = 2.74:1; white on it = **3.86:1** | `ACCENT` = `--mantine-primary-color-filled`, `ON_ACCENT` = `--mantine-primary-color-contrast`, `WARNING`/`SUCCESS`/`DANGER` = yellow-6 / green-6 / red-6. The theme sets no `primaryColor` and no `primaryShade`, so these resolve to stock Mantine: `#1971c2` dark / `#228be6` light, `#ffffff`, `#fab005`, `#40c057`, `#fa5252` -- none of them the mockup hexes. Accent on the panel 3.12:1 dark / 3.56:1 light; on a field **2.66:1** dark / 3.20:1 light; on the raised track 2.11:1 / 2.73:1; white on the accent 5.02:1 dark / **3.56:1** light | 1.4.11, 3:1, for the accent fills and the status glyphs; 1.4.3, 4.5:1, for white on the accent. Neither artefact is uniformly better here, which is the point of listing it: the mockup accent beats the library's on all three grounds, and the library's beats the mockup's on the label drawn upon it |
+| **accent and the status colours** | Accent `#4a7ee8` (hover `#5b8ff9`, pressed `#3a6dd7`, tint `#28364e`), text on accent `#ffffff`; success `#61d095`, warning `#f7b731`, info `#33bfd7`, danger `#eb4949`. VOCAB is emphatic that the app's stock blue is not to be drawn: "Do not use those in the mockups; use `#4a7ee8`." `#4a7ee8` on the panel = 4.06:1, on a field 3.46:1, on the raised `#374047` = 2.74:1; white on it = **3.86:1** | `ACCENT` = `--mantine-primary-color-filled`, `ON_ACCENT` = `--mantine-primary-color-contrast`, `WARNING`/`SUCCESS`/`DANGER` = yellow-6 / green-6 / red-6. The theme sets no `primaryColor`; it sets `primaryShade: {light: 8, dark: 5}` and `autoContrast`, so the accent resolves to `#339af0` with black text on it in dark and `#1971c2` with white text in light; the status colours stay stock Mantine `#fab005`, `#40c057`, `#fa5252` -- none of them the mockup hexes. Accent on the panel 5.23:1 dark / 5.02:1 light; on a field 4.46:1 / 4.51:1; on the raised track 3.53:1 / 3.86:1; text on the accent 7.02:1 (black) dark / 5.02:1 (white) light | 1.4.11, 3:1, for the accent fills and the status glyphs; 1.4.3, 4.5:1, for the text on the accent. The library's accent now passes on every ground and for the label drawn upon it; the mockup accent fails 1.4.3 for white text (3.86:1) and 1.4.11 on the raised track (2.74:1). What remains is a difference of hue, and in dark a difference of label colour |
 | **borders and dividers** | A panel edge is `1px solid #48525c` (VOCAB.md:89) and a section divider `1px solid #495057` (VOCAB.md:90); the subtle rule inside a card or between list rows is `#374047` (VOCAB.md:91). On the `#1f2428` panel those measure **1.97:1**, **1.91:1** and 1.48:1. The boards record none of the numbers | One token does both jobs. `BORDER` and `DIVIDER` are the identical string, light-dark(gray-6, dark-2) -> `#868e96` light / `#7a828e` dark, **3.32:1** light / **4.03:1** dark on the panel. `panel.ts:218-226` is the library's own record of the move: "Lifted from the #48525c of the original palette, which measured 1.97:1 on the panel against the 3:1 WCAG AA requirement for meaningful non-text such as a chart bar. This is the dimmest step of the palette that meets 3:1 on the panel in both colour schemes." `ControlSection.tsx:313` draws the section rule from `DIVIDER` today | 1.4.11, 3:1, for a shape that carries meaning. The token that paints a seam also paints a chart bar and the chart baseline, and a bar carries information, so the border weight is set by the bar. The mockup values fail the clause at 1.97:1 and 1.91:1 with no exemption available |
 
 ---
@@ -261,9 +261,10 @@ variable. `none` makes the whole declaration invalid at computed-value time, so
 the focus rule could never paint: the field was borderless *and*
 unfocusable-looking. `transparent` keeps the resting field borderless and
 reserves the 1px the focus ring needs. The focus colour then moved from Mantine's
-filled primary -- shade 8 in dark, measuring 2.66:1 on the field and 3.12:1 on
-the panel, under 3:1 -- to shade 5, at **4.46:1** on the field and 5.23:1 on the
-panel. Light mode keeps the filled colour at 3.20:1 and 3.56:1.
+filled primary -- stock Mantine's shade 8 in dark, measuring 2.66:1 on the field
+and 3.12:1 on the panel, under 3:1 -- to shade 5, at **4.46:1** on the field and
+5.23:1 on the panel. Light mode keeps the filled colour, which the theme's
+`primaryShade` makes shade 8: 4.51:1 and 5.02:1.
 
 **What would be lost if the mockups were corrected.** There is no value to
 correct, so the risk runs the other way: a drafter who reads "the library made
@@ -289,56 +290,66 @@ a bug, and would be the first thing someone tried to fix.
 **What the mockups draw.** `#4a7ee8` and the designloom status set, with an
 explicit instruction at VOCAB.md:72-74 not to draw the running app's stock blue.
 
-**What the library ships.** Not that. `compact-mantine` sets no `primaryColor`
-and no `primaryShade`, and replaces only the `dark` hue in the palette, so
-`ACCENT`, `WARNING`, `SUCCESS` and `DANGER` all resolve to stock Mantine:
-`#1971c2` / `#228be6`, `#fab005`, `#40c057`, `#fa5252`. The library never
-adopted the mockups' accent; it inherited Mantine's, and three of the twelve
-remaining failures in section 6 follow from that.
+**What the library ships.** Not that. `compact-mantine` sets no `primaryColor`,
+and replaces only the `dark` hue in the palette, so `ACCENT` follows Mantine's
+blue and `WARNING`, `SUCCESS` and `DANGER` are stock Mantine `#fab005`,
+`#40c057`, `#fa5252`. It does set `primaryShade: {light: 8, dark: 5}` and
+`autoContrast: true` (`compact-mantine/src/theme/index.ts`), so the accent is
+`#1971c2` with white text on it in the light scheme and `#339af0` with black
+text on it in the dark one.
 
-Neither side is uniformly better, which is why this is a divergence and not a
-defect on one side. The mockup accent beats the library's on every ground it is
-drawn on: 4.06:1 against the panel where the library gets 3.12:1, 3.46:1 on a
-field where the library gets 2.66:1 and fails, 2.74:1 on the raised track where
-the library gets 2.11:1. The library's beats the mockups' on the one thing drawn
-upon it: white on `#1971c2` is 5.02:1 and passes 1.4.3, where white on `#4a7ee8`
-is **3.86:1** and does not.
+**Why the shade is set.** Stock Mantine fills blue-6 `#228be6` in light and
+blue-8 `#1971c2` in dark, both with white text. That failed WCAG AA in four
+places: white on `#228be6` is 3.56:1 against the 4.5:1 for text -- every filled
+`Button` -- and against 3:1 the fill measured 2.73:1 on the light raised track,
+and in dark 2.66:1 on a field (a checked checkbox) and 2.11:1 on the raised
+track (a micro-bar). An earlier
+version of this document recorded those as accepted, on the grounds that a
+`primaryShade` change was too global to impose on a consumer. That was reversed:
+a library's default should pass, and a consumer who wants another shade sets
+one. No single blue shade carries white text at 4.5:1 and still stands 3:1 off
+the dark panel, so the dark scheme takes a lighter fill with dark text on it,
+and `autoContrast` picks the text colour from the fill so a consumer's own
+`primaryColor` gets readable text too.
 
-**The outcome, decided in the same form as the other four.** Neither side moves.
-The library keeps stock Mantine and the boards keep `#4a7ee8`. That is the
-settled answer here, not a question left open: a later pass that sets
-`primaryColor` or `primaryShade` to the mockup blue closes this row from the
-library end, and closing it is a decision to be taken in this document, by
-amending the table in section 3, rather than quietly in `theme/index.ts`. It is
-the same rule 5.2 puts on the other four rows. Section 6.2's light `ON_ACCENT`
-row records what such a change would cost a consumer, which is why the hardening
-pass declined to make it.
+| Scheme | Accent | On the panel | On a field | On the raised track | Text on it |
+|---|---|---|---|---|---|
+| light | blue-8 `#1971c2` | 5.02 | 4.51 | 3.86 | white 5.02 |
+| dark | blue-5 `#339af0` | 5.23 | 4.46 | 3.53 | black 7.02 |
 
-**Two stale comments, since corrected.** The first was the JSDoc parentheticals
-at `compact-mantine/src/constants/panel.ts`, which quoted the *mockup* hexes for
-four tokens -- `#4a7ee8`, `#f7b731`, `#61d095`, `#eb4949` -- even though the
-theme resolves them to Mantine's. That was the sharpest form of this row's trap:
-a reader of the library's own source would have concluded it already draws the
-boards' accent, and gone looking for a rendering bug that does not exist. Those
-parentheticals now quote the resolved values -- `#1971c2` dark and `#228be6`
-light for `ACCENT`, then `#fab005`, `#40c057` and `#fa5252` -- and say why the
-tokens are what they are: the theme replaces only the `dark` ramp and sets no
-`primaryColor`, so `ACCENT` and `ON_ACCENT` follow a consumer's own primary and
-the three status colours are stock Mantine. The parentheticals on `VALUE`,
-`SURFACE`, `PANEL` and `RAISED` always did match what those tokens resolve to.
+`compact-mantine/tests/constants/panel.test.ts` asserts every cell of that
+table against its WCAG threshold, from the resolved theme, in both schemes.
 
-The second was at `compact-mantine/src/components/rows/ChartRow.tsx`, which
-recorded the micro-bar's accent fill at 3.75:1 on the field surface and 2.97:1
-on the raised one in dark. Those two numbers were the *light*-scheme blue-6
-`#228be6` measured against the dark grounds. The dark accent is blue-8
-`#1971c2`, which measures **2.66:1** on `#2a3035` and **2.11:1** on `#374047` --
-the pair that `panel.ts`'s own `RAISED` note and section 6.2 record. The light
-numbers in that comment, 3.20:1 and 2.73:1, were right. Correcting the digits
-also corrected the claim they were supporting: the comment said moving the track
-from the raised surface to the field surface put the fill past 3:1, when 2.66:1
-clears nothing. It now says the move clears 1.4.11 outright in the light scheme
-and improves the dark one without clearing it, which is what section 6.2's
-fourth row already recorded.
+**Why `autoContrast` alone is not enough.** Mantine's components choose black or
+white text once, in JavaScript, from the light-scheme shade, and a few
+(the keyboard-selected option in a Select dropdown, the Switch thumb and its
+on-label) hard-code white. Left alone, every filled control in the dark scheme
+paints white on `#339af0`, 2.99:1. The theme therefore hands the browser both
+answers through CSS `light-dark()` (`compact-mantine/src/theme/contrast.ts`),
+sends the selected option's white through `--mantine-primary-color-contrast`,
+and keeps a checked Switch's track at blue-8 in both schemes so its white thumb
+measures 5.02:1. It also sets `luminanceThreshold: 0.18`, the luminance at which
+black and white text measure the same (about 4.56:1), so the choice clears
+4.5:1 on any fill. `compact-mantine/tests/theme/accent-contrast.browser.test.tsx`
+measures the painted colours of those controls in both schemes.
+
+**The mockups against the library.** The library's accent now passes on every
+ground and for the label drawn upon it. The mockups' `#4a7ee8` measures 4.06:1
+on the panel, 3.46:1 on a field and 2.74:1 on the raised track, and white on it
+is **3.86:1**. What is left is a divergence of hue, plus, in the dark scheme,
+of label colour (black on the library's accent, white on the boards'). Neither
+side moves for the hue: adopting the mockup blue in the library is a decision
+to be taken in this document, by amending the table in section 3, rather than
+quietly in `theme/index.ts`, and it would have to keep both ratios above.
+
+**Two stale comments, since corrected.** The JSDoc parentheticals at
+`compact-mantine/src/constants/panel.ts` once quoted the *mockup* hexes for four
+tokens -- `#4a7ee8`, `#f7b731`, `#61d095`, `#eb4949` -- even though the theme
+resolves them to Mantine's, so a reader of the library's own source would have
+concluded it already draws the boards' accent. They now quote the resolved
+values. The comment at `compact-mantine/src/components/rows/ChartRow.tsx` once
+quoted the light-scheme blue-6 measured against the dark grounds; it now quotes
+the current shades, which pass on both the field and the raised surface.
 
 ### 4.5 BORDER and DIVIDER: the seam is lifted off the boards' value
 
@@ -424,18 +435,21 @@ recorded. Silently repainting one side to match the other is not.
 
 The library targets WCAG 2.2 AA. It does not reach it everywhere, and a record
 that only listed the mockups' shortfalls would be dishonest. The full audit
-covers twenty-six pairings across both schemes, and **12** of them still fail.
+covers twenty-six pairings across both schemes, and **8** of them still fail.
 The hardening pass reduced that count, but by how much cannot be recomputed from
 this tree, so no before-figure is stated here: `PANEL_INK` has a single commit in
 its history, and three of the tokens the audit pairs -- `SELECTED`,
 `ON_SELECTED` and `DISABLED` -- were created by the pass itself, so there is no
-earlier set of twenty-six pairings to measure. The twelve that remain are listed
+earlier set of twenty-six pairings to measure. The eight that remain are listed
 here in full,
 because until now they lived only in an untracked script and this is their first
 durable home.
 
 Measured against the live tree, with tokens resolved through Mantine's own
-variable resolver. Five failures are in the dark scheme, seven in the light one.
+variable resolver. Three failures are in the dark scheme, five in the light one.
+Four accent pairings that an earlier version listed here -- white on the light
+accent, and the dark accent on a field and on the raised track, and the light
+accent on the raised track -- were fixed by the theme's `primaryShade` (4.4).
 
 ### 6.1 Three reasons, and the one failure that is none of them
 
@@ -448,26 +462,22 @@ them because they recur:
 2. **A decorative ground carrying no meaning of its own.** 1.4.11 asks about
    shapes that carry information; a chip whose rank is carried by the text on it
    does not qualify.
-3. **A change too global to make on a consumer's behalf.** Everything downstream
-   of Mantine's stock primary, and of yellow and green on white.
+3. **A change too global to make on a consumer's behalf.** Yellow and green on
+   white.
 
 Exactly one failure is in none of the three: the field boundary, refused by the
 arithmetic in 4.3 and handed to the owner as an open design decision.
 
-### 6.2 The twelve
+### 6.2 The eight
 
 | Scheme | Pair | Ratio / need | Why it is accepted |
 |---|---|---|---|
 | dark | rank chip ink on the chip -- PROSE `#a3a8b1` on RAISED `#374047` | **4.43** / 4.5 | Bucket 1. Misses by 0.07, and the row does not draw it: `DataRow.tsx:686-688` labels the chip in the primary ink, which measures 7.33:1 on the same ground. Retained as the measurement of the ink the row declines to use |
 | dark | field surface against the panel -- SURFACE `#2a3035` on PANEL `#1f2428` | **1.17** / 3 | The one that is in no bucket. Refused by arithmetic (4.3): a fill bright enough to clear 3:1 leaves no room for an ink dimmer than white inside it. A visible boundary is a design decision for the owner |
 | dark | rank chip against the panel -- RAISED `#374047` on PANEL `#1f2428` | **1.48** / 3 | Bucket 2. The chip's ground carries no meaning on its own; the rank is carried by the text on it, which passes at 7.33:1 |
-| dark | micro-bar fill against its track -- ACCENT `#1971c2` on RAISED `#374047` | **2.11** / 3 | Bucket 1. `ChartRow.tsx:987-996` moved the bar's track off RAISED onto SURFACE. In light that clears the clause outright, 2.73:1 -> **3.20:1**; in dark it improves to 2.66:1 and survives as the next row of this table rather than as this one |
-| dark | accent fill on a field -- ACCENT `#1971c2` on SURFACE `#2a3035` | **2.66** / 3 | Bucket 3. A checkbox's fill on a field. This is stock Mantine blue-8; fixing it means a global `primaryShade` change |
-| light | text on the accent -- ON_ACCENT `#ffffff` on ACCENT `#228be6` | **3.56** / 4.5 | Bucket 3, and the largest of them. This is stock Mantine blue-6, which is every filled `Button` in every Mantine application. Fixing it means `primaryShade: {light: 8}`, which the pass declined to impose on a consumer unilaterally -- declined and settled, per 4.4, not deferred |
 | light | field surface against the panel -- SURFACE `#f1f3f5` on PANEL `#ffffff` | **1.11** / 3 | The same arithmetic as the dark case, and worse |
 | light | rank chip against the panel -- RAISED `#dee2e6` on PANEL `#ffffff` | **1.30** / 3 | Bucket 2, as above |
 | light | a field border against the field fill -- BORDER `#868e96` on SURFACE `#f1f3f5` | **2.99** / 3 | Misses by 0.01. BORDER is already the dimmest step of the shared palette that clears 3:1 on the *panel* in both schemes (4.03:1 dark, 3.32:1 light), and the panel is the ground that matters for chart bars and the section divider. The field fill is the lighter ground and it lands one hundredth short |
-| light | micro-bar fill against its track -- ACCENT `#228be6` on RAISED `#dee2e6` | **2.73** / 3 | Bucket 1; settled at the drawing site, where it measures 3.20:1 |
 | light | warning glyph on the panel -- WARNING `#fab005` on `#ffffff` | **1.86** / 3 | Bucket 3. Yellow cannot reach 3:1 on white before yellow-9 `#e67700`, which measures 3.00:1 and is orange. That is a palette decision, not a mechanical fix |
 | light | success glyph on the panel -- SUCCESS `#40c057` on `#ffffff` | **2.36** / 3 | Bucket 3, same reason |
 
@@ -476,12 +486,14 @@ arithmetic in 4.3 and handed to the owner as an open design decision.
 Disabled ink on a field is 2.36:1 dark and 1.87:1 light; on the panel it is
 2.77:1 and 2.07:1. These are exempt under WCAG 2.2's exclusion of inactive
 components from 1.4.3 and 1.4.11, and they are asserted to *stay* low by
-`panel.test.ts:130-140`. They are counted separately from the twelve because
+`panel.test.ts:130-140`. They are counted separately from the eight because
 they are not failures; they are the point.
 
 ### 6.4 What the pass bought, worth quoting so it is not undone
 
-Accent fill on the panel 3.12:1 dark / 3.56:1 light. Danger glyph 4.77:1 /
+Accent fill on the panel 5.23:1 dark / 5.02:1 light, on a field 4.46:1 / 4.51:1,
+on the raised track 3.53:1 / 3.86:1, and text on it 7.02:1 / 5.02:1 -- all
+held by `panel.test.ts`'s accent block. Danger glyph 4.77:1 /
 3.28:1. Chart bars and the section divider 4.03:1 / 3.32:1. A field border
 against the field fill 3.44:1 in dark. The selected segment against its track
 5.59:1 / 7.35:1, and its label on it 6.56:1 / 8.18:1. Placeholder text on a
@@ -493,7 +505,8 @@ than in a consumer's product. That block's other two assertions cover a selected
 item against the panel and the ceiling on a disabled control, which are not in
 the list above. The remaining four -- the accent fill on the panel, the danger
 glyph, the chart bars and divider, and the field border on the field fill -- are
-measured here and asserted nowhere.
+measured here and asserted nowhere, except the accent fill, which is asserted
+now.
 
 ---
 
@@ -520,12 +533,13 @@ Specifically, and by name:
    exists and the library declines it, because it would cost the focus indicator
    more than it buys the boundary.
 4. **The mockups' accent is not the library's accent, and that is known.**
-   `#4a7ee8` is instructed at VOCAB.md:72-74 and beats the library's blue on
-   every ground it is drawn on. Do not repaint the boards to `#1971c2`, and do
-   not repaint the library to `#4a7ee8` either; 4.4 records why neither side
-   moves. `panel.ts`'s own comments quote the library's resolved values rather
-   than the boards', so the two are no longer confusable from the source -- they
-   were not always, which is what 4.4's first stale comment was.
+   `#4a7ee8` is instructed at VOCAB.md:72-74 and no longer beats the
+   library's blue on any ground. Do not repaint the boards to the library's
+   blue, and do not repaint the library to `#4a7ee8` either: it would fail
+   1.4.3 for white text; 4.4 records why neither side moves. `panel.ts`'s own
+   comments quote the library's resolved values rather than the boards', so
+   the two are no longer confusable from the source -- they were not always,
+   which is what 4.4's first stale comment was.
 5. **The mockups' `#48525c` panel edge and `#495057` section divider are not
    contrast bugs.** At 1.97:1 and 1.91:1 on the `#1f2428` panel they are below
    1.4.11's 3:1 and they are the drawn register of the boards, where a seam is

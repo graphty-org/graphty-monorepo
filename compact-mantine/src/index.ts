@@ -16,6 +16,7 @@ export { DataTable } from "./components/DataTable";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
 export { Popout, PopoutButton, PopoutManager, PopoutRegion, usePopoutManager, usePopoutRegion } from "./components/popout";
+export { SegmentedControl } from "./components/SegmentedControl";
 export { StyleNumberInput } from "./components/StyleNumberInput";
 export { StyleSelect } from "./components/StyleSelect";
 export { ToggleWithContent } from "./components/ToggleWithContent";

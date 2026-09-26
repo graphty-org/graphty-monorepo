@@ -1,5 +1,6 @@
 import { Avatar, Badge, Indicator, Kbd, Pill, Text, ThemeIcon } from "@mantine/core";
 
+import { contrastVar } from "../contrast";
 import {
     compactAvatarScale,
     compactBadgeScale,
@@ -46,8 +47,16 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactBadgeScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactBadgeScale, props?.size),
+                // With neither color nor variant, Mantine leaves the text to its
+                // stylesheet, which hard-codes white; see ../contrast.ts.
+                "--badge-color":
+                    props?.color === undefined && props?.variant === undefined
+                        ? contrastVar(theme, props)
+                        : undefined,
+            },
         }),
     }),
 
@@ -73,8 +82,16 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactThemeIconScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactThemeIconScale, props?.size),
+                // With neither color nor variant, Mantine leaves the text to its
+                // stylesheet, which hard-codes white; see ../contrast.ts.
+                "--ti-color":
+                    props?.color === undefined && props?.variant === undefined
+                        ? contrastVar(theme, props)
+                        : undefined,
+            },
         }),
     }),
 
@@ -82,8 +99,11 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactIndicatorScale, props?.size),
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactIndicatorScale, props?.size),
+                "--indicator-text-color": contrastVar(theme, props),
+            },
         }),
     }),
 

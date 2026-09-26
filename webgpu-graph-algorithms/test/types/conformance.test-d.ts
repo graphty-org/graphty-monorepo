@@ -1,9 +1,15 @@
 import type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    BellmanFordResultLike,
+    BfsOptions,
+    BfsResultLike,
+    HitsOptionsLike,
     IndexedPageRankOptions,
     PageRankResultLike,
     ScoresResultLike,
+    SsspOptions,
+    SsspResultLike,
 } from "@graphty/algorithms";
 import type {
     FruchtermanReingoldOptions,
@@ -97,6 +103,22 @@ expectTypeOf<ReExportedPageRankResultLike>().toEqualTypeOf<PageRankResultLike>()
 // option type it hands the method is the CPU package's own.
 declare const dispatch: (acc: AlgorithmAccelerator | null | undefined) => AcceleratedAlgorithms;
 expectTypeOf(dispatch(createAccelerator(ctx))).toEqualTypeOf<AcceleratedAlgorithms>();
-expectTypeOf<IndexedPageRankOptions | undefined>().toEqualTypeOf<
-    Parameters<NonNullable<AlgorithmAccelerator["pageRank"]>>[1]
->();
+// The option lines index the GPU interface, never the seam: `Parameters<NonNullable<AlgorithmAccelerator["sssp"]>>[2]`
+// is the seam's own declaration, so a line built on it compares the seam to itself and never looks at the GPU
+// member; and the `toMatchTypeOf<AlgorithmAccelerator>()` lines above cannot catch option drift either, because
+// method-syntax members are bivariant in their parameters and an all-optional bag (`SsspOptions & { delta?: number }`,
+// or `{ cutoff?: number }` with `weights` dropped) is assignable to `SsspOptions` in both directions. `toEqualTypeOf`
+// on the GPU member's parameter is the one check that fails when a GPU option type drifts from the seam's by one key.
+expectTypeOf<IndexedPageRankOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
+
+// ---- P8 (PD-19): the four traversal members conform to the seam TYPE FOR TYPE -- the seam's option types in, the
+// design's result records out, which satisfy the seam's `*Like` shapes.
+expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator>();
+expectTypeOf<BfsOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["breadthFirstSearch"]>[2]>();
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["sssp"]>[2]>();
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["bellmanFord"]>[2]>();
+expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["closenessCentrality"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatchTypeOf<BfsResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();

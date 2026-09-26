@@ -123,6 +123,19 @@ export interface SelectorSource {
      * @returns The indices, or undefined when the column cannot be enumerated.
      */
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
+    /**
+     * The lowest value in the top `n` of one run column, cut only between tie groups (see
+     * `RunResult.top`), or undefined when nothing is taken or the column is not a ranked run
+     * field for this kind of element. Absent, a `{match:"top"}` selector is refused.
+     *
+     * Asked once per element, so it must answer from something already computed: a session
+     * reads it off the run's result, which keeps the answer per field and `n`.
+     * @param path - The column path, `results.<run>.<field>`.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param n - The most elements the top may hold.
+     * @returns The cut, or undefined.
+     */
+    readonly topCut?: (path: Path, target: SelectorTarget, n: number) => number | undefined;
 }
 
 /**
@@ -187,7 +200,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -1155,6 +1168,32 @@ export function idsPredicate(columns: ElementColumns, ids: ReadonlySet<EdgeId | 
     }
 
     return (index): boolean => ids.has(idOf(index));
+}
+
+/**
+ * The predicate for `{match:"top"}`: the element's value is at or above the top's cut.
+ *
+ * The cut is asked for per element rather than settled here, because a run that finishes or
+ * re-runs after the layer was added publishes a new ranking, and a cut captured now would go on
+ * painting the old top.
+ * @param columns - Where to read values.
+ * @param path - The column path.
+ * @param cutOf - The lowest value in the top, or undefined when nothing is in it.
+ * @returns The test.
+ */
+export function topPredicate(columns: ElementColumns, path: Path, cutOf: () => number | undefined): ElementPredicate {
+    const { value } = columns;
+
+    return (index): boolean => {
+        const cut = cutOf();
+        if (cut === undefined) {
+            return false;
+        }
+
+        const read = value(index, path);
+
+        return typeof read === "number" && Number.isFinite(read) && read >= cut;
+    };
 }
 
 /**

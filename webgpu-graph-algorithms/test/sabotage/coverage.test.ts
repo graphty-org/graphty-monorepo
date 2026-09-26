@@ -2,8 +2,8 @@
  * The sabotage table is itself checked (spec 13 rule f, 11.9 item 1; contract 5.5): every KERNELS entry of a phase
  * listed in SABOTAGE_PHASES that is not exempt has at least three rows, every `find` string occurs exactly once in the
  * entry's NORMATIVE body (so a mutation is a well-defined textual edit of 4.5), every `test` names an existing test
- * file, and the splice helper rejects an absent or duplicated `find`. P2-T2 and P3-T5 extend SABOTAGE_PHASES when
- * their rows land; this file does not change.
+ * file, and the splice helper rejects an absent or duplicated `find`. P2-T2, P3-T5, M8b-T10, P4-T12 and P8-T15
+ * extended SABOTAGE_PHASES when their rows landed; the pinned list below is the only line that changes.
  */
 
 import { existsSync } from "node:fs";
@@ -24,8 +24,8 @@ function tabledIds(): KernelId[] {
 }
 
 describe("sabotage coverage (spec 11.9 item 1, 13 rule f)", () => {
-    it("lists P1, P2, P3, P7 and P4 (P4-T12) and exempts exactly fill, fa2-to-scene and wcc-sample", () => {
-        expect([...SABOTAGE_PHASES]).toEqual(["P1", "P2", "P3", "P7", "P4"]);
+    it("lists P1, P2, P3, P7, P4 (P4-T12) and P8 (P8-T15) and exempts exactly fill, fa2-to-scene and wcc-sample", () => {
+        expect([...SABOTAGE_PHASES]).toEqual(["P1", "P2", "P3", "P7", "P4", "P8"]);
         expect([...SABOTAGE_EXEMPT].sort()).toEqual(["fa2-to-scene", "fill", "wcc-sample"]);
     });
 

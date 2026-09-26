@@ -1,5 +1,9 @@
 // Registers the <graphty-element> custom element; the type is no longer referenced.
 import "../src/graphty-element";
+// Registers the WebGPU accelerator factory, the one line a consumer writes to get acceleration.
+// Storybook loads story files on demand, so this file needs its own import: the one in
+// LayoutGpu.stories.ts only runs when that file happens to have been loaded first.
+import "../webgpu";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
@@ -22,7 +26,9 @@ const meta: Meta = {
         },
     },
     args: {
-        layout: "ngraph",
+        // ForceAtlas2 runs on the GPU when the page has a WebGPU adapter and on the CPU when it does
+        // not. The ngraph layout this story used to pick has no GPU path at all.
+        layout: "forceatlas2",
         layoutConfig: { seed: 42 },
         setup: storySetup({
             edge: { "edge.color": "#666666", "edge.arrowHead": "normal" },
@@ -37,7 +43,8 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 /**
- * 250 edges with 150 nodes - ngraph physics layout with normal arrowheads
+ * 250 edges with 150 nodes - ForceAtlas2 physics layout, WebGPU accelerated where available,
+ * with normal arrowheads
  * Every node has at least one edge.
  */
 export const Physics250: Story = {

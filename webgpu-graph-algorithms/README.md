@@ -742,12 +742,16 @@ auto row 156.6 ms and the top-down row 88.6 ms. The auto row now misses only bec
 choice itself is slower than top-down on that graph, which the validation cost had hidden (G8-F21).
 
 That miss was not the direction choice either (G8-F21, closed by issue #391). The 156.6 against 88.6 ms gap was the
-benchmark row's 45-50 ms upload plus the card clocking down to P5 between rows; the real defect was Beamer's m_f
+card clocking down to P5 and then ramping back up: the benchmark runs the auto row first, so whichever row runs
+first carries the ramp, and alternating the two directions end to end reads the same 75 ms from the third iteration
+on. The upload cannot explain it, being paid by both rows alike. The real defect the issue uncovered was Beamer's m_f
 measured one level stale -- `frontierDegreeSum` is the degree of the frontier the PREVIOUS level expanded, which is
 0 after a bottom-up level -- so the switch into bottom-up was missed at the level holding 13.6M of the 21M arcs. The
 `bfs-next-degree` kernel now sums the out-degree of the frontier about to be expanded (counters word 25) and the
 boundary compares that. With the core resident on the card the 1M / 10M auto traversal went from 37.8 to 31.4 ms
-and 100k / 1M from 10.3 to 8.8 ms; the three bottom-up levels of the 1M / 10M run read 649,743 arcs in total. The
+and 100k / 1M from 10.3 to 8.8 ms; the three bottom-up levels of the 1M / 10M run read 649,743 arcs in total. At
+100k / 1M the direction-optimizing traversal still loses to plain top-down on this card, 9.55 against 9.34 ms
+resident, which is a smaller loss than the 10.87 against 9.91 ms it read before the fix, and still a loss. The
 new kernel is dispatched on every level, so a high-diameter traversal pays its fixed cost per level: the grid
 traversal resident on the card went 339 -> 421 ms with the full-width grid `planGridStride(n, wg)` gives it and
 back to 356 ms with the grid capped at 128 workgroups (`NEXT_DEGREE_MAX_GROUPS`), which is still enough to sum n

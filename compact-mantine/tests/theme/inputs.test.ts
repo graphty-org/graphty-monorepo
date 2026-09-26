@@ -47,9 +47,9 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions.JsonInput).toBeDefined();
     });
 
-    it("exports all 12 input components", () => {
+    it("exports all 14 input components", () => {
         const components = Object.keys(inputComponentExtensions);
-        expect(components).toHaveLength(12);
+        expect(components).toHaveLength(14);
         expect(components).toContain("TextInput");
         expect(components).toContain("NumberInput");
         expect(components).toContain("Select");
@@ -62,5 +62,7 @@ describe("inputComponentExtensions", () => {
         expect(components).toContain("FileInput");
         expect(components).toContain("JsonInput");
         expect(components).toContain("InputClearButton");
+        expect(components).toContain("NativeSelect");
+        expect(components).toContain("ColorInput");
     });
 });

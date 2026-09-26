@@ -182,17 +182,19 @@ describe("Input Component CSS Variable Baseline Regression", () => {
         });
     });
 
-    describe("TagsInput baseline - NO fixed height", () => {
-        it("does NOT have --input-height (flexible height)", () => {
+    describe("TagsInput baseline - a minimum height, NO fixed height", () => {
+        it("has --input-height (its min-height) but NOT --input-size (its height)", () => {
             const vars = inputComponentExtensions.TagsInput.vars!();
-            expect(vars.wrapper).not.toHaveProperty("--input-height");
+            expect(vars.wrapper).toHaveProperty("--input-height", "24px");
+            expect(vars.wrapper).not.toHaveProperty("--input-size");
         });
     });
 
-    describe("PillsInput baseline - NO fixed height", () => {
-        it("does NOT have --input-height (flexible height)", () => {
+    describe("PillsInput baseline - a minimum height, NO fixed height", () => {
+        it("has --input-height (its min-height) but NOT --input-size (its height)", () => {
             const vars = inputComponentExtensions.PillsInput.vars!();
-            expect(vars.wrapper).not.toHaveProperty("--input-height");
+            expect(vars.wrapper).toHaveProperty("--input-height", "24px");
+            expect(vars.wrapper).not.toHaveProperty("--input-size");
         });
     });
 
@@ -550,10 +552,11 @@ describe("Known Issue Regression Tests", () => {
             expect(compactMultiValueStyles.pill).not.toHaveProperty("padding");
         });
 
-        it("MultiSelect input container has paddingTop and paddingBottom of 4px", () => {
-            // The input container has padding, but pills inside don't
-            expect(compactMultiValueStyles.input.paddingTop).toBe(4);
-            expect(compactMultiValueStyles.input.paddingBottom).toBe(4);
+        it("MultiSelect input container has paddingTop and paddingBottom of 1px", () => {
+            // The input container has padding, but pills inside don't. 1px is
+            // what an xs field (20px, a 16px text box) has room for.
+            expect(compactMultiValueStyles.input.paddingTop).toBe(1);
+            expect(compactMultiValueStyles.input.paddingBottom).toBe(1);
         });
     });
 
@@ -570,15 +573,19 @@ describe("Known Issue Regression Tests", () => {
             expect(Object.keys(vars.wrapper)).not.toContain("--input-size");
         });
 
-        it("TagsInput wrapper vars don't have --input-height", () => {
+        it("TagsInput wrapper vars set a min-height but no fixed height", () => {
+            // --input-height is Mantine's min-height and follows the size scale;
+            // --input-size is its height, which would clip a second row of pills.
             const vars = inputComponentExtensions.TagsInput.vars!();
-            expect(Object.keys(vars.wrapper)).not.toContain("--input-height");
+            expect(Object.keys(vars.wrapper)).toContain("--input-height");
             expect(Object.keys(vars.wrapper)).not.toContain("--input-size");
         });
 
-        it("PillsInput wrapper vars don't have --input-height", () => {
+        it("PillsInput wrapper vars set a min-height but no fixed height", () => {
+            // --input-height is Mantine's min-height and follows the size scale;
+            // --input-size is its height, which would clip a second row of pills.
             const vars = inputComponentExtensions.PillsInput.vars!();
-            expect(Object.keys(vars.wrapper)).not.toContain("--input-height");
+            expect(Object.keys(vars.wrapper)).toContain("--input-height");
             expect(Object.keys(vars.wrapper)).not.toContain("--input-size");
         });
 

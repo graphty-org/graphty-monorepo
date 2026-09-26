@@ -685,7 +685,6 @@ function DataTableInner<TRow extends object>(
                 <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.GUTTER }}>
                     <TextInput
                         data-testid="data-table-search"
-                        size="xs"
                         type="search"
                         // The box's own value is not its name, so a name has to
                         // come from somewhere: there is no visible label beside

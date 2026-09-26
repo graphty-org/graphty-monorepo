@@ -203,17 +203,22 @@ describe("AiProviderSettings", () => {
             ).toBeInTheDocument();
         });
 
-        it("re-writes a key that was typed before the box was ticked, so it survives a reload", () => {
+        it("hands a key typed before the box was ticked to the store, then turns remembering on", () => {
+            // The store saves the keys it already holds when persistence is enabled,
+            // so the field only has to commit its key -- which leaving it does.
             const setKey = vi.fn();
             const onEnablePersistence = vi.fn();
 
             render(<AiProviderSettings {...keyStore({ setKey, onEnablePersistence })} />);
 
-            fireEvent.change(screen.getByLabelText("API key"), { target: { value: DUMMY_KEY } });
+            const field = screen.getByLabelText("API key");
+            fireEvent.change(field, { target: { value: DUMMY_KEY } });
+            fireEvent.blur(field);
             fireEvent.click(screen.getByTestId("ai-remember-keys"));
 
-            expect(onEnablePersistence).toHaveBeenCalled();
+            expect(setKey).toHaveBeenCalledTimes(1);
             expect(setKey).toHaveBeenCalledWith("anthropic", DUMMY_KEY);
+            expect(onEnablePersistence).toHaveBeenCalled();
         });
 
         it("stops remembering without throwing the stored keys away", () => {

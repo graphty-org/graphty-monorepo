@@ -17,7 +17,7 @@ import {
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { compactTheme } from "../../src";
+import { compactTheme, LabelsProvider } from "../../src";
 
 /**
  * Integration tests for compact input components.
@@ -136,6 +136,35 @@ describe("Input Components Integration", () => {
                 </MantineProvider>,
             );
             expect(container.querySelector("[data-size='md']")).toBeInTheDocument();
+        });
+
+        it("names its reveal toggle, so assistive technology can find it", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <PasswordInput label="Key" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "Show the password" })).toBeInTheDocument();
+        });
+
+        it("takes the reveal toggle's name from LabelsProvider", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <LabelsProvider labels={{ passwordReveal: "Afficher le mot de passe" }}>
+                        <PasswordInput label="Key" />
+                    </LabelsProvider>
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "Afficher le mot de passe" })).toBeInTheDocument();
+        });
+
+        it("lets one field name its toggle differently", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <PasswordInput label="Key" visibilityToggleButtonProps={{ "aria-label": "Show the key" }} />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "Show the key" })).toBeInTheDocument();
         });
     });
 

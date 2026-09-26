@@ -1,5 +1,6 @@
 import { afterEach, assert, beforeEach, describe, expect, it } from "vitest";
 
+import { LAYOUT_DESCRIPTORS } from "../../src/catalog/layouts";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
 import { LayoutEngine } from "../../src/layout/LayoutEngine";
@@ -406,11 +407,84 @@ describe("LayoutManager", () => {
             freshLayoutManager.dispose();
         });
 
-        it("should report as settled when not running", async () => {
+        it("a layout stopped before it converged is paused, not settled, and emits no graph-settled", async () => {
+            graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
             await layoutManager.setLayout("ngraph", {});
+            const engine = layoutManager.layoutEngine;
+            assert.isDefined(engine);
+            // Still arranging: the engine has not converged.
+            Object.defineProperty(engine, "isSettled", { get: () => false });
+
+            let settledEvents = 0;
+            graph.getEventManager().addListener("graph-settled", () => {
+                settledEvents += 1;
+            });
+
+            graph.setRunning(false);
+            graph.update();
+
+            assert.isFalse(layoutManager.isSettled, "a stop is not convergence");
+            assert.isTrue(layoutManager.isPaused, "the stop is readable as its own state");
+            assert.isTrue(layoutManager.getStats().isPaused);
+            assert.isFalse(layoutManager.getStats().isSettled);
+            assert.strictEqual(settledEvents, 0, "graph-settled is not emitted for a stop");
+        });
+
+        it("a converged layout is settled and not paused", async () => {
+            graph.getDataManager().addNodes([{ id: "a" }] as Record<string, unknown>[]);
+            await layoutManager.setLayout("circular", {});
             layoutManager.running = false;
 
             assert.isTrue(layoutManager.isSettled);
+            assert.isFalse(layoutManager.isPaused);
+        });
+    });
+
+    describe("consumer pause", () => {
+        it("holds through every internal restart until the consumer resumes", async () => {
+            const dataManager = graph.getDataManager();
+            dataManager.addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            await layoutManager.setLayout("ngraph", {});
+
+            graph.setRunning(false);
+            assert.isFalse(graph.isRunning());
+
+            // What the element's own paths write: data arriving, a drag, a new layout.
+            layoutManager.running = true;
+            assert.isFalse(graph.isRunning(), "an internal restart does not undo the pause");
+
+            dataManager.addNodes([{ id: "late" }] as Record<string, unknown>[]);
+            await layoutManager.updatePositions([dataManager.getNode("late")!]);
+            assert.isFalse(graph.isRunning(), "new data does not resume a paused layout");
+            const late = layoutManager.getNodePosition(dataManager.getNode("late")!);
+            assert.isDefined(late, "but the new node is placed");
+
+            await layoutManager.setLayout("circular", {});
+            assert.isFalse(graph.isRunning(), "neither does setting another layout");
+
+            graph.setRunning(true);
+            assert.isTrue(graph.isRunning(), "the consumer's resume runs it again");
+        });
+    });
+
+    describe("catalogue ids", () => {
+        it("setLayout accepts every id catalog.layouts() publishes, and engine names still work", async () => {
+            graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            graph.getDataManager().addEdges([{ src: "a", dst: "b" }] as Record<string, unknown>[]);
+            // The options each layout requires; everything else runs on its defaults.
+            const required: Record<string, object> = {
+                hierarchical: { start: "a" },
+                bipartite: { nodes: ["a"] },
+                layers: { subsetKey: { first: ["a"], second: ["b"] } },
+            };
+
+            for (const { id, engine } of LAYOUT_DESCRIPTORS) {
+                await layoutManager.setLayout(id, required[id] ?? {});
+                assert.strictEqual(layoutManager.layoutType, engine, `"${id}" runs its default engine`);
+            }
+
+            await layoutManager.setLayout("ngraph", {});
+            assert.strictEqual(layoutManager.layoutType, "ngraph");
         });
     });
 

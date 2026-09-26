@@ -1,3 +1,14 @@
+## 2.3.1 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** rasterise label textures on the cpu so every load draws the same pixels ([8c3f6b61](https://github.com/graphty-org/graphty-monorepo/commit/8c3f6b61))
+- **graphty-element:** frame the camera after a style pass on its way, not before it ([11bae759](https://github.com/graphty-org/graphty-monorepo/commit/11bae759))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.3.0 (2026-09-26)
 
 ### 🚀 Features

@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen } from "../../../../test/test-utils";
+import { render, screen, waitFor } from "../../../../test/test-utils";
 import { ACTIVITIES_REQUIRING_DATA } from "../../constants";
 import { ActivityRail } from "../ActivityRail";
 
@@ -343,6 +343,56 @@ describe("ActivityRail", () => {
             await user.hover(item("Explore. Load data first"));
 
             expect(await screen.findByText("Explore. Load data first")).toBeInTheDocument();
+        });
+    });
+
+    describe("the Help menu", () => {
+        function helpMenu(onOpenChange = vi.fn(), opened = false) {
+            return { opened, onOpenChange, onSelect: vi.fn(), moreSuggestionsCount: 0, alreadyRunCount: 0 };
+        }
+
+        it("makes the Help item the menu's opener", () => {
+            render(<ActivityRail activeActivity={null} onActivityClick={vi.fn()} helpMenu={helpMenu()} />);
+
+            expect(item("Help and keyboard shortcuts")).toHaveAttribute("aria-haspopup", "menu");
+            expect(item("Help and keyboard shortcuts")).toHaveAttribute("aria-expanded", "false");
+        });
+
+        it("asks to open the menu, and still reports the click, when Help is clicked", async () => {
+            const onActivityClick = vi.fn();
+            const onOpenChange = vi.fn();
+            const user = userEvent.setup();
+
+            render(
+                <ActivityRail
+                    activeActivity={null}
+                    onActivityClick={onActivityClick}
+                    helpMenu={helpMenu(onOpenChange)}
+                />,
+            );
+
+            await user.click(item("Help and keyboard shortcuts"));
+
+            expect(onActivityClick).toHaveBeenCalledWith("help");
+            expect(onOpenChange).toHaveBeenCalledWith(true);
+        });
+
+        it("draws the open menu outside the rail, anchored beside the Help item", async () => {
+            render(
+                <ActivityRail activeActivity={null} onActivityClick={vi.fn()} helpMenu={helpMenu(vi.fn(), true)} />,
+            );
+
+            // Mantine labels the menu by its opener.
+            const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });
+
+            expect(rail()).not.toContainElement(menu);
+            await waitFor(() => {
+                const help = item("Help and keyboard shortcuts").getBoundingClientRect();
+                const box = menu.getBoundingClientRect();
+
+                expect(Math.round(box.bottom)).toBe(Math.round(help.bottom));
+                expect(box.left).toBeGreaterThan(help.right);
+            });
         });
     });
 });

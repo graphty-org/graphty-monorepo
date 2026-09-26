@@ -26,9 +26,17 @@
  * does today. {@link channelRole} is where that split is written down, and
  * {@link meshChannelsFor} is the list a repaint pushes.
  *
- * A KEY IS OPAQUE AND SESSION-LOCAL. It is the order a style was first seen in, so it is stable
- * for the life of the session and meaningless outside it. Nothing may persist one, compare two
- * from different sessions, or read anything back out of the number.
+ * A KEY IS OPAQUE AND SESSION-LOCAL. It names one style for the life of the session and is
+ * meaningless outside it. Nothing may persist one, compare two from different sessions, or read
+ * anything back out of the number.
+ *
+ * A KEY IS RELEASED WHEN NOTHING IS DRAWN FROM IT, AND NEVER HANDED OUT AGAIN. The repaint counts
+ * the elements drawn from each key ({@link StyleInterner.retain}, {@link StyleInterner.release}),
+ * and a style no element holds is forgotten, so what the interner keeps follows the looks on
+ * screen rather than every edit ever made. The number is not recycled: a renderer names a cached
+ * source mesh after it, and a recycled key would hand one look's mesh to another. The storage
+ * behind a key IS recycled, which is what keeps a session that edits a size a thousand times
+ * the size of the picture it draws.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -216,6 +224,15 @@ const TRUE_TOKEN = 2;
  */
 const NUMBER_TOKEN = 3;
 
+/**
+ * How many slots a key's number can name; the rest of the number is how often that slot was used.
+ *
+ * A key is `uses * SLOT_SPAN + slot`, so it finds its slot with one remainder rather than a map
+ * lookup -- which measured half again the cost of a mint -- and a slot reused for a new style
+ * answers with a number it has never answered with before.
+ */
+const SLOT_SPAN = 2 ** 24;
+
 /** How many values a sequence holds before the scratch array is grown. */
 const SCRATCH_CAPACITY = 16;
 
@@ -263,7 +280,7 @@ function finish(hash: number): number {
  * into the interner.
  */
 export interface StyleInterner<T> {
-    /** How many distinct styles have been minted. Keys run from 0 to this less one. */
+    /** How many distinct styles are held: minted and not yet released. */
     readonly size: number;
     /** Start a new sequence, discarding anything pushed and not ended. */
     begin(): void;
@@ -292,9 +309,22 @@ export interface StyleInterner<T> {
     /**
      * Finish the sequence and answer with the key the style it describes is known by.
      * @param mint - Builds the style object, called ONLY when the sequence is new.
-     * @returns The key: the order the style was first seen in.
+     * @returns The key, which no other style is ever given in this interner.
      */
     end(mint: () => T): number;
+    /**
+     * Say that one more element is drawn from a key.
+     * @param key - The key, as {@link end} answered with.
+     */
+    retain(key: number): void;
+    /**
+     * Say that one element fewer is drawn from a key, and forget its style when none is left.
+     *
+     * A style that has been minted and never retained is held until something retains and then
+     * releases it: minting is a lookup, and a lookup must not take a style away.
+     * @param key - The key, as {@link end} answered with.
+     */
+    release(key: number): void;
     /**
      * The style one key stands for.
      * @param key - The key, as {@link end} answered with.
@@ -320,30 +350,69 @@ export function createStyleInterner<T>(): StyleInterner<T> {
     /** The fold of those values so far. */
     let hash = HASH_SEED;
 
-    /** Which keys each hash has minted, which is the only thing a lookup compares against. */
+    /**
+     * Which SLOTS each hash has minted, which is the only thing a lookup compares against.
+     *
+     * A slot is where a held style's sequence, style and key are kept. Slots are reused once a
+     * style is released; keys are not. See the file comment.
+     */
     const buckets = new Map<number, number[]>();
 
     /**
-     * Every minted sequence, end to end in ONE array.
+     * Every held sequence, end to end in ONE array.
      *
      * One array per style would be one allocation per distinct style, which a continuous
      * encoding makes one allocation per element: measured at fifty thousand styles, that is
      * several milliseconds of collector pressure inside a sixteen millisecond budget, and it
-     * varies from run to run. Here a mint is a copy into space that is already there.
+     * varies from run to run. Here a mint is a copy into space that is already there. A released
+     * sequence leaves a hole, and {@link compact} closes the holes once they outweigh what is
+     * held.
      */
     let minted = new Int32Array(SCRATCH_CAPACITY * 8);
 
-    /** How much of {@link minted} is in use. */
+    /** How much of {@link minted} is in use, holes included. */
     let used = 0;
 
-    /** Where each key's sequence starts in {@link minted}. */
+    /** How much of {@link minted} belongs to a style that is still held. */
+    let live = 0;
+
+    /** Where each slot's sequence starts in {@link minted}. */
     const offsets: number[] = [];
 
-    /** How long each key's sequence is. */
+    /** How long each slot's sequence is. */
     const lengths: number[] = [];
 
-    /** The style behind each key. */
-    const styles: T[] = [];
+    /** The hash each slot is filed under, so a release can find its bucket. */
+    const hashes: number[] = [];
+
+    /** The style behind each slot, or undefined for a free slot. */
+    const styles: (T | undefined)[] = [];
+
+    /** The key each slot answers with, or -1 for a free slot. */
+    const keys: number[] = [];
+
+    /** How many elements are drawn from each slot's style. */
+    const counts: number[] = [];
+
+    /** Slots whose style has been released. */
+    const free: number[] = [];
+
+    /** How many times each slot has been minted into, which is what keeps its keys distinct. */
+    const uses: number[] = [];
+
+    /** How many styles are held. */
+    let held = 0;
+
+    /**
+     * Where a key's style is kept.
+     * @param key - The key.
+     * @returns The slot, or -1 when the key is not held.
+     */
+    const slotOf = (key: number): number => {
+        const slot = key % SLOT_SPAN;
+
+        return key >= 0 && keys[slot] === key ? slot : -1;
+    };
 
     /** The number each enumerated word is folded in as. */
     const words = new Map<string, number>();
@@ -371,16 +440,16 @@ export function createStyleInterner<T>(): StyleInterner<T> {
     };
 
     /**
-     * Whether the sequence behind a key is the one being built.
-     * @param key - The key to compare against.
+     * Whether the sequence in a slot is the one being built.
+     * @param slot - The slot to compare against.
      * @returns True when they hold the same values in the same order.
      */
-    const matches = (key: number): boolean => {
-        if (lengths[key] !== length) {
+    const matches = (slot: number): boolean => {
+        if (lengths[slot] !== length) {
             return false;
         }
 
-        const offset = offsets[key];
+        const offset = offsets[slot];
 
         for (let at = 0; at < length; at++) {
             if (minted[offset + at] !== scratch[at]) {
@@ -391,33 +460,74 @@ export function createStyleInterner<T>(): StyleInterner<T> {
         return true;
     };
 
-    /** Copy the sequence being built into the minted store, and say where it landed. */
-    const keep = (): void => {
-        if (used + length > minted.length) {
-            let capacity = minted.length * 2;
+    /**
+     * Copy every held sequence to the front of a fresh array, leaving the released ones behind.
+     * @param capacity - How big the fresh array is.
+     */
+    const compact = (capacity: number): void => {
+        const packed = new Int32Array(capacity);
 
-            while (used + length > capacity) {
+        if (live === used) {
+            // Nothing has been released, so there are no holes to close: this is a plain growth.
+            packed.set(minted.subarray(0, used));
+            minted = packed;
+
+            return;
+        }
+
+        let at = 0;
+
+        for (let slot = 0; slot < keys.length; slot++) {
+            if (keys[slot] === -1) {
+                continue;
+            }
+
+            const from = offsets[slot];
+            const count = lengths[slot];
+
+            for (let step = 0; step < count; step++) {
+                packed[at + step] = minted[from + step];
+            }
+
+            offsets[slot] = at;
+            at += count;
+        }
+
+        minted = packed;
+        used = at;
+    };
+
+    /**
+     * Copy the sequence being built into the minted store.
+     * @param slot - The slot it belongs to.
+     */
+    const keep = (slot: number): void => {
+        if (used + length > minted.length) {
+            let capacity = minted.length;
+
+            // Closing the holes is enough when they are at least half of the array; otherwise it
+            // grows. Either way the array stays within a constant factor of what is held.
+            while (live + length > capacity / 2) {
                 capacity *= 2;
             }
 
-            const grown = new Int32Array(capacity);
-            grown.set(minted.subarray(0, used));
-            minted = grown;
+            compact(capacity);
         }
 
-        offsets.push(used);
-        lengths.push(length);
+        offsets[slot] = used;
+        lengths[slot] = length;
 
         for (let at = 0; at < length; at++) {
             minted[used + at] = scratch[at];
         }
 
         used += length;
+        live += length;
     };
 
     return {
         get size(): number {
-            return styles.length;
+            return held;
         },
 
         begin(): void {
@@ -462,24 +572,32 @@ export function createStyleInterner<T>(): StyleInterner<T> {
             const bucket = buckets.get(finished);
 
             if (bucket !== undefined) {
-                for (const key of bucket) {
-                    if (matches(key)) {
+                for (const slot of bucket) {
+                    if (matches(slot)) {
                         reset();
 
-                        return key;
+                        return keys[slot];
                     }
                 }
             }
 
-            const key = styles.length;
+            // ponytail: 16M styles held at once is the ceiling; nothing draws that many meshes.
+            const slot = free.length > 0 ? (free.pop() as number) : keys.length;
+            const reused = slot < uses.length ? uses[slot] : 0;
+            const key = reused * SLOT_SPAN + slot;
 
-            keep();
-            styles.push(mint());
+            keep(slot);
+            styles[slot] = mint();
+            keys[slot] = key;
+            counts[slot] = 0;
+            hashes[slot] = finished;
+            uses[slot] = reused + 1;
+            held++;
 
             if (bucket === undefined) {
-                buckets.set(finished, [key]);
+                buckets.set(finished, [slot]);
             } else {
-                bucket.push(key);
+                bucket.push(slot);
             }
 
             reset();
@@ -487,8 +605,42 @@ export function createStyleInterner<T>(): StyleInterner<T> {
             return key;
         },
 
+        retain(key: number): void {
+            const slot = slotOf(key);
+
+            if (slot !== -1) {
+                counts[slot]++;
+            }
+        },
+
+        release(key: number): void {
+            const slot = slotOf(key);
+
+            if (slot === -1 || --counts[slot] > 0) {
+                return;
+            }
+
+            const bucket = buckets.get(hashes[slot]);
+
+            if (bucket !== undefined) {
+                bucket.splice(bucket.indexOf(slot), 1);
+
+                if (bucket.length === 0) {
+                    buckets.delete(hashes[slot]);
+                }
+            }
+
+            held--;
+            live -= lengths[slot];
+            styles[slot] = undefined;
+            keys[slot] = -1;
+            free.push(slot);
+        },
+
         get(key: number): T | undefined {
-            return key >= 0 && key < styles.length ? styles[key] : undefined;
+            const slot = slotOf(key);
+
+            return slot === -1 ? undefined : styles[slot];
         },
     };
 }

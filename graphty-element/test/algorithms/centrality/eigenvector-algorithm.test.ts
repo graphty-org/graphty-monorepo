@@ -123,4 +123,46 @@ describe("EigenvectorCentralityAlgorithm", () => {
             assert.isTrue(result?.summary().caveats.converged);
         });
     });
+
+    describe("direction on a directed graph", () => {
+        /** a -> b -> c -> a, and d -> a: nothing points at d, and d points at a. */
+        async function directed(): Promise<any> {
+            const nodes = ["a", "b", "c", "d"].map((id) => ({ id }));
+            const edges = [
+                ["a", "b"],
+                ["b", "c"],
+                ["c", "a"],
+                ["d", "a"],
+            ].map(([srcId, dstId]) => ({ srcId, dstId }));
+            return createMockGraph({ nodes, edges, directed: true });
+        }
+
+        async function run(mode: "in" | "out" | "total"): Promise<{ d: number; direction: string }> {
+            const graph = await directed();
+            const algo = new EigenvectorCentralityAlgorithm(graph, { mode, normalized: false });
+            const result = await algo.publishResult(detachedRunContext(), `eigen_${mode}`);
+            return {
+                d: getNodeResult(algo, "d", "graphty", "eigenvector", "score"),
+                direction: result?.summary().caveats.direction ?? "",
+            };
+        }
+
+        it("mode in scores a node by the edges pointing at it, so d scores 0", async () => {
+            const { d, direction } = await run("in");
+            assert.strictEqual(d, 0);
+            assert.strictEqual(direction, "directed");
+        });
+
+        it("mode out scores a node by the edges it points along, so d scores above 0", async () => {
+            const { d, direction } = await run("out");
+            assert.isAbove(d, 0);
+            assert.strictEqual(direction, "directed");
+        });
+
+        it("mode total ignores direction and says so", async () => {
+            const { d, direction } = await run("total");
+            assert.isAbove(d, 0);
+            assert.strictEqual(direction, "undirected");
+        });
+    });
 });

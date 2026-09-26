@@ -464,8 +464,9 @@ export class Graphty extends LitElement {
     /**
      * Array of node data objects to visualize.
      * @remarks
-     * Setting this property replaces all existing nodes. For incremental
-     * updates, use the `graph.addNodes()` method instead.
+     * Setting this property REPLACES all existing nodes: a node whose id is
+     * not in the new array is removed, with the edges attached to it. For
+     * incremental updates, use the `addNodes()` method instead.
      *
      * Each node object should have an ID field (default: "id"). Additional
      * properties can be used in style selectors and accessed via `node.data`.
@@ -534,15 +535,16 @@ export class Graphty extends LitElement {
         return this.#nodeData;
     }
     /**
-     * Sets the node data array. Triggers addition of nodes to the graph.
+     * Sets the node data array. Replaces the graph's nodes with these.
      */
     set nodeData(value: Record<string, unknown>[] | undefined) {
         const oldValue = this.#nodeData;
         this.#nodeData = value;
 
-        // Forward to Graph method (which queues operation)
+        // REPLACE, not append, the same as `edgeData`: a host that re-renders re-assigns the
+        // property, and an additive setter kept every node of every earlier assignment.
         if (value && Array.isArray(value)) {
-            this.#graph.addNodes(value).catch((error: unknown) => {
+            this.#graph.setNodes(value).catch((error: unknown) => {
                 this.#reportLoadFailure(error);
             });
         }
@@ -650,7 +652,8 @@ export class Graphty extends LitElement {
         return this.#dataSource;
     }
     /**
-     * Sets the data source type. Initializes data loading when combined with dataSourceConfig.
+     * Sets the data source type. Starts a load when combined with dataSourceConfig; see
+     * `dataSourceConfig` for what a second assignment does.
      */
     set dataSource(value: string | undefined) {
         const oldValue = this.#dataSource;
@@ -672,7 +675,16 @@ export class Graphty extends LitElement {
         return this.#dataSourceConfig;
     }
     /**
-     * Sets the data source configuration. Initializes data loading when combined with dataSource.
+     * Sets the data source configuration. Starts a load when combined with dataSource.
+     *
+     * Every assignment of the pair starts a load, and assigning both halves in one task starts
+     * one. Assigning the pair already loaded -- the same type and the same config object --
+     * starts none, unless that load failed; pass a new object to load again. The first load adds
+     * to the graph; each later one REPLACES it, but only once the new source has parsed -- a
+     * malformed or empty source leaves the graph as it was and reports `data-loading-error`.
+     * The pair assigned LAST wins: a slower earlier load that finishes afterwards is dropped.
+     * Every event about the load carries its `loadId`. A caller that wants to await the load
+     * calls `loadFromUrl`, `loadFromFile` or `addDataFromSource` instead.
      */
     set dataSourceConfig(value: Record<string, unknown> | undefined) {
         const oldValue = this.#dataSourceConfig;
@@ -685,14 +697,10 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Removes every node and edge, and lets a later data source load.
+     * Removes every node and edge, and forgets the data-source pair. A load still in flight is
+     * abandoned: it rejects with `E_SUPERSEDED` and adds nothing.
      *
-     * The guard below is per LOAD, not per element lifetime. Latching it for the
-     * element's whole life refused every dataset after the first: a second
-     * `dataSource` / `dataSourceConfig` assignment set both properties and started no
-     * load, so a host that loaded a second file saw the element report the new source
-     * while the old graph stayed on screen. Clearing the data is the statement that the
-     * previous load is over, so it is where the guard resets.
+     * The next pair assigned after it loads into an empty graph, as the first one did.
      *
      * The two properties are reset with it, and deliberately through the private fields
      * rather than the setters: a setter would call `#tryInitializeDataSource` again, and
@@ -703,8 +711,9 @@ export class Graphty extends LitElement {
         const oldDataSource = this.#dataSource;
         const oldDataSourceConfig = this.#dataSourceConfig;
 
-        this.#graph.getDataManager().clear();
-        this.#dataSourceInitialized = false;
+        // Through the Graph, which also abandons any load still in flight.
+        this.#graph.clearData();
+        this.#loadedPair = undefined;
         this.#dataSource = undefined;
         this.#dataSourceConfig = undefined;
 
@@ -737,15 +746,43 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Helper method to initialize data source only when both properties are set
+     * The pair the last pair load started with, since the last `clearData`. Set means the next
+     * load replaces; the same type and the same config object (`===`) again start no load.
      */
-    #dataSourceInitialized = false;
+    #loadedPair: { type: string; config: Record<string, unknown> } | undefined;
+    /** Whether a pair load is already scheduled for the end of this task. */
+    #dataSourceLoadScheduled = false;
+    /**
+     * Start a load of the data-source pair, once per task however many halves were assigned.
+     *
+     * Both setters call this, and a host assigns the pair as two statements, so the load waits a
+     * microtask and reads the pair then, so one assignment of the pair starts one load, not two.
+     * It used to latch for the element's whole life instead, so a second assignment started
+     * nothing and reported nothing.
+     */
     #tryInitializeDataSource(): void {
-        // Only initialize once per load -- see `clearData` -- and only if both
-        // dataSource and dataSourceConfig are set. Both setters call this, so the guard
-        // is what stops one assignment of the pair from starting two loads.
-        if (!this.#dataSourceInitialized && this.#dataSource && this.#dataSourceConfig) {
-            this.#dataSourceInitialized = true;
+        if (this.#dataSourceLoadScheduled) {
+            return;
+        }
+
+        this.#dataSourceLoadScheduled = true;
+        queueMicrotask(() => {
+            this.#dataSourceLoadScheduled = false;
+            if (!this.#dataSource || !this.#dataSourceConfig) {
+                return;
+            }
+
+            const type = this.#dataSource;
+            const config = this.#dataSourceConfig;
+            const last = this.#loadedPair;
+            // A host that re-assigns the same pair on every render must not reload the graph.
+            if (last?.type === type && last.config === config) {
+                return;
+            }
+
+            const replace = last !== undefined;
+            const pair = { type, config };
+            this.#loadedPair = pair;
             // A load started by an attribute or a property assignment hands the caller no promise,
             // so a rejection here reaches the page as an UNHANDLED rejection: it trips the host's
             // global error handler, and a Vite dev server puts its error overlay over the whole
@@ -757,8 +794,14 @@ export class Graphty extends LitElement {
             // carrying the coded error and a `graph-error` beside it, and logs the whole thing,
             // all before it throws; those are the channels the declarative path publishes on. A
             // caller who wants the promise calls `element.addDataFromSource` and gets the throw.
-            this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig).catch(() => undefined);
-        }
+            this.#graph.addDataFromSource(type, config, { replace }).catch(() => {
+                // A failed pair was not loaded, so assigning it again retries it. A newer pair,
+                // or a clearData, has already moved the record on and is left alone.
+                if (this.#loadedPair === pair) {
+                    this.#loadedPair = last;
+                }
+            });
+        });
     }
 
     /**
@@ -2124,17 +2167,24 @@ export class Graphty extends LitElement {
 
     /**
      * Add data from a data source.
+     *
+     * Every load has an id: the promise resolves to it, and every load event about this load
+     * (`data-loading-progress`, `data-loading-complete`, `data-loading-error`, `data-loaded`)
+     * carries it as `loadId`. A source with no nodes and no edges rejects with `E_EMPTY_LOAD`.
      * @param type - Data source type (e.g., "json", "csv", "graphml")
      * @param opts - Data source configuration options
-     * @returns Promise that resolves when data is loaded
+     * @param options - How to load
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty source rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }` when data is loaded
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
+     * const { loadId } = await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
      * ```
      */
-    async addDataFromSource(type: string, opts?: object): Promise<void> {
-        return this.#graph.addDataFromSource(type, opts ?? {});
+    async addDataFromSource(type: string, opts?: object, options?: { replace?: boolean }): Promise<{ loadId: number }> {
+        return this.#graph.addDataFromSource(type, opts ?? {}, options);
     }
 
     /**
@@ -2146,7 +2196,9 @@ export class Graphty extends LitElement {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @returns Promise that resolves when data is loaded
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty file rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
      * ```typescript
@@ -2160,8 +2212,9 @@ export class Graphty extends LitElement {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
     }
 
@@ -2174,7 +2227,9 @@ export class Graphty extends LitElement {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @returns Promise that resolves when data is loaded
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty file rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
      * ```typescript
@@ -2190,8 +2245,9 @@ export class Graphty extends LitElement {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
     }
 
@@ -2439,6 +2495,10 @@ export class Graphty extends LitElement {
      * result shape derives. This is the verb for a run started with `{ style: false }`, or for
      * putting a picture back after a reader cleared it. Applying twice replaces the layer bound
      * to that run and channel rather than stacking a second one on it.
+     *
+     * It starts the style edits and returns at once. To wait for the picture -- for a
+     * screenshot, an export or a test -- await `waitForStableFrame()` after the call: it
+     * settles only once every suggested layer is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True if anything was applied, false when no finished run of that algorithm has
@@ -2448,6 +2508,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * await element.run('degree', undefined, { style: false });
      * element.applySuggestedStyles('degree');
+     * await element.waitForStableFrame();
      * ```
      */
     applySuggestedStyles(algorithmKey: string | string[]): boolean {
@@ -2477,7 +2538,10 @@ export class Graphty extends LitElement {
 
     /**
      * Set the layout algorithm.
-     * @param type - Layout algorithm name
+     *
+     * Takes a layout id from `catalog.layouts()` (such as `"force"`), which runs that layout's
+     * default engine, or a registered engine name (such as `"ngraph"`).
+     * @param type - Layout id or engine name
      * @param opts - Layout-specific options
      * @param options - Queue options
      * @returns Promise that resolves when layout is initialized
@@ -2485,6 +2549,7 @@ export class Graphty extends LitElement {
      * @example
      * ```typescript
      * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
      */
@@ -2803,9 +2868,11 @@ export class Graphty extends LitElement {
      * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
      * the state and `graph-settled` reports the arrangement coming to rest.
      *
-     * A pause is not a mode the element remembers: anything that (re)starts a layout -- loading
-     * more nodes, an accelerator attaching, setting another layout, dropping a dragged node --
-     * runs it again, so pause it after those, not before.
+     * A pause holds until `setRunning(true)`. Loading more nodes, a freeze, an accelerator
+     * attaching, setting another layout and dragging a node all still happen -- new nodes are
+     * placed and a dragged node moves -- but none of them resumes the layout. To tell a paused,
+     * half-finished arrangement from a converged one, read `getLayoutManager().isPaused` and
+     * `isSettled`.
      * @param running - True to run the layout, false to pause it.
      * @since 2.0.0
      * @example

@@ -16,6 +16,11 @@ import { assert, describe, it } from "vitest";
 import { type CommandMeta, COMMANDS } from "../../../commands";
 import { DOOR_ROOTS, PHASES } from "../../../src/session/commands/doors";
 import { DEFINITIONS } from "../../../src/session/commands/index";
+import { dispatcherOf } from "../../../src/session/GraphSession";
+import type { SessionCommand } from "../../../src/session/planning";
+import { stateDigest } from "../../../src/session/project/digest";
+import type { ElementSession } from "../../../src/session/types";
+import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 
 /** The published table, as entries. */
@@ -110,8 +115,47 @@ describe("the vocabulary", () => {
         }
     }
 
-    it.skip("exempt ops leave the state digest unchanged when dispatched (the first exempt op, view.camera, arrives in phase 9)", () =>
-        undefined);
+    it("exempt ops leave the state digest unchanged when dispatched", async () => {
+        // One command per exempt op; an exempt op with none here fails below.
+        const cases: Readonly<Record<string, SessionCommand>> = {
+            "view.camera": { op: "view.camera", position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+        };
+        const session = await fixtureSession();
+        const dispatcher = dispatcherOf(session as ElementSession);
+        const carried: unknown[] = [];
+        dispatcher.services.camera = {
+            move: (command) => {
+                carried.push(command);
+                return Promise.resolve();
+            },
+        };
+
+        for (const definition of DEFINITIONS.filter((each) => each.undo.kind === "exempt")) {
+            const command = cases[definition.op];
+            assert.isDefined(command, `${definition.op} has no case here`);
+            const before = stateDigest(dispatcher.state);
+            const steps = session.history.steps.length;
+
+            await session.execute(command);
+
+            assert.strictEqual(stateDigest(dispatcher.state), before, `${definition.op} changed project state`);
+            assert.strictEqual(session.history.steps.length, steps, `${definition.op} recorded a step`);
+        }
+
+        assert.deepEqual(carried, [cases["view.camera"]], "the renderer carried the camera move out");
+        session.dispose();
+    });
+
+    it("refuses view.camera on a session that draws nothing", async () => {
+        const session = await fixtureSession();
+        const refused = await session.execute({ op: "view.camera", preset: "fitToGraph" }).then(
+            () => null,
+            (error: unknown) => (error as { code?: string }).code,
+        );
+
+        assert.strictEqual(refused, "E_UNSUPPORTED");
+        session.dispose();
+    });
 
     it.skip("config.set names only ProjectConfig keys, and each exempt layout-behaviour key leaves the digest unchanged (phase 10)", () =>
         undefined);

@@ -172,4 +172,28 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
         command: { op: "visibility.context", show: true },
     },
+    {
+        name: "scope.save",
+        tags: ["session"],
+        command: { op: "scope.save", name: "Fixture scope", spec: { nodes: ["n1", "n2"] } },
+    },
+    {
+        name: "scope.remove",
+        tags: ["session"],
+        before: async (session) => {
+            await session.execute({ op: "scope.save", name: "Fixture scope", spec: "graph" });
+        },
+        command: { op: "scope.remove", id: "set_fixture-scope" },
+    },
+    {
+        name: "view.save",
+        tags: ["session"],
+        command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },
+    },
+    {
+        name: "view.remove",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]),
+        command: { op: "view.remove", names: ["Fixture view"] },
+    },
 ];

@@ -86,6 +86,7 @@ export type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    SessionViews,
     StyleProblem,
     TransactionOptions,
     TransactionScope,

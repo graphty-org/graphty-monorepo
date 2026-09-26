@@ -88,6 +88,8 @@ export class DerivationLane {
     private readonly onError: (error: unknown) => void;
     private readonly hooks = new Map<DerivedSlice, DeriveHook[]>();
     private dirty = new Map<DerivedSlice, Set<string>>();
+    /** How many writes each slice has had, whoever wrote it. */
+    private readonly counts = new Map<DerivedSlice, number>();
     private shown: ProjectState;
     /** The pass that will take the changes made since the running one started. */
     private next: Pass | null = null;
@@ -149,11 +151,22 @@ export class DerivationLane {
     }
 
     /**
+     * How many writes a slice has had so far: a cache key that moves at once on every write,
+     * before the pass that derives it.
+     * @param slice - The slice.
+     * @returns The count.
+     */
+    writes(slice: DerivedSlice): number {
+        return this.counts.get(slice) ?? 0;
+    }
+
+    /**
      * Mark a key of a slice changed, and schedule a pass.
      * @param slice - The slice.
      * @param key - The key; "" for a whole-value slice.
      */
     touch(slice: DerivedSlice, key: string): void {
+        this.counts.set(slice, this.writes(slice) + 1);
         const keys = this.dirty.get(slice) ?? new Set();
         keys.add(key);
         this.dirty.set(slice, keys);

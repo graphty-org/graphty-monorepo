@@ -27,7 +27,8 @@ import type {
 // different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
-import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope } from "../catalog/types";
+import type { CameraState } from "../camera/types";
+import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope, ScopeId } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
@@ -592,6 +593,41 @@ export interface CommandOutcomeMap {
     "visibility.window": Promise<void>;
     /** Settles once the flag is recorded and the pass that follows it has run. */
     "visibility.context": Promise<void>;
+    /** The saved scope's id, once it is recorded. */
+    "scope.save": Promise<ScopeId>;
+    /** Settles once the removal is recorded. */
+    "scope.remove": Promise<void>;
+    /** Settles once the views are recorded. */
+    "view.save": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "view.remove": Promise<void>;
+    /** Settles once the camera has arrived. */
+    "view.camera": Promise<void>;
+}
+
+/**
+ * The saved camera views, read as a map from name to camera state.
+ *
+ * A saved view is a fixed position, not a rule: it does not recompute itself for a different
+ * graph the way a camera view does, which is why a name a camera view answers to is refused.
+ */
+export interface SessionViews extends ReadonlyMap<string, CameraState> {
+    /**
+     * Keep camera states under names, replacing any view already saved under one. One step.
+     * @param views - The names and the camera states.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view answers to
+     *     a name, or `E_BAD_COMMAND` for an empty name; nothing is saved then.
+     */
+    save(views: readonly { readonly name: string; readonly camera: CameraState }[]): Promise<void>;
+    /**
+     * Forget saved views. One step.
+     * @param names - The names.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when a name is not saved;
+     *     nothing is removed then.
+     */
+    remove(names: readonly string[]): Promise<void>;
 }
 
 /** What `execute` returns for one command. */
@@ -662,6 +698,11 @@ export interface GraphSession {
      * change.
      */
     readonly styles: StylesApi;
+    /**
+     * The saved camera views, by name: camera states kept under a name of the consumer's
+     * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
+     */
+    readonly views: SessionViews;
     /**
      * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
      * where a row no layout has placed reads NaN rather than the origin.

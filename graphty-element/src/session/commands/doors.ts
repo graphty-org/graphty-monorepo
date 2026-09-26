@@ -70,7 +70,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "8";
+export const PLAN_PHASE: PlanPhase = "9";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -254,6 +254,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     selection: READ,
     visibility: READ,
     styles: READ,
+    views: READ,
     positions: READ,
     seededNodeCount: READ,
     status: READ,
@@ -290,7 +291,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     edgeMask: READ,
     apply: SELECTION,
     clear: SELECTION,
-    promote: gap("9", "scope.save", ["door set"]),
+    // The doors test selects node "d1" before calling it.
+    promote: calls(["door set"], [{ op: "scope.save", name: "door set", spec: { nodes: ["d1"] }, id: "set_door-set" }]),
     statistics: READ,
 };
 
@@ -438,11 +440,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraZoom: CAMERA,
             setCameraPan: CAMERA,
             resetCamera: CAMERA,
-            saveCameraPreset: gap("9", "view.save", ["door view"]),
+            saveCameraPreset: calls(["door view", { zoom: 2 }], [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }]),
+            removeCameraPreset: calls(["door view"], [{ op: "view.remove", names: ["door view"] }]),
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
-            importCameraPresets: gap("9", "view.save", [{}]),
+            importCameraPresets: calls(
+                [{ "door import": { zoom: 3 } }],
+                [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
+            ),
             graph: READ,
             addNode: gap("12", "data.apply", [{ id: "door-a" }]),
             addNodes: gap("12", "data.apply", [[{ id: "door-b" }]]),
@@ -638,11 +644,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             resolveCameraPreset: READ,
             applyCameraView: CAMERA,
-            saveCameraPreset: gap("9", "view.save", ["door view"]),
+            saveCameraPreset: calls(["door view", { zoom: 2 }], [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }]),
+            removeCameraPreset: calls(["door view"], [{ op: "view.remove", names: ["door view"] }]),
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
-            importCameraPresets: gap("9", "view.save", [{}]),
+            importCameraPresets: calls(
+                [{ "door import": { zoom: 3 } }],
+                [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
+            ),
             setData: gap("14", "batch", [{ nodes: [{ id: "d1" }], edges: [] }]),
             getNode: READ,
             getNodes: READ,
@@ -1054,9 +1064,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             resolve: READ,
             count: READ,
-            save: gap("9", "scope.save", ["door scope", "graph"]),
+            save: calls(["door scope", "graph"], [{ op: "scope.save", name: "door scope", spec: "graph", id: "set_door-scope" }]),
             list: READ,
-            remove: gap("9", "scope.remove", ["door-scope"]),
+            // The doors test saves "door seed" before calling it.
+            remove: calls(["set_door-seed"], [{ op: "scope.remove", id: "set_door-seed" }]),
+        },
+    },
+    {
+        name: "SessionViews",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            save: calls(
+                [[{ name: "door view", camera: { zoom: 2 } }]],
+                [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
+            ),
+            remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
         },
     },
     {

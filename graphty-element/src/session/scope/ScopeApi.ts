@@ -29,6 +29,8 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId, NodeId, Query, Scope, ScopeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
+import { SCOPE_DEFINITIONS, unknownScopeError } from "../commands/scope";
+import { Dispatcher } from "../project/Dispatcher";
 import { canonicalize } from "../runs/runId";
 import type { ResolvedScope } from "../runs/types";
 import { ElementMask, type MaskIdSpace } from "./ElementMask";
@@ -248,6 +250,11 @@ export interface ScopeSources {
      * @returns The matching node ids; ones the graph no longer holds are ignored.
      */
     readonly match?: (where: Query) => Iterable<NodeId>;
+    /**
+     * The dispatcher whose `scopes` slice holds the saved scopes. Absent, the resolver keeps them
+     * in a dispatcher of its own.
+     */
+    readonly dispatcher?: Dispatcher;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -472,14 +479,16 @@ interface ScopeFrame {
     readonly resolved: Map<string, ScopeMembership>;
 }
 
-/** A saved scope as the resolver holds it, before `bound` is worked out. */
-interface SavedRecord {
+/** A saved scope as the `scopes` slice holds it, before `bound` is worked out. Frozen. */
+export interface SavedScopeRecord {
     /** The minted id. */
     readonly id: ScopeId;
     /** The name it was saved under. */
     readonly name: string;
     /** The specification. */
     readonly spec: Scope;
+    /** Where it lists: one past the last saved scope when it was saved, so undoing a removal puts it back in place. */
+    readonly order: number;
 }
 
 /**
@@ -498,6 +507,71 @@ function slugOf(name: string): string {
 }
 
 /**
+ * Check a save against the saved scopes and build the record it would store.
+ * @param saved - The saved scopes now.
+ * @param command - The save; its `id` is minted from the name when absent.
+ * @param command.name - The name, unique within the session once trimmed.
+ * @param command.spec - The specification to keep.
+ * @param command.id - The id to save under, when it is already known (a redo, a replay).
+ * @returns The record.
+ * @throws A `GraphtyError` when the name is empty or taken, the id is taken, the specification is
+ *     not a scope, or it names a saved set nothing holds.
+ */
+function prepare(
+    saved: ReadonlyMap<ScopeId, SavedScopeRecord>,
+    command: { readonly name: string; readonly spec: Scope; readonly id?: ScopeId },
+): SavedScopeRecord {
+    const { spec } = command;
+    const trimmed = command.name.trim();
+    assertScope(spec);
+
+    if (trimmed === "") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: "A saved scope needs a name, because the name is what a person finds it by.",
+            source: "run",
+            details: { name: command.name },
+        });
+    }
+
+    for (const record of saved.values()) {
+        if (record.name === trimmed || record.id === command.id) {
+            throw new GraphtyError({
+                code: "E_DUPLICATE_ID",
+                message: `A scope called "${record.name === trimmed ? trimmed : record.id}" is already saved.`,
+                source: "run",
+                target: { kind: "scope", id: record.id },
+                details: { name: trimmed, id: record.id },
+            });
+        }
+    }
+
+    // A saved set that names a set nothing holds can only be a mistake, and it is one the
+    // caller can still fix at this point.
+    if (typeof spec === "object" && "set" in spec && !saved.has(spec.set)) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `No saved scope is called "${spec.set}".`,
+            source: "run",
+            target: { kind: "scope", id: spec.set },
+            details: { scope: spec, available: [...saved.keys()] },
+        });
+    }
+
+    let { id } = command;
+    if (id === undefined) {
+        const base = `set_${slugOf(trimmed)}`;
+        id = base;
+        for (let suffix = 2; saved.has(id); suffix++) {
+            id = `${base}_${suffix}`;
+        }
+    }
+
+    const order = Math.max(-1, ...[...saved.values()].map((record) => record.order)) + 1;
+    return Object.freeze({ id, name: trimmed, spec, order });
+}
+
+/**
  * Build the scope resolver one session uses.
  *
  * Membership is walked once per specification and cached against the inputs it was walked from
@@ -508,9 +582,12 @@ function slugOf(name: string): string {
  * @returns The resolver.
  */
 export function createScopeApi(sources: ScopeSources): ScopeResolver {
-    const saved = new Map<ScopeId, SavedRecord>();
-    let savedRevision = 0;
+    const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: SCOPE_DEFINITIONS });
+    // The slice itself, read live: every write to it, undo and redo included, moves the lane's
+    // count of writes to it, which is what the caches below are keyed on.
+    const saved = dispatcher.state.scopes;
     let frame: ScopeFrame | null = null;
+    dispatcher.services.scopes = { prepare };
     let signature = "";
 
     /**
@@ -519,7 +596,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * @returns The signature.
      */
     const inputSignature = (): string => {
-        const parts = [`saved:${savedRevision}`];
+        const parts = [`saved:${dispatcher.lane.writes("scopes")}`];
 
         if (sources.visibility !== undefined) {
             parts.push(`visible:${sources.visibility.nodes().version}.${sources.visibility.edges().version}`);
@@ -945,82 +1022,35 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
 
         save(name: string, spec: Scope): ScopeId {
-            const trimmed = name.trim();
-            assertScope(spec);
-
-            if (trimmed === "") {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: "A saved scope needs a name, because the name is what a person finds it by.",
-                    source: "run",
-                    details: { name },
-                });
-            }
-
-            for (const record of saved.values()) {
-                if (record.name === trimmed) {
-                    throw new GraphtyError({
-                        code: "E_DUPLICATE_ID",
-                        message: `A scope called "${trimmed}" is already saved.`,
-                        source: "run",
-                        target: { kind: "scope", id: record.id },
-                        details: { name: trimmed, id: record.id },
-                    });
-                }
-            }
-
-            // A saved set that names a set nothing holds can only be a mistake, and it is one the
-            // caller can still fix at this point.
-            if (typeof spec === "object" && "set" in spec && !saved.has(spec.set)) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `No saved scope is called "${spec.set}".`,
-                    source: "run",
-                    target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, available: [...saved.keys()] },
-                });
-            }
-
-            const base = `set_${slugOf(trimmed)}`;
-            let id = base;
-            let suffix = 2;
-
-            while (saved.has(id)) {
-                id = `${base}_${suffix}`;
-                suffix += 1;
-            }
-
-            saved.set(id, { id, name: trimmed, spec });
-            savedRevision += 1;
+            const { id } = prepare(saved, { name, spec });
+            // Checked above against the same slice, so the immediate lane writes it before this
+            // returns; a refusal from here on would be a defect, and is left unhandled on purpose.
+            void dispatcher.dispatch({ op: "scope.save", name: name.trim(), spec, id });
 
             return id;
         },
 
         list(): readonly SavedScope[] {
             return Object.freeze(
-                [...saved.values()].map((record) =>
-                    Object.freeze({
-                        id: record.id,
-                        name: record.name,
-                        spec: record.spec,
-                        bound: canBind(record.spec, new Set<ScopeId>()),
-                    }),
-                ),
+                [...saved.values()]
+                    .sort((left, right) => left.order - right.order)
+                    .map((record) =>
+                        Object.freeze({
+                            id: record.id,
+                            name: record.name,
+                            spec: record.spec,
+                            bound: canBind(record.spec, new Set<ScopeId>()),
+                        }),
+                    ),
             );
         },
 
         remove(id: ScopeId): void {
-            if (!saved.delete(id)) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `No saved scope is called "${id}", so there is nothing to remove.`,
-                    source: "run",
-                    target: { kind: "scope", id },
-                    details: { available: [...saved.keys()] },
-                });
+            if (!saved.has(id)) {
+                throw unknownScopeError(id, saved);
             }
 
-            savedRevision += 1;
+            void dispatcher.dispatch({ op: "scope.remove", id });
         },
     };
 }

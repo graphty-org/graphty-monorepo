@@ -18,7 +18,7 @@
 
 import type { CameraState } from "../../camera/types";
 import type { RunId, ScopeId } from "../../catalog/types";
-import type { SavedScope } from "../scope/ScopeApi";
+import type { SavedScopeRecord } from "../scope/ScopeApi";
 import type { CompiledLayer } from "../styles/Layer";
 import type { LayoutChoice, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
@@ -55,7 +55,7 @@ export interface Draft {
     layout: LayoutChoice | null;
     readonly config: KeyedWriter<string, unknown>;
     readonly runs: KeyedWriter<RunId, RunEntry>;
-    readonly scopes: KeyedWriter<ScopeId, SavedScope>;
+    readonly scopes: KeyedWriter<ScopeId, SavedScopeRecord>;
     readonly views: KeyedWriter<string, CameraState>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;

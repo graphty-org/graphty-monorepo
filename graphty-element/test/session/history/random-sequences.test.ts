@@ -7,7 +7,7 @@
  * The session runs on a fake clock and a fake queue (`./fakes.ts`), so fast-check decides when
  * time passes and when every scheduled promise settles, and a failure replays from its seed. The
  * model grows with every op a phase ports (design/undo/undo-plan.md, "How to read this plan",
- * rule 3); today it covers the style and visibility ops.
+ * rule 3); today it covers the style, visibility, saved-scope and saved-view ops.
  *
  * Checked around every action: before it, the live state digest equals the digest recorded for
  * the current position, so a change that records no step fails at the next action; after every
@@ -416,6 +416,46 @@ const COMMANDS = [
                 },
             })),
     ),
+    fc.tuple(fc.constantFrom("Hubs", "Leaves", "Route"), fc.subarray(["n1", "n2", "n3"], { minLength: 1 })).map(
+        ([name, nodes]) =>
+            new Edit(`save scope ${name}`, (real) => ({
+                key: null,
+                // Synchronous, and refused at once when the name is taken.
+                run: () => {
+                    real.session.scope.save(name, { nodes });
+                    return Promise.resolve();
+                },
+            })),
+    ),
+    pick.map(
+        (at) =>
+            new Edit(`remove scope ${String(at)}`, (real) => {
+                const saved = choose(real.session.scope.list(), at);
+                return saved === undefined
+                    ? null
+                    : {
+                          key: null,
+                          run: () => {
+                              real.session.scope.remove(saved.id);
+                              return Promise.resolve();
+                          },
+                      };
+            }),
+    ),
+    fc.tuple(fc.constantFrom("Front", "Top"), fc.nat({ max: 4 })).map(
+        ([name, zoom]) =>
+            new Edit(`save view ${name} at ${String(zoom)}`, (real) => ({
+                key: null,
+                run: () => real.session.views.save([{ name, camera: { zoom } }]),
+            })),
+    ),
+    pick.map(
+        (at) =>
+            new Edit(`remove view ${String(at)}`, (real) => {
+                const name = choose([...real.session.views.keys()], at);
+                return name === undefined ? null : { key: null, run: () => real.session.views.remove([name]) };
+            }),
+    ),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
     fc.constant(new Move("undo-twice")),
@@ -472,7 +512,7 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
     );
 }
 
-describe("random sequences of style and visibility edits and history moves", () => {
+describe("random sequences of style, visibility, scope and view edits and history moves", () => {
     const only = process.env.FC_SEED;
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
         it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);

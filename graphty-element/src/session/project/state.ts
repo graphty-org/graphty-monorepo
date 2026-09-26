@@ -16,7 +16,7 @@ import type { LayoutId, NodeId, RunId, ScopeId } from "../../catalog/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
 import type { RunRecord } from "../runs/types";
-import type { SavedScope } from "../scope/ScopeApi";
+import type { SavedScopeRecord } from "../scope/ScopeApi";
 import type { CompiledLayer } from "../styles/Layer";
 import type { Filter, TimeWindow } from "../visibility/filter";
 
@@ -95,7 +95,7 @@ export interface ProjectState {
     /** The frozen, compiled layer stack, index 0 the bottom. */
     readonly styles: readonly CompiledLayer[];
     readonly visibility: VisibilityState;
-    readonly scopes: ReadonlyMap<ScopeId, SavedScope>;
+    readonly scopes: ReadonlyMap<ScopeId, SavedScopeRecord>;
     /** Saved camera views, by name. */
     readonly views: ReadonlyMap<string, CameraState>;
 }

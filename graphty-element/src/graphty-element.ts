@@ -1937,12 +1937,23 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Save current camera state as a named preset.
-     * Available from Phase 5 onwards.
+     * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
+     * @param camera - The camera state to save instead of where the camera is now
+     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
      */
-    saveCameraPreset(name: string): void {
-        this.#graph.saveCameraPreset(name);
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
+        this.#graph.saveCameraPreset(name, camera);
+    }
+
+    /**
+     * Forget a preset saved with `saveCameraPreset` or `importCameraPresets`. One undoable step.
+     * @param name - The name it was saved under
+     * @returns Settles once the step is recorded; rejects with `E_BAD_COMMAND` when nothing is
+     *   saved under the name
+     */
+    removeCameraPreset(name: string): Promise<void> {
+        return this.#graph.removeCameraPreset(name);
     }
 
     /**
@@ -1978,8 +1989,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Import user-defined presets from JSON
-     * Available from Phase 5 onwards
+     * Import user-defined presets from JSON, as one undoable step
      * @param presets - Record of preset names to their state
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {

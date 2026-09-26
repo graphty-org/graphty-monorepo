@@ -105,6 +105,8 @@ import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { assertViewName } from "./session/commands/view";
+import { dispatcherOf } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
@@ -182,7 +184,6 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
-    private userCameraPresets = new Map<string, import("./screenshot/types.js").CameraState>();
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -385,6 +386,20 @@ export class Graph implements GraphContext {
         // pass has run, an element draws itself from the element's own defaults; see
         // `bootstrapNodePaint` in StylePainter.
         this.stylePainter.bind(this.session.paint);
+
+        // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
+        dispatcherOf(this.session).services.camera = {
+            move: (command) =>
+                this.setCameraState(
+                    command.preset === undefined
+                        ? {
+                              ...(command.position === undefined ? {} : { position: { ...command.position } }),
+                              ...(command.target === undefined ? {} : { target: { ...command.target } }),
+                          }
+                        : { preset: command.preset },
+                    command.animate === true ? { animate: true } : undefined,
+                ),
+        };
 
         // WHAT USED TO TAKE THE DIRTY SET HERE. A style edit repaints before it commits, so this
         // fired after the pass had worked out what moved -- but "after" is turns of the event
@@ -4586,7 +4601,7 @@ export class Graph implements GraphContext {
            view the same protection the element's own five have. A snapshot whose name no view
            holds is still reached by the name its author chose. */
         if (!isCameraViewName(preset)) {
-            const snapshot = this.userCameraPresets.get(preset);
+            const snapshot = this.session.views.get(preset);
             if (snapshot) {
                 return snapshot;
             }
@@ -4630,28 +4645,32 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Save where the camera is now under a name of the consumer's choosing.
+     * Save where the camera is now under a name of the consumer's choosing. One undoable step.
      *
      * A snapshot records a POSITION, not a rule: it cannot re-derive itself for a different graph
      * the way a camera view does. Which is why a name a view already holds -- the element's own
      * or a registered one -- is refused rather than shadowed.
      * @param name - The name to save it under.
+     * @param camera - The camera state to save instead of where the camera is now.
      * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
      */
-    saveCameraPreset(name: string): void {
-        if (isCameraViewName(name)) {
-            throw new GraphtyError({
-                code: "E_PROTECTED",
-                message:
-                    `"${name}" is a camera view, and a view recomputes itself for whatever is on screen. ` +
-                    "Saving a fixed position under the same name would silently replace a rule with a snapshot.",
-                source: "view",
-                details: { name, available: cameraViewIds() },
-            });
-        }
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
+        assertViewName(name);
+        // Checked above, so the immediate lane records it before this returns; a refusal from
+        // here on would be a defect, and is left unhandled on purpose.
+        void this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]);
+    }
 
-        const currentState = this.getCameraState();
-        this.userCameraPresets.set(name, currentState);
+    /**
+     * Forget a camera state saved with `saveCameraPreset` or `importCameraPresets`. One undoable
+     * step.
+     * @param name - The name it was saved under.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when nothing is saved under
+     *     the name.
+     */
+    removeCameraPreset(name: string): Promise<void> {
+        return this.session.views.remove([name]);
     }
 
     /**
@@ -4686,7 +4705,7 @@ export class Graph implements GraphContext {
         }
 
         // User-defined presets
-        for (const [name, state] of this.userCameraPresets.entries()) {
+        for (const [name, state] of this.session.views) {
             presets[name] = state;
         }
 
@@ -4699,18 +4718,19 @@ export class Graph implements GraphContext {
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
         const exported: Record<string, import("./screenshot/types.js").CameraState> = {};
-        for (const [name, state] of this.userCameraPresets.entries()) {
+        for (const [name, state] of this.session.views) {
             exported[name] = state;
         }
         return exported;
     }
 
     /**
-     * Import user-defined presets from JSON
+     * Import user-defined presets from JSON, as one undoable step.
      * @param presets - Object mapping preset names to camera states
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
-        for (const [name, state] of Object.entries(presets)) {
+        const views: { name: string; camera: import("./screenshot/types.js").CameraState }[] = [];
+        for (const [name, camera] of Object.entries(presets)) {
             // A registered view is skipped for the same reason a built-in one is: the imported
             // entry is a fixed position, and overwriting a view with it would quietly turn a rule
             // that recomputes itself for the graph on screen into one that does not.
@@ -4719,7 +4739,11 @@ export class Graph implements GraphContext {
                 continue;
             }
 
-            this.userCameraPresets.set(name, state);
+            views.push({ name, camera });
+        }
+
+        if (views.length > 0) {
+            void this.session.views.save(views);
         }
     }
 

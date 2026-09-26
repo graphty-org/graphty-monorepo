@@ -28,7 +28,9 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
+import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
+import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
 import { DerivationLane } from "./derive";
 import {
@@ -68,6 +70,8 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
 interface CommandServices {
     styles?: StyleService;
     visibility?: VisibilityService;
+    scopes?: ScopeService;
+    camera?: CameraService;
 }
 
 /** What an undoable command executes with: the state to read, and the draft that writes it. */

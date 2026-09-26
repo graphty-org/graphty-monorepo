@@ -20,6 +20,7 @@ import {
     type AccelerationPolicy,
     type GraphAccelerator,
 } from "../acceleration";
+import type { CameraState } from "../camera/types";
 import type { EdgeId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
@@ -96,6 +97,7 @@ import type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    SessionViews,
     TransactionOptions,
     TransactionScope,
 } from "./types";
@@ -249,6 +251,7 @@ class Session implements ElementSession {
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
+    readonly views: SessionViews;
     readonly paint: ElementPaint;
 
     private readonly sessionRuns: SessionRunsApi;
@@ -312,6 +315,7 @@ class Session implements ElementSession {
         };
         DISPATCHERS.set(this, this.dispatcher);
         this.history = historyOf(this.dispatcher, () => version);
+        this.views = viewsOf(this.dispatcher);
     }
 
     /**
@@ -655,6 +659,40 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
     }
 
     return dispatcher;
+}
+
+/**
+ * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
+ * write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The views.
+ */
+function viewsOf(dispatcher: Dispatcher): SessionViews {
+    const held = dispatcher.state.views;
+    const views: SessionViews = Object.freeze({
+        get size() {
+            return held.size;
+        },
+        get: (name: string) => held.get(name),
+        has: (name: string) => held.has(name),
+        forEach: (visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void, self?: unknown) => {
+            held.forEach((camera, name) => {
+                visit.call(self, camera, name, views);
+            });
+        },
+        entries: () => held.entries(),
+        keys: () => held.keys(),
+        values: () => held.values(),
+        [Symbol.iterator]: () => held.entries(),
+        save: async (saved: readonly { readonly name: string; readonly camera: CameraState }[]) => {
+            await dispatcher.dispatch({ op: "view.save", views: saved });
+        },
+        remove: async (names: readonly string[]) => {
+            await dispatcher.dispatch({ op: "view.remove", names });
+        },
+    });
+
+    return views;
 }
 
 /**
@@ -1304,8 +1342,17 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     // turn among the loads, the layouts and the style passes.
     const queue = runsOptions.queue ?? createLocalRunQueue();
 
+    // Built before the scope resolver, the visibility model and the style stack, which live in its slices and write
+    // through it.
+    const dispatcher = new Dispatcher({
+        definitions: DEFINITIONS,
+        ...(internals.now === undefined ? {} : { now: internals.now }),
+        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
+    });
+
     const scope: ScopeResolver = createScopeApi({
         snapshot,
+        dispatcher,
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
@@ -1315,14 +1362,6 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
             edges: () => visibility.masks.edges(),
         },
         match: (where: Query) => requireQuery(query).nodes(where),
-    });
-
-    // Built before the visibility model and the style stack, which live in its slices and write
-    // through it.
-    const dispatcher = new Dispatcher({
-        definitions: DEFINITIONS,
-        ...(internals.now === undefined ? {} : { now: internals.now }),
-        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
     });
 
     const visibility = createVisibilityApi({

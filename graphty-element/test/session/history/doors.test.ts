@@ -14,6 +14,8 @@
 import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
+import type { GraphStore } from "../../../src/data/GraphStore";
+import { ingestNode } from "../../../src/data/ingest";
 import { type Door, DOOR_ROOTS, PHASES, PLAN_PHASE } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
@@ -26,6 +28,18 @@ function rows(): [string, Door][] {
             ? Object.entries(root.doors ?? {}).map(([member, door]): [string, Door] => [`${root.name}.${member}`, door])
             : [[`${root.name}.*`, root.whole]],
     );
+}
+
+/**
+ * The selection of a session holding one node, "d1", selected.
+ * @param session - The session.
+ * @returns Its selection.
+ */
+function selectOne(session: ElementSession): object {
+    ingestNode(session.data.store as GraphStore, "d1", { id: "d1" });
+    // Applied at once; the promise only reports the delta.
+    void session.selection.apply({ nodes: ["d1"] });
+    return session.selection;
 }
 
 /** How the session half reaches an instance of each session root. */
@@ -41,9 +55,13 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
         run.then(undefined, () => undefined);
         return run;
     },
-    ScopeApi: (session) => session.scope,
-    SelectionApi: (session) => session.selection,
-    SelectionOwner: (session) => session.selection,
+    ScopeApi: (session) => {
+        session.scope.save("door seed", "graph");
+        return session.scope;
+    },
+    SelectionApi: selectOne,
+    SelectionOwner: selectOne,
+    SessionViews: (session) => session.views,
     VisibilityApi: (session) => session.visibility,
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,

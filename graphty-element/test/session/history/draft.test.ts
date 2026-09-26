@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { ABSENT, createProjectStore, deepFreezeArgs } from "../../../src/session/project/draft";
 import { createCounter, createProjectState } from "../../../src/session/project/state";
-import type { SavedScope } from "../../../src/session/scope/ScopeApi";
+import type { SavedScopeRecord } from "../../../src/session/scope/ScopeApi";
 import type { CompiledLayer } from "../../../src/session/styles/Layer";
 
 /** A stand-in layer stack; the draft never looks inside one. */
@@ -11,8 +11,8 @@ function stack(name: string): readonly CompiledLayer[] {
 }
 
 /** A stand-in saved scope. */
-function scope(id: string): SavedScope {
-    return Object.freeze({ id, name: id, spec: "graph", bound: true });
+function scope(id: string): SavedScopeRecord {
+    return Object.freeze({ id, name: id, spec: "graph", order: 0 });
 }
 
 describe("a draft", () => {

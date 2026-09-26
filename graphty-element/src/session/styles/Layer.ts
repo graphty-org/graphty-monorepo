@@ -61,6 +61,7 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
@@ -963,17 +964,20 @@ export function checkLayerSpec(spec: LayerSpec, options: LayerCheckOptions): Lay
  */
 function buildLayer(spec: LayerSpec, id: LayerId, target: SelectorTarget, selector: CompiledSelector): CompiledLayer {
     const source = sourceOf(spec);
+    // A copy, deep-frozen, of everything but `userData`: the caller's objects stay theirs to
+    // change, and nothing reachable from a layer in the stack can change under it.
+    const frozen = <T>(value: T): T => deepFreeze(structuredClone(value));
     const layer: Layer = Object.freeze({
         id,
         name: spec.name,
         kind: spec.kind ?? "custom",
-        source,
+        source: frozen(source),
         locked: isElementSource(source),
         enabled: spec.enabled ?? true,
         target,
-        selector: spec.selector as Selector,
-        ...(spec.set === undefined ? {} : { set: Object.freeze({ ...spec.set }) }),
-        ...(spec.encode === undefined ? {} : { encode: Object.freeze({ ...spec.encode }) }),
+        selector: frozen(spec.selector as Selector),
+        ...(spec.set === undefined ? {} : { set: frozen(spec.set) }),
+        ...(spec.encode === undefined ? {} : { encode: frozen(spec.encode) }),
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),

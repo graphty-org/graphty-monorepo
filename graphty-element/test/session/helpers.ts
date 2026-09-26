@@ -13,6 +13,7 @@ import {
     type SessionDataConfig,
     type SessionRunsOptions,
 } from "../../src/session";
+import { createElementSession } from "../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */
@@ -101,7 +102,13 @@ export interface Harness {
  * @returns the harness
  */
 export function makeSession(
-    options: { directed?: boolean | "auto"; config?: SessionDataConfig; runs?: SessionRunsOptions } = {},
+    options: {
+        directed?: boolean | "auto";
+        config?: SessionDataConfig;
+        runs?: SessionRunsOptions;
+        /** The history clock and queue, for a test that drives them itself. */
+        internals?: Parameters<typeof createElementSession>[1];
+    } = {},
 ): Harness {
     // ONE configuration for both halves. A store told one thing and a session told another is the
     // bug this exists to make impossible: the session would report a graph as undirected while the
@@ -118,15 +125,19 @@ export function makeSession(
     const nodeAttributes = new Map<number, SessionAttributes>();
     const edgeAttributes = new Map<number, SessionAttributes>();
 
-    const session = createGraphSession({
+    const sessionOptions = {
         store,
         records: {
-            nodeAttributes: (index) => nodeAttributes.get(index),
-            edgeAttributes: (index) => edgeAttributes.get(index),
+            nodeAttributes: (index: number) => nodeAttributes.get(index),
+            edgeAttributes: (index: number) => edgeAttributes.get(index),
         },
         config: { data: config },
         ...(options.runs === undefined ? {} : { runs: options.runs }),
-    });
+    };
+    const session =
+        options.internals === undefined
+            ? createGraphSession(sessionOptions)
+            : createElementSession(sessionOptions, options.internals);
 
     return {
         session,

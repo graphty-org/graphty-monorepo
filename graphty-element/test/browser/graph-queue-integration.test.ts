@@ -57,7 +57,7 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("puts a style edit and a data load in one queue, in the order they were asked for", async () => {
+    it("writes a style edit at once, and paints the rows a later load adds after that load", async () => {
         const operations: string[] = [];
         const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
 
@@ -66,32 +66,34 @@ describe("Graph Queue Integration", () => {
             return originalQueue(category, execute, metadata);
         });
 
-        // A style edit takes its turn in the same queue as everything else. It used to be a
-        // `style-init` operation, queued by `setStyleTemplate`; a layer edit is a session run
-        // now, queued as `style-edit`, and the repaint that follows a data load is the queue's
-        // own `style-apply`. The category is its own rather than shared with `algorithm-run`
-        // because `data-add` obsoletes an algorithm run -- a computation over data that has just
-        // changed -- and must not cancel a layer, which says how to paint whatever arrives.
-        await graph.getSession().styles.add({
+        // A style edit is an undoable step of the session: the stack holds the layer when the verb
+        // returns, and the repaint runs on the session's derivation lane. It takes no turn in the
+        // queue, so no load can overtake it; the repaint that follows a data load is still the
+        // queue's own `style-apply`.
+        const added = graph.getSession().styles.add({
             name: "every node blue",
             target: "node",
             selector: { match: "everything" },
             set: { "node.color": "blue" },
         });
+        assert.include(
+            graph
+                .getSession()
+                .styles.list()
+                .map((layer) => layer.name),
+            "every node blue",
+            "the stack holds the layer as soon as the verb returns",
+        );
+        await added;
 
-        // Add nodes
         await graph.addNodes([{ id: "1", label: "Node 1" }]);
+        await graph.waitForSettled();
 
-        // Wait for operations to complete
-        await graph.operationQueue.waitForCompletion();
-
-        const styleEditIndex = operations.indexOf("style-edit");
         const dataAddIndex = operations.indexOf("data-add");
         const repaintIndex = operations.indexOf("style-apply");
 
-        assert(styleEditIndex !== -1, "a style edit is a queued run");
+        assert.notInclude(operations, "style-edit", "a style edit takes no turn in the queue");
         assert(dataAddIndex !== -1, "data-add should be present");
-        assert(styleEditIndex < dataAddIndex, "the style edit was asked for first, so it is queued first");
         assert(
             repaintIndex > dataAddIndex,
             "and the rows a load added are painted after it, which is what the data-add trigger is for",

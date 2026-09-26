@@ -93,7 +93,7 @@ function sessionCosting(seconds: Readonly<Partial<Record<NodeMetricId, number>>>
         estimate: (command: SessionCommand): CostEstimate => {
             asked.push(command);
 
-            return elementEstimate(seconds[command.algorithm as NodeMetricId] ?? 0);
+            return elementEstimate(command.op === "algo.run" ? (seconds[command.algorithm as NodeMetricId] ?? 0) : 0);
         },
     } as unknown as GraphSession;
 

@@ -257,19 +257,25 @@ describe("session.styles", () => {
         harness.session.dispose();
     });
 
-    it("takes its turn in the queue the session runs on, beside the algorithm runs", async () => {
+    it("writes an edit at once rather than taking a turn in the queue the runs share", async () => {
         const recorder = recordingQueue();
         const harness = harnessOf({ queue: recorder.queue });
 
-        await harness.session.styles.add(hostLayer());
+        const added = harness.session.styles.add(hostLayer());
+
+        assert.include(
+            harness.session.styles.list().map((layer) => layer.name),
+            "Hosts in orange",
+            "the stack holds the layer as soon as the verb returns",
+        );
+        await added;
         const run = harness.session.runs.start("degree");
         await run.then(
             () => undefined,
             () => undefined,
         );
 
-        assert.include(recorder.descriptions, 'Add layer "Hosts in orange"');
-        assert.strictEqual(recorder.descriptions.length, 2, "one queue carried both, not two carrying one each");
+        assert.strictEqual(recorder.descriptions.length, 1, "only the run took a turn in the queue");
         harness.session.dispose();
     });
 

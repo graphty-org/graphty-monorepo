@@ -7,13 +7,14 @@ import { assert, describe, it } from "vitest";
 
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
+import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 import { pictureDigest, roundTrip } from "./round-trip-harness";
 
 describe("round trip per command", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {
         it(fixture.name, async () => {
-            const session = createElementSession();
+            const session = await fixtureSession();
             await roundTrip(session, fixture);
             session.dispose();
         });

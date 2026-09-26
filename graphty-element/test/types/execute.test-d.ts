@@ -4,8 +4,7 @@
  *
  * `execute` hands back an op's outcome unwrapped: for `algo.run` the `Run` handle, because a
  * promise resolved with a `Run` would adopt it and yield the result instead. `run` takes only an
- * algorithm run; `estimate` and `plan` take any command. Until a second op is in the union the
- * rejection is checked against a stand-in; the style ops replace it when they land.
+ * algorithm run; `estimate` and `plan` take any command, a style edit included.
  */
 
 import { expectTypeOf } from "vitest";
@@ -29,8 +28,9 @@ expectTypeOf<Parameters<GraphSession["run"]>[0]>().toEqualTypeOf<AlgorithmRunCom
 expectTypeOf<Parameters<GraphSession["estimate"]>[0]>().toEqualTypeOf<SessionCommand>();
 expectTypeOf<Parameters<GraphSession["plan"]>[0]>().toEqualTypeOf<SessionCommand>();
 
-/** A command of another op, standing in for the first one the union gains. */
-interface StandIn {
-    readonly op: "stand.in";
-}
-expectTypeOf<StandIn>().not.toExtend<Parameters<GraphSession["run"]>[0]>();
+/** A style edit: a command of another op, which `estimate` and `plan` take and `run` does not. */
+const edit = { op: "style.patch", action: "remove", id: "a-layer" } as const;
+expectTypeOf(edit).toExtend<Parameters<GraphSession["estimate"]>[0]>();
+expectTypeOf(edit).toExtend<Parameters<GraphSession["plan"]>[0]>();
+expectTypeOf(edit).not.toExtend<Parameters<GraphSession["run"]>[0]>();
+expectTypeOf(session.execute(edit)).toEqualTypeOf<Promise<void>>();

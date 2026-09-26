@@ -153,7 +153,7 @@ describe("session style paint", () => {
         });
 
         await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
         graph.getUpdateManager().stepFrames(2);
 
         assert.isTrue(graph.getStylePainter().owns, "the session is still what paints");

@@ -26,6 +26,9 @@
  * No entry point exports this module. The phases are those of design/undo/undo-plan.md.
  */
 
+import type { LayerSpec } from "../../catalog/types";
+import type { SessionCommand } from "../planning";
+
 /** The phases of the undo plan, in order. */
 export const PHASES = [
     "1",
@@ -67,7 +70,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "6";
+export const PLAN_PHASE: PlanPhase = "7";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -151,6 +154,33 @@ function gap(phase: PlanPhase, op: string, args: readonly unknown[] | (() => rea
  */
 function gapSet(phase: PlanPhase, op: string, value: unknown): Door {
     return { kind: "knownGap", phase, op, call: { kind: "set", value } };
+}
+
+/**
+ * A door that dispatches, called as a method.
+ * @param args - The arguments to call it with.
+ * @param expect - The commands the call must dispatch, in order; the first names its op.
+ * @returns The door.
+ */
+function calls(args: readonly unknown[], expect: readonly SessionCommand[]): Door {
+    return { kind: "dispatches", op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
+}
+
+/**
+ * A door that dispatches, but whose one call is not yet one step, until `phase` finishes it.
+ * @param phase - The phase that makes one call one step.
+ * @param reason - What is still split, and why.
+ * @param args - The arguments to call it with.
+ * @param expect - The commands the call dispatches today, in order; the first names its op.
+ * @returns The door.
+ */
+function partial(
+    phase: PlanPhase,
+    reason: string,
+    args: readonly unknown[],
+    expect: readonly SessionCommand[],
+): Door {
+    return { kind: "partial", phase, reason, op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
 }
 
 /**
@@ -269,27 +299,73 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     showContext: gapSet("8", "visibility.context", true),
 };
 
+/** A layer the style doors add. */
+const DOOR_LAYER: LayerSpec = {
+    name: "door layer",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#ff0000" },
+};
+
 /** The rows of `StylesApi`, shared with the element's wider form of it. */
 const STYLES_API: Readonly<Record<string, Door>> = {
     list: READ,
     get: READ,
     validate: READ,
-    add: gap("7", "style.patch", [
-        { name: "door layer", target: "node", selector: "", set: { "node.color": "#ff0000" } },
-    ]),
-    update: gap("7", "style.patch", ["no-such-layer", { name: "renamed" }]),
-    remove: gap("7", "style.patch", ["no-such-layer"]),
-    move: gap("7", "style.patch", ["no-such-layer", null]),
-    removeBySource: gap("7", "style.patch", [() => false]),
-    encode: gap("7", "style.encode", [{ field: "data.weight", channel: "node.color" }]),
-    highlight: gap("7", "style.patch", [{ nodes: ["n1"] }]),
+    add: calls(
+        [DOOR_LAYER],
+        [{ op: "style.patch", action: "add", spec: DOOR_LAYER }],
+    ),
+    // A refused edit is still dispatched: it is refused where it executes, and records nothing.
+    update: calls(
+        ["no-such-layer", { name: "renamed" }],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: { name: "renamed" } }],
+    ),
+    remove: calls(["no-such-layer"], [{ op: "style.patch", action: "remove", id: "no-such-layer" }]),
+    move: calls(["no-such-layer", null], [{ op: "style.patch", action: "move", id: "no-such-layer", before: null }]),
+    removeBySource: calls([() => false], [{ op: "style.patch", action: "removeBySource", ids: [] }]),
+    encode: calls(
+        [{ run: "no-such-run", field: "value", channel: "node.color" }],
+        [{ op: "style.encode", spec: { run: "no-such-run", field: "value", channel: "node.color" } }],
+    ),
+    highlight: calls([{ run: "no-such-run" }], [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }]),
     legend: READ,
     settled: READ,
     explain: READ,
-    resolveToStatic: gap("7", "style.patch", ["no-such-layer", "node.color"]),
-    applyTemplate: gap("7", "style.template", [{ layers: [] }]),
+    resolveToStatic: calls(
+        ["no-such-layer", "node.color"],
+        [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
+    ),
+    applyTemplate: calls(
+        [{ version: 1, layers: [] }],
+        [{ op: "style.template", document: { version: 1, layers: [] } }],
+    ),
     toDocument: READ,
 };
+
+/**
+ * What the doors that run `degree` on the doors tests' small graph paint: the run's suggested
+ * colour. The run id is derived from the algorithm, its parameters and the graph, so it is the
+ * same on every such graph.
+ *
+ * Which of those doors paints depends on the order the doors test calls a root's rows in: a run
+ * paints its suggestion on its FIRST completion only, so a door that re-runs `degree` on a graph
+ * an earlier row already ran it on paints nothing and stays a `knownGap` of its op.
+ */
+const DEGREE_ENCODE: SessionCommand = {
+    op: "style.encode",
+    spec: { run: "degree_0bkzd1n0p2dnik", field: "value", channel: "node.color" },
+};
+
+/** Why a door that runs an algorithm is partial until runs are steps. */
+const RUN_PAINTS =
+    "The run is not a step yet; the colour it paints when it finishes is a style step of its own, so undo " +
+    "takes the colour off and leaves the run. Phase 15 makes the run, its result and its layers one step.";
+
+/** Why applying suggested styles is partial until runs are steps. */
+const SUGGESTED_STEPS =
+    "Each suggested layer is a style step of its own, so undo takes back only the last one. Phase 15 makes " +
+    "the whole call one step.";
 
 /** Every root, and the door of every public member. */
 export const DOOR_ROOTS: readonly DoorRoot[] = [
@@ -299,7 +375,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
-            run: gap("15", "algo.run", ["degree"]),
+            run: partial("15", RUN_PAINTS, ["degree"], [DEGREE_ENCODE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,
             firstUpdated: LIFECYCLE,
@@ -379,7 +455,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectedNode: READ,
             isNodeSelected: READ,
             runAlgorithm: gap("15", "algo.run", ["graphty", "degree"]),
-            applySuggestedStyles: gap("15", "style.patch", ["graphty:degree"]),
+            applySuggestedStyles: partial("15", SUGGESTED_STEPS, ["graphty:degree"], [DEGREE_ENCODE]),
             getSuggestedStyles: READ,
             setLayout: gap("17", "layout.set", ["circular"]),
             zoomToFit: CAMERA,
@@ -476,9 +552,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addEdges: gap("12", "data.apply", [[{ src: "n3", dst: "n1" }]]),
             setEdges: gap("14", "batch", [[{ src: "n1", dst: "n2" }]]),
             setLayout: gap("17", "layout.set", ["circular"]),
-            runAlgorithm: gap("15", "algo.run", ["graphty", "degree"]),
+            runAlgorithm: partial("15", RUN_PAINTS, ["graphty", "degree"], [DEGREE_ENCODE]),
             run: gap("15", "algo.run", ["degree"]),
-            applySuggestedStyles: gap("15", "style.patch", ["graphty:degree"]),
+            applySuggestedStyles: partial("15", SUGGESTED_STEPS, ["graphty:degree"], [DEGREE_ENCODE]),
             getSuggestedStyles: READ,
             removeNodes: gap("13", "data.apply", [["n3"]]),
             updateNodes: gap("12", "data.apply", [[{ id: "n1", weight: 2 }]]),

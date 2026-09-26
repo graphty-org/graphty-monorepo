@@ -39,7 +39,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-import { Dispatcher, type TransactionScope as DispatchScope } from "./project/Dispatcher";
+import { Dispatcher, type Scheduler, type TransactionScope as DispatchScope } from "./project/Dispatcher";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import {
@@ -186,6 +186,17 @@ interface SessionParts {
     readonly planning: PlanningContext;
     /** Where a run notification is delivered, so the session can publish it to its watchers. */
     readonly watchers: Watchers;
+    /** The one path every change to project state takes; the styles API already writes through it. */
+    readonly dispatcher: Dispatcher;
+}
+
+/**
+ * What the element's own tests hand a session besides its options: the clock of the coalescing
+ * window and the queue queued commands take their turn on, so a random sequence can drive both.
+ */
+interface SessionInternals {
+    readonly now?: () => number;
+    readonly scheduler?: Scheduler;
 }
 
 /**
@@ -288,21 +299,17 @@ class Session implements ElementSession {
             publish(this.watchers, "capabilities:changed", { capabilities: this.controller.capabilities });
         });
         let version = 0;
-        this.dispatcher = new Dispatcher({
-            definitions: DEFINITIONS,
-            events: {
-                project: (change) => {
-                    publish(this.watchers, "project:changed", {
-                        slices: change.slices as readonly ProjectSlice[],
-                        cause: change.cause,
-                    });
-                },
-                history: (reason) => {
-                    version++;
-                    publish(this.watchers, "history:changed", { reason });
-                },
-            },
-        });
+        this.dispatcher = parts.dispatcher;
+        this.dispatcher.events.project = (change) => {
+            publish(this.watchers, "project:changed", {
+                slices: change.slices as readonly ProjectSlice[],
+                cause: change.cause,
+            });
+        };
+        this.dispatcher.events.history = (reason) => {
+            version++;
+            publish(this.watchers, "history:changed", { reason });
+        };
         DISPATCHERS.set(this, this.dispatcher);
         this.history = historyOf(this.dispatcher, () => version);
     }
@@ -1236,10 +1243,14 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
  * the difference is a shape one, and it exists because a renderer tests one element at a time
  * where a consumer reads a list of ids.
  * @param options - The store, the record source, the configuration and the accelerator.
+ * @param internals - The history clock and queue, which only the element's own tests replace.
  * @returns The session.
  */
-export function createElementSession(options: CreateGraphSessionOptions = {}): ElementSession {
-    return buildSession(options);
+export function createElementSession(
+    options: CreateGraphSessionOptions = {},
+    internals: SessionInternals = {},
+): ElementSession {
+    return buildSession(options, internals);
 }
 
 /**
@@ -1251,9 +1262,10 @@ export function createElementSession(options: CreateGraphSessionOptions = {}): E
  * that reach the other two through a function call, and they are built afterwards holding the
  * resolver itself. Nothing reads through those readers during construction.
  * @param options - What the caller asked for.
+ * @param internals - The history clock and queue, when a test replaces them.
  * @returns The session.
  */
-function buildSession(options: CreateGraphSessionOptions): Session {
+function buildSession(options: CreateGraphSessionOptions, internals: SessionInternals = {}): Session {
     const readData = resolveDataConfig(options.config?.data);
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -1462,7 +1474,15 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     );
     forgetPreparedBindings = painter.invalidate;
 
+    // Built before the style stack, which lives in its `styles` slice and writes through it.
+    const dispatcher = new Dispatcher({
+        definitions: DEFINITIONS,
+        ...(internals.now === undefined ? {} : { now: internals.now }),
+        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
+    });
+
     const styles = createStylesApi({
+        dispatcher,
         elements,
         base: elementBaseLayers(),
         paths,
@@ -1520,6 +1540,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         paint: painter.paint,
         planning,
         watchers,
+        dispatcher,
     });
 }
 

@@ -36,6 +36,9 @@ export type CommandMeta =
  */
 export const COMMANDS = Object.freeze({
     "algo.run": { undo: "undoable" },
+    "style.patch": { undo: "undoable" },
+    "style.encode": { undo: "undoable" },
+    "style.template": { undo: "undoable" },
 } as const satisfies { readonly [Op in SessionCommand["op"]]: CommandMeta });
 
 /**

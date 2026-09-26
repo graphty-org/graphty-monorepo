@@ -563,12 +563,11 @@ describe("Dependency Ordering", () => {
 
             // Verify both operations executed successfully
             assert.isTrue(executionOrder.includes("data-add"), "data-add should execute");
-            // A style edit is a queued run, and the repaint that follows the load is the queue's
-            // own style-apply. There is no style-init operation any more: the element's styles
-            // exist from construction, so the queue marks that category satisfied at init. The
-            // edit is queued as `style-edit` rather than `algorithm-run` because a load obsoletes
-            // the second and must not touch the first.
-            assert.isTrue(executionOrder.includes("style-edit"), "the style edit should execute");
+            // A style edit is written to the session's style stack when it is made, and repainted
+            // on the session's derivation lane, so it takes no turn in the queue; the repaint that
+            // follows the load is the queue's own style-apply. There is no style-init operation:
+            // the element's styles exist from construction.
+            assert.isFalse(executionOrder.includes("style-edit"), "the style edit is written at once, not queued");
             assert.isTrue(executionOrder.includes("style-apply"), "and the load should be painted");
 
             // Verify the final state is correct

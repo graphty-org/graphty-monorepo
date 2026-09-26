@@ -20,7 +20,7 @@ import {
     type SessionStylesApi,
 } from "../../../src/session/styles/index";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
-import type { StyleProblem } from "../../../src/session/types";
+import type { ElementSession, StyleProblem } from "../../../src/session/types";
 import { CAVEATS, descriptor, ENGINE, FakeGraph, FakeQueue, spyExecutor, stubResult } from "../runs/harness";
 
 // ---------------------------------------------------------------------------------------------
@@ -727,7 +727,7 @@ describe("what a session's runs fire", () => {
  * this element -- so the element answers it.
  */
 describe("when the element has finished painting a run", () => {
-    it("has not painted yet when the run resolves, and has once the stack has settled", async () => {
+    it("has painted the run's layers once the stack has settled", async () => {
         const session = createGraphSession({
             runs: { execute: (context) => Promise.resolve({ result: stubResult(context.runId) }) },
         });
@@ -735,12 +735,10 @@ describe("when the element has finished painting a run", () => {
         const before = session.styles.list().length;
         const run = session.runs.start("degree", {}, { as: "degree" });
         await run;
-
-        assert.strictEqual(session.styles.list().length, before, "the numbers arrive before the picture");
-
         await session.styles.settled();
 
-        assert.isAbove(session.styles.list().length, before, "and the picture has landed by now");
+        assert.isAbove(session.styles.list().length, before, "the run's layer is in the stack");
+        assert.isFalse((session as ElementSession).paint.painting(), "and no pass is still on its way");
         session.dispose();
     });
 
@@ -764,16 +762,18 @@ describe("a refusal in a real session", () => {
             problems.push(problem);
         });
 
+        /* Removed the moment it announces its end, which is before the element paints it. The
+           element starts that edit fire-and-forget on the run's completion, so nobody is awaiting
+           it when it is refused: the refusal has to arrive somewhere else. */
+        const unwatch = session.on("run:changed", (change) => {
+            if (change.phase === "end") {
+                session.runs.remove(change.run.id);
+            }
+        });
         const run = session.runs.start("degree", {}, { as: "degree" });
         await run;
-
-        /* Removed while its own picture is still on the way. The element starts that edit
-           fire-and-forget on the run's completion, and the edit resolves the run when the queue
-           reaches it -- so a reader who deletes a result the moment it lands is racing the
-           element's own paint, and the paint loses. That is not a contrived failure: it is the
-           ordinary consequence of not making a consumer await the picture. */
-        session.runs.remove(run.id);
         await settle();
+        unwatch();
         stop();
 
         assert.lengthOf(problems, 1, "the element tried to paint, was refused, and said so");

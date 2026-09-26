@@ -580,6 +580,12 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 export interface CommandOutcomeMap {
     /** The run's handle; awaiting it yields the result. */
     "algo.run": Run;
+    /** Settles once the edit is recorded and the pass that repaints it has run. */
+    "style.patch": Promise<void>;
+    /** Settles once the edit is recorded and the pass that repaints it has run. */
+    "style.encode": Promise<void>;
+    /** Settles once the edit is recorded and the pass that repaints it has run. */
+    "style.template": Promise<void>;
 }
 
 /** What `execute` returns for one command. */

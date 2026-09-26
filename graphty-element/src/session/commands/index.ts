@@ -6,8 +6,9 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { AlgorithmRunCommand } from "../planning";
+import type { AlgorithmRunCommand, SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
+import { STYLE_DEFINITIONS } from "./style";
 
 /**
  * `algo.run`: a finished run, its result and the layers it paints are one step. Until runs are
@@ -31,4 +32,4 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
 };
 
 /** Every op's definition, one per op. */
-export const DEFINITIONS: readonly CommandDefinition<AlgorithmRunCommand>[] = [algoRun];
+export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [algoRun, ...STYLE_DEFINITIONS];

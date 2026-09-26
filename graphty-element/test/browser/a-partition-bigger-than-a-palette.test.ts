@@ -79,7 +79,7 @@ describe("a run with more groups than the default palette has colours", () => {
 
         assert.strictEqual(run.status, "succeeded", "the run finished");
         assert.isTrue(graph.applySuggestedStyles("components"), "the run refused to paint what it had measured");
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         const names = new Set(
             session.styles

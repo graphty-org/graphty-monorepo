@@ -107,7 +107,7 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
-import type { Layer, StyleSuggestion } from "./session/styles";
+import type { StyleSuggestion } from "./session/styles";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
@@ -1763,86 +1763,79 @@ export class Graph implements GraphContext {
      */
     applySuggestedStyles(algorithmKey: string | string[]): boolean {
         const keys = Array.isArray(algorithmKey) ? algorithmKey : [algorithmKey];
-        const applied: PromiseLike<readonly Layer[]>[] = [];
+        /** The runs painted, in the order the caller named their algorithms. */
+        const painted: string[] = [];
 
         for (const key of keys) {
             for (const suggestion of this.getSuggestedStyles(key)) {
                 const edit =
                     suggestion.as === "highlight"
                         ? this.session.styles.highlight(suggestion.spec)
-                        : this.session.styles.encode(suggestion.spec).then((layer) => [layer]);
+                        : this.session.styles.encode(suggestion.spec);
 
                 // Fire and forget with the refusal reported, for the reason the auto-apply policy
-                // gives: a style edit is a queued run, and a caller must not have to await the
-                // picture in order to have started the work. A refusal that reached nobody is what
-                // this whole system replaces, so it is announced rather than swallowed.
-                applied.push(
-                    edit.then(
-                        (layers) => layers,
-                        (error: unknown) => {
-                            this.eventManager.emitGraphError(
-                                this,
-                                error instanceof Error ? error : new Error(String(error)),
-                                "other",
-                                { algorithm: key, component: "Graph.applySuggestedStyles" },
-                            );
-
-                            return [];
-                        },
-                    ),
-                );
+                // gives: a caller must not have to await the picture in order to have started the
+                // work. A refusal that reached nobody is what this whole system replaces, so it is
+                // announced rather than swallowed.
+                edit.then(undefined, (error: unknown) => {
+                    this.#reportStyleError(error, { algorithm: key, component: "Graph.applySuggestedStyles" });
+                });
+                const { run } = suggestion.spec;
+                if (typeof run === "string") {
+                    painted.push(run);
+                } else {
+                    painted.push("runId" in run ? run.runId : run.id);
+                }
             }
         }
 
-        if (applied.length > 0) {
-            void this.#stackSuggestionsInOrder(applied);
+        if (painted.length > 0) {
+            this.#stackSuggestionsInOrder(painted);
         }
 
-        return applied.length > 0;
+        return painted.length > 0;
     }
 
     /**
      * Put the layers one `applySuggestedStyles` call produced on top of the stack, in call order.
      *
-     * Waits for every edit rather than moving each as it lands, because the layers only have to
-     * be ordered once they all exist -- and because a call whose layers are ALREADY the top of
-     * the stack in the right order must cost nothing. That is the common case: a first
-     * application appends, so there is nothing to move and no second repaint to pay for.
-     * @param applied - What each edit produced, in the order the caller named the algorithms.
+     * The edits have already written the stack -- a style edit is written when it is made -- so
+     * the layers are ordered at once. A call whose layers are ALREADY the top of the stack in the
+     * right order costs nothing, which is the common case: a first application appends.
+     * @param runs - The runs painted, in the order the caller named their algorithms.
      */
-    async #stackSuggestionsInOrder(applied: readonly PromiseLike<readonly Layer[]>[]): Promise<void> {
-        const produced = (await Promise.all(applied)).flat().map((layer) => layer.id);
-        const current = this.session.styles.list().map((layer) => layer.id);
-        const present = new Set(current);
-
-        // A LAYER CAN BE GONE BY THE TIME EVERY EDIT HAS LANDED, and that is ordinary rather than
-        // an error: `highlight()` is exclusive, so two algorithms suggesting a highlight in one
-        // call leaves only the second one's layers in the stack. Moving a layer that is no longer
-        // there would report a refusal for something the element itself did on purpose.
-        const wanted = produced.filter((id) => present.has(id));
+    #stackSuggestionsInOrder(runs: readonly string[]): void {
+        const current = this.session.styles.list();
+        const wanted = [...new Set(runs)].flatMap((runId) =>
+            current
+                .filter((layer) => layer.source.by === "run" && layer.source.runId === runId)
+                .map((layer) => layer.id),
+        );
 
         if (wanted.length < 1) {
             return;
         }
 
-        const top = current.slice(current.length - wanted.length);
+        const top = current.slice(current.length - wanted.length).map((layer) => layer.id);
 
-        if (top.length === wanted.length && top.every((id, at) => id === wanted[at])) {
+        if (top.every((id, at) => id === wanted[at])) {
             return;
         }
 
         for (const id of wanted) {
-            try {
-                await this.session.styles.move(id, null);
-            } catch (error: unknown) {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                    { component: "Graph.applySuggestedStyles" },
-                );
-            }
+            this.session.styles.move(id, null).then(undefined, (error: unknown) => {
+                this.#reportStyleError(error, { component: "Graph.applySuggestedStyles" });
+            });
         }
+    }
+
+    /**
+     * Announce a style edit the element made for a caller that is not awaiting it.
+     * @param error - What refused it.
+     * @param details - Where it came from.
+     */
+    #reportStyleError(error: unknown, details: Record<string, unknown>): void {
+        this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "other", details);
     }
 
     /**
@@ -3140,6 +3133,9 @@ export class Graph implements GraphContext {
     async waitForSettled(): Promise<void> {
         // Wait for operation queue to complete all operations
         await this.operationQueue.waitForCompletion();
+        // Style edits are not queued: they are written at once and repainted on the session's
+        // derivation lane, which this waits for, along with anything a finished run painted.
+        await this.session.styles.settled();
     }
 
     /**

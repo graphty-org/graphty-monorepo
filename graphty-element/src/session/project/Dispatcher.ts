@@ -28,6 +28,7 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
+import type { StyleService } from "../commands/style";
 import { DerivationLane } from "./derive";
 import {
     createProjectStore,
@@ -59,9 +60,18 @@ const MAX_HELD_IDS = 1024;
 /** The queue category of a run, whose work may outlive its transaction as a deferred member. */
 const RUN_CATEGORY: OperationCategory = "algorithm-run";
 
+/**
+ * The per-session parts a definition's `execute` reaches, such as the style compiler. Each
+ * slice's API sets its own part when it is built.
+ */
+interface CommandServices {
+    styles?: StyleService;
+}
+
 /** What an undoable command executes with: the state to read, and the draft that writes it. */
 interface UndoableContext {
     readonly state: ProjectState;
+    readonly services: CommandServices;
     /** The group's draft. Read it when writing, after any await: it can change underneath. */
     readonly draft: Draft;
     /** Fires when the command is cancelled or made obsolete; a queued command stops on it. */
@@ -71,6 +81,7 @@ interface UndoableContext {
 /** What an exempt command executes with. No draft, so it cannot write project state. */
 interface ExemptContext {
     readonly state: ProjectState;
+    readonly services: CommandServices;
 }
 
 /** Which lane a command runs on. */
@@ -99,6 +110,11 @@ interface DefinitionBase<C extends CommandLike> {
      * kind), each of which needs its own round-trip fixture. Absent when it has none.
      */
     readonly variants?: readonly string[];
+    /**
+     * Argument keys kept as the caller's own objects wherever they appear, never copied or
+     * frozen (a style layer's `userData`). Everything else is copied and frozen at dispatch.
+     */
+    readonly byReference?: readonly string[];
 }
 
 /** A command that changes project state: one step, labelled. */
@@ -465,6 +481,8 @@ export class Dispatcher {
     readonly lane: DerivationLane;
     /** The listeners; the session sets them. */
     readonly events: DispatcherEvents;
+    /** What definitions reach besides state; see {@link CommandServices}. */
+    readonly services: CommandServices = {};
     private readonly store: ProjectStore;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
@@ -693,6 +711,26 @@ export class Dispatcher {
      */
     restoreTo(id: string | null): Promise<HistoryOutcome> {
         return this.historyCall(() => this.restore(id));
+    }
+
+    /**
+     * Write the baseline: what `write` sets is the state history starts from, recorded as no step
+     * and published as no change. Only before anything has been recorded or is pending.
+     * @param write - Writes through a draft of its own.
+     */
+    seed(write: (draft: Draft) => void): void {
+        if (this.history.steps.length > 0 || this.open.size > 0) {
+            throw new GraphtyError({
+                code: "E_INTERNAL",
+                message: "The baseline can only be written before anything is recorded or pending.",
+                source: "history",
+            });
+        }
+
+        const draft = this.store.open();
+        write(draft);
+        draft.seal();
+        this.lane.adoptBaseline();
     }
 
     /**
@@ -940,9 +978,10 @@ export class Dispatcher {
      */
     private submit(command: Dispatchable, tx: Group | null): unknown {
         const { state } = this.store;
-        const concrete = deepFreezeArgs(typeof command === "function" ? command(state) : command);
+        const raw = typeof command === "function" ? command(state) : command;
+        const definition = this.definitions.get(raw.op);
+        const concrete = deepFreezeArgs(raw, definition?.byReference);
         this.events.dispatched?.(concrete);
-        const definition = this.definitions.get(concrete.op);
         if (definition === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -953,7 +992,7 @@ export class Dispatcher {
         }
 
         if (definition.undo.kind === "exempt") {
-            return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state });
+            return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1106,6 +1145,7 @@ export class Dispatcher {
 
         const ctx: UndoableContext = {
             state,
+            services: this.services,
             signal: job.controller.signal,
             get draft() {
                 if (job.status !== "running") {

@@ -1148,6 +1148,10 @@ describe("an algorithm written outside this package", () => {
             () => session.styles.list().some((layer) => layer.source.by === "run" && layer.source.runId === runId),
             "the element to derive a layer from the extension's result",
         );
+        // The legend reads what the repaint prepared, which follows the layer on the session's lane,
+        // and the renderer draws what the repaint resolved on the frame after it.
+        await session.styles.settled();
+        graph.getUpdateManager().stepFrames(2);
 
         const legend = session.styles.legend().find((block) => block.runId === runId);
 

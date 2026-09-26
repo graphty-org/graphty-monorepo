@@ -319,7 +319,7 @@ export function mergePatches(older: Patch, newer: Patch): Patch {
  * @param value - The value.
  * @returns The same value.
  */
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
     // ponytail: typed arrays cannot be frozen and Map/Set contents are not reached; command
     // arguments are plain data, so neither occurs yet.
     if (typeof value === "object" && value !== null && !ArrayBuffer.isView(value) && !Object.isFrozen(value)) {
@@ -336,8 +336,37 @@ function deepFreeze<T>(value: T): T {
  * Copy a command argument that will be stored, and deep-freeze the copy, so a caller mutating
  * its own object afterwards changes nothing in state.
  * @param value - The argument, as the caller handed it in.
+ * @param byReference - Keys whose values are kept as the caller's own objects, wherever they
+ * appear, neither copied nor frozen (a style layer's `userData`).
  * @returns A frozen copy.
  */
-export function deepFreezeArgs<T>(value: T): T {
-    return deepFreeze(structuredClone(value));
+export function deepFreezeArgs<T>(value: T, byReference: readonly string[] = []): T {
+    return byReference.length === 0 ? deepFreeze(structuredClone(value)) : (copyKeeping(value, byReference) as T);
+}
+
+/**
+ * A frozen copy of plain data that leaves the values of some keys as they are.
+ * @param value - The value.
+ * @param keep - The keys whose values are kept by reference.
+ * @returns The copy.
+ */
+function copyKeeping(value: unknown, keep: readonly string[]): unknown {
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((entry: unknown) => copyKeeping(entry, keep)));
+    }
+
+    if (typeof value !== "object" || value === null) {
+        return value;
+    }
+
+    if (Object.getPrototypeOf(value) !== Object.prototype) {
+        return deepFreeze(structuredClone(value));
+    }
+
+    const copy: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+        copy[key] = keep.includes(key) ? entry : copyKeeping(entry, keep);
+    }
+
+    return Object.freeze(copy);
 }

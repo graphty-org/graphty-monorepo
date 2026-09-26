@@ -566,8 +566,8 @@ describe("the layers a run put on the graph", () => {
 
         assert.deepStrictEqual(removal.layerIds, [layer.id], "and says so before it goes");
 
-        // The removal is a style edit, which is queued like every other one.
-        await graph.operationQueue.waitForCompletion();
+        // The removal is a style edit, written at once and repainted on the session's lane.
+        await graph.waitForSettled();
 
         assert.isUndefined(
             session.styles.get(layer.id),
@@ -576,14 +576,14 @@ describe("the layers a run put on the graph", () => {
     });
 
     it("names none for a run nothing was painted from", async () => {
-        const run = session.runs.start("degree", {}, { as: "degree" });
+        const run = session.runs.start("degree", {}, { as: "degree", style: false });
         await run;
 
         assert.deepStrictEqual(session.runs.bindings("no-such-run"), []);
         assert.deepStrictEqual(
             session.runs.bindings(run.id),
             [],
-            "a run whose suggestion has not landed reports nothing rather than guessing",
+            "a run that painted nothing reports nothing rather than guessing",
         );
     });
 });

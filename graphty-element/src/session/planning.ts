@@ -18,6 +18,7 @@
 
 import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
+import type { StyleCommand } from "./commands/style";
 import {
     type CostEstimate,
     type CostGateLimits,
@@ -68,7 +69,7 @@ export interface AlgorithmRunCommand {
  * (`COMMANDS` in `@graphty/graphty-element/commands`). It widens as ops are added, so a `switch`
  * over `op` should keep a default branch.
  */
-export type SessionCommand = AlgorithmRunCommand;
+export type SessionCommand = AlgorithmRunCommand | StyleCommand;
 
 /**
  * Tell whether a value is the command that starts an algorithm.

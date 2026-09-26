@@ -160,6 +160,15 @@ export class DerivationLane {
         this.schedule();
     }
 
+    /**
+     * Take live state as what the picture shows, with nothing left to derive: the baseline is
+     * drawn by the renderer's first draw, not by a pass.
+     */
+    adoptBaseline(): void {
+        this.dirty.clear();
+        this.shown = snapshot(this.state);
+    }
+
     /** Set the restoring flag until the next pass has run its `arrangement` hook. */
     restore(): void {
         this.restoringFlag = true;

@@ -473,8 +473,8 @@ describe("where a layer goes", () => {
     });
 });
 
-describe("the model moves only when the paint has succeeded", () => {
-    it("does not show the layer until the run has resolved", async () => {
+describe("the stack moves at once, and the picture follows it", () => {
+    it("shows the layer as soon as the verb returns, and settles the run once it is painted", async () => {
         const harness = makeStyles();
         let release = (): void => undefined;
         harness.gate = new Promise<void>((resolve) => {
@@ -482,29 +482,35 @@ describe("the model moves only when the paint has succeeded", () => {
         });
 
         const run = harness.styles.add(layerSpec("Pending"));
+        let settled = false;
+        void run.then(() => {
+            settled = true;
+        });
+
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Pending"]);
 
         await flush();
 
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
         assert.strictEqual(harness.requests.length, 1);
+        assert.isFalse(settled, "the run waits for the pass that paints it");
 
         release();
         await run;
 
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Pending"]);
+        assert.isTrue(settled);
     });
 
-    it("leaves the stack exactly as it was when the repaint fails", async () => {
+    it("rejects the run when the repaint fails, and keeps the edit it recorded", async () => {
         const harness = makeStyles();
         harness.failure = new Error("the renderer gave up");
 
         const code = await codeOfRejection(harness.styles.add(layerSpec("Doomed")));
 
         assert.strictEqual(code, "E_INTERNAL");
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Doomed"]);
     });
 
-    it("leaves the stack exactly as it was when the edit is cancelled mid-paint", async () => {
+    it("resolves with the edit applied when it is cancelled after the call", async () => {
         const harness = makeStyles();
         let release = (): void => undefined;
         harness.gate = new Promise<void>((resolve) => {
@@ -515,15 +521,36 @@ describe("the model moves only when the paint has succeeded", () => {
 
         await flush();
         run.cancel("a newer edit replaced this one");
-
-        assert.strictEqual(await codeOfRejection(run), "AbortError");
-
-        // The repaint in this harness ignores its signal, exactly as a careless one would. The
-        // stack must still be untouched: a cancelled edit that committed anyway is the defect.
         release();
+
+        const layer = await run;
+
+        assert.strictEqual(layer.name, "Cancelled");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Cancelled"]);
+    });
+
+    it("writes nothing when its signal is already aborted", async () => {
+        const harness = makeStyles();
+        const controller = new AbortController();
+        controller.abort();
+
+        const code = await codeOfRejection(harness.styles.add(layerSpec("Never"), undefined, { signal: controller.signal }));
         await flush();
 
+        assert.strictEqual(code, "AbortError");
         assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
+        assert.lengthOf(harness.requests, 0);
+    });
+
+    it("keeps the edit when its signal is aborted after the call", async () => {
+        const harness = makeStyles();
+        const controller = new AbortController();
+
+        const run = harness.styles.add(layerSpec("Kept"), undefined, { signal: controller.signal });
+        controller.abort();
+
+        assert.strictEqual((await run).name, "Kept");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Kept"]);
     });
 
     it("refuses a dry run rather than performing half of one", async () => {
@@ -1451,12 +1478,13 @@ describe("a style document, out and back in", () => {
         assert.strictEqual(await codeOfRejection(styles.applyTemplate(fromDisk)), "E_BAD_COMMAND");
     });
 
-    it("leaves the stack as it was when the paint fails", async () => {
+    it("keeps every layer of the document when the paint fails, and rejects the run", async () => {
         const harness = makeStyles();
         harness.failure = new Error("the renderer gave up");
 
-        await codeOfRejection(harness.styles.applyTemplate(DOCUMENT));
+        const code = await codeOfRejection(harness.styles.applyTemplate(DOCUMENT));
 
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
+        assert.strictEqual(code, "E_INTERNAL");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", ...DOCUMENT.layers.map((layer) => layer.name)]);
     });
 });

@@ -543,7 +543,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
            sentence the element wrote and this stand-in has none to write. */
         estimate: (command: SessionCommand): CostEstimate => {
             const statistics = statisticsNow();
-            const seconds = fakeSeconds(command.algorithm, statistics);
+            // Only a run costs anything to this stand-in; a style edit is instant.
+            const seconds = command.op === "algo.run" ? fakeSeconds(command.algorithm, statistics) : 0;
 
             return {
                 seconds,

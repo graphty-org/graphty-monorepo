@@ -1,4 +1,4 @@
-import { AbstractMesh, Mesh, Quaternion, Ray, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, Mesh, Ray, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import _ from "lodash";
@@ -9,9 +9,9 @@ import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
+import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
-import { FilledArrowRenderer } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
@@ -71,7 +71,7 @@ const ARROW_CAPTION_OFFSET = 0.3;
  * @param cap - The arrow mesh at that end, which is null when the end is drawn with no arrow.
  * @returns The block when a caption should be drawn from it, and undefined otherwise.
  */
-function captionWanted(block: RichTextStyleType | undefined, cap: AbstractMesh | null): RichTextStyleType | undefined {
+function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | null): RichTextStyleType | undefined {
     return cap !== null && block?.enabled === true ? block : undefined;
 }
 
@@ -123,8 +123,20 @@ export class Edge {
      * of the two an edge is, and every write below is routed through it.
      */
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
-    arrowMesh: AbstractMesh | null = null;
-    arrowTailMesh: AbstractMesh | null = null;
+    /**
+     * This edge's head cap, as a slot in the batch that draws every cap of its appearance, and
+     * null when the style asks for none.
+     *
+     * NOT A MESH ANY MORE. A cap was a `Mesh` with a `ShaderMaterial` of its own, then an
+     * `InstancedMesh` of a shared source, and is now sixteen floats in a shared array plus the
+     * seven the billboard shader reads -- so there is nothing per cap in the scene to position,
+     * enable or dispose. {@link ArrowCap} is what an edge holds instead, and every question the
+     * renderer asks of a cap is answered off its batch.
+     */
+    arrowMesh: ArrowCap | null = null;
+
+    /** This edge's tail cap, the same way. */
+    arrowTailMesh: ArrowCap | null = null;
 
     /**
      * The batch this edge's line is one thin instance of, or null when the line is a mesh of this
@@ -278,6 +290,31 @@ export class Edge {
     }
 
     /**
+     * What this edge's arrow caps are drawn as.
+     *
+     * THE ONLY READING OF A CAP THERE IS. A cap drawn as a thin instance has no mesh of its own
+     * in the scene and no material of its own, so the scene walk that read a cap's shape off
+     * `scene.meshes` by name -- which is how the story assertions have always read one -- finds
+     * one batch where it used to find one mesh per cap, and a batch's name deliberately does not
+     * say "arrow". The edge is where the answer moved to: the shape is the name the cap's mesh
+     * carried, the span is the reading a story used to take off its bounding box, and the
+     * visibility is the opacity the cap is drawn at.
+     * @returns One entry per cap this edge draws, head before tail.
+     */
+    get drawnCaps(): { end: "arrowHead" | "arrowTail"; name: string; span: number; visibility: number }[] {
+        const caps: { end: "arrowHead" | "arrowTail"; cap: ArrowCap | null }[] = [
+            { end: "arrowHead", cap: this.arrowMesh },
+            { end: "arrowTail", cap: this.arrowTailMesh },
+        ];
+
+        return caps.flatMap(({ end, cap }) =>
+            cap === null || cap.isDisposed()
+                ? []
+                : [{ end, name: cap.name, span: cap.span, visibility: cap.visibility }],
+        );
+    }
+
+    /**
      * How many edges share this edge's ordered endpoint pair, including this one.
      * @returns the count
      */
@@ -382,8 +419,8 @@ export class Edge {
         // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
         if (graphRoot) {
-            // A batched line is not parented here: its batch parents its one mesh when it is
-            // built, which puts every edge in it under the same transform.
+            // Neither a batched line nor a cap is parented here: a batch parents its one mesh
+            // when it is built, which puts every edge in it under the same transform.
             if (this.lineBatch === null) {
                 if (this.mesh instanceof PatternedLineMesh) {
                     // PatternedLineMesh is a wrapper with an array of meshes
@@ -393,14 +430,6 @@ export class Edge {
                 } else {
                     this.mesh.parent = graphRoot;
                 }
-            }
-
-            if (this.arrowMesh) {
-                this.arrowMesh.parent = graphRoot;
-            }
-
-            if (this.arrowTailMesh) {
-                this.arrowTailMesh.parent = graphRoot;
             }
         }
 
@@ -446,9 +475,9 @@ export class Edge {
         }
 
         // A hidden edge costs nothing per frame. It is also what keeps the arrow-cap branches
-        // below from re-enabling an arrowhead on an edge the mask has taken off screen: those
-        // branches call setEnabled(true) as part of recomputing a cap, and they run on any frame
-        // an endpoint moves.
+        // below from putting an arrowhead back on screen for an edge the mask has taken off it:
+        // placing a cap IS showing it -- the collapsed matrix the mask wrote is overwritten by
+        // the placement -- and those branches run on any frame an endpoint moves.
         if (!this.renderVisible) {
             return;
         }
@@ -696,8 +725,8 @@ export class Edge {
         // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
         if (graphRoot) {
-            // A batched line is not parented here: its batch parents its one mesh when it is
-            // built, which puts every edge in it under the same transform.
+            // Neither a batched line nor a cap is parented here: a batch parents its one mesh
+            // when it is built, which puts every edge in it under the same transform.
             if (this.lineBatch === null) {
                 if (this.mesh instanceof PatternedLineMesh) {
                     // PatternedLineMesh is a wrapper with an array of meshes
@@ -707,14 +736,6 @@ export class Edge {
                 } else {
                     this.mesh.parent = graphRoot;
                 }
-            }
-
-            if (this.arrowMesh) {
-                this.arrowMesh.parent = graphRoot;
-            }
-
-            if (this.arrowTailMesh) {
-                this.arrowTailMesh.parent = graphRoot;
             }
         }
 
@@ -1047,13 +1068,8 @@ export class Edge {
         }
 
         if (!drawn) {
-            if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-                this.arrowMesh.setEnabled(false);
-            }
-
-            if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-                this.arrowTailMesh.setEnabled(false);
-            }
+            this.arrowMesh?.setDrawn(false);
+            this.arrowTailMesh?.setDrawn(false);
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -1166,7 +1182,7 @@ export class Edge {
 
                 // Hide arrow if nodes are too close or at same position
                 if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
-                    this.arrowMesh.setEnabled(false);
+                    this.arrowMesh.setDrawn(false);
                     return {
                         srcPoint: fallbackSrc,
                         dstPoint: fallbackDst,
@@ -1199,11 +1215,9 @@ export class Edge {
                 // PHASE 4: Override scaleFactor for 2D arrows
                 // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
                 // so their scaleFactor should be 1.0, not 0.25
-                if (this.arrowMesh.metadata?.is2D && geometry.scaleFactor !== undefined) {
+                if (this.arrowMesh.is2D && geometry.scaleFactor !== undefined) {
                     geometry.scaleFactor = 1.0;
                 }
-
-                this.arrowMesh.setEnabled(true);
 
                 // Calculate arrow position using common function
                 const arrowPosition = EdgeMesh.calculateArrowPosition(
@@ -1217,49 +1231,13 @@ export class Edge {
                 const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
                 this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
 
-                // Update arrow position directly (no thin instances)
-                this.arrowMesh.position = arrowPosition;
-
-                // PHASE 4: Handle 2D vs 3D arrow rotation
-                if (this.arrowMesh.metadata?.is2D) {
-                    // 2D: Simple Z-rotation to align with edge in XY plane
-                    const angle = Math.atan2(direction.y, direction.x);
-                    this.arrowMesh.rotation.z = angle;
-                } else {
-                    // 3D: Use billboarding or lookAt
-                    if (
-                        arrowType &&
-                        [
-                            "normal",
-                            "inverted",
-                            "diamond",
-                            "box",
-                            "dot",
-                            "vee",
-                            "tee",
-                            "half-open",
-                            "crow",
-                            "open-normal",
-                            "open-diamond",
-                        ].includes(arrowType)
-                    ) {
-                        // Filled arrows use shader-based billboarding via lineDirection uniform
-                        FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
-                    } else if (geometry.needsRotation) {
-                        // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
-                        // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
-                        const lookAtPoint = arrowPosition.add(direction);
-                        this.arrowMesh.lookAt(lookAtPoint);
-                    }
-                }
+                this.arrowMesh.place(arrowPosition, direction);
 
                 return {
                     srcPoint: srcSurfacePoint,
                     dstPoint: lineEndPoint,
                 };
             }
-
-            this.arrowMesh.setEnabled(true);
 
             // Use common arrow geometry functions for positioning
             this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
@@ -1272,7 +1250,7 @@ export class Edge {
             // PHASE 4: Override scaleFactor for 2D arrows
             // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
             // so their scaleFactor should be 1.0, not 0.25
-            if (this.arrowMesh.metadata?.is2D && geometry.scaleFactor !== undefined) {
+            if (this.arrowMesh.is2D && geometry.scaleFactor !== undefined) {
                 geometry.scaleFactor = 1.0;
             }
 
@@ -1282,56 +1260,7 @@ export class Edge {
             const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
             this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
-            // Update arrow position directly (no thin instances)
-            this.arrowMesh.position = arrowPosition;
-
-            // PHASE 4: Handle 2D vs 3D arrow rotation
-            if (this.arrowMesh.metadata?.is2D) {
-                // 2D: Use quaternion to properly compose rotations
-                // The arrow geometry is in XZ plane with tip at origin pointing along +X
-                // We need to: 1) rotate to XY plane (90 deg around X), 2) rotate to point at edge direction
-                //
-                // With Euler angles (YXZ order), setting rotation.x then rotation.z doesn't work because
-                // after the X rotation, the local Z axis points toward world -Y, so Z rotation
-                // spins the arrow in XZ plane instead of XY plane.
-                //
-                // Solution: Use quaternion composition with correct order
-                const angle = Math.atan2(direction.y, direction.x);
-
-                // Step 1: Rotation around X by 90 deg (brings arrow from XZ plane to XY plane)
-                const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
-                // Step 2: Rotation around Z by angle (aligns arrow with edge direction in XY plane)
-                const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
-
-                // Compose rotations: for "apply qX first, then qZ", use qZ * qX
-                this.arrowMesh.rotationQuaternion = qZ.multiply(qX);
-            } else {
-                // 3D: Use billboarding or lookAt
-                if (
-                    arrowType &&
-                    [
-                        "normal",
-                        "inverted",
-                        "diamond",
-                        "box",
-                        "dot",
-                        "vee",
-                        "tee",
-                        "half-open",
-                        "crow",
-                        "open-normal",
-                        "open-diamond",
-                    ].includes(arrowType)
-                ) {
-                    // Filled arrows use shader-based billboarding via lineDirection uniform
-                    FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
-                } else if (geometry.needsRotation) {
-                    // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
-                    // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
-                    const lookAtPoint = arrowPosition.add(direction);
-                    this.arrowMesh.lookAt(lookAtPoint);
-                }
-            }
+            this.arrowMesh.place(arrowPosition, direction);
 
             // Handle arrow tail if configured
             let adjustedSrcPoint = srcPoint;
@@ -1340,8 +1269,6 @@ export class Edge {
                 const tailType = tailStyle.arrowTail?.type;
 
                 if (tailType && tailType !== "none") {
-                    this.arrowTailMesh.setEnabled(true);
-
                     // Reverse direction for tail (points away from source toward destination)
                     const tailDirection = dstPoint.subtract(srcPoint).normalize();
 
@@ -1351,7 +1278,7 @@ export class Edge {
                     const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
 
                     // PHASE 4: Override scaleFactor for 2D tail arrows
-                    if (this.arrowTailMesh.metadata?.is2D && tailGeometry.scaleFactor !== undefined) {
+                    if (this.arrowTailMesh.is2D && tailGeometry.scaleFactor !== undefined) {
                         tailGeometry.scaleFactor = 1.0;
                     }
 
@@ -1367,53 +1294,7 @@ export class Edge {
                     // Tail points in opposite direction (away from source)
                     const reversedDirection = direction.scale(-1);
 
-                    // Update arrow tail position directly (no thin instances)
-                    this.arrowTailMesh.position = tailPosition;
-
-                    // PHASE 4: Handle 2D vs 3D arrow tail rotation
-                    if (this.arrowTailMesh.metadata?.is2D) {
-                        // 2D: Use quaternion to properly compose rotations (same as arrow head)
-                        const angle = Math.atan2(reversedDirection.y, reversedDirection.x);
-                        const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
-                        const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
-                        this.arrowTailMesh.rotationQuaternion = qZ.multiply(qX);
-                    } else {
-                        // 3D: Use billboarding or explicit rotation
-                        if (
-                            [
-                                "normal",
-                                "inverted",
-                                "diamond",
-                                "box",
-                                "dot",
-                                "vee",
-                                "tee",
-                                "half-open",
-                                "crow",
-                                "open-normal",
-                                "open-diamond",
-                            ].includes(tailType)
-                        ) {
-                            // Filled arrows use shader-based billboarding via lineDirection uniform
-                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh, reversedDirection);
-                        } else if (tailGeometry.needsRotation) {
-                            // Other arrow types need explicit rotation
-                            // Triangle in XY plane with tip at origin, pointing in +X direction
-                            // Z rotation: horizontal angle in XY plane
-                            const angleZ = Math.atan2(reversedDirection.y, reversedDirection.x);
-
-                            // Y rotation: tilt forward/back to match edge depth
-                            const horizontalDist = Math.sqrt(
-                                reversedDirection.x * reversedDirection.x + reversedDirection.y * reversedDirection.y,
-                            );
-                            const angleY = -Math.atan2(reversedDirection.z, horizontalDist);
-
-                            // Apply rotations
-                            this.arrowTailMesh.rotation.x = 0;
-                            this.arrowTailMesh.rotation.y = angleY;
-                            this.arrowTailMesh.rotation.z = angleZ;
-                        }
-                    }
+                    this.arrowTailMesh.place(tailPosition, reversedDirection);
 
                     // Adjust line start point to create gap for tail arrow
                     adjustedSrcPoint = EdgeMesh.calculateLineEndpoint(
@@ -1471,7 +1352,7 @@ export class Edge {
                 const geometry = EdgeMesh.getArrowGeometry(arrowType);
 
                 // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
-                if (this.arrowMesh?.metadata?.is2D && geometry.scaleFactor !== undefined) {
+                if (this.arrowMesh?.is2D && geometry.scaleFactor !== undefined) {
                     geometry.scaleFactor = 1.0;
                 }
 

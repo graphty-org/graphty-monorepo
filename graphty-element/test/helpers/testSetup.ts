@@ -6,6 +6,7 @@ import type { Edge } from "../../src/Edge";
 import { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers/DataManager";
 import type { LayoutManager } from "../../src/managers/LayoutManager";
+import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 
 /**
@@ -15,9 +16,10 @@ export type ArrowStyleConfig = NonNullable<EdgeStyleConfig["arrowHead"]>;
 
 /**
  * Helper to check if a mesh is disposed.
- * Handles the difference between AbstractMesh (method) and PatternedLineMesh (property).
+ * Handles the difference between AbstractMesh and ArrowCap (method) and PatternedLineMesh
+ * (property).
  */
-export function isDisposed(mesh: AbstractMesh | PatternedLineMesh): boolean {
+export function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): boolean {
     if ("isDisposed" in mesh) {
         if (typeof mesh.isDisposed === "function") {
             return mesh.isDisposed();

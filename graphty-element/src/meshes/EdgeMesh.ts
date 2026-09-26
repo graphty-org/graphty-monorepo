@@ -6,7 +6,6 @@ import {
     Engine,
     GreasedLineBaseMesh,
     GreasedLineMeshColorMode,
-    type InstancedMesh,
     Mesh,
     MeshBuilder,
     RawTexture,
@@ -18,6 +17,7 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
@@ -392,10 +392,10 @@ void main() {
      * In 2D mode, uses StandardMaterial with XY rotation.
      * In 3D mode, uses shader-based billboard rendering.
      *
-     * The head is an InstancedMesh of a batch its scene shares with every head of the same
+     * The head is a thin-instance slot in a batch its scene shares with every head of the same
      * shape (and, where the material holds them, the same colour and opacity), so a graph's
-     * arrowheads cost a draw call per batch rather than per edge. See
-     * `FilledArrowRenderer.instanceOf`.
+     * arrowheads cost one draw call and one material per batch, and nothing at all per edge.
+     * See `ArrowCapBatch`.
      * @param _cache - MeshCache instance (currently unused, kept for API compatibility)
      * @param _styleId - Style ID (currently unused, kept for API compatibility)
      * @param options - Arrow head options including type, width, color, size, and opacity
@@ -407,7 +407,7 @@ void main() {
         _styleId: string,
         options: ArrowHeadOptions,
         scene: Scene,
-    ): InstancedMesh | null {
+    ): ArrowCap | null {
         if (!options.type || options.type === "none") {
             return null;
         }
@@ -453,8 +453,8 @@ void main() {
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
-            // so they are part of the batch; size and direction are the instance's transform.
-            const instance = FilledArrowRenderer.instanceOf(
+            // so they are part of the batch key; the size and the turn are the slot's matrix.
+            return FilledArrowRenderer.capOf(
                 scene,
                 `2d|${arrowType}|${options.color}|${String(opacity)}`,
                 () => {
@@ -462,11 +462,8 @@ void main() {
                     source.visibility = opacity;
                     return source;
                 },
+                { scale: length, billboard: false },
             );
-            instance.scaling.setAll(length);
-            instance.rotation.x = Math.PI / 2;
-            instance.metadata = { is2D: true };
-            return instance;
         }
 
         if (arrowType === "sphere-dot") {
@@ -474,7 +471,7 @@ void main() {
         }
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
-        return FilledArrowRenderer.createArrowInstance(
+        return FilledArrowRenderer.createArrowCap(
             arrowType,
             () => this.createArrowShape(arrowType, scene),
             {
@@ -488,33 +485,39 @@ void main() {
 
     /**
      * A 3D sphere-dot arrowhead: an unlit sphere, batched by colour and opacity, sized by the
-     * instance's scale.
+     * slot's own scale.
      * @param length - Arrow length in world units
      * @param color - Arrow color as hex string
      * @param opacity - Arrow opacity (0-1)
      * @param scene - Babylon.js scene
-     * @returns The sphere instance
+     * @returns The sphere cap
      */
-    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): InstancedMesh {
+    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): ArrowCap {
         // CRITICAL: The sphere size must match what positioning code expects
         // calculateArrowPosition() uses actualSize = length * scaleFactor
         // So the sphere's diameter must be length * scaleFactor
         const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1.0;
         const sphereDiameter = length * sphereDotScaleFactor; // e.g., 0.5 * 0.25 = 0.125
 
-        const instance = FilledArrowRenderer.instanceOf(scene, `sphere-dot|${color}|${String(opacity)}`, () => {
-            const sphereMesh = MeshBuilder.CreateSphere("sphere-dot-arrow-3d", { diameter: 1, segments: 16 }, scene);
-            const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
-            sphereMaterial.diffuseColor = Color3.FromHexString(color);
-            sphereMaterial.emissiveColor = Color3.FromHexString(color);
-            sphereMaterial.disableLighting = true;
-            sphereMesh.material = sphereMaterial;
-            sphereMesh.visibility = opacity;
-            return sphereMesh;
-        });
-        instance.scaling.setAll(sphereDiameter);
-
-        return instance;
+        return FilledArrowRenderer.capOf(
+            scene,
+            `sphere-dot|${color}|${String(opacity)}`,
+            () => {
+                const sphereMesh = MeshBuilder.CreateSphere(
+                    "sphere-dot-arrow-3d",
+                    { diameter: 1, segments: 16 },
+                    scene,
+                );
+                const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
+                sphereMaterial.diffuseColor = Color3.FromHexString(color);
+                sphereMaterial.emissiveColor = Color3.FromHexString(color);
+                sphereMaterial.disableLighting = true;
+                sphereMesh.material = sphereMaterial;
+                sphereMesh.visibility = opacity;
+                return sphereMesh;
+            },
+            { scale: sphereDiameter, billboard: false },
+        );
     }
 
     /**

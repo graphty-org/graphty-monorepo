@@ -3,7 +3,7 @@
  *
  * Every arrowhead used to be its own mesh with its own shader material, so the default edge
  * style -- which draws a head on every edge -- cost one extra draw call per edge per frame.
- * Now a scene keeps one hidden mesh per arrow shape and each head is an instance of it, with its
+ * Now a scene keeps one mesh per arrow shape and each head is a THIN instance of it, with its
  * direction, size and colour as per-instance attributes. This file checks both halves on a real
  * WebGL engine: the heads cost a draw call per shape rather than per edge, and heads of two
  * different colours in that one call still reach the screen in their own colours.

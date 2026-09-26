@@ -1,12 +1,8 @@
-// Installs Mesh.prototype.createInstance, which the arrowhead batches call. See MeshCache.ts.
-import "@babylonjs/core/Meshes/instancedMesh";
-
 import {
     type AbstractMesh,
     BoundingInfo,
     Color3,
     Effect,
-    InstancedMesh,
     Mesh,
     Scene,
     ShaderMaterial,
@@ -14,6 +10,7 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -54,12 +51,6 @@ export class FilledArrowRenderer {
             material.setVector3("cameraPosition", cameraPos);
         }
     });
-
-    /**
-     * The arrowhead batches: per scene, one hidden source mesh per batch key. See
-     * {@link FilledArrowRenderer.instanceOf}.
-     */
-    private static readonly batches = new WeakMap<Scene, Map<string, Mesh>>();
 
     /**
      * Unregister a shader material so the per-frame camera-uniform walk stops visiting it.
@@ -137,20 +128,20 @@ attribute vec3 position;      // Arrow geometry (XY plane, pointing along +X)
 uniform mat4 viewProjection;
 uniform vec3 cameraPosition;
 
+// Babylon's own instancing preamble: it declares world0..world3 for an instanced draw, the
+// world uniform, and -- for thin instances, which is what a cap batch is -- both, because a
+// slot's matrix is relative to the batch mesh's own place under the graph-root transform.
+#include<instancesDeclaration>
+
 #ifdef INSTANCES
-// Arrowhead batches (FilledArrowRenderer.instanceOf): one draw for every edge's head, so the
-// per-edge values are instance attributes rather than uniforms.
-attribute vec4 world0;
-attribute vec4 world1;
-attribute vec4 world2;
-attribute vec4 world3;
+// Arrow cap batches (ArrowCapBatch): one draw for every cap of an appearance, so the per-cap
+// values are instance attributes rather than uniforms.
 attribute vec3 arrowDirection; // Line direction
 attribute float arrowSize;     // World-space arrow length
 attribute vec3 arrowColor;
 varying vec3 vColor;
 #else
 // Individual meshes (pattern elements)
-uniform mat4 world;
 uniform vec3 lineDirection;
 uniform float size;
 #endif
@@ -162,13 +153,15 @@ void main() {
     // Pass local position to fragment shader (for shader-based clipping)
     vLocalPosition = position;
 
+    // Declares finalWorld, and multiplies a thin instance's slot matrix by the batch mesh's own
+    // world matrix, which is how a batch follows an XR gesture on the graph-root transform.
+    #include<instancesVertex>
+
 #ifdef INSTANCES
-    mat4 finalWorld = mat4(world0, world1, world2, world3);
     vec3 lineDir = arrowDirection;
     float scale = arrowSize;
     vColor = arrowColor;
 #else
-    mat4 finalWorld = world;
     vec3 lineDir = lineDirection;
     float scale = size;
 #endif
@@ -966,9 +959,8 @@ void main() {
      * This line used to read `mesh.alwaysSelectAsActiveMesh = true`, with a comment
      * explaining that thin instances needed it because their base mesh was parked at
      * y = -10000. Both halves of that comment are now false. This function is reached from
-     * `applyShader` (pattern elements, one mesh each) and from `createArrowInstance`, which
-     * calls it on each arrowhead INSTANCE -- positioned at the real arrow location by `Edge` --
-     * never on a parked template; and the `MeshCache` template that genuinely does sit at
+     * `applyShader`, which builds one mesh per pattern element -- positioned at the real element
+     * location by `PatternedLineMesh` -- never on a parked template; and the `MeshCache` template that genuinely does sit at
      * y = -10000 holds NODE meshes and never reaches this function. The flag's effect was that
      * every mesh carrying this shader is submitted every frame regardless of where the camera
      * is pointing -- which, at the mesh counts a dotted line used to reach, was thousands of
@@ -1017,19 +1009,16 @@ void main() {
         mesh.alwaysSelectAsActiveMesh = false;
         mesh.setBoundingInfo(new BoundingInfo(new Vector3(-reach, -reach, -reach), new Vector3(reach, reach, reach)));
     }
-
     /**
      * Set the line direction for a filled arrow mesh
-     * This should be called every frame when the edge updates
-     * @param mesh - Filled arrow mesh, or an arrowhead instance from {@link FilledArrowRenderer.createArrowInstance}
+     *
+     * PATTERN ELEMENTS ONLY, NOW. An arrow cap reads its direction out of a per-instance buffer
+     * and is pointed with {@link ArrowCap.place}; a pattern element is still a mesh of its own
+     * with its own material, and this is how that material's uniform is written.
+     * @param mesh - Filled arrow mesh built by {@link FilledArrowRenderer.applyShader}
      * @param direction - Line direction vector (normalized)
      */
     static setLineDirection(mesh: AbstractMesh, direction: Vector3): void {
-        if (mesh instanceof InstancedMesh) {
-            (mesh.instancedBuffers.arrowDirection as Vector3).copyFrom(direction);
-            return;
-        }
-
         if (mesh.material) {
             const material = mesh.material as ShaderMaterial;
             material.setVector3("lineDirection", direction);
@@ -1037,93 +1026,60 @@ void main() {
     }
 
     /**
-     * Draw one arrowhead as an instance of its scene's batch for `key`, building the batch's
-     * hidden source mesh with `build` the first time the scene needs it.
+     * Draw one arrow cap as a slot in its scene's batch for `key`, building that batch's mesh
+     * with `build` the first time the scene needs it.
      *
-     * WHY -- issue #25: every arrowhead used to be its own `Mesh` with its own material, so N
-     * arrowheaded edges cost N draw calls a frame (and, through issue #27, O(N^2) to load). A
-     * batch is drawn in one call however many edges use it. Each instance keeps its own
-     * transform, and Babylon refills the per-instance buffers once per frame in one pass, so this
-     * does not bring back the per-edge buffer writes that made thin instances 35x slower.
-     *
-     * The source mesh goes when its last instance does, so a cleared graph leaves nothing in the
-     * scene, and the batches of one scene are never seen by another.
-     * @param scene - The scene the arrowhead is drawn in
-     * @param key - What the batch's heads have in common: shape, and whatever else lives on the material
-     * @param build - Builds the source mesh (with its material) for a new batch
-     * @returns The arrowhead: an instance of the batch's source mesh
+     * WHY -- issues #25 and #419: every cap used to be its own `Mesh` with its own material, so
+     * N capped edges cost N draw calls a frame, N materials, and (through issue #27) O(N^2) to
+     * load. Batching them as `InstancedMesh`es fixed the draw calls and the materials and left a
+     * scene object per cap; as a thin instance a cap is rows in the batch's own arrays and
+     * nothing else, which is what lets the element's declared edge ceiling rise.
+     * @param scene - The scene the cap is drawn in
+     * @param key - What the batch's caps have in common: shape, and whatever else lives on the material
+     * @param build - Builds the mesh (with its material) for a new batch
+     * @param options - The cap's scale, and whether its batch carries per-instance appearance
+     * @param options.scale - The uniform scale the cap's normalized geometry is drawn at
+     * @param options.billboard - Whether the batch reads direction, size and colour per instance
+     * @returns The cap: one slot of the batch
      */
-    static instanceOf(scene: Scene, key: string, build: () => Mesh): InstancedMesh {
-        let byKey = this.batches.get(scene);
-        if (!byKey) {
-            byKey = new Map();
-            this.batches.set(scene, byKey);
-        }
-
-        let source = byKey.get(key);
-        if (!source || source.isDisposed()) {
-            source = build();
-            // The source mesh only carries the batch; the instances are what is drawn. It takes
-            // a name that does not say "arrow", so code that looks for arrowheads by name finds
-            // the heads on screen and not the carrier; the heads keep the shape's own name.
-            source.metadata = { ...source.metadata, capName: source.name };
-            source.name = `cap-batch|${key}`;
-            source.isVisible = false;
-            byKey.set(key, source);
-        }
-
-        const batch = source;
-        const batchesOfScene = byKey;
-        const instance = batch.createInstance((batch.metadata as { capName: string }).capName);
-        instance.onDisposeObservable.add(() => {
-            if (batch.instances.length > 0 || batch.isDisposed()) {
-                return;
-            }
-
-            if (batchesOfScene.get(key) === batch) {
-                batchesOfScene.delete(key);
-            }
-
-            batch.dispose(false, true);
-        });
-
-        return instance;
+    static capOf(
+        scene: Scene,
+        key: string,
+        build: () => Mesh,
+        options: { scale: number; billboard: boolean },
+    ): ArrowCap {
+        return new ArrowCap(arrowCapBatch(scene, key, build, options.billboard), options.scale);
     }
 
     /**
-     * Draw one billboarded 3D arrowhead as an instance of its scene's batch for that shape and
-     * opacity. The direction, size and colour are the instance's own attributes, so edges of
-     * every colour and size share one draw call.
+     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape and
+     * opacity. The direction, size and colour are the slot's own attributes, so caps of every
+     * colour and size share one draw call.
      * @param shape - The arrow type, which names the batch's geometry
      * @param createShape - Builds that geometry, for a new batch
-     * @param options - The head's size (world-space length), colour and opacity
+     * @param options - The cap's size (world-space length), colour and opacity
      * @param scene - Babylon.js scene
-     * @returns The arrowhead instance; point it with {@link FilledArrowRenderer.setLineDirection}
+     * @returns The cap; point it with {@link ArrowCap.place}
      */
-    static createArrowInstance(
-        shape: string,
-        createShape: () => Mesh,
-        options: FilledArrowOptions,
-        scene: Scene,
-    ): InstancedMesh {
+    static createArrowCap(shape: string, createShape: () => Mesh, options: FilledArrowOptions, scene: Scene): ArrowCap {
         const opacity = options.opacity ?? 1.0;
-        const instance = this.instanceOf(scene, `3d|${shape}|${String(opacity)}`, () =>
-            this.applyInstancedShader(createShape(), opacity, scene),
+        const cap = this.capOf(
+            scene,
+            `3d|${shape}|${String(opacity)}`,
+            () => this.applyInstancedShader(createShape(), opacity, scene),
+            { scale: options.size, billboard: true },
         );
 
-        instance.instancedBuffers.arrowDirection = new Vector3(1, 0, 0);
-        instance.instancedBuffers.arrowSize = options.size;
-        instance.instancedBuffers.arrowColor = Color3.FromHexString(options.color);
-        this.applyShaderBoundingInfo(instance, options.size);
+        cap.setAppearance(options.size, options.color);
 
-        return instance;
+        return cap;
     }
 
     /**
-     * Give a batch's source mesh the billboard shader, reading direction, size and colour from
-     * instance attributes instead of uniforms.
-     * @param mesh - The batch's source mesh
-     * @param opacity - The opacity every head in the batch is drawn at
+     * Give a batch's mesh the billboard shader, reading direction, size and colour from
+     * per-instance buffers instead of uniforms.
+     * @param mesh - The batch's mesh
+     * @param opacity - The opacity every cap in the batch is drawn at
      * @param scene - Babylon.js scene
      * @returns The same mesh
      */
@@ -1136,7 +1092,11 @@ void main() {
             { vertex: "filledArrow", fragment: "filledArrow" },
             {
                 attributes: ["position", "arrowDirection", "arrowSize", "arrowColor"],
-                uniforms: ["viewProjection", "cameraPosition", "opacity", "clipEndX"],
+                // `world` is the batch mesh's own transform, which Babylon's instancing include
+                // multiplies a thin instance's slot matrix by. Without it in this list the
+                // include declares the uniform and nothing ever writes it, so the whole batch
+                // would sit at the origin and ignore `graph-root`.
+                uniforms: ["world", "viewProjection", "cameraPosition", "opacity", "clipEndX"],
             },
         );
         material.setFloat("opacity", opacity);
@@ -1147,16 +1107,8 @@ void main() {
         material.backFaceCulling = false;
 
         mesh.material = material;
-        // Below 1 this is what puts the batch in the alpha-blended queue, as it did each head.
+        // Below 1 this is what puts the batch in the alpha-blended queue, as it did each cap.
         mesh.visibility = opacity;
-
-        mesh.registerInstancedBuffer("arrowDirection", 3);
-        mesh.registerInstancedBuffer("arrowSize", 1);
-        mesh.registerInstancedBuffer("arrowColor", 3);
-        // The source is never drawn, but Babylon reads its values whenever it would be.
-        mesh.instancedBuffers.arrowDirection = new Vector3(1, 0, 0);
-        mesh.instancedBuffers.arrowSize = 0;
-        mesh.instancedBuffers.arrowColor = new Color3(1, 1, 1);
 
         return mesh;
     }

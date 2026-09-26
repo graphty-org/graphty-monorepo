@@ -7,11 +7,11 @@
  * billboard shader's bounding sphere is), by comparing two edges that differ only in the line.
  */
 
-import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { Edge } from "../../src/Edge";
 import { Graph } from "../../src/Graph";
+import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import { addStyleLayer, asData, edgeBetween } from "../helpers/testSetup";
 
 type ViewMode = "2d" | "3d";
@@ -78,12 +78,8 @@ describe("an arrowhead is independent of the line it caps", () => {
      * @param mode - The view mode.
      * @returns The drawn length.
      */
-    function arrowLength(mesh: AbstractMesh, mode: ViewMode): number {
-        if (mode === "2d") {
-            return mesh.scaling.x;
-        }
-
-        return mesh.getBoundingInfo().boundingSphere.radius;
+    function arrowLength(cap: ArrowCap): number {
+        return cap.span;
     }
 
     for (const mode of ["2d", "3d"] as const) {
@@ -91,7 +87,7 @@ describe("an arrowhead is independent of the line it caps", () => {
             const [thin, thick] = await build(mode, [{ "edge.width": 2 }, { "edge.width": 16 }]);
             assert(thin.arrowMesh && thick.arrowMesh, "both edges have arrowheads");
 
-            assert.closeTo(arrowLength(thick.arrowMesh, mode), arrowLength(thin.arrowMesh, mode), 1e-6);
+            assert.closeTo(arrowLength(thick.arrowMesh), arrowLength(thin.arrowMesh), 1e-6);
         });
 
         test(`${mode}: a half-opacity line keeps a fully opaque arrowhead`, async () => {

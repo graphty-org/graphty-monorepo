@@ -255,9 +255,9 @@ describe("Node shape changes and connected edges", () => {
         // somewhere impossible makes "Edge.update returned early" observable. The guard matters
         // for cost, not for pixels -- the invalidation loop is O(E) per node.
         const sentinel = new Vector3(99, 99, 99);
-        if (edge.arrowMesh) {
-            edge.arrowMesh.position = sentinel.clone();
-        }
+        // A cap has no position to assign any more -- it is a slot in a shared batch -- so the
+        // sentinel is written the way the renderer writes one, through the cap's own placement.
+        edge.arrowMesh?.place(sentinel, Vector3.Right());
 
         dstNode.applySessionPaint(nodePaintOf(nodeStyle({ texture: { color: "#FF0000" } })));
         edge.update();
@@ -309,11 +309,7 @@ describe("Node glow effect", () => {
 
     it("puts a glowing node's rendered mesh into the glow layer", () => {
         harness = createHarness();
-        const node = addNode(
-            harness,
-            "src",
-            nodeStyle({ effect: { glow: { color: "#FF0000", strength: 2 } } }),
-        );
+        const node = addNode(harness, "src", nodeStyle({ effect: { glow: { color: "#FF0000", strength: 2 } } }));
 
         const glowLayer = findGlowLayer(harness.scene);
         assert.isDefined(glowLayer, "a style carrying effect.glow must create the glow layer");
@@ -364,7 +360,10 @@ describe("Node and Edge disposal", () => {
         edge.dispose();
 
         assert.isTrue(edge.isDisposed());
-        assert.isTrue(arrowMesh?.isDisposed(), "the arrowhead is created bare against the scene; only dispose frees it");
+        assert.isTrue(
+            arrowMesh?.isDisposed(),
+            "the arrowhead is created bare against the scene; only dispose frees it",
+        );
         assert.isNull(edge.arrowMesh);
     });
 

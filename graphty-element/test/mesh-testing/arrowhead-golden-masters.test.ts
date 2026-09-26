@@ -27,11 +27,12 @@
  *     could not have seen the difference in either direction.
  */
 
-import { InstancedMesh, ShaderMaterial, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { type Mesh, Quaternion, ShaderMaterial, StandardMaterial, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
+import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { create2DMeshScene, createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
@@ -60,22 +61,38 @@ const SCHEMA_TYPES = [...DRAWN_TYPES, "none"];
 
 let ctx: MeshTestScene;
 
-function arrow(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): InstancedMesh {
-    const mesh = EdgeMesh.createArrowHead(
+function arrow(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): ArrowCap {
+    const cap = EdgeMesh.createArrowHead(
         ctx.cache,
         `arrow-${type}`,
         { type, width: 1, color: extra.color ?? "#FF0000", size: extra.size, opacity: extra.opacity },
         ctx.scene,
     );
-    assert.isNotNull(mesh, `createArrowHead returned null for "${type}"`);
+    assert.isNotNull(cap, `createArrowHead returned null for "${type}"`);
+    return cap;
+}
+
+/**
+ * The mesh a cap is drawn by, which is its batch's and is shared with every other cap of the
+ * same appearance. The geometry, the material and the opacity all live there now: a cap of its
+ * own is sixteen floats in that mesh's instance buffer and has none of them.
+ * @param type - The arrow type.
+ * @param extra - The size, colour and opacity the cap is asked for.
+ * @returns The batch's mesh.
+ */
+function arrowMesh(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): Mesh {
+    const mesh = arrow(type, extra).batchMesh;
+    assert.isNotNull(mesh, `the cap for "${type}" is drawn by no mesh`);
     return mesh;
 }
 
 /** The mesh's local positions, rounded, as a comparable string. */
-function geometryFingerprint(mesh: InstancedMesh): string {
+function geometryFingerprint(mesh: Mesh): string {
     const positions = mesh.getVerticesData("position");
     assert.isNotNull(positions, "an arrow with no position data draws nothing");
-    return Array.from(positions).map((value) => value.toFixed(5)).join(",");
+    return Array.from(positions)
+        .map((value) => value.toFixed(5))
+        .join(",");
 }
 
 describe("Arrowhead Golden Masters", () => {
@@ -151,7 +168,7 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.forEach(({ type, vertices }) => {
             test(`${type} has ${vertices} vertices and real faces`, () => {
-                const mesh = arrow(type);
+                const mesh = arrowMesh(type);
 
                 assert.equal(mesh.getTotalVertices(), vertices);
                 assert.isAbove(mesh.getTotalIndices(), 0, "vertices with no indices are never rasterised");
@@ -162,7 +179,7 @@ describe("Arrowhead Golden Masters", () => {
             test(`${type} is flat in the XZ plane, which the billboard shader requires`, () => {
                 // The tangent-billboarding shader rotates the cap about Y to face the camera. A
                 // vertex off the plane would tumble out of the arrow when it does.
-                const positions = mesh3DPositions(arrow(type));
+                const positions = mesh3DPositions(arrowMesh(type));
 
                 for (let i = 1; i < positions.length; i += 3) {
                     assert.equal(positions[i], 0, `${type} has a vertex off the XZ plane`);
@@ -171,7 +188,7 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("sphere-dot is the one cap with real volume", () => {
-            const positions = mesh3DPositions(arrow("sphere-dot"));
+            const positions = mesh3DPositions(arrowMesh("sphere-dot"));
             let offPlane = 0;
             for (let i = 1; i < positions.length; i += 3) {
                 if (positions[i] !== 0) {
@@ -190,7 +207,7 @@ describe("Arrowhead Golden Masters", () => {
             const seen = new Map<string, string>();
 
             for (const { type } of ARROW_GEOMETRY) {
-                const fingerprint = geometryFingerprint(arrow(type));
+                const fingerprint = geometryFingerprint(arrowMesh(type));
                 const clash = seen.get(fingerprint);
                 assert.isUndefined(clash, `${type} draws the same geometry as ${clash}`);
                 seen.set(fingerprint, type);
@@ -200,8 +217,8 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("normal and inverted point in opposite directions", () => {
-            const normal = mesh3DPositions(arrow("normal"));
-            const inverted = mesh3DPositions(arrow("inverted"));
+            const normal = mesh3DPositions(arrowMesh("normal"));
+            const inverted = mesh3DPositions(arrowMesh("inverted"));
             const normalReach = Math.max(...everyThird(normal, 0));
             const invertedReach = Math.max(...everyThird(inverted, 0));
 
@@ -220,14 +237,14 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.filter((entry) => entry.type !== "sphere-dot").forEach(({ type }) => {
             test(`${type} is drawn with the billboard ShaderMaterial`, () => {
-                const mesh = arrow(type);
+                const mesh = arrowMesh(type);
 
                 assert.instanceOf(mesh.material, ShaderMaterial);
             });
         });
 
         test("sphere-dot is drawn with an unlit StandardMaterial instead", () => {
-            const mesh = arrow("sphere-dot");
+            const mesh = arrowMesh("sphere-dot");
             const material = mesh.material as StandardMaterial;
 
             assert.instanceOf(material, StandardMaterial);
@@ -237,23 +254,26 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("the shader carries the attributes and uniforms tangent billboarding needs", () => {
-            const material = arrow("normal").material as ShaderMaterial;
+            const material = arrowMesh("normal").material as ShaderMaterial;
             const options = material.options as unknown as { uniforms: string[]; attributes: string[] };
 
-            // Direction, size and colour are PER-INSTANCE attributes: every edge's head is an
-            // instance of one shared mesh per shape, drawn in one call (issue #25). They were
-            // per-material uniforms while each head was its own mesh and material.
+            // Direction, size and colour are PER-INSTANCE attributes: every edge's head is a
+            // thin instance of one shared mesh per shape, drawn in one call (issues #25, #419).
+            // They were per-material uniforms while each head was its own mesh and material.
             assert.deepEqual(options.attributes, ["position", "arrowDirection", "arrowSize", "arrowColor"]);
-            assert.includeMembers(options.uniforms, ["viewProjection", "cameraPosition", "opacity"]);
+            // `world` is the batch mesh's own transform. Babylon's instancing include multiplies
+            // a thin instance's slot matrix by it, and without it in this list nothing writes it,
+            // so the batch would ignore the graph-root transform an XR gesture moves.
+            assert.includeMembers(options.uniforms, ["world", "viewProjection", "cameraPosition", "opacity"]);
         });
 
         test("the head's size is the world-space arrow length, not a unit scale", () => {
             const half = arrow("normal", { size: 0.5 });
             const double = arrow("normal", { size: 2 });
 
-            assert.strictEqual(half.material, double.material, "heads of one shape share one material");
-            assert.equal(half.instancedBuffers.arrowSize, EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 0.5);
-            assert.equal(double.instancedBuffers.arrowSize, EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 2);
+            assert.strictEqual(half.batchMesh, double.batchMesh, "heads of one shape share one batch");
+            assert.equal(half.size, EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 0.5);
+            assert.equal(double.size, EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 2);
         });
     });
 
@@ -268,27 +288,35 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.forEach(({ type }) => {
             test(`2D ${type} uses a StandardMaterial, not the billboard shader`, () => {
-                const mesh = arrow(type);
+                const cap = arrow(type);
+                const mesh = cap.batchMesh;
 
-                assert.instanceOf(mesh.material, StandardMaterial);
-                assert.equal(mesh.name, `arrow-2d-${type}`);
+                assert.instanceOf(mesh?.material, StandardMaterial);
+                // The batch's mesh is renamed after its key; the cap keeps the shape's own name.
+                assert.equal(cap.name, `arrow-2d-${type}`);
             });
         });
 
         test("2D arrows are rotated a quarter turn into the view plane", () => {
-            const mesh = arrow("normal");
+            const cap = arrow("normal");
 
-            assert.closeTo(mesh.rotation.x, Math.PI / 2, 1e-6);
+            // The turn is no longer a property of a mesh. A cap is a slot, and the quarter turn
+            // that lifts its geometry out of the XZ plane is composed into that slot when the
+            // edge places it -- so it is read back out of the slot's own matrix, after placing
+            // the cap along +X, where the turn along the line is nothing.
+            cap.place(Vector3.Zero(), Vector3.Right());
+
+            const turn = new Quaternion();
+            cap.transform.decompose(undefined, turn, undefined);
+
+            assert.closeTo(turn.toEulerAngles().x, Math.PI / 2, 1e-6);
         });
 
         test("2D arrows are unlit and coloured through the emissive channel", () => {
-            const material = arrow("normal", { color: "#00FF00" }).material as StandardMaterial;
+            const material = arrowMesh("normal", { color: "#00FF00" }).material as StandardMaterial;
 
             assert.isTrue(material.disableLighting);
-            assert.deepEqual(
-                [material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b],
-                [0, 1, 0],
-            );
+            assert.deepEqual([material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b], [0, 1, 0]);
         });
 
         /**
@@ -306,14 +334,10 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.forEach(({ type }) => {
             test(`2D ${type} is built from its own geometry, not a default triangle`, () => {
-                const mesh = arrow(type);
+                const mesh = arrowMesh(type);
                 const expected = TWO_D_VERTICES.get(type);
 
-                assert.equal(
-                    mesh.getTotalVertices(),
-                    expected,
-                    `2D ${type} should have ${String(expected)} vertices`,
-                );
+                assert.equal(mesh.getTotalVertices(), expected, `2D ${type} should have ${String(expected)} vertices`);
                 assert.isAbove(mesh.getTotalIndices(), 0, `2D ${type} has vertices but no faces`);
             });
         });
@@ -325,7 +349,7 @@ describe("Arrowhead Golden Masters", () => {
             const seen = new Map<string, string[]>();
 
             for (const { type } of ARROW_GEOMETRY) {
-                const fingerprint = geometryFingerprint(arrow(type));
+                const fingerprint = geometryFingerprint(arrowMesh(type));
                 const names = seen.get(fingerprint) ?? [];
 
                 names.push(type);
@@ -341,16 +365,17 @@ describe("Arrowhead Golden Masters", () => {
         test("2D sphere-dot is a flat circle, not a sphere", () => {
             // In 2D there is no depth to see a sphere with, so sphere-dot falls back to the same
             // 34-vertex disc as `dot`. In 3D it is a 703-vertex sphere. Both are deliberate.
-            const flat = arrow("sphere-dot");
+            const flat = arrowMesh("sphere-dot");
 
             assert.equal(flat.getTotalVertices(), 34);
         });
 
         [0, 0.25, 0.5, 0.75, 1].forEach((opacity) => {
             test(`2D opacity ${opacity} reaches the mesh and the material`, () => {
-                const mesh = arrow("normal", { opacity });
+                const cap = arrow("normal", { opacity });
+                const mesh = arrowMesh("normal", { opacity });
 
-                assert.equal(mesh.visibility, opacity);
+                assert.equal(cap.visibility, opacity);
                 assert.equal((mesh.material as StandardMaterial).alpha, opacity);
             });
         });
@@ -367,23 +392,23 @@ describe("Arrowhead Golden Masters", () => {
 
         [0.5, 1, 2, 4].forEach((size) => {
             test(`size ${size} scales the sphere-dot's diameter`, () => {
-                // sphere-dot is the one cap whose size shows up in its drawn EXTENT: the others are
-                // sized by the shader's per-instance `arrowSize`, so their bounds are identical at
-                // every size and only sphere-dot can be measured here. The sphere is a unit mesh
-                // shared by every head of its colour, scaled per head, so the extent is measured
-                // in world space.
-                const mesh = arrow("sphere-dot", { size });
-                mesh.computeWorldMatrix(true);
-                const { extendSizeWorld } = mesh.getBoundingInfo().boundingBox;
+                // sphere-dot is the one cap whose size is a SCALE on its geometry: the others are
+                // sized by the shader's per-instance `arrowSize` and their geometry is identical
+                // at every size.
+                const cap = arrow("sphere-dot", { size });
                 const expected = EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * size * 0.25;
 
-                assert.closeTo(extendSizeWorld.x * 2, expected, 1e-3);
+                // The sphere is a unit mesh shared by every cap of its colour, scaled per slot,
+                // so its drawn diameter IS the slot's scale and its span is that diameter across
+                // the diagonal of its box.
+                assert.closeTo(cap.size, expected, 1e-3);
+                assert.closeTo(cap.span, (expected * Math.sqrt(3)) / 2, 1e-3);
             });
         });
 
         ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"].forEach((color) => {
             test(`colour ${color} reaches the material`, () => {
-                const material = arrow("sphere-dot", { color }).material as StandardMaterial;
+                const material = arrowMesh("sphere-dot", { color }).material as StandardMaterial;
                 const expected = [
                     parseInt(color.slice(1, 3), 16) / 255,
                     parseInt(color.slice(3, 5), 16) / 255,
@@ -405,11 +430,7 @@ describe("Arrowhead Golden Masters", () => {
             const implicit = arrow("sphere-dot");
 
             assert.equal(implicit.visibility, explicit.visibility);
-            assert.closeTo(
-                implicit.getBoundingInfo().boundingBox.extendSize.x,
-                explicit.getBoundingInfo().boundingBox.extendSize.x,
-                1e-9,
-            );
+            assert.closeTo(implicit.span, explicit.span, 1e-9);
         });
     });
 
@@ -449,7 +470,17 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("the billboard caps are positioned by their tip with no offset", () => {
-            const tipCaps = ["normal", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond", "diamond", "box"];
+            const tipCaps = [
+                "normal",
+                "vee",
+                "tee",
+                "half-open",
+                "crow",
+                "open-normal",
+                "open-diamond",
+                "diamond",
+                "box",
+            ];
 
             for (const type of tipCaps) {
                 const geometry = EdgeMesh.getArrowGeometry(type);
@@ -522,7 +553,7 @@ describe("Arrowhead Golden Masters", () => {
     });
 });
 
-function mesh3DPositions(mesh: InstancedMesh): number[] {
+function mesh3DPositions(mesh: Mesh): number[] {
     const positions = mesh.getVerticesData("position");
     assert.isNotNull(positions, "an arrow with no position data draws nothing");
     return Array.from(positions as Float32Array);

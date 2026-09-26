@@ -609,9 +609,12 @@ export class Edge {
             this.mesh.dispose();
         }
 
-        // recreate arrow mesh if needed
+        // recreate arrow mesh if needed. A cap is an instance of its scene's batch, and the batch
+        // owns the material: disposing an instance's material would dispose the material every
+        // other cap in the batch draws with. The batch disposes it with its last instance
+        // (FilledArrowRenderer.instanceOf).
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose(false, true);
+            this.arrowMesh.dispose();
         }
 
         this.arrowMesh = EdgeMesh.createArrowHead(
@@ -629,7 +632,7 @@ export class Edge {
 
         // recreate arrow tail mesh if needed
         if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose(false, true);
+            this.arrowTailMesh.dispose();
         }
 
         this.arrowTailMesh = EdgeMesh.createArrowHead(
@@ -829,13 +832,13 @@ export class Edge {
         }
 
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose(false, true);
+            this.arrowMesh.dispose();
         }
 
         this.arrowMesh = null;
 
         if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose(false, true);
+            this.arrowTailMesh.dispose();
         }
 
         this.arrowTailMesh = null;

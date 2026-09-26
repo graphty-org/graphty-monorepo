@@ -653,7 +653,6 @@ export const TwoDAllArrows: Story = {
     args: {
         setup: storySetup({
             viewMode: "2d",
-            startingCameraDistance: 54,
             layers: [
                 {
                     name: "edges where data.source == 'normal-src'",

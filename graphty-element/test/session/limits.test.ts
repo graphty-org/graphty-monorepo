@@ -31,6 +31,15 @@ describe("the limits the element ships with", () => {
         assert.isBelow(DEFAULT_LIMITS.largeGraphThreshold, DEFAULT_LIMITS.renderCeiling);
     });
 
+    it("publishes the render ceilings the renderer was measured to reach, not the design table's", () => {
+        // The design table said 200,000 nodes and 500,000 edges; the renderer died at 18,000 /
+        // 180,000 (issue #405). These are the enforced figures, measured for the DEFAULT edge style:
+        // a patterned line style gives every dot and dash a ShaderMaterial of its own
+        // (PatternedLineRenderer), so under one the heap runs out earlier than these say.
+        assert.strictEqual(DEFAULT_LIMITS.renderCeiling, 50_000);
+        assert.strictEqual(DEFAULT_LIMITS.edgesDrawn, 100_000);
+    });
+
     it("states the selection cap the selection itself enforces, rather than a second copy of it", () => {
         assert.strictEqual(DEFAULT_LIMITS.selectionCap, DEFAULT_SELECTION_CAP);
     });

@@ -231,7 +231,7 @@ export function resolveSimulationOptions(
  * declaration rather than three that can disagree. An unknown name is `E_UNKNOWN_OPTION` with the
  * declared names and the nearest few; a value outside the declared range is `E_OPTION_RANGE`.
  *
- * The element's own seventeen engines declare no descriptor -- their arrangements are authored in
+ * The element's own nineteen engines declare no descriptor -- their arrangements are authored in
  * the layout catalogue -- and keep validating with their own Zod schemas, so their options pass
  * through untouched.
  * @param type - The layout name, for the failure message.
@@ -691,7 +691,7 @@ export class LayoutManager implements Manager {
         } catch (error) {
             // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
             // again, and it never became the running layout, so no later switch will reach it --
-            // this is its only moment. The element's own seventeen hold nothing and do nothing
+            // this is its only moment. The element's own nineteen hold nothing and do nothing
             // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
             // constructor would otherwise leak one per failed attempt.
             engine.dispose();

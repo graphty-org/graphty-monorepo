@@ -17,7 +17,8 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 | `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
 | `d3-force`          | Force-directed | Web-standard                              | 2D         |
 | `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
-| `grid`              | Geometric      | Regular structures                        | 2D/3D      |
+| `grid`              | Geometric      | Regular structures                        | 2D         |
+| `radial`            | Geometric      | Distance from one node                    | 2D         |
 | `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
 | `random`            | Random         | Testing, initial state                    | 2D/3D      |
 | `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
@@ -110,12 +111,24 @@ graph.setLayout("circular", {
 
 ### grid
 
-Arranges nodes in a regular grid:
+Arranges nodes in evenly spaced rows and columns, in the order they were loaded:
 
 ```typescript
 graph.setLayout("grid", {
-    columns: 5, // Number of columns
-    spacing: 10, // Space between nodes
+    columns: 5, // Number of columns (default: as close to square as possible)
+    scale: 1, // Half the length of the grid's longer side
+});
+```
+
+### radial
+
+Puts one node at the centre and every other node on a ring by its hop distance from it. Nodes the
+root cannot reach share one extra outer ring:
+
+```typescript
+graph.setLayout("radial", {
+    root: "node-1", // The node at the centre (default: the node with the most edges)
+    scale: 1, // Radius of the outermost ring
 });
 ```
 

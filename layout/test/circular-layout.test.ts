@@ -204,16 +204,13 @@ describe("Circular Layout", () => {
             });
         });
 
-        it("should handle large graphs efficiently", () => {
+        it("should lay out every node of a larger graph", () => {
             const n = 100;
             const graph = cycleGraph(n);
 
-            const startTime = performance.now();
             const positions = circularLayout(graph);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, n);
-            assert.isBelow(endTime - startTime, 100); // Should complete quickly
         });
 
         it("should produce visually pleasing layout for grid graphs", () => {

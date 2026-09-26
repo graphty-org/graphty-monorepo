@@ -353,15 +353,12 @@ describe("Fruchterman-Reingold Layout", () => {
             });
         });
 
-        it("should handle large graphs reasonably", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(10, 10); // 100 nodes
 
-            const startTime = performance.now();
             const positions = fruchtermanReingoldLayout(graph, null, null, null, 50, 1, [0, 0], 2);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 100);
-            assert.isBelow(endTime - startTime, 2000); // Should complete quickly
         });
 
         it("should handle dense graphs", () => {

@@ -29,6 +29,20 @@ const EDGES = [
     { src: "hub", dst: "right" },
 ];
 
+/**
+ * Three nodes so close that their labels land within a few pixels of each other.
+ *
+ * Looked at from an explicit camera, not from zoom-to-fit: what is under test is which labels
+ * collide, and that depends only on their being seen at all, not on how far out the camera sits.
+ * A fixed view keeps the pixel gaps between the labels the same whatever the fit does.
+ */
+const PILED = [
+    { id: "hub", position: { x: 0, y: 0, z: 0 } },
+    { id: "left", position: { x: -0.3, y: 0.1, z: 0 } },
+    { id: "right", position: { x: 0.3, y: -0.1, z: 0 } },
+];
+const PILED_VIEW = { position: { x: 0, y: 0.6, z: -11 }, target: { x: 0, y: 0.6, z: 0 } };
+
 interface Rect {
     left: number;
     right: number;
@@ -48,6 +62,7 @@ describe("node labels do not overlap", () => {
     async function draw(
         nodes: { id: string; position: { x: number; y: number; z: number } }[],
         declutter = true,
+        view?: typeof PILED_VIEW,
     ): Promise<Graph> {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -77,6 +92,11 @@ describe("node labels do not overlap", () => {
             await new Promise<void>((done) => {
                 setTimeout(done, FRAME_MS);
             });
+        }
+
+        if (view) {
+            await g.setCameraState(view);
+            g.scene.render();
         }
 
         return g;
@@ -135,11 +155,7 @@ describe("node labels do not overlap", () => {
     }
 
     it("keeps one label where three would be drawn over each other, and it is the hub's", async () => {
-        const g = await draw([
-            { id: "hub", position: { x: 0, y: 0, z: 0 } },
-            { id: "left", position: { x: -0.3, y: 0.1, z: 0 } },
-            { id: "right", position: { x: 0.3, y: -0.1, z: 0 } },
-        ]);
+        const g = await draw(PILED, true, PILED_VIEW);
 
         const drawn = drawnLabels(g);
 
@@ -152,11 +168,7 @@ describe("node labels do not overlap", () => {
     });
 
     it("keeps a selected node's label over a better-connected one", async () => {
-        const g = await draw([
-            { id: "hub", position: { x: 0, y: 0, z: 0 } },
-            { id: "left", position: { x: -0.3, y: 0.1, z: 0 } },
-            { id: "right", position: { x: 0.3, y: -0.1, z: 0 } },
-        ]);
+        const g = await draw(PILED, true, PILED_VIEW);
 
         assert.isTrue(g.selectNode("left"));
         await g.operationQueue.waitForCompletion();
@@ -213,12 +225,6 @@ describe("node labels do not overlap", () => {
         return found;
     }
 
-    const PILED = [
-        { id: "hub", position: { x: 0, y: 0, z: 0 } },
-        { id: "left", position: { x: -0.3, y: 0.1, z: 0 } },
-        { id: "right", position: { x: 0.3, y: -0.1, z: 0 } },
-    ];
-
     it("hides no label when labels.declutter is off, which is the default", async () => {
         const g = await draw(PILED, false);
 
@@ -228,7 +234,7 @@ describe("node labels do not overlap", () => {
     });
 
     it("shows and hides labels as the setting is toggled while the graph is drawn", async () => {
-        const g = await draw(PILED, false);
+        const g = await draw(PILED, false, PILED_VIEW);
         assert.deepEqual([...drawnLabels(g).keys()], ["hub", "left", "right"]);
 
         g.setLayoutBehavior({ labels: { declutter: true } });

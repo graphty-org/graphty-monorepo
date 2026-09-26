@@ -194,6 +194,20 @@ describe("OrbitCameraController", () => {
         });
     });
 
+    describe("clampDistance", () => {
+        test("floors a distance below the minimum, so the next zoom in cannot jump outward", () => {
+            controller.cameraDistance = controller.clampDistance(0.1);
+            assert.equal(controller.cameraDistance, config.minZoomDistance);
+
+            controller.zoom(-0.5);
+            assert.equal(controller.cameraDistance, config.minZoomDistance);
+        });
+
+        test("keeps a distance beyond the zoom-out ceiling as given", () => {
+            assert.equal(controller.clampDistance(1e6), 1e6);
+        });
+    });
+
     describe("updateCameraPosition", () => {
         test("should parent camera to pivot", () => {
             controller.updateCameraPosition();

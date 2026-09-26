@@ -25,7 +25,7 @@
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
-    ACCELERATION_MIN_NODES_BY_CAPABILITY,
+    ACCELERATION_MIN_NODES_BY_CAPABILITY, type FlooredCapability,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
     ACCELERATION_MIN_NODES_MEASUREMENT,
@@ -513,7 +513,7 @@ export class AccelerationController {
 
         // Last, after the feature test: a floor is a statement about a capability the accelerator
         // has, and an accelerator without the member is reported as that, not as "too small".
-        const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY[work.capability];
+        const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY[work.capability as FlooredCapability];
         if (floor !== undefined && !this.#explicitMinNodes && !required && work.nodeCount < floor) {
             return {
                 accelerated: false,

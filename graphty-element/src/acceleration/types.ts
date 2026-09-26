@@ -17,6 +17,8 @@
  * Node-safe entry points.
  */
 
+import type { AlgorithmAccelerator } from "@graphty/algorithms";
+
 import type { AccelerationErrorCode } from "../errors";
 
 /**
@@ -455,7 +457,16 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * Under `acceleration="required"` the floors do not apply: `"required"` is what a benchmark
  * runs under, and a benchmark of the small end of the curve has to reach the device.
  */
-export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Record<string, number>> = Object.freeze({
+/**
+ * The capabilities a floor can name: the seam's algorithm members, by their exact names.
+ *
+ * Typed against the seam rather than as a string so that a member renamed on one side and not
+ * the other is a compile error here, not a floor that silently stops applying and sends that
+ * capability back to the GPU at every size.
+ */
+export type FlooredCapability = Exclude<keyof AlgorithmAccelerator, "kind" | "release">;
+
+export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze({
     breadthFirstSearch: 300_000,
     sssp: 300_000,
     pageRank: 5_000,

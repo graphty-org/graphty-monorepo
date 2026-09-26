@@ -5,6 +5,9 @@
  * getter throwing E_DISPOSED; that it lets the process exit (spec 2.3) is documented, not asserted.
  */
 
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
+
 import { GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError, type WebGpuGraphError, type WebGpuGraphErrorCode } from "../../src/errors.js";
 import { createNodeGpu, createNodeGpuContext, dawnFlags, probeNodeWebGpu } from "../../src/node/index.js";
@@ -208,6 +211,49 @@ describe("createNodeGpuContext", () => {
             } finally {
                 ctx.dispose();
             }
+        }
+    });
+});
+
+describe("Dawn instance lifetime (issue #30)", () => {
+    // webgpu@0.4.0 polls the Dawn instance for every adapter / device promise, and only the GPU object owns the
+    // instance. Each case drops the entry's handle, forces a full GC, then makes Dawn poll through an object the
+    // handle produced; before the fix the worker died in dawn::native::InstanceBase::ProcessEvents (SIGSEGV /
+    // SIGABRT) and vitest reported ERR_IPC_CHANNEL_CLOSED. A pass here means the process survived.
+    setFlagsFromString("--expose-gc");
+    const gc = runInNewContext("gc") as () => void;
+
+    async function collect(): Promise<void> {
+        for (let i = 0; i < 3; i++) {
+            gc();
+            await new Promise<void>((resolve) => {
+                setImmediate(resolve);
+            });
+        }
+    }
+
+    it("the adapter of probeNodeWebGpu still requests a device after the probe dropped its handle and a GC ran", async (t) => {
+        requireGpu(t);
+        const result = await probeNodeWebGpu(laneOptions());
+        await collect();
+        const { adapter } = result;
+        expect(adapter).not.toBeNull();
+        const device = await adapter?.requestDevice();
+        expect(device).toBeDefined();
+        device?.destroy();
+        await device?.lost;
+        await collect();
+    });
+
+    it("create, dispose and collect a context in a loop; the disposed device's queue still answers", async (t) => {
+        requireGpu(t);
+        for (let round = 0; round < 3; round++) {
+            const ctx = await createNodeGpuContext({ ...laneOptions(), label: `lifetime-${String(round)}` });
+            ctx.dispose();
+            await ctx.lost;
+            await collect();
+            await ctx.device.queue.onSubmittedWorkDone();
+            await collect();
         }
     });
 });

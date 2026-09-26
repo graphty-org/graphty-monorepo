@@ -454,7 +454,14 @@ export class UpdateManager implements Manager {
     syncStyles(): void {
         const painter = this.graphContext.getStylePainter?.();
 
-        if (painter === undefined || !painter.hasPending) {
+        // NOT WHILE A PASS IS PAINTING. A pass yields to the event loop part way through, and
+        // until it announces, the columns it is rewriting and the mesh keys it has not interned
+        // yet disagree: an element read now is handed a key from before the pass and a style from
+        // the middle of it. The mesh built from that pair is cached under the key, and the pass's
+        // own announcement then finds the key unchanged and rebuilds nothing -- so a cap stayed
+        // opaque, and a node drew another node's shape, for good (issue #440). What is pending
+        // stays pending, and the frame after the pass announces draws all of it.
+        if (painter === undefined || !painter.hasPending || painter.isPainting) {
             return;
         }
 

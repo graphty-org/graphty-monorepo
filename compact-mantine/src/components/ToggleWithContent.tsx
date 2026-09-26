@@ -89,12 +89,9 @@ export interface ToggleWithContentProps {
      * accessible description, so the reason reaches a pointer user and a screen
      * reader user alike.
      *
-     * THE DEFECT THIS REPAIRS: a feature that cannot be turned on yet used to
-     * be drawn as a dimmed checkbox with nothing to say for itself, which reads
-     * as a broken control rather than as an unfinished feature. spec:6641 asks
-     * for the one reason to travel with the disabled ink; until now this
-     * component had nowhere to put it. The caller supplies the sentence -- only
-     * the call site knows what would turn the feature back on.
+     * Write it as a whole sentence naming what would make the toggle usable.
+     * The library never invents one: only the caller knows what would turn the
+     * feature back on.
      */
     disabledReason?: string;
     /**
@@ -104,9 +101,7 @@ export interface ToggleWithContentProps {
      * The toggle draws a filled attribute glyph beside its word -- the same
      * filled glyph `PanelField` uses to say the same thing -- so a panel can
      * say "this follows the data" without spending a row on a
-     * fixed-or-by-attribute switch. A boolean channel can be bound just as a
-     * numeric one can, and until now `PanelField` was the only control in the
-     * library able to say so.
+     * fixed-or-by-attribute switch.
      * @default false
      */
     bound?: boolean;

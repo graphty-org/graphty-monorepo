@@ -508,7 +508,16 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
                 </PopoutManager>,
             );
             const root = part(container, ".cm-gradient");
-            expectMeasured(root, { width: 240, height: 216 });
+            // The selected stop's picker (storybook-ia 4.1) sits full width right under the bar,
+            // where Figma draws nothing; everything below it moves down by its height.
+            const picker = part(root, "[data-testid='color-picker-panel']");
+            const shift = picker.getBoundingClientRect().height;
+            expect(shift).toBeGreaterThan(208);
+            expectMeasured(picker, { width: 240, x: 0, y: at(bar).y + bar.box[3] }, { origin: root });
+            expect(picker.querySelector(".cm-color-picker-types")).toBeNull();
+            expect(picker.querySelector("[data-testid='color-picker-alpha']")).toBeNull();
+            const below = (el: FigmaElement): { x: number; y: number } => ({ x: at(el).x, y: at(el).y + shift });
+            expectMeasured(root, { width: 240, height: 216 + shift });
             expectMeasured(
                 part(root, ".cm-gradient-direction"),
                 { height: directionRow.box[3], ...at(directionRow) },
@@ -517,7 +526,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
             expectMeasured(part(root, "[data-testid='gradient-editor-direction-input']"), { y: 12 }, { origin: root });
             expectMeasured(
                 part(root, ".cm-gradient-header"),
-                { height: header.box[3], y: at(header).y },
+                { height: header.box[3], y: below(header).y },
                 { origin: root },
             );
             expectMeasured(
@@ -552,28 +561,28 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
             );
             expectMeasured(
                 part(root, "[data-testid='gradient-editor-heading']"),
-                { ...figmaSpec(title, ["fontSize", "lineHeight", "fontWeight", "color"]), ...at(title) },
+                { ...figmaSpec(title, ["fontSize", "lineHeight", "fontWeight", "color"]), ...below(title) },
                 { origin: root },
             );
             const rows = [...root.querySelectorAll<HTMLElement>(".cm-gradient-stop")];
             expectMeasured(
                 rows[0],
-                { ...figmaSpec(row, ["width", "height", "backgroundColor"]), ...at(row) },
+                { ...figmaSpec(row, ["width", "height", "backgroundColor"]), ...below(row) },
                 { origin: root },
             );
             expectMeasured(
                 part(rows[0], ".cm-gradient-position"),
-                { ...figmaSpec(position, ["width", "height", "backgroundColor", "borderRadius"]), ...at(position) },
+                { ...figmaSpec(position, ["width", "height", "backgroundColor", "borderRadius"]), ...below(position) },
                 { origin: root },
             );
             expectMeasured(
                 part(rows[0], ".cm-paint-field"),
-                { ...figmaSpec(color, ["width", "height", "backgroundColor", "borderRadius"]), ...at(color) },
+                { ...figmaSpec(color, ["width", "height", "backgroundColor", "borderRadius"]), ...below(color) },
                 { origin: root },
             );
             expectMeasured(
                 part(rows[0], ".cm-chit"),
-                { ...figmaSpec(stopChit, ["width", "height", "borderRadius"]), ...at(stopChit) },
+                { ...figmaSpec(stopChit, ["width", "height", "borderRadius"]), ...below(stopChit) },
                 { origin: root },
             );
             const hexBox = part(rows[0], ".cm-paint-hex");
@@ -584,10 +593,61 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
             expect(hexTextX).toBeCloseTo(at(stopHex).x + parseFloat(stopHex.style.paddingLeft), 0);
             expectMeasured(
                 part(rows[0], "[data-testid='gradient-editor-remove-stop']"),
-                { ...figmaSpec(remove, ["width", "height"]), ...at(remove) },
+                { ...figmaSpec(remove, ["width", "height"]), ...below(remove) },
                 { origin: root },
             );
             expect(part(rows[0], ".cm-gradient-position")).toHaveValue("0%");
+        });
+
+        it("a stop's chit takes the field's focus ring from the keyboard and none at rest", async () => {
+            const { container } = await renderFigma(
+                <PopoutManager>
+                    <div style={{ width: 240 }}>
+                        <GradientEditor defaultStops={stops} showDirection={false} />
+                    </div>
+                </PopoutManager>,
+            );
+            const chit = container.querySelectorAll<HTMLElement>("[data-testid='gradient-editor-stop-chit']")[1];
+            expect(computed(part(chit, ".cm-chit"), "::after").content).toBe("none");
+            await drive(chit, "focus");
+            expect(computed(part(chit, ".cm-chit"), "::after").boxShadow).toContain("inset");
+        });
+
+        it("dragging in the picker recolours the selected stop live and reports one start and one end", async () => {
+            const onChange = vi.fn();
+            const onChangeStart = vi.fn();
+            const onChangeEnd = vi.fn();
+            const { container } = await renderFigma(
+                <PopoutManager>
+                    <div style={{ width: 240 }}>
+                        <GradientEditor
+                            defaultStops={stops}
+                            showDirection={false}
+                            onChange={onChange}
+                            onChangeStart={onChangeStart}
+                            onChangeEnd={onChangeEnd}
+                        />
+                    </div>
+                </PopoutManager>,
+            );
+            await userEvent.click(
+                container.querySelectorAll<HTMLElement>("[data-testid='gradient-editor-stop-chit']")[1],
+            );
+            const field = part(container, "[data-testid='color-picker-saturation']");
+            await drive(field, "press");
+            await userEvent.hover(field, { position: { x: 20, y: 20 } });
+            await userEvent.hover(field, { position: { x: 30, y: 40 } });
+            await commands.mouseUp();
+
+            expect(onChangeStart).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls.length).toBeGreaterThan(1);
+            expect(onChangeEnd).toHaveBeenCalledTimes(1);
+            const [settled] = onChangeEnd.mock.calls[0] as [{ color: string }[]];
+            expect(settled[0].color).toBe("#FF4D4D");
+            expect(settled[1].color).not.toBe("#4D4DFF");
+            expect(
+                part(container, ".cm-gradient-stop[data-selected] [data-testid='gradient-editor-stop-hex']"),
+            ).toHaveValue(settled[1].color.slice(1));
         });
 
         it("dark: handles, rows and bar read the dark tokens", async () => {

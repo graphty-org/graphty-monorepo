@@ -509,11 +509,15 @@ const css = `
 .cm-gradient-stops { margin-top: 4px; }
 .cm-gradient-stop[data-selected] { background-color: var(--cm-bg-selected); }
 .cm-gradient-position { flex: none; width: 48px; padding-inline: 8px 0; }
+/* A stop's colour: a paint field (7.2) holding the chit button that selects the stop and its hex
+   box; the colour itself is picked in the editor's own picker, so nothing pops out. */
 .cm-gradient-color { flex: 1 1 0; min-width: 0; }
 .cm-gradient-color .cm-paint-chit { width: 16px; height: 16px; border-radius: 20%; }
-/* The field chit writes --cs-size / --cs-radius inline, so the size is set directly. */
+/* The field chit writes --cs-size / --cs-radius inline, so the size is set directly. Its inner
+   border is dropped at rest, as Figma's stop chit has none, and kept as the keyboard ring. */
 .cm-gradient-color .cm-chit { width: 16px; height: 16px; border-radius: 20%; }
-.cm-gradient-color .cm-chit::after { content: none; }
+.cm-gradient-color .cm-chit::after { border-radius: 20%; }
+.cm-gradient-color .cm-paint-chit:not(:focus-visible) .cm-chit::after { content: none; }
 .cm-gradient-color .cm-paint-hex { margin-inline-start: 0; padding-inline-start: 4px; }
 `;
 

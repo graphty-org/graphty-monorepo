@@ -238,3 +238,68 @@ export function computeDrop(
 export function iconOffset(level: number): number {
     return 16 + 24 * (level - 1);
 }
+
+/** Anything a tree can hold: an id, and optionally children of the same shape. */
+interface TreeLike<T> {
+    id: string;
+    children?: readonly T[];
+}
+
+/**
+ * Apply a move that `Tree`'s `onMove` reported: take the item out of the list and insert it at
+ * `index` among `parentId`'s children (the top level when `parentId` is null). Works on your own
+ * item type, so every other field comes through untouched. Returns a new list; an unknown id
+ * returns a copy of the list unchanged.
+ * @param items - the tree, top level first
+ * @param move - the move `onMove` reported
+ * @returns the moved tree
+ * @example
+ * ```tsx
+ * <Tree items={items} label="Layers" onMove={(move) => setItems(moveTreeItem(items, move))} />
+ * ```
+ */
+export function moveTreeItem<T extends TreeLike<T>>(items: readonly T[], move: TreeMove): T[] {
+    let moved: T | undefined;
+    const remove = (list: readonly T[]): T[] =>
+        list.flatMap((n) => {
+            if (n.id === move.id) {
+                moved = n;
+                return [];
+            }
+            return [n.children ? { ...n, children: remove(n.children) } : n];
+        });
+    const without = remove(items);
+    const item = moved;
+    if (item === undefined) {
+        return [...items];
+    }
+    const into = (list: readonly T[] | undefined): T[] => {
+        const out = [...(list ?? [])];
+        out.splice(move.index, 0, item);
+        return out;
+    };
+    const insert = (list: readonly T[]): T[] =>
+        list.map((n) => {
+            if (n.id === move.parentId) {
+                return { ...n, children: into(n.children) };
+            }
+            return n.children ? { ...n, children: insert(n.children) } : n;
+        });
+    return move.parentId === null ? into(without) : insert(without);
+}
+
+/**
+ * Apply a rename that `Tree`'s `onRename` reported. Returns a new list.
+ * @param items - the tree, top level first
+ * @param id - the renamed item
+ * @param name - its new name
+ * @returns the renamed tree
+ */
+export function renameTreeItem<T extends TreeLike<T> & { name: string }>(items: readonly T[], id: string, name: string): T[] {
+    return items.map((n) => {
+        if (n.id === id) {
+            return { ...n, name };
+        }
+        return n.children ? { ...n, children: renameTreeItem(n.children, id, name) } : n;
+    });
+}

@@ -130,9 +130,12 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
 
     const combobox = useCombobox({
         onDropdownOpen: () => {
-            // The options mount with the dropdown; highlight the current value once they have.
+            // The options mount with the dropdown; highlight the current value once they have,
+            // unless an arrow key already moved the highlight (see fromChecked).
             requestAnimationFrame(() => {
-                combobox.selectActiveOption();
+                if (combobox.getSelectedOptionIndex() === -1) {
+                    combobox.selectActiveOption();
+                }
                 setActiveId(highlightedId());
             });
         },
@@ -188,9 +191,17 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
             }
             return false;
         }
+        // An arrow pressed before the open frame has highlighted the current value still moves
+        // from the current value, not from the top of the list.
+        const fromChecked = (step: () => void) => (): void => {
+            if (combobox.getSelectedOptionIndex() === -1) {
+                combobox.selectActiveOption();
+            }
+            step();
+        };
         const move: Record<string, () => void> = {
-            ArrowDown: () => combobox.selectNextOption(),
-            ArrowUp: () => combobox.selectPreviousOption(),
+            ArrowDown: fromChecked(() => combobox.selectNextOption()),
+            ArrowUp: fromChecked(() => combobox.selectPreviousOption()),
             Home: () => combobox.selectFirstOption(),
             End: () => {
                 combobox.selectOption(options.filter((item) => !isSeparator(item)).length - 1);

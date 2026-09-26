@@ -37,7 +37,6 @@ import type {
     ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
-    DataRowRole,
     DataRowSortDirection,
     DataTableAlign,
     DataTableColumn,
@@ -65,8 +64,6 @@ import type {
     HelpButtonProps,
     HistogramBin,
     HistogramRowProps,
-    IconGroupOption,
-    IconGroupRowProps,
     InfoCircleProps,
     InlineRenameProps,
     LabelsProviderProps,
@@ -185,7 +182,6 @@ type PublicTypeSurface = {
     controlSubGroup: ControlSubGroupProps;
     dataRow: DataRowProps;
     dataRowHeader: DataRowHeaderProps;
-    dataRowRole: DataRowRole;
     dataRowSortDirection: DataRowSortDirection;
     dataTable: DataTableProps<SampleRow>;
     dataTableAlign: DataTableAlign;
@@ -211,8 +207,6 @@ type PublicTypeSurface = {
     helpButton: HelpButtonProps;
     histogramBin: HistogramBin;
     histogramRow: HistogramRowProps;
-    iconGroupOption: IconGroupOption;
-    iconGroupRow: IconGroupRowProps;
     infoCircle: InfoCircleProps;
     labelsProvider: LabelsProviderProps;
     liveSetting: LiveSetting;
@@ -366,6 +360,8 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ToggleIconButton",
     "Tree",
     "TreeItem",
+    "moveTreeItem",
+    "renameTreeItem",
 
     // Editor shell
     "HelpButton",
@@ -386,7 +382,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "DataRowHeader",
     "FieldRow",
     "HistogramRow",
-    "IconGroupRow",
     "MetricRow",
     "PanelField",
     "ProseBlock",
@@ -592,8 +587,9 @@ describe("Package exports", () => {
                 expect(mainExports.CompoundRow).toBeDefined();
             });
 
-            it("exports RT-3 IconGroupRow", () => {
-                expect(mainExports.IconGroupRow).toBeDefined();
+            it("no longer exports RT-3 IconGroupRow, which the themed SegmentedControl replaces", () => {
+                const surface = mainExports as Record<string, unknown>;
+                expect(surface.IconGroupRow).toBeUndefined();
             });
 
             it("exports RT-4 RampRow", () => {
@@ -759,7 +755,6 @@ describe("Package exports", () => {
                     "controlSubGroup",
                     "dataRow",
                     "dataRowHeader",
-                    "dataRowRole",
                     "dataRowSortDirection",
                     "dataTable",
                     "dataTableAlign",
@@ -784,8 +779,6 @@ describe("Package exports", () => {
                     "gradientEditor",
                     "histogramBin",
                     "histogramRow",
-                    "iconGroupOption",
-                    "iconGroupRow",
                     "infoCircle",
                     "labelsProvider",
                     "metricRow",
@@ -876,7 +869,7 @@ describe("Package exports", () => {
                     "treeRowTint",
                 ];
 
-                expect(names).toHaveLength(130);
+                expect(names).toHaveLength(127);
                 expect(new Set(names).size).toBe(names.length);
             });
         });

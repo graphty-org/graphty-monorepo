@@ -187,9 +187,10 @@ export interface TreeProps {
      */
     onRename?: (id: string, name: string) => void;
     /**
-     * Called when a row is dropped somewhere new. `index` counts the new parent's children with
-     * the moved item already removed. Giving it makes rows draggable; the tree never moves data
-     * itself.
+     * Called when a row is dropped somewhere new, or moved one place among its siblings with
+     * Alt+ArrowUp / Alt+ArrowDown. `index` counts the new parent's children with the moved item
+     * already removed. Giving it makes rows draggable and turns on the keyboard move; the tree
+     * never moves data itself, and focus stays on the moved item once the caller has moved it.
      */
     onMove?: (move: TreeMove) => void;
     /** Keep an expanded top-level row pinned while its children scroll (not while virtualized). */
@@ -210,7 +211,8 @@ export interface TreeProps {
  * Keyboard (one Tab stop, roving focus): ArrowUp / ArrowDown move; ArrowRight opens a closed
  * parent or moves to its first child; ArrowLeft closes an open parent or moves to the parent;
  * Home / End; type-ahead; Enter or Space selects (Shift extends, Control / Command toggles); `*`
- * opens every sibling; F2 renames; Alt+L closes everything.
+ * opens every sibling; F2 renames; Alt+L closes everything; with `onMove`, Alt+ArrowUp /
+ * Alt+ArrowDown move the focused item one place among its siblings.
  * Pointer: click selects (Shift range, Control / Command toggle); the caret opens one row;
  * double-click renames; drag a row to move it.
  * @param props - Component props
@@ -224,7 +226,7 @@ export interface TreeProps {
  * @param props.onExpandedChange - Called with the expanded ids
  * @param props.multiselect - Allow several selected rows
  * @param props.onRename - Called with a new name; turns renaming on
- * @param props.onMove - Called when a row is dropped somewhere new
+ * @param props.onMove - Called when a row is dropped somewhere new or moved from the keyboard
  * @param props.stickyRoots - Pin expanded top-level rows while scrolling
  * @param props.height - The scrolling height when virtualized
  * @param props.renameLabel - The rename field's accessible name
@@ -357,6 +359,17 @@ export function Tree({
         }
         const i = indexOf.get(tabId) ?? 0;
         const row = rows[i];
+        // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place among its siblings. Reported
+        // through onMove like a drop; focus stays on the item wherever the caller puts it.
+        if (onMove && event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+            event.preventDefault();
+            const to = row.posInSet - 1 + (event.key === "ArrowUp" ? -1 : 1);
+            if (to >= 0 && to < row.setSize) {
+                onMove({ id: row.node.id, parentId: row.parentId, index: to });
+                moveFocus(row.node.id);
+            }
+            return;
+        }
         let handled = true;
         switch (event.key) {
             case "ArrowDown":

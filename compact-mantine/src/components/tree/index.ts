@@ -11,3 +11,4 @@ export { ResultRow } from "./ResultRow";
 export type { TreeItemProps, TreeProps } from "./Tree";
 export { Tree, TreeItem } from "./Tree";
 export type { FlatTreeRow, TreeMove, TreeNodeData, TreeRowTint } from "./treeModel";
+export { moveTreeItem, renameTreeItem } from "./treeModel";

@@ -1,14 +1,14 @@
 /**
  * The layer tree's behaviour with real input in Chromium: the WAI-ARIA tree-view keyboard model
- * (design/figma-spec.md 10.1), pointer selection, the caret, rename, drag and drop, and
- * virtualization. Every key here is a real key press through Playwright.
+ * (design/figma-spec.md 10.1), the Alt+Arrow keyboard move, pointer selection, the caret, rename,
+ * drag and drop, and virtualization. Every key here is a real key press through Playwright.
  */
 import { screen, within } from "@testing-library/react";
 import { userEvent } from "@vitest/browser/context";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InlineRename, PageList, ResultRow, Tree, type TreeNodeData } from "../../../src/components/tree";
+import { InlineRename, PageList, ResultRow, Tree, type TreeMove, type TreeNodeData } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
 afterEach(resetHarness);
@@ -229,6 +229,96 @@ describe("Tree: keyboard", () => {
         await tabIn();
         await userEvent.keyboard("{F2}");
         expect(screen.queryByRole("textbox")).toBeNull();
+    });
+});
+
+describe("Tree: keyboard move", () => {
+    const FLAT: TreeNodeData[] = [
+        { id: "a", name: "Alpha" },
+        { id: "b", name: "Bravo" },
+        { id: "c", name: "Charlie" },
+    ];
+
+    /**
+     * A caller that applies each move to its own flat list, the way a consumer owns the data.
+     * @param props - Component props
+     * @param props.onMove - Spy told of every move before it is applied
+     * @returns The tree over the caller's list
+     */
+    function Reorderable({ onMove }: { onMove: (move: TreeMove) => void }): React.JSX.Element {
+        const [items, setItems] = React.useState(FLAT);
+        return (
+            <Tree
+                items={items}
+                onMove={(move) => {
+                    onMove(move);
+                    setItems((prev) => {
+                        const rest = prev.filter((item) => item.id !== move.id);
+                        const moved = prev.find((item) => item.id === move.id);
+                        return moved ? [...rest.slice(0, move.index), moved, ...rest.slice(move.index)] : prev;
+                    });
+                }}
+            />
+        );
+    }
+
+    const order = (): (string | null)[] =>
+        screen.getAllByRole("treeitem").map((item) => item.getAttribute("data-id"));
+
+    it("moves the focused item one place with Alt+ArrowDown / Alt+ArrowUp, focus following", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Reorderable onMove={onMove} />);
+        await tabIn();
+        await userEvent.keyboard("{ArrowDown}");
+        expect(focused()).toBe("b");
+
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        expect(onMove).toHaveBeenLastCalledWith({ id: "b", parentId: null, index: 2 });
+        expect(order()).toEqual(["a", "c", "b"]);
+        expect(focused()).toBe("b");
+
+        await userEvent.keyboard("{Alt>}{ArrowUp}{ArrowUp}{/Alt}");
+        expect(onMove).toHaveBeenLastCalledWith({ id: "b", parentId: null, index: 0 });
+        expect(order()).toEqual(["b", "a", "c"]);
+        expect(focused()).toBe("b");
+        expect(row("Bravo")).toHaveAttribute("aria-posinset", "1");
+    });
+
+    it("does nothing past either end, and neither moves focus", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Reorderable onMove={onMove} />);
+        await tabIn();
+
+        await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+        await userEvent.keyboard("{End}{Alt>}{ArrowDown}{/Alt}");
+        expect(onMove).not.toHaveBeenCalled();
+        expect(focused()).toBe("c");
+        expect(order()).toEqual(["a", "b", "c"]);
+    });
+
+    it("moves among siblings only, reporting the parent", async () => {
+        const onMove = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} onMove={onMove} />);
+        await tabIn();
+        await userEvent.keyboard("{ArrowDown}");
+        expect(focused()).toBe("rect");
+
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        expect(onMove).toHaveBeenCalledWith({ id: "rect", parentId: "frame", index: 1 });
+
+        // Group is the last child of Frame: Alt+ArrowDown does not carry it out of its parent.
+        onMove.mockClear();
+        await userEvent.keyboard("{ArrowDown}{Alt>}{ArrowDown}{/Alt}");
+        expect(focused()).toBe("group");
+        expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it("leaves Alt+Arrow as plain focus movement without onMove", async () => {
+        await renderThemed(<Tree items={FLAT} />);
+        await tabIn();
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        expect(focused()).toBe("b");
+        expect(order()).toEqual(["a", "b", "c"]);
     });
 });
 

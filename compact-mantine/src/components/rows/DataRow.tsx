@@ -14,17 +14,6 @@ import {
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
 
 /**
- * How a row reports being selected to a screen reader.
- *
- * - `"button"` marks the row `aria-current`, which is what a list with one
- *   selected item means: this row is the one on screen.
- * - `"option"` gives the row the `option` role and `aria-selected`. Use it only
- *   when the rows sit inside an element you have given `role="listbox"`, adding
- *   `aria-multiselectable` there when more than one row can be selected at once.
- */
-export type DataRowRole = "button" | "option";
-
-/**
  * Props for the DataRow component.
  */
 export interface DataRowProps {
@@ -42,32 +31,18 @@ export interface DataRowProps {
     value?: React.ReactNode;
     /** A 16px leading icon, worth drawing only when the rows differ in type. */
     icon?: React.ReactNode;
-    /** Whether this row is the selected one. Draws the accent tint and reports the selection to a screen reader. */
+    /**
+     * Whether this row is the current one: the item on screen, or the current
+     * entry of a ranking. Draws the accent tint and reports it to a screen
+     * reader as `aria-current`.
+     */
     selected?: boolean;
-    /**
-     * How the row reports being selected. Defaults to `"button"`.
-     *
-     * Leave it alone for a list with one selected row. Set `"option"` when you
-     * have wrapped a run of rows in an element with `role="listbox"`, which is
-     * what lets a screen reader announce several rows as selected at once.
-     */
-    role?: DataRowRole;
-    /**
-     * The row's position in the tab order.
-     *
-     * A clickable row is reachable by Tab on its own. Pass `-1` on every row but
-     * one when you are managing focus yourself, as a listbox does when the arrow
-     * keys move between rows and Tab enters and leaves the list.
-     */
-    tabIndex?: number;
     /**
      * Called when the row is activated, by a click or by Enter or Space.
      *
-     * Read the event for the modifier keys a selection needs: Shift to extend a
-     * range, and Control or Command to add and remove one row. The second
-     * argument says whether the row was activated with a pointer or from the
-     * keyboard, which is worth branching on because a keyboard activation
-     * carries no click count and no modifiers to extend a range with.
+     * Open what the reading is about: the node a ranking names, the file a
+     * recent-files row names. The second argument says whether the row was
+     * activated with a pointer or from the keyboard.
      *
      * Giving a row this handler makes its name and value a real button, so the
      * row is reachable by Tab and answers Enter and Space. A row without one is
@@ -76,46 +51,18 @@ export interface DataRowProps {
      * ```tsx
      * <DataRow
      *     name={node.id}
-     *     selected={selection.has(node.id)}
-     *     onClick={(event, meta) => {
-     *         if (event.shiftKey && meta.source === "pointer") {
-     *             extendSelectionTo(node.id);
-     *         } else if (event.metaKey || event.ctrlKey) {
-     *             toggleSelection(node.id);
-     *         } else {
-     *             replaceSelectionWith(node.id);
-     *         }
-     *     }}
+     *     value={formatter.format(node.degree)}
+     *     selected={node.id === current}
+     *     onClick={() => { setCurrent(node.id); }}
      * />
      * ```
      */
     onClick?: ActivationHandlerWithMeta;
     /**
-     * Called when the row is double-clicked, anywhere along it.
-     *
-     * Open the thing the row names, or start renaming it. The browser delivers
-     * two `onClick` activations before this, which is how a double click is
-     * defined rather than something this component adds; `event.detail` on
-     * those clicks counts them, so a consumer that must act on a single click
-     * alone can wait for the count to settle.
-     */
-    onDoubleClick?: (event: React.MouseEvent) => void;
-    /**
-     * Called when a context menu is asked for on the row, anywhere along it.
-     *
-     * Call `preventDefault` on the event to replace the browser's own menu with
-     * yours. The keyboard's context-menu key and Shift+F10 raise it as well as a
-     * right click, so a menu opened from here is reachable without a pointer --
-     * as long as the row can hold focus, which it can as soon as it has an
-     * `onClick`, or when you give it a `tabIndex` of its own.
-     */
-    onContextMenu?: (event: React.MouseEvent) => void;
-    /**
      * Called when the row's body takes focus.
      *
-     * The element is typed as a plain `HTMLElement` because the body is a
-     * `<button>` on a row that can be activated and a `<div>` on one that
-     * cannot.
+     * The body takes focus only when the row has an `onClick`, which makes it a
+     * `<button>`.
      */
     onFocus?: React.FocusEventHandler<HTMLElement>;
     /** Called when the row's body loses focus. */
@@ -141,21 +88,16 @@ export interface DataRowProps {
  * it on every row -- "links" above the column and `4` on the rows. A rank is a
  * `RankChip` reading `#6`, not the sentence "Rank 6 of 318".
  *
- * Rows are selectable, and the handler is given the event, so the selection
- * gestures a list is expected to answer -- Shift to extend, Control or Command
- * to toggle, a right click for a menu -- are all yours to implement. Selection
- * is reported to a screen reader as well as drawn, either as `aria-current` for
- * a single selected row or, inside a listbox, as `aria-selected`.
+ * A row is a reading, not an object in a list. Give it `onClick` to open what
+ * the reading is about, and `selected` to mark the current row of a ranking
+ * (reported as `aria-current`). A list the reader selects, renames or reorders
+ * is a `Tree` (nested) or a `PageList` (flat); a find result is a `ResultRow`.
  * @param props - Component props
  * @param props.name - The reader's own string
  * @param props.value - The trailing value, bare and in the secondary text colour
  * @param props.icon - A 16px leading icon, worth drawing only when the rows differ in type
- * @param props.selected - Whether this row is the selected one
- * @param props.role - How the row reports being selected: `"button"` for one selected row, `"option"` inside a listbox
- * @param props.tabIndex - The row's position in the tab order, for a list that manages focus itself
+ * @param props.selected - Whether this row is the current one, reported as `aria-current`
  * @param props.onClick - Called when the row is activated, with the event and the activation source
- * @param props.onDoubleClick - Called when the row is double-clicked, anywhere along it
- * @param props.onContextMenu - Called when a context menu is asked for on the row, by pointer or from the keyboard
  * @param props.onFocus - Called when the row's body takes focus
  * @param props.onBlur - Called when the row's body loses focus
  * @param props.trailing - The row's occasional control, in the 24px slot at its trailing edge
@@ -179,11 +121,7 @@ export function DataRow({
     value,
     icon,
     selected = false,
-    role = "button",
-    tabIndex,
     onClick,
-    onDoubleClick,
-    onContextMenu,
     onFocus,
     onBlur,
     trailing,
@@ -193,16 +131,10 @@ export function DataRow({
     const hasIcon = icon !== undefined && icon !== null;
     const hasValue = value !== undefined && value !== null;
     const hasTrailing = holdsSomething(trailing);
+    // ARIA Authoring Practices, Button pattern: name from content, Enter and
+    // Space activate it, and the current row of a set is marked aria-current.
+    const ariaCurrent = selected ? true : undefined;
 
-    // ARIA Authoring Practices: the default row follows the Button pattern --
-    // name from content, Enter and Space activate it, and the selected row of a
-    // set is marked aria-current. Given role="option" it follows the Listbox
-    // pattern instead, where selection is aria-selected and the container the
-    // consumer supplies owns the arrow keys. aria-selected is meaningless
-    // outside a listbox, so the two states are never both written.
-    const isOption = role === "option";
-    const ariaSelected = isOption ? selected : undefined;
-    const ariaCurrent = !isOption && selected ? true : undefined;
 
     /**
      * Reports an activation to the consumer, with the source stated separately.
@@ -246,24 +178,13 @@ export function DataRow({
             data-selected={selected ? "true" : undefined}
             data-interactive={interactive ? "" : undefined}
             data-trailing={hasTrailing ? "" : undefined}
-            // Both sit on the whole row rather than on its body, so a right
-            // click or a double click lands wherever the pointer is -- including
-            // the trailing slot and the padding. The keyboard's context-menu key
-            // fires on whatever holds focus and bubbles to here, so a menu opened
-            // from onContextMenu is reachable without a pointer on any row that
-            // can take focus: an interactive one, or one given a tabIndex.
-            onDoubleClick={onDoubleClick}
-            onContextMenu={onContextMenu}
         >
             {interactive ? (
                 <button
                     type="button"
                     className="cm-data-row-body"
                     data-testid="data-row-button"
-                    role={isOption ? "option" : undefined}
                     aria-current={ariaCurrent}
-                    aria-selected={ariaSelected}
-                    tabIndex={tabIndex}
                     onClick={handleClick}
                     onFocus={onFocus}
                     onBlur={onBlur}
@@ -274,10 +195,7 @@ export function DataRow({
                 <div
                     className="cm-data-row-body"
                     data-testid="data-row-body"
-                    role={isOption ? "option" : undefined}
                     aria-current={ariaCurrent}
-                    aria-selected={ariaSelected}
-                    tabIndex={tabIndex}
                     onFocus={onFocus}
                     onBlur={onBlur}
                 >

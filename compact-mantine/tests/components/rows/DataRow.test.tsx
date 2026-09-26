@@ -1,5 +1,5 @@
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -181,46 +181,10 @@ describe("DataRow", () => {
             expect(screen.getByTestId("data-row-body")).toHaveAttribute("aria-current", "true");
         });
 
-        it("does not write aria-selected outside a listbox, where it means nothing", () => {
+        it("does not write aria-selected, which only a listbox option carries", () => {
             renderRow(<DataRow name="Mrs_Henderson" value="4" selected onClick={vi.fn()} />);
 
             expect(screen.getByRole("button")).not.toHaveAttribute("aria-selected");
-        });
-
-        describe("inside a listbox", () => {
-            it("becomes an option that reports itself as selected", () => {
-                renderRow(
-                    <div role="listbox" aria-label="Cats" aria-multiselectable>
-                        <DataRow name="Mr_Whiskers" value="4" role="option" onClick={vi.fn()} />
-                        <DataRow name="Mrs_Henderson" value="4" role="option" selected onClick={vi.fn()} />
-                    </div>,
-                );
-
-                const options = screen.getAllByRole("option");
-                expect(options).toHaveLength(2);
-                expect(options[0]).toHaveAttribute("aria-selected", "false");
-                expect(options[1]).toHaveAttribute("aria-selected", "true");
-            });
-
-            it("drops aria-current, which says something different", () => {
-                renderRow(
-                    <div role="listbox" aria-label="Cats">
-                        <DataRow name="Mrs_Henderson" value="4" role="option" selected onClick={vi.fn()} />
-                    </div>,
-                );
-
-                expect(screen.getByRole("option")).not.toHaveAttribute("aria-current");
-            });
-
-            it("is an option even when the row itself is not clickable", () => {
-                renderRow(
-                    <div role="listbox" aria-label="Cats">
-                        <DataRow name="Mr_Whiskers" value="4" role="option" selected />
-                    </div>,
-                );
-
-                expect(screen.getByRole("option")).toHaveAttribute("aria-selected", "true");
-            });
         });
     });
 
@@ -394,58 +358,6 @@ describe("DataRow", () => {
             expect(onClick.mock.calls[0][1]).toEqual({ source: "keyboard" });
         });
 
-        it("reports a double click, with the clicks that made it", async () => {
-            const onClick = vi.fn();
-            const onDoubleClick = vi.fn();
-            const user = userEvent.setup();
-            renderRow(<DataRow name="Force directed" onClick={onClick} onDoubleClick={onDoubleClick} />);
-
-            await user.dblClick(screen.getByRole("button"));
-
-            expect(onDoubleClick).toHaveBeenCalledTimes(1);
-            expect(onClick).toHaveBeenCalledTimes(2);
-        });
-
-        it("reports a double click on an inert row as well", async () => {
-            const onDoubleClick = vi.fn();
-            const user = userEvent.setup();
-            renderRow(<DataRow name="Force directed" onDoubleClick={onDoubleClick} />);
-
-            await user.dblClick(screen.getByTestId("data-row"));
-
-            expect(onDoubleClick).toHaveBeenCalledTimes(1);
-        });
-
-        it("reports a right click anywhere along the row", async () => {
-            const onContextMenu = vi.fn();
-            const user = userEvent.setup();
-            renderRow(
-                <DataRow
-                    name="Force directed"
-                    onClick={vi.fn()}
-                    onContextMenu={onContextMenu}
-                    trailing={<AdvancedButton label="Force directed options" onClick={vi.fn()} />}
-                />,
-            );
-
-            await user.pointer({ keys: "[MouseRight]", target: screen.getByTestId("data-row") });
-            await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("button", { name: /options/ }) });
-
-            expect(onContextMenu).toHaveBeenCalledTimes(2);
-        });
-
-        it("catches the menu the keyboard raises on the focused body", () => {
-            const onContextMenu = vi.fn();
-            renderRow(<DataRow name="Force directed" onClick={vi.fn()} onContextMenu={onContextMenu} />);
-
-            // The context-menu key and Shift+F10 fire on whatever holds focus,
-            // which is the row's own button; the handler sits on the row so it
-            // catches the event on its way up.
-            fireEvent.contextMenu(screen.getByRole("button"));
-
-            expect(onContextMenu).toHaveBeenCalledTimes(1);
-        });
-
         it("forwards focus and blur rather than swallowing them", async () => {
             const onFocus = vi.fn();
             const onBlur = vi.fn();
@@ -457,34 +369,6 @@ describe("DataRow", () => {
 
             await user.tab();
             expect(onBlur).toHaveBeenCalledTimes(1);
-        });
-
-        it("forwards focus and blur from an inert row that was made focusable", async () => {
-            const onFocus = vi.fn();
-            const user = userEvent.setup();
-            renderRow(<DataRow name="Chonky_Boy" tabIndex={0} onFocus={onFocus} />);
-
-            await user.tab();
-
-            expect(screen.getByTestId("data-row-body")).toHaveFocus();
-            expect(onFocus).toHaveBeenCalledTimes(1);
-        });
-
-        it("takes itself out of the tab order when the list manages focus", async () => {
-            const user = userEvent.setup();
-            renderRow(
-                <div role="listbox" aria-label="Cats">
-                    <DataRow name="Mr_Whiskers" role="option" tabIndex={-1} onClick={vi.fn()} />
-                    <DataRow name="Mrs_Henderson" role="option" tabIndex={0} selected onClick={vi.fn()} />
-                </div>,
-            );
-
-            await user.tab();
-
-            // A roving tab stop: Tab enters the list once and the arrow keys,
-            // which belong to the listbox the consumer wrapped these in, move
-            // between the rows.
-            expect(screen.getByRole("option", { name: /Mrs_Henderson/ })).toHaveFocus();
         });
     });
 

@@ -3,8 +3,8 @@ import React, { useId } from "react";
 // Why this module exists, and what it repairs.
 //
 // Every control in this library could be turned off -- `disabled` has been on
-// StyleSelect, StyleNumberInput, CompactColorInput, ToggleRow,
-// ToggleWithContent and IconGroupRow since they were written -- but not one of
+// StyleSelect, StyleNumberInput, CompactColorInput, ToggleRow and
+// ToggleWithContent since they were written -- but not one of
 // them could say WHY it was off. A control that is dimmed and silent is the
 // defect the shell kept hitting: the reader sees a "Show legend" toggle they
 // cannot press and has no way at all to learn that nothing is encoded yet, so
@@ -16,7 +16,7 @@ import React, { useId } from "react";
 // one reason appended to its own title after a full stop (floor item 4)" -- and
 // the shell already writes exactly that shape by hand in two places ("Export.
 // Load data first", "Note. Select something first"). This module is that shape
-// written once, so the six controls spell it identically instead of six call
+// written once, so the five controls spell it identically instead of five call
 // sites each inventing their own punctuation.
 //
 // Worse than silence, ToggleRow used to make the sentence IMPOSSIBLE to write

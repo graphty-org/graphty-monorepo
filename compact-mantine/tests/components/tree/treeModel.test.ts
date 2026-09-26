@@ -4,6 +4,8 @@ import {
     computeDrop,
     flattenTree,
     iconOffset,
+    moveTreeItem,
+    renameTreeItem,
     rowTints,
     type TreeNodeData,
 } from "../../../src/components/tree/treeModel";
@@ -147,5 +149,46 @@ describe("computeDrop", () => {
 describe("iconOffset", () => {
     it("puts the top-level glyph at 16 and indents 24 per level (Figma x 73, 97, 121 in a panel at 57)", () => {
         expect([1, 2, 3].map(iconOffset)).toEqual([16, 40, 64]);
+    });
+});
+
+describe("moveTreeItem and renameTreeItem", () => {
+    const shape = (items: readonly TreeNodeData[]): unknown[] =>
+        items.map((n) => (n.children ? [n.id, shape(n.children)] : n.id));
+
+    it("reorders at the top level, counting the index with the item removed", () => {
+        expect(shape(moveTreeItem(ITEMS, { id: "leaf", parentId: null, index: 0 }))).toEqual([
+            "leaf",
+            ["frame", ["rect", ["group", ["text", "vector"]]]],
+            ["other", []],
+        ]);
+    });
+
+    it("moves an item into a nested parent and out of its old one", () => {
+        expect(shape(moveTreeItem(ITEMS, { id: "text", parentId: "frame", index: 0 }))).toEqual([
+            ["frame", ["text", "rect", ["group", ["vector"]]]],
+            ["other", []],
+            "leaf",
+        ]);
+    });
+
+    it("moves into a parent that has no children array yet, and keeps other fields", () => {
+        const flat = [
+            { id: "a", name: "A", extra: 1 },
+            { id: "b", name: "B", extra: 2 },
+        ];
+        expect(moveTreeItem(flat, { id: "a", parentId: "b", index: 0 })).toEqual([
+            { id: "b", name: "B", extra: 2, children: [{ id: "a", name: "A", extra: 1 }] },
+        ]);
+    });
+
+    it("returns the list unchanged for an unknown id", () => {
+        expect(moveTreeItem(ITEMS, { id: "nope", parentId: null, index: 0 })).toEqual(ITEMS);
+    });
+
+    it("renames at any depth and leaves the input alone", () => {
+        const renamed = renameTreeItem(ITEMS, "vector", "Arrow");
+        expect(renamed[0].children?.[1].children?.[1].name).toBe("Arrow");
+        expect(ITEMS[0].children?.[1].children?.[1].name).not.toBe("Arrow");
     });
 });

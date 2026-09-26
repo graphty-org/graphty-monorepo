@@ -110,10 +110,7 @@ export interface StyleNumberInputProps {
      * instead of announcing an unexplained unavailable control.
      *
      * Write it as a whole sentence naming what would make the control usable
-     * again. THE DEFECT THIS REPAIRS: a disabled control here used to be dimmed
-     * and silent, so a reader who could not type into it had no route at all to
-     * learning why -- spec:6641 asks for the reason to travel with the ink, and
-     * until now this component had nowhere to put it.
+     * again.
      */
     disabledReason?: string;
     /** Called when the control takes focus. Forwarded unchanged. */

@@ -153,12 +153,9 @@ export interface ToggleRowProps {
      * control's accessible description, so the reason reaches a pointer user
      * and a screen reader user alike.
      *
-     * THE DEFECT THIS REPAIRS, and it was the sharper half of the two: this row
-     * used to hardcode its tooltip as `wrapperProps = {title: label}`, so a
-     * call site could not append a reason even by hand. A disabled toggle was
-     * therefore dimmed and permanently unexplained, which is what spec:6641
-     * forbids. The caller supplies the sentence; the library never invents one,
-     * because only the call site knows what would turn the control back on.
+     * Write it as a whole sentence naming what would make the toggle usable.
+     * The library never invents one: only the caller knows what would turn the
+     * control back on.
      */
     disabledReason?: string;
     /**
@@ -168,10 +165,7 @@ export interface ToggleRowProps {
      * The row draws a filled attribute glyph beside its word -- the same filled
      * glyph `PanelField` uses to say the same thing -- so a panel can say "this
      * follows the data" without spending a row on a fixed-or-by-attribute
-     * switch. A boolean channel can be bound just as a numeric one can, and
-     * until now `PanelField` was the only control in the library able to say
-     * so, which is why a bound boolean had to be drawn as a number field or not
-     * drawn at all.
+     * switch.
      * @default false
      */
     bound?: boolean;

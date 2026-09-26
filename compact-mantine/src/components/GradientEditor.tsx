@@ -8,14 +8,16 @@ import { useLabels, useNumberFormatter, useNumberParser } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ColorStop } from "../types";
 import { createColorStop, createDefaultGradientStops } from "../utils/color-stops";
-import { mixHex } from "../utils/color-utils";
+import { mixHex, normalizeHexa } from "../utils/color-utils";
+import { Chit } from "./color/Chit";
+import { ColorPickerPanel } from "./color/ColorPickerPanel";
 import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
-import { CompactColorInput } from "./CompactColorInput";
 
 // Figma's gradient editor (design/figma-spec.md 7.5, measured on
 // popovers-and-menus/color-picker-gradient-existing): a direction row, 24px square stop handles
-// over a 32-tall gradient bar, a "Stops" header with "+", and one 32-tall row per stop (position,
-// colour, minus). The look lives in src/theme/css/color.css.ts.
+// over a 32-tall gradient bar, the colour picker for the selected stop, a "Stops" header with
+// "+", and one 32-tall row per stop (position, chit and hex, minus). The look lives in
+// src/theme/css/color.css.ts.
 //
 // Accessibility: each handle is an APG "Slider" (role=slider, arrows 1%, Shift 10%, Home / End,
 // Delete / Backspace removes); the stops sit in a group named by the "Stops" heading; the angle
@@ -171,6 +173,73 @@ function UnitField({
     );
 }
 
+/** Props for the internal StopHexField. */
+interface StopHexFieldProps {
+    color: string;
+    onCommit: (color: string, event: React.SyntheticEvent) => void;
+    ariaLabel: string;
+}
+
+/**
+ * A stop's hex box: typing commits on Enter or blur (three or six hex digits, otherwise it
+ * redraws), Escape reverts.
+ * @param props - Component props
+ * @param props.color - the stop's colour, `#RRGGBB`
+ * @param props.onCommit - called with the typed colour, `#RRGGBB` upper case, once it differs
+ * @param props.ariaLabel - the accessible name
+ * @returns the field
+ */
+function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.JSX.Element {
+    const shown = color.replace("#", "").toUpperCase();
+    const [draft, setDraft] = useState(shown);
+
+    useEffect(() => {
+        setDraft(shown);
+    }, [shown]);
+
+    const commit = (event: React.SyntheticEvent): void => {
+        const digits = draft.trim().replace("#", "");
+        const candidate = digits.length === 3 || digits.length === 6 ? normalizeHexa(digits)?.slice(0, 7) : undefined;
+        if (candidate === undefined || candidate === `#${shown}`) {
+            setDraft(shown);
+            return;
+        }
+        onCommit(candidate, event);
+    };
+
+    return (
+        <input
+            className="cm-paint-input cm-paint-hex"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={ariaLabel}
+            data-testid="gradient-editor-stop-hex"
+            value={draft}
+            onChange={(event) => {
+                setDraft(event.currentTarget.value.toUpperCase());
+            }}
+            onFocus={(event) => {
+                event.currentTarget.select();
+            }}
+            onBlur={(event) => {
+                if (!isLeavingWithoutCommit(event)) {
+                    commit(event);
+                }
+            }}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commit(event);
+                } else if (event.key === "Escape") {
+                    leaveWithoutCommit(event, () => {
+                        setDraft(shown);
+                    });
+                }
+            }}
+        />
+    );
+}
+
 /**
  * Props for the GradientEditor component.
  */
@@ -300,17 +369,21 @@ function RotateShapeGlyph(): React.JSX.Element {
 
 /**
  * An editor for a multi-stop linear gradient, laid out as Figma's: square stop handles over a
- * gradient bar, a "Stops" list of rows (position, colour, remove), and an optional direction row
- * (the angle, flip and rotate).
+ * gradient bar, a colour picker (ColorPickerPanel, without opacity) for the selected stop, a
+ * "Stops" list of rows (position, chit and hex, remove), and an optional direction row (the
+ * angle, flip and rotate).
+ *
+ * One stop is selected at a time: its handle, its row's chit, or focus entering its row selects
+ * it, and the picker edits its colour. The row's hex box edits it too. Nothing opens a pop-out.
  *
  * Drag a handle to move its stop, click the bar to add a stop there (its colour mixed from its
  * neighbours), and use the arrow keys on a focused handle to nudge it (Shift for 10%), Home /
  * End to send it to an end, and Delete or Backspace to remove it. The list is bounded by
  * `minStops` and `maxStops`; at either bound the button that would cross it is disabled.
  *
- * A drag reports `onChangeStart` once, `onChange` on every step and `onChangeEnd` once, so a
- * consumer can wrap the whole drag in one undo entry. A keyboard step or a typed commit is one
- * complete gesture of its own.
+ * A drag -- of a handle, or in the picker -- reports `onChangeStart` once, `onChange` on every
+ * step and `onChangeEnd` once, so a consumer can wrap the whole drag in one undo entry. A
+ * keyboard step or a typed commit is one complete gesture of its own.
  *
  * Every stop carries an `id`, which keeps the right controls attached to the right stop as stops
  * are added, removed and reordered. Build stops with `createColorStop`.
@@ -391,6 +464,8 @@ export function GradientEditor({
     latest.current = stopsValue;
     const areaRef = useRef<HTMLDivElement>(null);
     const drag = useRef<{ index: number; pointerId: number } | null>(null);
+    // Whether a picker gesture has reported its start and not yet its end.
+    const picking = useRef(false);
     // The handle to focus once a keyboard delete has rendered: the one that took the removed
     // stop's place, or the new last one. Without it focus falls to the page body.
     const refocus = useRef<number | null>(null);
@@ -550,6 +625,38 @@ export function GradientEditor({
         }
     };
 
+    /**
+     * The stops with one stop recoloured.
+     * @param id - which stop
+     * @param color - the new colour
+     * @returns a new array of stops
+     */
+    const withStopColor = (id: string, color: string): ColorStop[] =>
+        latest.current.map((stop) => (stop.id === id ? { ...stop, color } : stop));
+
+    // The picker reports every step of a drag and then settles, so its steps open one gesture
+    // and its settle closes it, as a handle drag does.
+    const pickColor = (color: string): void => {
+        if (selected === undefined) {
+            return;
+        }
+        if (!picking.current) {
+            picking.current = true;
+            onChangeStart?.();
+        }
+        const next = withStopColor(selected.id, color);
+        latest.current = next;
+        setStops(next);
+    };
+
+    const pickColorEnd = (): void => {
+        if (!picking.current) {
+            return;
+        }
+        picking.current = false;
+        onChangeEnd?.(latest.current, directionValue);
+    };
+
     const flip = (event: React.MouseEvent<HTMLButtonElement>): void => {
         const flipped = stopsValue.map((stop) => ({ ...stop, offset: 1 - stop.offset })).reverse();
         setStops(flipped, event);
@@ -669,6 +776,15 @@ export function GradientEditor({
                     />
                 </div>
 
+                {selected !== undefined && (
+                    <ColorPickerPanel
+                        value={selected.color}
+                        withAlpha={false}
+                        onChange={pickColor}
+                        onChangeEnd={pickColorEnd}
+                    />
+                )}
+
                 <div className="cm-gradient-header">
                     <span id={stopsHeadingId} data-testid="gradient-editor-heading">
                         {labels.colorStops}
@@ -688,13 +804,14 @@ export function GradientEditor({
                 <div className="cm-gradient-stops" data-testid="gradient-editor-stops">
                     {stopsValue.map((stop, index) => {
                         const ordinal = formatNumber.format(index + 1);
+                        const isSelected = stop.id === selected?.id;
 
                         return (
                             <div
                                 key={stop.id}
                                 className="cm-gradient-row cm-gradient-stop"
                                 data-testid="gradient-editor-stop"
-                                data-selected={stop.id === selected?.id || undefined}
+                                data-selected={isSelected || undefined}
                                 onPointerDown={() => {
                                     setSelectedId(stop.id);
                                 }}
@@ -713,22 +830,24 @@ export function GradientEditor({
                                         stepStops(withStopOffset(index, position), event);
                                     }}
                                 />
-                                <div className="cm-gradient-color">
-                                    <CompactColorInput
+                                <div className="cm-paint-field cm-gradient-color">
+                                    <button
+                                        type="button"
+                                        className="cm-paint-chit"
+                                        data-testid="gradient-editor-stop-chit"
+                                        aria-label={labels.colorSwatch}
+                                        aria-pressed={isSelected}
+                                        onClick={() => {
+                                            setSelectedId(stop.id);
+                                        }}
+                                    >
+                                        <Chit color={stop.color} variant="field" />
+                                    </button>
+                                    <StopHexField
                                         color={stop.color}
-                                        defaultColor={DEFAULT_GRADIENT_STOP_COLOR}
-                                        showOpacity={false}
-                                        showReset={false}
-                                        width="100%"
-                                        onColorChange={(color, event) => {
-                                            setStops(
-                                                stopsValue.map((s, i) =>
-                                                    i === index
-                                                        ? { ...s, color: color ?? DEFAULT_GRADIENT_STOP_COLOR }
-                                                        : s,
-                                                ),
-                                                event,
-                                            );
+                                        ariaLabel={labels.colorHexValue}
+                                        onCommit={(color, event) => {
+                                            stepStops(withStopColor(stop.id, color), event);
                                         }}
                                     />
                                 </div>

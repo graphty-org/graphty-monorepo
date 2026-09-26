@@ -483,6 +483,144 @@ describe("GradientEditor", () => {
         });
     });
 
+    // One picker, under the bar, edits the selected stop; the stop rows open no pop-out.
+    describe("the selected stop's colour picker", () => {
+        it("draws one picker, with no paint-type bar and no opacity, showing the first stop", () => {
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
+
+            expect(screen.getAllByTestId("color-picker-panel")).toHaveLength(1);
+            expect(screen.queryByText("Solid")).not.toBeInTheDocument();
+            expect(screen.queryByRole("slider", { name: "Opacity" })).not.toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("FF0000");
+        });
+
+        it("a row's chit selects its stop, pressed, and the picker follows it", async () => {
+            const user = userEvent.setup();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
+
+            const chits = screen.getAllByRole("button", { name: "Color swatch" });
+            expect(chits[0]).toHaveAttribute("aria-pressed", "true");
+            expect(chits[1]).toHaveAttribute("aria-pressed", "false");
+
+            await user.click(chits[1]);
+
+            expect(chits[1]).toHaveAttribute("aria-pressed", "true");
+            expect(chits[0]).toHaveAttribute("aria-pressed", "false");
+            expect(chits[1]).not.toHaveAttribute("aria-expanded");
+            expect(screen.getAllByTestId("color-picker-panel")).toHaveLength(1);
+            expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("0000FF");
+        });
+
+        it("a colour typed into the picker writes the selected stop as one complete gesture", async () => {
+            const user = userEvent.setup();
+            const order: string[] = [];
+            const onChange = vi.fn(() => order.push("change"));
+            const onChangeEnd = vi.fn(() => order.push("end"));
+            renderGradientEditor(
+                <GradientEditor
+                    defaultStops={defaultStops}
+                    onChangeStart={() => order.push("start")}
+                    onChange={onChange}
+                    onChangeEnd={onChangeEnd}
+                />,
+            );
+
+            await user.click(screen.getAllByRole("button", { name: "Color swatch" })[1]);
+            const value = screen.getByRole("textbox", { name: "Color value" });
+            await user.clear(value);
+            await user.type(value, "00FF00{Enter}");
+
+            expect(order).toEqual(["start", "change", "end"]);
+            const [settled] = onChangeEnd.mock.calls[0] as unknown as [{ color: string }[]];
+            expect(settled.map((stop) => stop.color)).toEqual(["#FF0000", "#00FF00"]);
+        });
+
+        it("each arrow step in the picker's field is one start, change and end", async () => {
+            const user = userEvent.setup();
+            const onChangeStart = vi.fn();
+            const onChange = vi.fn();
+            const onChangeEnd = vi.fn();
+            renderGradientEditor(
+                <GradientEditor
+                    defaultStops={[createColorStop(0, "#808080"), createColorStop(1, "#0000FF")]}
+                    onChangeStart={onChangeStart}
+                    onChange={onChange}
+                    onChangeEnd={onChangeEnd}
+                />,
+            );
+
+            screen.getByRole("slider", { name: "Saturation and brightness" }).focus();
+            await user.keyboard("{ArrowRight}{ArrowRight}");
+
+            expect(onChangeStart).toHaveBeenCalledTimes(2);
+            expect(onChange).toHaveBeenCalledTimes(2);
+            expect(onChangeEnd).toHaveBeenCalledTimes(2);
+            expect(onChangeEnd.mock.calls[1][0][0].color).not.toBe("#808080");
+        });
+
+        it("the hex field commits on Enter as one complete gesture", async () => {
+            const user = userEvent.setup();
+            const order: string[] = [];
+            const onChange = vi.fn(() => order.push("change"));
+            renderGradientEditor(
+                <GradientEditor
+                    defaultStops={defaultStops}
+                    onChangeStart={() => order.push("start")}
+                    onChange={onChange}
+                    onChangeEnd={() => order.push("end")}
+                />,
+            );
+
+            const hex = screen.getAllByRole("textbox", { name: /color hex/i })[1];
+            await user.clear(hex);
+            await user.type(hex, "0f0{Enter}");
+
+            expect(order).toEqual(["start", "change", "end"]);
+            expect(onChange.mock.calls[0][0][1].color).toBe("#00FF00");
+            expect(hex).toHaveValue("00FF00");
+        });
+
+        it("the hex field commits on blur and ignores text that is not a colour", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
+
+            const hex = screen.getAllByRole("textbox", { name: /color hex/i })[0];
+            await user.clear(hex);
+            await user.type(hex, "nope");
+            await user.tab();
+            expect(onChange).not.toHaveBeenCalled();
+            expect(hex).toHaveValue("FF0000");
+
+            await user.clear(hex);
+            await user.type(hex, "123456");
+            await user.tab();
+            expect(onChange.mock.calls[0][0][0].color).toBe("#123456");
+        });
+
+        it("Escape in the hex field reverts it and commits nothing", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
+
+            const hex = screen.getAllByRole("textbox", { name: /color hex/i })[0];
+            await user.clear(hex);
+            await user.type(hex, "00FF00{Escape}");
+
+            expect(hex).toHaveValue("FF0000");
+            expect(onChange).not.toHaveBeenCalled();
+        });
+
+        it("focus entering a row selects its stop for the picker", () => {
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
+
+            fireEvent.focus(screen.getAllByRole("textbox", { name: /color hex/i })[1]);
+
+            expect(screen.getAllByTestId("gradient-editor-stop")[1]).toHaveAttribute("data-selected");
+            expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("0000FF");
+        });
+    });
+
     describe("stop count bounds", () => {
         it("honours a maxStops lower than the default", () => {
             const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];

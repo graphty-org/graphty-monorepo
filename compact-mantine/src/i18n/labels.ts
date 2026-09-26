@@ -11,9 +11,9 @@
 //   - a doc comment naming the component and the element it appears on, because
 //     that is the context a translator needs and cannot get from the key.
 //
-// Developer diagnostics are deliberately absent. The seven components that
+// Developer diagnostics are deliberately absent. The six components that
 // report a mistake -- ControlSection, ActionRow, CompoundRow, FieldRow,
-// IconGroupRow, ProseBlock and ToggleRowGroup -- all go through useDevWarning
+// ProseBlock and ToggleRowGroup -- all go through useDevWarning
 // in src/utils/dev-warning.ts, which is gated on NODE_ENV. Those messages are
 // never seen by an end user, and staying in one language is what makes them
 // findable in the source from a pasted console line.

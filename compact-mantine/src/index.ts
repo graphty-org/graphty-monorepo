@@ -50,7 +50,16 @@ export { ResizeHandle } from "./components/chrome/ResizeHandle";
 export { ColorPickerPanel } from "./components/color/ColorPickerPanel";
 
 // Tree and lists: the layer tree, the page list, inline rename and the find result row (10).
-export { InlineRename, PageList, PageRow, ResultRow, Tree, TreeItem } from "./components/tree";
+export {
+    InlineRename,
+    moveTreeItem,
+    PageList,
+    PageRow,
+    renameTreeItem,
+    ResultRow,
+    Tree,
+    TreeItem,
+} from "./components/tree";
 
 // Editor shell exports: the floating toolbar and its tools, the contextual bar, the navigation
 // rail, the help button, the keyboard shortcuts sheet and the quick actions palette.
@@ -76,7 +85,6 @@ export {
     DataRowHeader,
     FieldRow,
     HistogramRow,
-    IconGroupRow,
     MetricRow,
     PanelField,
     ProseBlock,
@@ -171,7 +179,6 @@ export type {
     ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
-    DataRowRole,
     DataRowSortDirection,
     DataTableAlign,
     DataTableColumn,
@@ -196,8 +203,6 @@ export type {
     GradientEditorProps,
     HistogramBin,
     HistogramRowProps,
-    IconGroupOption,
-    IconGroupRowProps,
     InfoCircleProps,
     LabelsProviderProps,
     LiveSetting,

@@ -69,6 +69,18 @@ describe("ComboInput", () => {
         expect(box).toHaveAttribute("aria-expanded", "false");
     });
 
+    it("an arrow pressed before the open frame moves from the current value", async () => {
+        // Hold back the frame in which the list highlights the current value, as a fast
+        // keyboard user (or a test) outruns it.
+        const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+        const onChange = vi.fn();
+        renderCombo(<ComboInput label="Font size" defaultValue="12" options={SIZES} onChange={onChange} />);
+        await userEvent.click(screen.getByRole("combobox"));
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}{ArrowDown}{Enter}");
+        raf.mockRestore();
+        expect(onChange).toHaveBeenCalledWith("24", undefined);
+    });
+
     it("picking an option commits it", async () => {
         const onChange = vi.fn();
         renderCombo(<ComboInput label="Font size" defaultValue="12" options={SIZES} onChange={onChange} />);

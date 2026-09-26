@@ -3,7 +3,9 @@
 This release redraws every compact-mantine component to match the Figma editor's own UI,
 measured property by property from captures of Figma in light and dark. compact-mantine is
 0.x, so the visual changes and the handful of behaviour changes below ship in a minor release.
-Every existing export keeps its name and its props; the restyles land inside them.
+The restyles land inside the existing components, but a few exports and props are removed;
+they are listed, with their migrations, under "Breaking changes in 0.9.0: removed exports and
+props" below.
 
 ## What changed visually
 
@@ -41,6 +43,7 @@ Every existing export keeps its name and its props; the restyles land inside the
 | `Toast`, `ToastProvider`, `useToast`                             | Figma's dark toast and the queue that shows it                                                                             |
 | `ResizeHandle`                                                   | The panel edge resize handle (role separator)                                                                              |
 | `Tree`, `TreeItem`                                               | The layer tree, a real ARIA tree with roving focus, arrow keys and F2 rename                                               |
+| `moveTreeItem`, `renameTreeItem`                                 | Apply the move `Tree`'s `onMove` reports, or the rename `onRename` reports, to your own item list                          |
 | `PageList`, `PageRow`, `InlineRename`, `ResultRow`               | The page list, inline rename, and a find result row                                                                        |
 | `Toolbar`, `ToolButton`, `ToolGroup`, `SecondaryToolbar`         | The floating toolbar, its tools and flyout, and the contextual bar                                                         |
 | `NavRail`, `RailButton`, `HelpButton`                            | The navigation rail and the floating help button                                                                           |
@@ -277,3 +280,84 @@ These remain after the release; the comparison gallery lists them per component.
 - In dark, a disabled plain slider's thumb nearly disappears (Figma has no capture to settle it).
 - `RampRow`, the chart rows, `ProseBlock`, `RankChip`, `DataTable`, `InfoCircle` and the
   in-panel `ControlSubGroup` have no Figma counterpart and are restyled on the Figma tokens.
+
+## Breaking changes in 0.9.0: removed exports and props
+
+These change the public API, so code that uses them stops compiling.
+
+### `IconGroupRow` is removed
+
+`IconGroupRow`, `IconGroupRowProps` and `IconGroupOption` are no longer exported. The row was a
+layout wrapper around the themed Mantine `SegmentedControl`, which already draws the panel look,
+so nothing is lost by using `SegmentedControl` directly. Put a 14px glyph and a visually hidden
+word in each option, and the row's trailing control in a `TrailingSlot`:
+
+```tsx
+import { SegmentedControl, VisuallyHidden } from "@mantine/core";
+import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot } from "@graphty/compact-mantine";
+
+<ControlSection label="Shape">
+    <div style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP, height: PANEL_GRID.ROW_PITCH }}>
+        <SegmentedControl
+            fullWidth
+            aria-label="Node shape"
+            value={shape}
+            onChange={setShape}
+            data={[
+                { value: "sphere", label: <><SphereGlyph /><VisuallyHidden>Sphere</VisuallyHidden></> },
+                { value: "box", label: <><BoxGlyph /><VisuallyHidden>Box</VisuallyHidden></> },
+            ]}
+            style={{ flex: "1 1 auto", minWidth: 0 }}
+        />
+        <TrailingSlot>
+            <AdvancedButton label="Shape options" onClick={openOptions} />
+        </TrailingSlot>
+    </div>
+</ControlSection>
+```
+
+`disabledReason` has no `SegmentedControl` equivalent: give the control a `title` of the form
+"Node shape. Load data first" yourself. The development warnings for fewer than two or more than
+six options are gone with the row.
+
+### `DataRow` keeps only data rows
+
+`DataRow` is for readings -- statistics, facts, rankings -- and keeps `name`, `value`, `icon`,
+`selected`, `onClick`, `onFocus`, `onBlur` and `trailing`. The props that existed only for lists
+of objects are removed:
+
+- `role` and the `DataRowRole` type export (the `role="option"` listbox mode). A selected
+  `DataRow` is always reported as `aria-current`.
+- `tabIndex` (roving focus inside a listbox). A row with `onClick` is in the tab order; a row
+  without one is inert text and takes no focus.
+- `onDoubleClick` (open or rename) and `onContextMenu`.
+
+Migration: a list the reader selects, renames or reorders is a `Tree` (nested, or flat when no
+item has `children`) or a `PageList` (flat pages with dividers). Both have roving focus,
+multiple selection, F2 and double-click rename and a context menu of their own. A find result is
+a `ResultRow`.
+
+### Behaviour changes
+
+- `GradientEditor`: stop colours are edited in the editor's own `ColorPickerPanel`, under the
+  gradient bar, which edits the selected stop. Selecting a stop -- its handle, its row's chit, or
+  focus entering its row -- points the picker at it. The stop rows keep a chit and a hex field and
+  no longer open a pop-out picker. Public props do not change.
+- `Tree`: while `onMove` is given, Alt+ArrowUp and Alt+ArrowDown move the focused item one place
+  among its siblings, reported through `onMove` exactly as a drop is, and focus follows the item.
+  Nothing happens at either end of the sibling list, and an item never leaves its parent this
+  way. Without `onMove`, Alt+Arrow keys move focus as the plain arrows do. Additive.
+- `ComboInput`: an arrow key pressed while the list is opening, before the current value is
+  highlighted, now moves from the current value instead of from the top of the list.
+
+### The graphty app's style layer list is a flat `Tree`
+
+Not a change to any compact-mantine export; recorded here as the worked migration. The graphty
+app's style layer list (`graphty/src/components/shell/panel/StyleLayerList.tsx`) is a flat
+`Tree` over the layers, topmost first: `label="Style layers"`, `renameLabel="Layer name"`,
+`multiselect={false}`, no item has `children` so a drop only reorders. `onRename` refuses an
+empty or whitespace name and applies the rest with `renameTreeItem`; `onMove` applies the move
+to the reversed list with `moveTreeItem` and hands it back in graphty-element's bottom-first
+order. Drag and Alt+ArrowUp / Alt+ArrowDown both reorder. The
+hand-built dnd-kit list it replaces (`LeftSidebar`) is deleted, and `@dnd-kit/core`,
+`@dnd-kit/sortable` and `@dnd-kit/utilities` are no longer dependencies of the app.

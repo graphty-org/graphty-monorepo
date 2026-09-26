@@ -3,9 +3,9 @@
  *
  * The panel grid identity is `16 + 88 + 8 + 88 + 8 + 24 + 8 = 240`, which
  * puts the trailing slot at x 208..232 of a 240px panel. A row type that spends
- * a different body width -- an 88px icon group track, an 88px compound box, a
- * checkbox and one word -- must still land its slot there, or a column of rows
- * has a ragged right edge and the empty slots stop holding the grid.
+ * a different body width -- an 88px compound box, a checkbox and one word --
+ * must still land its slot there, or a column of rows has a ragged right edge
+ * and the empty slots stop holding the grid.
  *
  * JSDOM has no layout engine, so this measurement can only be made in a real
  * browser: every assertion here is a `getBoundingClientRect` inside a 240px
@@ -22,22 +22,13 @@ import { HistogramRow, SparklineRow } from "../../../src/components/rows/ChartRo
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
 import { DataRow } from "../../../src/components/rows/DataRow";
 import { FieldRow } from "../../../src/components/rows/FieldRow";
-import { IconGroupRow } from "../../../src/components/rows/IconGroupRow";
 import { PanelField } from "../../../src/components/rows/PanelField";
 import { RampRow } from "../../../src/components/rows/RampRow";
 import { ToggleRow } from "../../../src/components/rows/ToggleRow";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
-import { FieldGlyph } from "../../../src/icons";
 
 /** Where the trailing slot begins: 240 less the 8px right pad and the 24px slot. */
 const SLOT_X = PANEL_GRID.WIDTH - PANEL_GRID.PAD_RIGHT - PANEL_GRID.TRAIL;
-
-/** The three drawable shapes every artboard uses for an icon group. */
-const SHAPES = [
-    { value: "box", label: "Box", icon: <FieldGlyph name="width" /> },
-    { value: "sphere", label: "Sphere", icon: <FieldGlyph name="opacity" /> },
-    { value: "disc", label: "Disc", icon: <FieldGlyph name="attribute" /> },
-];
 
 /**
  * Render one row where the panel puts it: inside a section, inside 240px.
@@ -102,24 +93,6 @@ describe("the trailing slot", () => {
 
     it("is 24px at x 208 on a toggle row, whose body is one word", () => {
         renderInPanel(<ToggleRow label="Labels" trailing={advanced} />);
-
-        expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
-    });
-
-    it("is 24px at x 208 on an icon group row with an 88px track", () => {
-        renderInPanel(<IconGroupRow options={SHAPES} trailing={advanced} />);
-
-        expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
-    });
-
-    it("is 24px at x 208 on an icon group row with a 184px track", () => {
-        renderInPanel(<IconGroupRow options={SHAPES} width={PANEL_GRID.BODY} trailing={advanced} />);
-
-        expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
-    });
-
-    it("is 24px at x 208 on an icon group row that fills the body", () => {
-        renderInPanel(<IconGroupRow options={SHAPES} width="fill" trailing={advanced} />);
 
         expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
     });

@@ -93,8 +93,6 @@ export type {
     FieldRowProps,
     HistogramBin,
     HistogramRowProps,
-    IconGroupOption,
-    IconGroupRowProps,
     MetricRowProps,
     PanelFieldProps,
     ProseBlockProps,
@@ -106,8 +104,8 @@ export type {
     TrailingSlotProps,
 } from "../components/rows";
 // Named from the modules themselves, because the rows barrel does not re-export
-// these three and a consumer cannot annotate a variable without them.
-export type { DataRowRole, DataRowSortDirection } from "../components/rows/DataRow";
+// these two and a consumer cannot annotate a variable without them.
+export type { DataRowSortDirection } from "../components/rows/DataRow";
 export type { PanelFieldKind } from "../components/rows/PanelField";
 
 // Inputs.

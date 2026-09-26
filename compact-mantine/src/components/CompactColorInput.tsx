@@ -86,17 +86,10 @@ export interface CompactColorInputProps {
      * already use them, but they cannot carry a gesture that moves both halves
      * at once.
      *
-     * THE DEFECT THIS REPAIRS, reproduced at runtime rather than reasoned
-     * about: dragging in the picker used to call `onColorChange` and then
-     * `onOpacityChange` back to back inside one React batch. A controlled
-     * consumer builds its next state out of the props it is holding -- the only
-     * snapshot it has -- and both callbacks run against the SAME pre-gesture
-     * snapshot, so the second one writes a state rebuilt from a colour the
-     * first one had already replaced. A test in this package
-     * (tests/components/CompactColorInput.test.tsx, "the two separate callbacks
-     * cannot carry one gesture") drives a picker swatch and watches the second
-     * write arrive as `{opacity: 50}` with the new colour gone. The application
-     * had already forked this whole component to escape it.
+     * Why: a picker gesture can move the colour and the opacity at once. With
+     * the two separate callbacks, both run against the same props, so a
+     * controlled consumer that rebuilds its state from those props in each one
+     * loses the colour when the opacity write lands second.
      *
      * Both halves are always passed, so a consumer never has to remember which
      * one moved -- the same shape `GradientEditor` already uses for its stops
@@ -150,10 +143,8 @@ export interface CompactColorInputProps {
      * box, so the reason reaches a pointer user and a screen reader user alike.
      * With no `label` to append to, the sentence stands on its own.
      *
-     * THE DEFECT THIS REPAIRS: a disabled colour control used to be dimmed and
-     * silent, so a reader who could not open the picker had no route at all to
-     * learning why -- spec:6641 asks for the one reason to travel with the
-     * disabled ink, and until now this component had nowhere to put it.
+     * Write it as a whole sentence naming what would make the control usable
+     * again.
      */
     disabledReason?: string;
     /** Called when the hex box or the opacity box takes focus. Forwarded unchanged. */

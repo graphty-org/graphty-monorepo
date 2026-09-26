@@ -10,12 +10,12 @@ import {
 import { ActionIcon, Box, Menu } from "@mantine/core";
 import React, { useState } from "react";
 
-import { type LayerItem, LeftSidebar } from "../../layout/LeftSidebar";
 import { RunLayoutsModal } from "../../RunLayoutsModal";
 import { keyChipFor } from "../bindings";
 import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
 import { MORE_LABEL, MoreGlyph } from "./PanelHeader";
 import { COMING_GROUP_SENTENCE, ComingTag, PanelSection, SectionAddButton } from "./PanelSection";
+import { type LayerItem, StyleLayerList } from "./StyleLayerList";
 
 /** The Arrangement section's plain name (StylePanel.dc.html:470). */
 const ARRANGEMENT_LABEL = "Arrangement";
@@ -148,13 +148,10 @@ export interface StylePanelProps {
  * layers list, the layout selector, the Styles library, and the canvas legend
  * switch.
  *
- * The layers list is the app's existing `LeftSidebar`, re-homed rather than
- * rewritten -- but only its list. The `Layers` header is a section header like
- * any other, so `PanelSection` draws it at RT-8's 32px with the register's
- * `Add a style layer` plus in its actions slot (StylePanel.dc.html:353-388),
- * and the sidebar is asked, with `embedded`, to contribute the RT-6 rows and
- * nothing else -- no header of its own and no second 16px band inside the
- * section's own 16 | content | 8.
+ * The layers list is a flat compact-mantine `Tree` ({@link StyleLayerList}). The
+ * `Layers` header is a section header like any other, so `PanelSection` draws it
+ * at RT-8's 32px with the register's `Add a style layer` plus in its actions slot
+ * (StylePanel.dc.html:353-388).
  *
  * Not here, by spec: the view mode control, which belongs to the canvas
  * toolbar, and per-layer encoding, which belongs to the inspector.
@@ -223,14 +220,11 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                         />
                     }
                 >
-                    <LeftSidebar
-                        embedded
+                    <StyleLayerList
                         layers={layers}
                         selectedLayerId={selectedLayerId}
                         onLayersChange={onLayersChange}
                         onLayerSelect={onLayerSelect}
-                        onAddLayer={onAddLayer}
-                        style={{ width: "100%", minWidth: 0, height: "auto" }}
                     />
                 </PanelSection>
             </Box>

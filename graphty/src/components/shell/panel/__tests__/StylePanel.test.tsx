@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
 import { fireEvent, render, screen } from "../../../../test/test-utils";
-import type { LayerItem } from "../../../layout/LeftSidebar";
 import { ShellProvider } from "../../ShellContext";
+import type { LayerItem } from "../StyleLayerList";
 import { StylePanel, type StylePanelProps } from "../StylePanel";
 
 const BUILT_INS = ["Default", "High contrast", "Print", "Colorblind safe", "Presentation"];

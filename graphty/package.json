@@ -30,9 +30,6 @@
     },
     "dependencies": {
         "@babylonjs/core": "^8.36.1",
-        "@dnd-kit/core": "^6.3.1",
-        "@dnd-kit/sortable": "^10.0.0",
-        "@dnd-kit/utilities": "^3.2.2",
         "@graphty/compact-mantine": "workspace:*",
         "@graphty/graphty-element": "workspace:*",
         "@graphty/webgpu-graph-algorithms": "workspace:*",

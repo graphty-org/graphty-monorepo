@@ -59,8 +59,8 @@ import type { AccelerationPolicy } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
 import { Graphty,type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
-import type { LayerItem } from "../../layout/LeftSidebar";
 import { CANVAS_TOOLBAR_Z_INDEX, type CanvasBottomStackState, INSIGHTS_STRIP_TOP, OVERLAY_INSET } from "../constants";
+import type { LayerItem } from "../panel/StyleLayerList";
 import { useShell } from "../ShellContext";
 import type { CanvasRegionProps } from "../types";
 import { CANVAS_SPACE, canvasBottomStack, type CanvasBottomStackLayout } from "./canvasLayout";

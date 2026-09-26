@@ -2789,7 +2789,8 @@ export class Graph implements GraphContext {
                 edge.update();
             }
 
-            // Zoom the camera to fit the graph, on the same box zoom-to-fit frames.
+            // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
+            // labels are framed by zoom-to-fit, on a data load or a layout change.
             const box = nodeFramingBox(this.getNodes());
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max);

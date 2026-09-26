@@ -15,10 +15,16 @@ import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 
+/** The corners of a box in world space. */
+export interface FramingBox {
+    min: Vector3;
+    max: Vector3;
+}
+
 /**
- * The box the camera is framed on: every visible node, where it is in world space, out to its size.
- * A function of node positions and sizes only, never of label text: a label plane's size depends on
- * its text, font and the machine's font metrics, so framing labels made editing one move the camera.
+ * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
+ * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
+ * grows this one by the labels.
  *
  * NO MARGIN on top. A fixed one is paid by every graph, labelled or not, and on a small graph it is
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
@@ -26,7 +32,7 @@ import type { StatsManager } from "./StatsManager";
  * @param nodes - The nodes to frame; hidden ones are skipped.
  * @returns The corners, or undefined when no node is visible.
  */
-export function nodeFramingBox(nodes: Iterable<Node>): { min: Vector3; max: Vector3 } | undefined {
+export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
 
@@ -57,6 +63,67 @@ export function nodeFramingBox(nodes: Iterable<Node>): { min: Vector3; max: Vect
     }
 
     return min && max ? { min, max } : undefined;
+}
+
+/**
+ * Grow a box to take in a label plane, wherever it is anchored.
+ *
+ * Measured from the plane's WORLD bounds rather than from its anchor, so a label above, below,
+ * beside or offset from its node -- every `location` and `attachOffset` the label style allows,
+ * in 2D and 3D -- counts for exactly the room it takes. Those bounds are only refreshed when the
+ * plane's world matrix is computed, and a node label is parented to the node it annotates, so
+ * without the forced compute the label would stretch the box to where it was drawn last frame
+ * rather than to where its node has just moved.
+ * @param box - The box to grow.
+ * @param labelMesh - The plane, or nothing.
+ */
+function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void {
+    if (!labelMesh) {
+        return;
+    }
+
+    labelMesh.computeWorldMatrix(true);
+
+    const { minimumWorld, maximumWorld } = labelMesh.getBoundingInfo().boundingBox;
+
+    for (const axis of ["x", "y", "z"] as const) {
+        box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
+        box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+    }
+}
+
+/**
+ * The box zoom-to-fit frames: {@link nodeFramingBox} grown by every label on a visible node and
+ * every label and arrow caption on a visible edge, so no label is cut off by the edge of the
+ * viewport. A label's size depends on its text and font, which is why framing runs on data loads
+ * and layout changes and NOT on label edits: see `Graph`, which asks for a framing only from
+ * those.
+ * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
+ * @param edges - The edges whose labels to frame; hidden ones are skipped.
+ * @returns The corners, or undefined when no node is visible.
+ */
+export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): FramingBox | undefined {
+    const box = nodeFramingBox(nodes);
+
+    if (!box) {
+        return undefined;
+    }
+
+    for (const node of nodes) {
+        if (node.getRenderState() === "visible") {
+            growForLabel(box, node.label?.labelMesh);
+        }
+    }
+
+    for (const edge of edges) {
+        if (edge.isRenderVisible()) {
+            growForLabel(box, edge.label?.labelMesh);
+            growForLabel(box, edge.arrowHeadText?.labelMesh);
+            growForLabel(box, edge.arrowTailText?.labelMesh);
+        }
+    }
+
+    return box;
 }
 
 /**
@@ -744,13 +811,11 @@ export class UpdateManager implements Manager {
 
             // Handle zoom to fit if requested
             if (this.willZoomToFit()) {
-                // Calculate bounding box and update nodes
-                const { boundingBoxMin, boundingBoxMax } = this.updateNodes(true);
-
+                this.updateNodes();
                 this.updateEdges();
 
                 // Handle zoom to fit
-                this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
+                this.applyZoomToFit(this.measure());
 
                 // Update statistics
                 this.updateStatistics();
@@ -769,13 +834,12 @@ export class UpdateManager implements Manager {
         const framing = this.willZoomToFit();
 
         // Update nodes and edges
-        const { boundingBoxMin, boundingBoxMax } = this.updateNodes(framing);
-
+        this.updateNodes();
         this.updateEdges();
 
         // Handle zoom to fit if needed
         if (framing) {
-            this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
+            this.applyZoomToFit(this.measure());
         }
 
         // Update statistics
@@ -879,12 +943,9 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Update all nodes, and measure the graph when the camera is about to be framed on it.
-     * @param measure - Whether this frame's bounding box will be used. False skips the
-     *     measurement entirely, which is most frames.
-     * @returns Object containing minimum and maximum bounding box vectors
+     * Update all nodes.
      */
-    private updateNodes(measure: boolean): { boundingBoxMin?: Vector3; boundingBoxMax?: Vector3 } {
+    private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
 
         for (const node of this.layoutManager.nodes) {
@@ -893,10 +954,15 @@ export class UpdateManager implements Manager {
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
+    }
 
-        const box = measure ? nodeFramingBox(this.layoutManager.nodes) : undefined;
-
-        return { boundingBoxMin: box?.min, boundingBoxMax: box?.max };
+    /**
+     * Measure the graph the camera is about to be framed on. Taken AFTER the nodes and edges have
+     * updated, so the labels are where this frame's positions put them.
+     * @returns The box, or undefined when nothing is visible.
+     */
+    private measure(): FramingBox | undefined {
+        return framingBox(this.layoutManager.nodes, this.layoutManager.edges);
     }
 
     /**
@@ -965,11 +1031,10 @@ export class UpdateManager implements Manager {
 
     /**
      * Frame the camera on a box {@link UpdateManager.willZoomToFit} has already approved.
-     * @param boundingBoxMin - Minimum bounds (optional)
-     * @param boundingBoxMax - Maximum bounds (optional)
+     * @param box - The box to frame, or undefined when there is nothing to frame.
      */
-    private applyZoomToFit(boundingBoxMin?: Vector3, boundingBoxMax?: Vector3): void {
-        if (!boundingBoxMin || !boundingBoxMax) {
+    private applyZoomToFit(box: FramingBox | undefined): void {
+        if (!box) {
             // Nothing to frame yet, so an outstanding request keeps waiting rather than being
             // spent on a graph with no visible nodes in it. It is still waiting for nodes and not
             // for the camera, which is what stops an empty graph reading as a moving one.
@@ -982,6 +1047,7 @@ export class UpdateManager implements Manager {
         // Update settled state for next frame
         this.wasSettled = isSettled;
 
+        const { min: boundingBoxMin, max: boundingBoxMax } = box;
         const size = boundingBoxMax.subtract(boundingBoxMin);
 
         if (size.length() <= this.config.minBoundingBoxSize) {

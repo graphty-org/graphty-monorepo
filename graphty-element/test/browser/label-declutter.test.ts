@@ -32,11 +32,9 @@ const EDGES = [
 /**
  * Three nodes so close that their labels land within a few pixels of each other.
  *
- * Looked at from an explicit camera, not from zoom-to-fit: the fit frames the nodes only (#76),
- * and these three span 1.6 world units while each label hangs 1.25 units above its node, so the
- * fitted camera (2.0 units out) leaves the top label above the top of the screen, where the pass
- * rightly ignores it. From 11 units out every label is in view; whether they overlap does not
- * depend on the distance, only on their being seen at all.
+ * Looked at from an explicit camera, not from zoom-to-fit: what is under test is which labels
+ * collide, and that depends only on their being seen at all, not on how far out the camera sits.
+ * A fixed view keeps the pixel gaps between the labels the same whatever the fit does.
  */
 const PILED = [
     { id: "hub", position: { x: 0, y: 0, z: 0 } },

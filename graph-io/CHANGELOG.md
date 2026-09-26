@@ -1,3 +1,9 @@
+## 0.3.3 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.5
+
 ## 0.3.2 (2026-09-25)
 
 ### 🩹 Fixes

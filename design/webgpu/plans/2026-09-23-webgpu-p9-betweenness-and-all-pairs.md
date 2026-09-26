@@ -1,5 +1,7 @@
 # @graphty/webgpu-graph-algorithms P9 -- betweenness centrality and all-pairs shortest paths Implementation Plan
 
+> **What changed after this was written (2026-09-26).** A measured cost model -- two independent models reconciled against every GPU row this repository has recorded -- classified each planned algorithm as earning the GPU, marginal, or not earning it, and set the node count above which graphty-element should route each one to the device (`design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`). Nothing in this plan is dropped or demoted; every task is a go, and each task heading below carries the number that says so. Two things the record adds to what this plan says: sampled betweenness is the strongest unbuilt row after all-pairs (crossover 1,500 nodes in Chromium on the reference card, 3.2-14x at 100k, 8x at 1M, and target T-11's 256 sources at 100k come out at 0.58 s on the measured traversal rate or 2.6 s on the pessimistic one against a 5 s target and an 8.4 s CPU), and the all-pairs refusal above the binding bound (PD-5, DEP-P9-A) is now decided by that record as well -- the GPU cannot address 100k or 1M nodes for this algorithm, and inside the bound it is three orders of magnitude over the legacy code (n = 5,792 in 995 ms in Chromium, 290x over a CPU port). Girvan-Newman, which section 0.3 sends through this phase's edge betweenness, does not earn the GPU at all (1M edges x 0.24 s per call = 66 hours) and stays on the CPU. This banner moved the body down by 2 lines, so a line number written before 2026-09-26 names text that now sits that many lines lower.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees.
 
 **Goal:** Land design phase P9 inside `webgpu-graph-algorithms/`: an all-pairs shortest-path sweep as a blocked Floyd-Warshall over 32 x 32 tiles with the ceiling the device's storage-binding limit imposes and an explicit refusal above it; betweenness centrality as a McLaughlin-Bader forward pass counting shortest paths in `u32` with overflow REPORTED rather than wrapped, a backward pass in which every vertex pulls from its successors so no float is ever written twice, and a per-batch gather that turns the per-source dependencies into scores; edge betweenness from the same dependencies; sampling and batching over sources planned from the device limits; the online choice between the frontier-driven and the edge-parallel forward pass; the independent Brandes and Floyd-Warshall references these are judged against; and the `apsp` and `betweenness` benchmark groups with T-11 recorded on both runner classes (gate G9).
@@ -190,6 +192,8 @@ then `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph
 
 ### Task P9-T1: The all-pairs result and option types, and two constants
 
+> **2026-09-26:** go. Serves the all-pairs half, which earns the GPU by three orders of magnitude inside the binding bound (n = 5,792: 11,300x over the legacy code, 290x over a CPU port; `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`).
+
 **Independent. Runs today against master, in parallel with P9-T2.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
@@ -231,6 +235,8 @@ Expected: PASS and clean. knip reports the two exports of `src/types/all-pairs.t
 ---
 
 ### Task P9-T2: The two CPU references and the check helpers
+
+> **2026-09-26:** go. Both references judge algorithms the record keeps; the Brandes reference is also the CPU baseline the betweenness speedups were computed against (3,272 ms for 100 sources at 100k).
 
 **Independent. Needs NO GPU and no device. Runs today against master, in parallel with P9-T1 and with P9-T3 Steps 1-5. P9-T3 Steps 6 and 7 cannot close without this task: they are scored by the Floyd-Warshall reference it creates.**
 
@@ -284,6 +290,8 @@ Expected: PASS, with no device acquired (the file imports nothing from `test/set
 ---
 
 ### Task P9-T3: Blocked Floyd-Warshall -- the matrix, the three tile phases, the ceiling
+
+> **2026-09-26:** go. Crossover about 50 nodes against the legacy code and about 130 against a port; n = 1,000 in Chromium is 2,500x / 89x, n = 5,792 is 11,300x / 290x (995 ms, of which 339 ms is the 128 MiB readback). The refusal above the bound (PD-5) is confirmed by the record: no windowed form reaches 100k.
 
 **Depends on P9-T1 for Steps 1-5 and on P9-T2 for Steps 6-7 -- the differential suite is written against `floydWarshallOracle` and the sabotage rows are scored by it, so the kernel can be built alongside P9-T2 but cannot be proven without it. Runs today against master.**
 
@@ -371,6 +379,8 @@ Expected: PASS on both; unweighted `dist` bitwise identical between the two adap
 
 ### Task P9-T4: `allPairsShortestPath` on the accelerator and in the barrel
 
+> **2026-09-26:** go (the all-pairs half earns; see P9-T3).
+
 **Depends on P9-T3. Runs today against master.**
 
 **Spec:** design 3.3 line 804 and the accelerator block at lines 880-900; `algorithms/src/indexed/accelerator.ts` line 118, which already declares the member as `allPairsShortestPath?(s, options?: SsspOptions): Promise<ApspResultLike>`.
@@ -389,6 +399,8 @@ Expected: all clean; knip reports nothing for this package.
 ---
 
 ### Task P9-T5: The `apsp` benchmark group, the real-ceiling test and the close of the all-pairs half
+
+> **2026-09-26:** go. The benchmark's CPU comparison should be against the 1.5 ns-per-inner-step port estimate as well as the legacy code, because 2,500x against the legacy code is mostly the legacy code.
 
 **Depends on P9-T4. Runs today against master. This task ends a shippable pull request.**
 
@@ -409,6 +421,8 @@ Expected: the table prints; `bench:compare` finds no tracked median above 3x its
 ---
 
 ### Task P9-T6: The source batch, the claim log and the level boundary
+
+> **2026-09-26:** go. Sampled betweenness earns: crossover 1.5k nodes in Chromium (2.3k on the pessimistic traversal rate), 7.0x / 13.7x / 8.1x at 10k / 100k / 1M (2.5x / 3.2x / 8.1x pessimistic); the kernel is 88-97% of the call, so the batch machinery here is what the speedup rests on.
 
 **Depends on design phase P8 being merged. Blocks everything from P9-T7 on.**
 
@@ -485,6 +499,8 @@ Expected: PASS on both.
 
 ### Task P9-T7: The tagged forward pass, the path counts and the overflow report
 
+> **2026-09-26:** go (sampled betweenness earns; see P9-T6). The forward pass runs at the BFS traversal rate, 0.5 ns/arc at 100k on the measured decomposition and 2.45 ns/arc pessimistic -- the one constant that moves this row between 13.7x and 3.2x at 100k.
+
 **Depends on P9-T6, and on P8's `Frontier` host loop and `bfs-fused` body.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
@@ -543,6 +559,8 @@ Expected: PASS on both; `depthK` and `sigmaK` bitwise identical between the two 
 ---
 
 ### Task P9-T8: The backward pass, the gather, sampling -- the first working betweenness
+
+> **2026-09-26:** go. Sampling is the product form: 100 sources at 100k is 237 ms in Chromium against 3,272 ms on the CPU; exact betweenness over every source is O(n m) on either processor and is not a routed feature above small n (design 13 row P9 already says "exact for small n").
 
 **Depends on P9-T7. This is the task that makes the betweenness half deliver something.**
 
@@ -624,6 +642,8 @@ Expected: PASS on both; `bc` bitwise identical between the two adapters (PD-12).
 
 ### Task P9-T9: Edge betweenness
 
+> **2026-09-26:** go, same cost as the vertex form. Its one named consumer that does not earn is Girvan-Newman (66 hours at 100k nodes), which stays on the CPU.
+
 **Depends on P9-T8.**
 
 **Spec:** design 8.4 lines 2712-2715 ("edge BC writes per arc and folds with `foldArcs(s, vec, "first")`, halved on undirected snapshots as both papers do" -- this task keeps the fold and drops the halving, DEP-P9-F); design 3.3 line 803 and line 825; design 9.7 line 3272; design 13 row P9's gate item "edge BC folded correctly (both arcs equal before folding, asserted)".
@@ -643,6 +663,8 @@ Expected: PASS on both.
 ---
 
 ### Task P9-T10: The edge-parallel forward pass and the per-batch choice
+
+> **2026-09-26:** go. The model has no separate figure for the edge-parallel form; it is the per-batch choice on shallow graphs and shares the betweenness row.
 
 **Depends on P9-T8. May run in parallel with P9-T9 provided its `src/kernels.ts` append is applied after it.**
 
@@ -665,6 +687,8 @@ Expected: PASS; identical scores in all three modes; each body chosen at least o
 
 ### Task P9-T11: Unweighted all-pairs over the tagged forward pass
 
+> **2026-09-26:** go. No separate figure: it is bounded by the same binding limit as P9-T3 and runs the same traversal kernel as P9-T7, so it inherits both rows.
+
 **Depends on P9-T7 (the forward pass) and P9-T3 (the driver it extends).**
 
 **Spec:** design 8.7 line 2775 ("`n` batched BFS rows for unweighted"); design 9.7 line 3274 (exact unweighted).
@@ -685,6 +709,8 @@ Expected: PASS; the two routes bitwise identical.
 
 ### Task P9-T12: The betweenness accelerator members and the barrel
 
+> **2026-09-26:** go. The element's routing floor for sampled betweenness is 1.5k nodes in Chromium on the reference card (3.0k on a Tesla T4); the record's routing table has every row.
+
 **Depends on P9-T8, P9-T9, P9-T10 and P9-T11 -- every driver green.**
 
 **Spec:** design 3.3 lines 802-803 and the accelerator block; `algorithms/src/indexed/accelerator.ts` lines 113-117, which already declare both members with `BetweennessAcceleratorOptions`.
@@ -703,6 +729,8 @@ Expected: all clean.
 ---
 
 ### Task P9-T13: The `betweenness` benchmark group and T-11 on both runner classes
+
+> **2026-09-26:** go. The record predicts T-11 (256 sources at 100k) at 0.58 s in Chromium on the measured traversal rate and 2.6 s on the pessimistic one, against the 5 s target and an 8.4 s CPU; the measurement decides which rate is real, and with it whether betweenness at 100k is 13.7x or 3.2x.
 
 **Depends on P9-T12. Parallel with P9-T14.**
 
@@ -723,6 +751,8 @@ Expected: the table prints; `bench:compare` finds no tracked median above 3x its
 ---
 
 ### Task P9-T14: The sabotage matrix, the stage comparisons, the browser smoke and the limits tests
+
+> **2026-09-26:** go.
 
 **Depends on P9-T12. Parallel with P9-T13.**
 
@@ -746,6 +776,8 @@ Expected: every mutation caught; limits green; browser green (exit 124 with `num
 
 ### Task P9-T15: The decision records and the design index
 
+> **2026-09-26:** go. The all-pairs refusal record this task writes is now backed by `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md` as well; cite it.
+
 **May run any time after P9-T8.**
 
 **Files:** Create `$WT/design/decisions/2026-09-23-all-pairs-refuses-above-the-binding-bound.md`, `$WT/design/decisions/2026-09-23-betweenness-batch-counts-the-claim-log.md`, `$WT/design/decisions/2026-09-23-betweenness-endpoints-is-refused.md`, `$WT/design/decisions/2026-09-23-edge-betweenness-is-not-halved.md`, `$WT/design/decisions/2026-09-23-sampled-betweenness-is-not-rescaled.md`; modify `$WT/design/decisions/README.md`.
@@ -761,6 +793,8 @@ Expected: no output.
 ---
 
 ### Task P9-T16: The G9 gate record and the phase close
+
+> **2026-09-26:** go. The gate record should carry the routing floors the record gives for betweenness and all-pairs, so the element phase that consumes them has a number.
 
 **Last.**
 

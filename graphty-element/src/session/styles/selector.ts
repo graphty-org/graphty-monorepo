@@ -41,6 +41,7 @@ import {
     idsPredicate,
     type SelectorSource,
     type SelectorTarget,
+    topPredicate,
 } from "./predicate";
 
 // ---------------------------------------------------------------------------------------------
@@ -71,13 +72,23 @@ export type Selector =
      * reading of "these elements" when there are none and is safe: it paints nothing rather than
      * everything.
      */
-    | { readonly match: "ids"; readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeId[] };
+    | { readonly match: "ids"; readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeId[] }
+    /**
+     * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
+     * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
+     * So a layer never paints more than `n` elements, and paints none on a graph whose highest
+     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason.
+     */
+    | { readonly match: "top"; readonly path: Path; readonly n: number };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top"] as const;
+
+/** The prefix of the only paths a top selector ranks: a run's published fields. */
+const RESULT_PATH_PREFIX = "results.";
 
 // ---------------------------------------------------------------------------------------------
 // Refusals
@@ -204,6 +215,19 @@ function assertSelector(selector: Selector): void {
             assertIdList(selector.edges, "edges");
 
             return;
+        case "top":
+            if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
+                throw badShape(
+                    'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
+                    { path: selector.path },
+                );
+            }
+
+            if (!Number.isInteger(selector.n) || selector.n < 0) {
+                throw badShape('A "top" selector\'s n is a whole number of elements.', { n: selector.n });
+            }
+
+            return;
         default:
             throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
     }
@@ -225,7 +249,8 @@ function assertSelector(selector: Selector): void {
  * @returns The compiled selector: its test, and the columns that test reads.
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the selector's shape or its
  *     expression is wrong, `E_SELECTOR_EMPTY` when a selector is empty, and `E_UNSUPPORTED`
- *     when an `ids` selector is offered to a session that cannot say which id sits at which row.
+ *     when an `ids` selector is offered to a session that cannot say which id sits at which row,
+ *     or a `top` selector to one that cannot rank a run's column.
  */
 export function compileSelector(
     selector: Selector,
@@ -246,6 +271,26 @@ export function compileSelector(
             const ids = new Set<EdgeId | NodeId>(named ?? []);
 
             return { match: "ids", target, test: idsPredicate(columns, ids), paths: EMPTY_PATHS };
+        }
+        case "top": {
+            const { topCut } = source;
+            const { path, n } = selector;
+
+            if (topCut === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: 'This session cannot evaluate a "top" selector, because it cannot rank a run\'s column.',
+                    source: "style",
+                    details: { match: "top" },
+                });
+            }
+
+            return {
+                match: "top",
+                target,
+                test: topPredicate(columns, path, () => topCut(path, target, n)),
+                paths: Object.freeze([path]),
+            };
         }
         default: {
             const { paths, test } = compileExpressionPredicate(selector.where, columns);

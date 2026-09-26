@@ -981,10 +981,8 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        // Update rays for all edges (static method on Edge class)
-        Edge.updateRays(this.graphContext);
-
-        // Update individual edges
+        // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
+        // moved costs nothing here. A pass over the whole graph used to aim all of them first.
         for (const edge of this.layoutManager.edges) {
             edge.update();
         }

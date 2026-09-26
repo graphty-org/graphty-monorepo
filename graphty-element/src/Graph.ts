@@ -73,7 +73,6 @@ import {
 } from "./config";
 import type { AlgorithmOnLoad } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
-import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventType } from "./events";
 import {
@@ -185,7 +184,6 @@ export class Graph implements GraphContext {
     private userCameraPresets = new Map<string, import("./screenshot/types.js").CameraState>();
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
-    needRays = true;
     // graph engine - delegate to LayoutManager
     pinOnDrag?: boolean;
     // graph
@@ -611,7 +609,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             contextConfig,
-            this.needRays,
         );
 
         // Set GraphContext on managers
@@ -3064,8 +3061,8 @@ export class Graph implements GraphContext {
                 this.savedZPositions.clear();
             }
 
-            // Now update edges to connect to the updated node positions
-            Edge.updateRays(this);
+            // Now update edges to connect to the updated node positions. Each one aims its own
+            // ray when it needs it, so there is nothing to prime here.
             for (const edge of this.dataManager.edges.values()) {
                 edge.update();
             }
@@ -3077,14 +3074,6 @@ export class Graph implements GraphContext {
                 this.camera.zoomToBoundingBox(box.min, box.max);
             }
         }
-    }
-
-    /**
-     * Check if ray updates are needed for edge arrows.
-     * @returns True if rays need updating
-     */
-    needsRayUpdate(): boolean {
-        return this.needRays;
     }
 
     /**

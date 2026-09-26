@@ -67,7 +67,6 @@ function createMockGraphContext(
         getScene: () => scene,
         getStatsManager: () => statsManager,
         is2D: () => false,
-        needsRayUpdate: () => true,
         getConfig: () => ({}),
         isRunning: () => false,
         setRunning: vi.fn(),

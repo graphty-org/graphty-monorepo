@@ -75,6 +75,38 @@ function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | nul
     return cap !== null && block?.enabled === true ? block : undefined;
 }
 
+/**
+ * The frame each node mesh's world matrix was last recomputed for.
+ *
+ * Keyed on the MESH rather than on the node, so a node that is given a new mesh -- a reshape --
+ * starts with no entry and is recomputed rather than skipped on a stamp its old mesh earned.
+ */
+const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
+
+/**
+ * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
+ *
+ * WHY IT HAS TO BE FRESH. Trimming an edge at the node surface intersects a ray with the node's
+ * mesh, and that test reads the mesh's world matrix -- which is stale from the moment the frame
+ * moved the node until something recomputes it.
+ *
+ * WHY IT IS COUNTED. A node with twenty edges on it would otherwise be recomputed twenty times a
+ * frame. This used to be paid for by a separate pass over every edge in the graph that collected
+ * the meshes into a set first, which cost a set of its own and a walk of every edge whether or
+ * not any of them had moved. Asking here means it is paid once per node, and only for the nodes
+ * an edge that actually moved is about to intersect.
+ * @param mesh - The node mesh about to be intersected.
+ * @param frame - The scene's current frame id.
+ */
+function freshenWorldMatrix(mesh: AbstractMesh, frame: number): void {
+    if (worldMatrixFrame.get(mesh) === frame) {
+        return;
+    }
+
+    worldMatrixFrame.set(mesh, frame);
+    mesh.computeWorldMatrix(true);
+}
+
 interface EdgeOpts {
     metadata?: object;
 }
@@ -498,15 +530,12 @@ export class Edge {
             return;
         }
 
-        this.context.getStatsManager().startMeasurement("Edge.update");
-
-        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
-        if (!lnk) {
-            this.context.getStatsManager().endMeasurement("Edge.update");
-            return;
-        }
-
-        // Dirty tracking: Check if nodes have moved significantly
+        // DIRTY TRACKING FIRST, BEFORE ANYTHING THAT COSTS. On a still graph this comparison is
+        // the whole of an edge's frame, and the update pass walks every edge in the graph on
+        // every frame -- so whatever sits above this line is paid a million times a second at the
+        // render ceiling for edges that are not going to move. It used to sit below a timing call
+        // and a lookup into the layout engine, neither of which the early exit needs: the
+        // engine's answer is only read further down, for an edge that IS moving.
         const srcPos = this.srcNode.mesh.position;
         const dstPos = this.dstNode.mesh.position;
 
@@ -514,6 +543,13 @@ export class Edge {
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
 
         if (!srcMoved && !dstMoved) {
+            return;
+        }
+
+        this.context.getStatsManager().startMeasurement("Edge.update");
+
+        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+        if (!lnk) {
             this.context.getStatsManager().endMeasurement("Edge.update");
             return;
         }
@@ -1102,60 +1138,6 @@ export class Edge {
     }
 
     /**
-     * Updates ray directions for all edges in the graph to enable accurate mesh intersections.
-     * @param g - The graph or graph context containing the edges
-     */
-    static updateRays(g: Graph | GraphContext): void {
-        const context = "getStyles" in g ? g : g;
-
-        if (!context.needsRayUpdate()) {
-            return;
-        }
-
-        const { layoutEngine } = context.getLayoutManager();
-        if (!layoutEngine) {
-            return;
-        }
-
-        // The node meshes the intersection tests below will read. Collected in a set so a node
-        // shared by many edges is refreshed once per frame rather than once per incident edge.
-        const touched = new Set<AbstractMesh>();
-
-        for (const e of layoutEngine.edges) {
-            const srcMesh = e.srcNode.mesh;
-            const dstMesh = e.dstNode.mesh;
-
-            const style = e.currentStyle;
-            if (style.arrowHead?.type === undefined || style.arrowHead.type === "none") {
-                // Performance: this could be optimized
-                continue;
-            }
-
-            // RayHelper.CreateAndShow(ray, e.parentGraph.scene, Color3.Red());
-
-            // Update ray origin and direction to match current mesh positions
-            // The ray starts at the source node and points toward the destination node
-            e.ray.origin = srcMesh.position;
-            e.ray.direction = dstMesh.position.subtract(srcMesh.position);
-            touched.add(srcMesh);
-            touched.add(dstMesh);
-        }
-
-        // getInterceptPoints() calls ray.intersectsMeshes(), which reads each mesh's world matrix.
-        // After the frame has moved a node, that matrix is stale until something recomputes it.
-        //
-        // This used to be `context.getScene().render()` -- a SECOND full render pass, every frame,
-        // for every graph, because the `needRays` flag that was meant to gate it is initialised
-        // true (Graph.ts) and never set false by anything. Rendering the scene does refresh world
-        // matrices, but it also redraws every mesh, so the whole application ran at half the frame
-        // rate it could. Computing the world matrix of exactly the meshes that get intersected is
-        // the same guarantee at a fraction of the cost, and touches nothing else in the scene.
-        for (const mesh of touched) {
-            mesh.computeWorldMatrix(true);
-        }
-    }
-
-    /**
      * Transforms the edge mesh to position it between source and destination points.
      * Handles different mesh types (solid, patterned, 2D, bezier).
      * @param srcPoint - The source point position
@@ -1343,7 +1325,20 @@ export class Edge {
         const srcMesh = this.srcNode.mesh;
         const dstMesh = this.dstNode.mesh;
 
-        // ray is updated in updateRays to ensure intersections
+        // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
+        // graph used to do this, once a frame, whether or not the edge had moved: it allocated a
+        // direction vector per edge, added both endpoints to a set, and then recomputed a world
+        // matrix for every mesh in that set. At the render ceiling that is a million vectors and
+        // two million set writes a frame for a graph that is standing still. The work is the same
+        // work; it is now done by the edges that need it, at the moment they need it.
+        this.ray.origin = srcMesh.position;
+        dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
+
+        const frame = this.context.getScene().getFrameId();
+
+        freshenWorldMatrix(srcMesh, frame);
+        freshenWorldMatrix(dstMesh, frame);
+
         const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
         const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
 

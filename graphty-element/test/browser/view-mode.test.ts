@@ -4,9 +4,11 @@
  * Tests for the viewMode property on graphty-element and Graph,
  * including switching between 2D, 3D, and XR modes.
  */
+import { Camera } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { ViewMode } from "../../src/config";
+import { isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
 
 describe("ViewMode API", () => {
@@ -328,6 +330,66 @@ describe("ViewMode API", () => {
                     );
                 }
             }
+        });
+    });
+
+    describe("the active camera and the recorded view mode never disagree", () => {
+        /**
+         * Await a promise that must reject, and hand back what it rejected with.
+         * @param promise - The call that should be refused.
+         * @returns The rejection.
+         */
+        async function refusal(promise: Promise<unknown>): Promise<unknown> {
+            return promise.then(
+                () => assert.fail("the call was expected to be refused"),
+                (error: unknown) => error,
+            );
+        }
+
+        it("refuses the orbit camera in 2D and keeps the orthographic one", async () => {
+            await graph.setViewMode("2d");
+            await graph.operationQueue.waitForCompletion();
+
+            const error = await refusal(graph.setCameraMode("orbit"));
+
+            assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_COMMAND", String(error));
+            assert.strictEqual(graph.scene.activeCamera?.mode, Camera.ORTHOGRAPHIC_CAMERA);
+            assert.strictEqual(graph.scene.metadata.viewMode, "2d");
+        });
+
+        it("refuses the 2D camera in 3D and keeps the perspective one", async () => {
+            const error = await refusal(graph.setCameraMode("2d"));
+
+            assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_COMMAND", String(error));
+            assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
+        });
+
+        it("still accepts the camera that belongs to the view mode", async () => {
+            await graph.setCameraMode("orbit");
+            assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
+
+            await graph.setCameraMode("orbit", { skipQueue: true });
+            assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
+        });
+
+        it("setViewMode repairs a 2D scene drawing through the orbit camera", async () => {
+            await graph.setViewMode("2d");
+            await graph.operationQueue.waitForCompletion();
+
+            // Force the drift the element no longer lets a caller cause.
+            graph.camera.activateCamera("orbit");
+            await graph.setViewMode("2d");
+            await graph.operationQueue.waitForCompletion();
+
+            assert.strictEqual(graph.scene.activeCamera?.mode, Camera.ORTHOGRAPHIC_CAMERA);
+        });
+
+        it("setViewMode repairs a 3D scene drawing through the 2D camera", async () => {
+            graph.camera.activateCamera("2d");
+            await graph.setViewMode("3d");
+            await graph.operationQueue.waitForCompletion();
+
+            assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
         });
     });
 });

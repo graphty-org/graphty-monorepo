@@ -1007,8 +1007,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /**
      * Where a layer's elements come from: the column its selector names, or every element.
      *
-     * ONLY `{match:"has"}` NARROWS, and that is the design's rule that a run-bound layer
-     * iterates the run's measured column rather than a shortcut. An expression is not narrowed even when it reads one column, because
+     * `{match:"has"}` and `{match:"top"}` NARROW to their column's measured elements, and that is
+     * the design's rule that a run-bound layer iterates the run's measured column rather than a
+     * shortcut. An expression is not narrowed even when it reads one column, because
      * ``path == `null` `` is a perfectly good expression that matches exactly the elements the
      * column does NOT hold, and the compiled selector reports which columns it reads without
      * reporting what it asks of them. Narrowing on that would silently paint the wrong set, which
@@ -1019,7 +1020,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     const iterationFor = (entry: CompiledLayer): ArrayLike<number> | null => {
         const { selector } = entry;
 
-        if (selector.match !== "has") {
+        // A top selector paints a subset of its column's measured elements, so it narrows too.
+        if (selector.match !== "has" && selector.match !== "top") {
             return null;
         }
 

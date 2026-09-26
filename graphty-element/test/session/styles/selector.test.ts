@@ -193,6 +193,49 @@ describe("the readers a selector is compiled against", () => {
     });
 });
 
+describe("a top selector", () => {
+    it("refuses a path that is not a run's field, because only a run publishes a ranking", () => {
+        const harness = makeSource([{}]);
+        const source = { ...harness.source, topCut: () => undefined };
+
+        assert.strictEqual(
+            refusalOf(() => compileSelector({ match: "top", path: "data.weight", n: 3 }, "node", source)).code,
+            "E_BAD_SELECTOR",
+        );
+    });
+
+    it("refuses an n that is not a whole number", () => {
+        const harness = makeSource([{}]);
+        const source = { ...harness.source, topCut: () => undefined };
+
+        for (const n of [-1, 1.5, Number.NaN]) {
+            assert.strictEqual(
+                refusalOf(() => compileSelector({ match: "top", path: "results.r1.value", n }, "node", source)).code,
+                "E_BAD_SELECTOR",
+            );
+        }
+    });
+
+    it("refuses a session that cannot rank a column", () => {
+        const harness = makeSource([{}]);
+
+        assert.strictEqual(
+            refusalOf(() => compileSelector({ match: "top", path: "results.r1.value", n: 3 }, "node", harness.source)).code,
+            "E_UNSUPPORTED",
+        );
+    });
+
+    it("paints the elements at or above the cut the source ranks, and reports the column it reads", () => {
+        const rows: Row[] = [{ "results.r1.value": 4 }, { "results.r1.value": 3 }, {}, { "results.r1.value": 4 }];
+        const harness = makeSource(rows);
+        const source = { ...harness.source, topCut: () => 4 };
+        const compiled = compileSelector({ match: "top", path: "results.r1.value", n: 2 }, "node", source);
+
+        assert.deepStrictEqual([0, 1, 2, 3].map((index) => compiled.test?.(index)), [true, false, false, true]);
+        assert.deepStrictEqual([...compiled.paths], ["results.r1.value"]);
+    });
+});
+
 describe("selector refusals", () => {
     it("refuses a bare selector string, naming the object to write instead", () => {
         const harness = makeSource([]);
@@ -233,7 +276,7 @@ describe("selector refusals", () => {
         );
 
         assert.strictEqual(refusal.code, "E_BAD_SELECTOR");
-        assert.deepStrictEqual(refusal.details.kinds, ["everything", "expression", "has", "ids"]);
+        assert.deepStrictEqual(refusal.details.kinds, ["everything", "expression", "has", "ids", "top"]);
     });
 
     it("refuses an id list that is not a list of ids", () => {

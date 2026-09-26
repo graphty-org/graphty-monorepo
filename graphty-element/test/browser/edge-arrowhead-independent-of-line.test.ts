@@ -79,7 +79,11 @@ describe("an arrowhead is independent of the line it caps", () => {
      * @returns The drawn length.
      */
     function arrowLength(cap: ArrowCap): number {
-        return cap.span;
+        // The cap's own scale, not its drawn extent. In 2D a cap is real geometry turned to the
+        // angle of the edge it caps, so its world box is wider for a diagonal edge than for a
+        // horizontal one -- and these two edges are at different angles. What this test asks is
+        // whether the LINE's width reached the cap, and the scale is where that would show.
+        return cap.size;
     }
 
     for (const mode of ["2d", "3d"] as const) {

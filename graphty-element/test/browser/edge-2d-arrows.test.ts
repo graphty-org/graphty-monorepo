@@ -62,7 +62,20 @@ describe("Edge 2D Arrows Integration", () => {
 
         // Verify rotation to XY plane. The turn is no longer a property of a mesh: a cap is a
         // slot in a shared batch, and the quarter turn that lifts its geometry into the XY plane
-        // is composed into that slot's matrix every time the edge places it.
+        // is composed into that slot's matrix by the edge's own placement -- so the reading is
+        // taken after asking the edge to draw itself, which is a stricter check than the one it
+        // replaces: that one read a property set when the mesh was built and would have passed
+        // on an edge that never placed its cap at all.
+        //
+        // The two ends are moved apart by hand first. The layout has not run at this point, so
+        // both nodes still sit at the origin, and an edge whose ends coincide draws no cap --
+        // which is the same reason `edge-arrowhead-position.test.ts` pulls node positions out of
+        // the layout engine before it reads an arrow.
+        edge.srcNode.mesh.position.set(0, 0, 0);
+        edge.dstNode.mesh.position.set(4, 0, 0);
+        edge.invalidatePositionCache();
+        edge.update();
+
         const turn = new Quaternion();
         edge.arrowMesh.transform.decompose(undefined, turn, undefined);
         const euler = turn.toEulerAngles();

@@ -117,6 +117,17 @@ export class EdgeLineBatch {
         mesh.thinInstanceSetBuffer("matrix", this.matrices, FLOATS_PER_SLOT, false);
         mesh.thinInstanceCount = 0;
 
+        // Follow the graph's own transform, so an XR pinch moves the lines with the nodes. Every
+        // edge used to be parented here one mesh at a time; a batch is parented once and Babylon's
+        // THIN_INSTANCES branch applies that transform to every slot in it. This was described in
+        // `Edge.ts` before it was done: an endpoint is a node's position under `graph-root`, so
+        // without the parent a gesture moved the nodes and left the lines where they were.
+        const graphRoot = scene.getTransformNodeByName("graph-root");
+
+        if (graphRoot) {
+            mesh.parent = graphRoot;
+        }
+
         // ONE UPLOAD PER FRAME, WHOEVER MOVED THE EDGES. Hanging the upload on the scene rather
         // than on the update loop means a render from anywhere -- the element's own frame, a
         // story that steps the graph by hand, a test that renders once -- draws what was written

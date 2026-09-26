@@ -2,7 +2,7 @@
 // here so any path that reaches a batch has them. See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/thinInstanceMesh";
 
-import { Color3, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
+import { BoundingBox, Color3, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
@@ -64,14 +64,6 @@ export class ArrowCapBatch {
     /** The one mesh that draws every cap in this batch. */
     readonly mesh: Mesh;
 
-    /**
-     * How wide a cap in this batch is drawn at scale 1, as `extendSizeWorld.length()` reads it.
-     *
-     * The reading a story used to take off each cap's own bounding box, kept here because the
-     * caps no longer have one. See {@link ArrowCap.span}.
-     */
-    readonly unitSpan: number;
-
     /** The shape name the caps in this batch carry, which is the name their source mesh had. */
     readonly shape: string;
 
@@ -82,6 +74,17 @@ export class ArrowCapBatch {
     readonly billboarded: boolean;
 
     private readonly key: string;
+
+    /** The half-diagonal of the cube a billboarded cap of scale 1 is bounded by. */
+    private readonly unitCubeSpan: number;
+
+    /** The corners of the geometry every cap in this batch is drawn from, before its slot. */
+    private readonly localMin: Vector3;
+
+    private readonly localMax: Vector3;
+
+    /** Scratch, for measuring one slot's drawn extent. */
+    private readonly scratchBox = new BoundingBox(Vector3.Zero(), Vector3.Zero());
 
     /** The world matrix of every slot, live or free, packed end to end. */
     private matrices: Float32Array;
@@ -126,14 +129,15 @@ export class ArrowCapBatch {
         this.billboarded = billboard;
         this.matrices = new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
 
-        const { minimum, maximum, extendSize } = mesh.getBoundingInfo().boundingBox;
-        // HOW WIDE ONE OF THESE CAPS READS, spelled the way the thing that draws it bounds it.
-        // A billboarded cap is laid out on the GPU from its origin, so `applyShaderBoundingInfo`
-        // gives it a cube whose half-extent is its furthest vertex; a StandardMaterial cap (2D,
-        // and the sphere-dot) is drawn as its own geometry, so its box is the geometry's. Both
-        // are then read as `extendSizeWorld.length()`, which is what a story measured off the
-        // cap's own mesh before there was a batch.
-        this.unitSpan = billboard ? Math.sqrt(3) * Math.max(minimum.length(), maximum.length()) : extendSize.length();
+        const { minimum, maximum } = mesh.getBoundingInfo().boundingBox;
+        this.localMin = minimum.clone();
+        this.localMax = maximum.clone();
+        // HOW WIDE ONE OF THESE CAPS READS AT SCALE 1, for a billboarded cap. It is laid out on
+        // the GPU from its own origin, so `applyShaderBoundingInfo` gave it a cube whose
+        // half-extent is its furthest vertex, and a cube reads the same whichever way the cap is
+        // turned. A StandardMaterial cap does not: it is drawn as its own geometry, so its world
+        // box depends on the turn in its slot, and `spanOf` measures that instead.
+        this.unitCubeSpan = Math.sqrt(3) * Math.max(minimum.length(), maximum.length());
 
         // The source mesh only carries the batch and is never drawn itself. It takes a name that
         // does not say "arrow", so code that looks for caps by name does not find the carrier.
@@ -188,7 +192,10 @@ export class ArrowCapBatch {
      * @returns True once it is gone.
      */
     get disposed(): boolean {
-        return this.gone;
+        // The mesh's own state as well as this batch's, because a scene teardown disposes the
+        // mesh without anything here being told: an edge that then asks its cap whether it is
+        // still drawn would otherwise be told yes.
+        return this.gone || this.mesh.isDisposed();
     }
 
     /**
@@ -349,6 +356,31 @@ export class ArrowCapBatch {
     }
 
     /**
+     * How wide the cap in one slot is drawn, in world units.
+     *
+     * THE READING A STORY USED TO TAKE OFF THE CAP'S OWN BOUNDING BOX, and the same number. A
+     * billboarded cap's box is a cube, so its span is its scale times the unit cube's; every
+     * other cap is drawn as its own geometry turned and scaled by its slot, so its span is the
+     * world box of that geometry under the slot's matrix -- the arithmetic Babylon itself did
+     * when a cap was a mesh with a world matrix. A 2D cap's span therefore still moves with the
+     * angle of the edge it caps, which is what a picture digest reads it for: two layouts that
+     * point the same edges different ways draw different pictures, and nothing else in the
+     * digest can see it.
+     * @param index - The slot.
+     * @param size - The cap's scale, which a billboarded cap does not keep in its matrix.
+     * @returns The span.
+     */
+    spanOf(index: number, size: number): number {
+        if (this.billboarded) {
+            return this.unitCubeSpan * size;
+        }
+
+        this.scratchBox.reConstruct(this.localMin, this.localMax, this.matrixOf(index));
+
+        return this.scratchBox.extendSizeWorld.length();
+    }
+
+    /**
      * The billboard shader's three per-instance values for one slot.
      *
      * The direction it points along, the world-space length it is drawn at and its colour --
@@ -492,6 +524,14 @@ export class ArrowCap {
         this.batch = batch;
         this.slot = batch.acquire();
         this.size = size;
+
+        // A cap drawn as its own geometry keeps its scale in its slot, so the slot carries it
+        // from the moment the cap exists -- as `instance.scaling` did when a cap was a mesh, and
+        // for the same reason: how big a cap is drawn is a fact about it before anything has
+        // asked where it goes.
+        if (!batch.billboarded) {
+            batch.placeOriented(this.slot, Vector3.Zero(), null, size);
+        }
     }
 
     /**
@@ -528,7 +568,7 @@ export class ArrowCap {
      * @returns The span.
      */
     get span(): number {
-        return (this.batch?.unitSpan ?? 0) * this.size;
+        return this.batch?.spanOf(this.slot, this.size) ?? 0;
     }
 
     /**
